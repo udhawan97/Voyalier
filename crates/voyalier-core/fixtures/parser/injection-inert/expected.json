@@ -1,0 +1,6 @@
+{
+  "parser": "plaintext.v1",
+  "exact": false,
+  "expectedCandidates": [],
+  "expectedDiagnostics": []
+}

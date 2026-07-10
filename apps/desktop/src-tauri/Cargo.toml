@@ -15,8 +15,11 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-axum.workspace = true
+serde.workspace = true
 tauri = { version = "2", features = [] }
-tokio.workspace = true
-tracing.workspace = true
-voyalier-server = { path = "../../../crates/voyalier-server" }
+voyalier-app = { path = "../../../crates/voyalier-app" }
+voyalier-core = { path = "../../../crates/voyalier-core" }
+
+[dev-dependencies]
+serde_json.workspace = true
+tauri = { version = "2", features = ["test"] }

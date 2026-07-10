@@ -51,8 +51,9 @@ apps/
   web/                 React and Vite product interface
   desktop/             Tauri 2 desktop shell
 crates/
-  voyalier-core/       Domain types and deterministic product rules
-  voyalier-server/     Axum local API and one-command web runtime
+  voyalier-core/       Domain types, validation, and deterministic parsers
+  voyalier-app/        SQLite-backed application services
+  voyalier-server/     Axum local API and browser development runtime
 packages/
   brand/               Folded-route mark, lockup, and app-icon brand assets
   contracts/           Versioned API/domain contracts

@@ -1,0 +1,4 @@
+Fictional airline message
+Confirmation MISS9
+Route SEA-OSL
+Dates will be sent separately.

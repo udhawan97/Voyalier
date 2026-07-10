@@ -1,0 +1,19 @@
+{
+  "parser": "jsonld.v1",
+  "exact": true,
+  "expectedCandidates": [
+    {
+      "factType": "lodging_stay",
+      "method": "structured",
+      "payload": {
+        "propertyName": "Harbor Lantern Inn",
+        "address": "12 Fictional Quay, Lisbon",
+        "checkinDate": "2026-09-03",
+        "checkoutDate": "2026-09-06",
+        "confirmationCode": "LODGE42",
+        "guestName": "Morgan Sample"
+      }
+    }
+  ],
+  "expectedDiagnostics": []
+}
