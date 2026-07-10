@@ -488,11 +488,11 @@ h1 em {
   height: auto;
 }
 
-/* the big app icon, floating as a hero product shot */
-.hero-icon {
-  width: min(78%, 21rem);
+/* the big app icon, floating as a product shot in the closing act */
+.close-icon {
+  width: clamp(7rem, 26vw, 9.5rem);
   height: auto;
-  filter: drop-shadow(0 30px 52px rgb(23 22 20 / 34%));
+  filter: drop-shadow(0 30px 52px rgb(0 0 0 / 46%));
   animation: voy-float 6s ease-in-out infinite;
 }
 
@@ -844,11 +844,6 @@ h1 em {
   text-align: center;
 }
 
-.mk-close {
-  width: 6.2rem;
-  height: 6.2rem;
-}
-
 .close-word {
   margin-top: 2.3rem;
   font-size: 1.35rem;
@@ -973,7 +968,7 @@ footer p {
   .lede[data-load],
   .actions[data-load],
   .hero-panel,
-  .hero-icon {
+  .close-icon {
     animation: none;
     opacity: 1;
     transform: none;
