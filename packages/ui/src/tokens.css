@@ -1,38 +1,128 @@
+/*
+ * Voyalier design tokens.
+ *
+ * Theme resolution:
+ *   - :root                            → light palette (default)
+ *   - @media (prefers-color-scheme)    → system dark, unless the user forced light
+ *   - :root[data-theme="light|dark"]   → explicit user choice (wins by specificity)
+ *
+ * The media query preserves the original system-preference behavior; the
+ * [data-theme] blocks layer an explicit override on top. theme.ts sets or
+ * removes the attribute on <html>.
+ */
+
 :root {
   color-scheme: light;
+
+  /* Palette — light */
   --voy-paper: #f3efe4;
   --voy-paper-raised: #faf7ef;
+  --voy-paper-sunken: #ebe6d7;
   --voy-ink: #1a1917;
   --voy-ink-muted: #5f5b52;
   --voy-line: rgb(26 25 23 / 14%);
+  --voy-line-strong: rgb(26 25 23 / 26%);
   --voy-indigo: #46536b;
   --voy-vermilion: #c34e33;
   --voy-silver: #a9a69c;
   /* Functional status green for product surfaces; not part of the brand palette. */
   --voy-moss: #6f7a64;
+  --voy-overlay: rgb(26 25 23 / 42%);
+  --voy-tint-vermilion: rgb(195 78 51 / 12%);
+  --voy-tint-indigo: rgb(70 83 107 / 12%);
+  --voy-tint-moss: rgb(111 122 100 / 14%);
   --voy-shadow: 0 24px 70px rgb(26 25 23 / 10%);
+  --voy-shadow-sm: 0 1px 2px rgb(26 25 23 / 6%);
+
+  /* Semantic — derive from the palette so they follow the theme automatically */
+  --voy-focus: var(--voy-indigo);
+  --voy-danger: var(--voy-vermilion);
+  --voy-success: var(--voy-moss);
+
+  /* Shape */
   --voy-radius-sm: 0.75rem;
   --voy-radius-md: 1.25rem;
   --voy-radius-lg: 2rem;
+
+  /* Motion */
+  --voy-motion-fast: 150ms;
+  --voy-motion: 200ms;
+  --voy-motion-slow: 250ms;
+  --voy-ease: cubic-bezier(0.2, 0, 0, 1);
+
   --voy-font-ui:
     "Zen Kaku Gothic New", Inter, ui-sans-serif, -apple-system,
     BlinkMacSystemFont, "Segoe UI", sans-serif;
   --voy-font-display:
     "Shippori Mincho", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --voy-font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
+/* Palette — dark. Applied for system dark preference unless the user forced light. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     color-scheme: dark;
     --voy-paper: #171614;
     --voy-paper-raised: #1e1c19;
+    --voy-paper-sunken: #100f0d;
     --voy-ink: #f2ede1;
     --voy-ink-muted: #a7a297;
     --voy-line: rgb(242 237 225 / 14%);
+    --voy-line-strong: rgb(242 237 225 / 28%);
     --voy-indigo: #93a0b8;
     --voy-vermilion: #d97a5f;
     --voy-silver: #8b887e;
     --voy-moss: #98a28e;
+    --voy-overlay: rgb(0 0 0 / 55%);
+    --voy-tint-vermilion: rgb(217 122 95 / 16%);
+    --voy-tint-indigo: rgb(147 160 184 / 16%);
+    --voy-tint-moss: rgb(152 162 142 / 18%);
     --voy-shadow: 0 28px 80px rgb(0 0 0 / 30%);
+    --voy-shadow-sm: 0 1px 2px rgb(0 0 0 / 24%);
   }
+}
+
+/* Explicit user choice — light. Wins over the system media query by specificity. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --voy-paper: #f3efe4;
+  --voy-paper-raised: #faf7ef;
+  --voy-paper-sunken: #ebe6d7;
+  --voy-ink: #1a1917;
+  --voy-ink-muted: #5f5b52;
+  --voy-line: rgb(26 25 23 / 14%);
+  --voy-line-strong: rgb(26 25 23 / 26%);
+  --voy-indigo: #46536b;
+  --voy-vermilion: #c34e33;
+  --voy-silver: #a9a69c;
+  --voy-moss: #6f7a64;
+  --voy-overlay: rgb(26 25 23 / 42%);
+  --voy-tint-vermilion: rgb(195 78 51 / 12%);
+  --voy-tint-indigo: rgb(70 83 107 / 12%);
+  --voy-tint-moss: rgb(111 122 100 / 14%);
+  --voy-shadow: 0 24px 70px rgb(26 25 23 / 10%);
+  --voy-shadow-sm: 0 1px 2px rgb(26 25 23 / 6%);
+}
+
+/* Explicit user choice — dark. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --voy-paper: #171614;
+  --voy-paper-raised: #1e1c19;
+  --voy-paper-sunken: #100f0d;
+  --voy-ink: #f2ede1;
+  --voy-ink-muted: #a7a297;
+  --voy-line: rgb(242 237 225 / 14%);
+  --voy-line-strong: rgb(242 237 225 / 28%);
+  --voy-indigo: #93a0b8;
+  --voy-vermilion: #d97a5f;
+  --voy-silver: #8b887e;
+  --voy-moss: #98a28e;
+  --voy-overlay: rgb(0 0 0 / 55%);
+  --voy-tint-vermilion: rgb(217 122 95 / 16%);
+  --voy-tint-indigo: rgb(147 160 184 / 16%);
+  --voy-tint-moss: rgb(152 162 142 / 18%);
+  --voy-shadow: 0 28px 80px rgb(0 0 0 / 30%);
+  --voy-shadow-sm: 0 1px 2px rgb(0 0 0 / 24%);
 }
