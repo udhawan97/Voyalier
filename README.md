@@ -62,6 +62,8 @@ docs/                  Product, architecture, security, data, design, and test d
 
 See [the architecture](docs/architecture/ARCHITECTURE.md) and [product brief](docs/product/PRODUCT_BRIEF.md) for the current contract.
 
+For independent validation and coordinated agent work, use the [Fable research brief](docs/research/FABLE_RESEARCH_BRIEF.md) and [implementation prompt sequence](docs/product/IMPLEMENTATION_PROMPTS.md).
+
 ## Development
 
 Requirements:
