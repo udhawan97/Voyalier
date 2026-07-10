@@ -4,6 +4,9 @@
   "private": true,
   "exports": {
     "./voyalier-app-icon.svg": "./src/voyalier-app-icon.svg",
-    "./voyalier-wayline.svg": "./src/voyalier-wayline.svg"
+    "./voyalier-mark.svg": "./src/voyalier-mark.svg",
+    "./voyalier-mark-dark.svg": "./src/voyalier-mark-dark.svg",
+    "./voyalier-lockup.svg": "./src/voyalier-lockup.svg",
+    "./voyalier-lockup-dark.svg": "./src/voyalier-lockup-dark.svg"
   }
 }

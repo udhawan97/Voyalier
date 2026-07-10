@@ -1,8 +1,9 @@
 <p align="center">
-  <img src="packages/brand/src/voyalier-wayline.svg" alt="Voyalier Wayline V" width="260">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="packages/brand/src/voyalier-lockup-dark.svg">
+    <img src="packages/brand/src/voyalier-lockup.svg" alt="Voyalier — the folded-route mark: one itinerary strip folded into a V, with a vermilion waypoint just past the fold" width="300">
+  </picture>
 </p>
-
-<h1 align="center">Voyalier</h1>
 
 <p align="center"><em>From scattered plans to one clear journey.</em></p>
 
@@ -13,8 +14,12 @@
 
 <p align="center">
   <a href="https://github.com/udhawan97/Voyalier/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/udhawan97/Voyalier/ci.yml?branch=main&style=flat-square&label=CI" alt="CI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square" alt="Apache 2.0"></a>
-  <img src="https://img.shields.io/badge/status-foundation-596b5a?style=flat-square" alt="Foundation stage">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-46536b?style=flat-square" alt="Apache 2.0"></a>
+  <img src="https://img.shields.io/badge/status-foundation-c34e33?style=flat-square" alt="Foundation stage">
+</p>
+
+<p align="center">
+  <sub>折&nbsp;&nbsp;one strip, folded&nbsp;&nbsp;·&nbsp;&nbsp;間&nbsp;&nbsp;ma, the interval&nbsp;&nbsp;·&nbsp;&nbsp;朱&nbsp;&nbsp;the waypoint&nbsp;&nbsp;·&nbsp;&nbsp;息&nbsp;&nbsp;motion as breath</sub>
 </p>
 
 > [!IMPORTANT]
@@ -52,7 +57,7 @@ crates/
   voyalier-core/       Domain types and deterministic product rules
   voyalier-server/     Axum local API and one-command web runtime
 packages/
-  brand/               Shared Wayline V brand asset
+  brand/               Folded-route mark, lockup, and app-icon brand assets
   contracts/           Versioned API/domain contracts
   ui/                  Shared design tokens
 docs-site/             Astro and Starlight marketing/docs site

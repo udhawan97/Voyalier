@@ -1,184 +1,985 @@
+/*
+ * Voyalier landing — "One strip, folded".
+ * A fixed brand scheme (washi light + one deep-sumi act), independent of OS
+ * theme: the light/dark duality is the identity, as on the brand sheet.
+ * Motion is transform/opacity only; everything settles under reduced motion.
+ */
+
+:root {
+  --washi: #f3efe4;
+  --ivory: #faf7ef;
+  --sumi: #1a1917;
+  --sumi-deep: #171614;
+  --ink-on-dark: #f2ede1;
+  --indigo: #46536b;
+  --indigo-soft: #93a0b8;
+  --shu: #c34e33;
+  --silver: #a9a69c;
+  --muted: #5f5b52;
+  --line: rgb(26 25 23 / 14%);
+  --line-dark: rgb(242 237 225 / 16%);
+  --sans: "Zen Kaku Gothic New", ui-sans-serif, -apple-system, "Segoe UI", sans-serif;
+  --mincho: "Shippori Mincho", "Iowan Old Style", Georgia, serif;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur: 7s;
+}
+
 * {
   box-sizing: border-box;
 }
 
 html {
-  background: var(--voy-paper);
-  color: var(--voy-ink);
-  font-family: var(--voy-font-ui);
+  color-scheme: light;
+  scroll-behavior: smooth;
+  background: var(--washi);
 }
 
 body {
-  width: min(1180px, calc(100% - 2rem));
-  margin: 0 auto;
-  background: radial-gradient(
-    circle at 86% 5%,
-    rgb(102 115 90 / 10%),
-    transparent 28rem
-  );
+  margin: 0;
+  background: var(--washi);
+  color: var(--sumi);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+
+.mincho {
+  font-family: var(--mincho);
 }
 
 a {
-  color: inherit;
+  color: var(--indigo);
+}
+a:hover {
+  color: var(--shu);
 }
 
-header,
+:focus-visible {
+  outline: 2px solid var(--shu);
+  outline-offset: 3px;
+}
+
+::selection {
+  background: rgb(195 78 51 / 22%);
+}
+
+/* ---- shared layout ---------------------------------------------------- */
+
+.topbar,
+.hero,
+.promise,
+.surfaces,
+.sumi-inner,
 footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 5rem;
-  border-bottom: 1px solid var(--voy-line);
-}
-
-.wordmark {
-  font-weight: 720;
-  letter-spacing: -0.03em;
-  text-decoration: none;
-}
-
-nav {
-  display: flex;
-  gap: 1.25rem;
-}
-nav a {
-  color: var(--voy-ink-muted);
-  font-size: 0.85rem;
-  text-decoration: none;
-}
-
-.hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(18rem, 0.7fr);
-  gap: clamp(2rem, 8vw, 7rem);
-  align-items: center;
-  min-height: 72vh;
-  padding: 5rem 0;
+  width: min(1180px, calc(100% - 3rem));
+  margin-inline: auto;
 }
 
 .eyebrow {
-  margin: 0 0 1rem;
-  color: var(--voy-moss);
-  font-size: 0.75rem;
-  font-weight: 720;
-  letter-spacing: 0.14em;
+  margin: 0 0 1.1rem;
+  color: rgb(26 25 23 / 55%);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.26em;
   text-transform: uppercase;
+}
+
+.nnum {
+  margin-right: 0.55rem;
+  color: var(--shu);
+  font-weight: 500;
 }
 
 h1,
 h2 {
   margin: 0;
-  font-family: var(--voy-font-display);
+  font-family: var(--mincho);
   font-weight: 500;
-  letter-spacing: -0.045em;
+  letter-spacing: 0.005em;
+}
+
+h2 {
+  font-size: clamp(2rem, 4.4vw, 3.15rem);
+  line-height: 1.16;
+  text-wrap: balance;
+}
+
+.shead {
+  margin-bottom: 3.2rem;
+}
+
+.shead-sub {
+  max-width: 52ch;
+  margin: 1.4rem 0 0;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+/* ---- route progress thread -------------------------------------------- */
+
+.route-progress {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 60;
+  height: 2px;
+  background: var(--shu);
+  transform: scaleX(0);
+  transform-origin: left;
+  pointer-events: none;
+}
+
+/* ---- topbar ------------------------------------------------------------ */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 4.6rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.brandline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: inherit;
+  text-decoration: none;
+}
+.brandline:hover {
+  color: inherit;
+}
+
+.brandmark {
+  width: 1.7rem;
+  height: 1.7rem;
+}
+
+.brandword {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.42em;
+}
+
+.topbar nav {
+  display: flex;
+  gap: 1.6rem;
+}
+.topbar nav a {
+  color: var(--muted);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  transition: color 0.25s ease;
+}
+.topbar nav a:hover {
+  color: var(--shu);
+}
+
+/* ---- the mark ----------------------------------------------------------
+ * Base shapes are always present; trace, halo, and sheen are additive.
+ * The loop: ink traces the route, the traveler arrives, the paper exhales —
+ * then a long stillness.
+ */
+
+.mark .ink,
+.brandmark .ink {
+  fill: var(--sumi);
+}
+.mark .fold,
+.brandmark .fold {
+  fill: var(--indigo);
+}
+.mark .dot,
+.brandmark .dot {
+  fill: var(--shu);
+}
+
+.mark-dark .ink {
+  fill: var(--ink-on-dark);
+}
+.mark-dark .fold {
+  fill: var(--indigo-soft);
+}
+
+.mark .trace {
+  fill: none;
+  stroke: var(--shu);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 128;
+  stroke-dashoffset: 128;
+  opacity: 0;
+}
+
+.mark .halo {
+  fill: none;
+  stroke: var(--shu);
+  stroke-width: 1.2;
+  opacity: 0;
+}
+
+.mark-anim .trace {
+  animation: voy-trace var(--dur) ease-in-out infinite;
+}
+.mark-anim .fold {
+  transform-box: view-box;
+  transform-origin: 50px 80px;
+  animation: voy-breath var(--dur) ease-in-out infinite;
+}
+.mark-anim .dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: voy-arrive var(--dur) ease-in-out infinite;
+}
+.mark-anim .halo {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: voy-ping var(--dur) ease-in-out infinite;
+}
+.mark-anim .sheen {
+  animation: voy-sheen var(--dur) ease-in-out infinite;
+}
+
+@keyframes voy-trace {
+  0% {
+    stroke-dashoffset: 128;
+    opacity: 0;
+  }
+  5% {
+    opacity: 0.85;
+  }
+  36% {
+    stroke-dashoffset: 0;
+    opacity: 0.85;
+  }
+  52% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+  56%,
+  100% {
+    stroke-dashoffset: 128;
+    opacity: 0;
+  }
+}
+@keyframes voy-breath {
+  0%,
+  36%,
+  74%,
+  100% {
+    transform: skewX(0) scaleY(1);
+  }
+  54% {
+    transform: skewX(-1.8deg) scaleY(0.986);
+  }
+}
+@keyframes voy-arrive {
+  0%,
+  33% {
+    transform: scale(1);
+  }
+  41% {
+    transform: scale(1.16);
+  }
+  50%,
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes voy-ping {
+  0%,
+  35% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  42% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  60% {
+    transform: scale(2);
+    opacity: 0;
+  }
+  61%,
+  100% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+}
+@keyframes voy-sheen {
+  0%,
+  55% {
+    transform: translateX(0);
+  }
+  82%,
+  100% {
+    transform: translateX(160px);
+  }
+}
+
+/* ---- Act I · hero ------------------------------------------------------ */
+
+.hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(20rem, 0.92fr);
+  gap: clamp(2.5rem, 6vw, 6rem);
+  align-items: center;
+  min-height: min(88svh, 60rem);
+  padding: clamp(3rem, 8vh, 6rem) 0 5.5rem;
 }
 
 h1 {
-  max-width: 13ch;
-  font-size: clamp(3.6rem, 8vw, 7.6rem);
-  line-height: 0.92;
+  font-size: clamp(2.7rem, 5.6vw, 4.9rem);
+  line-height: 1.1;
 }
-h2 {
-  max-width: 15ch;
-  font-size: clamp(2.7rem, 6vw, 5rem);
-  line-height: 1;
+
+h1 em {
+  color: var(--shu);
+  font-style: normal;
+}
+
+.hl {
+  display: block;
+  overflow: hidden;
+  padding-block: 0.06em;
+}
+.hl > span {
+  display: block;
+  transform: translateY(115%);
+  animation: voy-lift 1s var(--ease-out) both;
+}
+[data-load='2'] > span {
+  animation-delay: 0.22s;
+}
+[data-load='3'] > span {
+  animation-delay: 0.36s;
+}
+
+.eyebrow[data-load],
+.lede[data-load],
+.actions[data-load] {
+  opacity: 0;
+  animation: voy-rise 0.9s var(--ease-out) both;
+}
+[data-load='1'] {
+  animation-delay: 0.08s;
+}
+.lede[data-load] {
+  animation-delay: 0.62s;
+}
+.actions[data-load] {
+  animation-delay: 0.78s;
+}
+
+@keyframes voy-lift {
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes voy-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .lede {
-  max-width: 42rem;
-  margin: 2rem 0 0;
-  color: var(--voy-ink-muted);
-  font-size: clamp(1.05rem, 2vw, 1.35rem);
-  line-height: 1.65;
+  max-width: 40rem;
+  margin: 1.8rem 0 0;
+  color: var(--muted);
+  font-size: clamp(1.02rem, 1.7vw, 1.22rem);
+  line-height: 1.75;
 }
 
 .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.8rem;
-  margin-top: 2.3rem;
+  gap: 0.85rem;
+  margin-top: 2.4rem;
 }
+
 .actions a {
+  display: inline-flex;
+  align-items: center;
   min-height: 3rem;
-  padding: 0.8rem 1.15rem;
-  border: 1px solid var(--voy-line);
+  padding: 0.75rem 1.35rem;
+  border: 1px solid var(--line);
   border-radius: 999px;
+  font-size: 0.92rem;
   text-decoration: none;
+  transition:
+    transform 0.3s var(--ease-out),
+    border-color 0.3s ease,
+    box-shadow 0.3s ease,
+    color 0.3s ease;
 }
+.actions a:hover {
+  transform: translateY(-2px);
+}
+
 .actions .primary {
-  border-color: var(--voy-ink);
-  background: var(--voy-ink);
-  color: var(--voy-paper);
+  border-color: var(--sumi);
+  background: var(--sumi);
+  color: var(--ivory);
+}
+.actions .primary:hover {
+  box-shadow: 0 12px 30px rgb(26 25 23 / 22%);
+  color: var(--ivory);
 }
 
-.mark {
-  display: grid;
-  place-items: center;
-  aspect-ratio: 1;
-  border: 1px solid var(--voy-line);
-  border-radius: 48% 52% 46% 54% / 54% 42% 58% 46%;
-  background: var(--voy-paper-raised);
-  box-shadow: var(--voy-shadow);
+.actions .ghost {
+  color: var(--sumi);
+}
+.actions .ghost:hover {
+  border-color: var(--indigo);
+  color: var(--indigo);
 }
 
-.mark svg {
-  width: 80%;
-}
+/* the ivory panel: construction grid, corner caption, breathing mark */
 
-.principles {
-  padding: 7rem 0;
-  border-top: 1px solid var(--voy-line);
-}
-.cards {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
-  margin-top: 4rem;
-}
-.cards article {
-  min-height: 16rem;
-  padding: 1.5rem;
-  border: 1px solid var(--voy-line);
-  border-radius: var(--voy-radius-md);
-  background: var(--voy-paper-raised);
-}
-.cards span {
-  color: var(--voy-vermilion);
-  font-size: 0.72rem;
-  letter-spacing: 0.12em;
-}
-.cards h3 {
-  margin: 4rem 0 0.8rem;
-}
-.cards p {
+.hero-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2.6rem;
+  aspect-ratio: 1 / 1.04;
   margin: 0;
-  color: var(--voy-ink-muted);
-  line-height: 1.6;
+  padding: 3rem 2rem;
+  border: 1px solid var(--line);
+  background-color: var(--ivory);
+  background-image:
+    repeating-linear-gradient(0deg, rgb(26 25 23 / 5.5%) 0 1px, transparent 1px 28px),
+    repeating-linear-gradient(90deg, rgb(26 25 23 / 5.5%) 0 1px, transparent 1px 28px);
+  opacity: 0;
+  animation: voy-panel 1.1s var(--ease-out) 0.3s both;
 }
+
+@keyframes voy-panel {
+  from {
+    opacity: 0;
+    transform: scale(0.975) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.hero-panel .cap {
+  position: absolute;
+  top: 1.1rem;
+  left: 1.35rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.26em;
+  opacity: 0.45;
+}
+
+.hero-panel .mark {
+  width: min(58%, 15rem);
+  height: auto;
+}
+
+.panel-word {
+  font-size: 0.98rem;
+  font-weight: 500;
+  letter-spacing: 0.34em;
+  margin-right: -0.34em;
+}
+
+/* vertical kanji rail — 折 間 朱 息, barely there */
+
+.kanji-rail {
+  position: absolute;
+  top: 50%;
+  right: -4.2rem;
+  color: rgb(26 25 23 / 30%);
+  font-size: 0.85rem;
+  letter-spacing: 0.9em;
+  writing-mode: vertical-rl;
+  transform: translateY(-50%);
+}
+
+@media (max-width: 1339px) {
+  .kanji-rail {
+    display: none;
+  }
+}
+
+/* scroll cue — a waypoint descending a hairline */
+
+.scroll-cue {
+  position: absolute;
+  bottom: 1.6rem;
+  left: 50%;
+  display: block;
+  width: 1px;
+  height: 3rem;
+  background: var(--line);
+  transform: translateX(-50%);
+}
+.scroll-cue span {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--shu);
+  transform: translateX(-50%);
+  animation: voy-cue 2.8s ease-in-out infinite;
+}
+@keyframes voy-cue {
+  0% {
+    top: 0;
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  62% {
+    top: calc(100% - 6px);
+    opacity: 1;
+  }
+  80%,
+  100% {
+    top: calc(100% - 6px);
+    opacity: 0;
+  }
+}
+
+/* ---- scroll reveals ----------------------------------------------------- */
+
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(26px);
+  transition:
+    opacity 0.85s ease,
+    transform 0.85s var(--ease-out);
+  transition-delay: calc(var(--d, 0) * 95ms);
+}
+[data-reveal].in {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---- Act II · the promise ------------------------------------------------ */
+
+.promise {
+  padding: 6.5rem 0;
+  border-top: 1px solid var(--line);
+}
+
+.notes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 2.6rem;
+}
+
+.note .kanji {
+  font-size: 2.9rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.note h3,
+.tile h3,
+.mode h3 {
+  margin: 1.1rem 0 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.note p,
+.tile p {
+  max-width: 36ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.85;
+}
+
+/* ---- Act III · six surfaces ---------------------------------------------- */
+
+.surfaces {
+  padding: 6.5rem 0 7.5rem;
+  border-top: 1px solid var(--line);
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.1rem;
+}
+
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 15rem;
+  padding: 2rem;
+  border: 1px solid var(--line);
+  background: var(--ivory);
+  transition:
+    transform 0.35s var(--ease-out),
+    border-color 0.35s ease,
+    box-shadow 0.35s ease;
+}
+.tile:hover {
+  border-color: rgb(70 83 107 / 55%);
+  box-shadow: 0 18px 44px rgb(26 25 23 / 8%);
+  transform: translateY(-4px);
+}
+
+.tile-kanji {
+  position: absolute;
+  top: 1.2rem;
+  right: 1.5rem;
+  color: rgb(26 25 23 / 9%);
+  font-size: 2.6rem;
+  line-height: 1;
+  transition: color 0.35s ease;
+}
+.tile:hover .tile-kanji {
+  color: rgb(195 78 51 / 30%);
+}
+
+.tile-dot {
+  position: absolute;
+  top: 2.1rem;
+  left: 2rem;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--shu);
+  opacity: 0;
+  transform: scale(0.3);
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s var(--ease-out);
+}
+.tile:hover .tile-dot {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ---- Act IV · deep sumi --------------------------------------------------- */
+
+.sumi {
+  margin-top: 2rem;
+  background: var(--sumi-deep);
+  color: var(--ink-on-dark);
+  padding: 7rem 0 5rem;
+}
+
+.sumi .eyebrow {
+  color: rgb(242 237 225 / 52%);
+}
+
+.sumi .shead-sub,
+.mode p {
+  color: rgb(242 237 225 / 66%);
+}
+
+.sumi a {
+  color: var(--indigo-soft);
+}
+.sumi a:hover {
+  color: var(--shu);
+}
+
+.modes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  column-gap: 4rem;
+}
+
+.mode {
+  padding: 1.7rem 0 1.9rem;
+  border-top: 1px solid var(--line-dark);
+}
+
+.mode p {
+  max-width: 44ch;
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.85;
+}
+
+/* the first slice, drawn as a route */
+
+.journey {
+  margin-top: 7rem;
+}
+
+.journey-line {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 1rem;
+}
+
+.j-route {
+  fill: none;
+  stroke: var(--indigo-soft);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 980;
+  stroke-dashoffset: 980;
+}
+.journey.in .j-route {
+  animation: voy-j-draw 2.4s cubic-bezier(0.4, 0, 0.2, 1) 0.25s forwards;
+}
+@keyframes voy-j-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.j-dot {
+  fill: var(--ink-on-dark);
+  opacity: 0;
+  transform: scale(0.3);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.j-dot.j-final {
+  fill: var(--shu);
+}
+.journey.in .j-dot {
+  animation: voy-j-pop 0.5s var(--ease-out) calc(0.45s + var(--jd) * 0.42s) forwards;
+}
+.journey.in .j-dot.j-final {
+  animation:
+    voy-j-pop 0.5s var(--ease-out) calc(0.45s + var(--jd) * 0.42s) forwards,
+    voy-j-breathe 4.5s ease-in-out calc(1.2s + var(--jd) * 0.42s) infinite;
+}
+@keyframes voy-j-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  60% {
+    transform: scale(1.25);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes voy-j-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.j-steps {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem 1.6rem;
+  margin: 1.6rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.j-steps li {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0;
+}
+.journey.in .j-steps li {
+  animation: voy-rise 0.7s var(--ease-out) calc(0.45s + var(--jd) * 0.42s) forwards;
+}
+
+.j-note {
+  max-width: 62ch;
+  margin: 2.6rem 0 0;
+  font-size: 0.85rem;
+  line-height: 1.8;
+  color: rgb(242 237 225 / 60%);
+}
+
+/* the close */
+
+.close {
+  margin-top: 7rem;
+  padding: 5.5rem 0 2.5rem;
+  border-top: 1px solid var(--line-dark);
+  text-align: center;
+}
+
+.mk-close {
+  width: 6.2rem;
+  height: 6.2rem;
+}
+
+.close-word {
+  margin-top: 2.3rem;
+  font-size: 1.35rem;
+  font-weight: 500;
+  letter-spacing: 0.34em;
+  margin-right: -0.34em;
+}
+
+.close-tag {
+  margin-top: 0.9rem;
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 0.5em;
+  margin-right: -0.5em;
+  opacity: 0.52;
+}
+
+.close .actions {
+  justify-content: center;
+  margin-top: 2.8rem;
+}
+
+.close .primary.inverse {
+  border-color: var(--ink-on-dark);
+  background: var(--ink-on-dark);
+  color: var(--sumi);
+}
+.close .primary.inverse:hover {
+  box-shadow: 0 12px 30px rgb(0 0 0 / 35%);
+  color: var(--sumi);
+}
+
+.close .ghost {
+  border-color: var(--line-dark);
+  color: var(--ink-on-dark);
+}
+.close .ghost:hover {
+  border-color: var(--indigo-soft);
+  color: var(--indigo-soft);
+}
+
+/* ---- footer ---------------------------------------------------------------- */
 
 footer {
-  min-height: auto;
-  padding: 2rem 0 3rem;
-  border-top: 1px solid var(--voy-line);
-  border-bottom: 0;
-  color: var(--voy-ink-muted);
-  font-size: 0.78rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem 1.5rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2.2rem 0 3rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
 }
 
-@media (max-width: 780px) {
+footer p {
+  margin: 0;
+}
+
+.palette {
+  display: flex;
+  gap: 6px;
+}
+.palette span {
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+
+/* ---- small screens ----------------------------------------------------------- */
+
+@media (max-width: 840px) {
   .hero {
     grid-template-columns: 1fr;
+    min-height: auto;
+    padding-top: 3.5rem;
   }
-  .mark {
-    width: min(23rem, 86vw);
-    margin: 0 auto;
+  .hero-panel {
+    max-width: 26rem;
+    margin-inline: auto;
   }
-  .cards {
-    grid-template-columns: 1fr;
+  .scroll-cue {
+    display: none;
+  }
+  .promise,
+  .surfaces {
+    padding-block: 4.5rem;
+  }
+  .sumi {
+    padding-top: 5rem;
+  }
+  .journey,
+  .close {
+    margin-top: 4.5rem;
+  }
+  .j-steps {
+    justify-content: flex-start;
   }
   footer {
     align-items: flex-start;
     flex-direction: column;
-    gap: 0.5rem;
+  }
+}
+
+/* ---- reduced motion: everything settles, nothing is lost --------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .mark-anim .trace,
+  .mark-anim .fold,
+  .mark-anim .dot,
+  .mark-anim .halo,
+  .mark-anim .sheen,
+  .scroll-cue span {
+    animation: none;
+  }
+  .hl > span,
+  .eyebrow[data-load],
+  .lede[data-load],
+  .actions[data-load],
+  .hero-panel {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .j-route {
+    stroke-dashoffset: 0;
+  }
+  .j-dot,
+  .j-steps li {
+    opacity: 1;
+    transform: none;
+  }
+  .journey.in .j-route,
+  .journey.in .j-dot,
+  .journey.in .j-dot.j-final,
+  .journey.in .j-steps li {
+    animation: none;
+  }
+  .tile,
+  .tile:hover {
+    transform: none;
   }
 }

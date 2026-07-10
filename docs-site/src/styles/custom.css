@@ -1,14 +1,38 @@
+@import url("https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;600&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap");
 @import "@voyalier/ui/tokens.css";
 
+/* Folded-route palette: washi/ivory surfaces, ai-indigo accents, sumi ink.
+ * Starlight themes switch on [data-theme], so values are literal, not
+ * prefers-color-scheme tokens. */
+
 :root {
-  --sl-color-accent-low: #e6ebe2;
-  --sl-color-accent: #66735a;
-  --sl-color-accent-high: #24324a;
-  --sl-font: var(--voy-font-ui);
+  --sl-color-accent-low: #e5e4dc;
+  --sl-color-accent: #46536b;
+  --sl-color-accent-high: #2c3547;
+  --sl-color-bg: #faf7ef;
+  --sl-color-bg-nav: #f3efe4;
+  --sl-color-bg-sidebar: #f3efe4;
+  --sl-font: "Zen Kaku Gothic New", Inter, ui-sans-serif, sans-serif;
 }
 
 :root[data-theme="dark"] {
-  --sl-color-accent-low: #242b25;
-  --sl-color-accent: #98a28e;
-  --sl-color-accent-high: #eee8dc;
+  --sl-color-accent-low: #2a2e38;
+  --sl-color-accent: #93a0b8;
+  --sl-color-accent-high: #e8ecf4;
+  --sl-color-bg: #171614;
+  --sl-color-bg-nav: #1e1c19;
+  --sl-color-bg-sidebar: #1e1c19;
+}
+
+.site-title {
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.sl-markdown-content h1,
+.sl-markdown-content h2,
+.sl-markdown-content h3 {
+  font-family: "Shippori Mincho", "Iowan Old Style", Georgia, serif;
+  font-weight: 500;
 }

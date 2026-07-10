@@ -1,25 +1,112 @@
 ---
-import '@voyalier/ui/tokens.css'
+/**
+ * Voyalier landing — "One strip, folded".
+ * A washi-paper page in four acts around the folded-route mark: hero (the mark,
+ * breathing), the promise, six surfaces, then one deep-sumi act for intelligence
+ * modes, the first vertical slice as a drawn route, and the closing lockup.
+ * Motion is transform/opacity only and fully disabled under prefers-reduced-motion.
+ */
 import '../styles/landing.css'
-import wayline from '@voyalier/brand/voyalier-wayline.svg?raw'
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+
+const surfaces = [
+  {
+    kanji: '図',
+    name: 'Blueprint',
+    body: 'Decisions, confirmations, missing bookings, deadlines, and next actions — one living picture of the trip.',
+  },
+  {
+    kanji: '探',
+    name: 'Discover',
+    body: 'Source-backed recommendations, viewed through weighted travel personas.',
+  },
+  {
+    kanji: '程',
+    name: 'Itinerary',
+    body: 'A realistic, constraint-checked plan — not an AI-generated list.',
+  },
+  {
+    kanji: '書',
+    name: 'Documents',
+    body: 'Local extraction and review of confirmations, tickets, insurance, and calendar files.',
+  },
+  {
+    kanji: '備',
+    name: 'Readiness',
+    body: 'Transparent entry, transit, health, weather, and disruption actions.',
+  },
+  {
+    kanji: '送',
+    name: 'Share',
+    body: 'Redacted PDFs, calendar files, and encrypted trip bundles.',
+  },
+]
+
+const modes = [
+  {
+    name: 'Local Intelligence',
+    body: 'Deterministic research adapters, scoring, extraction, rules, and itinerary validation — without a paid AI key.',
+  },
+  {
+    name: 'On-device AI',
+    body: 'Optional local semantic model or Ollama integration. Never required for the base product.',
+  },
+  {
+    name: 'Cloud AI',
+    body: 'BYOK OpenAI or Anthropic with explicit consent, a redaction preview, and structured grounded output.',
+  },
+  {
+    name: 'Offline Snapshot',
+    body: 'Saved plans and documents only. Stale or unavailable live facts are labeled honestly.',
+  },
+]
+
+const waypoints = [
+  'Create trip',
+  'Deterministic Blueprint',
+  'Import a reservation',
+  'Readiness action',
+  'Redacted PDF',
+]
 ---
 
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Voyalier turns scattered travel plans and confirmations into one clear journey."
+      content="Voyalier turns scattered travel plans and confirmations into one clear journey. Local-first, evidence-backed, calm by design."
+    />
+    <meta name="theme-color" content="#f3efe4" />
+    <meta property="og:title" content="Voyalier — From scattered plans to one clear journey" />
+    <meta
+      property="og:description"
+      content="A local-first travel intelligence workspace. Useful without a key, deeper when invited."
+    />
+    <link rel="icon" href={`${base}/favicon.svg`} type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;600&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap"
     />
     <title>Voyalier — From scattered plans to one clear journey</title>
   </head>
   <body>
-    <header>
-      <a class="wordmark" href={`${base}/`} aria-label="Voyalier home">Voyalier</a>
+    <div class="route-progress" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <a class="brandline" href={`${base}/`} aria-label="Voyalier home">
+        <svg class="brandmark" viewBox="0 0 96 96" aria-hidden="true">
+          <polygon class="ink" points="22,18 38,18 58,80 42,80"></polygon>
+          <polygon class="fold" points="42,80 58,80 73.5,32 57.5,32"></polygon>
+          <circle class="dot" cx="69" cy="21" r="5"></circle>
+        </svg>
+        <span class="brandword">VOYALIER</span>
+      </a>
       <nav aria-label="Primary navigation">
         <a href={`${base}/introduction/`}>Docs</a>
         <a href="https://github.com/udhawan97/Voyalier">GitHub</a>
@@ -27,48 +114,248 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '')
     </header>
 
     <main>
+      <!-- Act I — the mark, breathing -->
       <section class="hero">
         <div class="hero-copy">
-          <p class="eyebrow">Private travel intelligence</p>
-          <h1>From scattered plans to one clear journey.</h1>
-          <p class="lede">
+          <p class="eyebrow" data-load="1">Private travel intelligence</p>
+          <h1 aria-label="From scattered plans to one clear journey.">
+            <span class="hl" data-load="2"><span>From scattered plans</span></span>
+            <span class="hl" data-load="3"><span>to one clear <em>journey</em>.</span></span>
+          </h1>
+          <p class="lede" data-load="4">
             Voyalier is an open-source, local-first workspace for the research,
             confirmations, readiness actions, and shareable brief behind a well-made trip.
           </p>
-          <div class="actions">
+          <div class="actions" data-load="5">
             <a class="primary" href={`${base}/introduction/`}>Read the foundation</a>
-            <a href="https://github.com/udhawan97/Voyalier">View source</a>
+            <a class="ghost" href="https://github.com/udhawan97/Voyalier">View source</a>
           </div>
         </div>
-        <div class="mark" set:html={wayline}></div>
+
+        <figure class="hero-panel" data-load="3" aria-label="The Voyalier folded-route mark">
+          <figcaption class="cap">間 · MA — THE INTERVAL</figcaption>
+          <svg class="mark mark-anim" viewBox="0 0 96 96" role="img" aria-label="Voyalier mark: one itinerary strip folded into a V, a vermilion waypoint just past the fold">
+            <polygon class="ink" points="22,18 38,18 58,80 42,80"></polygon>
+            <polygon class="fold" points="42,80 58,80 73.5,32 57.5,32"></polygon>
+            <polyline class="trace" points="30,18 50,80 69,21"></polyline>
+            <circle class="halo" cx="69" cy="21" r="5"></circle>
+            <circle class="dot" cx="69" cy="21" r="5"></circle>
+            <defs>
+              <linearGradient id="sheen-g" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#ffffff" stop-opacity="0"></stop>
+                <stop offset=".5" stop-color="#ffffff" stop-opacity=".16"></stop>
+                <stop offset="1" stop-color="#ffffff" stop-opacity="0"></stop>
+              </linearGradient>
+              <clipPath id="sheen-c">
+                <polygon points="22,18 38,18 58,80 42,80"></polygon>
+                <polygon points="42,80 58,80 73.5,32 57.5,32"></polygon>
+                <circle cx="69" cy="21" r="5"></circle>
+              </clipPath>
+            </defs>
+            <g clip-path="url(#sheen-c)">
+              <g transform="rotate(20 48 48)">
+                <rect class="sheen" x="-40" y="-40" width="34" height="176" fill="url(#sheen-g)"></rect>
+              </g>
+            </g>
+          </svg>
+          <div class="panel-word">VOYALIER</div>
+        </figure>
+
+        <div class="kanji-rail mincho" aria-hidden="true">折　間　朱　息</div>
+        <a class="scroll-cue" href="#promise" aria-label="Scroll to the promise">
+          <span></span>
+        </a>
       </section>
 
-      <section class="principles" aria-labelledby="principles-title">
-        <p class="eyebrow">The promise</p>
-        <h2 id="principles-title">Useful without a key. Deeper when invited.</h2>
-        <div class="cards">
-          <article>
-            <span>01</span>
-            <h3>Local first</h3>
+      <!-- Act II — the promise -->
+      <section class="promise" id="promise" aria-labelledby="promise-title">
+        <div class="shead" data-reveal>
+          <p class="eyebrow">The promise</p>
+          <h2 id="promise-title">Useful without a key.<br />Deeper when invited.</h2>
+        </div>
+        <div class="notes">
+          <article class="note" data-reveal style="--d:0">
+            <div class="kanji mincho" aria-hidden="true">家</div>
+            <h3><span class="nnum">01</span>Local first</h3>
             <p>Your trip data stays on your device unless you explicitly choose otherwise.</p>
           </article>
-          <article>
-            <span>02</span>
-            <h3>Evidence backed</h3>
+          <article class="note" data-reveal style="--d:1">
+            <div class="kanji mincho" aria-hidden="true">証</div>
+            <h3><span class="nnum">02</span>Evidence backed</h3>
             <p>Sources, freshness, confidence, and unknown states travel with every claim.</p>
           </article>
-          <article>
-            <span>03</span>
-            <h3>Calm by design</h3>
+          <article class="note" data-reveal style="--d:2">
+            <div class="kanji mincho" aria-hidden="true">静</div>
+            <h3><span class="nnum">03</span>Calm by design</h3>
             <p>One living Blueprint replaces tabs, inbox searches, and scattered documents.</p>
           </article>
+        </div>
+      </section>
+
+      <!-- Act III — six surfaces -->
+      <section class="surfaces" aria-labelledby="surfaces-title">
+        <div class="shead" data-reveal>
+          <p class="eyebrow">The workspace</p>
+          <h2 id="surfaces-title">One journey, six surfaces.</h2>
+        </div>
+        <div class="tiles">
+          {
+            surfaces.map((s, i) => (
+              <article class="tile" data-reveal style={`--d:${i}`}>
+                <div class="tile-kanji mincho" aria-hidden="true">
+                  {s.kanji}
+                </div>
+                <h3>
+                  <span class="nnum">0{i + 1}</span>
+                  {s.name}
+                </h3>
+                <p>{s.body}</p>
+                <span class="tile-dot" aria-hidden="true" />
+              </article>
+            ))
+          }
+        </div>
+      </section>
+
+      <!-- Act IV — deep sumi: consent, the first slice, the close -->
+      <section class="sumi" aria-labelledby="modes-title">
+        <div class="sumi-inner">
+          <div class="shead" data-reveal>
+            <p class="eyebrow">Intelligence, by consent</p>
+            <h2 id="modes-title">Every fact keeps its source.</h2>
+            <p class="shead-sub">
+              Four modes, one contract: source, retrieval time, confidence, license,
+              and freshness travel with every claim.
+            </p>
+          </div>
+
+          <div class="modes">
+            {
+              modes.map((m, i) => (
+                <div class="mode" data-reveal style={`--d:${i}`}>
+                  <h3>{m.name}</h3>
+                  <p>{m.body}</p>
+                </div>
+              ))
+            }
+          </div>
+
+          <div class="journey" data-reveal aria-labelledby="journey-title">
+            <div class="shead">
+              <p class="eyebrow">The first vertical slice</p>
+              <h2 id="journey-title">Deliberately narrow. Honestly shipped.</h2>
+            </div>
+            <svg
+              class="journey-line"
+              viewBox="0 0 1000 120"
+              role="img"
+              aria-label={`Roadmap route: ${waypoints.join(', then ')}`}
+            >
+              <path
+                class="j-route"
+                d="M20 78 C 150 30, 260 108, 400 62 S 640 22, 760 70 S 930 44, 972 40"
+              ></path>
+              {
+                [20, 258, 500, 742, 972].map((x, i) => (
+                  <circle
+                    class={`j-dot ${i === waypoints.length - 1 ? 'j-final' : ''}`}
+                    style={`--jd:${i}`}
+                    cx={x}
+                    cy={[78, 75.1, 36.8, 63.1, 40][i]}
+                    r={i === waypoints.length - 1 ? 7 : 4.5}
+                  />
+                ))
+              }
+            </svg>
+            <ol class="j-steps">
+              {
+                waypoints.map((w, i) => (
+                  <li style={`--jd:${i}`}>
+                    <span class="nnum">0{i + 1}</span>
+                    {w}
+                  </li>
+                ))
+              }
+            </ol>
+            <p class="j-note">
+              Live inventory, authoritative visa determinations, real-time collaboration,
+              and booking are explicitly deferred. <a href={`${base}/roadmap/`}>Read the roadmap</a>.
+            </p>
+          </div>
+
+          <div class="close" data-reveal>
+            <svg class="mark mark-dark mark-anim mk-close" viewBox="0 0 96 96" aria-hidden="true">
+              <polygon class="ink" points="22,18 38,18 58,80 42,80"></polygon>
+              <polygon class="fold" points="42,80 58,80 73.5,32 57.5,32"></polygon>
+              <polyline class="trace" points="30,18 50,80 69,21"></polyline>
+              <circle class="halo" cx="69" cy="21" r="5"></circle>
+              <circle class="dot" cx="69" cy="21" r="5"></circle>
+            </svg>
+            <div class="close-word">VOYALIER</div>
+            <div class="close-tag">TRIP WORKSPACE</div>
+            <div class="actions">
+              <a class="primary inverse" href={`${base}/introduction/`}>Read the foundation</a>
+              <a class="ghost" href="https://github.com/udhawan97/Voyalier">View source</a>
+            </div>
+          </div>
         </div>
       </section>
     </main>
 
     <footer>
-      <p>Open source under Apache-2.0.</p>
+      <p>Voyalier — folded-route mark · Open source under Apache-2.0.</p>
+      <div class="palette" aria-hidden="true">
+        <span title="Sumi #1A1917" style="background:#1a1917"></span>
+        <span title="Warm ivory #FAF7EF" style="background:#faf7ef"></span>
+        <span title="Ai indigo #46536B" style="background:#46536b"></span>
+        <span title="Shu vermilion #C34E33" style="background:#c34e33"></span>
+        <span title="Brushed silver #A9A69C" style="background:#a9a69c"></span>
+      </div>
       <p>Foundation stage · No public release yet.</p>
     </footer>
+
+    <script>
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+      // Scroll reveals — a quiet rise, staggered by --d.
+      const revealed = document.querySelectorAll('[data-reveal]')
+      if (reduced || !('IntersectionObserver' in window)) {
+        revealed.forEach((el) => el.classList.add('in'))
+      } else {
+        const io = new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              if (entry.isIntersecting) {
+                entry.target.classList.add('in')
+                io.unobserve(entry.target)
+              }
+            }
+          },
+          { threshold: 0.2, rootMargin: '0px 0px -8% 0px' },
+        )
+        revealed.forEach((el) => io.observe(el))
+      }
+
+      // Route progress — a vermilion thread drawn by the reader, not a timer,
+      // so it stays under prefers-reduced-motion.
+      const thread = document.querySelector<HTMLElement>('.route-progress')
+      let raf = 0
+      const drawThread = () => {
+        raf = 0
+        if (!thread) return
+        const doc = document.documentElement
+        const max = doc.scrollHeight - doc.clientHeight
+        const p = max > 0 ? doc.scrollTop / max : 0
+        thread.style.transform = `scaleX(${p})`
+      }
+      addEventListener(
+        'scroll',
+        () => {
+          if (!raf) raf = requestAnimationFrame(drawThread)
+        },
+        { passive: true },
+      )
+      drawThread()
+    </script>
   </body>
 </html>

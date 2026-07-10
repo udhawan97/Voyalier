@@ -9,6 +9,7 @@ export default defineConfig({
       title: "Voyalier",
       description:
         "Documentation for the local-first Voyalier travel workspace.",
+      favicon: "/favicon.svg",
       social: [
         {
           icon: "github",

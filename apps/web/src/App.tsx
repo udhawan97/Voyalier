@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { HealthResponse } from "@voyalier/contracts";
-import waylineUrl from "@voyalier/brand/voyalier-wayline.svg?url";
+import markUrl from "@voyalier/brand/voyalier-mark.svg?url";
 
 type ServiceState = "checking" | "connected" | "offline";
 
@@ -46,7 +46,7 @@ export function App() {
     <main>
       <header className="topbar">
         <a className="brand" href="#top" aria-label="Voyalier home">
-          <img src={waylineUrl} alt="" />
+          <img src={markUrl} alt="" />
           <span>Voyalier</span>
         </a>
         <span className={`service-pill service-pill--${serviceState}`}>
@@ -77,7 +77,7 @@ export function App() {
           </div>
         </div>
         <div className="hero__mark" aria-hidden="true">
-          <img src={waylineUrl} alt="" />
+          <img src={markUrl} alt="" />
         </div>
       </section>
 

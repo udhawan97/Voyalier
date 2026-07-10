@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" role="img" aria-labelledby="title description">
+  <title id="title">Voyalier</title>
+  <desc id="description">The Voyalier folded-route mark above the letterspaced wordmark.</desc>
+  <style>
+    @font-face {
+      font-family: 'Zen Kaku Gothic New';
+      font-style: normal;
+      font-weight: 500;
+      src: url('data:font/woff2;base64,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') format('woff2');
+    }
+    .ink { fill: #1a1917; }
+    .fold { fill: #46536b; }
+    .word {
+      fill: #1a1917;
+      font-family: 'Zen Kaku Gothic New', -apple-system, 'Segoe UI', sans-serif;
+      font-size: 22px;
+      font-weight: 500;
+      letter-spacing: 7.48px;
+    }
+    /* The dot stays visible by default so the mark reads complete wherever
+       CSS animation does not run; the arrival is expressed via keyframes only. */
+    .dot {
+      fill: #c34e33;
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: voy-arrive 1.55s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    .trace {
+      fill: none;
+      stroke: #c34e33;
+      stroke-width: 1.28;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-dasharray: 128;
+      stroke-dashoffset: 128;
+      opacity: 0;
+      animation:
+        voy-trace 1.05s cubic-bezier(0.4, 0, 0.2, 1) 0.15s forwards,
+        voy-trace-rest 0.6s ease 1.6s forwards;
+    }
+    .halo {
+      fill: none;
+      stroke: #c34e33;
+      stroke-width: 0.96;
+      opacity: 0;
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: voy-ping 0.9s ease-out 1.15s;
+    }
+    @keyframes voy-trace {
+      from { stroke-dashoffset: 128; opacity: 0.85; }
+      to { stroke-dashoffset: 0; opacity: 0.85; }
+    }
+    @keyframes voy-trace-rest { to { opacity: 0; } }
+    @keyframes voy-arrive {
+      0%, 67% { transform: scale(1); }
+      84% { transform: scale(1.22); }
+      100% { transform: scale(1); }
+    }
+    @keyframes voy-ping {
+      0% { transform: scale(0.5); opacity: 0.5; }
+      100% { transform: scale(2.4); opacity: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .dot, .trace, .halo { animation: none; }
+    }
+  </style>
+  <g transform="translate(100 8) scale(1.25)">
+    <polygon class="ink" points="22,18 38,18 58,80 42,80"/>
+    <polygon class="fold" points="42,80 58,80 73.5,32 57.5,32"/>
+    <polyline class="trace" points="30,18 50,80 69,21"/>
+    <circle class="halo" cx="69" cy="21" r="5"/>
+    <circle class="dot" cx="69" cy="21" r="5"/>
+  </g>
+  <text class="word" x="163.74" y="178" text-anchor="middle">VOYALIER</text>
+</svg>

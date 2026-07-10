@@ -83,7 +83,7 @@ main {
 
 .service-pill--connected span {
   background: var(--voy-moss);
-  box-shadow: 0 0 0 4px rgb(102 115 90 / 12%);
+  box-shadow: 0 0 0 4px rgb(111 122 100 / 14%);
 }
 
 .service-pill--offline span {

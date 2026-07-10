@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title description">
+  <title id="title">Voyalier folded-route mark</title>
+  <desc id="description">One itinerary strip folded once at the valley — a V of descent and return — with a vermilion waypoint just past the fold.</desc>
+  <style>
+    :root { color-scheme: light dark; }
+    .ink { fill: #1a1917; }
+    .fold { fill: #46536b; }
+    /* The dot stays visible by default so the mark reads complete wherever
+       CSS animation does not run; the arrival is expressed via keyframes only. */
+    .dot {
+      fill: #c34e33;
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: voy-arrive 1.55s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    .trace {
+      fill: none;
+      stroke: #c34e33;
+      stroke-width: 1.6;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-dasharray: 128;
+      stroke-dashoffset: 128;
+      opacity: 0;
+      animation:
+        voy-trace 1.05s cubic-bezier(0.4, 0, 0.2, 1) 0.15s forwards,
+        voy-trace-rest 0.6s ease 1.6s forwards;
+    }
+    .halo {
+      fill: none;
+      stroke: #c34e33;
+      stroke-width: 1.2;
+      opacity: 0;
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: voy-ping 0.9s ease-out 1.15s;
+    }
+    @keyframes voy-trace {
+      from { stroke-dashoffset: 128; opacity: 0.85; }
+      to { stroke-dashoffset: 0; opacity: 0.85; }
+    }
+    @keyframes voy-trace-rest { to { opacity: 0; } }
+    @keyframes voy-arrive {
+      0%, 67% { transform: scale(1); }
+      84% { transform: scale(1.22); }
+      100% { transform: scale(1); }
+    }
+    @keyframes voy-ping {
+      0% { transform: scale(0.5); opacity: 0.5; }
+      100% { transform: scale(2.4); opacity: 0; }
+    }
+    @media (prefers-color-scheme: dark) {
+      .ink { fill: #f2ede1; }
+      .fold { fill: #93a0b8; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .dot, .trace, .halo { animation: none; }
+    }
+  </style>
+  <polygon class="ink" points="22,18 38,18 58,80 42,80"/>
+  <polygon class="fold" points="42,80 58,80 73.5,32 57.5,32"/>
+  <polyline class="trace" points="30,18 50,80 69,21"/>
+  <circle class="halo" cx="69" cy="21" r="5"/>
+  <circle class="dot" cx="69" cy="21" r="5"/>
+</svg>
