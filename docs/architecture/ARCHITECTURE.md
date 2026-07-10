@@ -2,20 +2,22 @@
 
 ## Selected system shape
 
-Voyalier uses a React/Vite interface, a framework-independent Rust domain core, an Axum loopback API for local web mode, and a thin Tauri 2 desktop shell.
+Voyalier uses a React/Vite interface, a framework-independent Rust domain core, a SQLite-backed Rust application-service crate, an Axum loopback API for local web mode, and a thin Tauri 2 desktop shell.
 
 ```text
 React UI
-  ├─ browser → Axum loopback API
-  └─ desktop → Tauri shell → in-process Axum API
-                         ↓
-                   voyalier-core
-          ┌──────────────┼──────────────┐
-       evidence       planner        providers
-    SQLite/FTS5    rules/validator   travel/AI/risk
+  ├─ browser → Axum loopback API ┐
+  └─ desktop → direct Tauri IPC  ├─ voyalier-app → SQLite
+                                 ↓
+                           voyalier-core
+                 ┌──────────────┼──────────────┐
+              evidence       parsers        rules
+            source spans   local-only    validation
 ```
 
 ## Stable interfaces
+
+The frozen Phase 0 TypeScript contract is the app boundary. Rust wire structs use camelCase JSON and `AppError` is shared across HTTP bodies and Tauri command errors.
 
 The core will define replaceable interfaces for `AiProvider`, `TravelInventoryProvider`, `PlaceSource`, `RiskSource`, `VisaSource`, `DocumentParser`, `Retriever`, `Storage`, and `ReportRenderer`.
 
@@ -25,8 +27,12 @@ All persistent user state lives outside the application bundle in an OS-appropri
 
 ## Retrieval
 
-FTS5 is the baseline. Semantic embeddings are an optional local pack and operate on a trip-sized corpus. The evidence record retains provenance independently of any vector index.
+Phase 1 stores source documents in SQLite but never returns raw document content through API surfaces. Parser output keeps field spans and excerpts so extracted facts remain reviewable.
+
+FTS5 is deferred. Semantic embeddings are an optional local pack and operate on a trip-sized corpus. The evidence record retains provenance independently of any vector index.
 
 ## Current limitations
 
-The scaffold uses a fixed loopback port and does not yet authenticate the local API session. Random port selection, a per-launch token, strict origin checks, and graceful collision handling are public-beta gates.
+The Axum server still binds `127.0.0.1:8787` for browser development. It validates Host and Origin and allows Vite origins only. Desktop release builds use direct Tauri IPC and start no TCP listener.
+
+The secured-loopback fallback remains a documented contingency only if Tauri command testing becomes inadequate.

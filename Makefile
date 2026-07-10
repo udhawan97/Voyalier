@@ -17,8 +17,8 @@ check:
 
 rust-check:
 	cargo fmt --all -- --check
-	cargo clippy --locked -p voyalier-core -p voyalier-server --all-targets -- -D warnings
-	cargo test --locked -p voyalier-core -p voyalier-server
+	cargo clippy --locked -p voyalier-core -p voyalier-app -p voyalier-server -p voyalier-desktop --all-targets -- -D warnings
+	cargo test --locked -p voyalier-core -p voyalier-app -p voyalier-server -p voyalier-desktop
 
 clean:
 	rm -rf target apps/web/dist docs-site/dist

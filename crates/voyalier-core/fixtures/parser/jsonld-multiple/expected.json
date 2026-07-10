@@ -1,0 +1,34 @@
+{
+  "parser": "jsonld.v1",
+  "exact": true,
+  "expectedCandidates": [
+    {
+      "factType": "flight_segment",
+      "method": "structured",
+      "payload": {
+        "airlineName": "Cedar Air",
+        "airlineIata": "CD",
+        "flightNumber": "901",
+        "departureAirportIata": "SEA",
+        "arrivalAirportIata": "OSL",
+        "departureLocal": "2026-12-01T09:10",
+        "arrivalLocal": "2026-12-01T23:30",
+        "confirmationCode": "MULTI1",
+        "passengerName": "Jordan Test"
+      }
+    },
+    {
+      "factType": "lodging_stay",
+      "method": "structured",
+      "payload": {
+        "propertyName": "North Window Hotel",
+        "address": "4 Example Street, Oslo",
+        "checkinDate": "2026-12-02",
+        "checkoutDate": "2026-12-05",
+        "confirmationCode": "MULTI2",
+        "guestName": "Jordan Test"
+      }
+    }
+  ],
+  "expectedDiagnostics": []
+}

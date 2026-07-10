@@ -1,0 +1,17 @@
+{
+  "parser": "plaintext.v1",
+  "exact": false,
+  "expectedCandidates": [
+    {
+      "factType": "flight_segment",
+      "method": "inferred",
+      "payload": {
+        "confirmationCode": "MISS9",
+        "departureAirportIata": "SEA",
+        "arrivalAirportIata": "OSL"
+      },
+      "warnings": ["missing_dates"]
+    }
+  ],
+  "expectedDiagnostics": []
+}

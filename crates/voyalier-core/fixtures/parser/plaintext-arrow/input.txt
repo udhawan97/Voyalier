@@ -1,0 +1,5 @@
+Fictional confirmation notice
+Confirmation: ARROW8
+Route: SFO-NRT
+Departure 2026-08-01T22:30
+Arrival 2026-08-02T04:55

@@ -1,0 +1,22 @@
+{
+  "parser": "jsonld.v1",
+  "exact": true,
+  "expectedCandidates": [
+    {
+      "factType": "flight_segment",
+      "method": "structured",
+      "payload": {
+        "airlineName": "Atlas Fictional",
+        "airlineIata": "AF",
+        "flightNumber": "77",
+        "departureAirportIata": "ORD",
+        "arrivalAirportIata": "LIS",
+        "departureLocal": "2026-10-10T18:15",
+        "arrivalLocal": "2026-10-11T07:20",
+        "confirmationCode": "GRAPH7",
+        "passengerName": "Taylor Demo"
+      }
+    }
+  ],
+  "expectedDiagnostics": []
+}

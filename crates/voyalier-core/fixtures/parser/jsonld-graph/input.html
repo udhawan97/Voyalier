@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+  <head>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Thing",
+            "name": "Noise Node"
+          },
+          {
+            "@type": "FlightReservation",
+            "reservationNumber": "GRAPH7",
+            "underName": { "@type": "Person", "name": "Taylor Demo" },
+            "reservationFor": {
+              "@type": "Flight",
+              "flightNumber": "77",
+              "airline": { "@type": "Airline", "name": "Atlas Fictional", "iataCode": "AF" },
+              "departureAirport": { "@type": "Airport", "iataCode": "ORD" },
+              "arrivalAirport": { "@type": "Airport", "iataCode": "LIS" },
+              "departureTime": "2026-10-10T18:15",
+              "arrivalTime": "2026-10-11T07:20"
+            }
+          }
+        ]
+      }
+    </script>
+  </head>
+</html>

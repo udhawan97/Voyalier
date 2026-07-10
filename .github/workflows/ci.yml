@@ -33,7 +33,7 @@ jobs:
       - run: pnpm build
 
   rust:
-    name: Rust core and local API
+    name: Rust core, app, and local API
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -42,5 +42,31 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all -- --check
-      - run: cargo clippy --locked -p voyalier-core -p voyalier-server --all-targets -- -D warnings
-      - run: cargo test --locked -p voyalier-core -p voyalier-server
+      - run: cargo clippy --locked -p voyalier-core -p voyalier-app -p voyalier-server --all-targets -- -D warnings
+      - run: cargo test --locked -p voyalier-core -p voyalier-app -p voyalier-server
+
+  desktop:
+    name: Desktop IPC
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Tauri Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            curl \
+            file \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev \
+            patchelf \
+            wget
+      - run: cargo clippy --locked -p voyalier-desktop --all-targets -- -D warnings
+      - run: cargo test --locked -p voyalier-desktop

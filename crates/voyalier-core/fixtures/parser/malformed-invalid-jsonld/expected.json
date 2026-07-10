@@ -1,0 +1,6 @@
+{
+  "parser": "jsonld.v1",
+  "exact": false,
+  "expectedCandidates": [],
+  "expectedDiagnostics": ["invalid_jsonld"]
+}

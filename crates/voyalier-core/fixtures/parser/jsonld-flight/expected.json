@@ -1,0 +1,22 @@
+{
+  "parser": "jsonld.v1",
+  "exact": true,
+  "expectedCandidates": [
+    {
+      "factType": "flight_segment",
+      "method": "structured",
+      "payload": {
+        "airlineName": "Nimbus Air",
+        "airlineIata": "NB",
+        "flightNumber": "412",
+        "departureAirportIata": "SFO",
+        "arrivalAirportIata": "NRT",
+        "departureLocal": "2026-08-01T22:30",
+        "arrivalLocal": "2026-08-02T04:55",
+        "confirmationCode": "SKY8KY",
+        "passengerName": "Alex Example"
+      }
+    }
+  ],
+  "expectedDiagnostics": []
+}
