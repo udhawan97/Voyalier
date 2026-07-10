@@ -193,11 +193,61 @@ text + icon redundancy, never color alone.
 
 ---
 
+## Verification performed
+
+- `pnpm check` (lint + typecheck + test + build) — **green**. Web suite: **26
+  passed, 4 skipped** (the skipped 4 are the live-HTTP gateway tests, gated on
+  `VITE_LIVE_API=1` for integration). Production build completes.
+- Contract freeze re-verified: `git diff --exit-code dda1122..HEAD --
+  packages/contracts/src/` returns clean.
+- Manual browser walkthrough (`VITE_MOCK=1`, no console errors) of: trip list
+  (light + dark), Blueprint with verbatim wall-clock datetimes, candidate review
+  (evidence quotes + `missing_dates` warning), and create-trip inline validation.
+
+### Acceptance checklist
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| Full loop create→import→review→confirm→Blueprint→unconfirm | ✅ | `fullLoop.test.tsx` |
+| Every AppError code renders a state | ✅ | `errorStates.test.tsx` (12/12) |
+| Review keyboard: trap, Esc, focus return, full flow | ✅ | `review.keyboard.test.tsx` |
+| Injection excerpt + crafted markup render inert | ✅ | `injection.test.tsx` |
+| Theme apply/persist + reduced-motion CSS | ✅ | `theme.test.tsx` |
+| Gateway error-normalization across all three transports | ✅ | `gateway.errors.test.tsx` |
+| 50-candidate review renders < 100ms | ✅ | `performance.test.tsx` |
+| Live HTTP parity | ⏳ deferred | `gateway.live.test.ts` (run at integration) |
+
+## Known gaps / follow-ups
+
+- **`document/duplicate` "link to existing":** Phase 1 has no Documents surface,
+  so the duplicate state names the existing document id rather than deep-linking.
+  Wire a link once the Documents surface lands.
+- **Mock import yields zero candidates** by contract, so the in-app "import → new
+  candidates" path is exercised against the real core at integration, not in unit
+  tests. The code path (auto-offer "Review N new suggestions") is implemented and
+  will light up against Codex's parser.
+- **`app.withGlobalTauri` cleanup:** per ADR-0002, adopt `@tauri-apps/api` and
+  disable the global bridge post-integration (owned jointly; needs a lockfile change).
+
+## Contract change requests
+
+None. The frozen `AppGateway` covered every Phase-1 surface.
+
+## Risks discovered
+
+- The desktop smoke checklist (create → import → confirm → restart → persists →
+  zero requests to `127.0.0.1:8787`) can only run after Codex's core merges and a
+  `cargo tauri dev` build; it is a joint step, not verifiable from this branch.
+- `react-hooks` in the pinned ESLint now errors on `set-state-in-effect` and
+  ref-writes-during-render; the async data hook and health probe are structured to
+  satisfy both. Worth knowing if future effects are added.
+
 ## Progress log
 
 - **Plan committed** — this document (opening commit).
 - Repo verified: contract frozen since Phase 0 (`git diff --exit-code`), baseline
   `pnpm check` green on merged main. Codex's Rust core, `src-tauri`, and CI are out
   of this branch's ownership and untouched.
+- **Shell + transports + full UX implemented**, all tests green, browser-verified.
 </content>
 </invoke>
