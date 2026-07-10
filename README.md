@@ -1,4 +1,8 @@
 <p align="center">
+  <img src="packages/brand/src/voyalier-app-icon.svg" alt="Voyalier app icon: the folded-route mark — one paper strip folded into a V with a vermilion waypoint — on a deep indigo tile" width="220">
+</p>
+
+<p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="packages/brand/src/voyalier-lockup-dark.svg">
     <img src="packages/brand/src/voyalier-lockup.svg" alt="Voyalier — the folded-route mark: one itinerary strip folded into a V, with a vermilion waypoint just past the fold" width="300">

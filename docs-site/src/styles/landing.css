@@ -488,6 +488,24 @@ h1 em {
   height: auto;
 }
 
+/* the big app icon, floating as a hero product shot */
+.hero-icon {
+  width: min(78%, 21rem);
+  height: auto;
+  filter: drop-shadow(0 30px 52px rgb(23 22 20 / 34%));
+  animation: voy-float 6s ease-in-out infinite;
+}
+
+@keyframes voy-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-9px);
+  }
+}
+
 .panel-word {
   font-size: 0.98rem;
   font-weight: 500;
@@ -954,7 +972,8 @@ footer p {
   .eyebrow[data-load],
   .lede[data-load],
   .actions[data-load],
-  .hero-panel {
+  .hero-panel,
+  .hero-icon {
     animation: none;
     opacity: 1;
     transform: none;

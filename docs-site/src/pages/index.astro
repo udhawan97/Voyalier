@@ -7,6 +7,7 @@
  * Motion is transform/opacity only and fully disabled under prefers-reduced-motion.
  */
 import '../styles/landing.css'
+import iconUrl from '@voyalier/brand/voyalier-app-icon.svg?url'
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '')
 
@@ -132,32 +133,15 @@ const waypoints = [
           </div>
         </div>
 
-        <figure class="hero-panel" data-load="3" aria-label="The Voyalier folded-route mark">
-          <figcaption class="cap">間 · MA — THE INTERVAL</figcaption>
-          <svg class="mark mark-anim" viewBox="0 0 96 96" role="img" aria-label="Voyalier mark: one itinerary strip folded into a V, a vermilion waypoint just past the fold">
-            <polygon class="ink" points="22,18 38,18 58,80 42,80"></polygon>
-            <polygon class="fold" points="42,80 58,80 73.5,32 57.5,32"></polygon>
-            <polyline class="trace" points="30,18 50,80 69,21"></polyline>
-            <circle class="halo" cx="69" cy="21" r="5"></circle>
-            <circle class="dot" cx="69" cy="21" r="5"></circle>
-            <defs>
-              <linearGradient id="sheen-g" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0" stop-color="#ffffff" stop-opacity="0"></stop>
-                <stop offset=".5" stop-color="#ffffff" stop-opacity=".16"></stop>
-                <stop offset="1" stop-color="#ffffff" stop-opacity="0"></stop>
-              </linearGradient>
-              <clipPath id="sheen-c">
-                <polygon points="22,18 38,18 58,80 42,80"></polygon>
-                <polygon points="42,80 58,80 73.5,32 57.5,32"></polygon>
-                <circle cx="69" cy="21" r="5"></circle>
-              </clipPath>
-            </defs>
-            <g clip-path="url(#sheen-c)">
-              <g transform="rotate(20 48 48)">
-                <rect class="sheen" x="-40" y="-40" width="34" height="176" fill="url(#sheen-g)"></rect>
-              </g>
-            </g>
-          </svg>
+        <figure class="hero-panel" data-load="3" aria-label="The Voyalier app icon">
+          <figcaption class="cap">折 · ONE STRIP, FOLDED</figcaption>
+          <img
+            class="hero-icon"
+            src={iconUrl}
+            width="512"
+            height="512"
+            alt="Voyalier app icon: the folded-route mark — one paper strip folded into a V with a vermilion waypoint — on a deep indigo tile"
+          />
           <div class="panel-word">VOYALIER</div>
         </figure>
 

@@ -1,10 +1,90 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
-  <title id="title">Voyalier app icon</title>
-  <desc id="description">The folded-route mark — one strip, one fold, one vermilion waypoint — on a warm ivory tile.</desc>
-  <rect width="512" height="512" rx="115.2" fill="#faf7ef"/>
-  <g transform="translate(-36.571 -36.571) scale(6.0952)">
-    <polygon fill="#1a1917" points="22,18 38,18 58,80 42,80"/>
-    <polygon fill="#46536b" points="42,80 58,80 73.5,32 57.5,32"/>
-    <circle fill="#c34e33" cx="69" cy="21" r="5"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-labelledby="t d">
+  <title id="t">Voyalier app icon</title>
+  <desc id="d">The folded-route mark — one paper strip folded once at the valley, a vermilion waypoint rising past the fold — embossed on a deep indigo tile.</desc>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#55617e"/>
+      <stop offset=".52" stop-color="#3c4762"/>
+      <stop offset="1" stop-color="#20242f"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".78" cy=".2" r=".9">
+      <stop offset="0" stop-color="#aeb9d4" stop-opacity=".42"/>
+      <stop offset="1" stop-color="#aeb9d4" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="sun" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#e8825f" stop-opacity=".4"/>
+      <stop offset="1" stop-color="#c34e33" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="topGloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".14"/>
+      <stop offset=".22" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2=".3" y2="1">
+      <stop offset="0" stop-color="#fdfbf5"/>
+      <stop offset="1" stop-color="#e7e1d3"/>
+    </linearGradient>
+    <linearGradient id="foldPaper" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c3cad9"/>
+      <stop offset="1" stop-color="#93a0b8"/>
+    </linearGradient>
+    <radialGradient id="dot" cx=".38" cy=".34" r=".75">
+      <stop offset="0" stop-color="#e8734f"/>
+      <stop offset=".55" stop-color="#c34e33"/>
+      <stop offset="1" stop-color="#a53d25"/>
+    </radialGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#ffffff" stop-opacity=".5"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="drop" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="11" stdDeviation="14" flood-color="#0d0f16" flood-opacity=".34"/>
+    </filter>
+    <filter id="soft" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="9"/>
+    </filter>
+    <clipPath id="tileClip"><rect width="512" height="512" rx="114"/></clipPath>
+    <clipPath id="markClip">
+      <polygon points="22,18 38,18 58,80 42,80"/>
+      <polygon points="42,80 58,80 73.5,32 57.5,32"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#tileClip)">
+    <rect width="512" height="512" fill="url(#tile)"/>
+    <rect width="512" height="512" fill="url(#glow)"/>
+    <circle cx="374" cy="102" r="120" fill="url(#sun)"/>
+    <rect width="512" height="512" fill="url(#topGloss)"/>
+    <rect x="26" y="26" width="460" height="460" rx="92" fill="none" stroke="#000000" stroke-opacity=".14" stroke-width="2"/>
+    <rect x="28" y="28" width="456" height="456" rx="90" fill="none" stroke="#ffffff" stroke-opacity=".10" stroke-width="2"/>
+
+    <g transform="translate(1.97 -10.68) scale(5.32)">
+      <ellipse cx="48" cy="82" rx="30" ry="4.4" fill="#0d0f16" opacity=".38" filter="url(#soft)"/>
+
+      <g filter="url(#drop)">
+        <polygon points="42,80 58,80 73.5,32 57.5,32" fill="url(#foldPaper)"/>
+        <polygon points="22,18 38,18 58,80 42,80" fill="url(#paper)"/>
+      </g>
+
+      <line x1="42" y1="80" x2="58" y2="80" stroke="#6f7b93" stroke-width="1.1" stroke-opacity=".7"/>
+      <polyline points="22,18 42,80" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity=".55"/>
+      <polyline points="57.5,32 73.5,32" fill="none" stroke="#ffffff" stroke-width=".9" stroke-opacity=".4"/>
+
+      <g clip-path="url(#markClip)">
+        <rect class="glint" x="-30" y="0" width="26" height="110" fill="url(#sheen)" transform="rotate(16 48 49)"/>
+      </g>
+
+      <circle cx="69" cy="21" r="6.2" fill="url(#dot)"/>
+      <circle cx="66.8" cy="18.8" r="1.7" fill="#ffffff" opacity=".6"/>
+    </g>
   </g>
+
+  <style>
+    .glint { animation: voy-glint 7s ease-in-out infinite; }
+    @keyframes voy-glint {
+      0%, 58% { transform: translateX(0); }
+      84%, 100% { transform: translateX(150px); }
+    }
+    @media (prefers-reduced-motion: reduce) { .glint { animation: none; } }
+  </style>
 </svg>
