@@ -5,8 +5,8 @@
 <p align="center"><em>From scattered plans to one clear journey.</em></p>
 
 <p align="center">
-  A local-first travel intelligence workspace that turns trip details, destination research,<br>
-  and messy confirmations into a Smart Blueprint, itinerary, readiness radar, and shareable brief.
+  A travel planner that gathers trip details, destination research, and messy confirmations<br>
+  into one ordered itinerary — plus a readiness check and a brief you can actually share.
 </p>
 
 <p align="center">
