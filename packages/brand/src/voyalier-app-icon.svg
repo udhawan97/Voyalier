@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-labelledby="t d">
   <title id="t">Voyalier app icon</title>
-  <desc id="d">The folded-route mark — one paper strip folded once at the valley, a vermilion waypoint rising past the fold — embossed on a deep indigo tile.</desc>
+  <desc id="d">The folded-route mark — a vermilion waypoint trace draws down through the fold and arrives with a pulse — embossed on a deep indigo tile. Loops every 6s; honors prefers-reduced-motion.</desc>
   <defs>
     <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#55617e"/>
@@ -62,7 +62,7 @@
       <ellipse cx="48" cy="82" rx="30" ry="4.4" fill="#0d0f16" opacity=".38" filter="url(#soft)"/>
 
       <g filter="url(#drop)">
-        <polygon points="42,80 58,80 73.5,32 57.5,32" fill="url(#foldPaper)"/>
+        <polygon class="voy-fold" points="42,80 58,80 73.5,32 57.5,32" fill="url(#foldPaper)"/>
         <polygon points="22,18 38,18 58,80 42,80" fill="url(#paper)"/>
       </g>
 
@@ -70,21 +70,54 @@
       <polyline points="22,18 42,80" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity=".55"/>
       <polyline points="57.5,32 73.5,32" fill="none" stroke="#ffffff" stroke-width=".9" stroke-opacity=".4"/>
 
+      <polyline class="voy-trace" points="30,18 50,80 69,21" fill="none" stroke="#e8734f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="128" stroke-dashoffset="128" opacity="0"/>
+      <circle class="voy-halo" cx="69" cy="21" r="5" fill="none" stroke="#e8734f" stroke-width="1.2" opacity="0"/>
+
       <g clip-path="url(#markClip)">
         <rect class="glint" x="-30" y="0" width="26" height="110" fill="url(#sheen)" transform="rotate(16 48 49)"/>
       </g>
 
-      <circle cx="69" cy="21" r="6.2" fill="url(#dot)"/>
-      <circle cx="66.8" cy="18.8" r="1.7" fill="#ffffff" opacity=".6"/>
+      <g class="voy-dot">
+        <circle cx="69" cy="21" r="6.2" fill="url(#dot)"/>
+        <circle cx="66.8" cy="18.8" r="1.7" fill="#ffffff" opacity=".6"/>
+      </g>
     </g>
   </g>
 
   <style>
-    .glint { animation: voy-glint 7s ease-in-out infinite; }
+    .glint    { animation: voy-glint 7s ease-in-out infinite; }
+    .voy-fold { animation: voy-breath 6s ease-in-out infinite; transform-box: fill-box; transform-origin: 25.4% 100%; }
+    .voy-trace{ animation: voy-trace 6s ease-in-out infinite; }
+    .voy-halo { animation: voy-ping 6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+    .voy-dot  { animation: voy-arrive 6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
     @keyframes voy-glint {
       0%, 58% { transform: translateX(0); }
       84%, 100% { transform: translateX(150px); }
     }
-    @media (prefers-reduced-motion: reduce) { .glint { animation: none; } }
+    @keyframes voy-breath {
+      0%, 36%, 74%, 100% { transform: skewX(0) scaleY(1); }
+      54% { transform: skewX(-1.8deg) scaleY(.986); }
+    }
+    @keyframes voy-trace {
+      0%   { stroke-dashoffset: 128; opacity: 0; }
+      5%   { opacity: .9; }
+      36%  { stroke-dashoffset: 0; opacity: .9; }
+      52%  { stroke-dashoffset: 0; opacity: 0; }
+      56%, 100% { stroke-dashoffset: 128; opacity: 0; }
+    }
+    @keyframes voy-ping {
+      0%, 35%   { transform: scale(.5); opacity: 0; }
+      42%       { transform: scale(1); opacity: .55; }
+      60%       { transform: scale(2); opacity: 0; }
+      61%, 100% { transform: scale(.5); opacity: 0; }
+    }
+    @keyframes voy-arrive {
+      0%, 33%   { transform: scale(1); }
+      41%       { transform: scale(1.18); }
+      50%, 100% { transform: scale(1); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .glint, .voy-fold, .voy-trace, .voy-halo, .voy-dot { animation: none !important; }
+    }
   </style>
 </svg>
