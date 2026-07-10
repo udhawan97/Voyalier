@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type {
   AppError,
+  CandidateFact,
   DocumentKind,
   ImportResult,
 } from "@voyalier/contracts";
@@ -24,7 +25,7 @@ export function ImportDialog({
   tripId: string;
   onClose: () => void;
   onImported: (result: ImportResult) => void;
-  onReview: () => void;
+  onReview: (candidates: CandidateFact[]) => void;
 }) {
   const gateway = useGateway();
   const [kind, setKind] = useState<DocumentKind>("pasted_text");
@@ -87,7 +88,10 @@ export function ImportDialog({
         footer={
           <>
             {found > 0 ? (
-              <Button variant="primary" onClick={onReview}>
+              <Button
+                variant="primary"
+                onClick={() => onReview(result.candidates)}
+              >
                 Review {found} {pluralize(found, "suggestion")}
               </Button>
             ) : null}

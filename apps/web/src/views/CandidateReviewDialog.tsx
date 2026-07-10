@@ -157,6 +157,7 @@ function ReviewCard({
           <>
             <Button
               variant="ghost"
+              disabled={busy !== null}
               onClick={() => {
                 setEditing(false);
                 setDraft(payloadToDraft(candidate.payload));
@@ -165,8 +166,10 @@ function ReviewCard({
               Cancel edit
             </Button>
             <Button
+              ref={confirmRef}
               variant="primary"
               busy={busy === "confirm"}
+              disabled={busy !== null}
               onClick={() =>
                 confirm(draftToPayload(candidate.factType, draft))
               }
@@ -180,14 +183,24 @@ function ReviewCard({
               ref={confirmRef}
               variant="primary"
               busy={busy === "confirm"}
+              disabled={busy !== null}
               onClick={() => confirm()}
             >
               Confirm
             </Button>
-            <Button variant="secondary" onClick={() => setEditing(true)}>
+            <Button
+              variant="secondary"
+              disabled={busy !== null}
+              onClick={() => setEditing(true)}
+            >
               Edit &amp; confirm
             </Button>
-            <Button variant="ghost" busy={busy === "reject"} onClick={reject}>
+            <Button
+              variant="ghost"
+              busy={busy === "reject"}
+              disabled={busy !== null}
+              onClick={reject}
+            >
               Dismiss
             </Button>
           </>
@@ -219,7 +232,9 @@ export function CandidateReviewDialog({
     if (!target) return;
     pendingFocus.current = null;
     if (target === "__done__") doneRef.current?.focus();
-    else confirmRefs.current[target]?.focus();
+    // The next card's primary button (Confirm or, in edit mode, Save & confirm);
+    // fall back to the footer so focus never escapes the dialog.
+    else (confirmRefs.current[target] ?? doneRef.current)?.focus();
   }, [queue]);
 
   function handleDone(id: string) {

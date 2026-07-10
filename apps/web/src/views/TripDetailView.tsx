@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { AppError, ConfirmedFact } from "@voyalier/contracts";
+import type { AppError, CandidateFact, ConfirmedFact } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import {
@@ -164,7 +164,11 @@ export function TripDetailView({
 
   const [showImport, setShowImport] = useState(false);
   const [showAddFact, setShowAddFact] = useState(false);
-  const [showReview, setShowReview] = useState(false);
+  // Holds the exact candidates to review (from the pending list or a fresh
+  // import) so the dialog never depends on an in-flight refetch settling first.
+  const [reviewCandidates, setReviewCandidates] = useState<
+    CandidateFact[] | null
+  >(null);
   const [showDelete, setShowDelete] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [unconfirmingId, setUnconfirmingId] = useState<string | null>(null);
@@ -307,7 +311,7 @@ export function TripDetailView({
         <button
           type="button"
           className="voy-pending-entry"
-          onClick={() => setShowReview(true)}
+          onClick={() => setReviewCandidates(pending)}
         >
           <CountBadge
             count={pendingCount}
@@ -379,10 +383,10 @@ export function TripDetailView({
           tripId={tripId}
           onClose={() => setShowImport(false)}
           onImported={() => reload()}
-          onReview={() => {
+          onReview={(candidates) => {
             setShowImport(false);
+            setReviewCandidates(candidates);
             reload();
-            setShowReview(true);
           }}
         />
       ) : null}
@@ -399,10 +403,10 @@ export function TripDetailView({
         />
       ) : null}
 
-      {showReview ? (
+      {reviewCandidates ? (
         <CandidateReviewDialog
-          candidates={pending}
-          onClose={() => setShowReview(false)}
+          candidates={reviewCandidates}
+          onClose={() => setReviewCandidates(null)}
           onResolved={() => reload()}
         />
       ) : null}
