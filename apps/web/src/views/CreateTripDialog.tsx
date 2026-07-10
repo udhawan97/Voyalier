@@ -154,6 +154,7 @@ export function CreateTripDialog({
             onChange={(event) => setStartDate(event.target.value)}
             required
             aria-invalid={errors.dates ? true : undefined}
+            aria-describedby={errors.dates ? "trip-end-error" : undefined}
           />
           <TextField
             id="trip-end"

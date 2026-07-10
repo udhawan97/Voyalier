@@ -249,5 +249,13 @@ None. The frozen `AppGateway` covered every Phase-1 surface.
   `pnpm check` green on merged main. Codex's Rust core, `src-tauri`, and CI are out
   of this branch's ownership and untouched.
 - **Shell + transports + full UX implemented**, all tests green, browser-verified.
+- **Live integration verified** against `cargo run -p voyalier-server`: HTTP gateway
+  round-trips the full import→confirm→unconfirm→manual loop (real parser extracts a
+  JSON-LD flight), and the real UI drives it over HTTP end-to-end.
+- **Post-review hardening** (see `hardening.test.tsx`): review now receives the
+  freshly imported candidates directly (no dependency on an in-flight refetch);
+  review actions are mutually disabled while one is in flight; focus after a
+  resolution lands on the next card's primary button even mid-edit; the create-trip
+  start-date field is `aria-describedby`-linked to the date-range error.
 </content>
 </invoke>
