@@ -4,9 +4,6 @@
   <style>
     .ink { fill: #1a1917; }
     .fold { fill: #46536b; }
-    /* Seamless one-cycle loop: ink traces the route, the traveler arrives,
-       the paper exhales, then a long stillness. At rest (0%/100%) the mark is
-       complete, so it also reads correctly frozen or under reduced motion. */
     .trace {
       fill: none; stroke: #c34e33; stroke-width: 1.6;
       stroke-linecap: round; stroke-linejoin: round;
