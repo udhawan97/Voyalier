@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voyalier.local/schemas/CandidateFact.schema.json",
+  "title": "CandidateFact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "tripId",
+    "documentId",
+    "parserRunId",
+    "factType",
+    "payload",
+    "method",
+    "fieldSpans",
+    "warnings",
+    "status",
+    "createdAt",
+    "resolvedAt"
+  ],
+  "properties": {
+    "id": { "type": "string" },
+    "tripId": { "type": "string" },
+    "documentId": { "type": "string" },
+    "parserRunId": { "type": "string" },
+    "factType": { "enum": ["flight_segment", "lodging_stay"] },
+    "payload": { "$ref": "#/$defs/factPayload" },
+    "method": { "enum": ["structured", "inferred", "manual"] },
+    "fieldSpans": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/fieldSpan" }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "missing_dates",
+          "missing_locations",
+          "ambiguous_date_format",
+          "past_date",
+          "outside_trip_window",
+          "unrecognized_airport_code"
+        ]
+      }
+    },
+    "status": { "enum": ["pending", "confirmed", "rejected"] },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "resolvedAt": {
+      "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }]
+    }
+  },
+  "$defs": {
+    "factPayload": {
+      "anyOf": [
+        { "$ref": "#/$defs/flightSegmentPayload" },
+        { "$ref": "#/$defs/lodgingStayPayload" }
+      ]
+    },
+    "flightSegmentPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "airlineName": { "type": "string" },
+        "airlineIata": { "type": "string" },
+        "flightNumber": { "type": "string" },
+        "departureAirportIata": { "type": "string" },
+        "arrivalAirportIata": { "type": "string" },
+        "departureLocal": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$"
+        },
+        "arrivalLocal": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$"
+        },
+        "confirmationCode": { "type": "string" },
+        "passengerName": { "type": "string" }
+      }
+    },
+    "lodgingStayPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "propertyName": { "type": "string" },
+        "address": { "type": "string" },
+        "checkinDate": { "type": "string", "format": "date" },
+        "checkoutDate": { "type": "string", "format": "date" },
+        "confirmationCode": { "type": "string" },
+        "guestName": { "type": "string" }
+      }
+    },
+    "fieldSpan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fieldPath", "start", "end", "excerpt"],
+      "properties": {
+        "fieldPath": { "type": "string" },
+        "start": { "type": "integer", "minimum": 0 },
+        "end": { "type": "integer", "minimum": 0 },
+        "excerpt": { "type": "string" }
+      }
+    }
+  }
+}

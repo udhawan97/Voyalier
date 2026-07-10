@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import type { HealthResponse } from "@voyalier/contracts";
 
 import { App } from "./App";
 
@@ -8,12 +9,13 @@ describe("App", () => {
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({
-          status: "ok",
-          service: "voyalier-server",
-          version: "0.1.0",
-          intelligence_mode: "local",
-        }),
+        json: async () =>
+          ({
+            status: "ok",
+            service: "voyalier-server",
+            version: "0.1.0",
+            intelligenceMode: "local",
+          }) satisfies HealthResponse,
       }),
     );
 
