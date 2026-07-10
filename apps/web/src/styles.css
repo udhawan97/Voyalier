@@ -1,3 +1,5 @@
+/* ===== Base ============================================================== */
+
 * {
   box-sizing: border-box;
 }
@@ -6,7 +8,7 @@ html {
   background: var(--voy-paper);
   color: var(--voy-ink);
   font-family: var(--voy-font-ui);
-  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
 }
 
 body {
@@ -14,253 +16,1198 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 86% 4%, rgb(102 115 90 / 10%), transparent 28rem),
-    linear-gradient(
-      115deg,
-      transparent 0 65%,
-      rgb(36 50 74 / 3%) 65% 65.15%,
-      transparent 65.15%
-    ),
+    radial-gradient(circle at 92% -4%, var(--voy-tint-moss), transparent 26rem),
     var(--voy-paper);
 }
 
 button,
+input,
+textarea,
+select,
 a {
   font: inherit;
 }
 
 a {
-  color: inherit;
-}
-
-main {
-  width: min(1180px, calc(100% - 2rem));
-  margin: 0 auto;
-}
-
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 5rem;
-  border-bottom: 1px solid var(--voy-line);
-}
-
-.brand {
-  display: inline-flex;
-  gap: 0.7rem;
-  align-items: center;
-  color: var(--voy-ink);
-  font-weight: 680;
-  letter-spacing: -0.02em;
-  text-decoration: none;
-}
-
-.brand img {
-  width: 2.7rem;
-  height: 2rem;
-  object-fit: cover;
-}
-
-.service-pill {
-  display: inline-flex;
-  gap: 0.5rem;
-  align-items: center;
-  min-height: 2.25rem;
-  padding: 0.4rem 0.8rem;
-  border: 1px solid var(--voy-line);
-  border-radius: 999px;
-  color: var(--voy-ink-muted);
-  font-size: 0.8rem;
-}
-
-.service-pill span {
-  width: 0.48rem;
-  height: 0.48rem;
-  border-radius: 50%;
-  background: var(--voy-ink-muted);
-}
-
-.service-pill--connected span {
-  background: var(--voy-moss);
-  box-shadow: 0 0 0 4px rgb(111 122 100 / 14%);
-}
-
-.service-pill--offline span {
-  background: var(--voy-vermilion);
-}
-
-.hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(17rem, 0.75fr);
-  gap: clamp(2rem, 8vw, 7rem);
-  align-items: center;
-  min-height: 68vh;
-  padding: 5rem 0 6.5rem;
-}
-
-.eyebrow {
-  margin: 0 0 1rem;
-  color: var(--voy-moss);
-  font-size: 0.76rem;
-  font-weight: 720;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  color: var(--voy-indigo);
 }
 
 h1,
-h2 {
+h2,
+h3 {
   margin: 0;
-  font-family: var(--voy-font-display);
   font-weight: 500;
-  letter-spacing: -0.045em;
+  letter-spacing: -0.02em;
 }
 
-h1 {
-  max-width: 13ch;
-  font-size: clamp(3.5rem, 8vw, 7.6rem);
-  line-height: 0.92;
+:focus-visible {
+  outline: 2px solid var(--voy-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
-.lede {
-  max-width: 42rem;
-  margin: 2rem 0 0;
-  color: var(--voy-ink-muted);
-  font-size: clamp(1.05rem, 2vw, 1.35rem);
-  line-height: 1.65;
+:focus:not(:focus-visible) {
+  outline: none;
 }
 
-.hero__actions {
+.voy-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.voy-skip {
+  position: absolute;
+  left: 1rem;
+  top: -3rem;
+  z-index: 100;
+  padding: 0.6rem 1rem;
+  background: var(--voy-paper-raised);
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-sm);
+  text-decoration: none;
+  transition: top var(--voy-motion) var(--voy-ease);
+}
+
+.voy-skip:focus {
+  top: 1rem;
+}
+
+/* ===== App shell ======================================================== */
+
+.voy-app {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.85rem;
-  align-items: center;
-  margin-top: 2.4rem;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
-.hero__actions button,
-.hero__actions a {
-  min-height: 3rem;
-  padding: 0.8rem 1.1rem;
+.voy-main {
+  width: min(1140px, calc(100% - 2.5rem));
+  margin: 0 auto;
+  padding: 2.5rem 0 5rem;
+  flex: 1;
+}
+
+.voy-eyebrow {
+  margin: 0 0 0.5rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.74rem;
+  font-weight: 640;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+/* ===== Topbar =========================================================== */
+
+.voy-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: min(1140px, calc(100% - 2.5rem));
+  margin: 0 auto;
+  min-height: 4.5rem;
+  border-bottom: 1px solid var(--voy-line);
+}
+
+.voy-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.5rem 0.4rem 0;
+  background: none;
+  border: 0;
+  color: var(--voy-ink);
+  cursor: pointer;
+}
+
+.voy-brand__mark {
+  width: 2.2rem;
+  height: 1.7rem;
+  object-fit: contain;
+}
+
+.voy-brand__word {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.voy-topbar__right {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.voy-health {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--voy-line);
+  border-radius: 999px;
+  color: var(--voy-ink-muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.voy-health__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--voy-silver);
+}
+
+.voy-health--online .voy-health__dot {
+  background: var(--voy-moss);
+  box-shadow: 0 0 0 4px var(--voy-tint-moss);
+}
+
+.voy-health--offline .voy-health__dot {
+  background: var(--voy-vermilion);
+  box-shadow: 0 0 0 4px var(--voy-tint-vermilion);
+}
+
+/* ===== Theme toggle & choice groups ===================================== */
+
+.voy-theme,
+.voy-choice {
+  display: inline-flex;
+  padding: 0.2rem;
+  gap: 0.15rem;
+  background: var(--voy-paper-sunken);
+  border: 1px solid var(--voy-line);
   border-radius: 999px;
 }
 
-.hero__actions button {
+.voy-choice {
+  border-radius: var(--voy-radius-sm);
+}
+
+.voy-theme__opt,
+.voy-choice__opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2rem;
+  padding: 0.3rem 0.7rem;
+  background: none;
   border: 0;
+  border-radius: 999px;
+  color: var(--voy-ink-muted);
+  cursor: pointer;
+  transition:
+    background var(--voy-motion-fast) var(--voy-ease),
+    color var(--voy-motion-fast) var(--voy-ease);
+}
+
+.voy-choice__opt {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  min-height: 2.75rem;
+  border-radius: calc(var(--voy-radius-sm) - 0.2rem);
+  padding: 0.5rem 0.9rem;
+  flex: 1;
+}
+
+.voy-theme__opt.is-active,
+.voy-choice__opt.is-active {
+  background: var(--voy-paper-raised);
+  color: var(--voy-ink);
+  box-shadow: var(--voy-shadow-sm);
+}
+
+.voy-theme__icon {
+  display: inline-flex;
+  font-size: 1rem;
+}
+
+.voy-theme__label {
+  font-size: 0.8rem;
+}
+
+.voy-choice__label {
+  font-weight: 560;
+  font-size: 0.92rem;
+}
+
+.voy-choice__hint {
+  font-size: 0.76rem;
+  color: var(--voy-ink-muted);
+}
+
+@media (max-width: 640px) {
+  .voy-theme__label {
+    display: none;
+  }
+}
+
+/* ===== Buttons ========================================================== */
+
+.voy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0.55rem 1.1rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-weight: 560;
+  font-size: 0.94rem;
+  cursor: pointer;
+  transition:
+    background var(--voy-motion-fast) var(--voy-ease),
+    border-color var(--voy-motion-fast) var(--voy-ease),
+    transform var(--voy-motion-fast) var(--voy-ease),
+    opacity var(--voy-motion-fast) var(--voy-ease);
+}
+
+.voy-btn:active {
+  transform: translateY(1px);
+}
+
+.voy-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.voy-btn__icon {
+  display: inline-flex;
+  font-size: 1.05rem;
+}
+
+.voy-btn--primary {
   background: var(--voy-ink);
   color: var(--voy-paper);
-  cursor: not-allowed;
-  opacity: 0.88;
 }
 
-.hero__actions button span {
-  margin-left: 0.65rem;
-  opacity: 0.6;
-  font-size: 0.72rem;
+.voy-btn--primary:not(:disabled):hover {
+  background: var(--voy-indigo);
 }
 
-.hero__actions a {
-  display: inline-grid;
-  place-items: center;
-  border: 1px solid var(--voy-line);
-  text-decoration: none;
-}
-
-.hero__actions a:hover {
-  border-color: var(--voy-moss);
-}
-
-.hero__mark {
-  display: grid;
-  place-items: center;
-  aspect-ratio: 1;
-  border: 1px solid var(--voy-line);
-  border-radius: 48% 52% 46% 54% / 54% 42% 58% 46%;
+.voy-btn--secondary {
   background: var(--voy-paper-raised);
-  box-shadow: var(--voy-shadow);
+  border-color: var(--voy-line-strong);
+  color: var(--voy-ink);
 }
 
-.hero__mark img {
-  width: 78%;
+.voy-btn--secondary:not(:disabled):hover {
+  border-color: var(--voy-ink-muted);
 }
 
-.blueprint {
-  padding: 6rem 0;
-  border-top: 1px solid var(--voy-line);
+.voy-btn--ghost {
+  background: none;
+  color: var(--voy-ink-muted);
 }
 
-h2 {
-  max-width: 16ch;
-  font-size: clamp(2.7rem, 6vw, 5rem);
-  line-height: 1;
+.voy-btn--ghost:not(:disabled):hover {
+  background: var(--voy-paper-sunken);
+  color: var(--voy-ink);
 }
 
-.area-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
-  margin-top: 4rem;
-  overflow: hidden;
-  border: 1px solid var(--voy-line);
-  border-radius: var(--voy-radius-lg);
-  background: var(--voy-line);
+.voy-btn--danger {
+  background: var(--voy-danger);
+  color: #fff;
 }
 
-.area-grid article {
-  min-height: 14rem;
-  padding: 1.5rem;
-  background: var(--voy-paper-raised);
+.voy-btn--danger:not(:disabled):hover {
+  filter: brightness(0.94);
 }
 
-.area-grid article > span {
-  color: var(--voy-vermilion);
-  font-size: 0.72rem;
-  letter-spacing: 0.12em;
-}
-
-.area-grid h3 {
-  margin: 3rem 0 0.8rem;
+.voy-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  background: none;
+  border: 0;
+  border-radius: 50%;
+  color: var(--voy-ink-muted);
   font-size: 1.2rem;
+  cursor: pointer;
+  transition: background var(--voy-motion-fast) var(--voy-ease);
 }
 
-.area-grid p {
+.voy-icon-btn:hover {
+  background: var(--voy-paper-sunken);
+  color: var(--voy-ink);
+}
+
+/* ===== Forms & fields =================================================== */
+
+.voy-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.voy-form__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.voy-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.voy-field__label {
+  font-size: 0.86rem;
+  font-weight: 560;
+  color: var(--voy-ink);
+}
+
+.voy-field__req {
+  color: var(--voy-vermilion);
+}
+
+.voy-field__hint {
   margin: 0;
+  font-size: 0.8rem;
+  color: var(--voy-ink-muted);
+}
+
+.voy-field__error {
+  margin: 0.1rem 0 0;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--voy-vermilion);
+}
+
+.voy-input {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.6rem 0.8rem;
+  background: var(--voy-paper);
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-sm);
+  color: var(--voy-ink);
+  transition: border-color var(--voy-motion-fast) var(--voy-ease);
+}
+
+.voy-input::placeholder {
+  color: var(--voy-silver);
+}
+
+.voy-input:focus-visible {
+  outline: 2px solid var(--voy-focus);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+.voy-textarea {
+  min-height: 8rem;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.voy-field--invalid .voy-input {
+  border-color: var(--voy-vermilion);
+}
+
+.voy-charcount {
+  margin: -0.4rem 0 0;
+  font-size: 0.78rem;
+  color: var(--voy-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.voy-charcount.is-over {
+  color: var(--voy-vermilion);
+  font-weight: 560;
+}
+
+/* ===== Badges, chips, counts =========================================== */
+
+.voy-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--voy-line);
+  font-size: 0.76rem;
+  font-weight: 560;
+  color: var(--voy-ink-muted);
+  white-space: nowrap;
+}
+
+.voy-badge__icon {
+  display: inline-flex;
+  font-size: 0.85rem;
+}
+
+.voy-badge--moss {
+  color: var(--voy-moss);
+  border-color: color-mix(in srgb, var(--voy-moss) 40%, transparent);
+  background: var(--voy-tint-moss);
+}
+
+.voy-badge--silver {
+  color: var(--voy-ink-muted);
+}
+
+.voy-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 560;
+  letter-spacing: 0.01em;
+  background: var(--voy-paper-sunken);
+  color: var(--voy-ink-muted);
+  border: 1px solid var(--voy-line);
+  cursor: default;
+}
+
+.voy-chip--inferred {
+  color: var(--voy-vermilion);
+  background: var(--voy-tint-vermilion);
+  border-color: color-mix(in srgb, var(--voy-vermilion) 30%, transparent);
+}
+
+.voy-chip--manual {
+  color: var(--voy-indigo);
+  background: var(--voy-tint-indigo);
+  border-color: color-mix(in srgb, var(--voy-indigo) 30%, transparent);
+}
+
+.voy-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.6rem;
+  height: 1.6rem;
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  background: var(--voy-vermilion);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 640;
+  font-variant-numeric: tabular-nums;
+}
+
+.voy-count--indigo {
+  background: var(--voy-indigo);
+}
+
+/* ===== Banner =========================================================== */
+
+.voy-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-raised);
+}
+
+.voy-banner__icon {
+  display: inline-flex;
+  margin-top: 0.1rem;
+  font-size: 1.15rem;
+  color: var(--voy-ink-muted);
+}
+
+.voy-banner--error {
+  border-color: color-mix(in srgb, var(--voy-vermilion) 45%, transparent);
+  background: var(--voy-tint-vermilion);
+}
+
+.voy-banner--error .voy-banner__icon {
+  color: var(--voy-vermilion);
+}
+
+.voy-banner--warn {
+  border-color: color-mix(in srgb, var(--voy-vermilion) 30%, transparent);
+}
+
+.voy-banner__text {
+  flex: 1;
+}
+
+.voy-banner__title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.voy-banner__body {
+  margin: 0.2rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.voy-banner__action {
+  flex-shrink: 0;
+}
+
+/* ===== Empty state ===================================================== */
+
+.voy-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.6rem;
+  padding: 3.5rem 1.5rem;
+  border: 1px dashed var(--voy-line-strong);
+  border-radius: var(--voy-radius-lg);
+  background: var(--voy-paper-raised);
+}
+
+.voy-empty__icon {
+  font-size: 1.8rem;
+  color: var(--voy-silver);
+}
+
+.voy-empty__title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.voy-empty__body {
+  margin: 0;
+  max-width: 38ch;
   color: var(--voy-ink-muted);
   line-height: 1.6;
 }
 
-footer {
+.voy-empty__action,
+.voy-empty__actions {
+  margin-top: 0.8rem;
   display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  justify-content: center;
+}
+
+/* ===== Skeleton ======================================================== */
+
+.voy-skeleton {
+  display: block;
+  background: linear-gradient(
+    100deg,
+    var(--voy-paper-sunken) 30%,
+    var(--voy-line) 50%,
+    var(--voy-paper-sunken) 70%
+  );
+  background-size: 200% 100%;
+  animation: voy-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes voy-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* ===== Trip list ======================================================= */
+
+.voy-triplist__head {
+  display: flex;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 1rem;
-  padding: 2rem 0 3rem;
-  border-top: 1px solid var(--voy-line);
-  color: var(--voy-ink-muted);
-  font-size: 0.78rem;
+  margin-bottom: 2rem;
 }
 
-@media (max-width: 780px) {
-  .hero {
+.voy-triplist__head h1 {
+  font-size: clamp(2rem, 5vw, 2.8rem);
+}
+
+.voy-triplist__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+  gap: 1.1rem;
+}
+
+.voy-tripcard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.4rem;
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-raised);
+  box-shadow: var(--voy-shadow-sm);
+  transition:
+    transform var(--voy-motion) var(--voy-ease),
+    border-color var(--voy-motion) var(--voy-ease);
+}
+
+.voy-tripcard:hover {
+  transform: translateY(-2px);
+  border-color: var(--voy-line-strong);
+}
+
+.voy-tripcard.is-archived {
+  opacity: 0.72;
+}
+
+.voy-tripcard__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.voy-tripcard__title {
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.voy-tripcard__open {
+  padding: 0;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.voy-tripcard__open::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.voy-tripcard__route {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.voy-tripcard__dates {
+  margin: 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.88rem;
+}
+
+.voy-tripcard__counts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--voy-ink-muted);
+}
+
+.voy-tripcard__count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.voy-tripcard__actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.8rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--voy-line);
+}
+
+.voy-tripcard--skeleton {
+  gap: 0.8rem;
+}
+
+/* ===== Trip detail (Blueprint) ========================================= */
+
+.voy-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 1.4rem;
+  padding: 0.4rem 0.6rem 0.4rem 0;
+  background: none;
+  border: 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.voy-back:hover {
+  color: var(--voy-ink);
+}
+
+.voy-detail__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding-bottom: 1.6rem;
+  border-bottom: 1px solid var(--voy-line);
+}
+
+.voy-detail__headmain h1 {
+  font-size: clamp(1.9rem, 4.5vw, 2.7rem);
+  font-family: var(--voy-font-display);
+}
+
+.voy-detail__dates {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.7rem 0 0;
+  color: var(--voy-ink-muted);
+}
+
+.voy-detail__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.voy-pending-entry {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  margin-top: 1.6rem;
+  padding: 1.1rem 1.3rem;
+  text-align: left;
+  background: var(--voy-paper-raised);
+  border: 1px solid color-mix(in srgb, var(--voy-vermilion) 35%, transparent);
+  border-radius: var(--voy-radius-md);
+  cursor: pointer;
+  transition:
+    transform var(--voy-motion) var(--voy-ease),
+    border-color var(--voy-motion) var(--voy-ease);
+}
+
+.voy-pending-entry:hover {
+  transform: translateY(-1px);
+  border-color: var(--voy-vermilion);
+}
+
+.voy-pending-entry__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+}
+
+.voy-pending-entry__text strong {
+  font-weight: 600;
+}
+
+.voy-pending-entry__text span {
+  color: var(--voy-ink-muted);
+  font-size: 0.88rem;
+}
+
+.voy-pending-entry svg:last-child {
+  color: var(--voy-ink-muted);
+  font-size: 1.3rem;
+}
+
+.voy-detail__nopending {
+  margin: 1.6rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.9rem;
+}
+
+.voy-detail__blueprint {
+  margin-top: 2.6rem;
+}
+
+.voy-detail__blueprint-title {
+  font-size: 1.4rem;
+  font-family: var(--voy-font-display);
+  margin-bottom: 1.2rem;
+}
+
+.voy-detail__later {
+  margin-top: 3rem;
+  padding-top: 1.4rem;
+  border-top: 1px solid var(--voy-line);
+  color: var(--voy-silver);
+  font-size: 0.82rem;
+}
+
+.voy-factgroup {
+  margin-bottom: 2.2rem;
+}
+
+.voy-factgroup__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  font-size: 0.8rem;
+  font-weight: 640;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--voy-ink-muted);
+}
+
+.voy-factgroup__icon {
+  display: inline-flex;
+  font-size: 1rem;
+  color: var(--voy-indigo);
+}
+
+.voy-factgroup__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.3rem;
+  height: 1.3rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--voy-paper-sunken);
+  color: var(--voy-ink-muted);
+  font-size: 0.75rem;
+}
+
+.voy-factgroup__list {
+  display: grid;
+  gap: 1rem;
+}
+
+.voy-fact {
+  padding: 1.3rem;
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-raised);
+}
+
+.voy-fact__head,
+.voy-review__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+}
+
+.voy-fact__icon,
+.voy-review__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--voy-paper-sunken);
+  color: var(--voy-indigo);
+  font-size: 1.15rem;
+}
+
+.voy-fact__heading,
+.voy-review__heading {
+  flex: 1;
+}
+
+.voy-fact__title,
+.voy-review__title {
+  margin: 0;
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+
+.voy-fact__sub,
+.voy-review__sub {
+  margin: 0.1rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.88rem;
+}
+
+.voy-fact__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 0.7rem 1.4rem;
+  margin: 1.1rem 0 0;
+}
+
+.voy-fact__field dt,
+.voy-review__field dt {
+  color: var(--voy-ink-muted);
+  font-size: 0.76rem;
+  letter-spacing: 0.02em;
+}
+
+.voy-fact__field dd,
+.voy-review__field dd {
+  margin: 0.1rem 0 0;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.voy-fact__edited {
+  margin: 1rem 0 0;
+  padding: 0.5rem 0.75rem;
+  border-left: 2px solid var(--voy-indigo);
+  background: var(--voy-tint-indigo);
+  border-radius: 0 var(--voy-radius-sm) var(--voy-radius-sm) 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.82rem;
+}
+
+.voy-fact__actions {
+  margin-top: 1.1rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ===== Overlay & dialog ================================================ */
+
+.voy-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: clamp(1rem, 5vh, 4rem) 1rem;
+  overflow-y: auto;
+  background: var(--voy-overlay);
+  animation: voy-fade var(--voy-motion) var(--voy-ease);
+}
+
+.voy-dialog {
+  width: 100%;
+  max-width: 34rem;
+  background: var(--voy-paper);
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-lg);
+  box-shadow: var(--voy-shadow);
+  animation: voy-rise var(--voy-motion-slow) var(--voy-ease);
+}
+
+.voy-dialog--lg {
+  max-width: 46rem;
+}
+
+.voy-dialog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.3rem 1.3rem 0.8rem 1.6rem;
+}
+
+.voy-dialog__title {
+  font-size: 1.3rem;
+  font-family: var(--voy-font-display);
+}
+
+.voy-dialog__desc {
+  margin: 0;
+  padding: 0 1.6rem 0.4rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.voy-dialog__body {
+  padding: 1rem 1.6rem 1.4rem;
+}
+
+.voy-dialog__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  padding: 1rem 1.6rem 1.4rem;
+  border-top: 1px solid var(--voy-line);
+}
+
+@keyframes voy-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes voy-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+}
+
+/* ===== Candidate review ================================================ */
+
+.voy-review__count {
+  margin: 0 0 1rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.85rem;
+}
+
+.voy-review__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1.2rem;
+}
+
+.voy-review {
+  padding: 1.3rem;
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-raised);
+}
+
+.voy-review__warnings {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.voy-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--voy-radius-sm);
+  background: var(--voy-tint-vermilion);
+  color: var(--voy-ink);
+  font-size: 0.85rem;
+}
+
+.voy-warning__icon {
+  display: inline-flex;
+  color: var(--voy-vermilion);
+}
+
+.voy-warning__code {
+  margin-left: auto;
+  font-family: var(--voy-font-mono);
+  font-size: 0.72rem;
+  color: var(--voy-ink-muted);
+}
+
+.voy-review__fields {
+  display: grid;
+  gap: 1rem;
+  margin: 1.1rem 0 0;
+}
+
+.voy-review__field dd {
+  margin-bottom: 0.4rem;
+}
+
+.voy-evidence {
+  margin: 0.4rem 0 0;
+}
+
+.voy-evidence__quote {
+  margin: 0;
+  padding: 0.55rem 0.8rem;
+  border-left: 2px solid var(--voy-silver);
+  background: var(--voy-paper-sunken);
+  border-radius: 0 var(--voy-radius-sm) var(--voy-radius-sm) 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.voy-evidence__quote::before {
+  content: "“";
+}
+
+.voy-evidence__quote::after {
+  content: "”";
+}
+
+.voy-evidence__cap {
+  margin: 0.25rem 0 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--voy-silver);
+}
+
+.voy-review__editnote {
+  margin: 1rem 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.85rem;
+}
+
+.voy-review__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.2rem;
+}
+
+.voy-payload-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.voy-import-done {
+  text-align: center;
+  padding: 1.5rem 0.5rem;
+}
+
+.voy-import-done__title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.voy-import-done__body {
+  margin: 0.5rem auto 0;
+  max-width: 34ch;
+  color: var(--voy-ink-muted);
+  line-height: 1.55;
+}
+
+/* ===== Responsive ====================================================== */
+
+@media (max-width: 640px) {
+  .voy-form__row,
+  .voy-payload-form {
     grid-template-columns: 1fr;
-    padding-top: 4rem;
   }
 
-  .hero__mark {
-    width: min(23rem, 86vw);
-    margin: 0 auto;
-  }
-
-  .area-grid {
-    grid-template-columns: 1fr;
-  }
-
-  footer {
+  .voy-detail__head {
     flex-direction: column;
   }
+
+  .voy-triplist__head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
+/* ===== Reduced motion ================================================== */
+
 @media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
   }
 }
