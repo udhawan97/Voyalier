@@ -82,8 +82,8 @@ mod tests {
 
     #[test]
     fn creates_a_trimmed_trip_draft() {
-        let trip = TripDraft::new(" Chicago ", " Kyoto ", "2027-04-01", "2027-04-10")
-            .expect("valid trip");
+        let trip =
+            TripDraft::new(" Chicago ", " Kyoto ", "2027-04-01", "2027-04-10").expect("valid trip");
 
         assert_eq!(trip.origin, "Chicago");
         assert_eq!(trip.destination, "Kyoto");
