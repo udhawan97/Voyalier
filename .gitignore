@@ -6,6 +6,9 @@ Thumbs.db
 !.vscode/extensions.json
 !.vscode/settings.json
 
+# Claude Code local tooling (worktrees, preview launch config, local settings)
+.claude/
+
 # Secrets and local configuration
 .env
 .env.*
