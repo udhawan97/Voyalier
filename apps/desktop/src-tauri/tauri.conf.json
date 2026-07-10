@@ -1,0 +1,46 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Voyalier",
+  "version": "0.1.0",
+  "identifier": "com.voyalier.app",
+  "build": {
+    "beforeDevCommand": "pnpm --filter @voyalier/web dev",
+    "devUrl": "http://127.0.0.1:5173",
+    "beforeBuildCommand": "pnpm --filter @voyalier/web build",
+    "frontendDist": "../../web/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Voyalier",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 900,
+        "minHeight": 620,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data:; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:8787; font-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Travel",
+    "shortDescription": "A local-first travel intelligence workspace.",
+    "longDescription": "Turn trip details, research, and confirmations into one evidence-backed Smart Blueprint.",
+    "copyright": "Copyright 2026 Umang Dhawan",
+    "macOS": {
+      "minimumSystemVersion": "13.0"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  }
+}

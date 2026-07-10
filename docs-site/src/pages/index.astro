@@ -1,0 +1,74 @@
+---
+import '@voyalier/ui/tokens.css'
+import '../styles/landing.css'
+import wayline from '@voyalier/brand/voyalier-wayline.svg?raw'
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta
+      name="description"
+      content="Voyalier turns scattered travel plans and confirmations into one clear journey."
+    />
+    <title>Voyalier — From scattered plans to one clear journey</title>
+  </head>
+  <body>
+    <header>
+      <a class="wordmark" href={`${base}/`} aria-label="Voyalier home">Voyalier</a>
+      <nav aria-label="Primary navigation">
+        <a href={`${base}/introduction/`}>Docs</a>
+        <a href="https://github.com/udhawan97/Voyalier">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Private travel intelligence</p>
+          <h1>From scattered plans to one clear journey.</h1>
+          <p class="lede">
+            Voyalier is an open-source, local-first workspace for the research,
+            confirmations, readiness actions, and shareable brief behind a well-made trip.
+          </p>
+          <div class="actions">
+            <a class="primary" href={`${base}/introduction/`}>Read the foundation</a>
+            <a href="https://github.com/udhawan97/Voyalier">View source</a>
+          </div>
+        </div>
+        <div class="mark" set:html={wayline}></div>
+      </section>
+
+      <section class="principles" aria-labelledby="principles-title">
+        <p class="eyebrow">The promise</p>
+        <h2 id="principles-title">Useful without a key. Deeper when invited.</h2>
+        <div class="cards">
+          <article>
+            <span>01</span>
+            <h3>Local first</h3>
+            <p>Your trip data stays on your device unless you explicitly choose otherwise.</p>
+          </article>
+          <article>
+            <span>02</span>
+            <h3>Evidence backed</h3>
+            <p>Sources, freshness, confidence, and unknown states travel with every claim.</p>
+          </article>
+          <article>
+            <span>03</span>
+            <h3>Calm by design</h3>
+            <p>One living Blueprint replaces tabs, inbox searches, and scattered documents.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>Open source under Apache-2.0.</p>
+      <p>Foundation stage · No public release yet.</p>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,38 @@
+name: Security hygiene
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "41 7 * * 2"
+
+permissions:
+  contents: read
+
+jobs:
+  dependencies-and-secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Audit production JavaScript dependencies
+        run: pnpm audit --prod --audit-level high
+      - name: Reject credential-shaped committed strings
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git grep -nE '(sk-ant-[A-Za-z0-9_-]{20,}|sk-proj-[A-Za-z0-9_-]{20,}|gh[opsu]_[A-Za-z0-9]{30,})' -- ':!*.md' ':!.github/workflows/security-hygiene.yml'; then
+            echo "Credential-shaped string found in tracked content." >&2
+            exit 1
+          fi
+      - uses: rustsec/audit-check@v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}

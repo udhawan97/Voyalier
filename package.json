@@ -1,0 +1,27 @@
+{
+  "name": "voyalier",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A local-first travel intelligence workspace.",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=24",
+    "pnpm": ">=11"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c blue,green \"cargo run -p voyalier-server\" \"pnpm --filter @voyalier/web dev\"",
+    "dev:web": "pnpm --filter @voyalier/web dev",
+    "dev:docs": "pnpm --filter @voyalier/docs dev",
+    "build": "pnpm --filter @voyalier/contracts typecheck && pnpm --filter @voyalier/web build && pnpm --filter @voyalier/docs build",
+    "typecheck": "pnpm --filter @voyalier/contracts typecheck && pnpm --filter @voyalier/web typecheck",
+    "lint": "pnpm --filter @voyalier/web lint",
+    "test": "pnpm --filter @voyalier/web test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3",
+    "prettier": "^3.9.5"
+  }
+}

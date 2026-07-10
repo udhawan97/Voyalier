@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 150" role="img" aria-labelledby="title description">
+  <title id="title">Voyalier Wayline V</title>
+  <desc id="description">A quiet route descends into a V and rises toward a destination point.</desc>
+  <style>
+    :root { color-scheme: light dark; }
+    .route {
+      fill: none;
+      stroke: #24324a;
+      stroke-width: 7;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-dasharray: 290;
+      stroke-dashoffset: 290;
+      animation: arrive 1.25s cubic-bezier(.2,.8,.2,1) .12s forwards;
+    }
+    .origin { fill: #66735a; }
+    .destination {
+      fill: #c45d43;
+      transform-origin: 198px 30px;
+      animation: settle .45s cubic-bezier(.2,.8,.2,1) 1.15s both;
+    }
+    .horizon { fill: none; stroke: #66735a; stroke-opacity: .18; stroke-width: 1.5; }
+    @keyframes arrive { to { stroke-dashoffset: 0; } }
+    @keyframes settle { from { opacity: 0; transform: scale(.3); } to { opacity: 1; transform: scale(1); } }
+    @media (prefers-color-scheme: dark) {
+      .route { stroke: #e9e3d8; }
+      .origin { fill: #98a28e; }
+      .horizon { stroke: #e9e3d8; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .route, .destination { animation: none; stroke-dashoffset: 0; }
+    }
+  </style>
+  <path class="horizon" d="M28 40C72 21 165 21 211 40"/>
+  <circle class="origin" cx="42" cy="31" r="5"/>
+  <path class="route" d="M42 31C67 35 84 96 120 121C154 96 171 35 198 30"/>
+  <circle class="destination" cx="198" cy="30" r="8"/>
+</svg>

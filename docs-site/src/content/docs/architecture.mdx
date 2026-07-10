@@ -1,0 +1,13 @@
+---
+title: Architecture
+description: The shared-core web and desktop architecture.
+---
+
+Voyalier uses one React interface and one Rust product core.
+
+- Axum exposes the core for the one-command local web runtime.
+- Tauri wraps the same interface and starts the API in-process for desktop builds.
+- SQLite and FTS5 form the local evidence store.
+- AI, travel inventory, places, risk, visa, parsing, retrieval, and export are replaceable providers.
+
+The complete decision record lives in the repository's [`docs/architecture`](https://github.com/udhawan97/Voyalier/tree/main/docs/architecture) directory.

@@ -1,0 +1,33 @@
+name: Feature proposal
+description: Propose a product or technical improvement.
+title: "[Feature]: "
+labels: [enhancement, triage]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Traveler problem
+      description: Describe the problem before proposing a solution.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: What should become easier, safer, or clearer?
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints and evidence
+      description: Include privacy, licensing, source access, offline, performance, or accessibility considerations.
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This does not require unauthorized scraping.
+          required: true
+        - label: This does not silently upload user data.
+          required: true

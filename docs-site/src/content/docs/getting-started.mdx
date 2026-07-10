@@ -1,0 +1,17 @@
+---
+title: Getting started
+description: Run the Voyalier foundation locally.
+---
+
+Requirements are Node.js 24+, pnpm 11+, and the stable Rust toolchain.
+
+```bash
+git clone https://github.com/udhawan97/Voyalier.git
+cd Voyalier
+make bootstrap
+make dev
+```
+
+The React interface runs at `127.0.0.1:5173`, with the local Axum API at `127.0.0.1:8787`.
+
+Run `make check` before submitting changes.

@@ -1,0 +1,48 @@
+name: Bug report
+description: Report a reproducible problem without exposing private travel data.
+title: "[Bug]: "
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not attach real confirmations, passport details, API keys, or private itineraries. Replace them with synthetic fixtures.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Give the smallest safe sequence that reproduces the issue.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: v0.1.0 or commit SHA
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      options:
+        - Local web app
+        - macOS desktop
+        - Windows desktop
+        - Documentation site
+        - Build or release tooling
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted logs
+      description: Remove paths, identity fields, confirmation codes, and secrets.
+      render: shell

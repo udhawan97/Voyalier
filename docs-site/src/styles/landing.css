@@ -1,0 +1,184 @@
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--voy-paper);
+  color: var(--voy-ink);
+  font-family: var(--voy-font-ui);
+}
+
+body {
+  width: min(1180px, calc(100% - 2rem));
+  margin: 0 auto;
+  background: radial-gradient(
+    circle at 86% 5%,
+    rgb(102 115 90 / 10%),
+    transparent 28rem
+  );
+}
+
+a {
+  color: inherit;
+}
+
+header,
+footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 5rem;
+  border-bottom: 1px solid var(--voy-line);
+}
+
+.wordmark {
+  font-weight: 720;
+  letter-spacing: -0.03em;
+  text-decoration: none;
+}
+
+nav {
+  display: flex;
+  gap: 1.25rem;
+}
+nav a {
+  color: var(--voy-ink-muted);
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(18rem, 0.7fr);
+  gap: clamp(2rem, 8vw, 7rem);
+  align-items: center;
+  min-height: 72vh;
+  padding: 5rem 0;
+}
+
+.eyebrow {
+  margin: 0 0 1rem;
+  color: var(--voy-moss);
+  font-size: 0.75rem;
+  font-weight: 720;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+h1,
+h2 {
+  margin: 0;
+  font-family: var(--voy-font-display);
+  font-weight: 500;
+  letter-spacing: -0.045em;
+}
+
+h1 {
+  max-width: 13ch;
+  font-size: clamp(3.6rem, 8vw, 7.6rem);
+  line-height: 0.92;
+}
+h2 {
+  max-width: 15ch;
+  font-size: clamp(2.7rem, 6vw, 5rem);
+  line-height: 1;
+}
+
+.lede {
+  max-width: 42rem;
+  margin: 2rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: clamp(1.05rem, 2vw, 1.35rem);
+  line-height: 1.65;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  margin-top: 2.3rem;
+}
+.actions a {
+  min-height: 3rem;
+  padding: 0.8rem 1.15rem;
+  border: 1px solid var(--voy-line);
+  border-radius: 999px;
+  text-decoration: none;
+}
+.actions .primary {
+  border-color: var(--voy-ink);
+  background: var(--voy-ink);
+  color: var(--voy-paper);
+}
+
+.mark {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border: 1px solid var(--voy-line);
+  border-radius: 48% 52% 46% 54% / 54% 42% 58% 46%;
+  background: var(--voy-paper-raised);
+  box-shadow: var(--voy-shadow);
+}
+
+.mark svg {
+  width: 80%;
+}
+
+.principles {
+  padding: 7rem 0;
+  border-top: 1px solid var(--voy-line);
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-top: 4rem;
+}
+.cards article {
+  min-height: 16rem;
+  padding: 1.5rem;
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-raised);
+}
+.cards span {
+  color: var(--voy-vermilion);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+}
+.cards h3 {
+  margin: 4rem 0 0.8rem;
+}
+.cards p {
+  margin: 0;
+  color: var(--voy-ink-muted);
+  line-height: 1.6;
+}
+
+footer {
+  min-height: auto;
+  padding: 2rem 0 3rem;
+  border-top: 1px solid var(--voy-line);
+  border-bottom: 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.78rem;
+}
+
+@media (max-width: 780px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+  .mark {
+    width: min(23rem, 86vw);
+    margin: 0 auto;
+  }
+  .cards {
+    grid-template-columns: 1fr;
+  }
+  footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}

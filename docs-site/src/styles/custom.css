@@ -1,0 +1,14 @@
+@import "@voyalier/ui/tokens.css";
+
+:root {
+  --sl-color-accent-low: #e6ebe2;
+  --sl-color-accent: #66735a;
+  --sl-color-accent-high: #24324a;
+  --sl-font: var(--voy-font-ui);
+}
+
+:root[data-theme="dark"] {
+  --sl-color-accent-low: #242b25;
+  --sl-color-accent: #98a28e;
+  --sl-color-accent-high: #eee8dc;
+}

@@ -1,0 +1,21 @@
+{
+  "name": "@voyalier/docs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro check && astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.41.3",
+    "@voyalier/brand": "workspace:*",
+    "@voyalier/ui": "workspace:*",
+    "astro": "^7.0.7"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.6",
+    "typescript": "^6.0.3"
+  }
+}

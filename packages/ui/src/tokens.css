@@ -1,0 +1,34 @@
+:root {
+  color-scheme: light;
+  --voy-paper: #f6f3ec;
+  --voy-paper-raised: #fffdf8;
+  --voy-ink: #171b19;
+  --voy-ink-muted: #606761;
+  --voy-line: rgb(23 27 25 / 12%);
+  --voy-indigo: #24324a;
+  --voy-moss: #66735a;
+  --voy-vermilion: #c45d43;
+  --voy-shadow: 0 24px 70px rgb(34 41 36 / 10%);
+  --voy-radius-sm: 0.75rem;
+  --voy-radius-md: 1.25rem;
+  --voy-radius-lg: 2rem;
+  --voy-font-ui:
+    Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  --voy-font-display: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --voy-paper: #111412;
+    --voy-paper-raised: #191d1a;
+    --voy-ink: #eee8dc;
+    --voy-ink-muted: #a7aea6;
+    --voy-line: rgb(238 232 220 / 12%);
+    --voy-indigo: #aebbd4;
+    --voy-moss: #98a28e;
+    --voy-vermilion: #da8068;
+    --voy-shadow: 0 28px 80px rgb(0 0 0 / 28%);
+  }
+}

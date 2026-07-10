@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voyalier.dev/schemas/trip-draft.v1.schema.json",
+  "title": "TripDraft",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "origin", "destination", "startDate", "endDate"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "origin": { "type": "string", "minLength": 1 },
+    "destination": { "type": "string", "minLength": 1 },
+    "startDate": { "type": "string", "format": "date" },
+    "endDate": { "type": "string", "format": "date" }
+  }
+}

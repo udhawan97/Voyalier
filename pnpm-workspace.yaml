@@ -1,0 +1,9 @@
+packages:
+  - apps/*
+  - docs-site
+  - packages/*
+allowBuilds:
+  esbuild: true
+minimumReleaseAgeExclude:
+  - prettier@3.9.5
+  - vite@8.1.4
