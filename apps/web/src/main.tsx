@@ -4,6 +4,10 @@ import { createRoot } from "react-dom/client";
 import "@voyalier/ui/tokens.css";
 import "./styles.css";
 import { App } from "./App";
+import { applyThemeChoice, readThemeChoice } from "./app/theme";
+
+// Apply the saved theme before first paint to avoid a flash of the wrong palette.
+applyThemeChoice(readThemeChoice());
 
 const root = document.getElementById("root");
 

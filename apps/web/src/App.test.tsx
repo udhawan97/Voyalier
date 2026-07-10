@@ -1,34 +1,24 @@
 import { render, screen } from "@testing-library/react";
-import type { HealthResponse } from "@voyalier/contracts";
+import { createMockGateway } from "@voyalier/contracts";
 
 import { App } from "./App";
 
-describe("App", () => {
-  it("shows the product contract and connected local service", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () =>
-          ({
-            status: "ok",
-            service: "voyalier-server",
-            version: "0.1.0",
-            intelligenceMode: "local",
-          }) satisfies HealthResponse,
-      }),
-    );
-
-    render(<App />);
+describe("App shell", () => {
+  it("renders the trip workspace with the seeded trips", async () => {
+    render(<App gateway={createMockGateway()} />);
 
     expect(
-      screen.getByRole("heading", {
-        name: /from scattered plans to one clear journey/i,
-      }),
+      screen.getByRole("heading", { name: "Trips", level: 1 }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Voyalier — all trips")).toBeInTheDocument();
+    expect(
+      screen.getByRole("radiogroup", { name: "Color theme" }),
+    ).toBeInTheDocument();
+
+    // Seeded fixtures load through the injected mock gateway.
+    expect(
+      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
     ).toBeInTheDocument();
     expect(await screen.findByText("Local core ready")).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Blueprint" }),
-    ).toBeInTheDocument();
   });
 });
