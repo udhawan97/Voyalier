@@ -8,6 +8,7 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use voyalier_core::IntelligenceMode;
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct HealthResponse {
     status: &'static str,
     service: &'static str,
@@ -16,6 +17,7 @@ struct HealthResponse {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct MetaResponse {
     name: &'static str,
     tagline: &'static str,
@@ -84,6 +86,6 @@ mod tests {
             .expect("body");
         let json: Value = serde_json::from_slice(&body).expect("json");
         assert_eq!(json["status"], "ok");
-        assert_eq!(json["intelligence_mode"], "local");
+        assert_eq!(json["intelligenceMode"], "local");
     }
 }

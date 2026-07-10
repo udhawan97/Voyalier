@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voyalier.local/schemas/AppError.schema.json",
+  "title": "AppError",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["code", "message"],
+  "properties": {
+    "code": {
+      "enum": [
+        "validation/invalid_input",
+        "validation/invalid_date_range",
+        "trip/not_found",
+        "candidate/not_found",
+        "candidate/already_resolved",
+        "fact/not_found",
+        "document/too_large",
+        "document/duplicate",
+        "document/empty",
+        "storage/failure",
+        "transport/failure",
+        "internal/unexpected"
+      ]
+    },
+    "message": { "type": "string" },
+    "details": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}

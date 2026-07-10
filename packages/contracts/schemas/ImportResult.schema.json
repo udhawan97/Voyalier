@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voyalier.local/schemas/ImportResult.schema.json",
+  "title": "ImportResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["document", "parserRunId", "candidates"],
+  "properties": {
+    "document": { "$ref": "#/$defs/sourceDocument" },
+    "parserRunId": { "type": "string" },
+    "candidates": {
+      "type": "array",
+      "items": { "$ref": "CandidateFact.schema.json" }
+    }
+  },
+  "$defs": {
+    "sourceDocument": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "tripId",
+        "kind",
+        "label",
+        "contentHash",
+        "charCount",
+        "importedAt"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "tripId": { "type": "string" },
+        "kind": { "enum": ["pasted_text", "html"] },
+        "label": { "type": "string" },
+        "contentHash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "charCount": { "type": "integer", "minimum": 0 },
+        "importedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

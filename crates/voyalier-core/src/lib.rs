@@ -29,6 +29,7 @@ pub enum ReadinessStatus {
 
 /// The minimum information required to start a trip Blueprint.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TripDraft {
     pub id: Uuid,
     pub origin: String,
@@ -95,5 +96,14 @@ mod tests {
             .expect_err("destination must be required");
 
         assert_eq!(error, TripDraftError::MissingDestination);
+    }
+
+    #[test]
+    fn serializes_trip_draft_with_camel_case_wire_fields() {
+        let trip = TripDraft::new("Chicago", "Kyoto", "2027-04-01", "2027-04-10").expect("trip");
+        let json = serde_json::to_value(trip).expect("serialize trip");
+
+        assert_eq!(json["startDate"], "2027-04-01");
+        assert!(json.get("start_date").is_none());
     }
 }
