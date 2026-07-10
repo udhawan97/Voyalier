@@ -368,7 +368,8 @@ h3 {
   color: var(--voy-ink);
 }
 
-.voy-field__req {
+.voy-field__label--req::after {
+  content: " *";
   color: var(--voy-vermilion);
 }
 

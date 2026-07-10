@@ -25,13 +25,11 @@ export function Field({ id, label, error, hint, required, children }: FieldShell
 
   return (
     <div className={`voy-field${error ? " voy-field--invalid" : ""}`}>
-      <label className="voy-field__label" htmlFor={id}>
+      <label
+        className={`voy-field__label${required ? " voy-field__label--req" : ""}`}
+        htmlFor={id}
+      >
         {label}
-        {required ? (
-          <span className="voy-field__req" aria-hidden="true">
-            {" *"}
-          </span>
-        ) : null}
       </label>
       {hint ? (
         <p className="voy-field__hint" id={hintId}>

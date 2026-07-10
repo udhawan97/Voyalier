@@ -127,7 +127,7 @@ export function Dialog({
             type="button"
             className="voy-icon-btn"
             onClick={onClose}
-            aria-label="Close"
+            aria-label="Close dialog"
           >
             <CloseIcon />
           </button>
