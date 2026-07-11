@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use tauri::State;
-use voyalier_app::AppService;
+use voyalier_app::{AppService, BackupInfo};
 use voyalier_core::{
     AddManualFactInput, AppError, AssistActivityEntry, AssistReply, AssistRequestPreview,
     CandidateFact, CandidateStatus, ConfirmCandidateInput, ConfirmedFact, CreateTripInput,
@@ -427,6 +427,20 @@ fn set_app_setting(
     service.set_app_setting(&input.key, &input.value)
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BackupDatabaseInput {
+    label: String,
+}
+
+#[tauri::command]
+fn backup_database(
+    input: BackupDatabaseInput,
+    service: State<'_, AppService>,
+) -> Result<BackupInfo, AppError> {
+    service.backup_database(&input.label)
+}
+
 fn builder<R: tauri::Runtime>(
     builder: tauri::Builder<R>,
     service: AppService,
@@ -471,7 +485,8 @@ fn builder<R: tauri::Runtime>(
             add_manual_fact,
             unconfirm_fact,
             get_app_setting,
-            set_app_setting
+            set_app_setting,
+            backup_database
         ])
 }
 
@@ -726,6 +741,16 @@ mod tests {
             "yes"
         );
 
+        // Pre-update backup round-trips: returns a path to a .sqlite3 snapshot.
+        let backup = invoke(
+            &webview,
+            "backup_database",
+            json!({ "label": "v0.3.0-test" }),
+        )
+        .expect("backup database");
+        assert_eq!(backup["label"], "v0.3.0-test");
+        assert!(backup["path"].as_str().expect("path").ends_with(".sqlite3"));
+
         assert_eq!(
             invoke(&webview, "archive_trip", json!({ "tripId": trip_id })).expect("archive trip")["status"],
             "archived"
@@ -780,6 +805,7 @@ mod tests {
             "unconfirm_fact",
             "get_app_setting",
             "set_app_setting",
+            "backup_database",
         ] {
             let error = invoke_with_body(&webview, command, json!({})).expect_err(command);
             assert!(

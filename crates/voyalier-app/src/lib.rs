@@ -8,6 +8,7 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use directories::ProjectDirs;
 use rusqlite::{Connection, OptionalExtension, params};
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use voyalier_core::{
     ANTHROPIC_MESSAGES_URL, ANTHROPIC_VERSION, AddManualFactInput, AppError, AssistActivityEntry,
@@ -510,9 +511,22 @@ impl std::error::Error for PoisonError {}
 #[derive(Clone)]
 pub struct AppService {
     connection: Arc<Mutex<Connection>>,
+    /// The main SQLite file path — retained so `backup_database` can copy it and
+    /// derive the sibling `backups/` directory.
+    database_path: PathBuf,
     fetcher: Arc<dyn AdviceFetcher>,
     secrets: Arc<dyn SecretStore>,
     vault: Vault,
+}
+
+/// Metadata for a pre-update database backup returned to the caller/UI. Holds
+/// only a filesystem path and timestamps — never any trip content.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupInfo {
+    pub path: String,
+    pub label: String,
+    pub created_at: String,
 }
 
 impl AppService {
@@ -550,6 +564,7 @@ impl AppService {
         migrate_encrypt_sensitive_columns(&connection, &vault)?;
         Ok(Self {
             connection: Arc::new(Mutex::new(connection)),
+            database_path: path.to_path_buf(),
             fetcher,
             secrets,
             vault,
@@ -1023,6 +1038,58 @@ impl AppService {
             )
             .map_err(storage_error)?;
         Ok(())
+    }
+
+    /// Snapshot the SQLite database to `<data-dir>/backups/` before a risky
+    /// operation (a pre-update safety net). The write lock is held across a
+    /// TRUNCATE WAL checkpoint and the file copy, so the copy is a consistent
+    /// point-in-time snapshot of just the main `.sqlite3` file — no `-wal`/`-shm`
+    /// strays. Keeps only the most recent `MAX_BACKUPS`.
+    ///
+    /// Privacy note: backups preserve rows even after a trip is deleted, so the
+    /// backups directory is part of "where data lives" and is excluded from any
+    /// export/share (documented in privacy.mdx).
+    pub fn backup_database(&self, label: &str) -> Result<BackupInfo, AppError> {
+        let label = validate_backup_label(label)?;
+        let backups_dir = self
+            .database_path
+            .parent()
+            .ok_or_else(|| {
+                AppError::new(
+                    ErrorCode::StorageFailure,
+                    "database has no parent directory for backups",
+                )
+            })?
+            .join("backups");
+        fs::create_dir_all(&backups_dir).map_err(storage_error)?;
+
+        let created_at = now_rfc3339();
+        let stamp = filesystem_stamp(&created_at);
+        // The clock can resolve coarser than back-to-back backups take, so two
+        // in the same tick would share a name; disambiguate with a counter so
+        // every snapshot is a distinct file (and none is silently overwritten).
+        let mut dest = backups_dir.join(format!("pre-update-{label}-{stamp}.sqlite3"));
+        let mut collision = 1;
+        while dest.exists() {
+            dest = backups_dir.join(format!("pre-update-{label}-{stamp}-{collision}.sqlite3"));
+            collision += 1;
+        }
+
+        {
+            let connection = self.connection()?;
+            connection
+                .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+                .map_err(storage_error)?;
+            fs::copy(&self.database_path, &dest).map_err(storage_error)?;
+        }
+
+        prune_backups(&backups_dir, MAX_BACKUPS)?;
+
+        Ok(BackupInfo {
+            path: dest.to_string_lossy().into_owned(),
+            label,
+            created_at,
+        })
     }
 
     /// Detect an optional on-device AI runtime (Ollama) by probing its localhost
@@ -1756,6 +1823,75 @@ fn validate_setting_value(raw: &str) -> Result<String, AppError> {
         ));
     }
     Ok(raw.to_owned())
+}
+
+/// How many pre-update database backups to retain; older ones are pruned.
+const MAX_BACKUPS: usize = 5;
+
+/// Validate a backup label: it becomes part of the backup filename, so the same
+/// safe, bounded identifier charset as setting keys applies (e.g. "v0.3.0").
+fn validate_backup_label(raw: &str) -> Result<String, AppError> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::with_detail(
+            ErrorCode::ValidationInvalidInput,
+            "backup label is required",
+            "field",
+            "label",
+        ));
+    }
+    if trimmed.chars().count() > MAX_SETTING_KEY_LEN {
+        return Err(AppError::with_detail(
+            ErrorCode::ValidationInvalidInput,
+            "backup label is too long",
+            "field",
+            "label",
+        ));
+    }
+    if !trimmed
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+    {
+        return Err(AppError::with_detail(
+            ErrorCode::ValidationInvalidInput,
+            "backup label has invalid characters",
+            "field",
+            "label",
+        ));
+    }
+    Ok(trimmed.to_owned())
+}
+
+/// Make an RFC3339 timestamp safe for a filename on every platform by replacing
+/// the reserved `:` and `.` characters (Windows rejects `:` in file names).
+fn filesystem_stamp(rfc3339: &str) -> String {
+    rfc3339.replace([':', '.'], "-")
+}
+
+/// Delete all but the `keep` most-recent `pre-update-*.sqlite3` backups in `dir`,
+/// ordered by file modification time. Best-effort: a file that can't be removed
+/// is left in place rather than failing the backup.
+fn prune_backups(dir: &Path, keep: usize) -> Result<(), AppError> {
+    let mut backups: Vec<(std::time::SystemTime, PathBuf)> = fs::read_dir(dir)
+        .map_err(storage_error)?
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with("pre-update-") && name.ends_with(".sqlite3"))
+        })
+        .filter_map(|path| {
+            let modified = fs::metadata(&path).and_then(|meta| meta.modified()).ok()?;
+            Some((modified, path))
+        })
+        .collect();
+    // Newest first, then drop everything past the retention count.
+    backups.sort_by_key(|(modified, _)| std::cmp::Reverse(*modified));
+    for (_, path) in backups.into_iter().skip(keep) {
+        let _ = fs::remove_file(path);
+    }
+    Ok(())
 }
 
 fn default_database_path() -> Result<PathBuf, AppError> {
@@ -2825,6 +2961,85 @@ mod tests {
             reopened
                 .set_app_setting("updater.consent", &long_value)
                 .expect_err("long value")
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
+
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn backup_database_snapshots_data_and_prunes_old_backups() {
+        let database = temp_database("backup");
+        let service = open_test_service(&database).expect("service");
+
+        // Seed a trip so we can prove the backup captured real committed data.
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        let info = service.backup_database("v0.3.0").expect("backup");
+        assert_eq!(info.label, "v0.3.0");
+        assert!(!info.created_at.is_empty());
+        assert!(info.path.ends_with(".sqlite3"));
+        let backup_path = PathBuf::from(&info.path);
+        assert!(backup_path.exists(), "backup file must exist");
+
+        // The backup is a readable SQLite copy that holds the seeded trip. Open
+        // it immutable/read-only so the read never spawns -wal/-shm sidecars
+        // (the copy inherits WAL mode) that would pollute the stray check below.
+        let uri = format!("file:{}?immutable=1", backup_path.display());
+        let reader = Connection::open_with_flags(
+            &uri,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_URI,
+        )
+        .expect("open backup");
+        let count: i64 = reader
+            .query_row(
+                "SELECT COUNT(*) FROM trips WHERE id = ?1",
+                params![trip.id],
+                |row| row.get(0),
+            )
+            .expect("query backup");
+        assert_eq!(count, 1);
+        drop(reader);
+
+        let backups_dir = database.parent().expect("parent").join("backups");
+        // Retention: exceeding MAX_BACKUPS prunes the oldest to the cap, and
+        // backup_database itself leaves only single .sqlite3 files (no strays).
+        for n in 0..(MAX_BACKUPS + 2) {
+            service
+                .backup_database(&format!("v0.3.{n}"))
+                .expect("extra backup");
+        }
+        let names: Vec<String> = fs::read_dir(&backups_dir)
+            .expect("read backups")
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .collect();
+        let snapshots = names
+            .iter()
+            .filter(|name| name.starts_with("pre-update-") && name.ends_with(".sqlite3"))
+            .count();
+        assert_eq!(
+            snapshots, MAX_BACKUPS,
+            "prunes down to the retention cap; saw {snapshots}: {names:?}"
+        );
+        assert!(
+            !names
+                .iter()
+                .any(|name| name.ends_with("-wal") || name.ends_with("-shm")),
+            "backup_database leaves no WAL/SHM strays: {names:?}"
+        );
+
+        // Label validation: empty and unsafe charsets are rejected (the label is
+        // interpolated into the filename).
+        assert_eq!(
+            service.backup_database("  ").expect_err("empty").code,
+            ErrorCode::ValidationInvalidInput
+        );
+        assert_eq!(
+            service
+                .backup_database("bad label!")
+                .expect_err("charset")
                 .code,
             ErrorCode::ValidationInvalidInput
         );
