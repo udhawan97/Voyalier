@@ -1,6 +1,7 @@
 import type {
   AddManualFactInput,
   AppGateway,
+  AssistReply,
   AssistRequestPreview,
   CandidateFact,
   CandidateStatus,
@@ -134,6 +135,11 @@ export function createHttpGateway(
         "GET",
         `/api/v1/trips/${enc(tripId)}/assist-preview?provider=${enc(provider)}`,
       ),
+
+    runAssist: (tripId: string, provider: ProviderId) =>
+      request<AssistReply>("POST", `/api/v1/trips/${enc(tripId)}/assist`, {
+        provider,
+      }),
 
     listAdviceCountries: () =>
       request<FcdoCountry[]>("GET", "/api/v1/advice/countries"),

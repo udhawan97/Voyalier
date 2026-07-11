@@ -2,9 +2,9 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 use voyalier_app::AppService;
 use voyalier_core::{
-    AddManualFactInput, AppError, AssistRequestPreview, CandidateFact, CandidateStatus,
-    ConfirmCandidateInput, ConfirmedFact, CreateTripInput, FcdoCountry, HealthResponse,
-    ImportDocumentInput, ImportResult, LocalAiStatus, ProviderConfig, SearchHit,
+    AddManualFactInput, AppError, AssistReply, AssistRequestPreview, CandidateFact,
+    CandidateStatus, ConfirmCandidateInput, ConfirmedFact, CreateTripInput, FcdoCountry,
+    HealthResponse, ImportDocumentInput, ImportResult, LocalAiStatus, ProviderConfig, SearchHit,
     TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripSummary, UpdateTripInput,
     WeatherSnapshot,
 };
@@ -49,6 +49,13 @@ struct SearchTripInput {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PreviewAssistInput {
+    trip_id: String,
+    provider: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RunAssistInput {
     trip_id: String,
     provider: String,
 }
@@ -126,6 +133,14 @@ fn preview_assist(
     service: State<'_, AppService>,
 ) -> Result<AssistRequestPreview, AppError> {
     service.preview_assist(&input.trip_id, &input.provider)
+}
+
+#[tauri::command]
+fn run_assist(
+    input: RunAssistInput,
+    service: State<'_, AppService>,
+) -> Result<AssistReply, AppError> {
+    service.run_assist(&input.trip_id, &input.provider)
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -292,6 +307,7 @@ fn builder<R: tauri::Runtime>(
             get_trip_brief,
             search_trip,
             preview_assist,
+            run_assist,
             list_advice_countries,
             detect_local_ai,
             list_providers,
@@ -513,6 +529,7 @@ mod tests {
             "get_trip_brief",
             "search_trip",
             "preview_assist",
+            "run_assist",
             "list_advice_countries",
             "detect_local_ai",
             "list_providers",

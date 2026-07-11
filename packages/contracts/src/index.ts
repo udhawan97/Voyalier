@@ -249,6 +249,17 @@ export interface AssistRequestPreview {
   /** Field kinds excluded from the request, for transparency. */
   withheld: string[];
 }
+/**
+ * The assistant's reply from a completed on-device run. `text` is model output
+ * and is never authoritative — Voyalier surfaces high-stakes facts only from
+ * cited sources.
+ */
+export interface AssistReply {
+  provider: ProviderId;
+  model: string;
+  text: string;
+  generatedAt: string;
+}
 export type SearchHitSource = "document" | "confirmed_fact";
 export interface SearchHit {
   source: SearchHitSource;
@@ -295,6 +306,7 @@ export type ErrorCode =
   | "document/duplicate"
   | "document/empty"
   | "advice/fetch_failed"
+  | "assist/failed"
   | "storage/failure"
   | "transport/failure"
   | "internal/unexpected";
@@ -349,6 +361,7 @@ export interface AppGateway {
     tripId: string,
     provider: ProviderId,
   ): Promise<AssistRequestPreview>;
+  runAssist(tripId: string, provider: ProviderId): Promise<AssistReply>;
   listAdviceCountries(): Promise<FcdoCountry[]>;
   fetchTravelAdvice(
     input: FetchTravelAdviceInput,

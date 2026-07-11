@@ -40,6 +40,11 @@ struct AssistPreviewQuery {
 }
 
 #[derive(Debug, Deserialize)]
+struct RunAssistBody {
+    provider: String,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct FetchAdviceBody {
     country_slug: String,
@@ -104,6 +109,7 @@ pub fn app(service: AppService) -> Router {
             "/api/v1/trips/{trip_id}/assist-preview",
             get(preview_assist),
         )
+        .route("/api/v1/trips/{trip_id}/assist", post(run_assist))
         .route(
             "/api/v1/trips/{trip_id}/travel-advice",
             post(fetch_travel_advice),
@@ -186,6 +192,14 @@ async fn preview_assist(
     Query(query): Query<AssistPreviewQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(service.preview_assist(&trip_id, &query.provider)?))
+}
+
+async fn run_assist(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+    Json(body): Json<RunAssistBody>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.run_assist(&trip_id, &body.provider)?))
 }
 
 async fn list_advice_countries(
@@ -377,7 +391,7 @@ fn status_for_error(code: ErrorCode) -> StatusCode {
         }
         ErrorCode::CandidateAlreadyResolved | ErrorCode::DocumentDuplicate => StatusCode::CONFLICT,
         ErrorCode::DocumentTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
-        ErrorCode::AdviceFetchFailed => StatusCode::BAD_GATEWAY,
+        ErrorCode::AdviceFetchFailed | ErrorCode::AssistFailed => StatusCode::BAD_GATEWAY,
         _ => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }
@@ -851,13 +865,25 @@ mod tests {
         );
 
         let bad = request(
-            router,
+            router.clone(),
             Method::GET,
             &format!("/api/v1/trips/{trip_id}/assist-preview?provider=bard"),
             None,
         )
         .await;
         assert_eq!(bad.status, StatusCode::BAD_REQUEST);
+
+        // Cloud assist is refused with a 502 — no data leaves the device.
+        // (The on-device path needs a running Ollama and is covered at the app
+        // layer with a stubbed fetcher.)
+        let cloud = request(
+            router,
+            Method::POST,
+            &format!("/api/v1/trips/{trip_id}/assist"),
+            Some(json!({ "provider": "openai" })),
+        )
+        .await;
+        assert_eq!(cloud.status, StatusCode::BAD_GATEWAY);
         cleanup_database(database);
     }
 

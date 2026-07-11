@@ -361,6 +361,8 @@ pub enum ErrorCode {
     DocumentEmpty,
     #[serde(rename = "advice/fetch_failed")]
     AdviceFetchFailed,
+    #[serde(rename = "assist/failed")]
+    AssistFailed,
     #[serde(rename = "storage/failure")]
     StorageFailure,
     #[serde(rename = "transport/failure")]
@@ -382,6 +384,7 @@ impl ErrorCode {
             Self::DocumentDuplicate => "document/duplicate",
             Self::DocumentEmpty => "document/empty",
             Self::AdviceFetchFailed => "advice/fetch_failed",
+            Self::AssistFailed => "assist/failed",
             Self::StorageFailure => "storage/failure",
             Self::TransportFailure => "transport/failure",
             Self::InternalUnexpected => "internal/unexpected",

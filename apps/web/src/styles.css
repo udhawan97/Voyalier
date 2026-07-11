@@ -1478,6 +1478,32 @@ h3 {
   line-height: 1.6;
 }
 
+.voy-assist__note {
+  margin: 0.6rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.voy-assist__run {
+  margin-top: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.voy-assist__disclaimer {
+  margin: 0.1rem 0 0;
+  padding: 0.6rem 0.85rem;
+  border-radius: var(--voy-radius-sm);
+  border: 1px solid color-mix(in srgb, var(--voy-vermilion) 30%, transparent);
+  background: var(--voy-tint-vermilion);
+  color: var(--voy-ink-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
 .voy-assist__scope {
   margin: 1.1rem 0 0;
   color: var(--voy-silver);

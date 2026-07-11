@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import type {
   AppError,
+  AssistReply,
   AssistRequestPreview,
   ProviderId,
 } from "@voyalier/contracts";
@@ -30,9 +31,14 @@ export function AssistPreview({ tripId }: { tripId: string }) {
   const [preview, setPreview] = useState<AssistRequestPreview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reply, setReply] = useState<AssistReply | null>(null);
+  const [running, setRunning] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
 
   async function load() {
     setError(null);
+    setReply(null); // a new preview supersedes any earlier reply
+    setRunError(null);
     setLoading(true);
     try {
       const result = await gateway.previewAssist(tripId, provider);
@@ -47,6 +53,22 @@ export function AssistPreview({ tripId }: { tripId: string }) {
       setError(describeError(caught as AppError).title);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function run() {
+    if (!preview) return;
+    setRunError(null);
+    setRunning(true);
+    try {
+      const result = await gateway.runAssist(tripId, preview.provider);
+      setReply(result);
+      announce(`On-device assist finished with ${result.model}.`);
+    } catch (caught) {
+      setReply(null);
+      setRunError(describeError(caught as AppError).title);
+    } finally {
+      setRunning(false);
     }
   }
 
@@ -120,12 +142,43 @@ export function AssistPreview({ tripId }: { tripId: string }) {
               </ul>
             </>
           ) : null}
+
+          {preview.leavesDevice ? (
+            <p className="voy-assist__note">
+              Cloud assist isn’t available yet — this stays a preview. Run
+              on-device with Ollama to actually generate a reply.
+            </p>
+          ) : (
+            <div className="voy-assist__run">
+              <Button variant="primary" onClick={run} busy={running}>
+                Run on-device assist
+              </Button>
+              {runError ? (
+                <p className="voy-assist__error" role="alert">
+                  {runError}
+                </p>
+              ) : null}
+              {reply ? (
+                <>
+                  <h3 className="voy-assist__subhead">
+                    Reply from {reply.model}
+                  </h3>
+                  <pre className="voy-assist__block">{reply.text}</pre>
+                  <p className="voy-assist__disclaimer">
+                    AI-generated from your confirmed plans. Voyalier never
+                    treats this as authoritative — verify anything important
+                    (entry rules, health, safety) against an official source.
+                  </p>
+                </>
+              ) : null}
+            </div>
+          )}
         </div>
       ) : null}
 
       <p className="voy-assist__scope">
-        Preview only — nothing is transmitted. Actually sending a request to a
-        provider is a later, opt-in step.
+        Preview shows exactly what would be sent. On-device runs stay on this
+        device via Ollama; cloud providers remain preview-only for now.
       </p>
     </section>
   );

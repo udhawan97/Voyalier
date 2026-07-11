@@ -2,6 +2,7 @@ import type {
   AddManualFactInput,
   AppError,
   AppGateway,
+  AssistReply,
   AssistRequestPreview,
   CandidateFact,
   CandidateStatus,
@@ -1111,6 +1112,25 @@ export function createMockGateway(options?: {
           withheld: [...brief.redactedFields, "Imported document text"],
         };
         return model ? { ...preview, model } : preview;
+      }),
+
+    runAssist: (tripId: string, provider: ProviderId) =>
+      execute("runAssist", () => {
+        const trip = requireTrip(tripId);
+        if (provider !== "ollama") {
+          throw appError(
+            "assist/failed",
+            "cloud assist is not available yet — run on-device with Ollama",
+            { field: "provider" },
+          );
+        }
+        // Deterministic canned reply — the mock runs no model.
+        return {
+          provider,
+          model: providerModels.get(provider) ?? "llama3.2",
+          text: `Your trip to ${trip.destination} looks ready. Everything in your confirmed plans lines up.`,
+          generatedAt: timestamp(),
+        } satisfies AssistReply;
       }),
 
     listAdviceCountries: () =>

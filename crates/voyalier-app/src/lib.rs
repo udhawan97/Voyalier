@@ -8,18 +8,20 @@ use directories::ProjectDirs;
 use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256};
 use voyalier_core::{
-    AddManualFactInput, AppError, AssistRequestPreview, CandidateFact, CandidateStatus,
-    ConfirmCandidateInput, ConfirmationParser, ConfirmedFact, CreateTripInput, DocumentKind,
-    ErrorCode, ExtractionMethod, FCDO_COUNTRIES, FcdoCountry, HealthResponse, ImportDocumentInput,
-    ImportResult, IntelligenceMode, JsonLdParser, LocalAiStatus, NormalizedDocument,
-    OLLAMA_TAGS_URL, PROVIDERS, ParsedCandidate, PlaintextParser, ProviderConfig, ProviderId,
-    RedactionPolicy, SearchHit, SearchableDocument, SourceDocument, TravelAdviceSnapshot, Trip,
-    TripBrief, TripDetail, TripStatus, TripSummary, UpdateTripInput, WeatherSnapshot,
-    assess_readiness, build_assist_preview, build_trip_brief, changed_payload_fields,
+    AddManualFactInput, AppError, AssistReply, AssistRequestPreview, CandidateFact,
+    CandidateStatus, ConfirmCandidateInput, ConfirmationParser, ConfirmedFact, CreateTripInput,
+    DEFAULT_OLLAMA_MODEL, DocumentKind, ErrorCode, ExtractionMethod, FCDO_COUNTRIES, FcdoCountry,
+    HealthResponse, ImportDocumentInput, ImportResult, IntelligenceMode, JsonLdParser,
+    LocalAiStatus, NormalizedDocument, OLLAMA_CHAT_URL, OLLAMA_TAGS_URL, PROVIDERS,
+    ParsedCandidate, PlaintextParser, ProviderConfig, ProviderId, RedactionPolicy, SearchHit,
+    SearchableDocument, SourceDocument, TravelAdviceSnapshot, Trip, TripBrief, TripDetail,
+    TripStatus, TripSummary, UpdateTripInput, WeatherSnapshot, assess_readiness,
+    build_assist_preview, build_ollama_chat_body, build_trip_brief, changed_payload_fields,
     detect_itinerary_conflicts, new_id, now_rfc3339, parse_fcdo_content, parse_forecast_response,
-    parse_geocoding_response, provider_info, search_trip_corpus, validate_api_key,
-    validate_country_slug, validate_create_trip, validate_document_content, validate_fact_payload,
-    validate_model_name, validate_provider_id, validate_search_query, validate_update_trip,
+    parse_geocoding_response, parse_ollama_chat_reply, provider_info, search_trip_corpus,
+    validate_api_key, validate_country_slug, validate_create_trip, validate_document_content,
+    validate_fact_payload, validate_model_name, validate_provider_id, validate_search_query,
+    validate_update_trip,
 };
 
 const DATABASE_FILE: &str = "voyalier.sqlite3";
@@ -28,6 +30,16 @@ const DATABASE_FILE: &str = "voyalier.sqlite3";
 /// layer — injectable so every test runs without touching the network.
 pub trait AdviceFetcher: Send + Sync {
     fn fetch_text(&self, url: &str) -> Result<String, AppError>;
+
+    /// POST a JSON body and return the response text. Defaults to an error so
+    /// only fetchers that need it (the on-device inference path) implement it;
+    /// the many GET-only test stubs are unaffected.
+    fn post_json(&self, _url: &str, _body: &str) -> Result<String, AppError> {
+        Err(AppError::new(
+            ErrorCode::AssistFailed,
+            "this fetcher does not support POST",
+        ))
+    }
 }
 
 /// Production fetcher: ureq with a global timeout and an identifying
@@ -44,6 +56,31 @@ impl AdviceFetcher for UreqFetcher {
         let mut response = agent.get(url).call().map_err(fetch_failure)?;
         response.body_mut().read_to_string().map_err(fetch_failure)
     }
+
+    fn post_json(&self, url: &str, body: &str) -> Result<String, AppError> {
+        // Local model inference can be slow; allow a generous timeout.
+        let config = ureq::Agent::config_builder()
+            .timeout_global(Some(std::time::Duration::from_secs(120)))
+            .user_agent("Voyalier/0.1 (+https://github.com/udhawan97/Voyalier)")
+            .build();
+        let agent: ureq::Agent = config.into();
+        let mut response = agent
+            .post(url)
+            .header("Content-Type", "application/json")
+            .send(body)
+            .map_err(assist_transport_failure)?;
+        response
+            .body_mut()
+            .read_to_string()
+            .map_err(assist_transport_failure)
+    }
+}
+
+fn assist_transport_failure(cause: ureq::Error) -> AppError {
+    AppError::new(
+        ErrorCode::AssistFailed,
+        format!("could not reach the on-device model: {cause}"),
+    )
 }
 
 fn fetch_failure(cause: ureq::Error) -> AppError {
@@ -573,6 +610,38 @@ impl AppService {
             model.as_deref(),
             &now_rfc3339(),
         ))
+    }
+
+    /// Run on-device assist for a trip: build the same redacted request the
+    /// preview shows, send it to the local Ollama runtime, and return the
+    /// reply. The explicit call is the consent — and because Ollama is local,
+    /// nothing leaves the device. Cloud providers are preview-only for now and
+    /// are rejected here rather than silently sending data anywhere.
+    pub fn run_assist(&self, trip_id: &str, provider: &str) -> Result<AssistReply, AppError> {
+        let id = validate_provider_id(provider)?;
+        if !matches!(id, ProviderId::Ollama) {
+            return Err(AppError::with_detail(
+                ErrorCode::AssistFailed,
+                "cloud assist is not available yet — run on-device with Ollama",
+                "field",
+                "provider",
+            ));
+        }
+        // Reuse the preview: identical redaction, grounding, and system prompt.
+        let preview = self.preview_assist(trip_id, provider)?;
+        let model = preview
+            .model
+            .clone()
+            .unwrap_or_else(|| DEFAULT_OLLAMA_MODEL.to_owned());
+        let body = build_ollama_chat_body(&model, &preview.system_prompt, &preview.user_content);
+        let response = self.fetcher.post_json(OLLAMA_CHAT_URL, &body)?;
+        let text = parse_ollama_chat_reply(&response)?;
+        Ok(AssistReply {
+            provider: id,
+            model,
+            text,
+            generated_at: now_rfc3339(),
+        })
     }
 
     pub fn update_trip(&self, trip_id: &str, input: UpdateTripInput) -> Result<Trip, AppError> {
@@ -1936,6 +2005,68 @@ mod tests {
                 .expect_err("missing trip")
                 .code,
             ErrorCode::TripNotFound
+        );
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn run_assist_posts_a_redacted_request_to_ollama_and_returns_the_reply() {
+        // Captures the POST so the test never needs a running Ollama.
+        struct OllamaStub {
+            last_body: std::sync::Mutex<String>,
+        }
+        impl AdviceFetcher for OllamaStub {
+            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+                panic!("assist must POST, not GET");
+            }
+            fn post_json(&self, url: &str, body: &str) -> Result<String, AppError> {
+                assert_eq!(url, "http://localhost:11434/api/chat");
+                *self.last_body.lock().expect("lock") = body.to_owned();
+                Ok(r#"{ "message": { "role": "assistant", "content": "Your Kyoto plans look ready." } }"#
+                    .to_owned())
+            }
+        }
+
+        let database = temp_database("run-assist");
+        let stub = Arc::new(OllamaStub {
+            last_body: std::sync::Mutex::new(String::new()),
+        });
+        let service = AppService::open_path_with_fetcher(&database, stub.clone()).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        service
+            .add_manual_fact(AddManualFactInput {
+                trip_id: trip.id.clone(),
+                fact_type: FactType::FlightSegment,
+                payload: FactPayload {
+                    flight_number: Some("FP18".to_owned()),
+                    departure_airport_iata: Some("ORD".to_owned()),
+                    arrival_airport_iata: Some("HND".to_owned()),
+                    departure_local: Some("2027-04-02T10:00".to_owned()),
+                    confirmation_code: Some("SECRET-PNR".to_owned()),
+                    passenger_name: Some("Jamie Traveler".to_owned()),
+                    ..FactPayload::default()
+                },
+            })
+            .expect("manual flight");
+
+        let reply = service.run_assist(&trip.id, "ollama").expect("reply");
+        assert_eq!(reply.text, "Your Kyoto plans look ready.");
+        assert_eq!(reply.model, "llama3.2");
+        assert!(!reply.generated_at.is_empty());
+
+        // The posted body carried the redacted itinerary, not the secrets.
+        let body = stub.last_body.lock().expect("lock").clone();
+        assert!(body.contains("FP18"));
+        assert!(!body.contains("SECRET-PNR"));
+        assert!(!body.contains("Jamie Traveler"));
+
+        // Cloud providers are refused (no data leaves the device).
+        assert_eq!(
+            service
+                .run_assist(&trip.id, "openai")
+                .expect_err("cloud refused")
+                .code,
+            ErrorCode::AssistFailed
         );
         cleanup_database(database);
     }

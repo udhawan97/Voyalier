@@ -74,5 +74,32 @@ describe("AI request preview", () => {
     expect(
       within(region).getByText("https://api.openai.com/v1/chat/completions"),
     ).toBeInTheDocument();
+    // Cloud is preview-only: no run button, and an explicit note says so.
+    expect(
+      within(region).queryByRole("button", { name: "Run on-device assist" }),
+    ).toBeNull();
+    expect(
+      within(region).getByText(/Cloud assist isn.t available yet/i),
+    ).toBeInTheDocument();
+  });
+
+  it("runs on-device assist and shows the reply with a non-authoritative disclaimer", async () => {
+    renderApp(createMockGateway());
+    const region = await openTrip();
+
+    // Default provider is Ollama.
+    fireEvent.click(
+      within(region).getByRole("button", { name: "Preview request" }),
+    );
+    fireEvent.click(
+      await within(region).findByRole("button", {
+        name: "Run on-device assist",
+      }),
+    );
+
+    expect(await within(region).findByText(/looks ready/i)).toBeInTheDocument();
+    expect(
+      within(region).getByText(/never treats this as authoritative/i),
+    ).toBeInTheDocument();
   });
 });

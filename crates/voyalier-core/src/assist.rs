@@ -13,7 +13,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::brief::{RedactionPolicy, TripBrief, build_trip_brief};
 use crate::provider::{ProviderId, provider_info};
-use crate::types::{ConfirmedFact, FactPayload, Trip};
+use crate::types::{AppError, ConfirmedFact, ErrorCode, FactPayload, Trip};
+
+/// The on-device Ollama chat endpoint.
+pub const OLLAMA_CHAT_URL: &str = "http://localhost:11434/api/chat";
+/// Model used when the user has not chosen one for Ollama.
+pub const DEFAULT_OLLAMA_MODEL: &str = "llama3.2";
 
 /// The instruction sent with every assist request. Fixed and deterministic so a
 /// user can review it once; it forbids inventing high-stakes facts, which
@@ -158,6 +163,63 @@ fn format_stay(payload: &FactPayload) -> String {
     parts.join(", ")
 }
 
+/// The assistant's reply from a completed on-device run. A deterministic
+/// wrapper around model output — the `text` is never treated as authoritative,
+/// and high-stakes facts are surfaced only from cited sources elsewhere.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistReply {
+    pub provider: ProviderId,
+    pub model: String,
+    pub text: String,
+    pub generated_at: String,
+}
+
+/// Build the Ollama `/api/chat` request body (non-streaming) from a preview's
+/// system and user content. `serde_json` handles all escaping.
+pub fn build_ollama_chat_body(model: &str, system_prompt: &str, user_content: &str) -> String {
+    serde_json::json!({
+        "model": model,
+        "stream": false,
+        "messages": [
+            { "role": "system", "content": system_prompt },
+            { "role": "user", "content": user_content },
+        ],
+    })
+    .to_string()
+}
+
+/// Extract the assistant's message text from an Ollama `/api/chat`
+/// (non-streaming) response, or a descriptive [`ErrorCode::AssistFailed`].
+pub fn parse_ollama_chat_reply(body: &str) -> Result<String, AppError> {
+    let value: serde_json::Value = serde_json::from_str(body).map_err(|_| {
+        AppError::new(
+            ErrorCode::AssistFailed,
+            "the on-device model returned an unreadable response",
+        )
+    })?;
+    if let Some(error) = value.get("error").and_then(|error| error.as_str()) {
+        return Err(AppError::new(
+            ErrorCode::AssistFailed,
+            format!("the on-device model reported: {error}"),
+        ));
+    }
+    let text = value
+        .get("message")
+        .and_then(|message| message.get("content"))
+        .and_then(|content| content.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_owned();
+    if text.is_empty() {
+        return Err(AppError::new(
+            ErrorCode::AssistFailed,
+            "the on-device model returned an empty reply",
+        ));
+    }
+    Ok(text)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -276,5 +338,47 @@ mod tests {
         assert!(!preview.leaves_device);
         assert_eq!(preview.endpoint, "http://localhost:11434/api/chat");
         assert_eq!(preview.model.as_deref(), Some("qwen3:4b"));
+    }
+
+    #[test]
+    fn ollama_chat_body_carries_system_and_user_messages() {
+        let body = build_ollama_chat_body("llama3.2", "be careful", "Trip: Kyoto");
+        let value: serde_json::Value = serde_json::from_str(&body).expect("json");
+        assert_eq!(value["model"], "llama3.2");
+        assert_eq!(value["stream"], false);
+        assert_eq!(value["messages"][0]["role"], "system");
+        assert_eq!(value["messages"][0]["content"], "be careful");
+        assert_eq!(value["messages"][1]["role"], "user");
+        assert_eq!(value["messages"][1]["content"], "Trip: Kyoto");
+    }
+
+    #[test]
+    fn parses_reply_and_reports_failures() {
+        let ok = parse_ollama_chat_reply(
+            r#"{ "message": { "role": "assistant", "content": "  Your trip looks ready.  " }, "done": true }"#,
+        )
+        .expect("reply");
+        assert_eq!(ok, "Your trip looks ready.");
+
+        // An Ollama error object surfaces as an assist failure.
+        assert_eq!(
+            parse_ollama_chat_reply(r#"{ "error": "model 'ghost' not found" }"#)
+                .expect_err("error")
+                .code,
+            ErrorCode::AssistFailed
+        );
+        // Empty content and unparseable bodies both fail cleanly.
+        assert_eq!(
+            parse_ollama_chat_reply(r#"{ "message": { "content": "" } }"#)
+                .expect_err("empty")
+                .code,
+            ErrorCode::AssistFailed
+        );
+        assert_eq!(
+            parse_ollama_chat_reply("not json")
+                .expect_err("garbage")
+                .code,
+            ErrorCode::AssistFailed
+        );
     }
 }
