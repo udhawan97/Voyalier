@@ -64,9 +64,15 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   plus **BYOK key storage** — OpenAI/Anthropic keys stored in the OS keychain
   via the `keyring` crate behind an injectable `SecretStore` (in-memory in
   tests). The lazy "AI providers" panel never returns, renders, or persists a
-  key value (`hasKey` only); models persist in SQLite. Remaining: hybrid consent
-  (first call per provider previews the payload; every call logged), then actual
-  inference — Ollama first, then OpenAI/Anthropic.
+  key value (`hasKey` only); models persist in SQLite.
+- ✓ Providers (C), consent preview: `previewAssist` builds a deterministic,
+  on-device preview of the exact request Voyalier would send to a provider for
+  a trip — system prompt, grounded trip details, endpoint, and a local-vs-cloud
+  "leaves your device" signal. It reuses the brief's generation-time exclusion,
+  so confirmation codes and traveler names never enter it and could never reach
+  a provider; imported document text is withheld too. Nothing is transmitted —
+  this is the consent step before any assist call. Remaining: an activity log of
+  real calls, then actual inference — Ollama first, then OpenAI/Anthropic.
 - ✓ Local retrieval, first slice: `searchTrip` ships as a deterministic scan
   over stored documents and confirmed facts with provenance and transparent
   scoring ("Find in this trip"). FTS5/embeddings may replace the internals
