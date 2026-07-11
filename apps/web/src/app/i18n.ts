@@ -123,6 +123,20 @@ const en = {
   "createTrip.name.label": "Trip name (optional)",
   "createTrip.name.hint": "Defaults to “From → To”.",
   "createTrip.name.placeholder": "Kyoto autumn journey",
+
+  "triplist.eyebrow": "Your workspace",
+  "triplist.title": "Trips",
+  "triplist.create": "Create a trip",
+  "triplist.loading": "Loading trips…",
+  "triplist.empty.title": "No trips yet",
+  "triplist.empty.body":
+    "Voyalier turns scattered confirmations and notes into one trustworthy journey — create a trip to begin.",
+  "triplist.announce.archived": "{title} archived.",
+  "triplist.announce.created": "Trip created: {title}.",
+  "triplist.announce.deleted": "{title} deleted.",
+  "tripcard.open": "Open {title}",
+  "tripcard.archive": "Archive",
+  "tripcard.delete": "Delete",
 } as const;
 
 export type MessageKey = keyof typeof en;

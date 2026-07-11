@@ -8,6 +8,7 @@ import {
   pluralize,
   tripRoute,
 } from "../app/format";
+import { t } from "../app/i18n";
 import { useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
@@ -45,7 +46,7 @@ function TripCard({
             type="button"
             className="voy-tripcard__open"
             onClick={() => onOpen(trip.id)}
-            aria-label={`Open ${trip.title}`}
+            aria-label={t("tripcard.open", { title: trip.title })}
           >
             {trip.title}
           </button>
@@ -84,11 +85,11 @@ function TripCard({
             busy={archiving}
             icon={<ArchiveIcon />}
           >
-            Archive
+            {t("tripcard.archive")}
           </Button>
         ) : null}
         <Button variant="ghost" onClick={() => onDelete(trip)}>
-          Delete
+          {t("tripcard.delete")}
         </Button>
       </div>
     </article>
@@ -117,7 +118,7 @@ export function TripListView({
     setArchivingId(trip.id);
     try {
       await gateway.archiveTrip(trip.id);
-      announce(`${trip.title} archived.`);
+      announce(t("triplist.announce.archived", { title: trip.title }));
       reload();
     } catch (caught) {
       announce(describeError(caught as AppError).title);
@@ -132,8 +133,8 @@ export function TripListView({
     <section className="voy-triplist" aria-labelledby="triplist-heading">
       <header className="voy-triplist__head">
         <div>
-          <p className="voy-eyebrow">Your workspace</p>
-          <h1 id="triplist-heading">Trips</h1>
+          <p className="voy-eyebrow">{t("triplist.eyebrow")}</p>
+          <h1 id="triplist-heading">{t("triplist.title")}</h1>
         </div>
         <Button
           ref={createBtnRef}
@@ -141,13 +142,13 @@ export function TripListView({
           icon={<PlusIcon />}
           onClick={() => setShowCreate(true)}
         >
-          Create a trip
+          {t("triplist.create")}
         </Button>
       </header>
 
       {status === "loading" && !data ? (
         <div className="voy-triplist__grid" role="status" aria-busy="true">
-          <span className="voy-sr-only">Loading trips…</span>
+          <span className="voy-sr-only">{t("triplist.loading")}</span>
           {[0, 1, 2].map((index) => (
             <article
               className="voy-tripcard voy-tripcard--skeleton"
@@ -169,7 +170,7 @@ export function TripListView({
           title={describeError(error!).title}
           action={
             <Button variant="secondary" icon={<RetryIcon />} onClick={reload}>
-              Retry
+              {t("action.retry")}
             </Button>
           }
         >
@@ -179,19 +180,18 @@ export function TripListView({
 
       {status !== "loading" && data && trips.length === 0 ? (
         <Empty
-          title="No trips yet"
+          title={t("triplist.empty.title")}
           action={
             <Button
               variant="primary"
               icon={<PlusIcon />}
               onClick={() => setShowCreate(true)}
             >
-              Create a trip
+              {t("triplist.create")}
             </Button>
           }
         >
-          Voyalier turns scattered confirmations and notes into one trustworthy
-          journey — create a trip to begin.
+          {t("triplist.empty.body")}
         </Empty>
       ) : null}
 
@@ -217,7 +217,7 @@ export function TripListView({
           onClose={() => setShowCreate(false)}
           onCreated={(trip) => {
             setShowCreate(false);
-            announce(`Trip created: ${trip.title}.`);
+            announce(t("triplist.announce.created", { title: trip.title }));
             reload();
           }}
         />
@@ -230,7 +230,7 @@ export function TripListView({
           onDeleted={() => {
             const title = deleteTarget.title;
             setDeleteTarget(null);
-            announce(`${title} deleted.`);
+            announce(t("triplist.announce.deleted", { title }));
             reload();
           }}
         />
