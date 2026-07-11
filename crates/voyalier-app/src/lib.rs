@@ -3059,7 +3059,10 @@ mod tests {
         assert_eq!(KEYRING_SERVICE, "com.voyalier.keys");
         let dirs = ProjectDirs::from("com", "voyalier", "Voyalier").expect("project dirs");
         assert!(
-            dirs.data_dir().to_string_lossy().contains("Voyalier"),
+            dirs.data_dir()
+                .to_string_lossy()
+                .to_lowercase()
+                .contains("voyalier"),
             "data dir must encode the stable app identity: {:?}",
             dirs.data_dir()
         );
