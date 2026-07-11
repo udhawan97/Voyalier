@@ -353,11 +353,16 @@ impl AppService {
     }
 
     pub fn update_trip(&self, trip_id: &str, input: UpdateTripInput) -> Result<Trip, AppError> {
-        let connection = self.connection()?;
+        let mut connection = self.connection()?;
         let current = fetch_trip(&connection, trip_id)?;
         let input = validate_update_trip(&current, input)?;
+        let destination_changed = current.destination != input.destination;
+        let invalidates_weather = destination_changed
+            || current.start_date != input.start_date
+            || current.end_date != input.end_date;
         let updated_at = now_rfc3339();
-        connection
+        let transaction = connection.transaction().map_err(storage_error)?;
+        transaction
             .execute(
                 "UPDATE trips
                  SET title = ?1, origin = ?2, destination = ?3, start_date = ?4, end_date = ?5, updated_at = ?6
@@ -373,6 +378,23 @@ impl AppService {
                 ],
             )
             .map_err(storage_error)?;
+        if invalidates_weather {
+            transaction
+                .execute(
+                    "DELETE FROM weather_snapshots WHERE trip_id = ?1",
+                    params![trip_id],
+                )
+                .map_err(storage_error)?;
+        }
+        if destination_changed {
+            transaction
+                .execute(
+                    "DELETE FROM travel_advice_snapshots WHERE trip_id = ?1",
+                    params![trip_id],
+                )
+                .map_err(storage_error)?;
+        }
+        transaction.commit().map_err(storage_error)?;
         fetch_trip(&connection, trip_id)
     }
 
@@ -1359,6 +1381,26 @@ mod tests {
             Some("Latest update: typhoon season.")
         );
 
+        service
+            .update_trip(
+                &trip.id,
+                UpdateTripInput {
+                    title: None,
+                    origin: None,
+                    destination: Some("Oslo".to_owned()),
+                    start_date: None,
+                    end_date: None,
+                },
+            )
+            .expect("destination edit");
+        assert!(
+            service
+                .get_trip(&trip.id)
+                .expect("detail after destination edit")
+                .travel_advice
+                .is_none()
+        );
+
         // The curated country list is exposed for the picker.
         assert!(
             service
@@ -1423,6 +1465,47 @@ mod tests {
         let stored = detail.weather.expect("stored weather");
         assert_eq!(stored.days[1].description, "Light rain");
         assert_eq!(stored.days[1].precipitation_chance_pct, Some(80.0));
+
+        // Cosmetic edits retain the snapshot, but place/window edits must not
+        // leave weather for the old trip attached to the updated trip.
+        service
+            .update_trip(
+                &trip.id,
+                UpdateTripInput {
+                    title: Some("Renamed journey".to_owned()),
+                    origin: None,
+                    destination: None,
+                    start_date: None,
+                    end_date: None,
+                },
+            )
+            .expect("rename");
+        assert!(
+            service
+                .get_trip(&trip.id)
+                .expect("detail after rename")
+                .weather
+                .is_some()
+        );
+        service
+            .update_trip(
+                &trip.id,
+                UpdateTripInput {
+                    title: None,
+                    origin: None,
+                    destination: Some("Oslo".to_owned()),
+                    start_date: None,
+                    end_date: None,
+                },
+            )
+            .expect("destination edit");
+        assert!(
+            service
+                .get_trip(&trip.id)
+                .expect("detail after destination edit")
+                .weather
+                .is_none()
+        );
         cleanup_database(database);
     }
 

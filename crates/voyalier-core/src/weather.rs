@@ -7,6 +7,7 @@
 //! at most ~16 days out, so a far-future trip honestly reports no coverage
 //! instead of pretending. Weather is planning texture, never a safety claim.
 
+use jiff::civil::Date;
 use serde::{Deserialize, Serialize};
 
 use crate::types::{AppError, ErrorCode};
@@ -155,21 +156,37 @@ pub fn parse_forecast_response(
         })
         .unwrap_or_default();
 
+    let trip_start = trip_start_date
+        .parse::<Date>()
+        .map_err(|_| unreadable_source())?;
+    let trip_end = trip_end_date
+        .parse::<Date>()
+        .map_err(|_| unreadable_source())?;
+
     let mut days = Vec::new();
     for (index, date) in dates.iter().enumerate() {
-        if date.as_str() < trip_start_date || date.as_str() > trip_end_date {
+        let Some(date) = date.as_deref() else {
+            continue;
+        };
+        let Ok(day_date) = date.parse::<Date>() else {
+            continue;
+        };
+        if day_date < trip_start || day_date > trip_end {
             continue;
         }
         let (Some(code), Some(max_temp), Some(min_temp)) = (
-            codes.get(index).copied(),
-            max_temps.get(index).copied(),
-            min_temps.get(index).copied(),
+            codes.get(index).copied().flatten(),
+            max_temps.get(index).copied().flatten(),
+            min_temps.get(index).copied().flatten(),
         ) else {
             continue;
         };
+        if !(0.0..=u8::MAX as f64).contains(&code) || code.fract() != 0.0 {
+            continue;
+        }
         let code = code as u8;
         days.push(WeatherDay {
-            date: date.clone(),
+            date: day_date.to_string(),
             weather_code: code,
             description: describe_weather_code(code).to_owned(),
             temp_max_c: max_temp,
@@ -177,10 +194,12 @@ pub fn parse_forecast_response(
             precipitation_chance_pct: precip.get(index).copied().flatten(),
         });
     }
+    days.sort_by(|left, right| left.date.cmp(&right.date));
+    days.dedup_by(|left, right| left.date == right.date);
 
     let coverage = if days.is_empty() {
         WeatherCoverage::None
-    } else if days.last().map(|day| day.date.as_str()) >= Some(trip_end_date) {
+    } else if covers_every_day(&days, trip_start, trip_end) {
         WeatherCoverage::Full
     } else {
         WeatherCoverage::Partial
@@ -198,26 +217,45 @@ pub fn parse_forecast_response(
     })
 }
 
-fn string_array(parent: &serde_json::Value, key: &str) -> Result<Vec<String>, AppError> {
+fn string_array(parent: &serde_json::Value, key: &str) -> Result<Vec<Option<String>>, AppError> {
     parent
         .get(key)
         .and_then(|field| field.as_array())
         .map(|entries| {
             entries
                 .iter()
-                .filter_map(|entry| entry.as_str())
-                .map(str::to_owned)
+                .map(|entry| entry.as_str().map(str::to_owned))
                 .collect()
         })
         .ok_or_else(unreadable_source)
 }
 
-fn number_array(parent: &serde_json::Value, key: &str) -> Result<Vec<f64>, AppError> {
+fn number_array(parent: &serde_json::Value, key: &str) -> Result<Vec<Option<f64>>, AppError> {
     parent
         .get(key)
         .and_then(|field| field.as_array())
-        .map(|entries| entries.iter().filter_map(|entry| entry.as_f64()).collect())
+        .map(|entries| entries.iter().map(|entry| entry.as_f64()).collect())
         .ok_or_else(unreadable_source)
+}
+
+fn covers_every_day(days: &[WeatherDay], start: Date, end: Date) -> bool {
+    let mut expected = start;
+    for day in days {
+        let Ok(actual) = day.date.parse::<Date>() else {
+            return false;
+        };
+        if actual != expected {
+            return false;
+        }
+        if actual == end {
+            return true;
+        }
+        let Ok(next) = expected.tomorrow() else {
+            return false;
+        };
+        expected = next;
+    }
+    false
 }
 
 /// Deterministic descriptions for WMO weather interpretation codes as
@@ -339,6 +377,38 @@ mod tests {
         )
         .expect("snapshot");
         assert_eq!(snapshot.days.len(), 1);
+        assert_eq!(snapshot.coverage, WeatherCoverage::Partial);
+    }
+
+    #[test]
+    fn nullable_daily_values_do_not_shift_later_dates_or_claim_full_coverage() {
+        let place = parse_geocoding_response(GEOCODE_JSON).expect("place");
+        let snapshot = parse_forecast_response(
+            &place,
+            r#"{
+                "daily": {
+                    "time": ["2026-11-03", "2026-11-04", "2026-11-05"],
+                    "weather_code": [0, null, 61],
+                    "temperature_2m_max": [18.4, 15.1, 16.0],
+                    "temperature_2m_min": [9.2, 8.7, 7.9],
+                    "precipitation_probability_max": [5, null, 80]
+                }
+            }"#,
+            "2026-11-03",
+            "2026-11-05",
+            "2026-11-01T00:00:00Z",
+        )
+        .expect("snapshot");
+
+        assert_eq!(
+            snapshot
+                .days
+                .iter()
+                .map(|day| (day.date.as_str(), day.description.as_str()))
+                .collect::<Vec<_>>(),
+            vec![("2026-11-03", "Clear sky"), ("2026-11-05", "Light rain")]
+        );
+        assert_eq!(snapshot.days[1].precipitation_chance_pct, Some(80.0));
         assert_eq!(snapshot.coverage, WeatherCoverage::Partial);
     }
 

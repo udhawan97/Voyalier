@@ -819,6 +819,16 @@ export function createMockGateway(options?: {
           updatedAt: timestamp(),
         };
         trips.set(tripId, updated);
+        if (
+          destination !== existing.destination ||
+          startDate !== existing.startDate ||
+          endDate !== existing.endDate
+        ) {
+          weatherSnapshots.delete(tripId);
+        }
+        if (destination !== existing.destination) {
+          adviceSnapshots.delete(tripId);
+        }
         return clone(updated);
       }),
 
