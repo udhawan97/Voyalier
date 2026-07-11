@@ -13,6 +13,10 @@ import {
  * split on `navigator.onLine`. The install flow forks by platform: on Windows
  * the process exits during install (no "ready → restart"), on macOS/Linux the
  * bundle is staged and a restart finishes it.
+ *
+ * IMPORTANT: pass a STABLE `gateway` (a module singleton or `useMemo`'d value).
+ * A fresh gateway object every render re-fires the mount effect — repeated
+ * auto-checks and backup/install churn — because `check` is memoized on it.
  */
 export type UpdaterPhase =
   | { name: "idle" }
@@ -114,7 +118,15 @@ export function useUpdater(gateway: UpdaterGateway): UpdaterController {
       }
       setPhase({ name: "upToDate", currentVersion: status.currentVersion });
     } catch {
-      setPhase({ name: "error", reason: errorReason() });
+      // A failed check must not bury a genuinely-staged update behind an error
+      // (§8: a staged version short-circuits to "restart to finish"). Prefer the
+      // persisted staged version — e.g. a macOS user who staged an update, quit,
+      // and relaunched offline should still be told to restart, not see an error.
+      const staged = await gateway
+        .getSetting(UPDATER_KEYS.stagedVersion)
+        .catch(() => null);
+      if (staged) setPhase({ name: "staged", version: staged });
+      else setPhase({ name: "error", reason: errorReason() });
     }
   }, [gateway, reconcileStaged]);
 
@@ -129,7 +141,9 @@ export function useUpdater(gateway: UpdaterGateway): UpdaterController {
       setPhase({ name: "installing", version, progress: null });
       if (gateway.platform === "windows") {
         // The process exits during install and NSIS relaunches the app — this
-        // call typically never resolves. If it does, treat it like staged.
+        // call typically never resolves, and there is no "restart to finish"
+        // state on Windows. So we deliberately do NOT stream progress or persist
+        // stagedVersion here; if it does resolve, fall through to a staged view.
         await gateway.install();
         setPhase({ name: "staged", version });
       } else {

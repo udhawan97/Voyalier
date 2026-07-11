@@ -15,6 +15,9 @@ export interface MockUpdaterOptions {
   progress?: UpdateProgress[];
   /** Result of install(); pass an Error to reject. Defaults to a staged swap. */
   onInstall?: InstallOutcome | Error;
+  /** Awaited after progress but before install() resolves, to hold it open so a
+   *  test can observe the transient "installing" phase. */
+  hold?: Promise<void>;
   /** Seed values for the in-memory KV store. */
   settings?: Record<string, string>;
 }
@@ -66,6 +69,7 @@ export function createMockUpdater(
         // Yield so listeners observe frames as distinct microtasks.
         await Promise.resolve();
       }
+      if (options.hold) await options.hold;
       if (options.onInstall instanceof Error) throw options.onInstall;
       return (
         options.onInstall ?? {

@@ -28,6 +28,16 @@ describe("compareVersions", () => {
     expect(compareVersions("0.3.0", "0.3.0")).toBe(0);
     expect(compareVersions("0.10.0", "0.9.9")).toBe(1);
   });
+
+  it("handles different segment counts and (per doc) ignores suffixes", () => {
+    // Missing trailing segments read as 0.
+    expect(compareVersions("0.3", "0.3.1")).toBe(-1);
+    expect(compareVersions("0.3.0", "0.3")).toBe(0);
+    // Leading zeros are numeric, not lexicographic.
+    expect(compareVersions("0.03.0", "0.3.0")).toBe(0);
+    // Pre-release suffixes are ignored (documented limitation).
+    expect(compareVersions("0.3.1-rc1", "0.3.1")).toBe(0);
+  });
 });
 
 describe("useUpdater", () => {
@@ -155,6 +165,96 @@ describe("useUpdater", () => {
     // Running 0.3.1 >= staged 0.3.1 → the staged marker is cleared.
     await waitFor(() => expect(result.current.phase.name).toBe("upToDate"));
     expect(gw.store.get(UPDATER_KEYS.stagedVersion)).toBe("");
+  });
+
+  it("keeps showing a staged update when the auto-check fails (offline relaunch)", async () => {
+    // consent=yes → mount auto-checks; the check throws (e.g. offline) but a
+    // staged update is persisted, so the machine must surface "staged", not
+    // bury it behind an error.
+    const gw = createMockUpdater({
+      platform: "macos",
+      settings: {
+        [UPDATER_KEYS.consent]: "yes",
+        [UPDATER_KEYS.stagedVersion]: "0.3.1",
+      },
+      onCheck: new Error("offline"),
+    });
+    const { result } = renderHook(() => useUpdater(gw));
+    await waitFor(() => expect(result.current.phase.name).toBe("staged"));
+    expect((result.current.phase as { version: string }).version).toBe("0.3.1");
+    // The staged marker is preserved (a failed check must not clear it).
+    expect(gw.store.get(UPDATER_KEYS.stagedVersion)).toBe("0.3.1");
+  });
+
+  it("maps an install failure to a coarse error", async () => {
+    const gw = createMockUpdater({
+      platform: "macos",
+      settings: { [UPDATER_KEYS.consent]: "yes" },
+      onCheck: available("0.3.1"),
+      onInstall: new Error("verify failed"),
+    });
+    const { result } = renderHook(() => useUpdater(gw));
+    await waitFor(() => expect(result.current.phase.name).toBe("available"));
+    await act(async () => {
+      await result.current.install();
+    });
+    await waitFor(() => expect(result.current.phase.name).toBe("error"));
+  });
+
+  it("keeps a skipped version skipped across a fresh check", async () => {
+    const gw = createMockUpdater({
+      settings: {
+        [UPDATER_KEYS.consent]: "yes",
+        [UPDATER_KEYS.skippedVersion]: "0.3.1",
+      },
+      onCheck: available("0.3.1"),
+    });
+    const { result } = renderHook(() => useUpdater(gw));
+    await waitFor(() => expect(result.current.phase.name).toBe("available"));
+    // A manual check still SHOWS the available version, but marked skipped.
+    expect((result.current.phase as { skipped: boolean }).skipped).toBe(true);
+  });
+
+  it("consent=no with nothing staged settles on idle", async () => {
+    const gw = createMockUpdater({
+      settings: { [UPDATER_KEYS.consent]: "no" },
+      onCheck: available("0.3.1"),
+    });
+    const { result } = renderHook(() => useUpdater(gw));
+    await waitFor(() => expect(result.current.phase.name).toBe("idle"));
+  });
+
+  it("exposes the transient installing phase with streamed progress", async () => {
+    let release!: () => void;
+    const hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const gw = createMockUpdater({
+      platform: "macos",
+      settings: { [UPDATER_KEYS.consent]: "yes" },
+      onCheck: available("0.3.1"),
+      progress: [{ downloaded: 50, total: 100 }],
+      hold,
+    });
+    const { result } = renderHook(() => useUpdater(gw));
+    await waitFor(() => expect(result.current.phase.name).toBe("available"));
+
+    let installed!: Promise<void>;
+    await act(async () => {
+      installed = result.current.install();
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(result.current.phase.name).toBe("installing"));
+    expect((result.current.phase as { progress: unknown }).progress).toEqual({
+      downloaded: 50,
+      total: 100,
+    });
+
+    release();
+    await act(async () => {
+      await installed;
+    });
+    await waitFor(() => expect(result.current.phase.name).toBe("staged"));
   });
 
   it("restarts to finish and maps a failed check to a coarse error", async () => {
