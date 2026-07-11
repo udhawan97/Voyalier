@@ -24,12 +24,22 @@ export interface TripDetail {
   readiness: ReadinessSummary;
 }
 export type ReadinessCheck =
-  "schedule_conflicts" | "lodging_coverage" | "pending_review";
+  | "schedule_conflicts"
+  | "lodging_coverage"
+  | "pending_review"
+  | "entry_requirements";
+/** A labelled link to an authoritative external source (curated, never model-derived). */
+export interface SourceLink {
+  label: string;
+  url: string;
+}
 export interface ReadinessItem {
   id: ReadinessCheck;
   status: ReadinessStatus;
   title: string;
   detail: string;
+  /** Curated official-source links; omitted when the item has none. */
+  links?: SourceLink[];
 }
 export interface ReadinessSummary {
   status: ReadinessStatus;

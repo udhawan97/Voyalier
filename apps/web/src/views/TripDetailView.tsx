@@ -161,8 +161,10 @@ const READINESS_LABEL: Record<ReadinessStatus, string> = {
 };
 
 /**
- * Deterministic plan-completeness rollup (logistics only). Status is always
- * spelled out in words, never conveyed by color alone.
+ * Deterministic plan-completeness rollup plus a link-only entry-requirements
+ * reference. Status is always spelled out in words, never conveyed by color
+ * alone; the entry item reads "Check yourself" because Voyalier never asserts
+ * or clears entry rules.
  */
 function ReadinessPanel({ readiness }: { readiness: ReadinessSummary }) {
   return (
@@ -191,17 +193,36 @@ function ReadinessPanel({ readiness }: { readiness: ReadinessSummary }) {
                 {item.title}
                 <span className="voy-readiness__item-status">
                   {" · "}
-                  {READINESS_LABEL[item.status]}
+                  {item.id === "entry_requirements"
+                    ? "Check yourself"
+                    : READINESS_LABEL[item.status]}
                 </span>
               </span>
               <span className="voy-readiness__detail">{item.detail}</span>
+              {item.links && item.links.length > 0 ? (
+                <ul className="voy-readiness__links">
+                  {item.links.map((link) => (
+                    <li key={link.url}>
+                      <a
+                        href={link.url}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                      >
+                        {link.label}
+                        <span className="voy-sr-only"> (opens in new tab)</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </span>
           </li>
         ))}
       </ul>
       <p className="voy-readiness__scope">
-        Plan completeness only. Entry rules, health, and safety readiness arrive
-        in a later milestone from cited sources.
+        Plan completeness plus official starting points. Voyalier never asserts
+        or clears entry, health, or safety requirements — sourced, dated
+        readiness arrives in a later milestone.
       </p>
     </section>
   );

@@ -490,9 +490,11 @@ function assessReadiness(
           "Nothing is waiting for review.",
         );
 
-  const items = [schedule, lodging, pending];
+  // Logistics items drive the rollup; the link-only entry-requirements item is
+  // appended afterwards and never moves the overall status.
+  const logistics = [schedule, lodging, pending];
   let worst: ReadinessStatus = "not_checked";
-  for (const entry of items) {
+  for (const entry of logistics) {
     if (READINESS_SEVERITY[entry.status] > READINESS_SEVERITY[worst]) {
       worst = entry.status;
     }
@@ -500,7 +502,27 @@ function assessReadiness(
   const status: ReadinessStatus =
     !hasFacts && worst === "clear" ? "not_checked" : worst;
 
-  return { status, items };
+  const entryRequirements: ReadinessItem = {
+    id: "entry_requirements",
+    status: "not_checked",
+    title: "Entry & travel requirements",
+    detail:
+      "Requirements depend on your nationality and change often. Confirm them " +
+      "at an official government source before you travel — Voyalier links to " +
+      "official sources and never asserts or clears entry rules.",
+    links: [
+      {
+        label: "UK FCDO travel advice — entry requirements by country",
+        url: "https://www.gov.uk/foreign-travel-advice",
+      },
+      {
+        label: "US State Dept — international travel",
+        url: "https://travel.state.gov/content/travel/en/international-travel.html",
+      },
+    ],
+  };
+
+  return { status, items: [...logistics, entryRequirements] };
 }
 
 function omit<T extends object>(value: T, keys: string[]): T {

@@ -27,10 +27,64 @@ describe("readiness", () => {
         /Some nights in your trip have no lodging booked/,
       ),
     ).toBeInTheDocument();
-    // Scope disclaimer keeps this distinct from sourced entry/health readiness.
+    // Disclaimer appears on both the entry item and the scope line.
     expect(
-      within(readiness).getByText(/Entry rules, health, and safety readiness/),
+      within(readiness).getAllByText(/never asserts\s+or clears entry/).length,
+    ).toBeGreaterThanOrEqual(1);
+  });
+
+  it("links entry requirements to official sources without asserting them", async () => {
+    renderApp(createMockGateway());
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    );
+    const readiness = await screen.findByRole("region", { name: "Readiness" });
+
+    // The item is labeled as the traveler's own check, not a status claim.
+    expect(
+      within(readiness).getByText("Entry & travel requirements"),
     ).toBeInTheDocument();
+    expect(within(readiness).getByText(/Check yourself/)).toBeInTheDocument();
+
+    // Curated official links open externally.
+    const fcdo = within(readiness).getByRole("link", {
+      name: /UK FCDO travel advice/,
+    });
+    expect(fcdo).toHaveAttribute(
+      "href",
+      "https://www.gov.uk/foreign-travel-advice",
+    );
+    expect(fcdo).toHaveAttribute("target", "_blank");
+    expect(fcdo.getAttribute("rel")).toContain("noopener");
+  });
+
+  it("keeps the overall rollup unaffected by the link-only entry item", async () => {
+    const gateway = createMockGateway();
+    const trip = await gateway.createTrip({
+      origin: "Chicago",
+      destination: "Kyoto",
+      startDate: "2027-04-01",
+      endDate: "2027-04-05",
+    });
+    await gateway.addManualFact({
+      tripId: trip.id,
+      factType: "lodging_stay",
+      payload: {
+        propertyName: "Test Inn",
+        checkinDate: "2027-04-01",
+        checkoutDate: "2027-04-05",
+      },
+    });
+
+    const detail = await gateway.getTrip(trip.id);
+    const entry = detail.readiness.items.find(
+      (item) => item.id === "entry_requirements",
+    );
+    expect(entry?.status).toBe("not_checked");
+    expect(entry?.links?.length).toBeGreaterThan(0);
+    // Entry item is NotChecked, yet the covered/reviewed plan stays clear.
+    expect(detail.readiness.status).toBe("clear");
   });
 
   it("reads as on track for a fully-covered, reviewed trip via the gateway", async () => {

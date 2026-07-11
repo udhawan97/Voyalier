@@ -75,14 +75,25 @@ pub struct TripDetail {
 
 /// Which deterministic plan-completeness check a readiness item reports on.
 ///
-/// Logistics only. Sourced readiness (entry rules, health, safety, weather) is a
-/// later milestone and will extend this enum additively; it is never LLM-authored.
+/// Logistics checks are deterministic. `EntryRequirements` is a link-only,
+/// reference item that never asserts or clears requirements. Sourced readiness
+/// (health, safety, weather) is a later milestone; it is never LLM-authored.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ReadinessCheck {
     ScheduleConflicts,
     LodgingCoverage,
     PendingReview,
+    EntryRequirements,
+}
+
+/// A labelled link to an authoritative external source. URLs are curated in
+/// code, never derived from untrusted input or a model.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceLink {
+    pub label: String,
+    pub url: String,
 }
 
 /// A single readiness check with its status and a plain-language explanation.
@@ -93,6 +104,10 @@ pub struct ReadinessItem {
     pub status: ReadinessStatus,
     pub title: String,
     pub detail: String,
+    /// Curated official-source links, when the item points the traveler outward
+    /// instead of asserting anything. Additive; omitted on the wire when empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub links: Vec<SourceLink>,
 }
 
 /// The overall readiness rollup plus the per-check items it was derived from.

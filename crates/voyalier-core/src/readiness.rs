@@ -8,7 +8,7 @@
 
 use crate::types::{
     ConfirmedFact, ConflictSeverity, FactType, ItineraryConflict, ItineraryConflictKind,
-    ReadinessCheck, ReadinessItem, ReadinessStatus, ReadinessSummary, Trip,
+    ReadinessCheck, ReadinessItem, ReadinessStatus, ReadinessSummary, SourceLink, Trip,
 };
 
 /// Roll up plan-completeness readiness from the confirmed facts, pending count,
@@ -24,16 +24,51 @@ pub fn assess_readiness(
         .iter()
         .any(|fact| fact.fact_type == FactType::LodgingStay);
 
-    let items = vec![
+    // Logistics checks drive the overall rollup. The entry-requirements item is
+    // a link-only reference that never asserts anything, so it must not affect
+    // the overall status (it is always NotChecked and would otherwise pin it).
+    let logistics = vec![
         schedule_item(has_facts, conflicts),
         lodging_item(has_lodging, conflicts),
         pending_item(pending_candidate_count),
     ];
+    let status = overall_status(&logistics, has_facts);
 
-    ReadinessSummary {
-        status: overall_status(&items, has_facts),
-        items,
+    let mut items = logistics;
+    items.push(entry_requirements_item());
+
+    ReadinessSummary { status, items }
+}
+
+/// A link-only, high-stakes-safe reference item. Voyalier never asserts, infers,
+/// or clears entry requirements — it points the traveler at official sources.
+fn entry_requirements_item() -> ReadinessItem {
+    ReadinessItem {
+        id: ReadinessCheck::EntryRequirements,
+        status: ReadinessStatus::NotChecked,
+        title: "Entry & travel requirements".to_owned(),
+        detail: "Requirements depend on your nationality and change often. \
+                 Confirm them at an official government source before you travel — \
+                 Voyalier links to official sources and never asserts or clears \
+                 entry rules."
+            .to_owned(),
+        links: official_source_links(),
     }
+}
+
+/// Curated, stable official-source starting points. URLs are hard-coded here,
+/// never derived from trip data or a model.
+fn official_source_links() -> Vec<SourceLink> {
+    vec![
+        SourceLink {
+            label: "UK FCDO travel advice — entry requirements by country".to_owned(),
+            url: "https://www.gov.uk/foreign-travel-advice".to_owned(),
+        },
+        SourceLink {
+            label: "US State Dept — international travel".to_owned(),
+            url: "https://travel.state.gov/content/travel/en/international-travel.html".to_owned(),
+        },
+    ]
 }
 
 fn schedule_item(has_facts: bool, conflicts: &[ItineraryConflict]) -> ReadinessItem {
@@ -79,6 +114,7 @@ fn schedule_item(has_facts: bool, conflicts: &[ItineraryConflict]) -> ReadinessI
         status,
         title: "Schedule conflicts".to_owned(),
         detail,
+        links: Vec::new(),
     }
 }
 
@@ -110,6 +146,7 @@ fn lodging_item(has_lodging: bool, conflicts: &[ItineraryConflict]) -> Readiness
         status,
         title: "Lodging coverage".to_owned(),
         detail,
+        links: Vec::new(),
     }
 }
 
@@ -134,6 +171,7 @@ fn pending_item(pending_candidate_count: u32) -> ReadinessItem {
         status,
         title: "Suggestions to review".to_owned(),
         detail,
+        links: Vec::new(),
     }
 }
 
@@ -268,6 +306,34 @@ mod tests {
                 .iter()
                 .all(|item| item.status != ReadinessStatus::ActionNeeded)
         );
+    }
+
+    #[test]
+    fn entry_requirements_item_links_out_and_never_moves_the_rollup() {
+        // Fully covered, reviewed trip: overall must stay Clear even though the
+        // entry item itself is permanently NotChecked (link-only reference).
+        let facts = [
+            flight("f1", "2026-11-03T09:00", "2026-11-03T12:00"),
+            lodging("l1", "2026-11-03", "2026-11-05"),
+        ];
+        let summary = assess(&trip("2026-11-03", "2026-11-05"), &facts, 0);
+        assert_eq!(summary.status, ReadinessStatus::Clear);
+
+        let entry = summary
+            .items
+            .iter()
+            .find(|item| item.id == ReadinessCheck::EntryRequirements)
+            .expect("entry item present");
+        assert_eq!(entry.status, ReadinessStatus::NotChecked);
+        assert!(!entry.links.is_empty());
+        assert!(
+            entry
+                .links
+                .iter()
+                .all(|link| link.url.starts_with("https://"))
+        );
+        // The item explains that Voyalier never asserts entry rules.
+        assert!(entry.detail.contains("never asserts"));
     }
 
     #[test]
