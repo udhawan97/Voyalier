@@ -114,8 +114,8 @@ pattern used for conflicts, readiness, and the brief.
       Kauaʻi, and Hawaiʻi (Big Island). Each uses its own Wikivoyage article
       and its own island-sized Overture bbox (never one oversized state bbox).
       That is 4 of the pack set, not 1.
-    These are non-negotiable for the initial build; the rest of the ~20 fill in
-    around them (so ~15 more cities beyond Nashville + the 4 Hawaii packs).
+      These are non-negotiable for the initial build; the rest of the ~20 fill in
+      around them (so ~15 more cities beyond Nashville + the 4 Hawaii packs).
 - **Providers (C): OS keychain + hybrid consent, Ollama first.** BYOK keys live
   in the OS keychain via the `keyring` crate (desktop-only until a browser-mode
   fallback is designed). Consent: the first AI call per provider shows a full
