@@ -1,0 +1,89 @@
+---
+title: Troubleshooting
+description: Fixes for the most common issues, and where your data lives.
+---
+
+Short playbooks for the problems you are most likely to hit. Each is
+symptom → likely cause → what to do.
+
+## The app or dev server won't start
+
+**Likely cause:** a toolchain or port mismatch.
+
+- Confirm Node.js 24+, pnpm 11+, and the stable Rust toolchain are installed.
+- Run `make bootstrap` once, then `make dev`.
+- The web UI needs port `5173` and the local API needs `8787`. If another
+  process holds one, stop it (or set `VOYALIER_DATA_DIR` and adjust the port) and
+  retry.
+- Run `make check` to surface build, lint, and type errors.
+
+## AI assist fails
+
+**Likely cause:** no key, no local model, or a provider-side error.
+
+- **"No key" / refused before sending:** open **AI providers** and add an OpenAI
+  or Anthropic key (stored in your OS keychain), or pick the on-device provider.
+- **On-device (Ollama) not found:** install [Ollama](https://ollama.com), pull a
+  model (`ollama pull llama3.2`), and make sure it is running on
+  `localhost:11434`.
+- **Cloud request fails:** Voyalier surfaces the provider's real error (an
+  invalid key, an exhausted quota, or a rate limit). Fix the underlying cause
+  with your provider and try again — the request is exactly what you saw in the
+  preview, so nothing unexpected was sent.
+
+## The map is blank
+
+**Likely cause:** no consent click, no WebGL, or no network.
+
+- The map only loads after you click **Show map** — the click is the consent.
+- The basemap needs WebGL and a network connection to fetch tiles from
+  OpenFreeMap. In an environment without WebGL (some headless setups) the frame
+  stays empty by design rather than crashing.
+
+## Official advice or weather won't fetch
+
+**Likely cause:** these are consented, network-only, and scoped.
+
+- Both fetch only on an explicit click. Check your connection and retry.
+- FCDO travel advice covers UK-passport holders and uses a curated country list;
+  a destination outside that list won't have a snapshot. The linked official
+  sources are always available regardless.
+
+## A city pack won't download
+
+**Likely cause:** the pack contents haven't been published yet.
+
+- Pack contents are served from the project's `packs-v1` release, which is
+  populated by a maintainer-run build workflow. Until a pack is published, a
+  download fails gracefully (nothing is stored). The catalog and per-layer
+  licenses still list what each pack will contain.
+
+## I'm locked out of my vault
+
+**If you remember your passphrase:** enter it on the unlock screen when the app
+starts.
+
+**If you have forgotten it:** there is no recovery. Your passphrase is only ever
+used locally to derive a key and is never stored, so no one — including you — can
+decrypt the data without it. Your options are to keep trying to remember it, or
+to start over with an empty workspace by removing the database (see below), which
+permanently discards the encrypted trips.
+
+## Where your data lives (and how to back up or reset)
+
+Everything is stored locally in a single SQLite file, `voyalier.sqlite3`:
+
+- **macOS:** `~/Library/Application Support/com.voyalier.Voyalier/`
+- **Windows:** `%APPDATA%\voyalier\Voyalier\data\`
+- **Linux:** `~/.local/share/voyalier/`
+
+Set `VOYALIER_DATA_DIR` to point Voyalier at a different location.
+
+- **Back up:** copy that `voyalier.sqlite3` file somewhere safe while the app is
+  closed. Sensitive fields inside it are already encrypted at rest.
+- **Reset:** delete the file to start with an empty workspace. This is
+  irreversible.
+
+Your provider API keys and the vault key live separately in the OS keychain
+(service `com.voyalier.keys`), not in that file. Removing a provider key is done
+from the **AI providers** panel.

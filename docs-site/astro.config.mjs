@@ -47,6 +47,7 @@ export default defineConfig({
             { label: "The encrypted vault", link: "/guides/encrypted-vault/" },
           ],
         },
+        { label: "Troubleshooting", link: "/troubleshooting/" },
         { label: "Architecture", link: "/architecture/" },
         { label: "Privacy and trust", link: "/privacy/" },
         { label: "Roadmap", link: "/roadmap/" },

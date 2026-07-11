@@ -158,7 +158,9 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   compute. Documentation: the docs site now has a **Guides** section covering
   each workflow — trips and the Blueprint, importing confirmations, readiness and
   official advice, offline packs/recommendations/maps, AI assist, and the
-  encrypted vault. Still to do: localization readiness and support playbooks.)_
+  encrypted vault, plus a **Troubleshooting** page of support playbooks (common
+  failures, and where data lives / how to back up or reset). Still to do:
+  localization readiness.)_
 
 ## Later
 
