@@ -18,6 +18,9 @@ export default defineConfig({
         },
       ],
       customCss: ["./src/styles/custom.css"],
+      components: {
+        Search: "./src/components/Search.astro",
+      },
       sidebar: [
         { label: "Introduction", link: "/introduction/" },
         { label: "Getting started", link: "/getting-started/" },
