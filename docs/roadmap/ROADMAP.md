@@ -109,14 +109,16 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
 
 **Deferred to a later phase (beyond the owner-resolved Phase 2 scope):**
 
-- Persona scoring and destination recommendations (`getRecommendations`,
-  preference weights, `PlaceCandidate`) over downloaded pack places — needs the
-  pack pipeline to have populated the `packs-v1` release first.
 - Per-call citation of grounded chunks and token cost estimates on assist.
 - Health-notice sources (CDC/WHO) via the same link-or-consent pattern.
 
 ## Phase 3 — public beta
 
+- ✓ Persona-weighted recommendations: `getRecommendations` ranks a trip's
+  downloaded pack places by per-trip persona weights (food, culture, nature,
+  nightlife, shopping). Deterministic and transparent — a keyword-to-dimension
+  rule, never a model — with per-pick source, license, score, "because" reasons,
+  and a cross-dimension wildcard. Empty until a pack with places is downloaded.
 - Encrypted vault and migration/backup tests.
 - Map and offline Today view.
 - DMG and EXE/MSI release automation, signing, notarization, checksums, and updater.
