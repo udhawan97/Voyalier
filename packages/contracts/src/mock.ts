@@ -527,6 +527,10 @@ function assessReadiness(
         url: "https://www.gov.uk/foreign-travel-advice",
       },
       {
+        label: "US State Dept — travel advisories by country",
+        url: "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html",
+      },
+      {
         label: "US State Dept — international travel",
         url: "https://travel.state.gov/content/travel/en/international-travel.html",
       },

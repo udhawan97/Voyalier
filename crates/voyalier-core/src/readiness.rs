@@ -65,6 +65,12 @@ fn official_source_links() -> Vec<SourceLink> {
             url: "https://www.gov.uk/foreign-travel-advice".to_owned(),
         },
         SourceLink {
+            label: "US State Dept — travel advisories by country".to_owned(),
+            url:
+                "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
+                    .to_owned(),
+        },
+        SourceLink {
             label: "US State Dept — international travel".to_owned(),
             url: "https://travel.state.gov/content/travel/en/international-travel.html".to_owned(),
         },

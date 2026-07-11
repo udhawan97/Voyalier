@@ -95,7 +95,22 @@ pattern used for conflicts, readiness, and the brief.
 ## Open questions
 
 - Does sourced readiness live on `TripDetail` (cached) or a separate
-  `getReadiness` call with its own refresh lifecycle?
-- Provider consent granularity: per-call, per-session, or per-provider?
-- Pack format and licensing manifest (Overture permissive + Wikivoyage share-alike
-  layered) — needs its own note before B lands.
+  `getReadiness` call with its own refresh lifecycle? (So far: cached on
+  `TripDetail`, refreshed by explicit user clicks — working well.)
+
+## Owner decisions (resolved 2026-07-11)
+
+- **US State Dept advisories: link-only.** No machine-readable per-country feed
+  exists (RSS carries only recent updates; state.gov bot-blocks fetchers), so
+  Voyalier links to the official advisories index instead of showing a level.
+  Revisit if the US ships a real API.
+- **Packs (B): CI-built, layered licensing.** A CI pipeline builds ~20 city
+  packs — Overture places (permissive) plus Wikivoyage prose as a separate
+  CC BY-SA layer with a per-layer LICENSE/ATTRIBUTION manifest — published to
+  GitHub Releases; the app downloads one pack per trip behind explicit consent.
+- **Providers (C): OS keychain + hybrid consent, Ollama first.** BYOK keys live
+  in the OS keychain via the `keyring` crate (desktop-only until a browser-mode
+  fallback is designed). Consent: the first AI call per provider shows a full
+  payload preview with an "allow for this trip" choice; every call is recorded
+  in a visible activity log. Ollama (local, keyless) ships before cloud
+  providers.
