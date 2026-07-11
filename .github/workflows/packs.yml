@@ -1,0 +1,73 @@
+name: Build city packs
+
+# Builds each city pack's contents (Overture places + Wikivoyage prose) from the
+# catalog defined in voyalier-core and publishes them as JSON assets on the
+# `packs-v1` release, which the app downloads per trip with consent.
+#
+# Manual only: the underlying data changes slowly and a build hits external
+# services (the Overture S3 bucket and the Wikivoyage API), so it should be run
+# deliberately rather than on every push.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release tag to publish pack assets to
+        default: packs-v1
+        type: string
+      overture_release:
+        description: Overture Maps release to query
+        default: "2025-01-22.0"
+        type: string
+
+permissions:
+  contents: write # create/update the release and upload assets
+
+concurrency:
+  group: build-packs
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and publish packs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install DuckDB
+        run: |
+          curl -fsSL https://install.duckdb.org | sh
+          echo "$HOME/.duckdb/cli/latest" >> "$GITHUB_PATH"
+
+      - name: Dump the pack catalog (single source of truth)
+        run: cargo run --locked -p voyalier-core --example pack_catalog > catalog.json
+
+      - name: Build pack contents
+        env:
+          PACK_RELEASE_TAG: ${{ inputs.release_tag }}
+          OVERTURE_RELEASE: ${{ inputs.overture_release }}
+        run: node scripts/build-packs.mjs catalog.json
+
+      - name: Publish pack assets to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" \
+              --title "City packs ($RELEASE_TAG)" \
+              --notes "Overture places (CDLA-Permissive-2.0) + Wikivoyage prose (CC BY-SA 3.0), per pack. Built by .github/workflows/packs.yml."
+          fi
+          gh release upload "$RELEASE_TAG" dist/packs/*.json --clobber
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: city-packs
+          path: dist/packs/

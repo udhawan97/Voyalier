@@ -90,8 +90,13 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   server-side for now. A fixed system prompt forbids inventing high-stakes
   facts, and the reply carries a non-authoritative disclaimer.
 - ✓ Providers (C), activity log: every successful run is recorded in a visible
-  per-trip log (metadata only — never the prompt or reply). Remaining for C:
-  cloud inference (OpenAI/Anthropic) behind the same consent + logging.
+  per-trip log (metadata only — never the prompt or reply).
+- ✓ Providers (C), cloud inference: `runAssist` also sends the previewed,
+  redacted request to OpenAI or Anthropic using the BYOK key from the OS
+  keychain. The key is read only on the inference path, placed solely in the
+  outgoing auth header, and never logged, returned, or stored elsewhere; a
+  missing key is refused before any request. The same redaction, system prompt,
+  disclaimer, and activity logging as on-device apply. Provider (C) is complete.
 - ✓ Local retrieval, first slice: `searchTrip` ships as a deterministic scan
   over stored documents and confirmed facts with provenance and transparent
   scoring ("Find in this trip"). FTS5/embeddings may replace the internals
