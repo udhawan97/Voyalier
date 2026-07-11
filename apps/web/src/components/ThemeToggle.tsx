@@ -1,14 +1,18 @@
 import { useRef } from "react";
 
+import { t, type MessageKey } from "../app/i18n";
 import { useTheme, type ThemeChoice } from "../app/theme";
 import { DesktopIcon, MoonIcon, SunIcon } from "./icons";
 
-const OPTIONS: { value: ThemeChoice; label: string; icon: React.ReactNode }[] =
-  [
-    { value: "light", label: "Light", icon: <SunIcon /> },
-    { value: "system", label: "System", icon: <DesktopIcon /> },
-    { value: "dark", label: "Dark", icon: <MoonIcon /> },
-  ];
+const OPTIONS: {
+  value: ThemeChoice;
+  label: MessageKey;
+  icon: React.ReactNode;
+}[] = [
+  { value: "light", label: "theme.light", icon: <SunIcon /> },
+  { value: "system", label: "theme.system", icon: <DesktopIcon /> },
+  { value: "dark", label: "theme.dark", icon: <MoonIcon /> },
+];
 
 /** Light / System / Dark as an ARIA radiogroup with roving focus + arrow keys. */
 export function ThemeToggle() {
@@ -35,7 +39,7 @@ export function ThemeToggle() {
   return (
     <div
       role="radiogroup"
-      aria-label="Color theme"
+      aria-label={t("theme.label")}
       className="voy-theme"
       onKeyDown={handleKeyDown}
     >
@@ -57,7 +61,7 @@ export function ThemeToggle() {
             <span className="voy-theme__icon" aria-hidden="true">
               {option.icon}
             </span>
-            <span className="voy-theme__label">{option.label}</span>
+            <span className="voy-theme__label">{t(option.label)}</span>
           </button>
         );
       })}

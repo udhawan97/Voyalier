@@ -7,6 +7,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { t } from "../app/i18n";
 import { CloseIcon } from "./icons";
 
 const FOCUSABLE =
@@ -129,7 +130,7 @@ export function Dialog({
             type="button"
             className="voy-icon-btn"
             onClick={onClose}
-            aria-label="Close dialog"
+            aria-label={t("dialog.close")}
           >
             <CloseIcon />
           </button>

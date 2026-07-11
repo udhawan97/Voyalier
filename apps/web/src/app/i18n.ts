@@ -472,6 +472,22 @@ const en = {
   "schedule.clear": "No schedule conflicts found in your confirmed plans.",
   "schedule.conflict": "Conflict",
   "schedule.notice": "Notice",
+
+  "map.title": "Map",
+  "map.intro":
+    "See your destination and recommended places on a map. Showing it fetches map tiles from OpenFreeMap — an explicit, one-time network request, like the weather outlook. Nothing about your trip is sent.",
+  "map.show": "Show map",
+  "map.aria": "Trip map",
+  "map.scope": "Basemap © OpenFreeMap · map data © OpenStreetMap contributors.",
+  "map.scope.empty":
+    " Download a city pack and get recommendations to see places here.",
+
+  "theme.label": "Color theme",
+  "theme.light": "Light",
+  "theme.system": "System",
+  "theme.dark": "Dark",
+
+  "dialog.close": "Close dialog",
 } as const;
 
 export type MessageKey = keyof typeof en;

@@ -3,6 +3,7 @@ import type { Map as MaplibreMap } from "maplibre-gl";
 import type { PersonaWeights, Recommendation } from "@voyalier/contracts";
 
 import { useGateway } from "../app/context";
+import { t } from "../app/i18n";
 import { Button } from "../components/Button";
 
 // MapLibre GL is ~1 MB — far larger than the rest of the app. The map is
@@ -132,18 +133,14 @@ export function MapPanel({
   return (
     <section className="voy-map" aria-labelledby="map-title">
       <h2 id="map-title" className="voy-map__title">
-        Map
+        {t("map.title")}
       </h2>
 
       {!shown ? (
         <>
-          <p className="voy-map__intro">
-            See your destination and recommended places on a map. Showing it
-            fetches map tiles from OpenFreeMap — an explicit, one-time network
-            request, like the weather outlook. Nothing about your trip is sent.
-          </p>
+          <p className="voy-map__intro">{t("map.intro")}</p>
           <Button variant="secondary" onClick={show}>
-            Show map
+            {t("map.show")}
           </Button>
         </>
       ) : (
@@ -152,13 +149,11 @@ export function MapPanel({
             ref={containerRef}
             className="voy-map__canvas"
             role="application"
-            aria-label="Trip map"
+            aria-label={t("map.aria")}
           />
           <p className="voy-map__scope">
-            Basemap © OpenFreeMap · map data © OpenStreetMap contributors.
-            {places.length === 0
-              ? " Download a city pack and get recommendations to see places here."
-              : ""}
+            {t("map.scope")}
+            {places.length === 0 ? t("map.scope.empty") : ""}
           </p>
         </>
       )}
