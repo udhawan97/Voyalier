@@ -1361,6 +1361,99 @@ h3 {
 
 /* ===== Encrypted vault =============================================== */
 
+.voy-updates {
+  margin-top: 2.6rem;
+  padding-top: 1.8rem;
+  border-top: 1px solid var(--voy-line);
+}
+
+.voy-updates__title {
+  font-size: 1.4rem;
+  font-family: var(--voy-font-display);
+  margin-bottom: 0.8rem;
+}
+
+.voy-updates__lead {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.voy-updates__hint {
+  margin: 0 0 1rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  max-width: 42rem;
+}
+
+.voy-updates__row,
+.voy-updates__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.voy-updates__skipped {
+  font-size: 0.85rem;
+  color: var(--voy-ink-muted);
+}
+
+.voy-updates__notes {
+  margin: 0 0 1rem;
+  max-width: 42rem;
+}
+
+.voy-updates__notes-heading {
+  margin: 0 0 0.3rem;
+  font-size: 0.74rem;
+  font-weight: 640;
+  color: var(--voy-ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.voy-updates__notes-body {
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--voy-line);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--voy-ink-muted) 6%, transparent);
+  font-family: inherit;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+.voy-updates__progress {
+  height: 0.5rem;
+  max-width: 30rem;
+  margin: 0 0 0.5rem;
+  border-radius: 999px;
+  background: var(--voy-line);
+  overflow: hidden;
+}
+
+.voy-updates__progress-bar {
+  display: block;
+  height: 100%;
+  background: var(--voy-indigo);
+  transition: width 0.2s ease;
+}
+
+.voy-updates__link {
+  color: var(--voy-indigo);
+  font-size: 0.9rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voy-updates__progress-bar {
+    transition: none;
+  }
+}
+
 .voy-vault {
   margin-top: 2.6rem;
   padding-top: 1.8rem;

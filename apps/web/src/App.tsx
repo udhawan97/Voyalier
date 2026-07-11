@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import type { AppError, AppGateway } from "@voyalier/contracts";
 
-import { AnnounceContext, GatewayContext } from "./app/context";
+import { AnnounceContext, GatewayContext, UpdaterContext } from "./app/context";
 import { selectGateway, toAppError } from "./gateway";
+import { selectUpdater, type UpdaterGateway } from "./updater";
+import { useUpdater } from "./updater/useUpdater";
 import { OfflineBanner } from "./components/OfflineBanner";
 import { Topbar, type HealthState } from "./components/Topbar";
 import { TripDetailView } from "./views/TripDetailView";
@@ -11,8 +13,17 @@ import { VaultUnlock } from "./views/VaultUnlock";
 
 type View = { name: "list" } | { name: "trip"; tripId: string };
 
-export function App({ gateway: injected }: { gateway?: AppGateway } = {}) {
+export function App({
+  gateway: injected,
+  updater: injectedUpdater,
+}: { gateway?: AppGateway; updater?: UpdaterGateway } = {}) {
   const [gateway] = useState<AppGateway>(() => injected ?? selectGateway());
+  // A STABLE updater instance (see useUpdater's contract): created once so the
+  // App-level state machine doesn't re-fire its mount effect every render.
+  const [updater] = useState<UpdaterGateway>(
+    () => injectedUpdater ?? selectUpdater(),
+  );
+  const updaterController = useUpdater(updater);
   const [view, setView] = useState<View>({ name: "list" });
   const [health, setHealth] = useState<HealthState>("checking");
   const [healthError, setHealthError] = useState<AppError | null>(null);
@@ -71,40 +82,42 @@ export function App({ gateway: injected }: { gateway?: AppGateway } = {}) {
 
   return (
     <GatewayContext.Provider value={gateway}>
-      <AnnounceContext.Provider value={announce}>
-        <div className="voy-app">
-          <a className="voy-skip" href="#main">
-            Skip to content
-          </a>
-          <Topbar onHome={openList} health={health} />
-          <main className="voy-main" id="main">
-            {health === "offline" && healthError ? (
-              <OfflineBanner error={healthError} onRetry={retry} />
-            ) : null}
-            {locked ? (
-              <VaultUnlock onUnlocked={checkVault} />
-            ) : view.name === "list" ? (
-              <TripListView onOpenTrip={openTrip} reloadKey={reloadKey} />
-            ) : (
-              <TripDetailView
-                key={view.tripId}
-                tripId={view.tripId}
-                reloadKey={reloadKey}
-                onBack={openList}
-                onDeleted={openList}
-              />
-            )}
-          </main>
-        </div>
-        <div
-          className="voy-sr-only"
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-        >
-          {message}
-        </div>
-      </AnnounceContext.Provider>
+      <UpdaterContext.Provider value={updaterController}>
+        <AnnounceContext.Provider value={announce}>
+          <div className="voy-app">
+            <a className="voy-skip" href="#main">
+              Skip to content
+            </a>
+            <Topbar onHome={openList} health={health} />
+            <main className="voy-main" id="main">
+              {health === "offline" && healthError ? (
+                <OfflineBanner error={healthError} onRetry={retry} />
+              ) : null}
+              {locked ? (
+                <VaultUnlock onUnlocked={checkVault} />
+              ) : view.name === "list" ? (
+                <TripListView onOpenTrip={openTrip} reloadKey={reloadKey} />
+              ) : (
+                <TripDetailView
+                  key={view.tripId}
+                  tripId={view.tripId}
+                  reloadKey={reloadKey}
+                  onBack={openList}
+                  onDeleted={openList}
+                />
+              )}
+            </main>
+          </div>
+          <div
+            className="voy-sr-only"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {message}
+          </div>
+        </AnnounceContext.Provider>
+      </UpdaterContext.Provider>
     </GatewayContext.Provider>
   );
 }

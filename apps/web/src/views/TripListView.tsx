@@ -16,6 +16,7 @@ import {
 } from "../components/primitives";
 import { CreateTripDialog } from "./CreateTripDialog";
 import { DeleteTripDialog } from "./DeleteTripDialog";
+import { UpdatesPanel } from "./UpdatesPanel";
 import { VaultPanel } from "./VaultPanel";
 
 function TripCard({
@@ -201,6 +202,8 @@ export function TripListView({
           ))}
         </div>
       ) : null}
+
+      <UpdatesPanel />
 
       <VaultPanel />
 

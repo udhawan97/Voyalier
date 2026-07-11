@@ -488,6 +488,47 @@ const en = {
   "theme.dark": "Dark",
 
   "dialog.close": "Close dialog",
+
+  "updates.title": "Updates",
+  "updates.current": "Version {version}",
+  "updates.check": "Check for updates",
+  "updates.checking": "Checking for updates…",
+  "updates.upToDate": "You're on the latest version ({version}).",
+  "updates.consent.title": "Check for updates automatically?",
+  "updates.consent.body":
+    "Voyalier can check GitHub once a day for new releases. Only release metadata is fetched — nothing about you or your trips is sent.",
+  "updates.consent.yes": "Yes, check automatically",
+  "updates.consent.no": "No, I'll check manually",
+  "updates.available.title": "Update available: {version}",
+  "updates.available.body":
+    "A new version is ready to download and install. Your trips stay on this device.",
+  "updates.install": "Download and install",
+  "updates.installWin": "Update and restart",
+  "updates.installWin.note":
+    "Voyalier will close, update, and reopen (under a minute).",
+  "updates.installing": "Downloading update…",
+  "updates.installingWin": "Installing — Voyalier will close and reopen.",
+  "updates.progress.aria": "Update download progress",
+  "updates.progress.percent": "{percent}% downloaded",
+  "updates.progress.indeterminate": "Downloading…",
+  "updates.skip": "Skip this version",
+  "updates.skipped": "You skipped this version.",
+  "updates.unskip": "Un-skip",
+  "updates.notes.heading": "Notes from GitHub (unverified)",
+  "updates.staged.title": "Update installed",
+  "updates.staged.body": "Restart Voyalier to finish updating to {version}.",
+  "updates.restart": "Restart Voyalier",
+  "updates.error.offline": "You're offline. Reconnect and try again.",
+  "updates.error.generic":
+    "Couldn't check for updates — GitHub may be busy or unreachable.",
+  "updates.retry": "Try again",
+  "updates.releases": "View releases on GitHub",
+  "updates.disabled":
+    "This is a development build — in-app updates are disabled.",
+  "updates.unsupported.title": "In-app updates aren't available here",
+  "updates.unsupported.source":
+    "Running from source? Update with git pull, then make bootstrap.",
+  "updates.unsupported.download": "Or download the packaged desktop app.",
 } as const;
 
 export type MessageKey = keyof typeof en;
