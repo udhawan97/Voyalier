@@ -127,11 +127,13 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   trip — phase (upcoming/active/completed with day counts), today's items
   (departures, arrivals, check-ins/outs, staying-tonight), and the next anchor.
   Computed from confirmed facts against the current date; no network, no model.
-- ✓ Encrypted vault (keychain default + optional passphrase): confirmed-fact
-  payloads (confirmation codes, traveler names) are sealed at rest with an
-  XChaCha20-Poly1305 data key held in the OS keychain, transparently at the
-  single storage seam, with an idempotent migration of legacy rows. Degrades to
-  plaintext when no keychain exists (headless/CI) so the app runs everywhere.
+- ✓ Encrypted vault (keychain default + optional passphrase): every stored field
+  that carries confirmation codes or traveler names — confirmed-fact payloads,
+  the original imported document text, and pending candidates (payload + evidence
+  excerpts) — is sealed at rest with an XChaCha20-Poly1305 data key held in the OS
+  keychain, transparently at each storage seam, with an idempotent migration of
+  legacy rows. Degrades to plaintext when no keychain exists (headless/CI) so the
+  app runs everywhere.
   The **optional passphrase** is the chosen model's second half: setting one
   wraps the data key under an Argon2id-derived key and removes the raw key from
   the keychain, so the app opens **locked** and asks for the passphrase (a

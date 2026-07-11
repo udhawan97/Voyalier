@@ -35,8 +35,10 @@ blocked on paid code-signing certificates.
 
 ### Changed
 
-- New `vault/locked` and `vault/passphrase_incorrect` error codes; `TripDetail`
-  and the gateway gained the additive vault, recommendations, and Today surfaces.
+- New `vault/locked` and `vault/passphrase_incorrect` error codes; the gateway
+  gained additive `getVaultStatus`/`setVaultPassphrase`/`unlockVault`/
+  `removeVaultPassphrase`, `getRecommendations`, and `getToday` methods (plus a
+  `VaultStatus` type) — all backward-compatible.
 
 ## [0.2.0] - 2026-07-11 — Grounded intelligence (Phase 2)
 
