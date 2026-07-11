@@ -63,8 +63,8 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   as separate layers with their own licenses (permissive vs. share-alike). The
   lazy "Offline city data" panel shows coverage and per-layer licenses.
   Remaining for B: a CI pipeline that builds each pack's contents from Overture
-  + Wikivoyage clipped to its bbox and publishes to GitHub Releases, then a
-  consented per-trip download that stores a pack locally.
+  and Wikivoyage data clipped to its bbox and publishes to GitHub Releases, then
+  a consented per-trip download that stores a pack locally.
 - ✓ Providers (C), detection + key storage: on-device AI **detection**
   (user-initiated "Check for on-device AI" probes `localhost:11434/api/tags`);
   plus **BYOK key storage** — OpenAI/Anthropic keys stored in the OS keychain
