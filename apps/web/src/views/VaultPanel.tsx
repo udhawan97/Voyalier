@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { AppError, VaultStatus } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
+import { t } from "../app/i18n";
 import { Button } from "../components/Button";
 import { LockIcon } from "../components/icons";
 
@@ -57,7 +58,7 @@ export function VaultPanel() {
       announce(done);
       reset();
     } catch (caught) {
-      setError((caught as AppError).message || "That didn't work.");
+      setError((caught as AppError).message || t("vault.error.generic"));
     } finally {
       setBusy(false);
     }
@@ -69,22 +70,18 @@ export function VaultPanel() {
     <section className="voy-vault" aria-labelledby="vault-title">
       <h2 id="vault-title" className="voy-vault__title">
         <LockIcon className="voy-vault__title-icon" aria-hidden="true" />
-        Encryption
+        {t("vault.section")}
       </h2>
 
       {!status.active ? (
-        <p className="voy-vault__note">
-          A device keychain isn't available here, so sensitive fields are stored
-          as plaintext and a passphrase can't be added. On macOS and Windows,
-          Voyalier encrypts them automatically.
-        </p>
+        <p className="voy-vault__note">{t("vault.inactive")}</p>
       ) : (
         <>
           <p className="voy-vault__intro">
-            Confirmation codes and traveler names are encrypted on this device.
+            {t("vault.intro.base")}
             {status.protected
-              ? " A passphrase you chose also guards the key — Voyalier asks for it when it launches."
-              : " Add a passphrase for a second layer that protects your data even on an unlocked computer."}
+              ? t("vault.intro.protected")
+              : t("vault.intro.unprotected")}
           </p>
 
           <p
@@ -92,9 +89,7 @@ export function VaultPanel() {
               status.protected ? "on" : "off"
             }`}
           >
-            {status.protected
-              ? "Passphrase protection is on."
-              : "Passphrase protection is off."}
+            {status.protected ? t("vault.state.on") : t("vault.state.off")}
           </p>
 
           {status.protected ? (
@@ -105,12 +100,12 @@ export function VaultPanel() {
                   event.preventDefault();
                   void apply(
                     () => gateway.removeVaultPassphrase(passphrase),
-                    "Passphrase removed.",
+                    t("vault.announce.removed"),
                   );
                 }}
               >
                 <label className="voy-sr-only" htmlFor="vault-remove">
-                  Current passphrase
+                  {t("vault.currentPassphrase")}
                 </label>
                 <input
                   id="vault-remove"
@@ -118,7 +113,7 @@ export function VaultPanel() {
                   type="password"
                   autoComplete="off"
                   spellCheck={false}
-                  placeholder="Enter your current passphrase"
+                  placeholder={t("vault.currentPassphrase.placeholder")}
                   value={passphrase}
                   onChange={(event) => setPassphrase(event.target.value)}
                 />
@@ -129,16 +124,16 @@ export function VaultPanel() {
                     busy={busy}
                     disabled={passphrase.length === 0}
                   >
-                    Remove passphrase
+                    {t("vault.action.remove")}
                   </Button>
                   <Button variant="ghost" onClick={reset} disabled={busy}>
-                    Cancel
+                    {t("vault.action.cancel")}
                   </Button>
                 </div>
               </form>
             ) : (
               <Button variant="ghost" onClick={() => setMode("removing")}>
-                Remove passphrase
+                {t("vault.action.remove")}
               </Button>
             )
           ) : mode === "setting" ? (
@@ -147,21 +142,21 @@ export function VaultPanel() {
               onSubmit={(event) => {
                 event.preventDefault();
                 if (passphrase.length < MIN_PASSPHRASE) {
-                  setError(`Use at least ${MIN_PASSPHRASE} characters.`);
+                  setError(t("vault.error.tooShort", { min: MIN_PASSPHRASE }));
                   return;
                 }
                 if (passphrase !== confirm) {
-                  setError("The two passphrases don't match.");
+                  setError(t("vault.error.mismatch"));
                   return;
                 }
                 void apply(
                   () => gateway.setVaultPassphrase(passphrase),
-                  "Passphrase set.",
+                  t("vault.announce.set"),
                 );
               }}
             >
               <label className="voy-sr-only" htmlFor="vault-new">
-                New passphrase
+                {t("vault.newPassphrase")}
               </label>
               <input
                 id="vault-new"
@@ -169,12 +164,14 @@ export function VaultPanel() {
                 type="password"
                 autoComplete="new-password"
                 spellCheck={false}
-                placeholder={`New passphrase (${MIN_PASSPHRASE}+ characters)`}
+                placeholder={t("vault.newPassphrase.placeholder", {
+                  min: MIN_PASSPHRASE,
+                })}
                 value={passphrase}
                 onChange={(event) => setPassphrase(event.target.value)}
               />
               <label className="voy-sr-only" htmlFor="vault-confirm">
-                Confirm passphrase
+                {t("vault.confirmPassphrase")}
               </label>
               <input
                 id="vault-confirm"
@@ -182,14 +179,11 @@ export function VaultPanel() {
                 type="password"
                 autoComplete="new-password"
                 spellCheck={false}
-                placeholder="Confirm passphrase"
+                placeholder={t("vault.confirmPassphrase.placeholder")}
                 value={confirm}
                 onChange={(event) => setConfirm(event.target.value)}
               />
-              <p className="voy-vault__warn">
-                There is no recovery if you forget it — Voyalier can't reset a
-                passphrase it never stores.
-              </p>
+              <p className="voy-vault__warn">{t("vault.warn.noRecovery")}</p>
               <div className="voy-vault__actions">
                 <Button
                   type="submit"
@@ -197,16 +191,16 @@ export function VaultPanel() {
                   busy={busy}
                   disabled={passphrase.length === 0}
                 >
-                  Set passphrase
+                  {t("vault.action.set")}
                 </Button>
                 <Button variant="ghost" onClick={reset} disabled={busy}>
-                  Cancel
+                  {t("vault.action.cancel")}
                 </Button>
               </div>
             </form>
           ) : (
             <Button variant="secondary" onClick={() => setMode("setting")}>
-              Add a passphrase
+              {t("vault.action.add")}
             </Button>
           )}
         </>

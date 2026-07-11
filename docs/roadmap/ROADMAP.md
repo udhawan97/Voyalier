@@ -159,8 +159,12 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   each workflow — trips and the Blueprint, importing confirmations, readiness and
   official advice, offline packs/recommendations/maps, AI assist, and the
   encrypted vault, plus a **Troubleshooting** page of support playbooks (common
-  failures, and where data lives / how to back up or reset). Still to do:
-  localization readiness.)_
+  failures, and where data lives / how to back up or reset). Localization
+  readiness: date formatting is now locale-aware (`Intl`, UTC-anchored so the
+  wall-clock day never shifts), and a message-catalog `t()` foundation is in
+  place with the vault UI migrated as the reference — English is the source of
+  truth, added locales are data-only, and rendered output is unchanged.
+  Remaining: migrate the rest of the UI strings onto `t()` incrementally.)_
 
 ## Later
 

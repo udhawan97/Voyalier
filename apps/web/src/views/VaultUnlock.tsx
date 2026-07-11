@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { AppError } from "@voyalier/contracts";
 
 import { useGateway } from "../app/context";
+import { t } from "../app/i18n";
 import { Button } from "../components/Button";
 import { LockIcon } from "../components/icons";
 
@@ -25,7 +26,7 @@ export function VaultUnlock({ onUnlocked }: { onUnlocked: () => void }) {
       setPassphrase("");
       onUnlocked();
     } catch (caught) {
-      setError((caught as AppError).message || "That passphrase didn't work.");
+      setError((caught as AppError).message || t("vault.unlock.error"));
     } finally {
       setBusy(false);
     }
@@ -36,15 +37,12 @@ export function VaultUnlock({ onUnlocked }: { onUnlocked: () => void }) {
       <div className="voy-unlock__card">
         <LockIcon className="voy-unlock__icon" aria-hidden="true" />
         <h1 id="unlock-title" className="voy-unlock__title">
-          Your vault is locked
+          {t("vault.unlock.title")}
         </h1>
-        <p className="voy-unlock__intro">
-          Enter your passphrase to open this workspace. It's used only on this
-          device to unlock your encrypted trip data.
-        </p>
+        <p className="voy-unlock__intro">{t("vault.unlock.intro")}</p>
         <form className="voy-unlock__form" onSubmit={submit}>
           <label className="voy-sr-only" htmlFor="unlock-input">
-            Passphrase
+            {t("vault.unlock.passphrase")}
           </label>
           <input
             id="unlock-input"
@@ -53,7 +51,7 @@ export function VaultUnlock({ onUnlocked }: { onUnlocked: () => void }) {
             autoComplete="current-password"
             spellCheck={false}
             autoFocus
-            placeholder="Passphrase"
+            placeholder={t("vault.unlock.passphrase")}
             value={passphrase}
             onChange={(event) => setPassphrase(event.target.value)}
           />
@@ -63,7 +61,7 @@ export function VaultUnlock({ onUnlocked }: { onUnlocked: () => void }) {
             busy={busy}
             disabled={passphrase.length === 0}
           >
-            Unlock
+            {t("vault.unlock.action")}
           </Button>
         </form>
         {error ? (
