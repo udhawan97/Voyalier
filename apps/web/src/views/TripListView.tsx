@@ -2,13 +2,8 @@ import { useRef, useState } from "react";
 import type { AppError, TripSummary } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
-import {
-  describeError,
-  formatDateRange,
-  pluralize,
-  tripRoute,
-} from "../app/format";
-import { t } from "../app/i18n";
+import { describeError, formatDateRange, tripRoute } from "../app/format";
+import { plural, t } from "../app/i18n";
 import { useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
@@ -61,17 +56,14 @@ function TripCard({
       </p>
       <div className="voy-tripcard__counts">
         <span className="voy-tripcard__count">
-          <strong>{trip.confirmedFactCount}</strong> confirmed{" "}
-          {pluralize(trip.confirmedFactCount, "fact")}
+          <strong>{trip.confirmedFactCount}</strong>{" "}
+          {plural("tripcard.facts", trip.confirmedFactCount)}
         </span>
         {trip.pendingCandidateCount > 0 ? (
           <span className="voy-tripcard__count">
             <CountBadge
               count={trip.pendingCandidateCount}
-              label={`pending ${pluralize(
-                trip.pendingCandidateCount,
-                "suggestion",
-              )}`}
+              label={plural("tripcard.pending", trip.pendingCandidateCount)}
             />
             <span>to review</span>
           </span>

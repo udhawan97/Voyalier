@@ -7,7 +7,7 @@ import type {
 
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError } from "../app/format";
-import { t, type MessageKey } from "../app/i18n";
+import { plural, t, type MessageKey } from "../app/i18n";
 import { Button } from "../components/Button";
 
 type Dimension = keyof PersonaWeights;
@@ -79,10 +79,9 @@ export function Recommendations({ tripId }: { tripId: string }) {
       const result = await gateway.getRecommendations(tripId, weights);
       setRecs(result);
       announce(
-        // count string keeps English form pending Intl.PluralRules
         result.length === 0
           ? t("recs.announce.none")
-          : `${result.length} recommendations.`,
+          : plural("recs.announce.count", result.length),
       );
     } catch (caught) {
       setRecs(null);

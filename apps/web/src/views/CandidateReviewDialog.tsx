@@ -12,11 +12,10 @@ import {
   fieldsForType,
   formatFieldValue,
   payloadToDraft,
-  pluralize,
   warningSentence,
   type PayloadDraft,
 } from "../app/format";
-import { t } from "../app/i18n";
+import { plural, t } from "../app/i18n";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 import { Dialog } from "../components/Dialog";
@@ -277,9 +276,8 @@ export function CandidateReviewDialog({
         <Empty title={t("review.empty.title")}>{t("review.empty.body")}</Empty>
       ) : (
         <>
-          {/* count keeps English pluralize() pending Intl.PluralRules */}
           <p className="voy-review__count" role="status">
-            {remaining} {pluralize(remaining, "suggestion")} to review
+            {plural("review.count", remaining)}
           </p>
           <ul className="voy-review__list">
             {queue.map((candidate, index) => (

@@ -17,9 +17,9 @@ import {
   fieldsForType,
   formatDateRange,
   formatFieldValue,
-  pluralize,
   tripRoute,
 } from "../app/format";
+import { plural } from "../app/i18n";
 import { useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
@@ -473,12 +473,10 @@ export function TripDetailView({
         >
           <CountBadge
             count={pendingCount}
-            label={`pending ${pluralize(pendingCount, "suggestion")}`}
+            label={plural("tripcard.pending", pendingCount)}
           />
           <span className="voy-pending-entry__text">
-            <strong>
-              Review {pendingCount} {pluralize(pendingCount, "suggestion")}
-            </strong>
+            <strong>{plural("import.review", pendingCount)}</strong>
             <span>
               Confirm or dismiss what Voyalier found in your documents.
             </span>

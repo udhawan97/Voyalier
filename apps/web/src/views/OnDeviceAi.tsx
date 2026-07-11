@@ -2,8 +2,7 @@ import { useState } from "react";
 import type { LocalAiStatus } from "@voyalier/contracts";
 
 import { useGateway } from "../app/context";
-import { pluralize } from "../app/format";
-import { t } from "../app/i18n";
+import { plural, t } from "../app/i18n";
 import { Button } from "../components/Button";
 
 /**
@@ -56,13 +55,8 @@ export function OnDeviceAi() {
       ) : detected ? (
         models.length > 0 ? (
           <>
-            {/* Count sentence keeps English pluralize()/it-them; a proper
-                Intl.PluralRules pass will move it onto t() later. */}
             <p className="voy-localai__detail">
-              Ollama is running with {models.length}{" "}
-              {pluralize(models.length, "model")} installed. Voyalier can use{" "}
-              {models.length === 1 ? "it" : "them"} for optional, private assist
-              — nothing leaves your device.
+              {plural("localai.running", models.length)}
             </p>
             <ul
               className="voy-localai__models"

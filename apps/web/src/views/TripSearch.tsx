@@ -2,8 +2,8 @@ import { useId, useState } from "react";
 import type { AppError, SearchHit } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
-import { describeError, pluralize } from "../app/format";
-import { t } from "../app/i18n";
+import { describeError } from "../app/format";
+import { plural, t } from "../app/i18n";
 import { Button } from "../components/Button";
 import { BedIcon, PlaneIcon } from "../components/icons";
 
@@ -46,11 +46,9 @@ export function TripSearch({ tripId }: { tripId: string }) {
       setResults(hits);
       setLastQuery(trimmed);
       announce(
-        // The match-count announce keeps English pluralize() pending the
-        // Intl.PluralRules pass; the no-match case is catalogued.
         hits.length === 0
           ? t("search.announce.none", { query: trimmed })
-          : `${hits.length} ${pluralize(hits.length, "match", "matches")} for ${trimmed}.`,
+          : plural("search.matches", hits.length, { query: trimmed }),
       );
     } catch (caught) {
       const appError = caught as AppError;

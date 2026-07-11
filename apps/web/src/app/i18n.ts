@@ -408,6 +408,34 @@ const en = {
   "assist.log.aria": "Assist activity log",
   "assist.scope":
     "Preview shows exactly what would be sent. On-device runs stay on this device via Ollama; cloud runs send the previewed request to your chosen provider using your stored key. Each completed run is listed above.",
+
+  // Plural messages (see plural()). ".one"/".other" are the English CLDR forms.
+  // The trip-card noun phrases omit the count (it renders bold, separately).
+  "tripcard.facts.one": "confirmed fact",
+  "tripcard.facts.other": "confirmed facts",
+  "tripcard.pending.one": "pending suggestion",
+  "tripcard.pending.other": "pending suggestions",
+  "localai.running.one":
+    "Ollama is running with {count} model installed. Voyalier can use it for optional, private assist — nothing leaves your device.",
+  "localai.running.other":
+    "Ollama is running with {count} models installed. Voyalier can use them for optional, private assist — nothing leaves your device.",
+  "search.matches.one": "{count} match for {query}.",
+  "search.matches.other": "{count} matches for {query}.",
+  "import.review.one": "Review {count} suggestion",
+  "import.review.other": "Review {count} suggestions",
+  "import.found.one":
+    "Voyalier found {count} new suggestion to review — nothing changes until you confirm.",
+  "import.found.other":
+    "Voyalier found {count} new suggestions to review — nothing changes until you confirm.",
+  "review.count.one": "{count} suggestion to review",
+  "review.count.other": "{count} suggestions to review",
+  "packs.places.one": "{count} place",
+  "packs.places.other": "{count} places",
+  "packs.notes.one": "{count} note",
+  "packs.notes.other": "{count} notes",
+  "packs.offline": "offline",
+  "recs.announce.count.one": "{count} recommendation.",
+  "recs.announce.count.other": "{count} recommendations.",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -444,4 +472,40 @@ export function t(key: MessageKey, vars?: Vars): string {
     if (value != null) return interpolate(value, vars);
   }
   return interpolate(en[key], vars);
+}
+
+const pluralRules = new Map<string, Intl.PluralRules>();
+
+function rulesFor(locale: string): Intl.PluralRules {
+  let rules = pluralRules.get(locale);
+  if (!rules) {
+    rules = new Intl.PluralRules(locale);
+    pluralRules.set(locale, rules);
+  }
+  return rules;
+}
+
+/**
+ * Pick and interpolate a plural message. The locale's CLDR plural rules choose
+ * the form — `{base}.{category}` (e.g. `{base}.one` / `{base}.other`) — falling
+ * back to `{base}.other`, then to the English source. `count` is always exposed
+ * as a `{count}` variable in addition to any passed `vars`.
+ */
+export function plural(base: string, count: number, vars?: Vars): string {
+  const category = rulesFor(APP_LOCALE).select(count);
+  const merged: Vars = { count, ...vars };
+  const candidates = [`${base}.${category}`, `${base}.other`];
+  for (const locale of localeChain(APP_LOCALE)) {
+    const catalog = catalogs[locale] as Record<string, string> | undefined;
+    for (const candidate of candidates) {
+      const value = catalog?.[candidate];
+      if (value != null) return interpolate(value, merged);
+    }
+  }
+  const source = en as Record<string, string>;
+  for (const candidate of candidates) {
+    if (source[candidate] != null)
+      return interpolate(source[candidate], merged);
+  }
+  return base;
 }

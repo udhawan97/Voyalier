@@ -2,8 +2,8 @@ import { useState } from "react";
 import type { AppError, DownloadedPack, PackInfo } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
-import { describeError, pluralize } from "../app/format";
-import { t } from "../app/i18n";
+import { describeError } from "../app/format";
+import { plural, t } from "../app/i18n";
 import { Button } from "../components/Button";
 
 /**
@@ -109,12 +109,12 @@ export function CityPacks({ tripId }: { tripId: string }) {
                 </ul>
                 {mine ? (
                   <div className="voy-packs__downloaded">
-                    {/* counts keep English pluralize() pending Intl.PluralRules */}
                     <span className="voy-packs__count">
-                      {mine.placeCount} {pluralize(mine.placeCount, "place")}
+                      {plural("packs.places", mine.placeCount)}
                       {", "}
-                      {mine.articleCount} {pluralize(mine.articleCount, "note")}{" "}
-                      · offline
+                      {plural("packs.notes", mine.articleCount)}
+                      {" · "}
+                      {t("packs.offline")}
                     </span>
                     <Button
                       variant="ghost"

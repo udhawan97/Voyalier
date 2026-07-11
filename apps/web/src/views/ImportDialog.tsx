@@ -7,8 +7,8 @@ import type {
 } from "@voyalier/contracts";
 
 import { useGateway } from "../app/context";
-import { describeError, pluralize } from "../app/format";
-import { t } from "../app/i18n";
+import { describeError } from "../app/format";
+import { plural, t } from "../app/i18n";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 import { ChoiceGroup } from "../components/ChoiceGroup";
@@ -93,8 +93,7 @@ export function ImportDialog({
                 variant="primary"
                 onClick={() => onReview(result.candidates)}
               >
-                {/* Count keeps English pluralize() pending Intl.PluralRules. */}
-                Review {found} {pluralize(found, "suggestion")}
+                {plural("import.review", found)}
               </Button>
             ) : null}
             <Button variant="ghost" onClick={onClose}>
@@ -110,10 +109,7 @@ export function ImportDialog({
           <p className="voy-import-done__body">
             {found === 0
               ? t("import.done.none")
-              : `Voyalier found ${found} new ${pluralize(
-                  found,
-                  "suggestion",
-                )} to review — nothing changes until you confirm.`}
+              : plural("import.found", found)}
           </p>
         </div>
       </Dialog>
