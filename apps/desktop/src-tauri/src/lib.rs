@@ -4,8 +4,8 @@ use voyalier_app::{AppService, BackupInfo};
 use voyalier_core::{
     AddManualFactInput, AppError, AssistActivityEntry, AssistReply, AssistRequestPreview,
     CandidateFact, CandidateStatus, ConfirmCandidateInput, ConfirmedFact, CreateTripInput,
-    DownloadedPack, FcdoCountry, HealthResponse, ImportDocumentInput, ImportResult, LocalAiStatus,
-    PackInfo, PersonaWeights, ProviderConfig, Recommendation, SearchHit, TodayView,
+    DownloadedPack, ErrorCode, FcdoCountry, HealthResponse, ImportDocumentInput, ImportResult,
+    LocalAiStatus, PackInfo, PersonaWeights, ProviderConfig, Recommendation, SearchHit, TodayView,
     TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripSummary, UpdateTripInput, VaultStatus,
     WeatherSnapshot,
 };
@@ -441,6 +441,161 @@ fn backup_database(
     service.backup_database(&input.label)
 }
 
+// ---------------------------------------------------------------------------
+// In-app updater — Rust-wrapped so the webview never holds the updater
+// capability. The endpoint and signature pubkey are fixed in tauri.conf.json;
+// these commands accept NO caller-supplied proxy or headers, so there is no
+// hidden network path. Notes from GitHub are attacker-influencable, so the
+// frontend renders them as inert plain text (never raw HTML) — here we only
+// length-cap them. The updater plugin is registered only in packaged/release
+// builds; in dev/source builds these commands report a disabled state.
+// ---------------------------------------------------------------------------
+
+/// Result of an update check. `status` is one of `"disabled"` (dev/source
+/// build), `"upToDate"`, or `"available"`; the version/notes fields are set
+/// only when an update is available.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateCheck {
+    status: &'static str,
+    current_version: String,
+    available_version: Option<String>,
+    notes: Option<String>,
+}
+
+/// Outcome of an install. On macOS/Linux the new bundle is swapped in place and
+/// `status` is `"staged"` (a restart finishes the update). On Windows the
+/// process exits during install and the installer relaunches the app, so this
+/// rarely returns normally.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct InstallOutcome {
+    status: &'static str,
+    version: String,
+}
+
+/// Release notes are length-capped before crossing to the frontend, which
+/// renders them as inert plain text.
+#[cfg(not(debug_assertions))]
+const UPDATE_NOTES_MAX_CHARS: usize = 10_000;
+
+/// Streamed download progress. `total` is present only when the server sent a
+/// Content-Length; otherwise the frontend shows an indeterminate bar.
+#[cfg(not(debug_assertions))]
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateProgress {
+    downloaded: u64,
+    total: Option<u64>,
+}
+
+/// Collapse any updater-plugin error to one coarse, safe AppError. The raw
+/// plugin string is never surfaced (it is un-i18n-able and fragile to parse);
+/// the frontend supplies its own honest copy and splits on `navigator.onLine`.
+#[cfg(not(debug_assertions))]
+fn updater_error(_error: impl std::fmt::Display) -> AppError {
+    AppError::new(ErrorCode::InternalUnexpected, "update operation failed")
+}
+
+/// Check GitHub Releases for a newer version. Endpoint + pubkey are fixed in
+/// config; no caller input is accepted.
+#[tauri::command]
+async fn updater_check<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+) -> Result<UpdateCheck, AppError> {
+    let current_version = app.package_info().version.to_string();
+    #[cfg(debug_assertions)]
+    {
+        Ok(UpdateCheck {
+            status: "disabled",
+            current_version,
+            available_version: None,
+            notes: None,
+        })
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        use tauri_plugin_updater::UpdaterExt;
+        let updater = app.updater().map_err(updater_error)?;
+        match updater.check().await.map_err(updater_error)? {
+            Some(update) => Ok(UpdateCheck {
+                status: "available",
+                current_version: update.current_version.clone(),
+                available_version: Some(update.version.clone()),
+                notes: update
+                    .body
+                    .as_ref()
+                    .map(|body| body.chars().take(UPDATE_NOTES_MAX_CHARS).collect()),
+            }),
+            None => Ok(UpdateCheck {
+                status: "upToDate",
+                current_version,
+                available_version: None,
+                notes: None,
+            }),
+        }
+    }
+}
+
+/// Download and install the available update, emitting `updater://progress`
+/// events as bytes arrive. On success the bundle is staged (macOS/Linux) or the
+/// process is replaced (Windows). Re-checks internally so no `Update` handle has
+/// to be held across IPC calls.
+#[tauri::command]
+async fn updater_install<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+) -> Result<InstallOutcome, AppError> {
+    #[cfg(debug_assertions)]
+    {
+        let _ = app;
+        Err(AppError::new(
+            ErrorCode::InternalUnexpected,
+            "updates are disabled in this build",
+        ))
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        use tauri::Emitter;
+        use tauri_plugin_updater::UpdaterExt;
+        let updater = app.updater().map_err(updater_error)?;
+        let update = updater
+            .check()
+            .await
+            .map_err(updater_error)?
+            .ok_or_else(|| {
+                AppError::new(
+                    ErrorCode::InternalUnexpected,
+                    "no update available to install",
+                )
+            })?;
+        let version = update.version.clone();
+        let emitter = app.clone();
+        let mut downloaded: u64 = 0;
+        update
+            .download_and_install(
+                move |chunk, total| {
+                    downloaded += chunk as u64;
+                    let _ =
+                        emitter.emit("updater://progress", UpdateProgress { downloaded, total });
+                },
+                || {},
+            )
+            .await
+            .map_err(updater_error)?;
+        Ok(InstallOutcome {
+            status: "staged",
+            version,
+        })
+    }
+}
+
+/// Restart the app to finish a staged update. Uses the core relaunch API (no
+/// process-plugin capability granted to the webview). Never returns.
+#[tauri::command]
+fn updater_relaunch<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
+    app.restart();
+}
+
 fn builder<R: tauri::Runtime>(
     builder: tauri::Builder<R>,
     service: AppService,
@@ -486,15 +641,26 @@ fn builder<R: tauri::Runtime>(
             unconfirm_fact,
             get_app_setting,
             set_app_setting,
-            backup_database
+            backup_database,
+            updater_check,
+            updater_install,
+            updater_relaunch
         ])
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let service = AppService::open_default().expect("Voyalier storage must initialize");
-    builder(tauri::Builder::default(), service)
-        .run(tauri::generate_context!())
+    #[cfg_attr(debug_assertions, allow(unused_mut))]
+    let mut app = builder(tauri::Builder::default(), service);
+    // The updater plugin reads its fixed endpoint + pubkey from tauri.conf.json.
+    // Registered only in packaged/release builds: a source/dev build has no
+    // signing key, and its updater commands report the disabled state instead.
+    #[cfg(not(debug_assertions))]
+    {
+        app = app.plugin(tauri_plugin_updater::Builder::new().build());
+    }
+    app.run(tauri::generate_context!())
         .expect("error while running Voyalier");
 }
 
@@ -813,6 +979,34 @@ mod tests {
                 "{command} did not pin the input key: {error}"
             );
         }
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn updater_commands_report_disabled_in_dev_builds() {
+        // Tests run with debug_assertions on, so the updater plugin is never
+        // registered and the commands take their dev/source branch. They also
+        // take an AppHandle rather than an `input` arg, so they invoke with an
+        // empty body (unlike every command in the input-key test).
+        let database = temp_database("updater");
+        let app = test_app(&database);
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .expect("webview");
+
+        let check = invoke_with_body(&webview, "updater_check", json!({})).expect("check");
+        assert_eq!(check["status"], "disabled");
+        assert!(
+            check["currentVersion"].as_str().is_some(),
+            "check reports the running version"
+        );
+
+        // Install is refused in a dev/source build (no signing key, no plugin).
+        invoke_with_body(&webview, "updater_install", json!({}))
+            .expect_err("install disabled in dev");
+        // updater_relaunch is intentionally not invoked here: it restarts the
+        // process, which would tear down the test runner.
+
         cleanup_database(database);
     }
 

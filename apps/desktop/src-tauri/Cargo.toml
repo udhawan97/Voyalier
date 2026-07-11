@@ -16,9 +16,17 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 serde.workspace = true
+serde_json.workspace = true
 tauri = { version = "2", features = [] }
 voyalier-app = { path = "../../../crates/voyalier-app" }
 voyalier-core = { path = "../../../crates/voyalier-core" }
+
+# In-app updates (desktop only). The endpoint + pubkey are fixed in
+# tauri.conf.json and the plugin is driven by our own Rust command wrappers, so
+# the webview never gets the updater capability (no caller-supplied proxy or
+# headers → no hidden network path).
+[target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
+tauri-plugin-updater = "2"
 
 [dev-dependencies]
 serde_json.workspace = true

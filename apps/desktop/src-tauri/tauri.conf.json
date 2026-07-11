@@ -35,13 +35,23 @@
     "shortDescription": "A local-first travel intelligence workspace.",
     "longDescription": "Turn trip details, research, and confirmations into one evidence-backed Smart Blueprint.",
     "copyright": "Copyright 2026 Umang Dhawan",
+    "createUpdaterArtifacts": true,
     "macOS": {
-      "minimumSystemVersion": "13.0"
+      "minimumSystemVersion": "13.0",
+      "signingIdentity": "-"
     },
     "windows": {
       "nsis": {
         "installMode": "currentUser"
       }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/udhawan97/Voyalier/releases/latest/download/latest.json"
+      ],
+      "pubkey": "REPLACE_WITH_TAURI_SIGNER_GENERATE_PUBKEY"
     }
   }
 }
