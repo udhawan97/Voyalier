@@ -52,6 +52,8 @@ export interface UpdaterController {
   skip: () => Promise<void>;
   unskip: () => Promise<void>;
   answerConsent: (allow: boolean) => Promise<void>;
+  /** Delete all pre-update database backups; resolves to the count removed. */
+  clearBackups: () => Promise<number>;
 }
 
 /** Numeric dotted-version compare; pre-release suffixes are ignored. */
@@ -266,5 +268,6 @@ export function useUpdater(gateway: UpdaterGateway): UpdaterController {
     skip,
     unskip,
     answerConsent,
+    clearBackups: () => gateway.clearBackups(),
   };
 }

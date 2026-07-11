@@ -43,5 +43,6 @@ export function createUnsupportedUpdater(
     getSetting: (): Promise<string | null> => Promise.resolve(null),
     setSetting: (): Promise<void> => Promise.resolve(),
     backup: (): Promise<BackupInfo> => Promise.reject(unsupported()),
+    clearBackups: (): Promise<number> => Promise.resolve(0),
   };
 }

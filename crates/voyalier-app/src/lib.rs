@@ -1092,6 +1092,40 @@ impl AppService {
         })
     }
 
+    /// Delete every pre-update backup (and any `-wal`/`-shm` strays a reader
+    /// left behind), returning the number of `.sqlite3` snapshots removed. The
+    /// backups directory itself is left in place. This is the "clear backups"
+    /// affordance — backups outlive deleted trips, so the user needs a way to
+    /// erase them.
+    pub fn clear_backups(&self) -> Result<usize, AppError> {
+        let backups_dir = self
+            .database_path
+            .parent()
+            .ok_or_else(|| {
+                AppError::new(
+                    ErrorCode::StorageFailure,
+                    "database has no parent directory for backups",
+                )
+            })?
+            .join("backups");
+        if !backups_dir.exists() {
+            return Ok(0);
+        }
+        let mut removed = 0;
+        for entry in fs::read_dir(&backups_dir).map_err(storage_error)? {
+            let entry = entry.map_err(storage_error)?;
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if name.starts_with("pre-update-")
+                && fs::remove_file(entry.path()).is_ok()
+                && name.ends_with(".sqlite3")
+            {
+                removed += 1;
+            }
+        }
+        Ok(removed)
+    }
+
     /// Detect an optional on-device AI runtime (Ollama) by probing its localhost
     /// `/api/tags` endpoint. Best-effort and infallible: an unreachable runtime
     /// reports `available: false`. No inference runs and nothing leaves the
@@ -3043,6 +3077,37 @@ mod tests {
                 .code,
             ErrorCode::ValidationInvalidInput
         );
+
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn clear_backups_removes_every_snapshot() {
+        let database = temp_database("clear-backups");
+        let service = open_test_service(&database).expect("service");
+        service.create_trip(valid_trip_input()).expect("trip");
+
+        // No backups yet → nothing to clear.
+        assert_eq!(service.clear_backups().expect("clear empty"), 0);
+
+        service.backup_database("v0.3.0").expect("backup 1");
+        service.backup_database("v0.3.1").expect("backup 2");
+        assert_eq!(service.clear_backups().expect("clear"), 2);
+
+        // The directory is emptied of snapshots and a second clear is a no-op.
+        let backups_dir = database.parent().expect("parent").join("backups");
+        let remaining = fs::read_dir(&backups_dir)
+            .expect("read backups")
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("pre-update-")
+            })
+            .count();
+        assert_eq!(remaining, 0);
+        assert_eq!(service.clear_backups().expect("clear again"), 0);
 
         cleanup_database(database);
     }

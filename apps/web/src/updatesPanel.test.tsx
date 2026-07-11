@@ -282,6 +282,27 @@ describe("UpdatesPanel", () => {
     expect(toggle).not.toBeChecked();
   });
 
+  it("clears update backups from the panel footer", async () => {
+    const updater = createMockUpdater({
+      settings: { [UPDATER_KEYS.consent]: "yes" },
+      onCheck: {
+        availability: "upToDate",
+        currentVersion: "0.3.0",
+        availableVersion: null,
+        notes: null,
+      },
+    });
+    await updater.backup("v0.3.0"); // an existing snapshot to clear
+    render(<Harness updater={updater} />);
+    await screen.findByText("You're on the latest version (0.3.0).");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Clear update backups" }),
+    );
+    await waitFor(() => expect(updater.clearBackupsCalls).toBe(1));
+    expect(updater.backupCalls).toEqual([]);
+  });
+
   it("shows the honest dual copy when updates are unsupported", async () => {
     render(
       <Harness

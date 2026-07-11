@@ -441,6 +441,12 @@ fn backup_database(
     service.backup_database(&input.label)
 }
 
+#[tauri::command]
+fn clear_backups(input: EmptyInput, service: State<'_, AppService>) -> Result<usize, AppError> {
+    let _ = input;
+    service.clear_backups()
+}
+
 // ---------------------------------------------------------------------------
 // In-app updater — Rust-wrapped so the webview never holds the updater
 // capability. The endpoint and signature pubkey are fixed in tauri.conf.json;
@@ -642,6 +648,7 @@ fn builder<R: tauri::Runtime>(
             get_app_setting,
             set_app_setting,
             backup_database,
+            clear_backups,
             updater_check,
             updater_install,
             updater_relaunch
@@ -917,6 +924,10 @@ mod tests {
         assert_eq!(backup["label"], "v0.3.0-test");
         assert!(backup["path"].as_str().expect("path").ends_with(".sqlite3"));
 
+        // Clearing removes the snapshot just created.
+        let cleared = invoke(&webview, "clear_backups", json!({})).expect("clear backups");
+        assert!(cleared.as_u64().expect("count") >= 1);
+
         assert_eq!(
             invoke(&webview, "archive_trip", json!({ "tripId": trip_id })).expect("archive trip")["status"],
             "archived"
@@ -972,6 +983,7 @@ mod tests {
             "get_app_setting",
             "set_app_setting",
             "backup_database",
+            "clear_backups",
         ] {
             let error = invoke_with_body(&webview, command, json!({})).expect_err(command);
             assert!(

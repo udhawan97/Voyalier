@@ -533,6 +533,9 @@ const en = {
   "updates.pill.available": "Update available",
   "updates.pill.staged": "Restart to update",
   "updates.autocheck": "Check for updates automatically",
+  "updates.clearBackups": "Clear update backups",
+  "updates.backupsCleared.one": "Cleared {count} backup.",
+  "updates.backupsCleared.other": "Cleared {count} backups.",
   "updates.justUpdated": "Updated to Voyalier {version}.",
   "updates.dismiss": "Dismiss",
 } as const;

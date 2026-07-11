@@ -27,6 +27,7 @@ export interface MockUpdater extends UpdaterGateway {
   readonly store: Map<string, string>;
   relaunchCalls: number;
   backupCalls: string[];
+  clearBackupsCalls: number;
 }
 
 /**
@@ -54,6 +55,7 @@ export function createMockUpdater(
     store,
     relaunchCalls: 0,
     backupCalls: [],
+    clearBackupsCalls: 0,
 
     check(): Promise<UpdateStatus> {
       if (options.onCheck instanceof Error)
@@ -102,6 +104,13 @@ export function createMockUpdater(
         label,
         createdAt: "2026-07-11T00:00:00Z",
       });
+    },
+
+    clearBackups: (): Promise<number> => {
+      mock.clearBackupsCalls += 1;
+      const count = mock.backupCalls.length;
+      mock.backupCalls = [];
+      return Promise.resolve(count);
     },
   };
 

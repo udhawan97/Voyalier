@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 
-import { useUpdaterController } from "../app/context";
-import { t } from "../app/i18n";
+import { useAnnounce, useUpdaterController } from "../app/context";
+import { plural, t } from "../app/i18n";
 import { Button } from "../components/Button";
 
 const RELEASES_URL = "https://github.com/udhawan97/Voyalier/releases";
@@ -40,7 +40,9 @@ export function UpdatesPanel() {
     skip,
     unskip,
     answerConsent,
+    clearBackups,
   } = useUpdaterController();
+  const announce = useAnnounce();
   const windows = platform === "windows";
   // The one-time consent (D1) is reversible here: a persistent toggle in the
   // settled phases turns the daily auto-check on/off after the first answer.
@@ -74,6 +76,11 @@ export function UpdatesPanel() {
     },
     [answerConsent],
   );
+  const runClearBackups = useCallback(() => {
+    void clearBackups().then((count) =>
+      announce(plural("updates.backupsCleared", count)),
+    );
+  }, [clearBackups, announce]);
 
   function body() {
     switch (phase.name) {
@@ -267,14 +274,23 @@ export function UpdatesPanel() {
       </h2>
       <div className="voy-updates__body">{body()}</div>
       {showToggle ? (
-        <label className="voy-updates__toggle">
-          <input
-            type="checkbox"
-            checked={autoCheck}
-            onChange={(event) => void answerConsent(event.target.checked)}
-          />
-          <span>{t("updates.autocheck")}</span>
-        </label>
+        <div className="voy-updates__footer">
+          <label className="voy-updates__toggle">
+            <input
+              type="checkbox"
+              checked={autoCheck}
+              onChange={(event) => void answerConsent(event.target.checked)}
+            />
+            <span>{t("updates.autocheck")}</span>
+          </label>
+          <button
+            type="button"
+            className="voy-updates__clear"
+            onClick={runClearBackups}
+          >
+            {t("updates.clearBackups")}
+          </button>
+        </div>
       ) : null}
     </section>
   );

@@ -138,5 +138,7 @@ export function createTauriUpdater(
 
     backup: (label: string) =>
       callInput<BackupInfo>("backup_database", { label }),
+
+    clearBackups: () => callInput<number>("clear_backups", {}),
   };
 }

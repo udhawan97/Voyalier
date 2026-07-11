@@ -56,6 +56,16 @@ describe("tauriUpdater", () => {
     });
   });
 
+  it("clears backups via the input envelope", async () => {
+    const invoke = vi.fn(async (command: string) => {
+      expect(command).toBe("clear_backups");
+      return 3;
+    });
+    const updater = createTauriUpdater({ invoke, platform: "macos" });
+    expect(await updater.clearBackups()).toBe(3);
+    expect(invoke).toHaveBeenCalledWith("clear_backups", { input: {} });
+  });
+
   it("subscribes to progress during install and always unsubscribes", async () => {
     const unlisten = vi.fn();
     const listen = vi.fn(

@@ -71,6 +71,8 @@ export interface UpdaterGateway {
   setSetting(key: string, value: string): Promise<void>;
   /** Snapshot the database before installing (a pre-update safety net). */
   backup(label: string): Promise<BackupInfo>;
+  /** Delete all pre-update database backups; resolves to the count removed. */
+  clearBackups(): Promise<number>;
 }
 
 /** app_settings keys the updater owns. Namespaced so they never collide. */

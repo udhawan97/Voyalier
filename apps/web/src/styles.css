@@ -1496,13 +1496,31 @@ h3 {
   font-size: 0.9rem;
 }
 
+.voy-updates__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.4rem;
+  margin-top: 1rem;
+}
+
 .voy-updates__toggle {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  margin-top: 1rem;
   font-size: 0.9rem;
   color: var(--voy-ink-muted);
+  cursor: pointer;
+}
+
+.voy-updates__clear {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--voy-ink-muted);
+  text-decoration: underline;
   cursor: pointer;
 }
 
