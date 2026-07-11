@@ -311,6 +311,16 @@ export function describeError(error: AppError): ErrorCopy {
         title: "Couldn't reach the official source",
         body: "Voyalier couldn't fetch the advice page right now. Check your connection and try again — nothing was changed.",
       };
+    case "assist/failed":
+      return {
+        title: "Assist didn't finish",
+        body: "Voyalier couldn't complete the on-device request. Make sure your local AI is running and try again — nothing was changed.",
+      };
+    case "pack/download_failed":
+      return {
+        title: "Couldn't download that city pack",
+        body: "Voyalier couldn't fetch the pack right now. Check your connection and try again — nothing was changed.",
+      };
     case "validation/invalid_input":
     case "validation/invalid_date_range":
       return {

@@ -4,9 +4,9 @@ use voyalier_app::AppService;
 use voyalier_core::{
     AddManualFactInput, AppError, AssistActivityEntry, AssistReply, AssistRequestPreview,
     CandidateFact, CandidateStatus, ConfirmCandidateInput, ConfirmedFact, CreateTripInput,
-    FcdoCountry, HealthResponse, ImportDocumentInput, ImportResult, LocalAiStatus, PackInfo,
-    ProviderConfig, SearchHit, TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripSummary,
-    UpdateTripInput, WeatherSnapshot,
+    DownloadedPack, FcdoCountry, HealthResponse, ImportDocumentInput, ImportResult, LocalAiStatus,
+    PackInfo, ProviderConfig, SearchHit, TravelAdviceSnapshot, Trip, TripBrief, TripDetail,
+    TripSummary, UpdateTripInput, WeatherSnapshot,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -176,6 +176,37 @@ fn list_packs(
     Ok(service.list_packs())
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PackForTripInput {
+    trip_id: String,
+    pack_id: String,
+}
+
+#[tauri::command]
+fn download_pack(
+    input: PackForTripInput,
+    service: State<'_, AppService>,
+) -> Result<DownloadedPack, AppError> {
+    service.download_pack(&input.trip_id, &input.pack_id)
+}
+
+#[tauri::command]
+fn list_downloaded_packs(
+    input: TripIdInput,
+    service: State<'_, AppService>,
+) -> Result<Vec<DownloadedPack>, AppError> {
+    service.list_downloaded_packs(&input.trip_id)
+}
+
+#[tauri::command]
+fn delete_downloaded_pack(
+    input: PackForTripInput,
+    service: State<'_, AppService>,
+) -> Result<(), AppError> {
+    service.delete_downloaded_pack(&input.trip_id, &input.pack_id)
+}
+
 #[tauri::command]
 fn detect_local_ai(
     input: EmptyInput,
@@ -328,6 +359,9 @@ fn builder<R: tauri::Runtime>(
             list_assist_activity,
             list_advice_countries,
             list_packs,
+            download_pack,
+            list_downloaded_packs,
+            delete_downloaded_pack,
             detect_local_ai,
             list_providers,
             set_provider_key,
@@ -527,6 +561,16 @@ mod tests {
         assert!(pack_ids.contains(&"us-nashville"));
         assert!(pack_ids.contains(&"us-hi-maui"));
 
+        // No packs downloaded for this trip yet (download_pack is network-backed
+        // and covered at the app/server layers with a stubbed fetcher).
+        let downloaded = invoke(
+            &webview,
+            "list_downloaded_packs",
+            json!({ "tripId": trip_id }),
+        )
+        .expect("downloaded packs");
+        assert!(downloaded.as_array().expect("array").is_empty());
+
         // Countries list is local and static; the fetch command itself is
         // network-backed and is exercised at the app/server layers with stubs.
         let countries =
@@ -573,6 +617,9 @@ mod tests {
             "list_assist_activity",
             "list_advice_countries",
             "list_packs",
+            "download_pack",
+            "list_downloaded_packs",
+            "delete_downloaded_pack",
             "detect_local_ai",
             "list_providers",
             "set_provider_key",

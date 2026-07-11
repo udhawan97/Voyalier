@@ -95,6 +95,11 @@ pub fn app(service: AppService) -> Router {
         .route("/api/v1/trips/{trip_id}/archive", post(archive_trip))
         .route("/api/v1/advice/countries", get(list_advice_countries))
         .route("/api/v1/packs", get(list_packs))
+        .route("/api/v1/trips/{trip_id}/packs", get(list_downloaded_packs))
+        .route(
+            "/api/v1/trips/{trip_id}/packs/{pack_id}",
+            post(download_pack).delete(delete_downloaded_pack),
+        )
         .route("/api/v1/local-ai", get(detect_local_ai))
         .route("/api/v1/providers", get(list_providers))
         .route(
@@ -222,6 +227,28 @@ async fn list_advice_countries(
 
 async fn list_packs(State(service): State<AppService>) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(service.list_packs()))
+}
+
+async fn list_downloaded_packs(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.list_downloaded_packs(&trip_id)?))
+}
+
+async fn download_pack(
+    State(service): State<AppService>,
+    Path((trip_id, pack_id)): Path<(String, String)>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.download_pack(&trip_id, &pack_id)?))
+}
+
+async fn delete_downloaded_pack(
+    State(service): State<AppService>,
+    Path((trip_id, pack_id)): Path<(String, String)>,
+) -> Result<impl IntoResponse, ApiError> {
+    service.delete_downloaded_pack(&trip_id, &pack_id)?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn detect_local_ai(State(service): State<AppService>) -> Result<impl IntoResponse, ApiError> {
@@ -407,7 +434,9 @@ fn status_for_error(code: ErrorCode) -> StatusCode {
         }
         ErrorCode::CandidateAlreadyResolved | ErrorCode::DocumentDuplicate => StatusCode::CONFLICT,
         ErrorCode::DocumentTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
-        ErrorCode::AdviceFetchFailed | ErrorCode::AssistFailed => StatusCode::BAD_GATEWAY,
+        ErrorCode::AdviceFetchFailed | ErrorCode::AssistFailed | ErrorCode::PackDownloadFailed => {
+            StatusCode::BAD_GATEWAY
+        }
         _ => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }
@@ -933,6 +962,66 @@ mod tests {
         for required in ["us-nashville", "us-hi-oahu", "us-hi-maui", "us-hi-kauai"] {
             assert!(ids.contains(&required), "missing {required}");
         }
+        cleanup_database(database);
+    }
+
+    #[tokio::test]
+    async fn pack_download_routes_store_and_list_per_trip() {
+        struct PackFetcher;
+        impl voyalier_app::AdviceFetcher for PackFetcher {
+            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+                Ok(r#"{ "packId": "us-nashville",
+                        "places": [{ "name": "Ryman", "category": "venue", "lat": 36.16, "lon": -86.78 }],
+                        "articles": [] }"#
+                    .to_owned())
+            }
+        }
+
+        let database = temp_database("pack-dl");
+        let service =
+            AppService::open_path_with_fetcher(&database, std::sync::Arc::new(PackFetcher))
+                .expect("service");
+        let router = app(service);
+        let trip = create_trip_direct(&router).await;
+        let trip_id = trip["id"].as_str().expect("id");
+
+        let empty = request(
+            router.clone(),
+            Method::GET,
+            &format!("/api/v1/trips/{trip_id}/packs"),
+            None,
+        )
+        .await;
+        assert_eq!(empty.status, StatusCode::OK);
+        assert_eq!(empty.json.as_array().expect("arr").len(), 0);
+
+        let downloaded = request(
+            router.clone(),
+            Method::POST,
+            &format!("/api/v1/trips/{trip_id}/packs/us-nashville"),
+            None,
+        )
+        .await;
+        assert_eq!(downloaded.status, StatusCode::OK);
+        assert_eq!(downloaded.json["placeCount"], 1);
+
+        let listed = request(
+            router.clone(),
+            Method::GET,
+            &format!("/api/v1/trips/{trip_id}/packs"),
+            None,
+        )
+        .await;
+        assert_eq!(listed.json.as_array().expect("arr").len(), 1);
+
+        let removed = request(
+            router,
+            Method::DELETE,
+            &format!("/api/v1/trips/{trip_id}/packs/us-nashville"),
+            None,
+        )
+        .await;
+        assert_eq!(removed.status, StatusCode::NO_CONTENT);
         cleanup_database(database);
     }
 

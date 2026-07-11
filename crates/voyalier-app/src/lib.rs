@@ -10,18 +10,19 @@ use sha2::{Digest, Sha256};
 use voyalier_core::{
     AddManualFactInput, AppError, AssistActivityEntry, AssistReply, AssistRequestPreview,
     CandidateFact, CandidateStatus, ConfirmCandidateInput, ConfirmationParser, ConfirmedFact,
-    CreateTripInput, DEFAULT_OLLAMA_MODEL, DocumentKind, ErrorCode, ExtractionMethod,
-    FCDO_COUNTRIES, FcdoCountry, HealthResponse, ImportDocumentInput, ImportResult,
-    IntelligenceMode, JsonLdParser, LocalAiStatus, NormalizedDocument, OLLAMA_CHAT_URL,
-    OLLAMA_TAGS_URL, PROVIDERS, PackInfo, ParsedCandidate, PlaintextParser, ProviderConfig,
-    ProviderId, RedactionPolicy, SearchHit, SearchableDocument, SourceDocument,
+    CreateTripInput, DEFAULT_OLLAMA_MODEL, DocumentKind, DownloadedPack, ErrorCode,
+    ExtractionMethod, FCDO_COUNTRIES, FcdoCountry, HealthResponse, ImportDocumentInput,
+    ImportResult, IntelligenceMode, JsonLdParser, LocalAiStatus, NormalizedDocument,
+    OLLAMA_CHAT_URL, OLLAMA_TAGS_URL, PROVIDERS, PackInfo, ParsedCandidate, PlaintextParser,
+    ProviderConfig, ProviderId, RedactionPolicy, SearchHit, SearchableDocument, SourceDocument,
     TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripStatus, TripSummary, UpdateTripInput,
     WeatherSnapshot, assess_readiness, build_assist_preview, build_ollama_chat_body,
     build_trip_brief, changed_payload_fields, detect_itinerary_conflicts, new_id, now_rfc3339,
-    pack_catalog, parse_fcdo_content, parse_forecast_response, parse_geocoding_response,
-    parse_ollama_chat_reply, provider_info, search_trip_corpus, validate_api_key,
-    validate_country_slug, validate_create_trip, validate_document_content, validate_fact_payload,
-    validate_model_name, validate_provider_id, validate_search_query, validate_update_trip,
+    pack_catalog, pack_download_url, parse_fcdo_content, parse_forecast_response,
+    parse_geocoding_response, parse_ollama_chat_reply, parse_pack_content, provider_info,
+    search_trip_corpus, validate_api_key, validate_country_slug, validate_create_trip,
+    validate_document_content, validate_fact_payload, validate_model_name, validate_pack_id,
+    validate_provider_id, validate_search_query, validate_update_trip,
 };
 
 const DATABASE_FILE: &str = "voyalier.sqlite3";
@@ -329,10 +330,106 @@ impl AppService {
     }
 
     /// The catalog of downloadable city packs. Static curated metadata — no
-    /// network and no pack contents; downloading a pack is a later, consented
+    /// network and no pack contents; downloading a pack is a separate consented
     /// step.
     pub fn list_packs(&self) -> Vec<PackInfo> {
         pack_catalog()
+    }
+
+    /// Download a city pack's contents for a trip. Called only from an explicit
+    /// user action — the click is the consent for this single, named fetch. The
+    /// download pulls place data and travel notes *in* from GitHub; nothing
+    /// about the trip is sent. Contents are stored locally and replace any
+    /// earlier copy of the same pack for this trip.
+    pub fn download_pack(&self, trip_id: &str, pack_id: &str) -> Result<DownloadedPack, AppError> {
+        let info = validate_pack_id(pack_id)?;
+        {
+            let connection = self.connection()?;
+            fetch_trip(&connection, trip_id)?;
+        }
+        let url = pack_download_url(pack_id);
+        let body = self
+            .fetcher
+            .fetch_text(&url)
+            .map_err(|error| AppError::new(ErrorCode::PackDownloadFailed, error.message))?;
+        let content = parse_pack_content(pack_id, &body)?;
+        let place_count = content.places.len() as u32;
+        let article_count = content.articles.len() as u32;
+        let downloaded_at = now_rfc3339();
+
+        let connection = self.connection()?;
+        connection
+            .execute(
+                "INSERT INTO downloaded_packs
+                 (trip_id, pack_id, name, region, place_count, article_count, content, downloaded_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                 ON CONFLICT(trip_id, pack_id) DO UPDATE SET
+                   name = excluded.name,
+                   region = excluded.region,
+                   place_count = excluded.place_count,
+                   article_count = excluded.article_count,
+                   content = excluded.content,
+                   downloaded_at = excluded.downloaded_at",
+                params![
+                    trip_id,
+                    pack_id,
+                    info.name,
+                    info.region,
+                    place_count,
+                    article_count,
+                    body,
+                    downloaded_at
+                ],
+            )
+            .map_err(storage_error)?;
+
+        Ok(DownloadedPack {
+            pack_id: pack_id.to_owned(),
+            name: info.name,
+            region: info.region,
+            place_count,
+            article_count,
+            downloaded_at,
+        })
+    }
+
+    /// The packs downloaded for a trip, most recent first.
+    pub fn list_downloaded_packs(&self, trip_id: &str) -> Result<Vec<DownloadedPack>, AppError> {
+        let connection = self.connection()?;
+        fetch_trip(&connection, trip_id)?;
+        let mut statement = connection
+            .prepare(
+                "SELECT pack_id, name, region, place_count, article_count, downloaded_at
+                 FROM downloaded_packs
+                 WHERE trip_id = ?1
+                 ORDER BY downloaded_at DESC, pack_id ASC",
+            )
+            .map_err(storage_error)?;
+        let rows = statement
+            .query_map(params![trip_id], |row| {
+                Ok(DownloadedPack {
+                    pack_id: row.get(0)?,
+                    name: row.get(1)?,
+                    region: row.get(2)?,
+                    place_count: row.get(3)?,
+                    article_count: row.get(4)?,
+                    downloaded_at: row.get(5)?,
+                })
+            })
+            .map_err(storage_error)?;
+        collect_rows(rows)
+    }
+
+    /// Remove a downloaded pack from a trip.
+    pub fn delete_downloaded_pack(&self, trip_id: &str, pack_id: &str) -> Result<(), AppError> {
+        let connection = self.connection()?;
+        connection
+            .execute(
+                "DELETE FROM downloaded_packs WHERE trip_id = ?1 AND pack_id = ?2",
+                params![trip_id, pack_id],
+            )
+            .map_err(storage_error)?;
+        Ok(())
     }
 
     /// The configured state of every supported AI provider. Reports only whether
@@ -1136,6 +1233,18 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
                 provider TEXT NOT NULL,
                 model TEXT NOT NULL,
                 created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS downloaded_packs (
+                trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                pack_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                region TEXT NOT NULL,
+                place_count INTEGER NOT NULL,
+                article_count INTEGER NOT NULL,
+                content TEXT NOT NULL,
+                downloaded_at TEXT NOT NULL,
+                PRIMARY KEY (trip_id, pack_id)
             );
 
             PRAGMA user_version = 1;
@@ -2144,6 +2253,96 @@ mod tests {
                 .expect("activity")
                 .len(),
             1
+        );
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn download_pack_stores_contents_and_lists_them_per_trip() {
+        struct PackFetcher {
+            calls: std::sync::Mutex<Vec<String>>,
+        }
+        impl AdviceFetcher for PackFetcher {
+            fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+                self.calls.lock().expect("lock").push(url.to_owned());
+                Ok(r#"{
+                    "packId": "us-nashville",
+                    "places": [
+                        { "name": "Ryman Auditorium", "category": "venue", "lat": 36.16, "lon": -86.78 },
+                        { "name": "Centennial Park", "category": "park", "lat": 36.15, "lon": -86.81 }
+                    ],
+                    "articles": [
+                        { "title": "Nashville", "sourceUrl": "https://en.wikivoyage.org/wiki/Nashville", "text": "Music City." }
+                    ]
+                }"#
+                .to_owned())
+            }
+        }
+
+        let database = temp_database("packs-download");
+        let fetcher = Arc::new(PackFetcher {
+            calls: std::sync::Mutex::new(Vec::new()),
+        });
+        let service =
+            AppService::open_path_with_fetcher(&database, fetcher.clone()).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        // Unknown pack is rejected before any fetch happens.
+        assert_eq!(
+            service
+                .download_pack(&trip.id, "atlantis")
+                .expect_err("unknown pack")
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
+        assert!(fetcher.calls.lock().expect("lock").is_empty());
+
+        let pack = service
+            .download_pack(&trip.id, "us-nashville")
+            .expect("download");
+        assert_eq!(pack.name, "Nashville");
+        assert_eq!(pack.place_count, 2);
+        assert_eq!(pack.article_count, 1);
+        assert_eq!(
+            fetcher.calls.lock().expect("lock").as_slice(),
+            ["https://github.com/udhawan97/Voyalier/releases/download/packs-v1/us-nashville.json"]
+        );
+
+        let downloaded = service.list_downloaded_packs(&trip.id).expect("list");
+        assert_eq!(downloaded.len(), 1);
+        assert_eq!(downloaded[0].pack_id, "us-nashville");
+
+        service
+            .delete_downloaded_pack(&trip.id, "us-nashville")
+            .expect("delete");
+        assert!(
+            service
+                .list_downloaded_packs(&trip.id)
+                .expect("list")
+                .is_empty()
+        );
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn download_pack_rejects_a_mismatched_body() {
+        struct WrongPackFetcher;
+        impl AdviceFetcher for WrongPackFetcher {
+            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+                Ok(r#"{ "packId": "us-hi-maui", "places": [], "articles": [] }"#.to_owned())
+            }
+        }
+
+        let database = temp_database("packs-mismatch");
+        let service = AppService::open_path_with_fetcher(&database, Arc::new(WrongPackFetcher))
+            .expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        assert_eq!(
+            service
+                .download_pack(&trip.id, "us-nashville")
+                .expect_err("mismatch")
+                .code,
+            ErrorCode::PackDownloadFailed
         );
         cleanup_database(database);
     }

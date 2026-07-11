@@ -9,6 +9,7 @@ import type {
   ConfirmCandidateInput,
   ConfirmedFact,
   CreateTripInput,
+  DownloadedPack,
   FcdoCountry,
   FetchTravelAdviceInput,
   HealthResponse,
@@ -110,6 +111,15 @@ export function createTauriGateway(
       call<AssistActivityEntry[]>("list_assist_activity", { tripId }),
 
     listPacks: () => call<PackInfo[]>("list_packs", {}),
+
+    downloadPack: (tripId: string, packId: string) =>
+      call<DownloadedPack>("download_pack", { tripId, packId }),
+
+    listDownloadedPacks: (tripId: string) =>
+      call<DownloadedPack[]>("list_downloaded_packs", { tripId }),
+
+    deleteDownloadedPack: (tripId: string, packId: string) =>
+      call<void>("delete_downloaded_pack", { tripId, packId }),
 
     listAdviceCountries: () => call<FcdoCountry[]>("list_advice_countries", {}),
 

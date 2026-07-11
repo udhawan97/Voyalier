@@ -9,6 +9,7 @@ import type {
   ConfirmCandidateInput,
   ConfirmedFact,
   CreateTripInput,
+  DownloadedPack,
   FcdoCountry,
   FetchTravelAdviceInput,
   HealthResponse,
@@ -150,6 +151,21 @@ export function createHttpGateway(
       ),
 
     listPacks: () => request<PackInfo[]>("GET", "/api/v1/packs"),
+
+    downloadPack: (tripId: string, packId: string) =>
+      request<DownloadedPack>(
+        "POST",
+        `/api/v1/trips/${enc(tripId)}/packs/${enc(packId)}`,
+      ),
+
+    listDownloadedPacks: (tripId: string) =>
+      request<DownloadedPack[]>("GET", `/api/v1/trips/${enc(tripId)}/packs`),
+
+    deleteDownloadedPack: (tripId: string, packId: string) =>
+      request<void>(
+        "DELETE",
+        `/api/v1/trips/${enc(tripId)}/packs/${enc(packId)}`,
+      ),
 
     listAdviceCountries: () =>
       request<FcdoCountry[]>("GET", "/api/v1/advice/countries"),

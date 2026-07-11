@@ -1615,6 +1615,31 @@ h3 {
   font-family: var(--voy-font-mono);
 }
 
+.voy-packs__row .voy-btn {
+  margin-top: 0.6rem;
+}
+
+.voy-packs__downloaded {
+  margin-top: 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.voy-packs__count {
+  font-size: 0.8rem;
+  font-weight: 620;
+  color: var(--voy-success);
+}
+
+.voy-packs__error {
+  margin: 0.9rem 0 0;
+  color: var(--voy-danger);
+  font-size: 0.88rem;
+}
+
 .voy-packs__scope {
   margin: 1.1rem 0 0;
   color: var(--voy-silver);

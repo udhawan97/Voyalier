@@ -297,6 +297,15 @@ export interface PackInfo {
   wikivoyageArticle: string;
   layers: PackLayerLicense[];
 }
+/** A pack downloaded and stored locally for a trip. Summary metadata. */
+export interface DownloadedPack {
+  packId: string;
+  name: string;
+  region: string;
+  placeCount: number;
+  articleCount: number;
+  downloadedAt: string;
+}
 export type SearchHitSource = "document" | "confirmed_fact";
 export interface SearchHit {
   source: SearchHitSource;
@@ -344,6 +353,7 @@ export type ErrorCode =
   | "document/empty"
   | "advice/fetch_failed"
   | "assist/failed"
+  | "pack/download_failed"
   | "storage/failure"
   | "transport/failure"
   | "internal/unexpected";
@@ -401,6 +411,9 @@ export interface AppGateway {
   runAssist(tripId: string, provider: ProviderId): Promise<AssistReply>;
   listAssistActivity(tripId: string): Promise<AssistActivityEntry[]>;
   listPacks(): Promise<PackInfo[]>;
+  downloadPack(tripId: string, packId: string): Promise<DownloadedPack>;
+  listDownloadedPacks(tripId: string): Promise<DownloadedPack[]>;
+  deleteDownloadedPack(tripId: string, packId: string): Promise<void>;
   listAdviceCountries(): Promise<FcdoCountry[]>;
   fetchTravelAdvice(
     input: FetchTravelAdviceInput,

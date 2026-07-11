@@ -560,7 +560,7 @@ export function TripDetailView({
 
       <AssistPreview tripId={tripId} />
 
-      <CityPacks />
+      <CityPacks tripId={tripId} />
 
       {showImport ? (
         <ImportDialog

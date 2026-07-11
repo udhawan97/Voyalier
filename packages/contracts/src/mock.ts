@@ -10,6 +10,7 @@ import type {
   ConfirmCandidateInput,
   ConfirmedFact,
   CreateTripInput,
+  DownloadedPack,
   ErrorCode,
   FactPayload,
   FcdoCountry,
@@ -822,6 +823,8 @@ export function createMockGateway(options?: {
   const providerModels = new Map<ProviderId, string>();
   // Assist activity log, most recent appended last (metadata only).
   const assistActivity: (AssistActivityEntry & { tripId: string })[] = [];
+  // Downloaded packs, keyed loosely by trip.
+  const downloadedPacks: (DownloadedPack & { tripId: string })[] = [];
   let sequence = 1;
 
   function providerConfig(id: ProviderId): ProviderConfig {
@@ -1229,6 +1232,65 @@ export function createMockGateway(options?: {
       }),
 
     listPacks: () => execute("listPacks", () => MOCK_PACKS.map(clone)),
+
+    downloadPack: (tripId: string, packId: string) =>
+      execute("downloadPack", () => {
+        requireTrip(tripId);
+        const info = MOCK_PACKS.find((pack) => pack.id === packId);
+        if (!info) {
+          throw appError("validation/invalid_input", "unknown city pack", {
+            field: "pack",
+          });
+        }
+        // Deterministic fake counts — the mock downloads no real contents.
+        const entry: DownloadedPack & { tripId: string } = {
+          tripId,
+          packId,
+          name: info.name,
+          region: info.region,
+          placeCount: 12,
+          articleCount: 1,
+          downloadedAt: timestamp(),
+        };
+        const existing = downloadedPacks.findIndex(
+          (pack) => pack.tripId === tripId && pack.packId === packId,
+        );
+        if (existing >= 0) downloadedPacks[existing] = entry;
+        else downloadedPacks.push(entry);
+        return {
+          packId: entry.packId,
+          name: entry.name,
+          region: entry.region,
+          placeCount: entry.placeCount,
+          articleCount: entry.articleCount,
+          downloadedAt: entry.downloadedAt,
+        };
+      }),
+
+    listDownloadedPacks: (tripId: string) =>
+      execute("listDownloadedPacks", () => {
+        requireTrip(tripId);
+        return downloadedPacks
+          .filter((pack) => pack.tripId === tripId)
+          .map((pack) => ({
+            packId: pack.packId,
+            name: pack.name,
+            region: pack.region,
+            placeCount: pack.placeCount,
+            articleCount: pack.articleCount,
+            downloadedAt: pack.downloadedAt,
+          }))
+          .reverse();
+      }),
+
+    deleteDownloadedPack: (tripId: string, packId: string) =>
+      execute("deleteDownloadedPack", () => {
+        const index = downloadedPacks.findIndex(
+          (pack) => pack.tripId === tripId && pack.packId === packId,
+        );
+        if (index >= 0) downloadedPacks.splice(index, 1);
+        return undefined;
+      }),
 
     listAdviceCountries: () =>
       execute("listAdviceCountries", () => MOCK_ADVICE_COUNTRIES.map(clone)),

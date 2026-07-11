@@ -241,6 +241,78 @@ pub fn validate_pack_id(id: &str) -> Result<PackInfo, AppError> {
         })
 }
 
+/// The GitHub Release tag pack contents are published under.
+pub const PACK_RELEASE_TAG: &str = "packs-v1";
+
+/// The download URL for a pack's contents (a single JSON asset on a GitHub
+/// Release). Downloading it pulls data *in*; nothing about the trip is sent.
+pub fn pack_download_url(pack_id: &str) -> String {
+    format!(
+        "https://github.com/udhawan97/Voyalier/releases/download/{PACK_RELEASE_TAG}/{pack_id}.json"
+    )
+}
+
+/// One place of interest inside a downloaded pack (from the Overture layer).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackPlace {
+    pub name: String,
+    pub category: String,
+    pub lat: f64,
+    pub lon: f64,
+}
+
+/// One travel-notes article inside a downloaded pack (from the Wikivoyage layer).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackArticle {
+    pub title: String,
+    pub source_url: String,
+    pub text: String,
+}
+
+/// The contents of a downloaded pack, as published by CI.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackContent {
+    pub pack_id: String,
+    #[serde(default)]
+    pub places: Vec<PackPlace>,
+    #[serde(default)]
+    pub articles: Vec<PackArticle>,
+}
+
+/// A stored record that a pack was downloaded for a trip. Summary metadata; the
+/// full contents live alongside it but are surfaced separately.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadedPack {
+    pub pack_id: String,
+    pub name: String,
+    pub region: String,
+    pub place_count: u32,
+    pub article_count: u32,
+    pub downloaded_at: String,
+}
+
+/// Parse a downloaded pack body, verifying it is the pack we asked for. A
+/// mismatched or unreadable body is a [`ErrorCode::PackDownloadFailed`].
+pub fn parse_pack_content(expected_id: &str, body: &str) -> Result<PackContent, AppError> {
+    let content: PackContent = serde_json::from_str(body).map_err(|_| {
+        AppError::new(
+            ErrorCode::PackDownloadFailed,
+            "the downloaded city pack was unreadable",
+        )
+    })?;
+    if content.pack_id != expected_id {
+        return Err(AppError::new(
+            ErrorCode::PackDownloadFailed,
+            "the downloaded city pack did not match the requested pack",
+        ));
+    }
+    Ok(content)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -310,6 +382,42 @@ mod tests {
         assert_eq!(
             validate_pack_id("atlantis").expect_err("unknown").code,
             ErrorCode::ValidationInvalidInput
+        );
+    }
+
+    #[test]
+    fn download_url_targets_the_release_asset() {
+        let url = pack_download_url("us-nashville");
+        assert!(url.contains("releases/download/packs-v1/us-nashville.json"));
+    }
+
+    #[test]
+    fn parses_matching_content_and_rejects_mismatched_or_garbage() {
+        let body = r#"{
+            "packId": "us-nashville",
+            "places": [{ "name": "Ryman Auditorium", "category": "music_venue",
+                         "lat": 36.1613, "lon": -86.7784 }],
+            "articles": [{ "title": "Nashville", "sourceUrl": "https://en.wikivoyage.org/wiki/Nashville",
+                           "text": "Music City." }]
+        }"#;
+        let content = parse_pack_content("us-nashville", body).expect("content");
+        assert_eq!(content.places.len(), 1);
+        assert_eq!(content.articles.len(), 1);
+        assert_eq!(content.places[0].name, "Ryman Auditorium");
+
+        // A body for a different pack is refused.
+        assert_eq!(
+            parse_pack_content("us-hi-maui", body)
+                .expect_err("mismatch")
+                .code,
+            ErrorCode::PackDownloadFailed
+        );
+        // Unreadable bodies fail cleanly.
+        assert_eq!(
+            parse_pack_content("us-nashville", "not json")
+                .expect_err("garbage")
+                .code,
+            ErrorCode::PackDownloadFailed
         );
     }
 }

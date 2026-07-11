@@ -61,4 +61,32 @@ describe("City packs", () => {
     expect(within(layers).getByText(/Overture Maps/)).toBeInTheDocument();
     expect(within(layers).getByText(/CC-BY-SA-3\.0/)).toBeInTheDocument();
   });
+
+  it("downloads a pack for the trip and then offers to remove it", async () => {
+    renderApp(createMockGateway());
+    const region = await openPacks();
+
+    fireEvent.click(
+      within(region).getByRole("button", { name: "Browse city packs" }),
+    );
+
+    const nashville = (await within(region).findByText("Nashville")).closest(
+      "li",
+    )!;
+    fireEvent.click(
+      within(nashville).getByRole("button", { name: "Download for this trip" }),
+    );
+
+    // Once downloaded, the row shows offline counts and a remove control.
+    expect(await within(nashville).findByText(/offline/)).toBeInTheDocument();
+    const remove = within(nashville).getByRole("button", { name: "Remove" });
+    fireEvent.click(remove);
+
+    // Removing restores the download affordance.
+    expect(
+      await within(nashville).findByRole("button", {
+        name: "Download for this trip",
+      }),
+    ).toBeInTheDocument();
+  });
 });

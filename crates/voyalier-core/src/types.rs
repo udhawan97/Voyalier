@@ -363,6 +363,8 @@ pub enum ErrorCode {
     AdviceFetchFailed,
     #[serde(rename = "assist/failed")]
     AssistFailed,
+    #[serde(rename = "pack/download_failed")]
+    PackDownloadFailed,
     #[serde(rename = "storage/failure")]
     StorageFailure,
     #[serde(rename = "transport/failure")]
@@ -385,6 +387,7 @@ impl ErrorCode {
             Self::DocumentEmpty => "document/empty",
             Self::AdviceFetchFailed => "advice/fetch_failed",
             Self::AssistFailed => "assist/failed",
+            Self::PackDownloadFailed => "pack/download_failed",
             Self::StorageFailure => "storage/failure",
             Self::TransportFailure => "transport/failure",
             Self::InternalUnexpected => "internal/unexpected",
