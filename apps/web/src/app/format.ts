@@ -8,7 +8,7 @@ import type {
   WarningCode,
 } from "@voyalier/contracts";
 
-import { t } from "./i18n";
+import { t, type MessageKey } from "./i18n";
 import { APP_LOCALE } from "./locale";
 
 // Re-exported for callers (and tests) that import it from here.
@@ -75,36 +75,40 @@ export function tripRoute(origin: string, destination: string): string {
 export function tripStatusLabel(status: TripStatus): string {
   switch (status) {
     case "draft":
-      return "Draft";
+      return t("status.trip.draft");
     case "active":
-      return "Active";
+      return t("status.trip.active");
     case "archived":
-      return "Archived";
+      return t("status.trip.archived");
   }
 }
 
 export function candidateStatusLabel(status: CandidateStatus): string {
   switch (status) {
     case "pending":
-      return "Pending";
+      return t("status.candidate.pending");
     case "confirmed":
-      return "Confirmed";
+      return t("status.candidate.confirmed");
     case "rejected":
-      return "Rejected";
+      return t("status.candidate.rejected");
   }
 }
 
 export function factTypeLabel(factType: FactType): string {
-  return factType === "flight_segment" ? "Flight" : "Stay";
+  return factType === "flight_segment"
+    ? t("factType.flight")
+    : t("factType.stay");
 }
 
 /** A short headline for a fact/candidate ("Flight NS204" / "River Paper Inn"). */
 export function factTitle(factType: FactType, payload: FactPayload): string {
   const values = payload as Record<string, string | undefined>;
   if (factType === "flight_segment") {
-    return values.flightNumber ? `Flight ${values.flightNumber}` : "Flight";
+    return values.flightNumber
+      ? t("fact.flightHeadline", { number: values.flightNumber })
+      : t("factType.flight");
   }
-  return values.propertyName ?? "Stay";
+  return values.propertyName ?? t("factType.stay");
 }
 
 /** A supporting line ("ORD → NRT" / an address). */
@@ -114,19 +118,19 @@ export function factSubtitle(factType: FactType, payload: FactPayload): string {
     if (values.departureAirportIata && values.arrivalAirportIata) {
       return `${values.departureAirportIata} → ${values.arrivalAirportIata}`;
     }
-    return "Flight segment";
+    return t("fact.flightSegment");
   }
-  return values.address ?? "Lodging stay";
+  return values.address ?? t("fact.lodgingStay");
 }
 
 export function methodLabel(method: ExtractionMethod): string {
   switch (method) {
     case "structured":
-      return "Structured";
+      return t("method.structured");
     case "inferred":
-      return "Inferred";
+      return t("method.inferred");
     case "manual":
-      return "Manual";
+      return t("method.manual");
   }
 }
 
@@ -134,11 +138,11 @@ export function methodLabel(method: ExtractionMethod): string {
 export function methodDescription(method: ExtractionMethod): string {
   switch (method) {
     case "structured":
-      return "Read from structured data embedded in the document.";
+      return t("method.structured.desc");
     case "inferred":
-      return "Inferred from unstructured text — worth a closer look.";
+      return t("method.inferred.desc");
     case "manual":
-      return "Entered by you.";
+      return t("method.manual.desc");
   }
 }
 
@@ -146,17 +150,17 @@ export function methodDescription(method: ExtractionMethod): string {
 export function warningSentence(code: WarningCode): string {
   switch (code) {
     case "missing_dates":
-      return "No dates were found for this item.";
+      return t("warning.missing_dates");
     case "missing_locations":
-      return "No locations were found for this item.";
+      return t("warning.missing_locations");
     case "ambiguous_date_format":
-      return "The date format was ambiguous and may be read wrong.";
+      return t("warning.ambiguous_date_format");
     case "past_date":
-      return "This date is in the past.";
+      return t("warning.past_date");
     case "outside_trip_window":
-      return "This falls outside your trip dates.";
+      return t("warning.outside_trip_window");
     case "unrecognized_airport_code":
-      return "An airport code wasn't recognized.";
+      return t("warning.unrecognized_airport_code");
   }
 }
 
@@ -182,21 +186,22 @@ export const LODGING_FIELDS = [
   "guestName",
 ] as const;
 
-const FIELD_LABELS: Record<string, string> = {
-  airlineName: "Airline",
-  airlineIata: "Airline code",
-  flightNumber: "Flight number",
-  departureAirportIata: "From (airport)",
-  arrivalAirportIata: "To (airport)",
-  departureLocal: "Departs (local)",
-  arrivalLocal: "Arrives (local)",
-  confirmationCode: "Confirmation code",
-  passengerName: "Passenger",
-  propertyName: "Property",
-  address: "Address",
-  checkinDate: "Check-in",
-  checkoutDate: "Check-out",
-  guestName: "Guest",
+// Field key → catalog key; the label itself comes from t() so it localizes.
+const FIELD_LABEL_KEYS: Record<string, MessageKey> = {
+  airlineName: "field.airlineName",
+  airlineIata: "field.airlineIata",
+  flightNumber: "field.flightNumber",
+  departureAirportIata: "field.departureAirportIata",
+  arrivalAirportIata: "field.arrivalAirportIata",
+  departureLocal: "field.departureLocal",
+  arrivalLocal: "field.arrivalLocal",
+  confirmationCode: "field.confirmationCode",
+  passengerName: "field.passengerName",
+  propertyName: "field.propertyName",
+  address: "field.address",
+  checkinDate: "field.checkinDate",
+  checkoutDate: "field.checkoutDate",
+  guestName: "field.guestName",
 };
 
 const DATE_FIELDS = new Set(["checkinDate", "checkoutDate"]);
@@ -209,7 +214,8 @@ export function fieldsForType(factType: FactType): readonly string[] {
 /** "payload.flightNumber" or "flightNumber" → "Flight number". */
 export function fieldLabel(fieldPathOrKey: string): string {
   const key = fieldPathOrKey.replace(/^payload\./, "");
-  return FIELD_LABELS[key] ?? key;
+  const messageKey = FIELD_LABEL_KEYS[key];
+  return messageKey ? t(messageKey) : key;
 }
 
 /** Render a payload value for display, keeping contract datetimes verbatim. */
