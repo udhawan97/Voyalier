@@ -59,7 +59,7 @@ the conflicts. AI is optional, previewed, and never promoted to border agent,
 meteorologist, doctor, or booking clerk.
 
 <p align="center">
-  <img src="docs-site/public/assets/voyalier-trip-workspace-flow.svg" alt="Eight-stage Voyalier product flow: frame a trip, gather sourced evidence, review facts, pressure-test the plan, prepare an offline city pack, use the Today view, optionally ask AI for help, and share a redacted brief" width="1100">
+  <img src="docs-site/public/assets/voyalier-trip-workspace-flow.svg" alt="Six-stage Voyalier product flow: frame a trip, gather and review evidence, pressure-test the plan, prepare it for offline use, travel with Today, and share a redacted brief; optional AI appears as a separate side branch" width="1100">
 </p>
 
 ## What it does

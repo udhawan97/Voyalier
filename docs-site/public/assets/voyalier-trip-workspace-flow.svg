@@ -1,109 +1,135 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="820" viewBox="0 0 1400 820" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1040" viewBox="0 0 1440 1040" role="img" aria-labelledby="title desc">
   <title id="title">How the Voyalier trip workspace works</title>
-  <desc id="desc">A traveler-facing workflow diagram showing a trip moving from setup through evidence gathering, review, deterministic planning, offline preparation, travel-day use, and redacted sharing.</desc>
+  <desc id="desc">A clear six-stage journey: frame the trip, gather and review evidence, pressure-test the plan, prepare it for offline use, travel with the Today view, and share a redacted brief. Optional AI branches from the main flow and is never required.</desc>
   <defs>
-    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#faf7ef" stroke-opacity=".045"/></pattern>
-    <filter id="shadow" x="-25%" y="-25%" width="150%" height="160%"><feDropShadow dx="0" dy="9" stdDeviation="12" flood-color="#000" flood-opacity=".2"/></filter>
-    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0l10 5-10 5z" fill="#93a0b8"/></marker>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#faf7ef" stroke-opacity=".045"/>
+    </pattern>
+    <filter id="shadow" x="-20%" y="-25%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity=".22"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0l10 5-10 5z" fill="#93a0b8"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0l10 5-10 5z" fill="#d97a5f"/>
+    </marker>
     <style>
-      .sans{font-family:"Zen Kaku Gothic New",Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.serif{font-family:"Shippori Mincho","Iowan Old Style",Georgia,serif}.title{font-size:31px;font-weight:600;fill:#f2ede1}.subtitle{font-size:15px;fill:#a9a69c}.eyebrow{font-size:11px;font-weight:700;letter-spacing:2.3px;fill:#d97a5f}.num{font-size:12px;font-weight:800;fill:#fff}.card-title{font-size:18px;font-weight:750;fill:#1a1917}.copy{font-size:13px;fill:#5f5b52}.small{font-size:11px;fill:#5f5b52}.pill{font-size:10px;font-weight:700;letter-spacing:.4px;fill:#46536b}.flow{fill:none;stroke:#93a0b8;stroke-width:2;marker-end:url(#arrow)}
+      .sans{font-family:"Zen Kaku Gothic New",Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.serif{font-family:"Shippori Mincho","Iowan Old Style",Georgia,serif}.eyebrow{font-size:14px;font-weight:700;letter-spacing:2.4px;fill:#d97a5f}.title{font-size:38px;font-weight:600;fill:#f2ede1}.subtitle{font-size:17px;fill:#a9a69c}.step{font-size:14px;font-weight:700;fill:#fff}.card-title{font-size:23px;font-weight:700;fill:#1a1917}.copy{font-size:16px;fill:#5f5b52}.tech{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;fill:#46536b}.small{font-size:14px;fill:#5f5b52}.dark-title{font-size:23px;font-weight:700;fill:#f2ede1}.dark-copy{font-size:16px;fill:#d8d2c5}.route{fill:none;stroke:#93a0b8;stroke-width:2.6;marker-end:url(#arrow)}.optional{fill:none;stroke:#d97a5f;stroke-width:2.5;stroke-dasharray:9 7;marker-end:url(#arrow-red)}@keyframes march{to{stroke-dashoffset:-32}}@keyframes pulse{0%,100%{opacity:.58}50%{opacity:1}}@media (prefers-reduced-motion:no-preference){.optional{animation:march 3.6s linear infinite}.pulse{animation:pulse 2.8s ease-in-out infinite}}
     </style>
   </defs>
 
-  <rect width="1400" height="820" rx="24" fill="#171614"/>
-  <rect width="1400" height="820" rx="24" fill="url(#grid)"/>
-  <text x="56" y="60" class="sans eyebrow">PRODUCT FLOW · ONE TRIP, FOLDED INTO A WORKSPACE</text>
-  <text x="56" y="101" class="serif title">The app stays useful before, during, and without a network</text>
-  <text x="56" y="129" class="sans subtitle">Each stage adds evidence or derives a view; none hands booking, safety, or entry authority to a model.</text>
+  <rect width="1440" height="1040" rx="26" fill="#171614"/>
+  <rect width="1440" height="1040" rx="26" fill="url(#grid)"/>
 
-  <!-- route -->
-  <path d="M160 302C294 230 400 230 524 302s242 72 366 0 244-72 350 0" fill="none" stroke="#46536b" stroke-width="4" stroke-linecap="round"/>
-  <path d="M1240 302c38 27 58 62 58 105 0 67-53 104-108 125" class="flow"/>
+  <text x="64" y="62" class="sans eyebrow">PRODUCT FLOW · ONE TRIP, FOLDED INTO FOCUS</text>
+  <text x="64" y="108" class="serif title">A clear route from “we should go” to “we are ready.”</text>
+  <text x="64" y="140" class="sans subtitle">Plain-language steps lead; technical labels explain what keeps each step trustworthy.</text>
 
-  <!-- top cards -->
-  <g filter="url(#shadow)">
-    <rect x="56" y="182" width="218" height="218" rx="20" fill="#faf7ef"/>
-    <circle cx="88" cy="214" r="16" fill="#c34e33"/><text x="88" y="219" class="sans num" text-anchor="middle">01</text>
-    <text x="116" y="220" class="sans card-title">Frame the trip</text>
-    <text x="80" y="258" class="sans copy">Set origin, destination,</text><text x="80" y="278" class="sans copy">dates, and working title.</text>
-    <rect x="80" y="302" width="170" height="30" rx="10" fill="#ebe6d7"/><text x="165" y="322" class="sans pill" text-anchor="middle">DETERMINISTIC BLUEPRINT</text>
-    <text x="80" y="356" class="sans small">Missing logistics become actions,</text><text x="80" y="374" class="sans small">not invented recommendations.</text>
+  <!-- Three promises that help casual readers decode the whole diagram -->
+  <g class="sans" font-size="14" font-weight="700">
+    <rect x="64" y="170" width="222" height="38" rx="19" fill="#46536b"/><text x="175" y="195" text-anchor="middle" fill="#f2ede1">WORKS WITHOUT AI</text>
+    <rect x="300" y="170" width="254" height="38" rx="19" fill="#2a2a28" stroke="#46536b"/><text x="427" y="195" text-anchor="middle" fill="#f2ede1">NETWORK ONLY ON CLICK</text>
+    <rect x="568" y="170" width="238" height="38" rx="19" fill="#2a2a28" stroke="#c34e33"/><text x="687" y="195" text-anchor="middle" fill="#f2ede1">AI IS A SIDE BRANCH</text>
   </g>
 
+  <!-- Top row: 1 → 2 → 3 -->
   <g filter="url(#shadow)">
-    <rect x="316" y="214" width="218" height="218" rx="20" fill="#faf7ef"/>
-    <circle cx="348" cy="246" r="16" fill="#c34e33"/><text x="348" y="251" class="sans num" text-anchor="middle">02</text>
-    <text x="376" y="252" class="sans card-title">Gather evidence</text>
-    <text x="340" y="290" class="sans copy">Paste confirmations; fetch</text><text x="340" y="310" class="sans copy">official advice or weather.</text>
-    <rect x="340" y="334" width="170" height="30" rx="10" fill="#ebe6d7"/><text x="425" y="354" class="sans pill" text-anchor="middle">CONSENT FOR NETWORK</text>
-    <text x="340" y="388" class="sans small">Sources keep URL, time, license,</text><text x="340" y="406" class="sans small">coverage, and freshness.</text>
+    <rect x="64" y="250" width="380" height="220" rx="20" fill="#faf7ef"/>
+    <circle cx="100" cy="286" r="19" fill="#c34e33"/>
+    <text x="100" y="292" class="sans step" text-anchor="middle">01</text>
+    <text x="132" y="293" class="sans card-title">Frame the trip</text>
+    <text x="94" y="340" class="sans copy">Add origin, destination, and dates.</text>
+    <text x="94" y="366" class="sans copy">Voyalier answers with a useful starting plan.</text>
+    <rect x="94" y="398" width="320" height="44" rx="13" fill="#ebe6d7"/>
+    <text x="254" y="425" class="sans" font-size="15" font-weight="700" text-anchor="middle" fill="#46536b">DETERMINISTIC BLUEPRINT</text>
+    <text x="94" y="458" class="sans tech">pure rules · no model required</text>
   </g>
 
-  <g filter="url(#shadow)">
-    <rect x="576" y="182" width="218" height="218" rx="20" fill="#faf7ef"/>
-    <circle cx="608" cy="214" r="16" fill="#c34e33"/><text x="608" y="219" class="sans num" text-anchor="middle">03</text>
-    <text x="636" y="220" class="sans card-title">Review the facts</text>
-    <text x="600" y="258" class="sans copy">Compare extracted fields</text><text x="600" y="278" class="sans copy">with source excerpts.</text>
-    <rect x="600" y="302" width="170" height="30" rx="10" fill="#c34e33"/><text x="685" y="322" class="sans" font-size="10" font-weight="700" text-anchor="middle" fill="#fff">CONFIRM · FIX · REJECT</text>
-    <text x="600" y="356" class="sans small">Warnings stay visible; undo sends</text><text x="600" y="374" class="sans small">a fact back to pending review.</text>
-  </g>
+  <path d="M444 360h76" class="route"/>
 
   <g filter="url(#shadow)">
-    <rect x="836" y="214" width="218" height="218" rx="20" fill="#faf7ef"/>
-    <circle cx="868" cy="246" r="16" fill="#c34e33"/><text x="868" y="251" class="sans num" text-anchor="middle">04</text>
-    <text x="896" y="252" class="sans card-title">Pressure-test it</text>
-    <text x="860" y="290" class="sans copy">Check flight overlaps, hotel</text><text x="860" y="310" class="sans copy">gaps, and pending review.</text>
-    <rect x="860" y="334" width="170" height="30" rx="10" fill="#ebe6d7"/><text x="945" y="354" class="sans pill" text-anchor="middle">READINESS IS EXPLAINED</text>
-    <text x="860" y="388" class="sans small">Official sources inform; they do</text><text x="860" y="406" class="sans small">not guarantee or “clear” travel.</text>
+    <rect x="530" y="250" width="380" height="220" rx="20" fill="#faf7ef"/>
+    <circle cx="566" cy="286" r="19" fill="#c34e33"/>
+    <text x="566" y="292" class="sans step" text-anchor="middle">02</text>
+    <text x="598" y="293" class="sans card-title">Gather, then review</text>
+    <text x="560" y="340" class="sans copy">Paste confirmations and compare every</text>
+    <text x="560" y="366" class="sans copy">suggested detail with its source.</text>
+    <rect x="560" y="398" width="320" height="44" rx="13" fill="#c34e33"/>
+    <text x="720" y="425" class="sans" font-size="15" font-weight="700" text-anchor="middle" fill="#fff">CONFIRM · FIX · REJECT</text>
+    <text x="560" y="458" class="sans tech">candidate → confirmed · review gate</text>
   </g>
+
+  <path d="M910 360h76" class="route"/>
 
   <g filter="url(#shadow)">
-    <rect x="1096" y="182" width="248" height="218" rx="20" fill="#faf7ef"/>
-    <circle cx="1128" cy="214" r="16" fill="#c34e33"/><text x="1128" y="219" class="sans num" text-anchor="middle">05</text>
-    <text x="1156" y="220" class="sans card-title">Pack for offline</text>
-    <text x="1120" y="258" class="sans copy">Download a city pack and keep</text><text x="1120" y="278" class="sans copy">the plan available on-device.</text>
-    <rect x="1120" y="302" width="198" height="30" rx="10" fill="#ebe6d7"/><text x="1219" y="322" class="sans pill" text-anchor="middle">PLACES · ATTRIBUTION · MAP</text>
-    <text x="1120" y="356" class="sans small">Persona weights rank local pack</text><text x="1120" y="374" class="sans small">data with visible “because” reasons.</text>
+    <rect x="996" y="250" width="380" height="220" rx="20" fill="#faf7ef"/>
+    <circle cx="1032" cy="286" r="19" fill="#c34e33" class="pulse"/>
+    <text x="1032" y="292" class="sans step" text-anchor="middle">03</text>
+    <text x="1064" y="293" class="sans card-title">Pressure-test it</text>
+    <text x="1026" y="340" class="sans copy">Find overlaps, hotel gaps, and unfinished</text>
+    <text x="1026" y="366" class="sans copy">review before they become travel-day surprises.</text>
+    <rect x="1026" y="398" width="320" height="44" rx="13" fill="#ebe6d7"/>
+    <text x="1186" y="425" class="sans" font-size="15" font-weight="700" text-anchor="middle" fill="#46536b">READINESS EXPLAINS, NEVER “CLEARS”</text>
+    <text x="1026" y="458" class="sans tech">conflicts · readiness · pure rules</text>
   </g>
 
-  <!-- lower phase -->
+  <!-- Downward turn, entirely within the right gutter -->
+  <path d="M1186 470v90" class="route"/>
+
+  <!-- Bottom row runs right → left: 4 → 5 → 6 -->
   <g filter="url(#shadow)">
-    <rect x="158" y="520" width="330" height="184" rx="20" fill="#f3efe4"/>
-    <circle cx="190" cy="552" r="16" fill="#c34e33"/><text x="190" y="557" class="sans num" text-anchor="middle">06</text>
-    <text x="218" y="558" class="sans card-title">Use the Today view</text>
-    <text x="182" y="596" class="sans copy">A stable, offline timeline answers:</text>
-    <text x="182" y="622" class="sans" font-size="13" font-weight="700" fill="#46536b">What is happening now?</text>
-    <text x="182" y="645" class="sans" font-size="13" font-weight="700" fill="#46536b">What happens next?</text>
-    <text x="182" y="680" class="sans small">Derived only from confirmed facts + date.</text>
+    <rect x="996" y="570" width="380" height="220" rx="20" fill="#faf7ef"/>
+    <circle cx="1032" cy="606" r="19" fill="#c34e33"/>
+    <text x="1032" y="612" class="sans step" text-anchor="middle">04</text>
+    <text x="1064" y="613" class="sans card-title">Prepare for offline</text>
+    <text x="1026" y="660" class="sans copy">Download a city pack and keep sourced</text>
+    <text x="1026" y="686" class="sans copy">places, attribution, and the plan on-device.</text>
+    <rect x="1026" y="718" width="320" height="44" rx="13" fill="#ebe6d7"/>
+    <text x="1186" y="745" class="sans" font-size="15" font-weight="700" text-anchor="middle" fill="#46536b">PACKS · PERSONA WEIGHTS · MAP</text>
+    <text x="1026" y="778" class="sans tech">open data · licensed · explicit download</text>
   </g>
 
-  <path d="M488 612h80" class="flow"/>
-
-  <g filter="url(#shadow)">
-    <rect x="570" y="520" width="330" height="184" rx="20" fill="#f3efe4"/>
-    <circle cx="602" cy="552" r="16" fill="#c34e33"/><text x="602" y="557" class="sans num" text-anchor="middle">07</text>
-    <text x="630" y="558" class="sans card-title">Ask for optional assist</text>
-    <text x="594" y="596" class="sans copy">Preview the exact redacted payload,</text>
-    <text x="594" y="616" class="sans copy">then choose on-device or BYOK cloud.</text>
-    <rect x="594" y="640" width="282" height="28" rx="9" fill="#ebe6d7"/>
-    <text x="735" y="659" class="sans pill" text-anchor="middle">OLLAMA · OPENAI · ANTHROPIC</text>
-    <text x="594" y="688" class="sans small">The answer is assistance, never authority.</text>
-  </g>
-
-  <path d="M900 612h80" class="flow"/>
+  <path d="M996 680h-76" class="route"/>
 
   <g filter="url(#shadow)">
-    <rect x="982" y="520" width="260" height="184" rx="20" fill="#46536b"/>
-    <circle cx="1014" cy="552" r="16" fill="#c34e33"/><text x="1014" y="557" class="sans num" text-anchor="middle">08</text>
-    <text x="1042" y="558" class="sans" font-size="18" font-weight="750" fill="#f2ede1">Share deliberately</text>
-    <text x="1006" y="596" class="sans" font-size="13" fill="#d7dce7">Generate a printable brief with a</text>
-    <text x="1006" y="616" class="sans" font-size="13" fill="#d7dce7">redaction policy and preview.</text>
-    <rect x="1006" y="640" width="212" height="28" rx="9" fill="#1a1917"/>
-    <text x="1112" y="659" class="sans" font-size="10" font-weight="700" text-anchor="middle" fill="#f2ede1">NO RAW DOCUMENT CONTENT</text>
-    <text x="1006" y="688" class="sans" font-size="11" fill="#c8c3b8">Print-to-PDF reuses tested local paths.</text>
+    <rect x="530" y="570" width="380" height="220" rx="20" fill="#faf7ef"/>
+    <circle cx="566" cy="606" r="19" fill="#c34e33"/>
+    <text x="566" y="612" class="sans step" text-anchor="middle">05</text>
+    <text x="598" y="613" class="sans card-title">Travel with Today</text>
+    <text x="560" y="660" class="sans copy">See what is happening now and what comes</text>
+    <text x="560" y="686" class="sans copy">next—even when the signal has gone sightseeing.</text>
+    <rect x="560" y="718" width="320" height="44" rx="13" fill="#ebe6d7"/>
+    <text x="720" y="745" class="sans" font-size="15" font-weight="700" text-anchor="middle" fill="#46536b">OFFLINE · DATE + CONFIRMED FACTS</text>
+    <text x="560" y="778" class="sans tech">offline · confirmed facts · stable order</text>
   </g>
 
-  <rect x="56" y="753" width="1288" height="38" rx="19" fill="#1e1c19" stroke="#46536b"/>
-  <text x="700" y="777" class="sans" font-size="12" text-anchor="middle" fill="#a9a69c">OFFLINE BASELINE  ·  trip CRUD + confirmed facts + Blueprint + conflicts + readiness + search + Today + brief remain useful without AI or a live source</text>
-  <circle cx="56" cy="772" r="7" fill="#c34e33"/>
+  <path d="M530 680h-76" class="route"/>
+
+  <g filter="url(#shadow)">
+    <rect x="64" y="570" width="380" height="220" rx="20" fill="#46536b"/>
+    <circle cx="100" cy="606" r="19" fill="#c34e33"/>
+    <text x="100" y="612" class="sans step" text-anchor="middle">06</text>
+    <text x="132" y="613" class="sans dark-title">Share deliberately</text>
+    <text x="94" y="660" class="sans dark-copy">Preview a useful brief that leaves traveler</text>
+    <text x="94" y="686" class="sans dark-copy">names and confirmation codes behind.</text>
+    <rect x="94" y="718" width="320" height="44" rx="13" fill="#1a1917"/>
+    <text x="254" y="745" class="sans" font-size="15" font-weight="700" text-anchor="middle" fill="#f2ede1">REDACTED BEFORE RENDERING</text>
+    <text x="94" y="778" class="sans" font-size="14" fill="#c8c3b8">print/PDF · no raw document body</text>
+  </g>
+
+  <!-- Optional branch from Today; main route to Share stays direct -->
+  <path d="M720 790v50" class="optional"/>
+  <g>
+    <rect x="530" y="850" width="380" height="90" rx="18" fill="#211f1c" stroke="#d97a5f" stroke-width="1.7" stroke-dasharray="8 6"/>
+    <text x="558" y="882" class="sans" font-size="14" font-weight="700" letter-spacing="1.5" fill="#d97a5f">OPTIONAL AI SIDECAR</text>
+    <text x="558" y="911" class="sans" font-size="16" fill="#f2ede1">Preview → consent → labeled reply</text>
+    <text x="558" y="932" class="sans" font-size="14" fill="#a9a69c">activity log · Ollama local · cloud BYOK</text>
+  </g>
+
+  <g>
+    <rect x="64" y="970" width="1312" height="44" rx="22" fill="#1e1c19" stroke="#46536b" stroke-width="1.5"/>
+    <circle cx="92" cy="992" r="7" fill="#c34e33"/>
+    <text x="720" y="998" class="sans" font-size="15" text-anchor="middle" fill="#a9a69c">The deterministic route reaches Share without AI or a live source. Connected context is additive, explicit, and attributable.</text>
+  </g>
 </svg>

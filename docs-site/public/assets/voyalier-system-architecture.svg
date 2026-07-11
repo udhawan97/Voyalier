@@ -1,142 +1,111 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="920" viewBox="0 0 1400 920" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="950" viewBox="0 0 1440 950" role="img" aria-labelledby="title desc">
   <title id="title">Voyalier system architecture</title>
-  <desc id="desc">A detailed architecture diagram showing the shared React interface, separate browser and desktop transports, the Rust application service and deterministic core, local SQLite and keychain storage, and explicitly consented network providers.</desc>
+  <desc id="desc">One shared trip interface uses guarded HTTP during browser development or direct Tauri IPC in the desktop app. Both paths enter the same Rust application service, deterministic core, local SQLite database, and OS keychain. Connected sources are separate consent-gated edges.</desc>
   <defs>
-    <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse">
-      <path d="M28 0H0V28" fill="none" stroke="#1a1917" stroke-opacity=".045"/>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#1a1917" stroke-opacity=".04"/>
     </pattern>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#1a1917" flood-opacity=".09"/>
+    <filter id="shadow" x="-20%" y="-25%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#1a1917" flood-opacity=".08"/>
     </filter>
-    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <marker id="arrow-indigo" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
       <path d="M0 0l10 5-10 5z" fill="#46536b"/>
     </marker>
-    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
       <path d="M0 0l10 5-10 5z" fill="#c34e33"/>
     </marker>
     <style>
-      .sans{font-family:"Zen Kaku Gothic New",Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.serif{font-family:"Shippori Mincho","Iowan Old Style",Georgia,serif}.title{font-size:31px;font-weight:600;fill:#1a1917}.subtitle{font-size:15px;fill:#5f5b52}.eyebrow{font-size:11px;font-weight:700;letter-spacing:2.4px;fill:#c34e33}.section{font-size:13px;font-weight:700;letter-spacing:1.7px;fill:#46536b}.card-title{font-size:18px;font-weight:700;fill:#1a1917}.card-copy{font-size:13px;fill:#5f5b52}.small{font-size:11px;fill:#5f5b52}.dark-small{font-size:11px;fill:#c8c3b8}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;fill:#46536b}.dark-title{font-size:18px;font-weight:700;fill:#f2ede1}.dark-copy{font-size:13px;fill:#c8c3b8}.white{fill:#faf7ef}.line{fill:none;stroke:#46536b;stroke-width:2;marker-end:url(#arrow)}.dash{fill:none;stroke:#c34e33;stroke-width:2;stroke-dasharray:7 6;marker-end:url(#arrow-red)}
+      .sans{font-family:"Zen Kaku Gothic New",Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.serif{font-family:"Shippori Mincho","Iowan Old Style",Georgia,serif}.eyebrow{font-size:14px;font-weight:700;letter-spacing:2.4px;fill:#c34e33}.title{font-size:38px;font-weight:600;fill:#1a1917}.subtitle{font-size:17px;fill:#5f5b52}.label{font-size:14px;font-weight:700;letter-spacing:1.6px;fill:#46536b}.card-title{font-size:23px;font-weight:700;fill:#1a1917}.copy{font-size:16px;fill:#5f5b52}.tech{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;fill:#46536b}.dark-title{font-size:23px;font-weight:700;fill:#f2ede1}.dark-copy{font-size:16px;fill:#d8d2c5}.dark-tech{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;fill:#aeb8cc}.small{font-size:14px;fill:#5f5b52}.local{fill:none;stroke:#46536b;stroke-width:2.4;marker-end:url(#arrow-indigo)}.remote{fill:none;stroke:#c34e33;stroke-width:2.4;stroke-dasharray:9 7;marker-end:url(#arrow-red)}@keyframes march{to{stroke-dashoffset:-32}}@keyframes pulse{0%,100%{opacity:.58}50%{opacity:1}}@media (prefers-reduced-motion:no-preference){.remote{animation:march 3.5s linear infinite}.pulse{animation:pulse 2.8s ease-in-out infinite}}
     </style>
   </defs>
 
-  <rect width="1400" height="920" rx="24" fill="#f3efe4"/>
-  <rect width="1400" height="920" rx="24" fill="url(#grid)"/>
+  <rect width="1440" height="950" rx="26" fill="#f3efe4"/>
+  <rect width="1440" height="950" rx="26" fill="url(#grid)"/>
 
-  <text x="56" y="62" class="sans eyebrow">SYSTEM MAP · LOCAL-FIRST BY CONSTRUCTION</text>
-  <text x="56" y="102" class="serif title">One product core, two narrow transports</text>
-  <text x="56" y="130" class="sans subtitle">The interface changes transport by runtime; rules, persistence, provenance, and privacy controls do not.</text>
-  <g transform="translate(1130 44)">
-    <rect width="214" height="88" rx="14" fill="#1a1917"/>
-    <text x="18" y="27" class="sans small" fill="#a9a69c">TRUST PROMISE</text>
-    <text x="18" y="50" class="sans" font-size="14" font-weight="700" fill="#f2ede1">No hidden network path</text>
-    <text x="18" y="70" class="sans" font-size="11" fill="#c8c3b8">Every remote edge is dashed red.</text>
+  <text x="64" y="62" class="sans eyebrow">SYSTEM MAP · LOCAL-FIRST BY CONSTRUCTION</text>
+  <text x="64" y="108" class="serif title">One interface. Two runtimes. One local core.</text>
+  <text x="64" y="140" class="sans subtitle">For travelers: the same trip everywhere. For developers: transport changes, product rules do not.</text>
+  <g transform="translate(1112 56)">
+    <rect width="264" height="76" rx="16" fill="#1a1917"/>
+    <circle cx="24" cy="24" r="6" fill="#c34e33" class="pulse"/>
+    <text x="42" y="29" class="sans" font-size="14" font-weight="700" fill="#f2ede1">No hidden network path</text>
+    <text x="24" y="55" class="sans" font-size="14" fill="#c8c3b8">Dashed red always means “ask first.”</text>
   </g>
 
   <!-- Shared interface -->
   <g filter="url(#shadow)">
-    <rect x="380" y="166" width="640" height="104" rx="18" fill="#faf7ef" stroke="#46536b" stroke-width="2"/>
-    <rect x="380" y="166" width="10" height="104" rx="5" fill="#c34e33"/>
-    <text x="414" y="193" class="sans section">SHARED PRODUCT SURFACE</text>
-    <text x="414" y="222" class="sans card-title">React + TypeScript + Vite</text>
-    <text x="414" y="244" class="sans card-copy">Trips · Blueprint · imports · review · readiness · Today · packs · maps</text>
-    <text x="414" y="261" class="sans small">AI preview · encrypted vault · redacted brief</text>
-    <rect x="830" y="190" width="164" height="54" rx="11" fill="#ebe6d7" stroke="#a9a69c"/>
-    <text x="912" y="212" class="sans small" text-anchor="middle">RUNTIME SELECTOR</text>
-    <text x="912" y="232" class="mono" text-anchor="middle">AppGateway</text>
+    <rect x="260" y="180" width="920" height="118" rx="22" fill="#faf7ef" stroke="#46536b" stroke-width="2"/>
+    <rect x="260" y="180" width="12" height="118" rx="6" fill="#c34e33"/>
+    <text x="302" y="212" class="sans label">THE TRIP WORKSPACE YOU SEE</text>
+    <text x="302" y="246" class="sans card-title">Trips · review · readiness · Today · packs · maps · sharing</text>
+    <text x="302" y="275" class="sans tech">React + TypeScript + Vite  ·  one versioned AppGateway contract</text>
   </g>
 
-  <path d="M650 270v48H344v34" class="line"/>
-  <path d="M750 270v48h306v34" class="line"/>
+  <!-- Dedicated connector gutters -->
+  <path d="M480 298v44" class="local"/>
+  <path d="M960 298v44" class="local"/>
 
-  <!-- Runtime lanes -->
+  <!-- Runtime choices -->
   <g>
-    <rect x="56" y="352" width="594" height="180" rx="18" fill="#faf7ef" stroke="#a9a69c"/>
-    <circle cx="84" cy="381" r="7" fill="#46536b"/>
-    <text x="104" y="386" class="sans section">BROWSER DEVELOPMENT LANE</text>
-    <rect x="82" y="411" width="226" height="88" rx="13" fill="#ebe6d7" stroke="#a9a69c"/>
-    <text x="102" y="438" class="sans card-title">HTTP gateway</text>
-    <text x="102" y="462" class="sans card-copy">same-origin JSON requests</text>
-    <text x="102" y="483" class="mono">apps/web</text>
-    <path d="M308 455h55" class="line"/>
-    <rect x="364" y="411" width="260" height="88" rx="13" fill="#46536b"/>
-    <text x="384" y="438" class="sans dark-title">Axum loopback API</text>
-    <text x="384" y="462" class="sans dark-copy">127.0.0.1:8787 · Vite origins only</text>
-    <text x="384" y="483" class="sans dark-small">Host + Origin validation · CORS allowlist</text>
+    <rect x="80" y="352" width="600" height="150" rx="20" fill="#faf7ef" stroke="#a9a69c" stroke-width="1.5"/>
+    <circle cx="112" cy="385" r="8" fill="#46536b"/>
+    <text x="136" y="391" class="sans label">BROWSER DEVELOPMENT</text>
+    <text x="112" y="432" class="sans card-title">A guarded local web door</text>
+    <text x="112" y="461" class="sans copy">Useful for development; reachable only from the approved Vite origins.</text>
+    <text x="112" y="486" class="sans tech">Vite proxy → Axum · 127.0.0.1:8787 · Host + Origin + CORS checks</text>
   </g>
-
   <g>
-    <rect x="750" y="352" width="594" height="180" rx="18" fill="#faf7ef" stroke="#a9a69c"/>
-    <circle cx="778" cy="381" r="7" fill="#c34e33"/>
-    <text x="798" y="386" class="sans section">DESKTOP RELEASE LANE</text>
-    <rect x="776" y="411" width="226" height="88" rx="13" fill="#ebe6d7" stroke="#a9a69c"/>
-    <text x="796" y="438" class="sans card-title">Tauri gateway</text>
-    <text x="796" y="462" class="sans card-copy">typed invoke commands</text>
-    <text x="796" y="483" class="mono">apps/web</text>
-    <path d="M1002 455h55" class="line"/>
-    <rect x="1058" y="411" width="260" height="88" rx="13" fill="#1a1917"/>
-    <text x="1078" y="438" class="sans dark-title">Thin Tauri 2 shell</text>
-    <text x="1078" y="462" class="sans dark-copy">direct IPC · no TCP listener</text>
-    <text x="1078" y="483" class="sans dark-small">one-line command → service mappings</text>
+    <rect x="760" y="352" width="600" height="150" rx="20" fill="#faf7ef" stroke="#a9a69c" stroke-width="1.5"/>
+    <circle cx="792" cy="385" r="8" fill="#c34e33"/>
+    <text x="816" y="391" class="sans label">DESKTOP APP</text>
+    <text x="792" y="432" class="sans card-title">A direct native door</text>
+    <text x="792" y="461" class="sans copy">The release app calls Rust directly; it does not start a local server.</text>
+    <text x="792" y="486" class="sans tech">Tauri 2 invoke → thin commands · direct IPC · no TCP listener</text>
   </g>
 
-  <path d="M494 500v42h206v36" class="line"/>
-  <path d="M1188 500v42H700v36" class="line"/>
+  <path d="M380 502v40" class="local"/>
+  <path d="M1060 502v40" class="local"/>
 
-  <!-- Shared Rust service -->
+  <!-- Shared application service -->
   <g filter="url(#shadow)">
-    <rect x="174" y="578" width="1052" height="142" rx="20" fill="#1a1917"/>
-    <text x="204" y="608" class="sans" font-size="12" font-weight="700" letter-spacing="2" fill="#d97a5f">SHARED RUST APPLICATION BOUNDARY</text>
-    <text x="204" y="639" class="sans dark-title">voyalier-app · AppService</text>
-    <text x="204" y="663" class="sans dark-copy">Orchestration, SQLite transactions, network seam, keychain secrets, encrypted sensitive fields</text>
-    <g class="sans" font-size="12" fill="#f2ede1">
-      <rect x="204" y="681" width="176" height="24" rx="12" fill="#46536b"/><text x="292" y="697" text-anchor="middle">trip + fact lifecycle</text>
-      <rect x="390" y="681" width="178" height="24" rx="12" fill="#46536b"/><text x="479" y="697" text-anchor="middle">consent + snapshots</text>
-      <rect x="578" y="681" width="178" height="24" rx="12" fill="#46536b"/><text x="667" y="697" text-anchor="middle">pack management</text>
-      <rect x="766" y="681" width="198" height="24" rx="12" fill="#46536b"/><text x="865" y="697" text-anchor="middle">provider + activity log</text>
-      <rect x="974" y="681" width="222" height="24" rx="12" fill="#46536b"/><text x="1085" y="697" text-anchor="middle">vault seal / open migration</text>
-    </g>
+    <rect x="190" y="552" width="1060" height="142" rx="22" fill="#1a1917"/>
+    <text x="226" y="586" class="sans" font-size="14" font-weight="700" letter-spacing="1.8" fill="#d97a5f">BOTH DOORS ENTER THE SAME SERVICE</text>
+    <text x="226" y="624" class="sans dark-title">Shared application services</text>
+    <text x="226" y="653" class="sans dark-copy">Trip state, imports, consent, snapshots, provider calls, activity records, and vault operations.</text>
+    <text x="226" y="678" class="sans dark-tech">crates/voyalier-app · AppService · injectable fetch + secret-store seams</text>
   </g>
 
-  <path d="M700 720v35" class="line"/>
+  <!-- Separate exits: no merged connectors -->
+  <path d="M405 694v46" class="local"/>
+  <path d="M900 694v46" class="local"/>
+  <path d="M1215 694v46" class="remote"/>
 
-  <!-- Core and storage -->
+  <!-- Foundations -->
   <g>
-    <rect x="56" y="756" width="790" height="118" rx="18" fill="#faf7ef" stroke="#46536b" stroke-width="1.5"/>
-    <text x="82" y="784" class="sans section">FRAMEWORK-INDEPENDENT DOMAIN · voyalier-core</text>
-    <text x="82" y="810" class="sans card-copy">Pure rules; no Tauri, Axum, database, or network dependency.</text>
-    <g class="sans" font-size="12" font-weight="650" fill="#1a1917">
-      <rect x="82" y="827" width="110" height="28" rx="9" fill="#ebe6d7"/><text x="137" y="846" text-anchor="middle">validation</text>
-      <rect x="202" y="827" width="110" height="28" rx="9" fill="#ebe6d7"/><text x="257" y="846" text-anchor="middle">parsers</text>
-      <rect x="322" y="827" width="110" height="28" rx="9" fill="#ebe6d7"/><text x="377" y="846" text-anchor="middle">readiness</text>
-      <rect x="442" y="827" width="110" height="28" rx="9" fill="#ebe6d7"/><text x="497" y="846" text-anchor="middle">itinerary</text>
-      <rect x="562" y="827" width="110" height="28" rx="9" fill="#ebe6d7"/><text x="617" y="846" text-anchor="middle">search</text>
-      <rect x="682" y="827" width="138" height="28" rx="9" fill="#ebe6d7"/><text x="751" y="846" text-anchor="middle">brief + Today</text>
-    </g>
+    <rect x="80" y="750" width="650" height="122" rx="20" fill="#faf7ef" stroke="#46536b" stroke-width="1.7"/>
+    <text x="108" y="782" class="sans label">DETERMINISTIC CORE</text>
+    <text x="108" y="817" class="sans card-title">Rules that do not improvise</text>
+    <text x="108" y="838" class="sans copy">Validation · parsers · conflicts · readiness · search · Today · redaction</text>
+    <text x="108" y="861" class="sans tech">crates/voyalier-core · no Tauri, Axum, database, or network dependency</text>
   </g>
-
   <g>
-    <rect x="866" y="756" width="478" height="118" rx="18" fill="#faf7ef" stroke="#a9a69c"/>
-    <text x="892" y="784" class="sans section">LOCAL STATE</text>
-    <rect x="892" y="805" width="205" height="48" rx="11" fill="#ebe6d7"/>
-    <text x="994" y="826" class="sans card-title" font-size="15" text-anchor="middle">SQLite + WAL</text>
-    <text x="994" y="844" class="sans small" text-anchor="middle">trips · evidence · packs · logs</text>
-    <rect x="1109" y="805" width="209" height="48" rx="11" fill="#ebe6d7"/>
-    <text x="1213" y="826" class="sans card-title" font-size="15" text-anchor="middle">OS keychain</text>
-    <text x="1213" y="844" class="sans small" text-anchor="middle">BYOK keys · vault data key</text>
+    <rect x="755" y="750" width="290" height="122" rx="20" fill="#faf7ef" stroke="#a9a69c" stroke-width="1.5"/>
+    <text x="783" y="782" class="sans label">LOCAL STATE</text>
+    <text x="783" y="817" class="sans card-title">SQLite + keychain</text>
+    <text x="783" y="838" class="sans copy">Trips and evidence stay here.</text>
+    <text x="783" y="861" class="sans tech">WAL · migrations · vault keys</text>
+  </g>
+  <g>
+    <rect x="1070" y="750" width="290" height="122" rx="20" fill="#fff8f4" stroke="#c34e33" stroke-width="1.7"/>
+    <text x="1098" y="782" class="sans" font-size="14" font-weight="700" letter-spacing="1.5" fill="#c34e33">ONLY AFTER A CLICK</text>
+    <text x="1098" y="817" class="sans card-title">Connected sources</text>
+    <text x="1098" y="838" class="sans copy">Advice · weather · packs · tiles</text>
+    <text x="1098" y="861" class="sans tech">Ollama · OpenAI · Anthropic</text>
   </g>
 
-  <!-- Network rail -->
-  <path d="M1226 620h66v-394h-238" class="dash"/>
-  <rect x="1050" y="166" width="294" height="116" rx="16" fill="#fff8f4" stroke="#c34e33" stroke-width="1.5"/>
-  <text x="1072" y="193" class="sans" font-size="11" font-weight="700" letter-spacing="1.6" fill="#c34e33">EXPLICIT NETWORK EDGES</text>
-  <text x="1072" y="216" class="sans small">GOV.UK FCDO · Open-Meteo</text>
-  <text x="1072" y="235" class="sans small">GitHub Release city packs · map tiles</text>
-  <text x="1072" y="254" class="sans small">Ollama localhost · OpenAI · Anthropic</text>
-  <text x="1072" y="272" class="sans" font-size="10" fill="#c34e33">consent · preview · provenance · timestamp</text>
-
-  <text x="56" y="904" class="sans small">Solid indigo = local typed flow</text>
-  <line x1="220" y1="900" x2="270" y2="900" stroke="#46536b" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="300" y="904" class="sans small">Dashed vermilion = user-triggered network flow</text>
-  <line x1="566" y1="900" x2="616" y2="900" stroke="#c34e33" stroke-width="2" stroke-dasharray="7 6" marker-end="url(#arrow-red)"/>
-  <text x="660" y="904" class="sans small">Contracts use camelCase JSON and one shared AppError shape across both transports.</text>
+  <line x1="64" y1="925" x2="112" y2="925" stroke="#46536b" stroke-width="2.4" marker-end="url(#arrow-indigo)"/>
+  <text x="130" y="930" class="sans small">Local typed flow</text>
+  <line x1="288" y1="925" x2="336" y2="925" stroke="#c34e33" stroke-width="2.4" stroke-dasharray="9 7" marker-end="url(#arrow-red)"/>
+  <text x="354" y="930" class="sans small">User-triggered network flow</text>
+  <text x="1376" y="930" class="sans small" text-anchor="end">Same camelCase contract and AppError shape across HTTP and IPC.</text>
 </svg>
