@@ -14,6 +14,16 @@ interface TauriBridge {
       args?: Record<string, unknown>,
     ): Promise<T>;
   };
+  /**
+   * The event API (present under `withGlobalTauri`). The updater uses it to
+   * receive streamed `updater://progress` events emitted from Rust.
+   */
+  event?: {
+    listen<T = unknown>(
+      event: string,
+      handler: (event: { payload: T }) => void,
+    ): Promise<() => void>;
+  };
 }
 
 interface Window {
