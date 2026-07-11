@@ -16,6 +16,7 @@ mod recommend;
 mod search;
 mod today;
 mod types;
+mod vault;
 mod weather;
 
 pub use advice::{
@@ -51,6 +52,7 @@ pub use search::{
 };
 pub use today::{TodayItem, TodayItemKind, TodayView, TripPhase, TripPhaseState, build_today_view};
 pub use types::*;
+pub use vault::{VAULT_KEY_LEN, VAULT_NONCE_LEN, open, seal};
 pub use weather::{
     GeocodedPlace, WeatherCoverage, WeatherDay, WeatherSnapshot, describe_weather_code,
     parse_forecast_response, parse_geocoding_response,
