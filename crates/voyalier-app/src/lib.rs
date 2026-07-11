@@ -3048,6 +3048,24 @@ mod tests {
     }
 
     #[test]
+    fn storage_identity_is_stable_so_dev_and_packaged_builds_share_data() {
+        // These identifiers are compiled into the binary, so a source (dev)
+        // build and the packaged app resolve to the SAME SQLite file and OS
+        // keychain service — a user who tries Voyalier from source and later
+        // installs the packaged app keeps their trips and vault key. Changing
+        // either would silently orphan every existing user's data, so pin them:
+        // a deliberate change must update this test in the same commit.
+        assert_eq!(DATABASE_FILE, "voyalier.sqlite3");
+        assert_eq!(KEYRING_SERVICE, "com.voyalier.keys");
+        let dirs = ProjectDirs::from("com", "voyalier", "Voyalier").expect("project dirs");
+        assert!(
+            dirs.data_dir().to_string_lossy().contains("Voyalier"),
+            "data dir must encode the stable app identity: {:?}",
+            dirs.data_dir()
+        );
+    }
+
+    #[test]
     fn detect_local_ai_reports_models_when_reachable_and_unavailable_when_not() {
         struct OllamaFetcher {
             reachable: bool,
