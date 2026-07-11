@@ -22,6 +22,8 @@ export interface TripDetail {
   itineraryConflicts: ItineraryConflict[];
   /** Deterministic plan-completeness rollup (logistics only, no sourced/entry data). */
   readiness: ReadinessSummary;
+  /** The latest user-fetched official travel-advice snapshot, when one exists. */
+  travelAdvice?: TravelAdviceSnapshot;
 }
 export type ReadinessCheck =
   | "schedule_conflicts"
@@ -134,6 +136,32 @@ export interface ImportResult {
   parserRunId: string;
   candidates: CandidateFact[];
 }
+/** One fetchable FCDO country page (curated list; slugs are never free text). */
+export interface FcdoCountry {
+  slug: string;
+  name: string;
+}
+/** A dated, verbatim snapshot of one country's FCDO travel advice (OGL v3.0). */
+export interface TravelAdviceSnapshot {
+  countrySlug: string;
+  countryName: string;
+  /** The human page this snapshot came from. */
+  sourceUrl: string;
+  /** Verbatim GOV.UK description. May be empty. */
+  summary: string;
+  /** Verbatim alert-status identifiers (often empty). */
+  alertStatus: string[];
+  /** GOV.UK's own public_updated_at, verbatim. */
+  sourceUpdatedAt?: string;
+  /** GOV.UK's latest change description, verbatim. */
+  changeDescription?: string;
+  /** When this device retrieved the snapshot (RFC 3339). */
+  retrievedAt: string;
+}
+export interface FetchTravelAdviceInput {
+  tripId: string;
+  countrySlug: string;
+}
 export type SearchHitSource = "document" | "confirmed_fact";
 export interface SearchHit {
   source: SearchHitSource;
@@ -179,6 +207,7 @@ export type ErrorCode =
   | "document/too_large"
   | "document/duplicate"
   | "document/empty"
+  | "advice/fetch_failed"
   | "storage/failure"
   | "transport/failure"
   | "internal/unexpected";
@@ -224,6 +253,10 @@ export interface AppGateway {
   updateTrip(tripId: string, input: UpdateTripInput): Promise<Trip>;
   archiveTrip(tripId: string): Promise<Trip>;
   getTripBrief(tripId: string): Promise<TripBrief>;
+  listAdviceCountries(): Promise<FcdoCountry[]>;
+  fetchTravelAdvice(
+    input: FetchTravelAdviceInput,
+  ): Promise<TravelAdviceSnapshot>;
   searchTrip(tripId: string, query: string): Promise<SearchHit[]>;
   deleteTrip(tripId: string): Promise<void>;
   importDocument(input: ImportDocumentInput): Promise<ImportResult>;

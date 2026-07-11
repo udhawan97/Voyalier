@@ -6,10 +6,13 @@ import type {
   ConfirmCandidateInput,
   ConfirmedFact,
   CreateTripInput,
+  FcdoCountry,
+  FetchTravelAdviceInput,
   HealthResponse,
   ImportDocumentInput,
   ImportResult,
   SearchHit,
+  TravelAdviceSnapshot,
   Trip,
   TripBrief,
   TripDetail,
@@ -94,6 +97,16 @@ export function createHttpGateway(
 
     getTripBrief: (tripId: string) =>
       request<TripBrief>("GET", `/api/v1/trips/${enc(tripId)}/brief`),
+
+    listAdviceCountries: () =>
+      request<FcdoCountry[]>("GET", "/api/v1/advice/countries"),
+
+    fetchTravelAdvice: (input: FetchTravelAdviceInput) =>
+      request<TravelAdviceSnapshot>(
+        "POST",
+        `/api/v1/trips/${enc(input.tripId)}/travel-advice`,
+        { countrySlug: input.countrySlug },
+      ),
 
     searchTrip: (tripId: string, query: string) =>
       request<SearchHit[]>(

@@ -979,6 +979,134 @@ h3 {
   line-height: 1.5;
 }
 
+/* ===== Official travel advice ========================================== */
+
+.voy-advice {
+  margin-top: 2.6rem;
+  padding-top: 1.8rem;
+  border-top: 1px solid var(--voy-line);
+}
+
+.voy-advice__title {
+  font-size: 1.4rem;
+  font-family: var(--voy-font-display);
+  margin-bottom: 1rem;
+}
+
+.voy-advice__card {
+  padding: 1.1rem 1.25rem;
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-raised);
+  margin-bottom: 1.1rem;
+}
+
+.voy-advice__card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.voy-advice__country {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 620;
+}
+
+.voy-advice__freshness {
+  font-size: 0.8rem;
+  color: var(--voy-ink-muted);
+}
+
+.voy-advice__freshness--stale {
+  color: var(--voy-vermilion);
+  font-weight: 600;
+}
+
+.voy-advice__alerts {
+  list-style: none;
+  margin: 0.7rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.voy-advice__alerts li {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--voy-vermilion) 42%, transparent);
+  background: var(--voy-tint-vermilion);
+  color: var(--voy-vermilion);
+  font-size: 0.78rem;
+  font-weight: 620;
+}
+
+.voy-advice__summary {
+  margin: 0.8rem 0 0;
+  padding-left: 0.9rem;
+  border-left: 3px solid var(--voy-line-strong);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.voy-advice__change {
+  margin: 0.7rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.voy-advice__meta {
+  margin: 0.9rem 0 0;
+  font-size: 0.85rem;
+  color: var(--voy-ink-muted);
+}
+
+.voy-advice__meta a {
+  color: var(--voy-indigo);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.voy-advice__licence {
+  margin: 0.6rem 0 0;
+  color: var(--voy-silver);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.voy-advice__fetch {
+  display: flex;
+  gap: 0.6rem;
+  max-width: 34rem;
+}
+
+.voy-advice__select {
+  flex: 1;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-sm);
+  background: var(--voy-paper-raised);
+  color: var(--voy-ink);
+  font: inherit;
+}
+
+.voy-advice__select:focus-visible {
+  outline: 2px solid var(--voy-focus);
+  outline-offset: 1px;
+}
+
+.voy-advice__consent {
+  margin: 0.7rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  max-width: 40rem;
+}
+
 /* ===== Trip search ===================================================== */
 
 .voy-search {

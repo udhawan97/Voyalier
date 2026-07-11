@@ -6,10 +6,13 @@ import type {
   ConfirmCandidateInput,
   ConfirmedFact,
   CreateTripInput,
+  FcdoCountry,
+  FetchTravelAdviceInput,
   HealthResponse,
   ImportDocumentInput,
   ImportResult,
   SearchHit,
+  TravelAdviceSnapshot,
   Trip,
   TripBrief,
   TripDetail,
@@ -73,6 +76,11 @@ export function createTauriGateway(
 
     getTripBrief: (tripId: string) =>
       call<TripBrief>("get_trip_brief", { tripId }),
+
+    listAdviceCountries: () => call<FcdoCountry[]>("list_advice_countries", {}),
+
+    fetchTravelAdvice: (input: FetchTravelAdviceInput) =>
+      call<TravelAdviceSnapshot>("fetch_travel_advice", input),
 
     searchTrip: (tripId: string, query: string) =>
       call<SearchHit[]>("search_trip", { tripId, query }),

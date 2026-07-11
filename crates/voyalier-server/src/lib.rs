@@ -34,6 +34,12 @@ struct SearchQuery {
     q: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FetchAdviceBody {
+    country_slug: String,
+}
+
 #[derive(Debug)]
 struct ApiError(AppError);
 
@@ -67,7 +73,12 @@ pub fn app(service: AppService) -> Router {
             get(get_trip).patch(update_trip).delete(delete_trip),
         )
         .route("/api/v1/trips/{trip_id}/archive", post(archive_trip))
+        .route("/api/v1/advice/countries", get(list_advice_countries))
         .route("/api/v1/trips/{trip_id}/brief", get(get_trip_brief))
+        .route(
+            "/api/v1/trips/{trip_id}/travel-advice",
+            post(fetch_travel_advice),
+        )
         .route("/api/v1/trips/{trip_id}/search", get(search_trip))
         .route("/api/v1/trips/{trip_id}/documents", post(import_document))
         .route("/api/v1/trips/{trip_id}/candidates", get(list_candidates))
@@ -137,6 +148,22 @@ async fn search_trip(
     Query(query): Query<SearchQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(service.search_trip(&trip_id, &query.q)?))
+}
+
+async fn list_advice_countries(
+    State(service): State<AppService>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.list_advice_countries()))
+}
+
+async fn fetch_travel_advice(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+    Json(body): Json<FetchAdviceBody>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(
+        service.fetch_travel_advice(&trip_id, &body.country_slug)?,
+    ))
 }
 
 async fn delete_trip(
@@ -274,6 +301,7 @@ fn status_for_error(code: ErrorCode) -> StatusCode {
         }
         ErrorCode::CandidateAlreadyResolved | ErrorCode::DocumentDuplicate => StatusCode::CONFLICT,
         ErrorCode::DocumentTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
+        ErrorCode::AdviceFetchFailed => StatusCode::BAD_GATEWAY,
         _ => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }
@@ -548,6 +576,78 @@ mod tests {
         )
         .await;
         assert_eq!(too_large.status, StatusCode::PAYLOAD_TOO_LARGE);
+        cleanup_database(database);
+    }
+
+    #[tokio::test]
+    async fn advice_endpoints_serve_countries_and_stubbed_snapshots() {
+        use std::sync::Arc;
+        use voyalier_app::AdviceFetcher;
+
+        struct StubFetcher;
+        impl AdviceFetcher for StubFetcher {
+            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+                Ok(
+                    r#"{ "description": "FCDO travel advice for Japan.", "details": {} }"#
+                        .to_owned(),
+                )
+            }
+        }
+
+        let database = temp_database("advice");
+        let service =
+            AppService::open_path_with_fetcher(&database, Arc::new(StubFetcher)).expect("service");
+        let router = app(service);
+
+        let countries = request(
+            router.clone(),
+            Method::GET,
+            "/api/v1/advice/countries",
+            None,
+        )
+        .await;
+        assert_eq!(countries.status, StatusCode::OK);
+        assert!(
+            countries
+                .json
+                .as_array()
+                .expect("countries")
+                .iter()
+                .any(|country| country["slug"] == "japan")
+        );
+
+        let trip = create_trip_direct(&router).await;
+        let trip_id = trip["id"].as_str().expect("trip id");
+
+        let fetched = request(
+            router.clone(),
+            Method::POST,
+            &format!("/api/v1/trips/{trip_id}/travel-advice"),
+            Some(json!({ "countrySlug": "japan" })),
+        )
+        .await;
+        assert_eq!(fetched.status, StatusCode::OK);
+        assert_eq!(fetched.json["countryName"], "Japan");
+        assert!(fetched.json.get("retrievedAt").is_some());
+
+        // The snapshot rides on the trip detail afterwards.
+        let detail = request(
+            router.clone(),
+            Method::GET,
+            &format!("/api/v1/trips/{trip_id}"),
+            None,
+        )
+        .await;
+        assert_eq!(detail.json["travelAdvice"]["countrySlug"], "japan");
+
+        let bad_slug = request(
+            router,
+            Method::POST,
+            &format!("/api/v1/trips/{trip_id}/travel-advice"),
+            Some(json!({ "countrySlug": "atlantis" })),
+        )
+        .await;
+        assert_eq!(bad_slug.status, StatusCode::BAD_REQUEST);
         cleanup_database(database);
     }
 

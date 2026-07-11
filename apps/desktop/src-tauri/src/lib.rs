@@ -3,8 +3,8 @@ use tauri::State;
 use voyalier_app::AppService;
 use voyalier_core::{
     AddManualFactInput, AppError, CandidateFact, CandidateStatus, ConfirmCandidateInput,
-    ConfirmedFact, CreateTripInput, HealthResponse, ImportDocumentInput, ImportResult, SearchHit,
-    Trip, TripBrief, TripDetail, TripSummary, UpdateTripInput,
+    ConfirmedFact, CreateTripInput, FcdoCountry, HealthResponse, ImportDocumentInput, ImportResult,
+    SearchHit, TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripSummary, UpdateTripInput,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -111,6 +111,30 @@ fn search_trip(
     service.search_trip(&input.trip_id, &input.query)
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FetchAdviceInput {
+    trip_id: String,
+    country_slug: String,
+}
+
+#[tauri::command]
+fn list_advice_countries(
+    input: EmptyInput,
+    service: State<'_, AppService>,
+) -> Result<Vec<FcdoCountry>, AppError> {
+    let _ = input;
+    Ok(service.list_advice_countries())
+}
+
+#[tauri::command]
+fn fetch_travel_advice(
+    input: FetchAdviceInput,
+    service: State<'_, AppService>,
+) -> Result<TravelAdviceSnapshot, AppError> {
+    service.fetch_travel_advice(&input.trip_id, &input.country_slug)
+}
+
 #[tauri::command]
 fn delete_trip(input: TripIdInput, service: State<'_, AppService>) -> Result<(), AppError> {
     service.delete_trip(&input.trip_id)
@@ -180,6 +204,8 @@ fn builder<R: tauri::Runtime>(
             archive_trip,
             get_trip_brief,
             search_trip,
+            list_advice_countries,
+            fetch_travel_advice,
             delete_trip,
             import_document,
             list_candidates,
@@ -336,6 +362,18 @@ mod tests {
         .expect("search trip");
         assert!(!hits.as_array().expect("hits").is_empty());
 
+        // Countries list is local and static; the fetch command itself is
+        // network-backed and is exercised at the app/server layers with stubs.
+        let countries =
+            invoke(&webview, "list_advice_countries", json!({})).expect("advice countries");
+        assert!(
+            countries
+                .as_array()
+                .expect("countries")
+                .iter()
+                .any(|country| country["slug"] == "japan")
+        );
+
         let brief =
             invoke(&webview, "get_trip_brief", json!({ "tripId": trip_id })).expect("trip brief");
         assert!(brief.get("redactedFields").is_some());
@@ -365,6 +403,8 @@ mod tests {
             "archive_trip",
             "get_trip_brief",
             "search_trip",
+            "list_advice_countries",
+            "fetch_travel_advice",
             "delete_trip",
             "import_document",
             "list_candidates",

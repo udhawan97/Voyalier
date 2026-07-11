@@ -10,19 +10,50 @@ use sha2::{Digest, Sha256};
 use voyalier_core::{
     AddManualFactInput, AppError, CandidateFact, CandidateStatus, ConfirmCandidateInput,
     ConfirmationParser, ConfirmedFact, CreateTripInput, DocumentKind, ErrorCode, ExtractionMethod,
-    HealthResponse, ImportDocumentInput, ImportResult, IntelligenceMode, JsonLdParser,
-    NormalizedDocument, ParsedCandidate, PlaintextParser, RedactionPolicy, SearchHit,
-    SearchableDocument, SourceDocument, Trip, TripBrief, TripDetail, TripStatus, TripSummary,
-    UpdateTripInput, assess_readiness, build_trip_brief, changed_payload_fields,
-    detect_itinerary_conflicts, new_id, now_rfc3339, search_trip_corpus, validate_create_trip,
+    FCDO_COUNTRIES, FcdoCountry, HealthResponse, ImportDocumentInput, ImportResult,
+    IntelligenceMode, JsonLdParser, NormalizedDocument, ParsedCandidate, PlaintextParser,
+    RedactionPolicy, SearchHit, SearchableDocument, SourceDocument, TravelAdviceSnapshot, Trip,
+    TripBrief, TripDetail, TripStatus, TripSummary, UpdateTripInput, assess_readiness,
+    build_trip_brief, changed_payload_fields, detect_itinerary_conflicts, new_id, now_rfc3339,
+    parse_fcdo_content, search_trip_corpus, validate_country_slug, validate_create_trip,
     validate_document_content, validate_fact_payload, validate_search_query, validate_update_trip,
 };
 
 const DATABASE_FILE: &str = "voyalier.sqlite3";
 
+/// Fetches a URL's body as text. The only network seam in the application
+/// layer — injectable so every test runs without touching the network.
+pub trait AdviceFetcher: Send + Sync {
+    fn fetch_text(&self, url: &str) -> Result<String, AppError>;
+}
+
+/// Production fetcher: ureq with a global timeout and an identifying
+/// User-Agent, per API-citizenship norms for keyless government endpoints.
+struct UreqFetcher;
+
+impl AdviceFetcher for UreqFetcher {
+    fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+        let config = ureq::Agent::config_builder()
+            .timeout_global(Some(std::time::Duration::from_secs(15)))
+            .user_agent("Voyalier/0.1 (+https://github.com/udhawan97/Voyalier)")
+            .build();
+        let agent: ureq::Agent = config.into();
+        let mut response = agent.get(url).call().map_err(fetch_failure)?;
+        response.body_mut().read_to_string().map_err(fetch_failure)
+    }
+}
+
+fn fetch_failure(cause: ureq::Error) -> AppError {
+    AppError::new(
+        ErrorCode::AdviceFetchFailed,
+        format!("could not reach the official source: {cause}"),
+    )
+}
+
 #[derive(Clone)]
 pub struct AppService {
     connection: Arc<Mutex<Connection>>,
+    fetcher: Arc<dyn AdviceFetcher>,
 }
 
 impl AppService {
@@ -31,6 +62,14 @@ impl AppService {
     }
 
     pub fn open_path(path: impl AsRef<Path>) -> Result<Self, AppError> {
+        Self::open_path_with_fetcher(path, Arc::new(UreqFetcher))
+    }
+
+    /// Test/embedding constructor with an injected fetcher.
+    pub fn open_path_with_fetcher(
+        path: impl AsRef<Path>,
+        fetcher: Arc<dyn AdviceFetcher>,
+    ) -> Result<Self, AppError> {
         let path = path.as_ref();
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(storage_error)?;
@@ -39,6 +78,7 @@ impl AppService {
         init_connection(&connection)?;
         Ok(Self {
             connection: Arc::new(Mutex::new(connection)),
+            fetcher,
         })
     }
 
@@ -129,13 +169,75 @@ impl AppService {
             pending_candidate_count,
             &itinerary_conflicts,
         );
+        let travel_advice = fetch_travel_advice_snapshot(&connection, trip_id)?;
         Ok(TripDetail {
             trip,
             confirmed_facts,
             pending_candidate_count,
             itinerary_conflicts,
             readiness,
+            travel_advice,
         })
+    }
+
+    /// The curated list of fetchable FCDO country pages.
+    pub fn list_advice_countries(&self) -> Vec<FcdoCountry> {
+        FCDO_COUNTRIES.to_vec()
+    }
+
+    /// Fetch and store a dated snapshot of official FCDO travel advice for a
+    /// curated country. Called only from an explicit user action — the click
+    /// is the consent for this single, named, keyless fetch. The snapshot is
+    /// stored verbatim with its retrieval time and replaces the trip's
+    /// previous snapshot.
+    pub fn fetch_travel_advice(
+        &self,
+        trip_id: &str,
+        country_slug: &str,
+    ) -> Result<TravelAdviceSnapshot, AppError> {
+        let country = validate_country_slug(country_slug)?;
+        // Validate the trip before any network call.
+        {
+            let connection = self.connection()?;
+            fetch_trip(&connection, trip_id)?;
+        }
+        let url = format!(
+            "https://www.gov.uk/api/content/foreign-travel-advice/{}",
+            country.slug
+        );
+        let body = self.fetcher.fetch_text(&url)?;
+        let snapshot = parse_fcdo_content(country, &body, &now_rfc3339())?;
+
+        let connection = self.connection()?;
+        connection
+            .execute(
+                "INSERT INTO travel_advice_snapshots
+                 (trip_id, country_slug, country_name, source_url, summary, alert_status,
+                  source_updated_at, change_description, retrieved_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                 ON CONFLICT(trip_id) DO UPDATE SET
+                   country_slug = excluded.country_slug,
+                   country_name = excluded.country_name,
+                   source_url = excluded.source_url,
+                   summary = excluded.summary,
+                   alert_status = excluded.alert_status,
+                   source_updated_at = excluded.source_updated_at,
+                   change_description = excluded.change_description,
+                   retrieved_at = excluded.retrieved_at",
+                params![
+                    trip_id,
+                    snapshot.country_slug,
+                    snapshot.country_name,
+                    snapshot.source_url,
+                    snapshot.summary,
+                    json_to_sql(&snapshot.alert_status)?,
+                    snapshot.source_updated_at,
+                    snapshot.change_description,
+                    snapshot.retrieved_at
+                ],
+            )
+            .map_err(storage_error)?;
+        Ok(snapshot)
     }
 
     /// Deterministic search over this trip's stored documents and confirmed
@@ -553,6 +655,18 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
                 resolved_at TEXT
             );
 
+            CREATE TABLE IF NOT EXISTS travel_advice_snapshots (
+                trip_id TEXT PRIMARY KEY REFERENCES trips(id) ON DELETE CASCADE,
+                country_slug TEXT NOT NULL,
+                country_name TEXT NOT NULL,
+                source_url TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                alert_status TEXT NOT NULL,
+                source_updated_at TEXT,
+                change_description TEXT,
+                retrieved_at TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS confirmed_facts (
                 id TEXT PRIMARY KEY,
                 trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
@@ -612,6 +726,33 @@ fn fetch_candidate(connection: &Connection, candidate_id: &str) -> Result<Candid
         .optional()
         .map_err(storage_error)?
         .ok_or_else(|| AppError::new(ErrorCode::CandidateNotFound, "candidate not found"))
+}
+
+fn fetch_travel_advice_snapshot(
+    connection: &Connection,
+    trip_id: &str,
+) -> Result<Option<TravelAdviceSnapshot>, AppError> {
+    connection
+        .query_row(
+            "SELECT country_slug, country_name, source_url, summary, alert_status,
+                    source_updated_at, change_description, retrieved_at
+             FROM travel_advice_snapshots WHERE trip_id = ?1",
+            params![trip_id],
+            |row| {
+                Ok(TravelAdviceSnapshot {
+                    country_slug: row.get(0)?,
+                    country_name: row.get(1)?,
+                    source_url: row.get(2)?,
+                    summary: row.get(3)?,
+                    alert_status: sql_to_json(row.get::<_, String>(4)?)?,
+                    source_updated_at: row.get(5)?,
+                    change_description: row.get(6)?,
+                    retrieved_at: row.get(7)?,
+                })
+            },
+        )
+        .optional()
+        .map_err(storage_error)
 }
 
 fn fetch_confirmed_facts(
@@ -1038,6 +1179,71 @@ mod tests {
                 .expect_err("missing trip")
                 .code,
             ErrorCode::TripNotFound
+        );
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn fetch_travel_advice_stores_a_dated_snapshot_without_network_in_tests() {
+        struct StubFetcher {
+            calls: std::sync::Mutex<Vec<String>>,
+        }
+        impl AdviceFetcher for StubFetcher {
+            fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+                self.calls.lock().expect("lock").push(url.to_owned());
+                Ok(r#"{
+                    "description": "FCDO travel advice for Japan.",
+                    "public_updated_at": "2026-06-30T11:02:00.000+01:00",
+                    "details": { "alert_status": [], "change_description": "Latest update: typhoon season." }
+                }"#
+                .to_owned())
+            }
+        }
+
+        let database = temp_database("advice");
+        let fetcher = Arc::new(StubFetcher {
+            calls: std::sync::Mutex::new(Vec::new()),
+        });
+        let service =
+            AppService::open_path_with_fetcher(&database, fetcher.clone()).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        // Unknown slug is rejected before any fetch happens.
+        assert_eq!(
+            service
+                .fetch_travel_advice(&trip.id, "atlantis")
+                .expect_err("unknown slug")
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
+        assert!(fetcher.calls.lock().expect("lock").is_empty());
+
+        let snapshot = service
+            .fetch_travel_advice(&trip.id, "japan")
+            .expect("snapshot");
+        assert_eq!(snapshot.country_name, "Japan");
+        assert!(!snapshot.retrieved_at.is_empty());
+        assert_eq!(
+            fetcher.calls.lock().expect("lock").as_slice(),
+            ["https://www.gov.uk/api/content/foreign-travel-advice/japan"]
+        );
+
+        // The snapshot persists and surfaces on the trip detail.
+        let detail = service.get_trip(&trip.id).expect("detail");
+        let stored = detail.travel_advice.expect("stored snapshot");
+        assert_eq!(stored.country_slug, "japan");
+        assert_eq!(stored.summary, "FCDO travel advice for Japan.");
+        assert_eq!(
+            stored.change_description.as_deref(),
+            Some("Latest update: typhoon season.")
+        );
+
+        // The curated country list is exposed for the picker.
+        assert!(
+            service
+                .list_advice_countries()
+                .iter()
+                .any(|country| country.slug == "japan")
         );
         cleanup_database(database);
     }

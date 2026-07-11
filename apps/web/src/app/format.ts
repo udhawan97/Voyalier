@@ -9,8 +9,18 @@ import type {
 } from "@voyalier/contracts";
 
 const MONTHS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
 ];
 
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -198,13 +208,19 @@ export function formatFieldValue(key: string, value: string): string {
  * emit exactly the contract's local wall-clock format ("YYYY-MM-DDTHH:mm" /
  * "YYYY-MM-DD"), so no timezone conversion ever happens.
  */
-export function fieldInputType(key: string): "date" | "datetime-local" | "text" {
+export function fieldInputType(
+  key: string,
+): "date" | "datetime-local" | "text" {
   if (DATETIME_FIELDS.has(key)) return "datetime-local";
   if (DATE_FIELDS.has(key)) return "date";
   return "text";
 }
 
-export function pluralize(count: number, singular: string, plural?: string): string {
+export function pluralize(
+  count: number,
+  singular: string,
+  plural?: string,
+): string {
   return count === 1 ? singular : (plural ?? `${singular}s`);
 }
 
@@ -290,6 +306,11 @@ export function describeError(error: AppError): ErrorCopy {
         title: "Already imported",
         body: "This exact document was imported before.",
       };
+    case "advice/fetch_failed":
+      return {
+        title: "Couldn't reach the official source",
+        body: "Voyalier couldn't fetch the advice page right now. Check your connection and try again — nothing was changed.",
+      };
     case "validation/invalid_input":
     case "validation/invalid_date_range":
       return {
@@ -306,11 +327,7 @@ export function describeError(error: AppError): ErrorCopy {
 }
 
 export type TripFieldKey =
-  | "origin"
-  | "destination"
-  | "startDate"
-  | "endDate"
-  | "dates";
+  "origin" | "destination" | "startDate" | "endDate" | "dates";
 
 /**
  * Map a server/mock validation AppError back onto trip form fields. Mirrors the
@@ -324,7 +341,8 @@ export function tripFieldError(
   }
   if (error.code === "validation/invalid_input") {
     const field = error.details?.field ?? "";
-    if (field.includes("origin")) return { field: "origin", message: error.message };
+    if (field.includes("origin"))
+      return { field: "origin", message: error.message };
     if (field.includes("destination")) {
       return { field: "destination", message: error.message };
     }

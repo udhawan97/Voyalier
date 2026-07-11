@@ -35,11 +35,15 @@
 Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
 (local retrieval) → B (recommendations) → C (BYOK providers).
 
-- ◑ Sourced readiness: the link-only `entry_requirements` item shipped
-  (curated official-source links; never asserts or clears rules; excluded from
-  the rollup). Remaining: consent-gated dated FCDO/State snapshots with
-  provenance and freshness — blocked on owner decisions (HTTP dependency,
-  consent granularity, destination→country mapping).
+- ✓ Sourced readiness, first sources: the link-only `entry_requirements`
+  readiness item (curated official links; never asserts or clears rules;
+  excluded from the rollup) plus consent-gated FCDO snapshots — an explicit
+  "Fetch official advice" click contacts the keyless GOV.UK Content API once
+  (ureq, identifying User-Agent), stores a dated verbatim snapshot locally, and
+  renders it with source link, OGL v3.0 attribution, retrieval time, staleness
+  after 7 days, and a UK-passport-holders label. Country slugs come from a
+  curated list in code, never from trip text or a model. Remaining: additional
+  sources (US State RSS, health, weather) behind the same consent pattern.
 - ✓ Local retrieval, first slice: `searchTrip` ships as a deterministic scan
   over stored documents and confirmed facts with provenance and transparent
   scoring ("Find in this trip"). FTS5/embeddings may replace the internals

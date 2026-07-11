@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
+use crate::advice::TravelAdviceSnapshot;
+
 pub const MAX_LOCATION_LEN: usize = 120;
 pub const MAX_DOCUMENT_CHARS: usize = 1_000_000;
 
@@ -71,6 +73,10 @@ pub struct TripDetail {
     pub itinerary_conflicts: Vec<ItineraryConflict>,
     /// Deterministic plan-completeness rollup (logistics only, no sourced/entry data).
     pub readiness: ReadinessSummary,
+    /// The latest user-fetched official travel-advice snapshot, when one exists.
+    /// Additive; omitted on the wire when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub travel_advice: Option<TravelAdviceSnapshot>,
 }
 
 /// Which deterministic plan-completeness check a readiness item reports on.
@@ -347,6 +353,8 @@ pub enum ErrorCode {
     DocumentDuplicate,
     #[serde(rename = "document/empty")]
     DocumentEmpty,
+    #[serde(rename = "advice/fetch_failed")]
+    AdviceFetchFailed,
     #[serde(rename = "storage/failure")]
     StorageFailure,
     #[serde(rename = "transport/failure")]
@@ -367,6 +375,7 @@ impl ErrorCode {
             Self::DocumentTooLarge => "document/too_large",
             Self::DocumentDuplicate => "document/duplicate",
             Self::DocumentEmpty => "document/empty",
+            Self::AdviceFetchFailed => "advice/fetch_failed",
             Self::StorageFailure => "storage/failure",
             Self::TransportFailure => "transport/failure",
             Self::InternalUnexpected => "internal/unexpected",

@@ -46,8 +46,9 @@ import { AddFactDialog } from "./AddFactDialog";
 import { BriefDialog } from "./BriefDialog";
 import { CandidateReviewDialog } from "./CandidateReviewDialog";
 import { DeleteTripDialog } from "./DeleteTripDialog";
-import { TripSearch } from "./TripSearch";
 import { ImportDialog } from "./ImportDialog";
+import { TravelAdvice } from "./TravelAdvice";
+import { TripSearch } from "./TripSearch";
 
 type Values = Record<string, string | undefined>;
 
@@ -532,6 +533,12 @@ export function TripDetailView({
       {confirmedFacts.length > 0 ? (
         <ScheduleCheck conflicts={itineraryConflicts} />
       ) : null}
+
+      <TravelAdvice
+        tripId={tripId}
+        snapshot={data.detail.travelAdvice}
+        onFetched={() => reload()}
+      />
 
       <TripSearch tripId={tripId} />
 

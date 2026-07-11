@@ -9,6 +9,8 @@ import type {
   CreateTripInput,
   ErrorCode,
   FactPayload,
+  FcdoCountry,
+  FetchTravelAdviceInput,
   FlightSegmentPayload,
   HealthResponse,
   ImportDocumentInput,
@@ -21,6 +23,7 @@ import type {
   ReadinessSummary,
   SearchHit,
   SourceDocument,
+  TravelAdviceSnapshot,
   Trip,
   TripBrief,
   TripDetail,
@@ -526,6 +529,14 @@ function assessReadiness(
   return { status, items: [...logistics, entryRequirements] };
 }
 
+const MOCK_ADVICE_COUNTRIES: FcdoCountry[] = [
+  { slug: "france", name: "France" },
+  { slug: "japan", name: "Japan" },
+  { slug: "portugal", name: "Portugal" },
+  { slug: "spain", name: "Spain" },
+  { slug: "usa", name: "USA" },
+];
+
 function countOccurrences(haystack: string, needle: string): number {
   if (!needle) return 0;
   let count = 0;
@@ -638,6 +649,7 @@ export function createMockGateway(options?: {
     fixtureConfirmedFacts.map((fact) => [fact.id, clone(fact)]),
   );
   const documents = new Map<string, StoredDocument>();
+  const adviceSnapshots = new Map<string, TravelAdviceSnapshot>();
   let sequence = 1;
 
   function timestamp(): string {
@@ -758,6 +770,7 @@ export function createMockGateway(options?: {
           trip,
           confirmedFacts,
         );
+        const travelAdvice = adviceSnapshots.get(tripId);
         return {
           trip: clone(trip),
           confirmedFacts,
@@ -768,6 +781,7 @@ export function createMockGateway(options?: {
             pendingCandidateCount,
             itineraryConflicts,
           ),
+          ...(travelAdvice ? { travelAdvice: clone(travelAdvice) } : {}),
         } satisfies TripDetail;
       }),
 
@@ -888,6 +902,36 @@ export function createMockGateway(options?: {
         return buildShareBrief(trip, tripFacts, timestamp());
       }),
 
+    listAdviceCountries: () =>
+      execute("listAdviceCountries", () => MOCK_ADVICE_COUNTRIES.map(clone)),
+
+    fetchTravelAdvice: (input: FetchTravelAdviceInput) =>
+      execute("fetchTravelAdvice", () => {
+        requireTrip(input.tripId);
+        const country = MOCK_ADVICE_COUNTRIES.find(
+          (entry) => entry.slug === input.countrySlug,
+        );
+        if (!country) {
+          throw appError("validation/invalid_input", "unknown country", {
+            field: "countrySlug",
+          });
+        }
+        // Fictional snapshot shaped like a real FCDO content response.
+        const snapshot: TravelAdviceSnapshot = {
+          countrySlug: country.slug,
+          countryName: country.name,
+          sourceUrl: `https://www.gov.uk/foreign-travel-advice/${country.slug}`,
+          summary: `FCDO travel advice for ${country.name}. Includes safety and security, entry requirements, and legal differences. (Fictional fixture.)`,
+          alertStatus: [],
+          sourceUpdatedAt: "2026-06-30T11:02:00.000+01:00",
+          changeDescription:
+            "Latest update: Fictional fixture update for interface development.",
+          retrievedAt: timestamp(),
+        };
+        adviceSnapshots.set(input.tripId, snapshot);
+        return clone(snapshot);
+      }),
+
     deleteTrip: (tripId: string) =>
       execute("deleteTrip", () => {
         requireTrip(tripId);
@@ -901,6 +945,7 @@ export function createMockGateway(options?: {
         for (const [id, stored] of documents) {
           if (stored.document.tripId === tripId) documents.delete(id);
         }
+        adviceSnapshots.delete(tripId);
       }),
 
     importDocument: (input: ImportDocumentInput) =>
