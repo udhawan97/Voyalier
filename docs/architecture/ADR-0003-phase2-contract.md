@@ -1,7 +1,10 @@
 # ADR-0003: Phase 2 contract-change request (grounded intelligence)
 
-- Status: Proposed
-- Date: 2026-07-10
+- Status: Partially adopted — A (entry links, FCDO advice, weather with
+  snapshot invalidation on trip edits) and the first D slice (searchTrip)
+  shipped as additive contract changes; remaining A sources (US State
+  advisories, health) plus B and C await owner decisions.
+- Date: 2026-07-10 (status updated same day)
 
 ## Context
 
