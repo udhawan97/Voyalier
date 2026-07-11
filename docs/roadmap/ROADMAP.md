@@ -127,11 +127,14 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   trip — phase (upcoming/active/completed with day counts), today's items
   (departures, arrivals, check-ins/outs, staying-tonight), and the next anchor.
   Computed from confirmed facts against the current date; no network, no model.
-- Encrypted vault. _(✓ Crypto foundation shipped: a tested XChaCha20-Poly1305
-  seal/open primitive in core. Remaining: generate + keychain-store the data
-  key, wire encryption into storage with a migration, and design the unlock
-  experience — passphrase vs. transparent OS-keychain unlock is a product
-  decision that gates the wiring.)_
+- ✓ Encrypted vault (at rest, keychain default): confirmed-fact payloads
+  (confirmation codes, traveler names) are sealed at rest with an
+  XChaCha20-Poly1305 data key held in the OS keychain, transparently at the
+  single storage seam, with an idempotent migration of legacy rows. Degrades to
+  plaintext when no keychain exists (headless/CI) so the app runs everywhere.
+  Remaining: the **optional passphrase** layer (Argon2-derived key wrap + an
+  unlock flow), the second half of the chosen keychain-default-plus-passphrase
+  model.
 - ✓ Map view: a consent-gated MapLibre GL map plotting the trip's destination
   and downloaded-pack recommendations. Default basemap is OpenFreeMap (free, no
   API key, OpenStreetMap-derived, self-hostable); per-pack PMTiles extracts
