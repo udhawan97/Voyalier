@@ -56,9 +56,15 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
 
 **Owner decisions recorded (ADR-0003), not yet built:**
 
-- Packs (B): CI-built, ~20 cities, Overture places + Wikivoyage prose as a
-  separate CC BY-SA layer with a per-layer license manifest, hosted on GitHub
-  Releases, downloaded per trip with consent.
+- ✓ Packs (B), catalog: a validated catalog of downloadable city packs, listed
+  end to end. Locks in the required seeds — Nashville plus Hawaii as four
+  separate per-island packs (Oʻahu, Maui, Kauaʻi, Big Island) — plus ~11 more
+  destinations (16 total). Each pack keeps Overture places and Wikivoyage prose
+  as separate layers with their own licenses (permissive vs. share-alike). The
+  lazy "Offline city data" panel shows coverage and per-layer licenses.
+  Remaining for B: a CI pipeline that builds each pack's contents from Overture
+  + Wikivoyage clipped to its bbox and publishes to GitHub Releases, then a
+  consented per-trip download that stores a pack locally.
 - ✓ Providers (C), detection + key storage: on-device AI **detection**
   (user-initiated "Check for on-device AI" probes `localhost:11434/api/tags`);
   plus **BYOK key storage** — OpenAI/Anthropic keys stored in the OS keychain
