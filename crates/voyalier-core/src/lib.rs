@@ -4,6 +4,7 @@
 //! shells. It treats documents as untrusted data and never performs IO.
 
 mod advice;
+mod assist;
 mod brief;
 mod itinerary;
 mod local_ai;
@@ -17,6 +18,7 @@ mod weather;
 pub use advice::{
     FCDO_COUNTRIES, FcdoCountry, TravelAdviceSnapshot, parse_fcdo_content, validate_country_slug,
 };
+pub use assist::{ASSIST_SYSTEM_PROMPT, AssistRequestPreview, build_assist_preview};
 pub use brief::{RedactionPolicy, TripBrief, build_trip_brief};
 pub use itinerary::detect_itinerary_conflicts;
 pub use local_ai::{LocalAiModel, LocalAiStatus, OLLAMA_TAGS_URL, parse_ollama_models};

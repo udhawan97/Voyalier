@@ -8,18 +8,18 @@ use directories::ProjectDirs;
 use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256};
 use voyalier_core::{
-    AddManualFactInput, AppError, CandidateFact, CandidateStatus, ConfirmCandidateInput,
-    ConfirmationParser, ConfirmedFact, CreateTripInput, DocumentKind, ErrorCode, ExtractionMethod,
-    FCDO_COUNTRIES, FcdoCountry, HealthResponse, ImportDocumentInput, ImportResult,
-    IntelligenceMode, JsonLdParser, LocalAiStatus, NormalizedDocument, OLLAMA_TAGS_URL, PROVIDERS,
-    ParsedCandidate, PlaintextParser, ProviderConfig, ProviderId, RedactionPolicy, SearchHit,
-    SearchableDocument, SourceDocument, TravelAdviceSnapshot, Trip, TripBrief, TripDetail,
-    TripStatus, TripSummary, UpdateTripInput, WeatherSnapshot, assess_readiness, build_trip_brief,
-    changed_payload_fields, detect_itinerary_conflicts, new_id, now_rfc3339, parse_fcdo_content,
-    parse_forecast_response, parse_geocoding_response, provider_info, search_trip_corpus,
-    validate_api_key, validate_country_slug, validate_create_trip, validate_document_content,
-    validate_fact_payload, validate_model_name, validate_provider_id, validate_search_query,
-    validate_update_trip,
+    AddManualFactInput, AppError, AssistRequestPreview, CandidateFact, CandidateStatus,
+    ConfirmCandidateInput, ConfirmationParser, ConfirmedFact, CreateTripInput, DocumentKind,
+    ErrorCode, ExtractionMethod, FCDO_COUNTRIES, FcdoCountry, HealthResponse, ImportDocumentInput,
+    ImportResult, IntelligenceMode, JsonLdParser, LocalAiStatus, NormalizedDocument,
+    OLLAMA_TAGS_URL, PROVIDERS, ParsedCandidate, PlaintextParser, ProviderConfig, ProviderId,
+    RedactionPolicy, SearchHit, SearchableDocument, SourceDocument, TravelAdviceSnapshot, Trip,
+    TripBrief, TripDetail, TripStatus, TripSummary, UpdateTripInput, WeatherSnapshot,
+    assess_readiness, build_assist_preview, build_trip_brief, changed_payload_fields,
+    detect_itinerary_conflicts, new_id, now_rfc3339, parse_fcdo_content, parse_forecast_response,
+    parse_geocoding_response, provider_info, search_trip_corpus, validate_api_key,
+    validate_country_slug, validate_create_trip, validate_document_content, validate_fact_payload,
+    validate_model_name, validate_provider_id, validate_search_query, validate_update_trip,
 };
 
 const DATABASE_FILE: &str = "voyalier.sqlite3";
@@ -541,6 +541,36 @@ impl AppService {
             &trip,
             &confirmed_facts,
             &RedactionPolicy::for_sharing(),
+            &now_rfc3339(),
+        ))
+    }
+
+    /// Build a deterministic, redacted preview of the request Voyalier would
+    /// send to `provider` for this trip — the consent step before any assist
+    /// call exists. Grounded only in confirmed facts, with secrets excluded by
+    /// construction. No network happens here and nothing is transmitted.
+    pub fn preview_assist(
+        &self,
+        trip_id: &str,
+        provider: &str,
+    ) -> Result<AssistRequestPreview, AppError> {
+        let id = validate_provider_id(provider)?;
+        let connection = self.connection()?;
+        let trip = fetch_trip(&connection, trip_id)?;
+        let confirmed_facts = fetch_confirmed_facts(&connection, trip_id)?;
+        let model = connection
+            .query_row(
+                "SELECT model FROM provider_settings WHERE provider = ?1",
+                params![id.as_str()],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(storage_error)?;
+        Ok(build_assist_preview(
+            &trip,
+            &confirmed_facts,
+            id,
+            model.as_deref(),
             &now_rfc3339(),
         ))
     }
@@ -1857,6 +1887,56 @@ mod tests {
         assert!(!serialized.contains("Jamie Traveler"));
         assert!(serialized.contains("FP18"));
         assert_eq!(brief.flights.len(), 1);
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn preview_assist_excludes_secrets_and_reflects_chosen_provider_and_model() {
+        let database = temp_database("assist-preview");
+        let service = AppService::open_path(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        service
+            .add_manual_fact(AddManualFactInput {
+                trip_id: trip.id.clone(),
+                fact_type: FactType::FlightSegment,
+                payload: FactPayload {
+                    flight_number: Some("FP18".to_owned()),
+                    departure_airport_iata: Some("ORD".to_owned()),
+                    arrival_airport_iata: Some("HND".to_owned()),
+                    departure_local: Some("2027-04-02T10:00".to_owned()),
+                    confirmation_code: Some("SECRET-PNR".to_owned()),
+                    passenger_name: Some("Jamie Traveler".to_owned()),
+                    ..FactPayload::default()
+                },
+            })
+            .expect("manual flight");
+        service
+            .set_provider_model("openai", "gpt-x")
+            .expect("set model");
+
+        let preview = service.preview_assist(&trip.id, "openai").expect("preview");
+        let serialized = serde_json::to_string(&preview).expect("serialize");
+        assert!(!serialized.contains("SECRET-PNR"));
+        assert!(!serialized.contains("Jamie Traveler"));
+        assert!(preview.user_content.contains("FP18"));
+        assert!(preview.leaves_device);
+        assert_eq!(preview.model.as_deref(), Some("gpt-x"));
+
+        // Unknown provider is a validation error; unknown trip is TripNotFound.
+        assert_eq!(
+            service
+                .preview_assist(&trip.id, "bard")
+                .expect_err("bad provider")
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
+        assert_eq!(
+            service
+                .preview_assist("trip_missing", "openai")
+                .expect_err("missing trip")
+                .code,
+            ErrorCode::TripNotFound
+        );
         cleanup_database(database);
     }
 

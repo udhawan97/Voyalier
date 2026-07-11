@@ -35,6 +35,11 @@ struct SearchQuery {
 }
 
 #[derive(Debug, Deserialize)]
+struct AssistPreviewQuery {
+    provider: String,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct FetchAdviceBody {
     country_slug: String,
@@ -95,6 +100,10 @@ pub fn app(service: AppService) -> Router {
             post(set_provider_model),
         )
         .route("/api/v1/trips/{trip_id}/brief", get(get_trip_brief))
+        .route(
+            "/api/v1/trips/{trip_id}/assist-preview",
+            get(preview_assist),
+        )
         .route(
             "/api/v1/trips/{trip_id}/travel-advice",
             post(fetch_travel_advice),
@@ -169,6 +178,14 @@ async fn search_trip(
     Query(query): Query<SearchQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(service.search_trip(&trip_id, &query.q)?))
+}
+
+async fn preview_assist(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+    Query(query): Query<AssistPreviewQuery>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.preview_assist(&trip_id, &query.provider)?))
 }
 
 async fn list_advice_countries(
@@ -808,6 +825,39 @@ mod tests {
         let cleared = request(router, Method::DELETE, "/api/v1/providers/openai/key", None).await;
         assert_eq!(cleared.status, StatusCode::OK);
         assert_eq!(cleared.json["hasKey"], false);
+        cleanup_database(database);
+    }
+
+    #[tokio::test]
+    async fn assist_preview_route_returns_a_redacted_request_preview() {
+        let database = temp_database("assist-preview");
+        let service = AppService::open_path(&database).expect("service");
+        let router = app(service);
+        let trip = create_trip_direct(&router).await;
+        let trip_id = trip["id"].as_str().expect("trip id");
+
+        let ok = request(
+            router.clone(),
+            Method::GET,
+            &format!("/api/v1/trips/{trip_id}/assist-preview?provider=openai"),
+            None,
+        )
+        .await;
+        assert_eq!(ok.status, StatusCode::OK);
+        assert_eq!(ok.json["leavesDevice"], true);
+        assert_eq!(
+            ok.json["endpoint"],
+            "https://api.openai.com/v1/chat/completions"
+        );
+
+        let bad = request(
+            router,
+            Method::GET,
+            &format!("/api/v1/trips/{trip_id}/assist-preview?provider=bard"),
+            None,
+        )
+        .await;
+        assert_eq!(bad.status, StatusCode::BAD_REQUEST);
         cleanup_database(database);
     }
 

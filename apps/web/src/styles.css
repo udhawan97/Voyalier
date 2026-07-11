@@ -1359,6 +1359,132 @@ h3 {
   line-height: 1.5;
 }
 
+/* ===== AI request preview ============================================= */
+
+.voy-assist {
+  margin-top: 2.6rem;
+  padding-top: 1.8rem;
+  border-top: 1px solid var(--voy-line);
+}
+
+.voy-assist__title {
+  font-size: 1.4rem;
+  font-family: var(--voy-font-display);
+  margin-bottom: 0.8rem;
+}
+
+.voy-assist__intro {
+  margin: 0 0 1rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  max-width: 42rem;
+}
+
+.voy-assist__controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.voy-assist__select {
+  min-width: 12rem;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-sm);
+  background: var(--voy-paper);
+  color: var(--voy-ink);
+  font: inherit;
+}
+
+.voy-assist__select:focus-visible {
+  outline: 2px solid var(--voy-focus);
+  outline-offset: 1px;
+}
+
+.voy-assist__error {
+  margin: 0.9rem 0 0;
+  color: var(--voy-danger);
+  font-size: 0.88rem;
+}
+
+.voy-assist__result {
+  margin-top: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.voy-assist__route {
+  margin: 0;
+  padding: 0.7rem 0.95rem;
+  border-radius: var(--voy-radius-sm);
+  border: 1px solid var(--voy-line-strong);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.voy-assist__route--cloud {
+  border-color: color-mix(in srgb, var(--voy-vermilion) 40%, transparent);
+  background: var(--voy-tint-vermilion);
+}
+
+.voy-assist__route--local {
+  border-color: color-mix(in srgb, var(--voy-moss) 40%, transparent);
+  background: var(--voy-tint-moss);
+}
+
+.voy-assist__endpoint {
+  display: inline-block;
+  font-family: var(--voy-font-mono);
+  font-size: 0.82rem;
+  color: var(--voy-ink-muted);
+  word-break: break-all;
+}
+
+.voy-assist__model {
+  margin: 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.88rem;
+}
+
+.voy-assist__subhead {
+  margin: 0.7rem 0 0.1rem;
+  font-size: 0.86rem;
+  font-weight: 640;
+  color: var(--voy-ink-muted);
+}
+
+.voy-assist__block {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-sm);
+  background: var(--voy-paper-sunken);
+  color: var(--voy-ink);
+  font-family: var(--voy-font-mono);
+  font-size: 0.82rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+.voy-assist__withheld {
+  margin: 0.1rem 0 0;
+  padding-left: 1.2rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.86rem;
+  line-height: 1.6;
+}
+
+.voy-assist__scope {
+  margin: 1.1rem 0 0;
+  color: var(--voy-silver);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
 /* ===== On-device AI ==================================================== */
 
 .voy-localai {

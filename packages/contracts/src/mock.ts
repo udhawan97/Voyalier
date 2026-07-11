@@ -2,6 +2,7 @@ import type {
   AddManualFactInput,
   AppError,
   AppGateway,
+  AssistRequestPreview,
   CandidateFact,
   CandidateStatus,
   ConfirmCandidateInput,
@@ -640,6 +641,72 @@ function buildShareBrief(
   };
 }
 
+/** Mirrors voyalier-core::assist::ASSIST_SYSTEM_PROMPT verbatim. */
+const ASSIST_SYSTEM_PROMPT =
+  "You are a careful travel-planning assistant for Voyalier. " +
+  "Use only the trip details provided below. Do not invent flights, prices, " +
+  "visa or entry rules, health requirements, or safety guidance; if the trip " +
+  "details do not answer a question, say so.";
+
+function assistEndpoint(id: ProviderId): string {
+  switch (id) {
+    case "openai":
+      return "https://api.openai.com/v1/chat/completions";
+    case "anthropic":
+      return "https://api.anthropic.com/v1/messages";
+    case "ollama":
+      return "http://localhost:11434/api/chat";
+  }
+}
+
+function formatAssistFlight(payload: FlightSegmentPayload): string {
+  const parts: string[] = [];
+  const carrier = [payload.airlineName, payload.flightNumber]
+    .filter((value): value is string => Boolean(value))
+    .join(" ");
+  if (carrier) parts.push(carrier);
+  if (payload.departureAirportIata && payload.arrivalAirportIata) {
+    parts.push(
+      `${payload.departureAirportIata} to ${payload.arrivalAirportIata}`,
+    );
+  }
+  if (payload.departureLocal) parts.push(`departs ${payload.departureLocal}`);
+  return parts.join(", ");
+}
+
+function formatAssistStay(payload: LodgingStayPayload): string {
+  const parts: string[] = [];
+  if (payload.propertyName) parts.push(payload.propertyName);
+  if (payload.address) parts.push(payload.address);
+  if (payload.checkinDate && payload.checkoutDate) {
+    parts.push(`${payload.checkinDate} to ${payload.checkoutDate}`);
+  } else if (payload.checkinDate) {
+    parts.push(`from ${payload.checkinDate}`);
+  }
+  return parts.join(", ");
+}
+
+/** Mirrors voyalier-core::assist::format_itinerary over the redacted brief. */
+function formatAssistItinerary(brief: TripBrief): string {
+  let out = "";
+  out += `Trip: ${brief.title}\n`;
+  out += `Route: ${brief.origin} to ${brief.destination}\n`;
+  out += `Dates: ${brief.startDate} to ${brief.endDate}\n`;
+  if (brief.flights.length > 0) {
+    out += "\nFlights:\n";
+    for (const flight of brief.flights) {
+      out += `- ${formatAssistFlight(flight)}\n`;
+    }
+  }
+  if (brief.stays.length > 0) {
+    out += "\nStays:\n";
+    for (const stay of brief.stays) {
+      out += `- ${formatAssistStay(stay)}\n`;
+    }
+  }
+  return out;
+}
+
 function changedFields(original: FactPayload, edited: FactPayload): string[] {
   const keys = new Set([...Object.keys(original), ...Object.keys(edited)]);
   return [...keys]
@@ -1018,6 +1085,32 @@ export function createMockGateway(options?: {
         }
         providerModels.set(input.provider, input.model.trim());
         return providerConfig(input.provider);
+      }),
+
+    previewAssist: (tripId: string, provider: ProviderId) =>
+      execute("previewAssist", () => {
+        const trip = requireTrip(tripId);
+        const info = MOCK_PROVIDERS.find((entry) => entry.id === provider);
+        if (!info) {
+          throw appError("validation/invalid_input", "unknown provider", {
+            field: "provider",
+          });
+        }
+        const tripFacts = [...facts.values()].filter(
+          (fact) => fact.tripId === tripId,
+        );
+        const brief = buildShareBrief(trip, tripFacts, timestamp());
+        const model = providerModels.get(provider);
+        const preview: AssistRequestPreview = {
+          provider,
+          providerLabel: info.label,
+          endpoint: assistEndpoint(provider),
+          leavesDevice: provider !== "ollama",
+          systemPrompt: ASSIST_SYSTEM_PROMPT,
+          userContent: formatAssistItinerary(brief),
+          withheld: [...brief.redactedFields, "Imported document text"],
+        };
+        return model ? { ...preview, model } : preview;
       }),
 
     listAdviceCountries: () =>

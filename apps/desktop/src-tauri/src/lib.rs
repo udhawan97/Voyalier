@@ -2,10 +2,11 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 use voyalier_app::AppService;
 use voyalier_core::{
-    AddManualFactInput, AppError, CandidateFact, CandidateStatus, ConfirmCandidateInput,
-    ConfirmedFact, CreateTripInput, FcdoCountry, HealthResponse, ImportDocumentInput, ImportResult,
-    LocalAiStatus, ProviderConfig, SearchHit, TravelAdviceSnapshot, Trip, TripBrief, TripDetail,
-    TripSummary, UpdateTripInput, WeatherSnapshot,
+    AddManualFactInput, AppError, AssistRequestPreview, CandidateFact, CandidateStatus,
+    ConfirmCandidateInput, ConfirmedFact, CreateTripInput, FcdoCountry, HealthResponse,
+    ImportDocumentInput, ImportResult, LocalAiStatus, ProviderConfig, SearchHit,
+    TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripSummary, UpdateTripInput,
+    WeatherSnapshot,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -43,6 +44,13 @@ struct CandidateIdInput {
 struct SearchTripInput {
     trip_id: String,
     query: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PreviewAssistInput {
+    trip_id: String,
+    provider: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -110,6 +118,14 @@ fn search_trip(
     service: State<'_, AppService>,
 ) -> Result<Vec<SearchHit>, AppError> {
     service.search_trip(&input.trip_id, &input.query)
+}
+
+#[tauri::command]
+fn preview_assist(
+    input: PreviewAssistInput,
+    service: State<'_, AppService>,
+) -> Result<AssistRequestPreview, AppError> {
+    service.preview_assist(&input.trip_id, &input.provider)
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -275,6 +291,7 @@ fn builder<R: tauri::Runtime>(
             archive_trip,
             get_trip_brief,
             search_trip,
+            preview_assist,
             list_advice_countries,
             detect_local_ai,
             list_providers,
@@ -439,6 +456,21 @@ mod tests {
         .expect("search trip");
         assert!(!hits.as_array().expect("hits").is_empty());
 
+        // Assist preview is deterministic and keychain-free — safe to round-trip.
+        let preview = invoke(
+            &webview,
+            "preview_assist",
+            json!({ "tripId": trip_id, "provider": "ollama" }),
+        )
+        .expect("assist preview");
+        assert_eq!(preview["leavesDevice"], false);
+        assert!(
+            preview["userContent"]
+                .as_str()
+                .expect("content")
+                .contains("SFO")
+        );
+
         // Countries list is local and static; the fetch command itself is
         // network-backed and is exercised at the app/server layers with stubs.
         let countries =
@@ -480,6 +512,7 @@ mod tests {
             "archive_trip",
             "get_trip_brief",
             "search_trip",
+            "preview_assist",
             "list_advice_countries",
             "detect_local_ai",
             "list_providers",

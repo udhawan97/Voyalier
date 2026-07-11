@@ -227,6 +227,28 @@ export interface LocalAiStatus {
   /** Installed models (may be empty even when available). */
   models: LocalAiModel[];
 }
+/**
+ * A deterministic, redacted preview of the request Voyalier would send to a
+ * provider — the consent step before any assist call. Built entirely on-device;
+ * confirmation codes and traveler names are excluded by construction, so they
+ * could never reach a provider. Nothing here is transmitted.
+ */
+export interface AssistRequestPreview {
+  provider: ProviderId;
+  providerLabel: string;
+  /** The model that would be used, if one is chosen. */
+  model?: string;
+  /** Where the request would go — shown for transparency. */
+  endpoint: string;
+  /** True when the request would leave this device (cloud); false for Ollama. */
+  leavesDevice: boolean;
+  /** The fixed system instruction. */
+  systemPrompt: string;
+  /** The exact user message: the traveler's own confirmed itinerary, redacted. */
+  userContent: string;
+  /** Field kinds excluded from the request, for transparency. */
+  withheld: string[];
+}
 export type SearchHitSource = "document" | "confirmed_fact";
 export interface SearchHit {
   source: SearchHitSource;
@@ -323,6 +345,10 @@ export interface AppGateway {
   setProviderKey(input: SetProviderKeyInput): Promise<ProviderConfig>;
   clearProviderKey(provider: ProviderId): Promise<ProviderConfig>;
   setProviderModel(input: SetProviderModelInput): Promise<ProviderConfig>;
+  previewAssist(
+    tripId: string,
+    provider: ProviderId,
+  ): Promise<AssistRequestPreview>;
   listAdviceCountries(): Promise<FcdoCountry[]>;
   fetchTravelAdvice(
     input: FetchTravelAdviceInput,

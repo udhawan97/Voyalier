@@ -46,6 +46,7 @@ import { AddFactDialog } from "./AddFactDialog";
 import { BriefDialog } from "./BriefDialog";
 import { CandidateReviewDialog } from "./CandidateReviewDialog";
 import { AiProviders } from "./AiProviders";
+import { AssistPreview } from "./AssistPreview";
 import { DeleteTripDialog } from "./DeleteTripDialog";
 import { ImportDialog } from "./ImportDialog";
 import { OnDeviceAi } from "./OnDeviceAi";
@@ -555,6 +556,8 @@ export function TripDetailView({
       <OnDeviceAi />
 
       <AiProviders />
+
+      <AssistPreview tripId={tripId} />
 
       {showImport ? (
         <ImportDialog

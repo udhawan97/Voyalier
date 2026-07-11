@@ -1,6 +1,7 @@
 import type {
   AddManualFactInput,
   AppGateway,
+  AssistRequestPreview,
   CandidateFact,
   CandidateStatus,
   ConfirmCandidateInput,
@@ -126,6 +127,12 @@ export function createHttpGateway(
         "POST",
         `/api/v1/providers/${enc(input.provider)}/model`,
         { model: input.model },
+      ),
+
+    previewAssist: (tripId: string, provider: ProviderId) =>
+      request<AssistRequestPreview>(
+        "GET",
+        `/api/v1/trips/${enc(tripId)}/assist-preview?provider=${enc(provider)}`,
       ),
 
     listAdviceCountries: () =>
