@@ -49,6 +49,7 @@ import { AiProviders } from "./AiProviders";
 import { TodayPanel } from "./TodayPanel";
 import { AssistPreview } from "./AssistPreview";
 import { CityPacks } from "./CityPacks";
+import { MapPanel } from "./MapPanel";
 import { Recommendations } from "./Recommendations";
 import { DeleteTripDialog } from "./DeleteTripDialog";
 import { ImportDialog } from "./ImportDialog";
@@ -568,6 +569,19 @@ export function TripDetailView({
       <CityPacks tripId={tripId} />
 
       <Recommendations tripId={tripId} />
+
+      <MapPanel
+        tripId={tripId}
+        center={
+          data.detail.weather
+            ? {
+                lat: data.detail.weather.latitude,
+                lon: data.detail.weather.longitude,
+                name: data.detail.weather.placeName,
+              }
+            : undefined
+        }
+      />
 
       {showImport ? (
         <ImportDialog

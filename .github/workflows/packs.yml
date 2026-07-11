@@ -55,6 +55,12 @@ jobs:
           OVERTURE_RELEASE: ${{ inputs.overture_release }}
         run: node scripts/build-packs.mjs catalog.json
 
+      # TODO(maps): also build a per-pack PMTiles basemap extract clipped to each
+      # pack's bbox (tippecanoe + pmtiles, from a Protomaps/OSM extract) and
+      # upload it here, so a downloaded pack has an offline map. See
+      # docs/architecture/MAPS.md. Until then the app uses the OpenFreeMap
+      # basemap online.
+
       - name: Publish pack assets to the release
         env:
           GH_TOKEN: ${{ github.token }}

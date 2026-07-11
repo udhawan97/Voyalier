@@ -1743,6 +1743,43 @@ h3 {
   margin-right: 0.5rem;
 }
 
+/* ===== Map ============================================================ */
+
+.voy-map {
+  margin-top: 2.6rem;
+  padding-top: 1.8rem;
+  border-top: 1px solid var(--voy-line);
+}
+
+.voy-map__title {
+  font-size: 1.4rem;
+  font-family: var(--voy-font-display);
+  margin-bottom: 0.8rem;
+}
+
+.voy-map__intro {
+  margin: 0 0 1rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  max-width: 42rem;
+}
+
+.voy-map__canvas {
+  width: 100%;
+  height: 360px;
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-md);
+  overflow: hidden;
+}
+
+.voy-map__scope {
+  margin: 0.7rem 0 0;
+  color: var(--voy-silver);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
 /* ===== Recommendations ================================================ */
 
 .voy-recs {
