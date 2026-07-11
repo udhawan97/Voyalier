@@ -8,6 +8,7 @@ import type {
 
 import { useGateway } from "../app/context";
 import { describeError, pluralize } from "../app/format";
+import { t } from "../app/i18n";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 import { ChoiceGroup } from "../components/ChoiceGroup";
@@ -46,11 +47,11 @@ export function ImportDialog({
     setFieldError(null);
     setDuplicateId(null);
     if (content.trim().length === 0) {
-      setFieldError("Paste some content to import.");
+      setFieldError(t("import.error.empty"));
       return;
     }
     if (over) {
-      setFieldError("This document is over the 1,000,000 character limit.");
+      setFieldError(t("import.error.tooLarge"));
       return;
     }
     setSubmitting(true);
@@ -66,9 +67,9 @@ export function ImportDialog({
     } catch (caught) {
       const appError = caught as AppError;
       if (appError.code === "document/empty") {
-        setFieldError("The pasted content was empty.");
+        setFieldError(t("import.error.wasEmpty"));
       } else if (appError.code === "document/too_large") {
-        setFieldError("This document is over the 1,000,000 character limit.");
+        setFieldError(t("import.error.tooLarge"));
       } else if (appError.code === "document/duplicate") {
         setDuplicateId(appError.details?.existingDocumentId ?? "");
       } else {
@@ -83,7 +84,7 @@ export function ImportDialog({
     const found = result.candidates.length;
     return (
       <Dialog
-        title="Imported"
+        title={t("import.done.title")}
         onClose={onClose}
         footer={
           <>
@@ -92,22 +93,23 @@ export function ImportDialog({
                 variant="primary"
                 onClick={() => onReview(result.candidates)}
               >
+                {/* Count keeps English pluralize() pending Intl.PluralRules. */}
                 Review {found} {pluralize(found, "suggestion")}
               </Button>
             ) : null}
             <Button variant="ghost" onClick={onClose}>
-              Done
+              {t("action.done")}
             </Button>
           </>
         }
       >
         <div className="voy-import-done">
           <p className="voy-import-done__title">
-            “{result.document.label}” imported.
+            {t("import.done.label", { label: result.document.label })}
           </p>
           <p className="voy-import-done__body">
             {found === 0
-              ? "No new suggestions were found in this document."
+              ? t("import.done.none")
               : `Voyalier found ${found} new ${pluralize(
                   found,
                   "suggestion",
@@ -120,13 +122,13 @@ export function ImportDialog({
 
   return (
     <Dialog
-      title="Import a document"
+      title={t("import.title")}
       onClose={onClose}
-      description="Paste a confirmation email or booking page. Voyalier reads it on this device and shows you what it found before anything is saved."
+      description={t("import.description")}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t("action.cancel")}
           </Button>
           <Button
             variant="primary"
@@ -135,7 +137,7 @@ export function ImportDialog({
             busy={submitting}
             disabled={over}
           >
-            Import
+            {t("import.submit")}
           </Button>
         </>
       }
@@ -152,48 +154,53 @@ export function ImportDialog({
           </Banner>
         ) : null}
         {duplicateId !== null ? (
-          <Banner tone="warn" role="alert" title="Already imported">
-            This exact content was imported before
-            {duplicateId ? ` (document ${duplicateId})` : ""}. Edit the content
-            to import something new.
+          <Banner tone="warn" role="alert" title={t("import.duplicate.title")}>
+            {t("import.duplicate.body", {
+              doc: duplicateId
+                ? t("import.duplicate.docSuffix", { id: duplicateId })
+                : "",
+            })}
           </Banner>
         ) : null}
         <div className="voy-field">
-          <span className="voy-field__label">Format</span>
+          <span className="voy-field__label">{t("import.format")}</span>
           <ChoiceGroup
-            label="Document format"
+            label={t("import.formatChoice")}
             value={kind}
             onChange={setKind}
             options={[
-              { value: "pasted_text", label: "Plain text" },
-              { value: "html", label: "HTML" },
+              { value: "pasted_text", label: t("import.format.text") },
+              { value: "html", label: t("import.format.html") },
             ]}
           />
         </div>
         <TextField
           id="import-label"
-          label="Label (optional)"
+          label={t("import.label")}
           value={label}
           onChange={(event) => setLabel(event.target.value)}
           maxLength={200}
           autoComplete="off"
-          placeholder="Flight confirmation"
+          placeholder={t("import.label.placeholder")}
         />
         <TextArea
           id="import-content"
-          label="Content"
+          label={t("import.content")}
           value={content}
           onChange={(event) => setContent(event.target.value)}
           error={fieldError ?? undefined}
           rows={10}
           required
-          placeholder="Paste your confirmation here…"
+          placeholder={t("import.content.placeholder")}
         />
         <p
           className={`voy-charcount${over ? " is-over" : ""}`}
           aria-live="polite"
         >
-          {charCount.toLocaleString()} / {MAX_CHARS.toLocaleString()} characters
+          {t("import.charcount", {
+            count: charCount.toLocaleString(),
+            max: MAX_CHARS.toLocaleString(),
+          })}
         </p>
       </form>
     </Dialog>

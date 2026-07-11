@@ -13,6 +13,7 @@ import {
   isDraftEmpty,
   type PayloadDraft,
 } from "../app/format";
+import { t } from "../app/i18n";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 import { ChoiceGroup } from "../components/ChoiceGroup";
@@ -66,13 +67,13 @@ export function AddFactDialog({
 
   return (
     <Dialog
-      title="Add a fact"
+      title={t("addFact.title")}
       onClose={onClose}
-      description="Enter a flight or a stay by hand. Manual facts are yours and appear in the Blueprint right away."
+      description={t("addFact.description")}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t("action.cancel")}
           </Button>
           <Button
             variant="primary"
@@ -80,7 +81,7 @@ export function AddFactDialog({
             form="add-fact-form"
             busy={submitting}
           >
-            Add to Blueprint
+            {t("addFact.submit")}
           </Button>
         </>
       }
@@ -97,20 +98,20 @@ export function AddFactDialog({
           </Banner>
         ) : null}
         <div className="voy-field">
-          <span className="voy-field__label">Type</span>
+          <span className="voy-field__label">{t("addFact.type")}</span>
           <ChoiceGroup
-            label="Fact type"
+            label={t("addFact.typeChoice")}
             value={factType}
             onChange={switchType}
             options={[
-              { value: "flight_segment", label: "Flight" },
-              { value: "lodging_stay", label: "Stay" },
+              { value: "flight_segment", label: t("factType.flight") },
+              { value: "lodging_stay", label: t("factType.stay") },
             ]}
           />
         </div>
         {emptyError ? (
           <p className="voy-field__error" role="alert">
-            Add at least one detail before saving.
+            {t("addFact.empty")}
           </p>
         ) : null}
         <FactPayloadForm

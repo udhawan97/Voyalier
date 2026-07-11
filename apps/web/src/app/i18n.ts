@@ -222,6 +222,40 @@ const en = {
   "search.results.aria": "Search results",
   "search.hit.document": "imported document",
   "search.hit.confirmed": "confirmed plan",
+
+  "addFact.title": "Add a fact",
+  "addFact.description":
+    "Enter a flight or a stay by hand. Manual facts are yours and appear in the Blueprint right away.",
+  "addFact.submit": "Add to Blueprint",
+  "addFact.type": "Type",
+  "addFact.typeChoice": "Fact type",
+  "addFact.empty": "Add at least one detail before saving.",
+
+  "action.done": "Done",
+  "import.title": "Import a document",
+  "import.description":
+    "Paste a confirmation email or booking page. Voyalier reads it on this device and shows you what it found before anything is saved.",
+  "import.submit": "Import",
+  "import.error.empty": "Paste some content to import.",
+  "import.error.tooLarge":
+    "This document is over the 1,000,000 character limit.",
+  "import.error.wasEmpty": "The pasted content was empty.",
+  "import.duplicate.title": "Already imported",
+  "import.duplicate.body":
+    "This exact content was imported before{doc}. Edit the content to import something new.",
+  "import.duplicate.docSuffix": " (document {id})",
+  "import.format": "Format",
+  "import.formatChoice": "Document format",
+  "import.format.text": "Plain text",
+  "import.format.html": "HTML",
+  "import.label": "Label (optional)",
+  "import.label.placeholder": "Flight confirmation",
+  "import.content": "Content",
+  "import.content.placeholder": "Paste your confirmation here…",
+  "import.charcount": "{count} / {max} characters",
+  "import.done.title": "Imported",
+  "import.done.label": "“{label}” imported.",
+  "import.done.none": "No new suggestions were found in this document.",
 } as const;
 
 export type MessageKey = keyof typeof en;
