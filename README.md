@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://github.com/udhawan97/Voyalier/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/udhawan97/Voyalier/ci.yml?branch=main&style=flat-square&label=CI" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-46536b?style=flat-square" alt="Apache 2.0"></a>
-  <img src="https://img.shields.io/badge/status-foundation-c34e33?style=flat-square" alt="Foundation stage">
+  <img src="https://img.shields.io/badge/status-phase%202%3A%20grounded%20intelligence-c34e33?style=flat-square" alt="Phase 2: grounded intelligence">
 </p>
 
 <p align="center">
@@ -20,7 +20,7 @@
 </p>
 
 > [!IMPORTANT]
-> Voyalier is at the **foundation stage**. This repository currently provides the product contract, architecture, starter web/API/desktop shells, documentation site, tests, and delivery automation. It is not yet a travel-ready release.
+> **Phases 1–2 are functional as a running app.** You can create and persist trips, get a deterministic Blueprint, import and review confirmations, see conflict/readiness checks, share a redacted brief, fetch consent-gated official advice and weather, search a trip, browse and download offline city packs, and run BYOK AI assist on-device (Ollama) or via OpenAI/Anthropic — all grounded and privacy-first. There is **no signed installer yet**: run it from source (below). Packaging, notarization, encrypted vault, and maps are Phase 3.
 
 ## Product direction
 
@@ -102,11 +102,17 @@ make check        # TypeScript, tests, builds, Rust fmt/clippy/tests
 
 ## Roadmap
 
-The first vertical slice is intentionally narrow:
+Phase 1 (the first vertical slice — create trip → deterministic Blueprint →
+add/import a reservation → readiness action → redacted brief) and **Phase 2
+("grounded intelligence")** are complete: consent-gated official advice and
+weather, deterministic trip search, CI-built offline city packs downloaded per
+trip, and BYOK AI assist (on-device Ollama plus OpenAI/Anthropic) with a
+redaction preview, an activity log, and keys kept only in the OS keychain.
 
-> Create trip → generate deterministic Blueprint → add/import one reservation → surface a readiness action → export a redacted PDF.
-
-See the full [roadmap](docs/roadmap/ROADMAP.md). Live inventory aggregation, authoritative visa determinations, real-time collaboration, and booking/payment are explicitly deferred.
+See the full [roadmap](docs/roadmap/ROADMAP.md). Phase 3 (encrypted vault, maps,
+signed installers, offline Today view) is next. Live inventory aggregation,
+authoritative visa determinations, real-time collaboration, and booking/payment
+are explicitly deferred.
 
 ## Contributing and security
 

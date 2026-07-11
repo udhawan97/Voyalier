@@ -5,6 +5,10 @@ description: How Voyalier protects sensitive trip data.
 
 Voyalier is local-first, but live travel research is not automatically offline.
 
-Before cloud AI use, the product must show which excerpts will leave the device and apply sensitive-field redaction. Provider keys belong in the operating-system credential vault, never browser storage.
+Before any AI request runs, the "Preview an AI request" panel shows exactly what would be sent — the system prompt and the trip details — built with confirmation codes and traveler names excluded by construction, so they can never reach a provider. Nothing is sent until you choose to send it, and every completed run is recorded in a per-trip activity log.
 
-Documents, websites, model output, and provider output remain untrusted until validated. Extracted facts never silently become accepted trip facts.
+Provider keys live in the operating-system keychain, never browser storage or the database. A key is read only to send a request you chose to send, is placed only in that request's authorization header, and is never returned to the interface, logged, or stored anywhere else. On-device (Ollama) runs never leave the device; cloud runs go only to the provider you picked.
+
+Live fetches — official advice, weather, and pack downloads — happen only on an explicit click, and each is labeled with its source, retrieval time, license, and freshness. There is no telemetry.
+
+Documents, websites, model output, and provider output remain untrusted until validated. Extracted facts never silently become accepted trip facts, and high-stakes facts (entry, visa, health, safety) are quoted from cited sources, never originated by a model.
