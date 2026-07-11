@@ -12,6 +12,7 @@ mod packs;
 mod parser;
 mod provider;
 mod readiness;
+mod recommend;
 mod search;
 mod types;
 mod weather;
@@ -43,6 +44,7 @@ pub use provider::{
     provider_info, validate_api_key, validate_model_name, validate_provider_id,
 };
 pub use readiness::assess_readiness;
+pub use recommend::{PersonaWeights, Recommendation, recommend_places};
 pub use search::{
     SearchHit, SearchHitSource, SearchableDocument, search_trip_corpus, validate_search_query,
 };

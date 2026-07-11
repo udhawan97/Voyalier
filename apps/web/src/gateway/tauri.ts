@@ -17,8 +17,10 @@ import type {
   ImportResult,
   LocalAiStatus,
   PackInfo,
+  PersonaWeights,
   ProviderConfig,
   ProviderId,
+  Recommendation,
   SearchHit,
   SetProviderKeyInput,
   SetProviderModelInput,
@@ -120,6 +122,9 @@ export function createTauriGateway(
 
     deleteDownloadedPack: (tripId: string, packId: string) =>
       call<void>("delete_downloaded_pack", { tripId, packId }),
+
+    getRecommendations: (tripId: string, weights: PersonaWeights) =>
+      call<Recommendation[]>("get_recommendations", { tripId, weights }),
 
     listAdviceCountries: () => call<FcdoCountry[]>("list_advice_countries", {}),
 

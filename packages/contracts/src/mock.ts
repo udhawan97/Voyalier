@@ -23,8 +23,10 @@ import type {
   LocalAiStatus,
   LodgingStayPayload,
   PackInfo,
+  PersonaWeights,
   ProviderConfig,
   ProviderId,
+  Recommendation,
   SetProviderKeyInput,
   SetProviderModelInput,
   ReadinessCheck,
@@ -575,6 +577,75 @@ function packLayers(): PackInfo["layers"] {
       attribution: "Wikivoyage contributors, CC BY-SA 3.0",
     },
   ];
+}
+
+/** A small sample of pack places for mock recommendations, one per dimension. */
+const MOCK_PLACES: {
+  name: string;
+  category: string;
+  lat: number;
+  lon: number;
+}[] = [
+  {
+    name: "Hattie B's Hot Chicken",
+    category: "restaurant",
+    lat: 36.15,
+    lon: -86.79,
+  },
+  { name: "Frist Art Museum", category: "art_museum", lat: 36.16, lon: -86.78 },
+  { name: "Centennial Park", category: "public_park", lat: 36.15, lon: -86.81 },
+  {
+    name: "The Bluebird Cafe",
+    category: "live_music_bar",
+    lat: 36.1,
+    lon: -86.82,
+  },
+  { name: "Hatch Show Print", category: "print_shop", lat: 36.16, lon: -86.78 },
+];
+
+/** Mirrors voyalier-core::recommend::dimension_for. */
+function mockDimensionFor(category: string): keyof PersonaWeights | null {
+  const c = category.toLowerCase();
+  const has = (arr: string[]) => arr.some((n) => c.includes(n));
+  if (
+    has(["restaurant", "cafe", "coffee", "food", "bakery", "eatery", "bistro"])
+  )
+    return "food";
+  if (
+    has([
+      "museum",
+      "gallery",
+      "art",
+      "histor",
+      "landmark",
+      "monument",
+      "theatre",
+      "theater",
+      "cultural",
+      "heritage",
+    ])
+  )
+    return "culture";
+  if (
+    has([
+      "park",
+      "garden",
+      "beach",
+      "trail",
+      "hiking",
+      "viewpoint",
+      "nature",
+      "forest",
+      "mountain",
+      "lake",
+    ])
+  )
+    return "nature";
+  if (has(["bar", "club", "pub", "nightlife", "lounge", "brewery", "winery"]))
+    return "nightlife";
+  if (has(["shop", "store", "retail", "market", "mall", "boutique"]))
+    return "shopping";
+  return null;
 }
 
 /** Mirrors the required seed cities from voyalier-core::packs::pack_catalog. */
@@ -1303,6 +1374,42 @@ export function createMockGateway(options?: {
         );
         if (index >= 0) downloadedPacks.splice(index, 1);
         return undefined;
+      }),
+
+    getRecommendations: (tripId: string, weights: PersonaWeights) =>
+      execute("getRecommendations", () => {
+        requireTrip(tripId);
+        // Only recommend once a pack (with places) is downloaded for the trip.
+        if (!downloadedPacks.some((pack) => pack.tripId === tripId)) return [];
+        const recs: Recommendation[] = [];
+        for (const place of MOCK_PLACES) {
+          const dimension = mockDimensionFor(place.category);
+          if (!dimension) continue;
+          const score = Math.min(1, Math.max(0, weights[dimension]));
+          if (score <= 0) continue;
+          recs.push({
+            name: place.name,
+            category: place.category,
+            dimension,
+            lat: place.lat,
+            lon: place.lon,
+            source: "Overture Maps",
+            license: "CDLA-Permissive-2.0",
+            score,
+            reasons: [`Matches your interest in ${dimension}`],
+            wildcard: false,
+          });
+        }
+        recs.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+        if (recs.length > 0) {
+          const top = recs[0].dimension;
+          const wild = recs.find((rec) => rec.dimension !== top);
+          if (wild) {
+            wild.wildcard = true;
+            wild.reasons.push("A change of pace from your top picks");
+          }
+        }
+        return recs;
       }),
 
     listAdviceCountries: () =>

@@ -306,6 +306,31 @@ export interface DownloadedPack {
   articleCount: number;
   downloadedAt: string;
 }
+/** Per-trip persona interest weights (each 0.0–1.0). Presets map onto these. */
+export interface PersonaWeights {
+  food: number;
+  culture: number;
+  nature: number;
+  nightlife: number;
+  shopping: number;
+}
+/**
+ * A recommended place from a downloaded pack, with the provenance and the
+ * transparent reasoning behind its rank. Suggestions from open place data —
+ * never authoritative for prices, hours, or safety.
+ */
+export interface Recommendation {
+  name: string;
+  category: string;
+  dimension: string;
+  lat: number;
+  lon: number;
+  source: string;
+  license: string;
+  score: number;
+  reasons: string[];
+  wildcard: boolean;
+}
 export type SearchHitSource = "document" | "confirmed_fact";
 export interface SearchHit {
   source: SearchHitSource;
@@ -414,6 +439,10 @@ export interface AppGateway {
   downloadPack(tripId: string, packId: string): Promise<DownloadedPack>;
   listDownloadedPacks(tripId: string): Promise<DownloadedPack[]>;
   deleteDownloadedPack(tripId: string, packId: string): Promise<void>;
+  getRecommendations(
+    tripId: string,
+    weights: PersonaWeights,
+  ): Promise<Recommendation[]>;
   listAdviceCountries(): Promise<FcdoCountry[]>;
   fetchTravelAdvice(
     input: FetchTravelAdviceInput,

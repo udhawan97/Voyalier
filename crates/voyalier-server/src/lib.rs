@@ -12,7 +12,7 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use voyalier_app::AppService;
 use voyalier_core::{
     AddManualFactInput, AppError, CandidateFact, CandidateStatus, ConfirmCandidateInput,
-    ConfirmedFact, CreateTripInput, ErrorCode, HealthResponse, ImportDocumentInput,
+    ConfirmedFact, CreateTripInput, ErrorCode, HealthResponse, ImportDocumentInput, PersonaWeights,
     UpdateTripInput,
 };
 
@@ -126,6 +126,10 @@ pub fn app(service: AppService) -> Router {
         )
         .route("/api/v1/trips/{trip_id}/weather", post(fetch_weather))
         .route("/api/v1/trips/{trip_id}/search", get(search_trip))
+        .route(
+            "/api/v1/trips/{trip_id}/recommendations",
+            post(get_recommendations),
+        )
         .route("/api/v1/trips/{trip_id}/documents", post(import_document))
         .route("/api/v1/trips/{trip_id}/candidates", get(list_candidates))
         .route(
@@ -194,6 +198,14 @@ async fn search_trip(
     Query(query): Query<SearchQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(service.search_trip(&trip_id, &query.q)?))
+}
+
+async fn get_recommendations(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+    Json(weights): Json<PersonaWeights>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.get_recommendations(&trip_id, weights)?))
 }
 
 async fn preview_assist(
@@ -956,6 +968,29 @@ mod tests {
         .await;
         assert_eq!(activity.status, StatusCode::OK);
         assert_eq!(activity.json.as_array().expect("array").len(), 0);
+        cleanup_database(database);
+    }
+
+    #[tokio::test]
+    async fn recommendations_route_accepts_weights_and_is_empty_without_packs() {
+        let database = temp_database("recommendations");
+        let service = AppService::open_path(&database).expect("service");
+        let router = app(service);
+        let trip = create_trip_direct(&router).await;
+        let trip_id = trip["id"].as_str().expect("id");
+
+        let response = request(
+            router,
+            Method::POST,
+            &format!("/api/v1/trips/{trip_id}/recommendations"),
+            Some(json!({
+                "food": 1.0, "culture": 0.5, "nature": 0.2,
+                "nightlife": 0.0, "shopping": 0.0
+            })),
+        )
+        .await;
+        assert_eq!(response.status, StatusCode::OK);
+        assert_eq!(response.json.as_array().expect("array").len(), 0);
         cleanup_database(database);
     }
 

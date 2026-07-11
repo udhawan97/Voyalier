@@ -5,8 +5,8 @@ use voyalier_core::{
     AddManualFactInput, AppError, AssistActivityEntry, AssistReply, AssistRequestPreview,
     CandidateFact, CandidateStatus, ConfirmCandidateInput, ConfirmedFact, CreateTripInput,
     DownloadedPack, FcdoCountry, HealthResponse, ImportDocumentInput, ImportResult, LocalAiStatus,
-    PackInfo, ProviderConfig, SearchHit, TravelAdviceSnapshot, Trip, TripBrief, TripDetail,
-    TripSummary, UpdateTripInput, WeatherSnapshot,
+    PackInfo, PersonaWeights, ProviderConfig, Recommendation, SearchHit, TravelAdviceSnapshot,
+    Trip, TripBrief, TripDetail, TripSummary, UpdateTripInput, WeatherSnapshot,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -207,6 +207,21 @@ fn delete_downloaded_pack(
     service.delete_downloaded_pack(&input.trip_id, &input.pack_id)
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RecommendationsInput {
+    trip_id: String,
+    weights: PersonaWeights,
+}
+
+#[tauri::command]
+fn get_recommendations(
+    input: RecommendationsInput,
+    service: State<'_, AppService>,
+) -> Result<Vec<Recommendation>, AppError> {
+    service.get_recommendations(&input.trip_id, input.weights)
+}
+
 #[tauri::command]
 fn detect_local_ai(
     input: EmptyInput,
@@ -362,6 +377,7 @@ fn builder<R: tauri::Runtime>(
             download_pack,
             list_downloaded_packs,
             delete_downloaded_pack,
+            get_recommendations,
             detect_local_ai,
             list_providers,
             set_provider_key,
@@ -561,6 +577,17 @@ mod tests {
         assert!(pack_ids.contains(&"us-nashville"));
         assert!(pack_ids.contains(&"us-hi-maui"));
 
+        // Recommendations accept weights and are empty until a pack is downloaded.
+        let recs = invoke(
+            &webview,
+            "get_recommendations",
+            json!({ "tripId": trip_id, "weights": {
+                "food": 1.0, "culture": 0.5, "nature": 0.2, "nightlife": 0.0, "shopping": 0.0
+            } }),
+        )
+        .expect("recommendations");
+        assert!(recs.as_array().expect("array").is_empty());
+
         // No packs downloaded for this trip yet (download_pack is network-backed
         // and covered at the app/server layers with a stubbed fetcher).
         let downloaded = invoke(
@@ -620,6 +647,7 @@ mod tests {
             "download_pack",
             "list_downloaded_packs",
             "delete_downloaded_pack",
+            "get_recommendations",
             "detect_local_ai",
             "list_providers",
             "set_provider_key",

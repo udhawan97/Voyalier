@@ -48,6 +48,7 @@ import { CandidateReviewDialog } from "./CandidateReviewDialog";
 import { AiProviders } from "./AiProviders";
 import { AssistPreview } from "./AssistPreview";
 import { CityPacks } from "./CityPacks";
+import { Recommendations } from "./Recommendations";
 import { DeleteTripDialog } from "./DeleteTripDialog";
 import { ImportDialog } from "./ImportDialog";
 import { OnDeviceAi } from "./OnDeviceAi";
@@ -561,6 +562,8 @@ export function TripDetailView({
       <AssistPreview tripId={tripId} />
 
       <CityPacks tripId={tripId} />
+
+      <Recommendations tripId={tripId} />
 
       {showImport ? (
         <ImportDialog

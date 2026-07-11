@@ -14,17 +14,18 @@ use voyalier_core::{
     DEFAULT_OLLAMA_MODEL, DEFAULT_OPENAI_MODEL, DocumentKind, DownloadedPack, ErrorCode,
     ExtractionMethod, FCDO_COUNTRIES, FcdoCountry, HealthResponse, ImportDocumentInput,
     ImportResult, IntelligenceMode, JsonLdParser, LocalAiStatus, NormalizedDocument,
-    OLLAMA_CHAT_URL, OLLAMA_TAGS_URL, OPENAI_CHAT_URL, PROVIDERS, PackInfo, ParsedCandidate,
-    PlaintextParser, ProviderConfig, ProviderId, RedactionPolicy, SearchHit, SearchableDocument,
-    SourceDocument, TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripStatus, TripSummary,
-    UpdateTripInput, WeatherSnapshot, assess_readiness, build_anthropic_messages_body,
-    build_assist_preview, build_ollama_chat_body, build_openai_chat_body, build_trip_brief,
-    changed_payload_fields, detect_itinerary_conflicts, new_id, now_rfc3339, pack_catalog,
-    pack_download_url, parse_anthropic_reply, parse_fcdo_content, parse_forecast_response,
-    parse_geocoding_response, parse_ollama_chat_reply, parse_openai_chat_reply, parse_pack_content,
-    provider_info, search_trip_corpus, validate_api_key, validate_country_slug,
-    validate_create_trip, validate_document_content, validate_fact_payload, validate_model_name,
-    validate_pack_id, validate_provider_id, validate_search_query, validate_update_trip,
+    OLLAMA_CHAT_URL, OLLAMA_TAGS_URL, OPENAI_CHAT_URL, PROVIDERS, PackContent, PackInfo,
+    ParsedCandidate, PersonaWeights, PlaintextParser, ProviderConfig, ProviderId, Recommendation,
+    RedactionPolicy, SearchHit, SearchableDocument, SourceDocument, TravelAdviceSnapshot, Trip,
+    TripBrief, TripDetail, TripStatus, TripSummary, UpdateTripInput, WeatherSnapshot,
+    assess_readiness, build_anthropic_messages_body, build_assist_preview, build_ollama_chat_body,
+    build_openai_chat_body, build_trip_brief, changed_payload_fields, detect_itinerary_conflicts,
+    new_id, now_rfc3339, pack_catalog, pack_download_url, parse_anthropic_reply,
+    parse_fcdo_content, parse_forecast_response, parse_geocoding_response, parse_ollama_chat_reply,
+    parse_openai_chat_reply, parse_pack_content, provider_info, recommend_places,
+    search_trip_corpus, validate_api_key, validate_country_slug, validate_create_trip,
+    validate_document_content, validate_fact_payload, validate_model_name, validate_pack_id,
+    validate_provider_id, validate_search_query, validate_update_trip,
 };
 
 const DATABASE_FILE: &str = "voyalier.sqlite3";
@@ -123,6 +124,9 @@ pub trait SecretStore: Send + Sync {
 }
 
 const KEYRING_SERVICE: &str = "com.voyalier.keys";
+
+/// The most recommendations returned for a trip.
+const RECOMMENDATION_LIMIT: usize = 24;
 
 /// Production secret store: the OS keychain via the `keyring` crate.
 struct KeyringSecretStore;
@@ -477,6 +481,36 @@ impl AppService {
             )
             .map_err(storage_error)?;
         Ok(())
+    }
+
+    /// Rank the places in this trip's downloaded packs against the persona
+    /// `weights`. Deterministic and transparent — no model, no network — and
+    /// grounded only in already-downloaded open place data. Empty until a pack
+    /// with places has been downloaded for the trip.
+    pub fn get_recommendations(
+        &self,
+        trip_id: &str,
+        weights: PersonaWeights,
+    ) -> Result<Vec<Recommendation>, AppError> {
+        let connection = self.connection()?;
+        fetch_trip(&connection, trip_id)?;
+        let mut statement = connection
+            .prepare("SELECT content FROM downloaded_packs WHERE trip_id = ?1")
+            .map_err(storage_error)?;
+        let rows = statement
+            .query_map(params![trip_id], |row| row.get::<_, String>(0))
+            .map_err(storage_error)?;
+
+        let mut places = Vec::new();
+        for row in rows {
+            let content = row.map_err(storage_error)?;
+            // Stored content is our own re-serialized PackContent; skip anything
+            // unreadable rather than failing the whole request.
+            if let Ok(pack) = serde_json::from_str::<PackContent>(&content) {
+                places.extend(pack.places);
+            }
+        }
+        Ok(recommend_places(&places, &weights, RECOMMENDATION_LIMIT))
     }
 
     /// The configured state of every supported AI provider. Reports only whether
@@ -2564,6 +2598,55 @@ mod tests {
                 .expect("list")
                 .is_empty()
         );
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn get_recommendations_ranks_downloaded_pack_places_by_persona() {
+        struct PackFetcher;
+        impl AdviceFetcher for PackFetcher {
+            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+                Ok(r#"{ "packId": "us-nashville", "articles": [], "places": [
+                    { "name": "Hattie B's", "category": "restaurant", "lat": 36.16, "lon": -86.79 },
+                    { "name": "Frist Museum", "category": "art_museum", "lat": 36.15, "lon": -86.78 },
+                    { "name": "Green Park", "category": "public_park", "lat": 36.14, "lon": -86.80 }
+                ] }"#
+                .to_owned())
+            }
+        }
+
+        let database = temp_database("recommendations");
+        let service =
+            AppService::open_path_with_fetcher(&database, Arc::new(PackFetcher)).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        // No packs downloaded yet → no recommendations.
+        assert!(
+            service
+                .get_recommendations(&trip.id, PersonaWeights::balanced())
+                .expect("recs")
+                .is_empty()
+        );
+
+        service
+            .download_pack(&trip.id, "us-nashville")
+            .expect("download");
+
+        // A food-forward persona ranks the restaurant first.
+        let weights = PersonaWeights {
+            food: 1.0,
+            culture: 0.3,
+            nature: 0.0,
+            nightlife: 0.0,
+            shopping: 0.0,
+        };
+        let recs = service
+            .get_recommendations(&trip.id, weights)
+            .expect("recs");
+        assert_eq!(recs.first().map(|r| r.name.as_str()), Some("Hattie B's"));
+        // Nature weight is zero → the park is excluded.
+        assert!(!recs.iter().any(|r| r.name == "Green Park"));
+        assert!(recs.iter().all(|r| r.source == "Overture Maps"));
         cleanup_database(database);
     }
 

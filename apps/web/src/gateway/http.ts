@@ -17,8 +17,10 @@ import type {
   ImportResult,
   LocalAiStatus,
   PackInfo,
+  PersonaWeights,
   ProviderConfig,
   ProviderId,
+  Recommendation,
   SearchHit,
   SetProviderKeyInput,
   SetProviderModelInput,
@@ -165,6 +167,13 @@ export function createHttpGateway(
       request<void>(
         "DELETE",
         `/api/v1/trips/${enc(tripId)}/packs/${enc(packId)}`,
+      ),
+
+    getRecommendations: (tripId: string, weights: PersonaWeights) =>
+      request<Recommendation[]>(
+        "POST",
+        `/api/v1/trips/${enc(tripId)}/recommendations`,
+        weights,
       ),
 
     listAdviceCountries: () =>
