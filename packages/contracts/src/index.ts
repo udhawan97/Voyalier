@@ -270,6 +270,33 @@ export interface AssistActivityEntry {
   model: string;
   createdAt: string;
 }
+/** A geographic bounding box in decimal degrees (WGS84). */
+export interface BoundingBox {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+}
+/** License + attribution for one layer of a city pack. */
+export interface PackLayerLicense {
+  layer: string;
+  source: string;
+  license: string;
+  attribution: string;
+}
+/**
+ * Catalog metadata for one downloadable city pack. Describes coverage and terms
+ * — not the pack contents. Overture places and Wikivoyage prose are kept as
+ * separate layers with their own licenses.
+ */
+export interface PackInfo {
+  id: string;
+  name: string;
+  region: string;
+  bbox: BoundingBox;
+  wikivoyageArticle: string;
+  layers: PackLayerLicense[];
+}
 export type SearchHitSource = "document" | "confirmed_fact";
 export interface SearchHit {
   source: SearchHitSource;
@@ -373,6 +400,7 @@ export interface AppGateway {
   ): Promise<AssistRequestPreview>;
   runAssist(tripId: string, provider: ProviderId): Promise<AssistReply>;
   listAssistActivity(tripId: string): Promise<AssistActivityEntry[]>;
+  listPacks(): Promise<PackInfo[]>;
   listAdviceCountries(): Promise<FcdoCountry[]>;
   fetchTravelAdvice(
     input: FetchTravelAdviceInput,

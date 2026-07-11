@@ -15,6 +15,7 @@ import type {
   ImportDocumentInput,
   ImportResult,
   LocalAiStatus,
+  PackInfo,
   ProviderConfig,
   ProviderId,
   SearchHit,
@@ -147,6 +148,8 @@ export function createHttpGateway(
         "GET",
         `/api/v1/trips/${enc(tripId)}/assist-activity`,
       ),
+
+    listPacks: () => request<PackInfo[]>("GET", "/api/v1/packs"),
 
     listAdviceCountries: () =>
       request<FcdoCountry[]>("GET", "/api/v1/advice/countries"),

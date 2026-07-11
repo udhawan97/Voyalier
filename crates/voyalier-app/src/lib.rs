@@ -13,15 +13,15 @@ use voyalier_core::{
     CreateTripInput, DEFAULT_OLLAMA_MODEL, DocumentKind, ErrorCode, ExtractionMethod,
     FCDO_COUNTRIES, FcdoCountry, HealthResponse, ImportDocumentInput, ImportResult,
     IntelligenceMode, JsonLdParser, LocalAiStatus, NormalizedDocument, OLLAMA_CHAT_URL,
-    OLLAMA_TAGS_URL, PROVIDERS, ParsedCandidate, PlaintextParser, ProviderConfig, ProviderId,
-    RedactionPolicy, SearchHit, SearchableDocument, SourceDocument, TravelAdviceSnapshot, Trip,
-    TripBrief, TripDetail, TripStatus, TripSummary, UpdateTripInput, WeatherSnapshot,
-    assess_readiness, build_assist_preview, build_ollama_chat_body, build_trip_brief,
-    changed_payload_fields, detect_itinerary_conflicts, new_id, now_rfc3339, parse_fcdo_content,
-    parse_forecast_response, parse_geocoding_response, parse_ollama_chat_reply, provider_info,
-    search_trip_corpus, validate_api_key, validate_country_slug, validate_create_trip,
-    validate_document_content, validate_fact_payload, validate_model_name, validate_provider_id,
-    validate_search_query, validate_update_trip,
+    OLLAMA_TAGS_URL, PROVIDERS, PackInfo, ParsedCandidate, PlaintextParser, ProviderConfig,
+    ProviderId, RedactionPolicy, SearchHit, SearchableDocument, SourceDocument,
+    TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripStatus, TripSummary, UpdateTripInput,
+    WeatherSnapshot, assess_readiness, build_assist_preview, build_ollama_chat_body,
+    build_trip_brief, changed_payload_fields, detect_itinerary_conflicts, new_id, now_rfc3339,
+    pack_catalog, parse_fcdo_content, parse_forecast_response, parse_geocoding_response,
+    parse_ollama_chat_reply, provider_info, search_trip_corpus, validate_api_key,
+    validate_country_slug, validate_create_trip, validate_document_content, validate_fact_payload,
+    validate_model_name, validate_provider_id, validate_search_query, validate_update_trip,
 };
 
 const DATABASE_FILE: &str = "voyalier.sqlite3";
@@ -326,6 +326,13 @@ impl AppService {
     /// The curated list of fetchable FCDO country pages.
     pub fn list_advice_countries(&self) -> Vec<FcdoCountry> {
         FCDO_COUNTRIES.to_vec()
+    }
+
+    /// The catalog of downloadable city packs. Static curated metadata — no
+    /// network and no pack contents; downloading a pack is a later, consented
+    /// step.
+    pub fn list_packs(&self) -> Vec<PackInfo> {
+        pack_catalog()
     }
 
     /// The configured state of every supported AI provider. Reports only whether

@@ -4,9 +4,9 @@ use voyalier_app::AppService;
 use voyalier_core::{
     AddManualFactInput, AppError, AssistActivityEntry, AssistReply, AssistRequestPreview,
     CandidateFact, CandidateStatus, ConfirmCandidateInput, ConfirmedFact, CreateTripInput,
-    FcdoCountry, HealthResponse, ImportDocumentInput, ImportResult, LocalAiStatus, ProviderConfig,
-    SearchHit, TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripSummary, UpdateTripInput,
-    WeatherSnapshot,
+    FcdoCountry, HealthResponse, ImportDocumentInput, ImportResult, LocalAiStatus, PackInfo,
+    ProviderConfig, SearchHit, TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripSummary,
+    UpdateTripInput, WeatherSnapshot,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -168,6 +168,15 @@ fn list_advice_countries(
 }
 
 #[tauri::command]
+fn list_packs(
+    input: EmptyInput,
+    service: State<'_, AppService>,
+) -> Result<Vec<PackInfo>, AppError> {
+    let _ = input;
+    Ok(service.list_packs())
+}
+
+#[tauri::command]
 fn detect_local_ai(
     input: EmptyInput,
     service: State<'_, AppService>,
@@ -318,6 +327,7 @@ fn builder<R: tauri::Runtime>(
             run_assist,
             list_assist_activity,
             list_advice_countries,
+            list_packs,
             detect_local_ai,
             list_providers,
             set_provider_key,
@@ -506,6 +516,17 @@ mod tests {
         .expect("assist activity");
         assert!(activity.as_array().expect("activity array").is_empty());
 
+        // City pack catalog is static and includes the required seed cities.
+        let packs = invoke(&webview, "list_packs", json!({})).expect("packs");
+        let pack_ids: Vec<&str> = packs
+            .as_array()
+            .expect("packs array")
+            .iter()
+            .map(|pack| pack["id"].as_str().expect("id"))
+            .collect();
+        assert!(pack_ids.contains(&"us-nashville"));
+        assert!(pack_ids.contains(&"us-hi-maui"));
+
         // Countries list is local and static; the fetch command itself is
         // network-backed and is exercised at the app/server layers with stubs.
         let countries =
@@ -551,6 +572,7 @@ mod tests {
             "run_assist",
             "list_assist_activity",
             "list_advice_countries",
+            "list_packs",
             "detect_local_ai",
             "list_providers",
             "set_provider_key",

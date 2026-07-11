@@ -8,6 +8,7 @@ mod assist;
 mod brief;
 mod itinerary;
 mod local_ai;
+mod packs;
 mod parser;
 mod provider;
 mod readiness;
@@ -26,6 +27,7 @@ pub use assist::{
 pub use brief::{RedactionPolicy, TripBrief, build_trip_brief};
 pub use itinerary::detect_itinerary_conflicts;
 pub use local_ai::{LocalAiModel, LocalAiStatus, OLLAMA_TAGS_URL, parse_ollama_models};
+pub use packs::{BoundingBox, PackInfo, PackLayerLicense, pack_catalog, validate_pack_id};
 pub use parser::{
     ConfirmationParser, JsonLdParser, NormalizedDocument, ParsedCandidate, ParserDiagnostic,
     ParserOutcome, PlaintextParser,

@@ -94,6 +94,7 @@ pub fn app(service: AppService) -> Router {
         )
         .route("/api/v1/trips/{trip_id}/archive", post(archive_trip))
         .route("/api/v1/advice/countries", get(list_advice_countries))
+        .route("/api/v1/packs", get(list_packs))
         .route("/api/v1/local-ai", get(detect_local_ai))
         .route("/api/v1/providers", get(list_providers))
         .route(
@@ -217,6 +218,10 @@ async fn list_advice_countries(
     State(service): State<AppService>,
 ) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(service.list_advice_countries()))
+}
+
+async fn list_packs(State(service): State<AppService>) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.list_packs()))
 }
 
 async fn detect_local_ai(State(service): State<AppService>) -> Result<impl IntoResponse, ApiError> {
@@ -907,6 +912,27 @@ mod tests {
         .await;
         assert_eq!(activity.status, StatusCode::OK);
         assert_eq!(activity.json.as_array().expect("array").len(), 0);
+        cleanup_database(database);
+    }
+
+    #[tokio::test]
+    async fn packs_route_lists_the_required_seed_cities() {
+        let database = temp_database("packs");
+        let service = AppService::open_path(&database).expect("service");
+        let router = app(service);
+
+        let response = request(router, Method::GET, "/api/v1/packs", None).await;
+        assert_eq!(response.status, StatusCode::OK);
+        let ids: Vec<&str> = response
+            .json
+            .as_array()
+            .expect("packs")
+            .iter()
+            .map(|pack| pack["id"].as_str().expect("id"))
+            .collect();
+        for required in ["us-nashville", "us-hi-oahu", "us-hi-maui", "us-hi-kauai"] {
+            assert!(ids.contains(&required), "missing {required}");
+        }
         cleanup_database(database);
     }
 

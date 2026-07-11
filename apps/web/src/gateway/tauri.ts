@@ -15,6 +15,7 @@ import type {
   ImportDocumentInput,
   ImportResult,
   LocalAiStatus,
+  PackInfo,
   ProviderConfig,
   ProviderId,
   SearchHit,
@@ -107,6 +108,8 @@ export function createTauriGateway(
 
     listAssistActivity: (tripId: string) =>
       call<AssistActivityEntry[]>("list_assist_activity", { tripId }),
+
+    listPacks: () => call<PackInfo[]>("list_packs", {}),
 
     listAdviceCountries: () => call<FcdoCountry[]>("list_advice_countries", {}),
 

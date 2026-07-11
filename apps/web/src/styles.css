@@ -1545,6 +1545,83 @@ h3 {
   line-height: 1.5;
 }
 
+/* ===== City packs ===================================================== */
+
+.voy-packs {
+  margin-top: 2.6rem;
+  padding-top: 1.8rem;
+  border-top: 1px solid var(--voy-line);
+}
+
+.voy-packs__title {
+  font-size: 1.4rem;
+  font-family: var(--voy-font-display);
+  margin-bottom: 0.8rem;
+}
+
+.voy-packs__intro {
+  margin: 0 0 1rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  max-width: 42rem;
+}
+
+.voy-packs__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.8rem;
+}
+
+.voy-packs__row {
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-raised);
+}
+
+.voy-packs__row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.4rem;
+}
+
+.voy-packs__name {
+  font-weight: 620;
+}
+
+.voy-packs__region {
+  font-size: 0.8rem;
+  color: var(--voy-ink-muted);
+}
+
+.voy-packs__layers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.voy-packs__layer {
+  font-size: 0.78rem;
+  color: var(--voy-ink-muted);
+  font-family: var(--voy-font-mono);
+}
+
+.voy-packs__scope {
+  margin: 1.1rem 0 0;
+  color: var(--voy-silver);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
 /* ===== On-device AI ==================================================== */
 
 .voy-localai {

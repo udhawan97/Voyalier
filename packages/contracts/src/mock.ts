@@ -21,6 +21,7 @@ import type {
   ItineraryConflict,
   LocalAiStatus,
   LodgingStayPayload,
+  PackInfo,
   ProviderConfig,
   ProviderId,
   SetProviderKeyInput,
@@ -556,6 +557,75 @@ const MOCK_PROVIDERS: ReadonlyArray<{
   { id: "openai", label: "OpenAI", keyRequired: true },
   { id: "anthropic", label: "Anthropic", keyRequired: true },
   { id: "ollama", label: "Ollama (on-device)", keyRequired: false },
+];
+
+function packLayers(): PackInfo["layers"] {
+  return [
+    {
+      layer: "places",
+      source: "Overture Maps",
+      license: "CDLA-Permissive-2.0",
+      attribution: "© Overture Maps Foundation",
+    },
+    {
+      layer: "articles",
+      source: "Wikivoyage",
+      license: "CC-BY-SA-3.0",
+      attribution: "Wikivoyage contributors, CC BY-SA 3.0",
+    },
+  ];
+}
+
+/** Mirrors the required seed cities from voyalier-core::packs::pack_catalog. */
+const MOCK_PACKS: PackInfo[] = [
+  {
+    id: "us-nashville",
+    name: "Nashville",
+    region: "Tennessee, USA",
+    bbox: { west: -87.06, south: 36.03, east: -86.62, north: 36.41 },
+    wikivoyageArticle: "Nashville",
+    layers: packLayers(),
+  },
+  {
+    id: "us-hi-oahu",
+    name: "Oʻahu",
+    region: "Hawaii, USA",
+    bbox: { west: -158.31, south: 21.24, east: -157.62, north: 21.75 },
+    wikivoyageArticle: "Oahu",
+    layers: packLayers(),
+  },
+  {
+    id: "us-hi-maui",
+    name: "Maui",
+    region: "Hawaii, USA",
+    bbox: { west: -156.71, south: 20.57, east: -155.98, north: 21.04 },
+    wikivoyageArticle: "Maui",
+    layers: packLayers(),
+  },
+  {
+    id: "us-hi-kauai",
+    name: "Kauaʻi",
+    region: "Hawaii, USA",
+    bbox: { west: -159.79, south: 21.85, east: -159.29, north: 22.24 },
+    wikivoyageArticle: "Kauai",
+    layers: packLayers(),
+  },
+  {
+    id: "us-hi-hawaii-island",
+    name: "Hawaiʻi (Big Island)",
+    region: "Hawaii, USA",
+    bbox: { west: -156.11, south: 18.87, east: -154.79, north: 20.29 },
+    wikivoyageArticle: "Hawaii (Big Island)",
+    layers: packLayers(),
+  },
+  {
+    id: "jp-kyoto",
+    name: "Kyoto",
+    region: "Japan",
+    bbox: { west: 135.68, south: 34.93, east: 135.83, north: 35.1 },
+    wikivoyageArticle: "Kyoto",
+    layers: packLayers(),
+  },
 ];
 
 const MOCK_ADVICE_COUNTRIES: FcdoCountry[] = [
@@ -1157,6 +1227,8 @@ export function createMockGateway(options?: {
           }))
           .reverse(); // most recent first
       }),
+
+    listPacks: () => execute("listPacks", () => MOCK_PACKS.map(clone)),
 
     listAdviceCountries: () =>
       execute("listAdviceCountries", () => MOCK_ADVICE_COUNTRIES.map(clone)),
