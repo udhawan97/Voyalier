@@ -39,6 +39,9 @@ blocked on paid code-signing certificates.
   gained additive `getVaultStatus`/`setVaultPassphrase`/`unlockVault`/
   `removeVaultPassphrase`, `getRecommendations`, and `getToday` methods (plus a
   `VaultStatus` type) — all backward-compatible.
+- Performance: the consent-gated map lazy-loads MapLibre GL on first use, so the
+  initial JavaScript payload drops from ~357 KB to ~84 KB gzipped; the ~1 MB map
+  library is a separate chunk fetched only when a map is opened.
 
 ## [0.2.0] - 2026-07-11 — Grounded intelligence (Phase 2)
 

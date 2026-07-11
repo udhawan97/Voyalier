@@ -147,7 +147,10 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
 - Signed installers: DMG and EXE/MSI signing, notarization, checksums, and an
   updater. _(Blocked on paid Apple ($99/yr) and Windows code-signing
   certificates.)_
-- Documentation, accessibility, performance, localization readiness, and support playbooks.
+- Documentation, accessibility, performance, localization readiness, and support
+  playbooks. _(In progress. Performance: the consent-gated map now lazy-loads
+  MapLibre GL on first use, cutting the initial JavaScript payload from ~357 KB to
+  ~84 KB gzipped — users who never open a map never download the ~1 MB library.)_
 
 ## Later
 
