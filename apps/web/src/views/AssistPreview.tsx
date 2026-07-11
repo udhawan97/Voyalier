@@ -9,13 +9,14 @@ import type {
 
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError, formatDateTimeLocal } from "../app/format";
+import { t, type MessageKey } from "../app/i18n";
 import { Button } from "../components/Button";
 
 /** Static labels for the picker; the authoritative label comes back on the preview. */
-const PROVIDER_OPTIONS: { id: ProviderId; label: string }[] = [
-  { id: "ollama", label: "Ollama (on-device)" },
-  { id: "openai", label: "OpenAI" },
-  { id: "anthropic", label: "Anthropic" },
+const PROVIDER_OPTIONS: { id: ProviderId; labelKey: MessageKey }[] = [
+  { id: "ollama", labelKey: "assist.provider.ollama" },
+  { id: "openai", labelKey: "assist.provider.openai" },
+  { id: "anthropic", labelKey: "assist.provider.anthropic" },
 ];
 
 /**
@@ -58,8 +59,10 @@ export function AssistPreview({ tripId }: { tripId: string }) {
       void refreshActivity();
       announce(
         result.leavesDevice
-          ? `Preview ready. This request would leave your device to ${result.providerLabel}.`
-          : "Preview ready. This request would run locally on this device.",
+          ? t("assist.announce.previewCloud", {
+              provider: result.providerLabel,
+            })
+          : t("assist.announce.previewLocal"),
       );
     } catch (caught) {
       setPreview(null);
@@ -77,7 +80,7 @@ export function AssistPreview({ tripId }: { tripId: string }) {
       const result = await gateway.runAssist(tripId, preview.provider);
       setReply(result);
       void refreshActivity();
-      announce(`Assist finished with ${result.model}.`);
+      announce(t("assist.announce.finished", { model: result.model }));
     } catch (caught) {
       setReply(null);
       const appError = caught as AppError;
@@ -95,17 +98,13 @@ export function AssistPreview({ tripId }: { tripId: string }) {
   return (
     <section className="voy-assist" aria-labelledby="assist-title">
       <h2 id="assist-title" className="voy-assist__title">
-        Preview an AI request
+        {t("assist.title")}
       </h2>
-      <p className="voy-assist__intro">
-        See exactly what Voyalier would send to a provider for this trip.
-        Confirmation codes and traveler names are never included, and nothing is
-        sent.
-      </p>
+      <p className="voy-assist__intro">{t("assist.intro")}</p>
 
       <div className="voy-assist__controls">
         <label className="voy-sr-only" htmlFor={selectId}>
-          Provider to preview
+          {t("assist.selectLabel")}
         </label>
         <select
           id={selectId}
@@ -115,12 +114,12 @@ export function AssistPreview({ tripId }: { tripId: string }) {
         >
           {PROVIDER_OPTIONS.map((option) => (
             <option key={option.id} value={option.id}>
-              {option.label}
+              {t(option.labelKey)}
             </option>
           ))}
         </select>
         <Button variant="secondary" onClick={load} busy={loading}>
-          Preview request
+          {t("assist.preview")}
         </Button>
       </div>
 
@@ -138,29 +137,36 @@ export function AssistPreview({ tripId }: { tripId: string }) {
             }`}
           >
             {preview.leavesDevice
-              ? `This request would leave your device to ${preview.providerLabel}.`
-              : `This request would run locally on this device via ${preview.providerLabel}.`}{" "}
+              ? t("assist.route.cloud", { provider: preview.providerLabel })
+              : t("assist.route.local", {
+                  provider: preview.providerLabel,
+                })}{" "}
             <span className="voy-assist__endpoint">{preview.endpoint}</span>
           </p>
           {preview.model ? (
-            <p className="voy-assist__model">Model: {preview.model}</p>
+            <p className="voy-assist__model">
+              {t("assist.model", { model: preview.model })}
+            </p>
           ) : null}
           <p className="voy-assist__meta">
             {preview.groundedIn.length > 0
-              ? `Grounded in ${preview.groundedIn.join(", ")}`
-              : "No confirmed plans to ground in yet"}
-            {" · "}~{preview.estimatedTokens} tokens
+              ? t("assist.grounded", { sources: preview.groundedIn.join(", ") })
+              : t("assist.noGrounding")}
+            {" · "}
+            {t("assist.tokens", { tokens: preview.estimatedTokens })}
           </p>
 
-          <h3 className="voy-assist__subhead">System instruction</h3>
+          <h3 className="voy-assist__subhead">
+            {t("assist.systemInstruction")}
+          </h3>
           <pre className="voy-assist__block">{preview.systemPrompt}</pre>
 
-          <h3 className="voy-assist__subhead">Trip details it would include</h3>
+          <h3 className="voy-assist__subhead">{t("assist.tripDetails")}</h3>
           <pre className="voy-assist__block">{preview.userContent}</pre>
 
           {preview.withheld.length > 0 ? (
             <>
-              <h3 className="voy-assist__subhead">Withheld from the request</h3>
+              <h3 className="voy-assist__subhead">{t("assist.withheld")}</h3>
               <ul className="voy-assist__withheld">
                 {preview.withheld.map((item) => (
                   <li key={item}>{item}</li>
@@ -172,14 +178,12 @@ export function AssistPreview({ tripId }: { tripId: string }) {
           <div className="voy-assist__run">
             <Button variant="primary" onClick={run} busy={running}>
               {preview.leavesDevice
-                ? `Send to ${preview.providerLabel}`
-                : "Run on-device assist"}
+                ? t("assist.send", { provider: preview.providerLabel })
+                : t("assist.runLocal")}
             </Button>
             {preview.leavesDevice ? (
               <p className="voy-assist__note">
-                This sends the request above to {preview.providerLabel} using
-                your stored key. Add one under AI providers first if you
-                haven’t.
+                {t("assist.note", { provider: preview.providerLabel })}
               </p>
             ) : null}
             {runError ? (
@@ -190,13 +194,11 @@ export function AssistPreview({ tripId }: { tripId: string }) {
             {reply ? (
               <>
                 <h3 className="voy-assist__subhead">
-                  Reply from {reply.model}
+                  {t("assist.reply", { model: reply.model })}
                 </h3>
                 <pre className="voy-assist__block">{reply.text}</pre>
                 <p className="voy-assist__disclaimer">
-                  AI-generated from your confirmed plans. Voyalier never treats
-                  this as authoritative — verify anything important (entry
-                  rules, health, safety) against an official source.
+                  {t("assist.disclaimer")}
                 </p>
               </>
             ) : null}
@@ -206,8 +208,8 @@ export function AssistPreview({ tripId }: { tripId: string }) {
 
       {activity.length > 0 ? (
         <div className="voy-assist__activity">
-          <h3 className="voy-assist__subhead">Recent assist runs</h3>
-          <ul className="voy-assist__log" aria-label="Assist activity log">
+          <h3 className="voy-assist__subhead">{t("assist.recentRuns")}</h3>
+          <ul className="voy-assist__log" aria-label={t("assist.log.aria")}>
             {activity.map((entry) => (
               <li key={entry.id} className="voy-assist__log-item">
                 <span className="voy-assist__log-model">{entry.model}</span>
@@ -220,11 +222,7 @@ export function AssistPreview({ tripId }: { tripId: string }) {
         </div>
       ) : null}
 
-      <p className="voy-assist__scope">
-        Preview shows exactly what would be sent. On-device runs stay on this
-        device via Ollama; cloud runs send the previewed request to your chosen
-        provider using your stored key. Each completed run is listed above.
-      </p>
+      <p className="voy-assist__scope">{t("assist.scope")}</p>
     </section>
   );
 }

@@ -373,6 +373,41 @@ const en = {
   "weather.fetch": "Fetch weather outlook",
   "weather.consent":
     "Fetching sends your destination name (“{destination}”) to open-meteo.com to place it on the map, then retrieves the forecast. Nothing else about your trip leaves this device.",
+
+  "assist.title": "Preview an AI request",
+  "assist.intro":
+    "See exactly what Voyalier would send to a provider for this trip. Confirmation codes and traveler names are never included, and nothing is sent.",
+  "assist.provider.ollama": "Ollama (on-device)",
+  "assist.provider.openai": "OpenAI",
+  "assist.provider.anthropic": "Anthropic",
+  "assist.selectLabel": "Provider to preview",
+  "assist.preview": "Preview request",
+  "assist.announce.previewCloud":
+    "Preview ready. This request would leave your device to {provider}.",
+  "assist.announce.previewLocal":
+    "Preview ready. This request would run locally on this device.",
+  "assist.route.cloud": "This request would leave your device to {provider}.",
+  "assist.route.local":
+    "This request would run locally on this device via {provider}.",
+  "assist.model": "Model: {model}",
+  "assist.grounded": "Grounded in {sources}",
+  "assist.noGrounding": "No confirmed plans to ground in yet",
+  "assist.tokens": "~{tokens} tokens",
+  "assist.systemInstruction": "System instruction",
+  "assist.tripDetails": "Trip details it would include",
+  "assist.withheld": "Withheld from the request",
+  "assist.send": "Send to {provider}",
+  "assist.runLocal": "Run on-device assist",
+  "assist.note":
+    "This sends the request above to {provider} using your stored key. Add one under AI providers first if you haven’t.",
+  "assist.reply": "Reply from {model}",
+  "assist.disclaimer":
+    "AI-generated from your confirmed plans. Voyalier never treats this as authoritative — verify anything important (entry rules, health, safety) against an official source.",
+  "assist.announce.finished": "Assist finished with {model}.",
+  "assist.recentRuns": "Recent assist runs",
+  "assist.log.aria": "Assist activity log",
+  "assist.scope":
+    "Preview shows exactly what would be sent. On-device runs stay on this device via Ollama; cloud runs send the previewed request to your chosen provider using your stored key. Each completed run is listed above.",
 } as const;
 
 export type MessageKey = keyof typeof en;
