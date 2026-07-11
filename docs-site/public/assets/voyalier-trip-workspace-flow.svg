@@ -35,7 +35,7 @@
 
   <!-- Top row: 1 → 2 → 3 -->
   <g filter="url(#shadow)">
-    <rect x="64" y="250" width="380" height="220" rx="20" fill="#faf7ef"/>
+    <rect x="64" y="250" width="380" height="236" rx="20" fill="#faf7ef"/>
     <circle cx="100" cy="286" r="19" fill="#c34e33"/>
     <text x="100" y="292" class="sans step" text-anchor="middle">01</text>
     <text x="132" y="293" class="sans card-title">Frame the trip</text>
@@ -43,13 +43,13 @@
     <text x="94" y="366" class="sans copy">Voyalier answers with a useful starting plan.</text>
     <rect x="94" y="398" width="320" height="44" rx="13" fill="#ebe6d7"/>
     <text x="254" y="425" class="sans" font-size="15" font-weight="700" text-anchor="middle" fill="#46536b">DETERMINISTIC BLUEPRINT</text>
-    <text x="94" y="458" class="sans tech">pure rules · no model required</text>
+    <text x="94" y="470" class="sans tech">pure rules · no model required</text>
   </g>
 
   <path d="M444 360h76" class="route"/>
 
   <g filter="url(#shadow)">
-    <rect x="530" y="250" width="380" height="220" rx="20" fill="#faf7ef"/>
+    <rect x="530" y="250" width="380" height="236" rx="20" fill="#faf7ef"/>
     <circle cx="566" cy="286" r="19" fill="#c34e33"/>
     <text x="566" y="292" class="sans step" text-anchor="middle">02</text>
     <text x="598" y="293" class="sans card-title">Gather, then review</text>
@@ -57,13 +57,13 @@
     <text x="560" y="366" class="sans copy">suggested detail with its source.</text>
     <rect x="560" y="398" width="320" height="44" rx="13" fill="#c34e33"/>
     <text x="720" y="425" class="sans" font-size="15" font-weight="700" text-anchor="middle" fill="#fff">CONFIRM · FIX · REJECT</text>
-    <text x="560" y="458" class="sans tech">candidate → confirmed · review gate</text>
+    <text x="560" y="470" class="sans tech">candidate → confirmed · review gate</text>
   </g>
 
   <path d="M910 360h76" class="route"/>
 
   <g filter="url(#shadow)">
-    <rect x="996" y="250" width="380" height="220" rx="20" fill="#faf7ef"/>
+    <rect x="996" y="250" width="380" height="236" rx="20" fill="#faf7ef"/>
     <circle cx="1032" cy="286" r="19" fill="#c34e33" class="pulse"/>
     <text x="1032" y="292" class="sans step" text-anchor="middle">03</text>
     <text x="1064" y="293" class="sans card-title">Pressure-test it</text>
@@ -71,15 +71,15 @@
     <text x="1026" y="366" class="sans copy">review before they become travel-day surprises.</text>
     <rect x="1026" y="398" width="320" height="44" rx="13" fill="#ebe6d7"/>
     <text x="1186" y="425" class="sans" font-size="15" font-weight="700" text-anchor="middle" fill="#46536b">READINESS EXPLAINS, NEVER “CLEARS”</text>
-    <text x="1026" y="458" class="sans tech">conflicts · readiness · pure rules</text>
+    <text x="1026" y="470" class="sans tech">conflicts · readiness · pure rules</text>
   </g>
 
   <!-- Downward turn, entirely within the right gutter -->
-  <path d="M1186 470v90" class="route"/>
+  <path d="M1186 486v74" class="route"/>
 
   <!-- Bottom row runs right → left: 4 → 5 → 6 -->
   <g filter="url(#shadow)">
-    <rect x="996" y="570" width="380" height="220" rx="20" fill="#faf7ef"/>
+    <rect x="996" y="570" width="380" height="236" rx="20" fill="#faf7ef"/>
     <circle cx="1032" cy="606" r="19" fill="#c34e33"/>
     <text x="1032" y="612" class="sans step" text-anchor="middle">04</text>
     <text x="1064" y="613" class="sans card-title">Prepare for offline</text>
@@ -87,27 +87,27 @@
     <text x="1026" y="686" class="sans copy">places, attribution, and the plan on-device.</text>
     <rect x="1026" y="718" width="320" height="44" rx="13" fill="#ebe6d7"/>
     <text x="1186" y="745" class="sans" font-size="15" font-weight="700" text-anchor="middle" fill="#46536b">PACKS · PERSONA WEIGHTS · MAP</text>
-    <text x="1026" y="778" class="sans tech">open data · licensed · explicit download</text>
+    <text x="1026" y="792" class="sans tech">open data · licensed · explicit download</text>
   </g>
 
   <path d="M996 680h-76" class="route"/>
 
   <g filter="url(#shadow)">
-    <rect x="530" y="570" width="380" height="220" rx="20" fill="#faf7ef"/>
+    <rect x="530" y="570" width="380" height="236" rx="20" fill="#faf7ef"/>
     <circle cx="566" cy="606" r="19" fill="#c34e33"/>
     <text x="566" y="612" class="sans step" text-anchor="middle">05</text>
     <text x="598" y="613" class="sans card-title">Travel with Today</text>
     <text x="560" y="660" class="sans copy">See what is happening now and what comes</text>
-    <text x="560" y="686" class="sans copy">next—even when the signal has gone sightseeing.</text>
+    <text x="560" y="686" class="sans copy">next—even when the signal wanders off.</text>
     <rect x="560" y="718" width="320" height="44" rx="13" fill="#ebe6d7"/>
     <text x="720" y="745" class="sans" font-size="15" font-weight="700" text-anchor="middle" fill="#46536b">OFFLINE · DATE + CONFIRMED FACTS</text>
-    <text x="560" y="778" class="sans tech">offline · confirmed facts · stable order</text>
+    <text x="560" y="792" class="sans tech">offline · confirmed facts · stable order</text>
   </g>
 
   <path d="M530 680h-76" class="route"/>
 
   <g filter="url(#shadow)">
-    <rect x="64" y="570" width="380" height="220" rx="20" fill="#46536b"/>
+    <rect x="64" y="570" width="380" height="236" rx="20" fill="#46536b"/>
     <circle cx="100" cy="606" r="19" fill="#c34e33"/>
     <text x="100" y="612" class="sans step" text-anchor="middle">06</text>
     <text x="132" y="613" class="sans dark-title">Share deliberately</text>
@@ -115,16 +115,16 @@
     <text x="94" y="686" class="sans dark-copy">names and confirmation codes behind.</text>
     <rect x="94" y="718" width="320" height="44" rx="13" fill="#1a1917"/>
     <text x="254" y="745" class="sans" font-size="15" font-weight="700" text-anchor="middle" fill="#f2ede1">REDACTED BEFORE RENDERING</text>
-    <text x="94" y="778" class="sans" font-size="14" fill="#c8c3b8">print/PDF · no raw document body</text>
+    <text x="94" y="792" class="sans" font-size="14" fill="#c8c3b8">print/PDF · no raw document body</text>
   </g>
 
   <!-- Optional branch from Today; main route to Share stays direct -->
-  <path d="M720 790v50" class="optional"/>
+  <path d="M720 806v34" class="optional"/>
   <g>
     <rect x="530" y="850" width="380" height="90" rx="18" fill="#211f1c" stroke="#d97a5f" stroke-width="1.7" stroke-dasharray="8 6"/>
     <text x="558" y="882" class="sans" font-size="14" font-weight="700" letter-spacing="1.5" fill="#d97a5f">OPTIONAL AI SIDECAR</text>
     <text x="558" y="911" class="sans" font-size="16" fill="#f2ede1">Preview → consent → labeled reply</text>
-    <text x="558" y="932" class="sans" font-size="14" fill="#a9a69c">activity log · Ollama local · cloud BYOK</text>
+    <text x="558" y="926" class="sans" font-size="14" fill="#a9a69c">activity log · Ollama local · cloud BYOK</text>
   </g>
 
   <g>

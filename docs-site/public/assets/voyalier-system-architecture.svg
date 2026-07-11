@@ -25,11 +25,11 @@
   <text x="64" y="62" class="sans eyebrow">SYSTEM MAP · LOCAL-FIRST BY CONSTRUCTION</text>
   <text x="64" y="108" class="serif title">One interface. Two runtimes. One local core.</text>
   <text x="64" y="140" class="sans subtitle">For travelers: the same trip everywhere. For developers: transport changes, product rules do not.</text>
-  <g transform="translate(1112 56)">
-    <rect width="264" height="76" rx="16" fill="#1a1917"/>
-    <circle cx="24" cy="24" r="6" fill="#c34e33" class="pulse"/>
-    <text x="42" y="29" class="sans" font-size="14" font-weight="700" fill="#f2ede1">No hidden network path</text>
-    <text x="24" y="55" class="sans" font-size="14" fill="#c8c3b8">Dashed red always means “ask first.”</text>
+  <g transform="translate(1076 56)">
+    <rect width="300" height="82" rx="16" fill="#1a1917"/>
+    <circle cx="24" cy="27" r="6" fill="#c34e33" class="pulse"/>
+    <text x="48" y="32" class="sans" font-size="14" font-weight="700" fill="#f2ede1">No hidden network path</text>
+    <text x="48" y="59" class="sans" font-size="14" fill="#c8c3b8">Dashed red always means “ask first.”</text>
   </g>
 
   <!-- Shared interface -->
