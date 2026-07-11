@@ -127,9 +127,11 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   trip — phase (upcoming/active/completed with day counts), today's items
   (departures, arrivals, check-ins/outs, staying-tonight), and the next anchor.
   Computed from confirmed facts against the current date; no network, no model.
-- Encrypted vault and migration/backup tests. _(Delicate crypto-at-rest with
-  key derivation, unlock flow, and a data migration — needs its own careful,
-  dedicated effort; not started.)_
+- Encrypted vault. _(✓ Crypto foundation shipped: a tested XChaCha20-Poly1305
+  seal/open primitive in core. Remaining: generate + keychain-store the data
+  key, wire encryption into storage with a migration, and design the unlock
+  experience — passphrase vs. transparent OS-keychain unlock is a product
+  decision that gates the wiring.)_
 - Map view (MapLibre + offline tiles). _(Needs tile/pack map assets to be
   meaningful; not started.)_
 - Signed installers: DMG and EXE/MSI signing, notarization, checksums, and an
