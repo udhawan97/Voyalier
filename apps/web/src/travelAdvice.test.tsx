@@ -92,5 +92,8 @@ describe("official travel advice", () => {
     await expect(
       gateway.fetchTravelAdvice({ tripId: trip.id, countrySlug: "atlantis" }),
     ).rejects.toMatchObject({ code: "validation/invalid_input" });
+
+    await gateway.updateTrip(trip.id, { destination: "Oslo" });
+    expect((await gateway.getTrip(trip.id)).travelAdvice).toBeUndefined();
   });
 });

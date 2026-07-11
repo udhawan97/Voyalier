@@ -68,5 +68,11 @@ describe("weather outlook", () => {
     const after = await gateway.getTrip(trip.id);
     expect(after.weather?.placeName).toBe("Sapporo");
     expect(after.weather?.retrievedAt).toBeTruthy();
+
+    await gateway.updateTrip(trip.id, { title: "Snow festival" });
+    expect((await gateway.getTrip(trip.id)).weather).toBeDefined();
+
+    await gateway.updateTrip(trip.id, { destination: "Oslo" });
+    expect((await gateway.getTrip(trip.id)).weather).toBeUndefined();
   });
 });
