@@ -11,6 +11,7 @@ import {
   formatFieldValue,
   tripRoute,
 } from "../app/format";
+import { t } from "../app/i18n";
 import { useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
@@ -89,25 +90,25 @@ export function BriefDialog({
   const footer = (
     <>
       <Button variant="ghost" onClick={onClose}>
-        Close
+        {t("action.close")}
       </Button>
       <Button variant="primary" onClick={() => window.print()} disabled={!data}>
-        Print / Save as PDF
+        {t("brief.print")}
       </Button>
     </>
   );
 
   return (
     <Dialog
-      title="Shareable brief"
+      title={t("brief.title")}
       onClose={onClose}
       size="lg"
-      description="A copy you can share. Confirmation codes and traveler names are removed before it leaves this device."
+      description={t("brief.description")}
       footer={footer}
     >
       {status === "loading" && !data ? (
         <div aria-busy="true" role="status">
-          <span className="voy-sr-only">Preparing the brief…</span>
+          <span className="voy-sr-only">{t("brief.loading")}</span>
           <Skeleton width="60%" height="1.4rem" />
           <Skeleton width="40%" />
         </div>
@@ -118,7 +119,7 @@ export function BriefDialog({
           title={describeError(error!).title}
           action={
             <Button variant="secondary" onClick={reload}>
-              Retry
+              {t("action.retry")}
             </Button>
           }
         >
@@ -137,8 +138,11 @@ export function BriefDialog({
           </header>
 
           {data.flights.length > 0 ? (
-            <section className="voy-brief__section" aria-label="Flights">
-              <h4 className="voy-brief__section-title">Flights</h4>
+            <section
+              className="voy-brief__section"
+              aria-label={t("brief.flights")}
+            >
+              <h4 className="voy-brief__section-title">{t("brief.flights")}</h4>
               {data.flights.map((flight, index) => (
                 <BriefEntry
                   key={`flight-${index}`}
@@ -150,8 +154,11 @@ export function BriefDialog({
           ) : null}
 
           {data.stays.length > 0 ? (
-            <section className="voy-brief__section" aria-label="Stays">
-              <h4 className="voy-brief__section-title">Stays</h4>
+            <section
+              className="voy-brief__section"
+              aria-label={t("brief.stays")}
+            >
+              <h4 className="voy-brief__section-title">{t("brief.stays")}</h4>
               {data.stays.map((stay, index) => (
                 <BriefEntry
                   key={`stay-${index}`}
@@ -163,16 +170,14 @@ export function BriefDialog({
           ) : null}
 
           {data.flights.length === 0 && data.stays.length === 0 ? (
-            <p className="voy-brief__empty">
-              No confirmed flights or stays yet. Confirm some plans to fill the
-              brief.
-            </p>
+            <p className="voy-brief__empty">{t("brief.empty")}</p>
           ) : null}
 
           {data.redactedFields.length > 0 ? (
             <p className="voy-brief__redaction">
-              Hidden from this brief:{" "}
-              {data.redactedFields.join(", ").toLowerCase()}.
+              {t("brief.redaction", {
+                fields: data.redactedFields.join(", ").toLowerCase(),
+              })}
             </p>
           ) : null}
         </div>

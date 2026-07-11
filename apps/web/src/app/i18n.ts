@@ -256,6 +256,34 @@ const en = {
   "import.done.title": "Imported",
   "import.done.label": "“{label}” imported.",
   "import.done.none": "No new suggestions were found in this document.",
+
+  "action.close": "Close",
+  "brief.title": "Shareable brief",
+  "brief.description":
+    "A copy you can share. Confirmation codes and traveler names are removed before it leaves this device.",
+  "brief.print": "Print / Save as PDF",
+  "brief.loading": "Preparing the brief…",
+  "brief.flights": "Flights",
+  "brief.stays": "Stays",
+  "brief.empty":
+    "No confirmed flights or stays yet. Confirm some plans to fill the brief.",
+  "brief.redaction": "Hidden from this brief: {fields}.",
+
+  "review.title": "Review suggestions",
+  "review.description":
+    "Voyalier found these in your documents. Nothing is saved until you confirm — check the quoted evidence for each field.",
+  "review.announce.confirmed": "Confirmed {fact}.",
+  "review.announce.dismissed": "Dismissed {fact}.",
+  "review.editnote":
+    "Edit any field, then confirm. Changed fields are recorded on the saved fact.",
+  "review.evidence": "From the document",
+  "review.cancelEdit": "Cancel edit",
+  "review.saveConfirm": "Save & confirm",
+  "review.confirm": "Confirm",
+  "review.editConfirm": "Edit & confirm",
+  "review.dismiss": "Dismiss",
+  "review.empty.title": "All caught up",
+  "review.empty.body": "Every suggestion has been confirmed or dismissed.",
 } as const;
 
 export type MessageKey = keyof typeof en;

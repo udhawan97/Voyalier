@@ -1,9 +1,5 @@
 import { useEffect, useRef, useState, type Ref } from "react";
-import type {
-  AppError,
-  CandidateFact,
-  FactPayload,
-} from "@voyalier/contracts";
+import type { AppError, CandidateFact, FactPayload } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import {
@@ -20,6 +16,7 @@ import {
   warningSentence,
   type PayloadDraft,
 } from "../app/format";
+import { t } from "../app/i18n";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 import { Dialog } from "../components/Dialog";
@@ -64,7 +61,11 @@ function ReviewCard({
           ? { candidateId: candidate.id, editedPayload }
           : { candidateId: candidate.id },
       );
-      announce(`Confirmed ${factTitle(candidate.factType, candidate.payload)}.`);
+      announce(
+        t("review.announce.confirmed", {
+          fact: factTitle(candidate.factType, candidate.payload),
+        }),
+      );
       onDone(candidate.id);
     } catch (caught) {
       setError(caught as AppError);
@@ -77,7 +78,11 @@ function ReviewCard({
     setError(null);
     try {
       await gateway.rejectCandidate(candidate.id);
-      announce(`Dismissed ${factTitle(candidate.factType, candidate.payload)}.`);
+      announce(
+        t("review.announce.dismissed", {
+          fact: factTitle(candidate.factType, candidate.payload),
+        }),
+      );
       onDone(candidate.id);
     } catch (caught) {
       setError(caught as AppError);
@@ -89,12 +94,19 @@ function ReviewCard({
     <li className="voy-review">
       <div className="voy-review__head">
         <span className="voy-review__icon" aria-hidden="true">
-          {candidate.factType === "flight_segment" ? <PlaneIcon /> : <BedIcon />}
+          {candidate.factType === "flight_segment" ? (
+            <PlaneIcon />
+          ) : (
+            <BedIcon />
+          )}
         </span>
         <div className="voy-review__heading">
-          <p className="voy-review__title">{factTitle(candidate.factType, candidate.payload)}</p>
+          <p className="voy-review__title">
+            {factTitle(candidate.factType, candidate.payload)}
+          </p>
           <p className="voy-review__sub">
-            {factTypeLabel(candidate.factType)} · {factSubtitle(candidate.factType, candidate.payload)}
+            {factTypeLabel(candidate.factType)} ·{" "}
+            {factSubtitle(candidate.factType, candidate.payload)}
           </p>
         </div>
         <MethodChip method={candidate.method} />
@@ -109,6 +121,7 @@ function ReviewCard({
               </span>
               <span>{warningSentence(code)}</span>
               <code className="voy-warning__code">{code}</code>
+              {/* the raw warning code is a debug token, not user copy */}
             </li>
           ))}
         </ul>
@@ -116,10 +129,7 @@ function ReviewCard({
 
       {editing ? (
         <div className="voy-review__edit">
-          <p className="voy-review__editnote">
-            Edit any field, then confirm. Changed fields are recorded on the
-            saved fact.
-          </p>
+          <p className="voy-review__editnote">{t("review.editnote")}</p>
           <FactPayloadForm
             factType={candidate.factType}
             draft={draft}
@@ -136,7 +146,7 @@ function ReviewCard({
                 <dt>{fieldLabel(key)}</dt>
                 <dd>{formatFieldValue(key, values[key] as string)}</dd>
                 {span ? (
-                  <EvidenceQuote caption="From the document">
+                  <EvidenceQuote caption={t("review.evidence")}>
                     {span.excerpt}
                   </EvidenceQuote>
                 ) : null}
@@ -163,18 +173,16 @@ function ReviewCard({
                 setDraft(payloadToDraft(candidate.payload));
               }}
             >
-              Cancel edit
+              {t("review.cancelEdit")}
             </Button>
             <Button
               ref={confirmRef}
               variant="primary"
               busy={busy === "confirm"}
               disabled={busy !== null}
-              onClick={() =>
-                confirm(draftToPayload(candidate.factType, draft))
-              }
+              onClick={() => confirm(draftToPayload(candidate.factType, draft))}
             >
-              Save &amp; confirm
+              {t("review.saveConfirm")}
             </Button>
           </>
         ) : (
@@ -186,14 +194,14 @@ function ReviewCard({
               disabled={busy !== null}
               onClick={() => confirm()}
             >
-              Confirm
+              {t("review.confirm")}
             </Button>
             <Button
               variant="secondary"
               disabled={busy !== null}
               onClick={() => setEditing(true)}
             >
-              Edit &amp; confirm
+              {t("review.editConfirm")}
             </Button>
             <Button
               variant="ghost"
@@ -201,7 +209,7 @@ function ReviewCard({
               disabled={busy !== null}
               onClick={reject}
             >
-              Dismiss
+              {t("review.dismiss")}
             </Button>
           </>
         )}
@@ -250,31 +258,26 @@ export function CandidateReviewDialog({
 
   return (
     <Dialog
-      title="Review suggestions"
+      title={t("review.title")}
       onClose={onClose}
       size="lg"
       initialFocusRef={remaining > 0 ? firstConfirmRef : doneRef}
-      description={
-        remaining > 0
-          ? "Voyalier found these in your documents. Nothing is saved until you confirm — check the quoted evidence for each field."
-          : undefined
-      }
+      description={remaining > 0 ? t("review.description") : undefined}
       footer={
         <Button
           ref={doneRef}
           variant={remaining === 0 ? "primary" : "ghost"}
           onClick={onClose}
         >
-          {remaining === 0 ? "Done" : "Close"}
+          {remaining === 0 ? t("action.done") : t("action.close")}
         </Button>
       }
     >
       {remaining === 0 ? (
-        <Empty title="All caught up">
-          Every suggestion has been confirmed or dismissed.
-        </Empty>
+        <Empty title={t("review.empty.title")}>{t("review.empty.body")}</Empty>
       ) : (
         <>
+          {/* count keeps English pluralize() pending Intl.PluralRules */}
           <p className="voy-review__count" role="status">
             {remaining} {pluralize(remaining, "suggestion")} to review
           </p>
