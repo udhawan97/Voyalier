@@ -27,6 +27,9 @@ const run = promisify(execFile);
 const OUT_DIR = process.env.OUT_DIR ?? "dist/packs";
 const RELEASE_TAG = process.env.PACK_RELEASE_TAG ?? "packs-v1";
 const OVERTURE_RELEASE = process.env.OVERTURE_RELEASE ?? "2025-01-22.0";
+if (!/^[\w.-]+$/.test(OVERTURE_RELEASE)) {
+  throw new Error(`Refusing unsafe OVERTURE_RELEASE: ${OVERTURE_RELEASE}`);
+}
 const MAX_PLACES = Number(process.env.MAX_PLACES ?? 800);
 const USER_AGENT =
   "Voyalier-pack-builder/0.1 (+https://github.com/udhawan97/Voyalier)";
@@ -53,6 +56,13 @@ async function fetchArticle(title) {
 
 /** Query Overture places within a bbox via DuckDB, or [] if unavailable. */
 async function fetchPlaces(bbox) {
+  // Defense-in-depth: these are interpolated into SQL, so require finite numbers
+  // even though they come from the trusted catalog.
+  for (const key of ["west", "south", "east", "north"]) {
+    if (!Number.isFinite(bbox[key])) {
+      throw new Error(`Invalid bbox.${key}: ${bbox[key]}`);
+    }
+  }
   const source =
     `s3://overturemaps-us-west-2/release/${OVERTURE_RELEASE}` +
     "/theme=places/type=place/*";

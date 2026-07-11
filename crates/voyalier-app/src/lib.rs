@@ -72,9 +72,13 @@ impl AdviceFetcher for UreqFetcher {
         body: &str,
         headers: &[(&str, &str)],
     ) -> Result<String, AppError> {
-        // Model inference can be slow; allow a generous timeout.
+        // Model inference can be slow; allow a generous timeout. Do NOT treat a
+        // non-2xx status as a transport error — providers put the real cause
+        // (bad key, rate limit, unknown model) in the JSON body, which the
+        // per-provider reply parser surfaces. Otherwise that body is discarded.
         let config = ureq::Agent::config_builder()
             .timeout_global(Some(std::time::Duration::from_secs(120)))
+            .http_status_as_error(false)
             .user_agent("Voyalier/0.1 (+https://github.com/udhawan97/Voyalier)")
             .build();
         let agent: ureq::Agent = config.into();
@@ -93,7 +97,7 @@ impl AdviceFetcher for UreqFetcher {
 fn assist_transport_failure(cause: ureq::Error) -> AppError {
     AppError::new(
         ErrorCode::AssistFailed,
-        format!("could not reach the on-device model: {cause}"),
+        format!("could not reach the AI provider: {cause}"),
     )
 }
 
@@ -389,6 +393,15 @@ impl AppService {
         let content = parse_pack_content(pack_id, &body)?;
         let place_count = content.places.len() as u32;
         let article_count = content.articles.len() as u32;
+        // Store the re-serialized parsed content, not the raw body — so only
+        // known fields are kept and the stored size can't diverge from what we
+        // counted.
+        let stored = serde_json::to_string(&content).map_err(|_| {
+            AppError::new(
+                ErrorCode::InternalUnexpected,
+                "could not store the downloaded pack",
+            )
+        })?;
         let downloaded_at = now_rfc3339();
 
         let connection = self.connection()?;
@@ -411,7 +424,7 @@ impl AppService {
                     info.region,
                     place_count,
                     article_count,
-                    body,
+                    stored,
                     downloaded_at
                 ],
             )
@@ -2438,6 +2451,52 @@ mod tests {
         let serialized = serde_json::to_string(&activity).expect("ser");
         assert!(!serialized.contains("sk-openai-live"));
         assert!(!serialized.contains("sk-anthropic-live"));
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn run_assist_surfaces_provider_error_bodies() {
+        // A provider returns an error JSON body (as it does on 401/429/etc.);
+        // post_json passes the body through and the parser surfaces the cause.
+        struct ErrorStub;
+        impl AdviceFetcher for ErrorStub {
+            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+                panic!("must POST");
+            }
+            fn post_json(
+                &self,
+                _url: &str,
+                _body: &str,
+                _headers: &[(&str, &str)],
+            ) -> Result<String, AppError> {
+                Ok(r#"{ "error": { "message": "Incorrect API key provided" } }"#.to_owned())
+            }
+        }
+
+        let database = temp_database("assist-provider-error");
+        let secrets = Arc::new(MemorySecretStore::default());
+        let service =
+            AppService::open_path_with_deps(&database, Arc::new(ErrorStub), secrets.clone())
+                .expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        service.set_provider_key("openai", "sk-bad").expect("key");
+
+        let error = service
+            .run_assist(&trip.id, "openai")
+            .expect_err("provider error");
+        assert_eq!(error.code, ErrorCode::AssistFailed);
+        assert!(
+            error.message.contains("Incorrect API key provided"),
+            "provider cause should surface, got: {}",
+            error.message
+        );
+        // A failed call is not logged (nothing completed).
+        assert!(
+            service
+                .list_assist_activity(&trip.id)
+                .expect("activity")
+                .is_empty()
+        );
         cleanup_database(database);
     }
 

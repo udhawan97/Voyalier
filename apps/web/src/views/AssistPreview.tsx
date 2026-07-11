@@ -217,7 +217,7 @@ export function AssistPreview({ tripId }: { tripId: string }) {
       <p className="voy-assist__scope">
         Preview shows exactly what would be sent. On-device runs stay on this
         device via Ollama; cloud runs send the previewed request to your chosen
-        provider using your stored key. Every run is listed above.
+        provider using your stored key. Each completed run is listed above.
       </p>
     </section>
   );

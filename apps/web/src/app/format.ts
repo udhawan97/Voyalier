@@ -314,7 +314,7 @@ export function describeError(error: AppError): ErrorCopy {
     case "assist/failed":
       return {
         title: "Assist didn't finish",
-        body: "Voyalier couldn't complete the on-device request. Make sure your local AI is running and try again — nothing was changed.",
+        body: "Voyalier couldn't complete the request. Check the model and your connection (or that your local AI is running), then try again — nothing was changed.",
       };
     case "pack/download_failed":
       return {
