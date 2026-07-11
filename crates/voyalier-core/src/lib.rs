@@ -14,6 +14,7 @@ mod provider;
 mod readiness;
 mod recommend;
 mod search;
+mod today;
 mod types;
 mod weather;
 
@@ -48,6 +49,7 @@ pub use recommend::{PersonaWeights, Recommendation, recommend_places};
 pub use search::{
     SearchHit, SearchHitSource, SearchableDocument, search_trip_corpus, validate_search_query,
 };
+pub use today::{TodayItem, TodayItemKind, TodayView, TripPhase, TripPhaseState, build_today_view};
 pub use types::*;
 pub use weather::{
     GeocodedPlace, WeatherCoverage, WeatherDay, WeatherSnapshot, describe_weather_code,

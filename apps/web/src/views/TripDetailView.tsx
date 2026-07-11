@@ -46,6 +46,7 @@ import { AddFactDialog } from "./AddFactDialog";
 import { BriefDialog } from "./BriefDialog";
 import { CandidateReviewDialog } from "./CandidateReviewDialog";
 import { AiProviders } from "./AiProviders";
+import { TodayPanel } from "./TodayPanel";
 import { AssistPreview } from "./AssistPreview";
 import { CityPacks } from "./CityPacks";
 import { Recommendations } from "./Recommendations";
@@ -459,6 +460,8 @@ export function TripDetailView({
           </Button>
         </div>
       </header>
+
+      <TodayPanel tripId={tripId} />
 
       {pendingCount > 0 ? (
         <button

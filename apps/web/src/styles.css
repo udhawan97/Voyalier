@@ -1647,6 +1647,96 @@ h3 {
   line-height: 1.5;
 }
 
+/* ===== Today ========================================================== */
+
+.voy-today {
+  margin: 1.4rem 0 0;
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-raised);
+}
+
+.voy-today__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.voy-today__title {
+  font-size: 1.1rem;
+  font-family: var(--voy-font-display);
+}
+
+.voy-today__phase {
+  font-size: 0.8rem;
+  font-weight: 640;
+  padding: 0.18rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--voy-line-strong);
+  color: var(--voy-ink-muted);
+}
+
+.voy-today__phase--active {
+  border-color: color-mix(in srgb, var(--voy-moss) 40%, transparent);
+  background: var(--voy-tint-moss);
+  color: var(--voy-success);
+}
+
+.voy-today__phase--upcoming {
+  border-color: color-mix(in srgb, var(--voy-indigo) 40%, transparent);
+  background: var(--voy-tint-indigo);
+  color: var(--voy-indigo);
+}
+
+.voy-today__list {
+  list-style: none;
+  margin: 0.7rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.voy-today__item {
+  display: flex;
+  flex-direction: column;
+  padding-left: 0.8rem;
+  border-left: 2px solid var(--voy-vermilion);
+}
+
+.voy-today__item-title {
+  font-weight: 560;
+}
+
+.voy-today__item-detail {
+  font-size: 0.82rem;
+  color: var(--voy-ink-muted);
+}
+
+.voy-today__empty {
+  margin: 0.7rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.9rem;
+}
+
+.voy-today__next {
+  margin: 0.8rem 0 0;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--voy-line);
+  font-size: 0.9rem;
+  color: var(--voy-ink);
+}
+
+.voy-today__next-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--voy-silver);
+  margin-right: 0.5rem;
+}
+
 /* ===== Recommendations ================================================ */
 
 .voy-recs {

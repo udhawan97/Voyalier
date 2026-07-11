@@ -24,6 +24,7 @@ import type {
   SearchHit,
   SetProviderKeyInput,
   SetProviderModelInput,
+  TodayView,
   TravelAdviceSnapshot,
   Trip,
   TripBrief,
@@ -110,6 +111,9 @@ export function createHttpGateway(
 
     getTripBrief: (tripId: string) =>
       request<TripBrief>("GET", `/api/v1/trips/${enc(tripId)}/brief`),
+
+    getToday: (tripId: string) =>
+      request<TodayView>("GET", `/api/v1/trips/${enc(tripId)}/today`),
 
     detectLocalAi: () => request<LocalAiStatus>("GET", "/api/v1/local-ai"),
 

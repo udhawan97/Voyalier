@@ -24,6 +24,7 @@ import type {
   SearchHit,
   SetProviderKeyInput,
   SetProviderModelInput,
+  TodayView,
   TravelAdviceSnapshot,
   Trip,
   TripBrief,
@@ -89,6 +90,8 @@ export function createTauriGateway(
 
     getTripBrief: (tripId: string) =>
       call<TripBrief>("get_trip_brief", { tripId }),
+
+    getToday: (tripId: string) => call<TodayView>("get_today", { tripId }),
 
     detectLocalAi: () => call<LocalAiStatus>("detect_local_ai", {}),
 

@@ -29,6 +29,9 @@ import type {
   Recommendation,
   SetProviderKeyInput,
   SetProviderModelInput,
+  TodayItem,
+  TodayView,
+  TripPhase,
   ReadinessCheck,
   ReadinessItem,
   ReadinessStatus,
@@ -851,6 +854,118 @@ function formatAssistItinerary(brief: TripBrief): string {
   return out;
 }
 
+/** Mirrors voyalier-core::today::build_today_view against a fixed "today". */
+function buildTodayView(
+  trip: Trip,
+  tripFacts: ConfirmedFact[],
+  today: string,
+): TodayView {
+  const datePart = (value: string) => value.split("T")[0];
+  const timePart = (value: string) => {
+    const index = value.indexOf("T");
+    return index >= 0 ? value.slice(index + 1) : undefined;
+  };
+  const daysBetween = (a: string, b: string) =>
+    Math.round(
+      (new Date(`${b}T00:00:00Z`).valueOf() -
+        new Date(`${a}T00:00:00Z`).valueOf()) /
+        86_400_000,
+    );
+
+  const todayItems: TodayItem[] = [];
+  const anchors: TodayItem[] = [];
+  for (const fact of tripFacts) {
+    if (fact.factType === "flight_segment") {
+      const p = fact.payload as FlightSegmentPayload;
+      const route =
+        p.departureAirportIata && p.arrivalAirportIata
+          ? `${p.departureAirportIata} → ${p.arrivalAirportIata}`
+          : "";
+      const label =
+        [p.airlineName, p.flightNumber].filter(Boolean).join(" ") || "Flight";
+      if (p.departureLocal) {
+        const d = datePart(p.departureLocal);
+        const item: TodayItem = {
+          kind: "flight_departure",
+          title: `Depart — ${label}`,
+          detail: route,
+          date: d,
+          time: timePart(p.departureLocal),
+        };
+        if (d === today) todayItems.push(item);
+        else if (d > today) anchors.push(item);
+      }
+      if (p.arrivalLocal && datePart(p.arrivalLocal) === today) {
+        todayItems.push({
+          kind: "flight_arrival",
+          title: `Arrive — ${label}`,
+          detail: route,
+          date: today,
+          time: timePart(p.arrivalLocal),
+        });
+      }
+    } else {
+      const p = fact.payload as LodgingStayPayload;
+      const name = p.propertyName ?? "your stay";
+      const ci = p.checkinDate;
+      const co = p.checkoutDate;
+      if (ci) {
+        const item: TodayItem = {
+          kind: "checkin",
+          title: `Check in — ${name}`,
+          detail: p.address ?? "",
+          date: ci,
+        };
+        if (ci === today) todayItems.push(item);
+        else if (ci > today) anchors.push(item);
+      }
+      if (co === today) {
+        todayItems.push({
+          kind: "checkout",
+          title: `Check out — ${name}`,
+          date: today,
+        });
+      } else if (ci && co && ci < today && today < co) {
+        todayItems.push({
+          kind: "staying_tonight",
+          title: `Staying at ${name}`,
+          detail: p.address ?? "",
+          date: today,
+        });
+      }
+    }
+  }
+  anchors.sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) ||
+      (a.time ?? "").localeCompare(b.time ?? "") ||
+      a.title.localeCompare(b.title),
+  );
+
+  let phase: TripPhase;
+  if (today < trip.startDate) {
+    phase = {
+      state: "upcoming",
+      daysUntil: daysBetween(today, trip.startDate),
+    };
+  } else if (today > trip.endDate) {
+    phase = { state: "completed", daysAgo: daysBetween(trip.endDate, today) };
+  } else {
+    phase = {
+      state: "active",
+      day: daysBetween(trip.startDate, today) + 1,
+      totalDays: daysBetween(trip.startDate, trip.endDate) + 1,
+    };
+  }
+
+  return {
+    referenceDate: today,
+    phase,
+    today: todayItems,
+    next: anchors[0],
+  };
+}
+
 function changedFields(original: FactPayload, edited: FactPayload): string[] {
   const keys = new Set([...Object.keys(original), ...Object.keys(edited)]);
   return [...keys]
@@ -1171,6 +1286,16 @@ export function createMockGateway(options?: {
           (fact) => fact.tripId === tripId,
         );
         return buildShareBrief(trip, tripFacts, timestamp());
+      }),
+
+    getToday: (tripId: string) =>
+      execute("getToday", () => {
+        const trip = requireTrip(tripId);
+        const tripFacts = [...facts.values()].filter(
+          (fact) => fact.tripId === tripId,
+        );
+        // Deterministic "today" for the mock.
+        return buildTodayView(trip, tripFacts, FIXTURE_TIME.slice(0, 10));
       }),
 
     detectLocalAi: () =>

@@ -5,8 +5,9 @@ use voyalier_core::{
     AddManualFactInput, AppError, AssistActivityEntry, AssistReply, AssistRequestPreview,
     CandidateFact, CandidateStatus, ConfirmCandidateInput, ConfirmedFact, CreateTripInput,
     DownloadedPack, FcdoCountry, HealthResponse, ImportDocumentInput, ImportResult, LocalAiStatus,
-    PackInfo, PersonaWeights, ProviderConfig, Recommendation, SearchHit, TravelAdviceSnapshot,
-    Trip, TripBrief, TripDetail, TripSummary, UpdateTripInput, WeatherSnapshot,
+    PackInfo, PersonaWeights, ProviderConfig, Recommendation, SearchHit, TodayView,
+    TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripSummary, UpdateTripInput,
+    WeatherSnapshot,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -117,6 +118,11 @@ fn get_trip_brief(
     service: State<'_, AppService>,
 ) -> Result<TripBrief, AppError> {
     service.get_trip_brief(&input.trip_id)
+}
+
+#[tauri::command]
+fn get_today(input: TripIdInput, service: State<'_, AppService>) -> Result<TodayView, AppError> {
+    service.get_today(&input.trip_id)
 }
 
 #[tauri::command]
@@ -368,6 +374,7 @@ fn builder<R: tauri::Runtime>(
             update_trip,
             archive_trip,
             get_trip_brief,
+            get_today,
             search_trip,
             preview_assist,
             run_assist,
@@ -615,6 +622,11 @@ mod tests {
         assert!(brief.get("redactedFields").is_some());
         assert!(!brief["flights"].as_array().expect("flights").is_empty());
 
+        let today =
+            invoke(&webview, "get_today", json!({ "tripId": trip_id })).expect("today view");
+        assert!(today["phase"]["state"].as_str().is_some());
+        assert_eq!(today["referenceDate"].as_str().expect("date").len(), 10);
+
         assert_eq!(
             invoke(&webview, "archive_trip", json!({ "tripId": trip_id })).expect("archive trip")["status"],
             "archived"
@@ -638,6 +650,7 @@ mod tests {
             "update_trip",
             "archive_trip",
             "get_trip_brief",
+            "get_today",
             "search_trip",
             "preview_assist",
             "run_assist",

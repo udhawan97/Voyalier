@@ -16,16 +16,16 @@ use voyalier_core::{
     ImportResult, IntelligenceMode, JsonLdParser, LocalAiStatus, NormalizedDocument,
     OLLAMA_CHAT_URL, OLLAMA_TAGS_URL, OPENAI_CHAT_URL, PROVIDERS, PackContent, PackInfo,
     ParsedCandidate, PersonaWeights, PlaintextParser, ProviderConfig, ProviderId, Recommendation,
-    RedactionPolicy, SearchHit, SearchableDocument, SourceDocument, TravelAdviceSnapshot, Trip,
-    TripBrief, TripDetail, TripStatus, TripSummary, UpdateTripInput, WeatherSnapshot,
-    assess_readiness, build_anthropic_messages_body, build_assist_preview, build_ollama_chat_body,
-    build_openai_chat_body, build_trip_brief, changed_payload_fields, detect_itinerary_conflicts,
-    new_id, now_rfc3339, pack_catalog, pack_download_url, parse_anthropic_reply,
-    parse_fcdo_content, parse_forecast_response, parse_geocoding_response, parse_ollama_chat_reply,
-    parse_openai_chat_reply, parse_pack_content, provider_info, recommend_places,
-    search_trip_corpus, validate_api_key, validate_country_slug, validate_create_trip,
-    validate_document_content, validate_fact_payload, validate_model_name, validate_pack_id,
-    validate_provider_id, validate_search_query, validate_update_trip,
+    RedactionPolicy, SearchHit, SearchableDocument, SourceDocument, TodayView,
+    TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripStatus, TripSummary, UpdateTripInput,
+    WeatherSnapshot, assess_readiness, build_anthropic_messages_body, build_assist_preview,
+    build_ollama_chat_body, build_openai_chat_body, build_today_view, build_trip_brief,
+    changed_payload_fields, detect_itinerary_conflicts, new_id, now_rfc3339, pack_catalog,
+    pack_download_url, parse_anthropic_reply, parse_fcdo_content, parse_forecast_response,
+    parse_geocoding_response, parse_ollama_chat_reply, parse_openai_chat_reply, parse_pack_content,
+    provider_info, recommend_places, search_trip_corpus, validate_api_key, validate_country_slug,
+    validate_create_trip, validate_document_content, validate_fact_payload, validate_model_name,
+    validate_pack_id, validate_provider_id, validate_search_query, validate_update_trip,
 };
 
 const DATABASE_FILE: &str = "voyalier.sqlite3";
@@ -765,6 +765,17 @@ impl AppService {
             &RedactionPolicy::for_sharing(),
             &now_rfc3339(),
         ))
+    }
+
+    /// The Today view for a trip against the current date: where the trip
+    /// stands, what happens today, and what's next. Deterministic and offline.
+    pub fn get_today(&self, trip_id: &str) -> Result<TodayView, AppError> {
+        let connection = self.connection()?;
+        let trip = fetch_trip(&connection, trip_id)?;
+        let facts = fetch_confirmed_facts(&connection, trip_id)?;
+        let now = now_rfc3339();
+        let today = now.get(..10).unwrap_or(now.as_str());
+        Ok(build_today_view(&trip, &facts, today))
     }
 
     /// Build a deterministic, redacted preview of the request Voyalier would
@@ -2264,6 +2275,24 @@ mod tests {
         assert!(!serialized.contains("Jamie Traveler"));
         assert!(serialized.contains("FP18"));
         assert_eq!(brief.flights.len(), 1);
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn get_today_builds_a_view_for_the_current_date() {
+        let database = temp_database("today");
+        let service = AppService::open_path(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        let view = service.get_today(&trip.id).expect("today");
+        // Reference date is a YYYY-MM-DD (clock-independent structural check).
+        assert_eq!(view.reference_date.len(), 10);
+        assert_eq!(view.reference_date.matches('-').count(), 2);
+
+        assert_eq!(
+            service.get_today("nope").expect_err("missing").code,
+            ErrorCode::TripNotFound
+        );
         cleanup_database(database);
     }
 

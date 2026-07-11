@@ -331,6 +331,36 @@ export interface Recommendation {
   reasons: string[];
   wildcard: boolean;
 }
+export type TripPhaseState = "upcoming" | "active" | "completed";
+/** Where a trip sits relative to today; day counts present per state. */
+export interface TripPhase {
+  state: TripPhaseState;
+  daysUntil?: number;
+  day?: number;
+  totalDays?: number;
+  daysAgo?: number;
+}
+export type TodayItemKind =
+  | "flight_departure"
+  | "flight_arrival"
+  | "checkin"
+  | "checkout"
+  | "staying_tonight";
+/** One dated entry in the Today view. */
+export interface TodayItem {
+  kind: TodayItemKind;
+  title: string;
+  detail?: string;
+  date: string;
+  time?: string;
+}
+/** A deterministic "now / next" projection of a trip against the current date. */
+export interface TodayView {
+  referenceDate: string;
+  phase: TripPhase;
+  today: TodayItem[];
+  next?: TodayItem;
+}
 export type SearchHitSource = "document" | "confirmed_fact";
 export interface SearchHit {
   source: SearchHitSource;
@@ -424,6 +454,7 @@ export interface AppGateway {
   updateTrip(tripId: string, input: UpdateTripInput): Promise<Trip>;
   archiveTrip(tripId: string): Promise<Trip>;
   getTripBrief(tripId: string): Promise<TripBrief>;
+  getToday(tripId: string): Promise<TodayView>;
   detectLocalAi(): Promise<LocalAiStatus>;
   listProviders(): Promise<ProviderConfig[]>;
   setProviderKey(input: SetProviderKeyInput): Promise<ProviderConfig>;

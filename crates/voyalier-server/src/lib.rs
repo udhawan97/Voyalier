@@ -111,6 +111,7 @@ pub fn app(service: AppService) -> Router {
             post(set_provider_model),
         )
         .route("/api/v1/trips/{trip_id}/brief", get(get_trip_brief))
+        .route("/api/v1/trips/{trip_id}/today", get(get_today))
         .route(
             "/api/v1/trips/{trip_id}/assist-preview",
             get(preview_assist),
@@ -190,6 +191,13 @@ async fn get_trip_brief(
     Path(trip_id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(service.get_trip_brief(&trip_id)?))
+}
+
+async fn get_today(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.get_today(&trip_id)?))
 }
 
 async fn search_trip(
@@ -968,6 +976,27 @@ mod tests {
         .await;
         assert_eq!(activity.status, StatusCode::OK);
         assert_eq!(activity.json.as_array().expect("array").len(), 0);
+        cleanup_database(database);
+    }
+
+    #[tokio::test]
+    async fn today_route_returns_a_phase_for_the_trip() {
+        let database = temp_database("today");
+        let service = AppService::open_path(&database).expect("service");
+        let router = app(service);
+        let trip = create_trip_direct(&router).await;
+        let trip_id = trip["id"].as_str().expect("id");
+
+        let response = request(
+            router,
+            Method::GET,
+            &format!("/api/v1/trips/{trip_id}/today"),
+            None,
+        )
+        .await;
+        assert_eq!(response.status, StatusCode::OK);
+        assert!(response.json["referenceDate"].as_str().is_some());
+        assert!(response.json["phase"]["state"].as_str().is_some());
         cleanup_database(database);
     }
 
