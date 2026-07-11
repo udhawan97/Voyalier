@@ -580,8 +580,16 @@ impl AppService {
                 params![BASE64.encode(salt), BASE64.encode(wrapped), now_rfc3339()],
             )
             .map_err(storage_error)?;
-        // The passphrase now guards the key; the keychain no longer holds it.
-        self.secrets.delete(VAULT_KEY_ACCOUNT)?;
+        // The passphrase now guards the key; the keychain no longer holds it. If
+        // that removal fails, roll back the passphrase record — otherwise the raw
+        // key would linger in the keychain and defeat the passphrase, while disk
+        // claims the vault is protected.
+        if let Err(error) = self.secrets.delete(VAULT_KEY_ACCOUNT) {
+            let _ = self
+                .connection()?
+                .execute("DELETE FROM vault_meta WHERE id = 1", []);
+            return Err(error);
+        }
         self.vault.set_state(VaultState {
             key: Some(data_key),
             protected: true,
