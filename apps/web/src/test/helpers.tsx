@@ -1,8 +1,28 @@
 import { render } from "@testing-library/react";
+import axe from "axe-core";
 import type { AppError, AppGateway, CandidateFact } from "@voyalier/contracts";
 import { createMockGateway } from "@voyalier/contracts";
 
 import { App } from "../App";
+
+/**
+ * Run axe-core over the whole test document and return readable summaries of any
+ * accessibility violations. Dialogs render in a portal on `document.body`, so
+ * scanning the body catches them too. `color-contrast` is disabled because jsdom
+ * computes no layout or colors; the document language is set to match the
+ * production `index.html` so the harness itself is not flagged.
+ */
+export async function findA11yViolations(): Promise<string[]> {
+  document.documentElement.lang = "en";
+  const results = await axe.run(document.body, {
+    rules: { "color-contrast": { enabled: false } },
+  });
+  return results.violations.map(
+    (violation) =>
+      `${violation.id} (${violation.impact ?? "n/a"}): ${violation.help}\n  ` +
+      violation.nodes.map((node) => node.target.join(" ")).join("\n  "),
+  );
+}
 
 /** Render the whole app against a gateway (a fresh mock by default). */
 export function renderApp(gateway: AppGateway = createMockGateway()) {
@@ -49,7 +69,8 @@ export function makeCandidate(
     method: index % 3 === 0 ? "inferred" : "structured",
     fieldSpans: [
       {
-        fieldPath: index % 2 === 0 ? "payload.flightNumber" : "payload.propertyName",
+        fieldPath:
+          index % 2 === 0 ? "payload.flightNumber" : "payload.propertyName",
         start: 0,
         end: 5,
         excerpt: `Evidence excerpt for candidate ${index}.`,

@@ -42,6 +42,10 @@ blocked on paid code-signing certificates.
 - Performance: the consent-gated map lazy-loads MapLibre GL on first use, so the
   initial JavaScript payload drops from ~357 KB to ~84 KB gzipped; the ~1 MB map
   library is a separate chunk fetched only when a map is opened.
+- Accessibility: an automated axe-core gate runs on every test suite (home, trip
+  detail, a dialog, the vault unlock screen). Its first pass fixed a heading-level
+  skip on trip cards (`h3` → `h2`) and a duplicate `banner` landmark caused by
+  dialog headers.
 
 ## [0.2.0] - 2026-07-11 — Grounded intelligence (Phase 2)
 

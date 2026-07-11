@@ -40,7 +40,7 @@ function TripCard({
       className={`voy-tripcard${trip.status === "archived" ? " is-archived" : ""}`}
     >
       <div className="voy-tripcard__head">
-        <h3 className="voy-tripcard__title">
+        <h2 className="voy-tripcard__title">
           <button
             type="button"
             className="voy-tripcard__open"
@@ -49,7 +49,7 @@ function TripCard({
           >
             {trip.title}
           </button>
-        </h3>
+        </h2>
         <TripStatusBadge status={trip.status} />
       </div>
       <p className="voy-tripcard__route">

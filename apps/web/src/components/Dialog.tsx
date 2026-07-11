@@ -119,7 +119,9 @@ export function Dialog({
         tabIndex={-1}
         onKeyDown={handleKeyDown}
       >
-        <header className="voy-dialog__head">
+        {/* A plain div, not <header>: a <header> here would register as a second
+            page-level `banner` landmark alongside the topbar. */}
+        <div className="voy-dialog__head">
           <h2 id={headingId} className="voy-dialog__title">
             {title}
           </h2>
@@ -131,7 +133,7 @@ export function Dialog({
           >
             <CloseIcon />
           </button>
-        </header>
+        </div>
         {description ? (
           <p id={descId} className="voy-dialog__desc">
             {description}

@@ -150,7 +150,12 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
 - Documentation, accessibility, performance, localization readiness, and support
   playbooks. _(In progress. Performance: the consent-gated map now lazy-loads
   MapLibre GL on first use, cutting the initial JavaScript payload from ~357 KB to
-  ~84 KB gzipped — users who never open a map never download the ~1 MB library.)_
+  ~84 KB gzipped — users who never open a map never download the ~1 MB library.
+  Accessibility: an automated axe-core gate scans the home, trip detail, a dialog,
+  and the vault unlock screen for violations on every test run; the first pass
+  fixed a heading-level skip on trip cards and a duplicate `banner` landmark from
+  dialog headers. Colour contrast is checked in the browser, which jsdom can't
+  compute.)_
 
 ## Later
 
