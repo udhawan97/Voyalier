@@ -107,10 +107,14 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
 - ✓ OpenAI, Anthropic, and Ollama providers behind one interface (`runAssist`
   dispatches all three; preview + consent + activity log shared).
 
-**Deferred to a later phase (beyond the owner-resolved Phase 2 scope):**
+**Additional grounded-intelligence polish (shipped in Phase 3):**
 
-- Per-call citation of grounded chunks and token cost estimates on assist.
-- Health-notice sources (CDC/WHO) via the same link-or-consent pattern.
+- ✓ Assist citations + token estimate: the request preview cites what it is
+  grounded in ("N confirmed flights/stays") and shows a rough token estimate for
+  cost awareness, both computed on-device before anything is sent.
+- ✓ Health-notice sources (CDC/WHO): a link-only "Health notices" readiness item
+  alongside entry requirements — official links, never asserted, excluded from
+  the rollup.
 
 ## Phase 3 — public beta
 
@@ -123,9 +127,14 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   trip — phase (upcoming/active/completed with day counts), today's items
   (departures, arrivals, check-ins/outs, staying-tonight), and the next anchor.
   Computed from confirmed facts against the current date; no network, no model.
-- Encrypted vault and migration/backup tests.
-- Map view (MapLibre + offline tiles).
-- DMG and EXE/MSI release automation, signing, notarization, checksums, and updater.
+- Encrypted vault and migration/backup tests. _(Delicate crypto-at-rest with
+  key derivation, unlock flow, and a data migration — needs its own careful,
+  dedicated effort; not started.)_
+- Map view (MapLibre + offline tiles). _(Needs tile/pack map assets to be
+  meaningful; not started.)_
+- Signed installers: DMG and EXE/MSI signing, notarization, checksums, and an
+  updater. _(Blocked on paid Apple ($99/yr) and Windows code-signing
+  certificates.)_
 - Documentation, accessibility, performance, localization readiness, and support playbooks.
 
 ## Later
