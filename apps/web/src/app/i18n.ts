@@ -210,6 +210,7 @@ const en = {
     "Detection only — a local check on this device. Assist that uses these models is a later milestone and will always be opt-in.",
   "action.checkAgain": "Check again",
   "a11y.opensInNewTab": " (opens in new tab)",
+  "a11y.skipToContent": "Skip to content",
 
   "search.title": "Find in this trip",
   "search.label": "Search your documents and confirmed plans",
@@ -529,6 +530,10 @@ const en = {
   "updates.unsupported.source":
     "Running from source? Update with git pull, then make bootstrap.",
   "updates.unsupported.download": "Or download the packaged desktop app.",
+  "updates.pill.available": "Update available",
+  "updates.pill.staged": "Restart to update",
+  "updates.justUpdated": "Updated to Voyalier {version}.",
+  "updates.dismiss": "Dismiss",
 } as const;
 
 export type MessageKey = keyof typeof en;

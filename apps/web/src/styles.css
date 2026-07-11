@@ -1361,6 +1361,54 @@ h3 {
 
 /* ===== Encrypted vault =============================================== */
 
+.voy-updatepill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--voy-indigo) 40%, transparent);
+  background: color-mix(in srgb, var(--voy-indigo) 10%, transparent);
+  color: var(--voy-indigo);
+  font-size: 0.78rem;
+  font-weight: 640;
+  cursor: pointer;
+}
+
+.voy-updatepill__dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--voy-indigo);
+}
+
+.voy-toast {
+  position: fixed;
+  right: 1.2rem;
+  bottom: 1.2rem;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  max-width: 24rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 0.6rem;
+  border: 1px solid var(--voy-line-strong);
+  background: var(--voy-paper-raised);
+  box-shadow: 0 8px 24px color-mix(in srgb, #1a1917 12%, transparent);
+  font-size: 0.9rem;
+}
+
+.voy-toast__close {
+  border: none;
+  background: none;
+  color: var(--voy-ink-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+}
+
 .voy-updates {
   margin-top: 2.6rem;
   padding-top: 1.8rem;

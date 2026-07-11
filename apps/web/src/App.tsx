@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { AppError, AppGateway } from "@voyalier/contracts";
 
 import { AnnounceContext, GatewayContext, UpdaterContext } from "./app/context";
+import { t } from "./app/i18n";
 import { selectGateway, toAppError } from "./gateway";
 import { selectUpdater, type UpdaterGateway } from "./updater";
 import { useUpdater } from "./updater/useUpdater";
@@ -86,7 +87,7 @@ export function App({
         <AnnounceContext.Provider value={announce}>
           <div className="voy-app">
             <a className="voy-skip" href="#main">
-              Skip to content
+              {t("a11y.skipToContent")}
             </a>
             <Topbar onHome={openList} health={health} />
             <main className="voy-main" id="main">
@@ -107,6 +108,23 @@ export function App({
                 />
               )}
             </main>
+            {updaterController.justUpdated ? (
+              <div className="voy-toast" role="status">
+                <span>
+                  {t("updates.justUpdated", {
+                    version: updaterController.justUpdated,
+                  })}
+                </span>
+                <button
+                  type="button"
+                  className="voy-toast__close"
+                  onClick={updaterController.dismissJustUpdated}
+                  aria-label={t("updates.dismiss")}
+                >
+                  ×
+                </button>
+              </div>
+            ) : null}
           </div>
           <div
             className="voy-sr-only"

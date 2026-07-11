@@ -39,6 +39,10 @@ export interface UpdaterController {
   phase: UpdaterPhase;
   mode: UpdaterMode;
   platform: UpdaterGateway["platform"];
+  /** Set to the running version when this launch is newer than the last one the
+   *  user saw — drives a one-shot "updated to vX" toast. Null otherwise. */
+  justUpdated: string | null;
+  dismissJustUpdated: () => void;
   check: () => Promise<void>;
   install: () => Promise<void>;
   restart: () => Promise<void>;
@@ -65,6 +69,7 @@ export function useUpdater(gateway: UpdaterGateway): UpdaterController {
     gateway.kind === "unsupported" ? "browser" : "packaged",
   );
   const currentVersion = useRef<string | null>(null);
+  const [justUpdated, setJustUpdated] = useState<string | null>(null);
 
   /** A staged version still pending unless the running build already caught up. */
   const reconcileStaged = useCallback(
@@ -101,6 +106,18 @@ export function useUpdater(gateway: UpdaterGateway): UpdaterController {
         });
         return;
       }
+      // One-shot "you're now on a newer version" signal: fire only when a
+      // previous last-seen exists (never on first run) and the running build is
+      // newer (silent on downgrade). Persist so the next launch compares fresh.
+      const lastSeen = await gateway.getSetting(UPDATER_KEYS.lastSeenVersion);
+      if (lastSeen && compareVersions(status.currentVersion, lastSeen) > 0) {
+        setJustUpdated(status.currentVersion);
+      }
+      await gateway.setSetting(
+        UPDATER_KEYS.lastSeenVersion,
+        status.currentVersion,
+      );
+
       const staged = await reconcileStaged(status.currentVersion);
       if (staged) {
         setPhase({ name: "staged", version: staged });
@@ -231,6 +248,8 @@ export function useUpdater(gateway: UpdaterGateway): UpdaterController {
     phase,
     mode,
     platform: gateway.platform,
+    justUpdated,
+    dismissJustUpdated: () => setJustUpdated(null),
     check,
     install,
     restart,

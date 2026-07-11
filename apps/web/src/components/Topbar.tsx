@@ -2,6 +2,7 @@ import markUrl from "@voyalier/brand/voyalier-mark.svg?url";
 
 import { t, type MessageKey } from "../app/i18n";
 import { ThemeToggle } from "./ThemeToggle";
+import { UpdatePill } from "./UpdatePill";
 
 export type HealthState = "checking" | "online" | "offline";
 
@@ -31,6 +32,7 @@ export function Topbar({
         <span className="voy-brand__word">Voyalier</span>
       </button>
       <div className="voy-topbar__right">
+        <UpdatePill />
         <span
           className={`voy-health voy-health--${pill.cls}`}
           role="status"

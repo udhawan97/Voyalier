@@ -257,6 +257,43 @@ describe("useUpdater", () => {
     await waitFor(() => expect(result.current.phase.name).toBe("staged"));
   });
 
+  it("fires justUpdated only when the running build is newer than last seen", async () => {
+    // First run: no last-seen recorded → no toast, but last-seen is persisted.
+    const first = createMockUpdater({
+      settings: { [UPDATER_KEYS.consent]: "yes" },
+      onCheck: upToDate("0.3.0"),
+    });
+    const { result: r1 } = renderHook(() => useUpdater(first));
+    await waitFor(() => expect(r1.current.phase.name).toBe("upToDate"));
+    expect(r1.current.justUpdated).toBeNull();
+    expect(first.store.get(UPDATER_KEYS.lastSeenVersion)).toBe("0.3.0");
+
+    // Newer running build than last seen → one-shot toast; dismiss clears it.
+    const bumped = createMockUpdater({
+      settings: {
+        [UPDATER_KEYS.consent]: "yes",
+        [UPDATER_KEYS.lastSeenVersion]: "0.3.0",
+      },
+      onCheck: upToDate("0.3.1"),
+    });
+    const { result: r2 } = renderHook(() => useUpdater(bumped));
+    await waitFor(() => expect(r2.current.justUpdated).toBe("0.3.1"));
+    act(() => r2.current.dismissJustUpdated());
+    await waitFor(() => expect(r2.current.justUpdated).toBeNull());
+
+    // Downgrade → silent (never toast a lower version).
+    const down = createMockUpdater({
+      settings: {
+        [UPDATER_KEYS.consent]: "yes",
+        [UPDATER_KEYS.lastSeenVersion]: "0.3.1",
+      },
+      onCheck: upToDate("0.3.0"),
+    });
+    const { result: r3 } = renderHook(() => useUpdater(down));
+    await waitFor(() => expect(r3.current.phase.name).toBe("upToDate"));
+    expect(r3.current.justUpdated).toBeNull();
+  });
+
   it("restarts to finish and maps a failed check to a coarse error", async () => {
     const staged = createMockUpdater({
       platform: "macos",
