@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 
 import { UpdaterContext } from "./app/context";
 import { createMockUpdater } from "./updater/mockUpdater";
@@ -131,6 +137,125 @@ describe("UpdatesPanel", () => {
       "href",
       "https://github.com/udhawan97/Voyalier/releases",
     );
+  });
+
+  it("uses the Windows per-platform install copy", async () => {
+    const updater = createMockUpdater({
+      platform: "windows",
+      settings: { [UPDATER_KEYS.consent]: "yes" },
+      onCheck: available("0.3.1"),
+    });
+    render(<Harness updater={updater} />);
+    expect(
+      await screen.findByRole("button", { name: "Update and restart" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Voyalier will close, update, and reopen (under a minute).",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("renders a labelled progressbar with the download percentage", async () => {
+    let release!: () => void;
+    const hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const updater = createMockUpdater({
+      platform: "macos",
+      settings: { [UPDATER_KEYS.consent]: "yes" },
+      onCheck: available("0.3.1"),
+      progress: [{ downloaded: 50, total: 100 }],
+      hold,
+    });
+    render(<Harness updater={updater} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Download and install" }),
+    );
+
+    const bar = await screen.findByRole("progressbar", {
+      name: "Update download progress",
+    });
+    expect(bar).toHaveAttribute("aria-valuenow", "50");
+    expect(screen.getByText("50% downloaded")).toBeInTheDocument();
+
+    release();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    await screen.findByText("Update installed");
+  });
+
+  it("shows an indeterminate bar when the download size is unknown", async () => {
+    let release!: () => void;
+    const hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const updater = createMockUpdater({
+      platform: "macos",
+      settings: { [UPDATER_KEYS.consent]: "yes" },
+      onCheck: available("0.3.1"),
+      progress: [{ downloaded: 4096, total: null }],
+      hold,
+    });
+    render(<Harness updater={updater} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Download and install" }),
+    );
+
+    const bar = await screen.findByRole("progressbar", {
+      name: "Update download progress",
+    });
+    // No total → no aria-valuenow, and the indeterminate copy is shown.
+    expect(bar).not.toHaveAttribute("aria-valuenow");
+    expect(screen.getByText("Downloading…")).toBeInTheDocument();
+    release();
+    await act(async () => {
+      await Promise.resolve();
+    });
+  });
+
+  it("shows the disabled notice for a development build", async () => {
+    const updater = createMockUpdater({
+      settings: { [UPDATER_KEYS.consent]: "yes" },
+      onCheck: {
+        availability: "disabled",
+        currentVersion: "0.3.0",
+        availableVersion: null,
+        notes: null,
+      },
+    });
+    render(<Harness updater={updater} />);
+    expect(
+      await screen.findByText(
+        "This is a development build — in-app updates are disabled.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the offline error copy when the browser is offline", async () => {
+    const original = Object.getOwnPropertyDescriptor(
+      window.navigator,
+      "onLine",
+    );
+    Object.defineProperty(window.navigator, "onLine", {
+      value: false,
+      configurable: true,
+    });
+    try {
+      const updater = createMockUpdater({
+        settings: { [UPDATER_KEYS.consent]: "yes" },
+        onCheck: new Error("offline"),
+      });
+      render(<Harness updater={updater} />);
+      expect(
+        await screen.findByText("You're offline. Reconnect and try again."),
+      ).toBeInTheDocument();
+    } finally {
+      if (original) {
+        Object.defineProperty(window.navigator, "onLine", original);
+      }
+    }
   });
 
   it("shows the honest dual copy when updates are unsupported", async () => {

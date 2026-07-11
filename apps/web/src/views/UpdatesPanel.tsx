@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useRef } from "react";
+
 import { useUpdaterController } from "../app/context";
 import { t } from "../app/i18n";
 import { Button } from "../components/Button";
@@ -40,11 +42,37 @@ export function UpdatesPanel() {
   } = useUpdaterController();
   const windows = platform === "windows";
 
+  // Keep focus off <body> when a user-initiated action ("Check", consent) makes
+  // the phase — and thus the button subtree — change out from under the focused
+  // control. We point `primaryRef` at each settled phase's main button and move
+  // focus there once the transition settles. The mount auto-check never sets the
+  // flag, so initial load never steals focus.
+  const primaryRef = useRef<HTMLButtonElement>(null);
+  const restoreFocus = useRef(false);
+  useEffect(() => {
+    if (phase.name !== "checking" && restoreFocus.current) {
+      restoreFocus.current = false;
+      primaryRef.current?.focus();
+    }
+  }, [phase.name]);
+
+  const runCheck = useCallback(() => {
+    restoreFocus.current = true;
+    void check();
+  }, [check]);
+  const runConsent = useCallback(
+    (allow: boolean) => {
+      restoreFocus.current = true;
+      void answerConsent(allow);
+    },
+    [answerConsent],
+  );
+
   function body() {
     switch (phase.name) {
       case "idle":
         return (
-          <Button variant="secondary" onClick={() => void check()}>
+          <Button ref={primaryRef} variant="secondary" onClick={runCheck}>
             {t("updates.check")}
           </Button>
         );
@@ -55,13 +83,10 @@ export function UpdatesPanel() {
             <p className="voy-updates__lead">{t("updates.consent.title")}</p>
             <p className="voy-updates__hint">{t("updates.consent.body")}</p>
             <div className="voy-updates__actions">
-              <Button
-                variant="primary"
-                onClick={() => void answerConsent(true)}
-              >
+              <Button variant="primary" onClick={() => runConsent(true)}>
                 {t("updates.consent.yes")}
               </Button>
-              <Button variant="ghost" onClick={() => void answerConsent(false)}>
+              <Button variant="ghost" onClick={() => runConsent(false)}>
                 {t("updates.consent.no")}
               </Button>
             </div>
@@ -81,7 +106,7 @@ export function UpdatesPanel() {
             <p className="voy-updates__lead">
               {t("updates.upToDate", { version: phase.currentVersion })}
             </p>
-            <Button variant="secondary" onClick={() => void check()}>
+            <Button ref={primaryRef} variant="secondary" onClick={runCheck}>
               {t("updates.check")}
             </Button>
           </div>
@@ -108,7 +133,11 @@ export function UpdatesPanel() {
               </div>
             ) : null}
             <div className="voy-updates__actions">
-              <Button variant="primary" onClick={() => void install()}>
+              <Button
+                ref={primaryRef}
+                variant="primary"
+                onClick={() => void install()}
+              >
                 {windows ? t("updates.installWin") : t("updates.install")}
               </Button>
               {phase.skipped ? (
@@ -170,7 +199,11 @@ export function UpdatesPanel() {
             <p className="voy-updates__hint">
               {t("updates.staged.body", { version: phase.version })}
             </p>
-            <Button variant="primary" onClick={() => void restart()}>
+            <Button
+              ref={primaryRef}
+              variant="primary"
+              onClick={() => void restart()}
+            >
               {t("updates.restart")}
             </Button>
           </div>
@@ -185,7 +218,7 @@ export function UpdatesPanel() {
                 : t("updates.error.generic")}
             </p>
             <div className="voy-updates__actions">
-              <Button variant="secondary" onClick={() => void check()}>
+              <Button ref={primaryRef} variant="secondary" onClick={runCheck}>
                 {t("updates.retry")}
               </Button>
               <ReleasesLink />
@@ -210,6 +243,13 @@ export function UpdatesPanel() {
             </p>
           </div>
         );
+
+      default: {
+        // Exhaustiveness guard: adding an UpdaterPhase without a case here is a
+        // compile error rather than a silently-blank panel.
+        const unreachable: never = phase;
+        return unreachable;
+      }
     }
   }
 
