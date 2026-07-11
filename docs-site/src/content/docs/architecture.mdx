@@ -1,13 +1,162 @@
 ---
 title: Architecture
-description: The shared-core web and desktop architecture.
+description: The runtime, evidence, storage, and trust boundaries behind Voyalier.
 ---
 
-Voyalier uses one React interface and one Rust product core.
+Voyalier is built around one rule: **untrusted input must never silently become
+traveler-approved truth**. The codebase supports that rule with one React
+interface, two narrow transports, shared Rust application services, a
+framework-independent deterministic core, and local durable state.
 
-- Axum exposes the core for the one-command local web runtime.
-- Tauri wraps the same interface and starts the API in-process for desktop builds.
-- SQLite and FTS5 form the local evidence store.
-- AI, travel inventory, places, risk, visa, parsing, retrieval, and export are replaceable providers.
+<img
+  src="/Voyalier/assets/voyalier-system-architecture.svg"
+  alt="Voyalier system architecture showing the React interface selecting guarded Axum loopback HTTP for browser development or direct Tauri IPC for desktop, with both paths converging on Rust application services, deterministic core rules, SQLite, and OS keychain storage."
+/>
 
-The complete decision record lives in the repository's [`docs/architecture`](https://github.com/udhawan97/Voyalier/tree/main/docs/architecture) directory.
+## One interface, two runtimes
+
+The React app depends on the versioned `AppGateway` contract. It selects a
+transport from the runtime instead of making product views aware of HTTP or
+native IPC.
+
+| Runtime             | Path                                                        | Important boundary                                            |
+| ------------------- | ----------------------------------------------------------- | ------------------------------------------------------------- |
+| Browser development | React → same-origin Vite proxy → Axum on `127.0.0.1:8787`   | Vite-only CORS plus Host and Origin validation                |
+| Tauri desktop       | React → typed `invoke` → thin native command → `AppService` | direct IPC; the release app starts no TCP listener            |
+| Tests               | React → in-memory mock gateway                              | deterministic fixtures with no network, keychain, or database |
+
+Both live paths serialize the same camelCase types and the same `AppError`
+shape. New features land across the TypeScript contract, Rust wire type,
+application service, both transports, mock, and tests as one compatible change.
+
+## Ownership by layer
+
+### Product surface — `apps/web`
+
+Owns views, interaction, accessibility, transport selection, and the
+consent-gated MapLibre surface. It does not decide whether extracted evidence is
+true and it does not hold provider keys.
+
+### Native shell — `apps/desktop/src-tauri`
+
+Initializes the service and maps typed Tauri commands to it. Product behavior
+does not live here. Desktop release builds depend on neither Axum nor a local
+web server.
+
+### Application services — `crates/voyalier-app`
+
+Owns SQLite transactions and migrations, the trip and fact lifecycle, network
+fetch seams, downloaded packs, provider configuration, activity records, OS
+keychain access, and vault state. The production fetcher is replaceable, so the
+test suite never needs live endpoints.
+
+### Deterministic domain — `crates/voyalier-core`
+
+Owns validation, parsers, itinerary conflicts, readiness, search, Today,
+recommendation ranking, brief redaction, vault cryptography, and provider
+request/reply validation. It has no Tauri, Axum, database, or network
+dependency.
+
+## Evidence is a lifecycle
+
+<img
+  src="/Voyalier/assets/voyalier-evidence-pipeline.svg"
+  alt="Voyalier evidence lifecycle showing local capture and deterministic extraction, a hard traveler review gate, confirmed facts and derived views, a separately sourced retrieval lane, and an optional consent-gated AI lane."
+/>
+
+### Imported confirmations
+
+1. Voyalier validates and hashes pasted text or HTML, then stores the raw body
+   only in local SQLite.
+2. Deterministic parsers create candidate facts with a parser run, method,
+   source spans, excerpts, and warnings.
+3. The traveler confirms/corrects, rejects, or leaves each candidate pending.
+4. Confirmed facts retain their extraction history and correction record.
+5. Pure rules derive conflicts, logistics readiness, Today, and the redacted
+   brief. Search covers local source text and confirmed facts. Recommendations
+   rank already-downloaded open place data.
+
+Raw source bodies never appear in `SourceDocument`, import responses, HTTP
+responses, or Tauri responses.
+
+### Retrieved evidence
+
+Travel facts arrive only after an explicit action and keep enough context to be
+audited later.
+
+| Surface         | Source                            | Retained context                                                                  |
+| --------------- | --------------------------------- | --------------------------------------------------------------------------------- |
+| Official advice | GOV.UK FCDO                       | human URL, verbatim fields, source update time, device retrieval time             |
+| Weather         | Open-Meteo                        | resolved place, coordinates, forecast dates, coverage, source URL, retrieval time |
+| City packs      | CI-built GitHub Release artifacts | Overture place data plus a separately attributed Wikivoyage layer                 |
+| Map             | MapLibre with OpenFreeMap         | visible attribution; no tile request before **Show map**                          |
+
+Stale, partial, unavailable, and unknown states stay visible. Official entry,
+health, and safety sources outrank commercial, editorial, community, and model
+content. A model can never clear a high-stakes readiness item.
+
+### Optional AI assist
+
+Ollama runs locally. OpenAI and Anthropic are bring-your-own-key cloud options.
+Cloud keys are write-only from the product contract and live in the OS
+keychain. Before any run, the traveler sees the endpoint, exact redacted
+payload, withheld fields, grounding count, and token estimate. Names and
+confirmation codes are excluded by construction, and completed calls appear in
+the activity log.
+
+The reply is assistance, not authority: it cannot originate visa, safety,
+health, price, availability, or opening-hour claims.
+
+## How that architecture feels in the app
+
+<img
+  src="/Voyalier/assets/voyalier-trip-workspace-flow.svg"
+  alt="The Voyalier workspace flow from framing a trip through evidence gathering, review, readiness, offline preparation, Today, optional AI help, and a redacted shareable brief."
+/>
+
+The offline baseline includes saved trips, confirmed facts, Blueprint,
+conflicts, readiness, local search, Today, and the printable brief. Network
+access adds dated evidence and packs; optional AI adds a drafting surface.
+Neither replaces the local trip operating layer.
+
+## Local persistence and vault
+
+Persistent state lives in an OS-appropriate application-data directory, never
+inside the app bundle. SQLite runs with WAL, foreign keys, a busy timeout, and
+versioned migrations.
+
+Raw imported content and sensitive confirmed-fact payloads are sealed when a
+recoverable data key is available. The OS keychain stores that data key and BYOK
+provider keys. A traveler can add a passphrase, which wraps the vault key and
+causes the workspace to open locked until that passphrase is supplied.
+
+The vault intentionally has an inactive state for keychain-less CI or embedding
+contexts: Voyalier will not encrypt with an ephemeral key that would make the
+database unreadable after restart.
+
+## Network inventory
+
+Every current remote edge is explicit and attributable:
+
+- GOV.UK FCDO advice and Open-Meteo weather through the replaceable Rust fetcher.
+- GitHub Release downloads for traveler-selected city packs.
+- OpenFreeMap tiles after the traveler selects **Show map**.
+- Localhost Ollama, or consented BYOK OpenAI/Anthropic inference after preview.
+
+There is no telemetry, shared provider key, autonomous booking, live inventory
+aggregation, background scraping, or silent document upload.
+
+## Current limits
+
+- Browser development uses a fixed loopback port; a per-launch token and random
+  port remain defense-in-depth work if browser mode becomes distributable.
+- Signed/notarized installers and update provenance are still public-beta work.
+- The interactive map currently uses consent-gated OpenFreeMap tiles; PMTiles
+  remain the planned offline map path.
+- Voyalier shows sources and uncertainty but does not claim legal, medical,
+  safety, pricing, availability, or opening-hours authority.
+
+The detailed decision trail lives in the repository's
+[`docs/architecture`](https://github.com/udhawan97/Voyalier/tree/main/docs/architecture)
+directory, including the desktop transport ADR, the Phase 2 contract ADR, and
+the map source policy.

@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="860" viewBox="0 0 1400 860" role="img" aria-labelledby="title desc">
+  <title id="title">Voyalier evidence and trust pipeline</title>
+  <desc id="desc">A detailed diagram following imported confirmations and retrieved travel data through local storage, deterministic parsing, review, confirmed facts, derived trip views, and consent-gated AI assistance.</desc>
+  <defs>
+    <pattern id="grain" width="44" height="44" patternUnits="userSpaceOnUse">
+      <circle cx="3" cy="3" r="1" fill="#1a1917" opacity=".035"/>
+      <circle cx="29" cy="17" r=".8" fill="#1a1917" opacity=".025"/>
+    </pattern>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="7" stdDeviation="10" flood-color="#1a1917" flood-opacity=".08"/></filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0l10 5-10 5z" fill="#46536b"/></marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0l10 5-10 5z" fill="#c34e33"/></marker>
+    <style>
+      .sans{font-family:"Zen Kaku Gothic New",Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.serif{font-family:"Shippori Mincho","Iowan Old Style",Georgia,serif}.title{font-size:31px;font-weight:600;fill:#1a1917}.subtitle{font-size:15px;fill:#5f5b52}.eyebrow{font-size:11px;font-weight:700;letter-spacing:2.3px;fill:#c34e33}.stage{font-size:11px;font-weight:800;letter-spacing:1.8px;fill:#46536b}.card-title{font-size:17px;font-weight:700;fill:#1a1917}.copy{font-size:13px;fill:#5f5b52}.small{font-size:11px;fill:#5f5b52}.dark-small{font-size:11px;fill:#c8c3b8}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;fill:#46536b}.flow{fill:none;stroke:#46536b;stroke-width:2;marker-end:url(#arrow)}.remote{fill:none;stroke:#c34e33;stroke-width:2;stroke-dasharray:7 6;marker-end:url(#arrow-red)}
+    </style>
+  </defs>
+
+  <rect width="1400" height="860" rx="24" fill="#f3efe4"/>
+  <rect width="1400" height="860" rx="24" fill="url(#grain)"/>
+  <text x="56" y="58" class="sans eyebrow">EVIDENCE LIFECYCLE · DATA NEVER BECOMES AUTHORITY BY ACCIDENT</text>
+  <text x="56" y="98" class="serif title">From messy input to reviewable trip truth</text>
+  <text x="56" y="126" class="sans subtitle">Imported content, remote sources, and model output enter different lanes and keep their trust state.</text>
+
+  <!-- Trust strip -->
+  <g transform="translate(56 156)">
+    <rect width="1288" height="58" rx="14" fill="#1a1917"/>
+    <text x="24" y="24" class="sans" font-size="11" font-weight="700" letter-spacing="1.8" fill="#d97a5f">THE TRUST RULE</text>
+    <text x="24" y="44" class="sans" font-size="13" fill="#f2ede1">Documents, retrieved pages, provider data, and model replies are untrusted inputs. Only the traveler can promote extracted candidates into confirmed facts.</text>
+    <rect x="1074" y="14" width="190" height="30" rx="15" fill="#46536b"/>
+    <text x="1169" y="34" class="sans" font-size="11" font-weight="700" text-anchor="middle" fill="#f2ede1">REVIEW IS A HARD GATE</text>
+  </g>
+
+  <!-- Main local pipeline -->
+  <text x="56" y="254" class="sans stage">A · LOCAL CONFIRMATION PIPELINE</text>
+  <path d="M282 380h42" class="flow"/><path d="M540 380h42" class="flow"/><path d="M798 380h42" class="flow"/><path d="M1056 380h42" class="flow"/>
+
+  <g filter="url(#shadow)">
+    <rect x="56" y="276" width="226" height="208" rx="18" fill="#faf7ef" stroke="#a9a69c"/>
+    <circle cx="84" cy="306" r="14" fill="#c34e33"/><text x="84" y="311" class="sans" font-size="12" font-weight="800" text-anchor="middle" fill="#fff">1</text>
+    <text x="108" y="312" class="sans card-title">Capture</text>
+    <text x="78" y="346" class="sans copy">Paste text or HTML from</text>
+    <text x="78" y="366" class="sans copy">a confirmation or itinerary.</text>
+    <rect x="78" y="388" width="182" height="58" rx="10" fill="#ebe6d7"/>
+    <text x="91" y="409" class="sans small">SQLite keeps raw content local</text>
+    <text x="91" y="428" class="sans small">but API responses expose only:</text>
+    <text x="91" y="445" class="mono">hash · count · label · time</text>
+    <text x="78" y="469" class="sans small">Input size + kind validated first.</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="324" y="276" width="216" height="208" rx="18" fill="#faf7ef" stroke="#a9a69c"/>
+    <circle cx="352" cy="306" r="14" fill="#46536b"/><text x="352" y="311" class="sans" font-size="12" font-weight="800" text-anchor="middle" fill="#fff">2</text>
+    <text x="376" y="312" class="sans card-title">Extract</text>
+    <text x="346" y="346" class="sans copy">Deterministic JSON-LD and</text>
+    <text x="346" y="366" class="sans copy">plaintext parsers produce:</text>
+    <g class="sans small">
+      <rect x="346" y="388" width="172" height="24" rx="8" fill="#ebe6d7"/><text x="358" y="404">candidate payload</text>
+      <rect x="346" y="418" width="172" height="24" rx="8" fill="#ebe6d7"/><text x="358" y="434">field spans + excerpts</text>
+      <rect x="346" y="448" width="172" height="24" rx="8" fill="#ebe6d7"/><text x="358" y="464">warnings + parser run id</text>
+    </g>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="582" y="276" width="216" height="208" rx="18" fill="#fff8f4" stroke="#c34e33" stroke-width="2"/>
+    <circle cx="610" cy="306" r="14" fill="#c34e33"/><text x="610" y="311" class="sans" font-size="12" font-weight="800" text-anchor="middle" fill="#fff">3</text>
+    <text x="634" y="312" class="sans card-title">Review</text>
+    <text x="604" y="346" class="sans copy">The traveler sees source</text>
+    <text x="604" y="366" class="sans copy">excerpts and warnings.</text>
+    <rect x="604" y="390" width="172" height="32" rx="10" fill="#c34e33"/><text x="690" y="411" class="sans" font-size="12" font-weight="700" text-anchor="middle" fill="#fff">CONFIRM / CORRECT</text>
+    <rect x="604" y="430" width="82" height="30" rx="9" fill="#ebe6d7"/><text x="645" y="450" class="sans small" text-anchor="middle">reject</text>
+    <rect x="694" y="430" width="82" height="30" rx="9" fill="#ebe6d7"/><text x="735" y="450" class="sans small" text-anchor="middle">undo</text>
+    <text x="604" y="476" class="sans" font-size="10" fill="#c34e33">No silent promotion.</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="840" y="276" width="216" height="208" rx="18" fill="#faf7ef" stroke="#46536b" stroke-width="1.5"/>
+    <circle cx="868" cy="306" r="14" fill="#46536b"/><text x="868" y="311" class="sans" font-size="12" font-weight="800" text-anchor="middle" fill="#fff">4</text>
+    <text x="892" y="312" class="sans card-title">Confirm</text>
+    <text x="862" y="346" class="sans copy">Confirmed facts retain:</text>
+    <text x="862" y="372" class="mono">candidateId</text>
+    <text x="862" y="392" class="mono">method</text>
+    <text x="862" y="412" class="mono">correctedFields[]</text>
+    <text x="862" y="432" class="mono">confirmedAt</text>
+    <rect x="862" y="448" width="172" height="24" rx="8" fill="#ebe6d7"/>
+    <text x="948" y="464" class="sans small" text-anchor="middle">sensitive payload sealed</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="1098" y="276" width="246" height="208" rx="18" fill="#46536b"/>
+    <circle cx="1126" cy="306" r="14" fill="#c34e33"/><text x="1126" y="311" class="sans" font-size="12" font-weight="800" text-anchor="middle" fill="#fff">5</text>
+    <text x="1150" y="312" class="sans" font-size="17" font-weight="700" fill="#f2ede1">Derive, never guess</text>
+    <g class="sans" font-size="12" fill="#f2ede1">
+      <text x="1122" y="347">• itinerary conflicts</text>
+      <text x="1122" y="370">• logistics readiness</text>
+      <text x="1122" y="393">• Blueprint + Today</text>
+      <text x="1122" y="416">• trip search + source hits</text>
+      <text x="1122" y="439">• redacted shareable brief</text>
+    </g>
+    <text x="1122" y="467" class="sans" font-size="10" fill="#d7dce7">Pure rules over reviewed local state.</text>
+  </g>
+
+  <!-- Retrieved evidence lane -->
+  <text x="56" y="535" class="sans stage">B · RETRIEVED EVIDENCE LANE</text>
+  <rect x="56" y="557" width="1288" height="122" rx="18" fill="#faf7ef" stroke="#a9a69c"/>
+  <rect x="76" y="578" width="224" height="80" rx="13" fill="#fff8f4" stroke="#c34e33"/>
+  <text x="94" y="603" class="sans card-title" font-size="15">Explicit user action</text>
+  <text x="94" y="626" class="sans small">Fetch advice / weather</text>
+  <text x="94" y="644" class="sans small">Download pack / show map</text>
+  <path d="M300 618h66" class="remote"/>
+  <rect x="368" y="578" width="256" height="80" rx="13" fill="#ebe6d7"/>
+  <text x="386" y="603" class="sans card-title" font-size="15">Identified source</text>
+  <text x="386" y="626" class="sans small">FCDO · Open-Meteo · Overture</text>
+  <text x="386" y="644" class="sans small">Wikivoyage · OpenFreeMap</text>
+  <path d="M624 618h66" class="flow"/>
+  <rect x="692" y="578" width="286" height="80" rx="13" fill="#ebe6d7"/>
+  <text x="710" y="603" class="sans card-title" font-size="15">Snapshot + provenance</text>
+  <text x="710" y="626" class="sans small">source URL · retrieved time · license</text>
+  <text x="710" y="644" class="sans small">freshness / coverage · verbatim fields</text>
+  <path d="M978 618h66" class="flow"/>
+  <rect x="1046" y="578" width="278" height="80" rx="13" fill="#1a1917"/>
+  <text x="1064" y="603" class="sans" font-size="15" font-weight="700" fill="#f2ede1">Shown beside local truth</text>
+  <text x="1064" y="626" class="sans dark-small">Never clears high-stakes readiness.</text>
+  <text x="1064" y="644" class="sans dark-small">Stale / partial / unknown stays visible.</text>
+
+  <!-- AI lane -->
+  <text x="56" y="728" class="sans stage">C · OPTIONAL AI ASSIST LANE</text>
+  <rect x="56" y="750" width="1288" height="74" rx="18" fill="#1a1917"/>
+  <g class="sans" font-size="12" fill="#f2ede1">
+    <text x="82" y="779" font-weight="700">Confirmed facts only</text><text x="82" y="800" fill="#c8c3b8">names + codes withheld</text>
+    <text x="338" y="779" font-weight="700">Exact payload preview</text><text x="338" y="800" fill="#c8c3b8">endpoint + token estimate</text>
+    <text x="618" y="779" font-weight="700">Traveler consents</text><text x="618" y="800" fill="#c8c3b8">local Ollama or BYOK cloud</text>
+    <text x="884" y="779" font-weight="700">Model reply is labeled</text><text x="884" y="800" fill="#c8c3b8">not a readiness authority</text>
+    <text x="1136" y="779" font-weight="700">Activity recorded</text><text x="1136" y="800" fill="#c8c3b8">provider · time · mode</text>
+  </g>
+  <path d="M277 786h38" class="remote"/><path d="M557 786h38" class="remote"/><path d="M823 786h38" class="remote"/><path d="M1075 786h38" class="remote"/>
+
+  <text x="56" y="848" class="sans small">Vermilion marks consent or human judgment. Indigo marks deterministic local processing. Sumi marks durable trust boundaries.</text>
+</svg>
