@@ -19,6 +19,7 @@ import type {
   ReadinessItem,
   ReadinessStatus,
   ReadinessSummary,
+  SearchHit,
   SourceDocument,
   Trip,
   TripBrief,
@@ -525,6 +526,31 @@ function assessReadiness(
   return { status, items: [...logistics, entryRequirements] };
 }
 
+function countOccurrences(haystack: string, needle: string): number {
+  if (!needle) return 0;
+  let count = 0;
+  let from = 0;
+  while (true) {
+    const position = haystack.indexOf(needle, from);
+    if (position === -1) break;
+    count += 1;
+    from = position + needle.length;
+  }
+  return count;
+}
+
+function snippetAround(original: string, needle: string): string {
+  const lowered = original.toLowerCase();
+  const start = lowered.indexOf(needle);
+  if (start === -1) return "";
+  const from = Math.max(0, start - 60);
+  const to = Math.min(original.length, start + needle.length + 60);
+  let snippet = original.slice(from, to).split(/\s+/).join(" ").trim();
+  if (from > 0) snippet = `…${snippet}`;
+  if (to < original.length) snippet = `${snippet}…`;
+  return snippet;
+}
+
 function omit<T extends object>(value: T, keys: string[]): T {
   const copy = { ...value };
   for (const key of keys) {
@@ -782,6 +808,75 @@ export function createMockGateway(options?: {
         };
         trips.set(tripId, archived);
         return clone(archived);
+      }),
+
+    searchTrip: (tripId: string, query: string) =>
+      execute("searchTrip", () => {
+        requireTrip(tripId);
+        const trimmed = query.trim();
+        if (trimmed.length === 0) {
+          throw appError(
+            "validation/invalid_input",
+            "search query is required",
+            {
+              field: "query",
+            },
+          );
+        }
+        if (trimmed.length > 200) {
+          throw appError(
+            "validation/invalid_input",
+            "search query must be 200 characters or fewer",
+            { field: "query" },
+          );
+        }
+        const needle = trimmed.toLowerCase();
+        const hits: SearchHit[] = [];
+
+        for (const stored of documents.values()) {
+          if (stored.document.tripId !== tripId) continue;
+          const score = countOccurrences(stored.content.toLowerCase(), needle);
+          if (score === 0) continue;
+          hits.push({
+            source: "document",
+            recordId: stored.document.id,
+            label: stored.document.label,
+            snippet: snippetAround(stored.content, needle),
+            score,
+          });
+        }
+
+        for (const fact of facts.values()) {
+          if (fact.tripId !== tripId) continue;
+          let best: { score: number; snippet: string } | null = null;
+          for (const value of Object.values(fact.payload)) {
+            if (typeof value !== "string") continue;
+            const score = countOccurrences(value.toLowerCase(), needle);
+            if (score > 0 && (!best || score > best.score)) {
+              best = { score, snippet: value };
+            }
+          }
+          if (best) {
+            const payload = fact.payload as Record<string, string | undefined>;
+            hits.push({
+              source: "confirmed_fact",
+              recordId: fact.id,
+              label:
+                fact.factType === "flight_segment"
+                  ? payload.flightNumber
+                    ? `Flight ${payload.flightNumber}`
+                    : "Flight"
+                  : (payload.propertyName ?? "Stay"),
+              snippet: best.snippet,
+              score: best.score,
+            });
+          }
+        }
+
+        hits.sort(
+          (a, b) => b.score - a.score || a.recordId.localeCompare(b.recordId),
+        );
+        return hits.slice(0, 20);
       }),
 
     getTripBrief: (tripId: string) =>

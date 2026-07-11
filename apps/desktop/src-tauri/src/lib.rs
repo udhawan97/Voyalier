@@ -3,8 +3,8 @@ use tauri::State;
 use voyalier_app::AppService;
 use voyalier_core::{
     AddManualFactInput, AppError, CandidateFact, CandidateStatus, ConfirmCandidateInput,
-    ConfirmedFact, CreateTripInput, HealthResponse, ImportDocumentInput, ImportResult, Trip,
-    TripBrief, TripDetail, TripSummary, UpdateTripInput,
+    ConfirmedFact, CreateTripInput, HealthResponse, ImportDocumentInput, ImportResult, SearchHit,
+    Trip, TripBrief, TripDetail, TripSummary, UpdateTripInput,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -35,6 +35,13 @@ struct ListCandidatesInput {
 #[serde(rename_all = "camelCase")]
 struct CandidateIdInput {
     candidate_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SearchTripInput {
+    trip_id: String,
+    query: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -94,6 +101,14 @@ fn get_trip_brief(
     service: State<'_, AppService>,
 ) -> Result<TripBrief, AppError> {
     service.get_trip_brief(&input.trip_id)
+}
+
+#[tauri::command]
+fn search_trip(
+    input: SearchTripInput,
+    service: State<'_, AppService>,
+) -> Result<Vec<SearchHit>, AppError> {
+    service.search_trip(&input.trip_id, &input.query)
 }
 
 #[tauri::command]
@@ -164,6 +179,7 @@ fn builder<R: tauri::Runtime>(
             update_trip,
             archive_trip,
             get_trip_brief,
+            search_trip,
             delete_trip,
             import_document,
             list_candidates,
@@ -312,6 +328,14 @@ mod tests {
         .expect("manual fact");
         assert_eq!(manual["method"], "manual");
 
+        let hits = invoke(
+            &webview,
+            "search_trip",
+            json!({ "tripId": trip_id, "query": "SFO" }),
+        )
+        .expect("search trip");
+        assert!(!hits.as_array().expect("hits").is_empty());
+
         let brief =
             invoke(&webview, "get_trip_brief", json!({ "tripId": trip_id })).expect("trip brief");
         assert!(brief.get("redactedFields").is_some());
@@ -340,6 +364,7 @@ mod tests {
             "update_trip",
             "archive_trip",
             "get_trip_brief",
+            "search_trip",
             "delete_trip",
             "import_document",
             "list_candidates",

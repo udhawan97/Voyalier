@@ -32,9 +32,20 @@
 
 ## Phase 2 — grounded intelligence
 
+Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
+(local retrieval) → B (recommendations) → C (BYOK providers).
+
+- ◑ Sourced readiness: the link-only `entry_requirements` item shipped
+  (curated official-source links; never asserts or clears rules; excluded from
+  the rollup). Remaining: consent-gated dated FCDO/State snapshots with
+  provenance and freshness — blocked on owner decisions (HTTP dependency,
+  consent granularity, destination→country mapping).
+- ✓ Local retrieval, first slice: `searchTrip` ships as a deterministic scan
+  over stored documents and confirmed facts with provenance and transparent
+  scoring ("Find in this trip"). FTS5/embeddings may replace the internals
+  later without contract change.
 - Place, weather, advisory, and destination-source adapters.
 - Persona scoring and source corroboration.
-- FTS5 plus optional local embeddings.
 - OpenAI, Anthropic, and Ollama providers behind one interface.
 - Cost, consent, citation, and evaluation surfaces.
 

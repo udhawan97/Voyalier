@@ -134,6 +134,17 @@ export interface ImportResult {
   parserRunId: string;
   candidates: CandidateFact[];
 }
+export type SearchHitSource = "document" | "confirmed_fact";
+export interface SearchHit {
+  source: SearchHitSource;
+  /** The document or confirmed-fact id, depending on `source`. */
+  recordId: string;
+  label: string;
+  /** Verbatim excerpt around the first match. */
+  snippet: string;
+  /** Transparent relevance: query-term occurrence count. */
+  score: number;
+}
 export interface TripBrief {
   title: string;
   origin: string;
@@ -213,6 +224,7 @@ export interface AppGateway {
   updateTrip(tripId: string, input: UpdateTripInput): Promise<Trip>;
   archiveTrip(tripId: string): Promise<Trip>;
   getTripBrief(tripId: string): Promise<TripBrief>;
+  searchTrip(tripId: string, query: string): Promise<SearchHit[]>;
   deleteTrip(tripId: string): Promise<void>;
   importDocument(input: ImportDocumentInput): Promise<ImportResult>;
   listCandidates(

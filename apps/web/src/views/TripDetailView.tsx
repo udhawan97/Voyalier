@@ -46,6 +46,7 @@ import { AddFactDialog } from "./AddFactDialog";
 import { BriefDialog } from "./BriefDialog";
 import { CandidateReviewDialog } from "./CandidateReviewDialog";
 import { DeleteTripDialog } from "./DeleteTripDialog";
+import { TripSearch } from "./TripSearch";
 import { ImportDialog } from "./ImportDialog";
 
 type Values = Record<string, string | undefined>;
@@ -531,6 +532,8 @@ export function TripDetailView({
       {confirmedFacts.length > 0 ? (
         <ScheduleCheck conflicts={itineraryConflicts} />
       ) : null}
+
+      <TripSearch tripId={tripId} />
 
       {showImport ? (
         <ImportDialog

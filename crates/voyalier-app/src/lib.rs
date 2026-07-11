@@ -11,10 +11,11 @@ use voyalier_core::{
     AddManualFactInput, AppError, CandidateFact, CandidateStatus, ConfirmCandidateInput,
     ConfirmationParser, ConfirmedFact, CreateTripInput, DocumentKind, ErrorCode, ExtractionMethod,
     HealthResponse, ImportDocumentInput, ImportResult, IntelligenceMode, JsonLdParser,
-    NormalizedDocument, ParsedCandidate, PlaintextParser, RedactionPolicy, SourceDocument, Trip,
-    TripBrief, TripDetail, TripStatus, TripSummary, UpdateTripInput, assess_readiness,
-    build_trip_brief, changed_payload_fields, detect_itinerary_conflicts, new_id, now_rfc3339,
-    validate_create_trip, validate_document_content, validate_fact_payload, validate_update_trip,
+    NormalizedDocument, ParsedCandidate, PlaintextParser, RedactionPolicy, SearchHit,
+    SearchableDocument, SourceDocument, Trip, TripBrief, TripDetail, TripStatus, TripSummary,
+    UpdateTripInput, assess_readiness, build_trip_brief, changed_payload_fields,
+    detect_itinerary_conflicts, new_id, now_rfc3339, search_trip_corpus, validate_create_trip,
+    validate_document_content, validate_fact_payload, validate_search_query, validate_update_trip,
 };
 
 const DATABASE_FILE: &str = "voyalier.sqlite3";
@@ -135,6 +136,38 @@ impl AppService {
             itinerary_conflicts,
             readiness,
         })
+    }
+
+    /// Deterministic search over this trip's stored documents and confirmed
+    /// facts. Purely local; ranking is transparent occurrence counting.
+    pub fn search_trip(&self, trip_id: &str, query: &str) -> Result<Vec<SearchHit>, AppError> {
+        let query = validate_search_query(query)?;
+        let connection = self.connection()?;
+        fetch_trip(&connection, trip_id)?;
+
+        let mut statement = connection
+            .prepare(
+                "SELECT id, label, raw_content FROM source_documents
+                 WHERE trip_id = ?1 ORDER BY imported_at ASC, id ASC",
+            )
+            .map_err(storage_error)?;
+        let rows = statement
+            .query_map(params![trip_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })
+            .map_err(storage_error)?;
+        let documents: Vec<(String, String, String)> = collect_rows(rows)?;
+        let searchable: Vec<SearchableDocument<'_>> = documents
+            .iter()
+            .map(|(id, label, content)| SearchableDocument { id, label, content })
+            .collect();
+        let facts = fetch_confirmed_facts(&connection, trip_id)?;
+
+        Ok(search_trip_corpus(&query, &searchable, &facts))
     }
 
     /// Build a redacted, shareable brief from the confirmed plan. The brief is
@@ -948,6 +981,63 @@ mod tests {
         assert_eq!(
             detail.readiness.status,
             voyalier_core::ReadinessStatus::ActionNeeded
+        );
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn search_trip_finds_documents_and_facts_with_provenance() {
+        use voyalier_core::SearchHitSource;
+
+        let database = temp_database("search");
+        let service = AppService::open_path(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        let imported = service
+            .import_document(ImportDocumentInput {
+                trip_id: trip.id.clone(),
+                kind: DocumentKind::PastedText,
+                label: Some("Hotel email".to_owned()),
+                content: "The airport shuttle leaves every 30 minutes.\nConfirmation SHTL77"
+                    .to_owned(),
+            })
+            .expect("import");
+        service
+            .add_manual_fact(AddManualFactInput {
+                trip_id: trip.id.clone(),
+                fact_type: FactType::LodgingStay,
+                payload: FactPayload {
+                    property_name: Some("Shuttle Side Inn".to_owned()),
+                    ..FactPayload::default()
+                },
+            })
+            .expect("manual fact");
+
+        let hits = service.search_trip(&trip.id, "shuttle").expect("hits");
+        assert_eq!(hits.len(), 2);
+        assert!(
+            hits.iter()
+                .any(|hit| hit.source == SearchHitSource::Document
+                    && hit.record_id == imported.document.id)
+        );
+        assert!(
+            hits.iter()
+                .any(|hit| hit.source == SearchHitSource::ConfirmedFact)
+        );
+
+        // Validation and unknown-trip errors are deterministic.
+        assert_eq!(
+            service
+                .search_trip(&trip.id, "   ")
+                .expect_err("empty")
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
+        assert_eq!(
+            service
+                .search_trip("trip_missing", "shuttle")
+                .expect_err("missing trip")
+                .code,
+            ErrorCode::TripNotFound
         );
         cleanup_database(database);
     }

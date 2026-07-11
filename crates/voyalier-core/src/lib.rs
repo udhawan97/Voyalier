@@ -7,6 +7,7 @@ mod brief;
 mod itinerary;
 mod parser;
 mod readiness;
+mod search;
 mod types;
 
 pub use brief::{RedactionPolicy, TripBrief, build_trip_brief};
@@ -16,6 +17,9 @@ pub use parser::{
     ParserOutcome, PlaintextParser,
 };
 pub use readiness::assess_readiness;
+pub use search::{
+    SearchHit, SearchHitSource, SearchableDocument, search_trip_corpus, validate_search_query,
+};
 pub use types::*;
 
 #[cfg(test)]

@@ -9,6 +9,7 @@ import type {
   HealthResponse,
   ImportDocumentInput,
   ImportResult,
+  SearchHit,
   Trip,
   TripBrief,
   TripDetail,
@@ -93,6 +94,12 @@ export function createHttpGateway(
 
     getTripBrief: (tripId: string) =>
       request<TripBrief>("GET", `/api/v1/trips/${enc(tripId)}/brief`),
+
+    searchTrip: (tripId: string, query: string) =>
+      request<SearchHit[]>(
+        "GET",
+        `/api/v1/trips/${enc(tripId)}/search?q=${enc(query)}`,
+      ),
 
     deleteTrip: (tripId: string) =>
       request<void>("DELETE", `/api/v1/trips/${enc(tripId)}`),

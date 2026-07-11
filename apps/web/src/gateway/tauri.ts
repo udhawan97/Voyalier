@@ -9,6 +9,7 @@ import type {
   HealthResponse,
   ImportDocumentInput,
   ImportResult,
+  SearchHit,
   Trip,
   TripBrief,
   TripDetail,
@@ -72,6 +73,9 @@ export function createTauriGateway(
 
     getTripBrief: (tripId: string) =>
       call<TripBrief>("get_trip_brief", { tripId }),
+
+    searchTrip: (tripId: string, query: string) =>
+      call<SearchHit[]>("search_trip", { tripId, query }),
 
     deleteTrip: (tripId: string) => call<void>("delete_trip", { tripId }),
 

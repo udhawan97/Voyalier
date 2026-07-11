@@ -979,6 +979,104 @@ h3 {
   line-height: 1.5;
 }
 
+/* ===== Trip search ===================================================== */
+
+.voy-search {
+  margin-top: 2.6rem;
+  padding-top: 1.8rem;
+  border-top: 1px solid var(--voy-line);
+}
+
+.voy-search__title {
+  font-size: 1.4rem;
+  font-family: var(--voy-font-display);
+  margin-bottom: 1rem;
+}
+
+.voy-search__form {
+  display: flex;
+  gap: 0.6rem;
+  max-width: 34rem;
+}
+
+.voy-search__input {
+  flex: 1;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-sm);
+  background: var(--voy-paper-raised);
+  color: var(--voy-ink);
+  font: inherit;
+}
+
+.voy-search__input:focus-visible {
+  outline: 2px solid var(--voy-focus);
+  outline-offset: 1px;
+}
+
+.voy-search__error {
+  margin: 0.5rem 0 0;
+  color: var(--voy-danger);
+  font-size: 0.88rem;
+}
+
+.voy-search__none {
+  margin: 1rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.92rem;
+}
+
+.voy-search__results {
+  list-style: none;
+  margin: 1.1rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.voy-search__hit {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-raised);
+}
+
+.voy-search__hit-icon {
+  display: inline-flex;
+  margin-top: 0.15rem;
+  font-size: 1rem;
+  color: var(--voy-indigo);
+  flex-shrink: 0;
+  min-width: 1rem;
+}
+
+.voy-search__hit-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.voy-search__hit-label {
+  font-size: 0.92rem;
+  font-weight: 580;
+}
+
+.voy-search__hit-kind {
+  font-weight: 480;
+  color: var(--voy-ink-muted);
+}
+
+.voy-search__hit-snippet {
+  font-size: 0.88rem;
+  color: var(--voy-ink-muted);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 /* ===== Shareable brief ================================================= */
 
 .voy-brief {

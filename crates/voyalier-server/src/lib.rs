@@ -29,6 +29,11 @@ struct CandidateQuery {
     status: Option<CandidateStatus>,
 }
 
+#[derive(Debug, Deserialize)]
+struct SearchQuery {
+    q: String,
+}
+
 #[derive(Debug)]
 struct ApiError(AppError);
 
@@ -63,6 +68,7 @@ pub fn app(service: AppService) -> Router {
         )
         .route("/api/v1/trips/{trip_id}/archive", post(archive_trip))
         .route("/api/v1/trips/{trip_id}/brief", get(get_trip_brief))
+        .route("/api/v1/trips/{trip_id}/search", get(search_trip))
         .route("/api/v1/trips/{trip_id}/documents", post(import_document))
         .route("/api/v1/trips/{trip_id}/candidates", get(list_candidates))
         .route(
@@ -123,6 +129,14 @@ async fn get_trip_brief(
     Path(trip_id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(service.get_trip_brief(&trip_id)?))
+}
+
+async fn search_trip(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+    Query(query): Query<SearchQuery>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.search_trip(&trip_id, &query.q)?))
 }
 
 async fn delete_trip(
@@ -407,6 +421,27 @@ mod tests {
         )
         .await;
         assert_eq!(manual.status, StatusCode::CREATED);
+
+        // Local search reaches documents and facts with provenance.
+        let search = request(
+            router.clone(),
+            Method::GET,
+            &format!("/api/v1/trips/{trip_id}/search?q=SFO"),
+            None,
+        )
+        .await;
+        assert_eq!(search.status, StatusCode::OK);
+        let search_hits = search.json.as_array().expect("hits");
+        assert!(!search_hits.is_empty());
+        assert!(search_hits.iter().all(|hit| hit.get("recordId").is_some()));
+        let empty_query = request(
+            router.clone(),
+            Method::GET,
+            &format!("/api/v1/trips/{trip_id}/search?q=%20"),
+            None,
+        )
+        .await;
+        assert_eq!(empty_query.status, StatusCode::BAD_REQUEST);
 
         // The shareable brief is served redacted: secrets never reach the wire.
         let brief = request(
