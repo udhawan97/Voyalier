@@ -3,17 +3,21 @@ import type { TodayItem, TodayView, TripPhase } from "@voyalier/contracts";
 import { useGateway } from "../app/context";
 import { useAsyncData } from "../app/useAsync";
 import { formatDate } from "../app/format";
+import { t } from "../app/i18n";
 
 function phaseHeadline(phase: TripPhase): string {
   switch (phase.state) {
     case "upcoming":
-      if (phase.daysUntil === 1) return "Starts tomorrow";
-      return `Starts in ${phase.daysUntil ?? 0} days`;
+      if (phase.daysUntil === 1) return t("today.phase.tomorrow");
+      return t("today.phase.upcoming", { days: phase.daysUntil ?? 0 });
     case "active":
-      return `Day ${phase.day ?? 0} of ${phase.totalDays ?? 0}`;
+      return t("today.phase.active", {
+        day: phase.day ?? 0,
+        total: phase.totalDays ?? 0,
+      });
     case "completed":
-      if (phase.daysAgo === 1) return "Ended yesterday";
-      return `Ended ${phase.daysAgo ?? 0} days ago`;
+      if (phase.daysAgo === 1) return t("today.phase.yesterday");
+      return t("today.phase.completed", { days: phase.daysAgo ?? 0 });
   }
 }
 
@@ -44,7 +48,7 @@ export function TodayPanel({ tripId }: { tripId: string }) {
     <section className="voy-today" aria-labelledby="today-title">
       <div className="voy-today__head">
         <h2 id="today-title" className="voy-today__title">
-          Today
+          {t("today.title")}
         </h2>
         <span
           className={`voy-today__phase voy-today__phase--${view.phase.state}`}
@@ -54,7 +58,7 @@ export function TodayPanel({ tripId }: { tripId: string }) {
       </div>
 
       {view.today.length > 0 ? (
-        <ul className="voy-today__list" aria-label="Today's schedule">
+        <ul className="voy-today__list" aria-label={t("today.schedule")}>
           {view.today.map((item, index) => (
             <li key={`${item.kind}:${index}`} className="voy-today__item">
               <span className="voy-today__item-title">{itemLine(item)}</span>
@@ -67,14 +71,14 @@ export function TodayPanel({ tripId }: { tripId: string }) {
       ) : (
         <p className="voy-today__empty">
           {view.phase.state === "active"
-            ? "Nothing scheduled today."
-            : "No plans for today."}
+            ? t("today.empty.active")
+            : t("today.empty.other")}
         </p>
       )}
 
       {view.next ? (
         <p className="voy-today__next">
-          <span className="voy-today__next-label">Next</span>
+          <span className="voy-today__next-label">{t("today.next")}</span>
           {itemLine(view.next)} · {formatDate(view.next.date)}
         </p>
       ) : null}

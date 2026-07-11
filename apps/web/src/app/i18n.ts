@@ -178,6 +178,17 @@ const en = {
   "field.checkinDate": "Check-in",
   "field.checkoutDate": "Check-out",
   "field.guestName": "Guest",
+
+  "today.title": "Today",
+  "today.phase.tomorrow": "Starts tomorrow",
+  "today.phase.upcoming": "Starts in {days} days",
+  "today.phase.active": "Day {day} of {total}",
+  "today.phase.yesterday": "Ended yesterday",
+  "today.phase.completed": "Ended {days} days ago",
+  "today.schedule": "Today's schedule",
+  "today.empty.active": "Nothing scheduled today.",
+  "today.empty.other": "No plans for today.",
+  "today.next": "Next",
 } as const;
 
 export type MessageKey = keyof typeof en;
