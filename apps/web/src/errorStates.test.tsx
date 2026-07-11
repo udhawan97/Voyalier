@@ -109,7 +109,9 @@ describe("AppError rendered states", () => {
     const dialog = await screen.findByRole("dialog", {
       name: "Review suggestions",
     });
-    fireEvent.click(within(dialog).getAllByRole("button", { name: "Confirm" })[0]);
+    fireEvent.click(
+      within(dialog).getAllByRole("button", { name: "Confirm" })[0],
+    );
     expect(
       await within(dialog).findByText("This suggestion is no longer here"),
     ).toBeInTheDocument();
@@ -131,8 +133,12 @@ describe("AppError rendered states", () => {
     const dialog = await screen.findByRole("dialog", {
       name: "Review suggestions",
     });
-    fireEvent.click(within(dialog).getAllByRole("button", { name: "Dismiss" })[0]);
-    expect(await within(dialog).findByText("Already resolved")).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getAllByRole("button", { name: "Dismiss" })[0],
+    );
+    expect(
+      await within(dialog).findByText("Already resolved"),
+    ).toBeInTheDocument();
   });
 
   it("fact/not_found is announced when unconfirming", async () => {
@@ -145,7 +151,9 @@ describe("AppError rendered states", () => {
     const factCard = (await screen.findByText("Flight FP18")).closest(
       "article",
     ) as HTMLElement;
-    fireEvent.click(within(factCard).getByRole("button", { name: "Unconfirm" }));
+    fireEvent.click(
+      within(factCard).getByRole("button", { name: "Unconfirm" }),
+    );
     expect(
       await screen.findByText("This fact is no longer here"),
     ).toBeInTheDocument();

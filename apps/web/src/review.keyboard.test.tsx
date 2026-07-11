@@ -25,9 +25,7 @@ describe("candidate review — keyboard", () => {
     const confirmButtons = within(dialog).getAllByRole("button", {
       name: "Confirm",
     });
-    await waitFor(() =>
-      expect(document.activeElement).toBe(confirmButtons[0]),
-    );
+    await waitFor(() => expect(document.activeElement).toBe(confirmButtons[0]));
 
     fireEvent.keyDown(dialog, { key: "Escape" });
     expect(

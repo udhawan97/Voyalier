@@ -52,11 +52,11 @@ reject actions. Untrusted excerpts render as inert quoted text — never interpr
 All three implement the `AppGateway` interface and normalize failures to
 `AppError { code: "transport/failure" }`.
 
-| Gateway | Selection | Notes |
-| --- | --- | --- |
-| Mock | `VITE_MOCK === "1"`, and all component tests | `createMockGateway()` from contracts |
-| Tauri | `"__TAURI__" in window` | `window.__TAURI__.core.invoke(cmd, { input })`, snake_case commands |
-| HTTP | otherwise (browser dev) | same-origin `/api/v1` + `/api/health`; Vite proxies `/api → 127.0.0.1:8787` |
+| Gateway | Selection                                    | Notes                                                                       |
+| ------- | -------------------------------------------- | --------------------------------------------------------------------------- |
+| Mock    | `VITE_MOCK === "1"`, and all component tests | `createMockGateway()` from contracts                                        |
+| Tauri   | `"__TAURI__" in window`                      | `window.__TAURI__.core.invoke(cmd, { input })`, snake_case commands         |
+| HTTP    | otherwise (browser dev)                      | same-origin `/api/v1` + `/api/health`; Vite proxies `/api → 127.0.0.1:8787` |
 
 HTTP routes match Codex's Axum server exactly (verified against
 `crates/voyalier-server/src/lib.rs`): non-2xx bodies are `AppError`; 204s (delete,
@@ -98,6 +98,7 @@ date/time, route, warnings→sentences, method labels, field labels).
   the trigger element, close restores focus to it.
 
 ### Flight datetimes — do not touch timezones
+
 Contract datetimes are local wall-clock strings without offset (`2026-11-03T11:20`).
 `format.ts` splits the string and formats via a static month table — **never** a
 `Date` object — so they render verbatim beside their airport codes.
@@ -118,20 +119,20 @@ Contract datetimes are local wall-clock strings without offset (`2026-11-03T11:2
   banner with retry; never fakes success.
 - Async results announced via `aria-live`.
 
-| Code | Where it surfaces |
-| --- | --- |
-| `validation/invalid_input` | Create/Add field inline |
-| `validation/invalid_date_range` | Create/Add date fields inline |
-| `trip/not_found` | Blueprint load → "This trip is no longer here" + back |
-| `candidate/not_found` | Review item → removed/refresh |
-| `candidate/already_resolved` | Review action → "Already resolved" + refresh |
-| `fact/not_found` | Unconfirm → refresh |
-| `document/too_large` | Import surface inline |
-| `document/duplicate` | Import surface → link to existing |
-| `document/empty` | Import surface inline |
-| `storage/failure` | Banner + retry |
-| `transport/failure` | Offline banner + retry |
-| `internal/unexpected` | Banner + retry |
+| Code                            | Where it surfaces                                     |
+| ------------------------------- | ----------------------------------------------------- |
+| `validation/invalid_input`      | Create/Add field inline                               |
+| `validation/invalid_date_range` | Create/Add date fields inline                         |
+| `trip/not_found`                | Blueprint load → "This trip is no longer here" + back |
+| `candidate/not_found`           | Review item → removed/refresh                         |
+| `candidate/already_resolved`    | Review action → "Already resolved" + refresh          |
+| `fact/not_found`                | Unconfirm → refresh                                   |
+| `document/too_large`            | Import surface inline                                 |
+| `document/duplicate`            | Import surface → link to existing                     |
+| `document/empty`                | Import surface inline                                 |
+| `storage/failure`               | Banner + retry                                        |
+| `transport/failure`             | Offline banner + retry                                |
+| `internal/unexpected`           | Banner + retry                                        |
 
 ---
 
@@ -199,23 +200,23 @@ text + icon redundancy, never color alone.
   passed, 4 skipped** (the skipped 4 are the live-HTTP gateway tests, gated on
   `VITE_LIVE_API=1` for integration). Production build completes.
 - Contract freeze re-verified: `git diff --exit-code dda1122..HEAD --
-  packages/contracts/src/` returns clean.
+packages/contracts/src/` returns clean.
 - Manual browser walkthrough (`VITE_MOCK=1`, no console errors) of: trip list
   (light + dark), Blueprint with verbatim wall-clock datetimes, candidate review
   (evidence quotes + `missing_dates` warning), and create-trip inline validation.
 
 ### Acceptance checklist
 
-| Item | Status | Evidence |
-| --- | --- | --- |
-| Full loop create→import→review→confirm→Blueprint→unconfirm | ✅ | `fullLoop.test.tsx` |
-| Every AppError code renders a state | ✅ | `errorStates.test.tsx` (12/12) |
-| Review keyboard: trap, Esc, focus return, full flow | ✅ | `review.keyboard.test.tsx` |
-| Injection excerpt + crafted markup render inert | ✅ | `injection.test.tsx` |
-| Theme apply/persist + reduced-motion CSS | ✅ | `theme.test.tsx` |
-| Gateway error-normalization across all three transports | ✅ | `gateway.errors.test.tsx` |
-| 50-candidate review renders < 100ms | ✅ | `performance.test.tsx` |
-| Live HTTP parity | ⏳ deferred | `gateway.live.test.ts` (run at integration) |
+| Item                                                       | Status      | Evidence                                    |
+| ---------------------------------------------------------- | ----------- | ------------------------------------------- |
+| Full loop create→import→review→confirm→Blueprint→unconfirm | ✅          | `fullLoop.test.tsx`                         |
+| Every AppError code renders a state                        | ✅          | `errorStates.test.tsx` (12/12)              |
+| Review keyboard: trap, Esc, focus return, full flow        | ✅          | `review.keyboard.test.tsx`                  |
+| Injection excerpt + crafted markup render inert            | ✅          | `injection.test.tsx`                        |
+| Theme apply/persist + reduced-motion CSS                   | ✅          | `theme.test.tsx`                            |
+| Gateway error-normalization across all three transports    | ✅          | `gateway.errors.test.tsx`                   |
+| 50-candidate review renders < 100ms                        | ✅          | `performance.test.tsx`                      |
+| Live HTTP parity                                           | ⏳ deferred | `gateway.live.test.ts` (run at integration) |
 
 ## Known gaps / follow-ups
 
@@ -253,9 +254,10 @@ None. The frozen `AppGateway` covered every Phase-1 surface.
   round-trips the full import→confirm→unconfirm→manual loop (real parser extracts a
   JSON-LD flight), and the real UI drives it over HTTP end-to-end.
 - **Post-review hardening** (see `hardening.test.tsx`): review now receives the
-  freshly imported candidates directly (no dependency on an in-flight refetch);
-  review actions are mutually disabled while one is in flight; focus after a
-  resolution lands on the next card's primary button even mid-edit; the create-trip
-  start-date field is `aria-describedby`-linked to the date-range error.
+freshly imported candidates directly (no dependency on an in-flight refetch);
+review actions are mutually disabled while one is in flight; focus after a
+resolution lands on the next card's primary button even mid-edit; the create-trip
+start-date field is `aria-describedby`-linked to the date-range error.
 </content>
+
 </invoke>

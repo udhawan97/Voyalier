@@ -18,7 +18,14 @@ interface FieldShellProps {
 }
 
 /** Layout + a11y wiring for one labelled control (label, hint, inline error). */
-export function Field({ id, label, error, hint, required, children }: FieldShellProps) {
+export function Field({
+  id,
+  label,
+  error,
+  hint,
+  required,
+  children,
+}: FieldShellProps) {
   const hintId = hint ? `${id}-hint` : undefined;
   const errorId = error ? `${id}-error` : undefined;
   const describedBy = [hintId, errorId].filter(Boolean).join(" ") || undefined;
@@ -49,8 +56,10 @@ export function Field({ id, label, error, hint, required, children }: FieldShell
   );
 }
 
-interface TextFieldProps
-  extends Omit<InputHTMLAttributes<HTMLInputElement>, "id"> {
+interface TextFieldProps extends Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  "id"
+> {
   id: string;
   label: string;
   error?: string;
@@ -84,8 +93,10 @@ export function TextField({
   );
 }
 
-interface TextAreaProps
-  extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "id"> {
+interface TextAreaProps extends Omit<
+  TextareaHTMLAttributes<HTMLTextAreaElement>,
+  "id"
+> {
   id: string;
   label: string;
   error?: string;

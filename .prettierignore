@@ -1,0 +1,20 @@
+# Prettier ignore — keep in sync with .gitignore for generated paths.
+# Anything listed here is never checked or rewritten by `prettier`.
+
+# Generated lockfile
+pnpm-lock.yaml
+
+# Parser test fixtures — these are TEST INPUTS, not source.
+# Some are intentionally malformed/truncated (e.g. malformed-truncated-html),
+# so reformatting them would change what the Rust parser is tested against.
+crates/**/fixtures/**
+
+# Build outputs and generated artifacts
+**/dist/**
+**/target/**
+**/gen/**
+**/.astro/**
+**/coverage/**
+**/playwright-report/**
+**/test-results/**
+node_modules/

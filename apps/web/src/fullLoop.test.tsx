@@ -17,9 +17,7 @@ describe("full trip loop", () => {
       name: "Open Kyoto autumn journey",
     });
     expect(kyotoCard).toBeInTheDocument();
-    expect(
-      screen.getByLabelText("3 pending suggestions"),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText("3 pending suggestions")).toBeInTheDocument();
 
     // --- Create a trip ---
     fireEvent.click(screen.getByRole("button", { name: "Create a trip" }));
@@ -38,7 +36,9 @@ describe("full trip loop", () => {
     fireEvent.change(within(createDialog).getByLabelText("End date"), {
       target: { value: "2027-06-05" },
     });
-    fireEvent.click(within(createDialog).getByRole("button", { name: "Create trip" }));
+    fireEvent.click(
+      within(createDialog).getByRole("button", { name: "Create trip" }),
+    );
 
     expect(
       await screen.findByRole("button", { name: "Open Chicago → Rome" }),
@@ -71,7 +71,9 @@ describe("full trip loop", () => {
     fireEvent.change(within(importDialog).getByLabelText("Content"), {
       target: { value: "Booking confirmation: nothing structured here." },
     });
-    fireEvent.click(within(importDialog).getByRole("button", { name: "Import" }));
+    fireEvent.click(
+      within(importDialog).getByRole("button", { name: "Import" }),
+    );
     expect(
       await screen.findByText(/No new suggestions were found/),
     ).toBeInTheDocument();
@@ -87,7 +89,9 @@ describe("full trip loop", () => {
     const flightCard = within(reviewDialog)
       .getByText("Flight NS204")
       .closest("li") as HTMLElement;
-    fireEvent.click(within(flightCard).getByRole("button", { name: "Confirm" }));
+    fireEvent.click(
+      within(flightCard).getByRole("button", { name: "Confirm" }),
+    );
 
     // Queue shrinks to two remaining.
     await waitFor(() =>
@@ -95,7 +99,9 @@ describe("full trip loop", () => {
         within(reviewDialog).getByText(/2 suggestions to review/),
       ).toBeInTheDocument(),
     );
-    fireEvent.click(within(reviewDialog).getByRole("button", { name: "Close" }));
+    fireEvent.click(
+      within(reviewDialog).getByRole("button", { name: "Close" }),
+    );
 
     // --- Blueprint reflects the new confirmed fact and lower pending count ---
     expect(await screen.findByText("Flight NS204")).toBeInTheDocument();
@@ -107,7 +113,9 @@ describe("full trip loop", () => {
     const ns204Fact = screen
       .getByText("Flight NS204")
       .closest("article") as HTMLElement;
-    fireEvent.click(within(ns204Fact).getByRole("button", { name: "Unconfirm" }));
+    fireEvent.click(
+      within(ns204Fact).getByRole("button", { name: "Unconfirm" }),
+    );
 
     await waitFor(() =>
       expect(screen.queryByText("Flight NS204")).not.toBeInTheDocument(),

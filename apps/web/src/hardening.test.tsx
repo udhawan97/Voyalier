@@ -57,7 +57,9 @@ describe("review hardening", () => {
     fireEvent.change(within(importDialog).getByLabelText("Content"), {
       target: { value: "<html>fixture</html>" },
     });
-    fireEvent.click(within(importDialog).getByRole("button", { name: "Import" }));
+    fireEvent.click(
+      within(importDialog).getByRole("button", { name: "Import" }),
+    );
 
     const reviewButton = await screen.findByRole("button", {
       name: /Review 1 suggestion/,
@@ -77,10 +79,14 @@ describe("review hardening", () => {
     const dialog = await openKyotoReview();
     const flightCard = cardByTitle(dialog, "Flight NS204");
 
-    fireEvent.click(within(flightCard).getByRole("button", { name: "Confirm" }));
+    fireEvent.click(
+      within(flightCard).getByRole("button", { name: "Confirm" }),
+    );
 
     // Mid-flight: the sibling actions must not be clickable.
-    expect(within(flightCard).getByRole("button", { name: "Dismiss" })).toBeDisabled();
+    expect(
+      within(flightCard).getByRole("button", { name: "Dismiss" }),
+    ).toBeDisabled();
     expect(
       within(flightCard).getByRole("button", { name: "Edit & confirm" }),
     ).toBeDisabled();
@@ -109,14 +115,18 @@ describe("review hardening", () => {
     // Resolve the first card; focus should land on the next card's primary
     // button, which is now "Save & confirm" (not a missing "Confirm").
     const flightCard = cardByTitle(dialog, "Flight NS204");
-    fireEvent.click(within(flightCard).getByRole("button", { name: "Confirm" }));
+    fireEvent.click(
+      within(flightCard).getByRole("button", { name: "Confirm" }),
+    );
 
     await waitFor(() => expect(document.activeElement).toBe(saveButton));
   });
 
   it("links the start-date field to the date-range error for screen readers", async () => {
     renderApp();
-    fireEvent.click(await screen.findByRole("button", { name: "Create a trip" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Create a trip" }),
+    );
     const dialog = await screen.findByRole("dialog", { name: "Create a trip" });
     fireEvent.change(within(dialog).getByLabelText("From"), {
       target: { value: "Chicago" },
@@ -125,7 +135,9 @@ describe("review hardening", () => {
       target: { value: "Kyoto" },
     });
     // Leave dates empty → dates error fires on submit.
-    fireEvent.click(within(dialog).getByRole("button", { name: "Create trip" }));
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Create trip" }),
+    );
 
     const start = await within(dialog).findByLabelText("Start date");
     expect(start).toHaveAttribute("aria-invalid", "true");

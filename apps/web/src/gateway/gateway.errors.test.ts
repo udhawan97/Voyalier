@@ -37,7 +37,10 @@ describe("gateway error normalization", () => {
   });
 
   it("passes server AppErrors through unchanged (not collapsed to transport)", async () => {
-    const notFound: AppError = { code: "trip/not_found", message: "Trip not found" };
+    const notFound: AppError = {
+      code: "trip/not_found",
+      message: "Trip not found",
+    };
     const http = createHttpGateway({
       fetch: () =>
         Promise.resolve(

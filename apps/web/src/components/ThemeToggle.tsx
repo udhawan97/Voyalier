@@ -3,11 +3,12 @@ import { useRef } from "react";
 import { useTheme, type ThemeChoice } from "../app/theme";
 import { DesktopIcon, MoonIcon, SunIcon } from "./icons";
 
-const OPTIONS: { value: ThemeChoice; label: string; icon: React.ReactNode }[] = [
-  { value: "light", label: "Light", icon: <SunIcon /> },
-  { value: "system", label: "System", icon: <DesktopIcon /> },
-  { value: "dark", label: "Dark", icon: <MoonIcon /> },
-];
+const OPTIONS: { value: ThemeChoice; label: string; icon: React.ReactNode }[] =
+  [
+    { value: "light", label: "Light", icon: <SunIcon /> },
+    { value: "system", label: "System", icon: <DesktopIcon /> },
+    { value: "dark", label: "Dark", icon: <MoonIcon /> },
+  ];
 
 /** Light / System / Dark as an ARIA radiogroup with roving focus + arrow keys. */
 export function ThemeToggle() {

@@ -39,9 +39,10 @@ describe("theme", () => {
 
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(store["voyalier-theme"]).toBe("dark");
-    expect(
-      within(group).getByRole("radio", { name: "Dark" }),
-    ).toHaveAttribute("aria-checked", "true");
+    expect(within(group).getByRole("radio", { name: "Dark" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
   });
 
   it("ships reduced-motion equivalents in the stylesheet", () => {
