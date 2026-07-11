@@ -1,0 +1,182 @@
+import type { FactPayload, FactType } from "@voyalier/contracts";
+
+import { useGateway } from "../app/context";
+import {
+  describeError,
+  factSubtitle,
+  factTitle,
+  fieldLabel,
+  fieldsForType,
+  formatDateRange,
+  formatFieldValue,
+  tripRoute,
+} from "../app/format";
+import { useAsyncData } from "../app/useAsync";
+import { Banner } from "../components/Banner";
+import { Button } from "../components/Button";
+import { Dialog } from "../components/Dialog";
+import { BedIcon, PlaneIcon } from "../components/icons";
+import { Skeleton } from "../components/primitives";
+
+type Values = Record<string, string | undefined>;
+
+// Fields already shown in each entry's title/subtitle, so we don't repeat them
+// in the detail rows below.
+const SHOWN_IN_HEADING: Record<FactType, readonly string[]> = {
+  flight_segment: [
+    "flightNumber",
+    "departureAirportIata",
+    "arrivalAirportIata",
+  ],
+  lodging_stay: ["propertyName", "address"],
+};
+
+function BriefEntry({
+  factType,
+  payload,
+}: {
+  factType: FactType;
+  payload: FactPayload;
+}) {
+  const values = payload as Values;
+  const heading = SHOWN_IN_HEADING[factType];
+  const present = fieldsForType(factType).filter(
+    (key) =>
+      !heading.includes(key) && values[key] != null && values[key] !== "",
+  );
+  return (
+    <article className="voy-brief__entry">
+      <span className="voy-brief__entry-icon" aria-hidden="true">
+        {factType === "flight_segment" ? <PlaneIcon /> : <BedIcon />}
+      </span>
+      <div className="voy-brief__entry-body">
+        <p className="voy-brief__entry-title">{factTitle(factType, payload)}</p>
+        <p className="voy-brief__entry-sub">
+          {factSubtitle(factType, payload)}
+        </p>
+        <dl className="voy-brief__fields">
+          {present.map((key) => (
+            <div className="voy-brief__field" key={key}>
+              <dt>{fieldLabel(key)}</dt>
+              <dd>{formatFieldValue(key, values[key] as string)}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    </article>
+  );
+}
+
+/**
+ * A shareable, print-friendly brief. The gateway returns it already redacted by
+ * the core, so nothing sensitive is ever in this component's data. "Print /
+ * Save as PDF" uses the browser's print pipeline against a print stylesheet
+ * that hides the app chrome.
+ */
+export function BriefDialog({
+  tripId,
+  onClose,
+}: {
+  tripId: string;
+  onClose: () => void;
+}) {
+  const gateway = useGateway();
+  const { status, data, error, reload } = useAsyncData(
+    () => gateway.getTripBrief(tripId),
+    `brief:${tripId}`,
+  );
+
+  const footer = (
+    <>
+      <Button variant="ghost" onClick={onClose}>
+        Close
+      </Button>
+      <Button variant="primary" onClick={() => window.print()} disabled={!data}>
+        Print / Save as PDF
+      </Button>
+    </>
+  );
+
+  return (
+    <Dialog
+      title="Shareable brief"
+      onClose={onClose}
+      size="lg"
+      description="A copy you can share. Confirmation codes and traveler names are removed before it leaves this device."
+      footer={footer}
+    >
+      {status === "loading" && !data ? (
+        <div aria-busy="true" role="status">
+          <span className="voy-sr-only">Preparing the brief…</span>
+          <Skeleton width="60%" height="1.4rem" />
+          <Skeleton width="40%" />
+        </div>
+      ) : status === "error" && !data ? (
+        <Banner
+          tone="error"
+          role="alert"
+          title={describeError(error!).title}
+          action={
+            <Button variant="secondary" onClick={reload}>
+              Retry
+            </Button>
+          }
+        >
+          {describeError(error!).body}
+        </Banner>
+      ) : data ? (
+        <div className="voy-brief">
+          <header className="voy-brief__head">
+            <p className="voy-eyebrow">
+              {tripRoute(data.origin, data.destination)}
+            </p>
+            <h3 className="voy-brief__title">{data.title}</h3>
+            <p className="voy-brief__dates">
+              {formatDateRange(data.startDate, data.endDate)}
+            </p>
+          </header>
+
+          {data.flights.length > 0 ? (
+            <section className="voy-brief__section" aria-label="Flights">
+              <h4 className="voy-brief__section-title">Flights</h4>
+              {data.flights.map((flight, index) => (
+                <BriefEntry
+                  key={`flight-${index}`}
+                  factType="flight_segment"
+                  payload={flight}
+                />
+              ))}
+            </section>
+          ) : null}
+
+          {data.stays.length > 0 ? (
+            <section className="voy-brief__section" aria-label="Stays">
+              <h4 className="voy-brief__section-title">Stays</h4>
+              {data.stays.map((stay, index) => (
+                <BriefEntry
+                  key={`stay-${index}`}
+                  factType="lodging_stay"
+                  payload={stay}
+                />
+              ))}
+            </section>
+          ) : null}
+
+          {data.flights.length === 0 && data.stays.length === 0 ? (
+            <p className="voy-brief__empty">
+              No confirmed flights or stays yet. Confirm some plans to fill the
+              brief.
+            </p>
+          ) : null}
+
+          {data.redactedFields.length > 0 ? (
+            <p className="voy-brief__redaction">
+              Hidden from this brief:{" "}
+              {data.redactedFields.join(", ").toLowerCase()}.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </Dialog>
+  );
+}

@@ -959,6 +959,132 @@ h3 {
   line-height: 1.5;
 }
 
+/* ===== Shareable brief ================================================= */
+
+.voy-brief {
+  display: flex;
+  flex-direction: column;
+  gap: 1.6rem;
+}
+
+.voy-brief__head {
+  padding-bottom: 1.1rem;
+  border-bottom: 1px solid var(--voy-line);
+}
+
+.voy-brief__title {
+  margin: 0.2rem 0 0.4rem;
+  font-size: 1.5rem;
+  font-family: var(--voy-font-display);
+}
+
+.voy-brief__dates {
+  margin: 0;
+  color: var(--voy-ink-muted);
+}
+
+.voy-brief__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.voy-brief__section-title {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 640;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--voy-ink-muted);
+}
+
+.voy-brief__entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+}
+
+.voy-brief__entry-icon {
+  display: inline-flex;
+  margin-top: 0.15rem;
+  font-size: 1.1rem;
+  color: var(--voy-indigo);
+  flex-shrink: 0;
+}
+
+.voy-brief__entry-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.voy-brief__entry-sub {
+  margin: 0.1rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.9rem;
+}
+
+.voy-brief__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.4rem 1.2rem;
+  margin: 0.6rem 0 0;
+}
+
+.voy-brief__field dt {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--voy-ink-muted);
+}
+
+.voy-brief__field dd {
+  margin: 0.1rem 0 0;
+  font-size: 0.92rem;
+}
+
+.voy-brief__redaction {
+  margin: 0;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--voy-line);
+  color: var(--voy-ink-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.voy-brief__empty {
+  margin: 0;
+  color: var(--voy-ink-muted);
+}
+
+/* Print just the brief: hide the app and the dialog chrome. */
+@media print {
+  #root {
+    display: none !important;
+  }
+
+  .voy-overlay {
+    position: static;
+    display: block;
+    padding: 0;
+    background: none;
+  }
+
+  .voy-dialog {
+    max-width: none !important;
+    width: auto !important;
+    max-height: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: none !important;
+  }
+
+  .voy-dialog__desc,
+  .voy-dialog__foot,
+  .voy-dialog__head .voy-icon-btn {
+    display: none !important;
+  }
+}
+
 /* ===== Schedule check =================================================== */
 
 .voy-schedule {

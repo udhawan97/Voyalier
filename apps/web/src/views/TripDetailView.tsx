@@ -43,6 +43,7 @@ import {
   TripStatusBadge,
 } from "../components/primitives";
 import { AddFactDialog } from "./AddFactDialog";
+import { BriefDialog } from "./BriefDialog";
 import { CandidateReviewDialog } from "./CandidateReviewDialog";
 import { DeleteTripDialog } from "./DeleteTripDialog";
 import { ImportDialog } from "./ImportDialog";
@@ -283,6 +284,7 @@ export function TripDetailView({
     CandidateFact[] | null
   >(null);
   const [showDelete, setShowDelete] = useState(false);
+  const [showBrief, setShowBrief] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [unconfirmingId, setUnconfirmingId] = useState<string | null>(null);
 
@@ -408,6 +410,11 @@ export function TripDetailView({
           <Button variant="secondary" onClick={() => setShowAddFact(true)}>
             Add a fact
           </Button>
+          {confirmedFacts.length > 0 ? (
+            <Button variant="ghost" onClick={() => setShowBrief(true)}>
+              Share brief
+            </Button>
+          ) : null}
           {!isArchived ? (
             <Button
               variant="ghost"
@@ -543,6 +550,10 @@ export function TripDetailView({
           onClose={() => setShowDelete(false)}
           onDeleted={onDeleted}
         />
+      ) : null}
+
+      {showBrief ? (
+        <BriefDialog tripId={tripId} onClose={() => setShowBrief(false)} />
       ) : null}
     </section>
   );
