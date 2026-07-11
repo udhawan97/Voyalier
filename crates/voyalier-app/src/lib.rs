@@ -11,10 +11,10 @@ use voyalier_core::{
     AddManualFactInput, AppError, CandidateFact, CandidateStatus, ConfirmCandidateInput,
     ConfirmationParser, ConfirmedFact, CreateTripInput, DocumentKind, ErrorCode, ExtractionMethod,
     HealthResponse, ImportDocumentInput, ImportResult, IntelligenceMode, JsonLdParser,
-    NormalizedDocument, ParsedCandidate, PlaintextParser, SourceDocument, Trip, TripDetail,
-    TripStatus, TripSummary, UpdateTripInput, assess_readiness, changed_payload_fields,
-    detect_itinerary_conflicts, new_id, now_rfc3339, validate_create_trip,
-    validate_document_content, validate_fact_payload, validate_update_trip,
+    NormalizedDocument, ParsedCandidate, PlaintextParser, RedactionPolicy, SourceDocument, Trip,
+    TripBrief, TripDetail, TripStatus, TripSummary, UpdateTripInput, assess_readiness,
+    build_trip_brief, changed_payload_fields, detect_itinerary_conflicts, new_id, now_rfc3339,
+    validate_create_trip, validate_document_content, validate_fact_payload, validate_update_trip,
 };
 
 const DATABASE_FILE: &str = "voyalier.sqlite3";
@@ -135,6 +135,21 @@ impl AppService {
             itinerary_conflicts,
             readiness,
         })
+    }
+
+    /// Build a redacted, shareable brief from the confirmed plan. The brief is
+    /// produced by generation-time exclusion in the core, so secrets never
+    /// enter the returned structure.
+    pub fn get_trip_brief(&self, trip_id: &str) -> Result<TripBrief, AppError> {
+        let connection = self.connection()?;
+        let trip = fetch_trip(&connection, trip_id)?;
+        let confirmed_facts = fetch_confirmed_facts(&connection, trip_id)?;
+        Ok(build_trip_brief(
+            &trip,
+            &confirmed_facts,
+            &RedactionPolicy::for_sharing(),
+            &now_rfc3339(),
+        ))
     }
 
     pub fn update_trip(&self, trip_id: &str, input: UpdateTripInput) -> Result<Trip, AppError> {
@@ -934,6 +949,36 @@ mod tests {
             detail.readiness.status,
             voyalier_core::ReadinessStatus::ActionNeeded
         );
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn trip_brief_excludes_secrets() {
+        let database = temp_database("brief");
+        let service = AppService::open_path(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        service
+            .add_manual_fact(AddManualFactInput {
+                trip_id: trip.id.clone(),
+                fact_type: FactType::FlightSegment,
+                payload: FactPayload {
+                    flight_number: Some("FP18".to_owned()),
+                    departure_airport_iata: Some("ORD".to_owned()),
+                    arrival_airport_iata: Some("HND".to_owned()),
+                    departure_local: Some("2027-04-02T10:00".to_owned()),
+                    confirmation_code: Some("SECRET-PNR".to_owned()),
+                    passenger_name: Some("Jamie Traveler".to_owned()),
+                    ..FactPayload::default()
+                },
+            })
+            .expect("manual flight");
+
+        let brief = service.get_trip_brief(&trip.id).expect("brief");
+        let serialized = serde_json::to_string(&brief).expect("serialize");
+        assert!(!serialized.contains("SECRET-PNR"));
+        assert!(!serialized.contains("Jamie Traveler"));
+        assert!(serialized.contains("FP18"));
+        assert_eq!(brief.flights.len(), 1);
         cleanup_database(database);
     }
 

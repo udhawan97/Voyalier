@@ -62,6 +62,7 @@ pub fn app(service: AppService) -> Router {
             get(get_trip).patch(update_trip).delete(delete_trip),
         )
         .route("/api/v1/trips/{trip_id}/archive", post(archive_trip))
+        .route("/api/v1/trips/{trip_id}/brief", get(get_trip_brief))
         .route("/api/v1/trips/{trip_id}/documents", post(import_document))
         .route("/api/v1/trips/{trip_id}/candidates", get(list_candidates))
         .route(
@@ -115,6 +116,13 @@ async fn archive_trip(
     Path(trip_id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(service.archive_trip(&trip_id)?))
+}
+
+async fn get_trip_brief(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.get_trip_brief(&trip_id)?))
 }
 
 async fn delete_trip(
@@ -391,12 +399,28 @@ mod tests {
                 "payload": {
                     "departureAirportIata": "SFO",
                     "arrivalAirportIata": "NRT",
-                    "departureLocal": "2027-04-02T10:00"
+                    "departureLocal": "2027-04-02T10:00",
+                    "confirmationCode": "PNR-SECRET",
+                    "passengerName": "Test Traveler"
                 }
             })),
         )
         .await;
         assert_eq!(manual.status, StatusCode::CREATED);
+
+        // The shareable brief is served redacted: secrets never reach the wire.
+        let brief = request(
+            router.clone(),
+            Method::GET,
+            &format!("/api/v1/trips/{trip_id}/brief"),
+            None,
+        )
+        .await;
+        assert_eq!(brief.status, StatusCode::OK);
+        assert!(brief.json.get("redactedFields").is_some());
+        let brief_text = brief.json.to_string();
+        assert!(!brief_text.contains("PNR-SECRET"));
+        assert!(!brief_text.contains("Test Traveler"));
 
         assert_eq!(
             request(

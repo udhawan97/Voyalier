@@ -10,6 +10,7 @@ import type {
   ImportDocumentInput,
   ImportResult,
   Trip,
+  TripBrief,
   TripDetail,
   TripSummary,
   UpdateTripInput,
@@ -68,6 +69,9 @@ export function createTauriGateway(
       call<Trip>("update_trip", { tripId, patch: input }),
 
     archiveTrip: (tripId: string) => call<Trip>("archive_trip", { tripId }),
+
+    getTripBrief: (tripId: string) =>
+      call<TripBrief>("get_trip_brief", { tripId }),
 
     deleteTrip: (tripId: string) => call<void>("delete_trip", { tripId }),
 

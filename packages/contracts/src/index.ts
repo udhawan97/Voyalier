@@ -124,6 +124,20 @@ export interface ImportResult {
   parserRunId: string;
   candidates: CandidateFact[];
 }
+export interface TripBrief {
+  title: string;
+  origin: string;
+  destination: string;
+  startDate: string;
+  endDate: string;
+  /** Redacted flight entries in departure order. */
+  flights: FlightSegmentPayload[];
+  /** Redacted lodging entries in check-in order. */
+  stays: LodgingStayPayload[];
+  /** Human-readable list of the field kinds removed from this brief. */
+  redactedFields: string[];
+  generatedAt: string;
+}
 export type IntelligenceMode =
   "local" | "on_device_ai" | "cloud_ai" | "offline_snapshot";
 export type ReadinessStatus =
@@ -188,6 +202,7 @@ export interface AppGateway {
   getTrip(tripId: string): Promise<TripDetail>;
   updateTrip(tripId: string, input: UpdateTripInput): Promise<Trip>;
   archiveTrip(tripId: string): Promise<Trip>;
+  getTripBrief(tripId: string): Promise<TripBrief>;
   deleteTrip(tripId: string): Promise<void>;
   importDocument(input: ImportDocumentInput): Promise<ImportResult>;
   listCandidates(

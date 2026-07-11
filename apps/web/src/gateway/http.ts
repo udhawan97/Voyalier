@@ -10,6 +10,7 @@ import type {
   ImportDocumentInput,
   ImportResult,
   Trip,
+  TripBrief,
   TripDetail,
   TripSummary,
   UpdateTripInput,
@@ -31,7 +32,9 @@ type Method = "GET" | "POST" | "PATCH" | "DELETE";
  * crates/voyalier-server exactly. Non-2xx bodies are AppError; 204s carry no
  * body; network failures normalize to transport/failure.
  */
-export function createHttpGateway(options: HttpGatewayOptions = {}): AppGateway {
+export function createHttpGateway(
+  options: HttpGatewayOptions = {},
+): AppGateway {
   const baseUrl = options.baseUrl ?? "";
   const doFetch = options.fetch ?? globalThis.fetch.bind(globalThis);
   const enc = encodeURIComponent;
@@ -46,7 +49,9 @@ export function createHttpGateway(options: HttpGatewayOptions = {}): AppGateway 
       response = await doFetch(`${baseUrl}${path}`, {
         method,
         headers:
-          body === undefined ? undefined : { "Content-Type": "application/json" },
+          body === undefined
+            ? undefined
+            : { "Content-Type": "application/json" },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
     } catch (error) {
@@ -85,6 +90,9 @@ export function createHttpGateway(options: HttpGatewayOptions = {}): AppGateway 
 
     archiveTrip: (tripId: string) =>
       request<Trip>("POST", `/api/v1/trips/${enc(tripId)}/archive`),
+
+    getTripBrief: (tripId: string) =>
+      request<TripBrief>("GET", `/api/v1/trips/${enc(tripId)}/brief`),
 
     deleteTrip: (tripId: string) =>
       request<void>("DELETE", `/api/v1/trips/${enc(tripId)}`),

@@ -21,6 +21,7 @@ import type {
   ReadinessSummary,
   SourceDocument,
   Trip,
+  TripBrief,
   TripDetail,
   TripSummary,
   UpdateTripInput,
@@ -502,6 +503,58 @@ function assessReadiness(
   return { status, items };
 }
 
+function omit<T extends object>(value: T, keys: string[]): T {
+  const copy = { ...value };
+  for (const key of keys) {
+    delete (copy as Record<string, unknown>)[key];
+  }
+  return copy;
+}
+
+/**
+ * Deterministic mirror of voyalier-core::build_trip_brief under the default
+ * sharing policy: confirmation codes and traveler names are excluded by
+ * construction; addresses are kept.
+ */
+function buildShareBrief(
+  trip: Trip,
+  tripFacts: ConfirmedFact[],
+  generatedAt: string,
+): TripBrief {
+  const flights = tripFacts
+    .filter((fact) => fact.factType === "flight_segment")
+    .map((fact) =>
+      omit(fact.payload as FlightSegmentPayload, [
+        "confirmationCode",
+        "passengerName",
+      ]),
+    )
+    .sort((a, b) =>
+      (a.departureLocal ?? "").localeCompare(b.departureLocal ?? ""),
+    );
+  const stays = tripFacts
+    .filter((fact) => fact.factType === "lodging_stay")
+    .map((fact) =>
+      omit(fact.payload as LodgingStayPayload, [
+        "confirmationCode",
+        "guestName",
+      ]),
+    )
+    .sort((a, b) => (a.checkinDate ?? "").localeCompare(b.checkinDate ?? ""));
+
+  return {
+    title: trip.title,
+    origin: trip.origin,
+    destination: trip.destination,
+    startDate: trip.startDate,
+    endDate: trip.endDate,
+    flights,
+    stays,
+    redactedFields: ["Confirmation codes", "Traveler names"],
+    generatedAt,
+  };
+}
+
 function changedFields(original: FactPayload, edited: FactPayload): string[] {
   const keys = new Set([...Object.keys(original), ...Object.keys(edited)]);
   return [...keys]
@@ -707,6 +760,15 @@ export function createMockGateway(options?: {
         };
         trips.set(tripId, archived);
         return clone(archived);
+      }),
+
+    getTripBrief: (tripId: string) =>
+      execute("getTripBrief", () => {
+        const trip = requireTrip(tripId);
+        const tripFacts = [...facts.values()].filter(
+          (fact) => fact.tripId === tripId,
+        );
+        return buildShareBrief(trip, tripFacts, timestamp());
       }),
 
     deleteTrip: (tripId: string) =>

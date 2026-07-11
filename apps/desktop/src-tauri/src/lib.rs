@@ -4,7 +4,7 @@ use voyalier_app::AppService;
 use voyalier_core::{
     AddManualFactInput, AppError, CandidateFact, CandidateStatus, ConfirmCandidateInput,
     ConfirmedFact, CreateTripInput, HealthResponse, ImportDocumentInput, ImportResult, Trip,
-    TripDetail, TripSummary, UpdateTripInput,
+    TripBrief, TripDetail, TripSummary, UpdateTripInput,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -89,6 +89,14 @@ fn archive_trip(input: TripIdInput, service: State<'_, AppService>) -> Result<Tr
 }
 
 #[tauri::command]
+fn get_trip_brief(
+    input: TripIdInput,
+    service: State<'_, AppService>,
+) -> Result<TripBrief, AppError> {
+    service.get_trip_brief(&input.trip_id)
+}
+
+#[tauri::command]
 fn delete_trip(input: TripIdInput, service: State<'_, AppService>) -> Result<(), AppError> {
     service.delete_trip(&input.trip_id)
 }
@@ -155,6 +163,7 @@ fn builder<R: tauri::Runtime>(
             get_trip,
             update_trip,
             archive_trip,
+            get_trip_brief,
             delete_trip,
             import_document,
             list_candidates,
@@ -303,6 +312,11 @@ mod tests {
         .expect("manual fact");
         assert_eq!(manual["method"], "manual");
 
+        let brief =
+            invoke(&webview, "get_trip_brief", json!({ "tripId": trip_id })).expect("trip brief");
+        assert!(brief.get("redactedFields").is_some());
+        assert!(!brief["flights"].as_array().expect("flights").is_empty());
+
         assert_eq!(
             invoke(&webview, "archive_trip", json!({ "tripId": trip_id })).expect("archive trip")["status"],
             "archived"
@@ -325,6 +339,7 @@ mod tests {
             "get_trip",
             "update_trip",
             "archive_trip",
+            "get_trip_brief",
             "delete_trip",
             "import_document",
             "list_candidates",
