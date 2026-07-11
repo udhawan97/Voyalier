@@ -67,10 +67,13 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   The click is the consent, and the fetch is one-way — it pulls place data and
   notes in; nothing about the trip is sent. The pack id is validated before any
   network call, and the downloaded body is verified to match the requested pack;
-  the panel then shows offline counts with a "Remove" control. Remaining for B:
-  the CI pipeline that builds each pack's contents from Overture and Wikivoyage
-  data clipped to its bbox and publishes them to a GitHub Release (until then,
-  downloading returns a graceful "couldn't download" error).
+  the panel then shows offline counts with a "Remove" control.
+- ✓ Packs (B), CI pipeline: a manual GitHub Actions workflow dumps the catalog
+  from `voyalier-core` (one source of truth via an example binary), builds each
+  pack's contents — Wikivoyage prose via the MediaWiki API plus Overture places
+  via DuckDB clipped to the bbox — writes `<id>.json` plus a per-layer license
+  manifest, and publishes the assets to the `packs-v1` release the app downloads
+  from. Pack (B) is complete; running the workflow populates the release.
 - ✓ Providers (C), detection + key storage: on-device AI **detection**
   (user-initiated "Check for on-device AI" probes `localhost:11434/api/tags`);
   plus **BYOK key storage** — OpenAI/Anthropic keys stored in the OS keychain
@@ -101,10 +104,16 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   over stored documents and confirmed facts with provenance and transparent
   scoring ("Find in this trip"). FTS5/embeddings may replace the internals
   later without contract change.
-- Place, weather, advisory, and destination-source adapters.
-- Persona scoring and source corroboration.
-- OpenAI, Anthropic, and Ollama providers behind one interface.
-- Cost, consent, citation, and evaluation surfaces.
+- ✓ OpenAI, Anthropic, and Ollama providers behind one interface (`runAssist`
+  dispatches all three; preview + consent + activity log shared).
+
+**Deferred to a later phase (beyond the owner-resolved Phase 2 scope):**
+
+- Persona scoring and destination recommendations (`getRecommendations`,
+  preference weights, `PlaceCandidate`) over downloaded pack places — needs the
+  pack pipeline to have populated the `packs-v1` release first.
+- Per-call citation of grounded chunks and token cost estimates on assist.
+- Health-notice sources (CDC/WHO) via the same link-or-consent pattern.
 
 ## Phase 3 — public beta
 
