@@ -20,9 +20,10 @@ const PROVIDER_OPTIONS: { id: ProviderId; label: string }[] = [
 
 /**
  * Shows exactly what Voyalier would send to a provider for this trip — the
- * consent step before any assist call exists. The request is built on-device
- * with confirmation codes and traveler names excluded by construction, so they
- * could never reach a provider. Nothing is transmitted; this is a preview only.
+ * consent step — and lets the user run it. The request is built on-device with
+ * confirmation codes and traveler names excluded by construction, so they could
+ * never reach a provider. Previewing sends nothing; running sends the shown
+ * request (on-device for Ollama, to the provider for cloud) and logs it.
  */
 export function AssistPreview({ tripId }: { tripId: string }) {
   const gateway = useGateway();
@@ -76,10 +77,16 @@ export function AssistPreview({ tripId }: { tripId: string }) {
       const result = await gateway.runAssist(tripId, preview.provider);
       setReply(result);
       void refreshActivity();
-      announce(`On-device assist finished with ${result.model}.`);
+      announce(`Assist finished with ${result.model}.`);
     } catch (caught) {
       setReply(null);
-      setRunError(describeError(caught as AppError).title);
+      const appError = caught as AppError;
+      // Validation errors (e.g. "add an API key first") carry a useful message.
+      setRunError(
+        appError.code === "validation/invalid_input"
+          ? appError.message
+          : describeError(appError).title,
+      );
     } finally {
       setRunning(false);
     }
@@ -156,42 +163,44 @@ export function AssistPreview({ tripId }: { tripId: string }) {
             </>
           ) : null}
 
-          {preview.leavesDevice ? (
-            <p className="voy-assist__note">
-              Cloud assist isn’t available yet — this stays a preview. Run
-              on-device with Ollama to actually generate a reply.
-            </p>
-          ) : (
-            <div className="voy-assist__run">
-              <Button variant="primary" onClick={run} busy={running}>
-                Run on-device assist
-              </Button>
-              {runError ? (
-                <p className="voy-assist__error" role="alert">
-                  {runError}
+          <div className="voy-assist__run">
+            <Button variant="primary" onClick={run} busy={running}>
+              {preview.leavesDevice
+                ? `Send to ${preview.providerLabel}`
+                : "Run on-device assist"}
+            </Button>
+            {preview.leavesDevice ? (
+              <p className="voy-assist__note">
+                This sends the request above to {preview.providerLabel} using
+                your stored key. Add one under AI providers first if you
+                haven’t.
+              </p>
+            ) : null}
+            {runError ? (
+              <p className="voy-assist__error" role="alert">
+                {runError}
+              </p>
+            ) : null}
+            {reply ? (
+              <>
+                <h3 className="voy-assist__subhead">
+                  Reply from {reply.model}
+                </h3>
+                <pre className="voy-assist__block">{reply.text}</pre>
+                <p className="voy-assist__disclaimer">
+                  AI-generated from your confirmed plans. Voyalier never treats
+                  this as authoritative — verify anything important (entry
+                  rules, health, safety) against an official source.
                 </p>
-              ) : null}
-              {reply ? (
-                <>
-                  <h3 className="voy-assist__subhead">
-                    Reply from {reply.model}
-                  </h3>
-                  <pre className="voy-assist__block">{reply.text}</pre>
-                  <p className="voy-assist__disclaimer">
-                    AI-generated from your confirmed plans. Voyalier never
-                    treats this as authoritative — verify anything important
-                    (entry rules, health, safety) against an official source.
-                  </p>
-                </>
-              ) : null}
-            </div>
-          )}
+              </>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
       {activity.length > 0 ? (
         <div className="voy-assist__activity">
-          <h3 className="voy-assist__subhead">Recent on-device runs</h3>
+          <h3 className="voy-assist__subhead">Recent assist runs</h3>
           <ul className="voy-assist__log" aria-label="Assist activity log">
             {activity.map((entry) => (
               <li key={entry.id} className="voy-assist__log-item">
@@ -207,8 +216,8 @@ export function AssistPreview({ tripId }: { tripId: string }) {
 
       <p className="voy-assist__scope">
         Preview shows exactly what would be sent. On-device runs stay on this
-        device via Ollama; cloud providers remain preview-only for now. Every
-        run is listed above.
+        device via Ollama; cloud runs send the previewed request to your chosen
+        provider using your stored key. Every run is listed above.
       </p>
     </section>
   );

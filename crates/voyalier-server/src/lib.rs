@@ -889,8 +889,23 @@ mod tests {
 
     #[tokio::test]
     async fn assist_preview_route_returns_a_redacted_request_preview() {
+        // A fetcher that panics on any network use, plus an in-memory secret
+        // store, so this test can never make a real cloud call or read a real
+        // keychain — even if a key happened to be stored on this machine.
+        struct NoNetwork;
+        impl voyalier_app::AdviceFetcher for NoNetwork {
+            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+                panic!("no network in this test");
+            }
+        }
+
         let database = temp_database("assist-preview");
-        let service = AppService::open_path(&database).expect("service");
+        let service = AppService::open_path_with_deps(
+            &database,
+            std::sync::Arc::new(NoNetwork),
+            std::sync::Arc::new(voyalier_app::MemorySecretStore::default()),
+        )
+        .expect("service");
         let router = app(service);
         let trip = create_trip_direct(&router).await;
         let trip_id = trip["id"].as_str().expect("trip id");
@@ -918,9 +933,9 @@ mod tests {
         .await;
         assert_eq!(bad.status, StatusCode::BAD_REQUEST);
 
-        // Cloud assist is refused with a 502 — no data leaves the device.
-        // (The on-device path needs a running Ollama and is covered at the app
-        // layer with a stubbed fetcher.)
+        // Cloud assist with no key stored is refused with a 400 before any
+        // request — nothing leaves the device (the fetcher would panic if it
+        // did). The happy path is covered at the app layer with a stub fetcher.
         let cloud = request(
             router.clone(),
             Method::POST,
@@ -928,10 +943,10 @@ mod tests {
             Some(json!({ "provider": "openai" })),
         )
         .await;
-        assert_eq!(cloud.status, StatusCode::BAD_GATEWAY);
+        assert_eq!(cloud.status, StatusCode::BAD_REQUEST);
 
-        // The activity log route is reachable and starts empty (cloud attempt
-        // was refused before any call, so nothing is logged).
+        // The activity log route is reachable and starts empty (the cloud
+        // attempt was refused before any call, so nothing is logged).
         let activity = request(
             router,
             Method::GET,

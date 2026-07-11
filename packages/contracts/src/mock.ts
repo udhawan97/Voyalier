@@ -1193,15 +1193,28 @@ export function createMockGateway(options?: {
     runAssist: (tripId: string, provider: ProviderId) =>
       execute("runAssist", () => {
         const trip = requireTrip(tripId);
-        if (provider !== "ollama") {
+        const info = MOCK_PROVIDERS.find((entry) => entry.id === provider);
+        if (!info) {
+          throw appError("validation/invalid_input", "unknown provider", {
+            field: "provider",
+          });
+        }
+        // Cloud providers need a stored key first (mirrors the real gateway).
+        if (info.keyRequired && !providerKeys.has(provider)) {
           throw appError(
-            "assist/failed",
-            "cloud assist is not available yet — run on-device with Ollama",
+            "validation/invalid_input",
+            "add an API key for this provider under AI providers, then try again",
             { field: "provider" },
           );
         }
         // Deterministic canned reply — the mock runs no model.
-        const model = providerModels.get(provider) ?? "llama3.2";
+        const fallback =
+          provider === "openai"
+            ? "gpt-4o-mini"
+            : provider === "anthropic"
+              ? "claude-3-5-haiku-latest"
+              : "llama3.2";
+        const model = providerModels.get(provider) ?? fallback;
         assistActivity.push({
           id: nextId("act"),
           tripId,

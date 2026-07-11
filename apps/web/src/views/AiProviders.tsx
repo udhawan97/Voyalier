@@ -168,8 +168,8 @@ function ProviderRow({
  * BYOK provider configuration. Lazy — nothing is read until "Manage AI
  * providers" is clicked — so opening a trip never touches the keychain. Keys are
  * write-only: entered here, stored in the OS keychain, and never returned,
- * rendered, or persisted in the DOM. Cloud assist itself is a later, opt-in
- * milestone.
+ * rendered, or persisted in the DOM. A stored key is used only to send a
+ * previewed request when the user chooses to, under "Preview an AI request".
  */
 export function AiProviders() {
   const gateway = useGateway();
@@ -219,8 +219,9 @@ export function AiProviders() {
       )}
 
       <p className="voy-providers__scope">
-        Keys stay in your OS keychain and never leave your device. Using a
-        provider for assist is a later, opt-in milestone.
+        Keys stay in your OS keychain and never leave your device. A key is only
+        used to send a request you preview and choose to send, under “Preview an
+        AI request”.
       </p>
     </section>
   );

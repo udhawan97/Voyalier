@@ -8,21 +8,23 @@ use directories::ProjectDirs;
 use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256};
 use voyalier_core::{
-    AddManualFactInput, AppError, AssistActivityEntry, AssistReply, AssistRequestPreview,
-    CandidateFact, CandidateStatus, ConfirmCandidateInput, ConfirmationParser, ConfirmedFact,
-    CreateTripInput, DEFAULT_OLLAMA_MODEL, DocumentKind, DownloadedPack, ErrorCode,
+    ANTHROPIC_MESSAGES_URL, ANTHROPIC_VERSION, AddManualFactInput, AppError, AssistActivityEntry,
+    AssistReply, AssistRequestPreview, CandidateFact, CandidateStatus, ConfirmCandidateInput,
+    ConfirmationParser, ConfirmedFact, CreateTripInput, DEFAULT_ANTHROPIC_MODEL,
+    DEFAULT_OLLAMA_MODEL, DEFAULT_OPENAI_MODEL, DocumentKind, DownloadedPack, ErrorCode,
     ExtractionMethod, FCDO_COUNTRIES, FcdoCountry, HealthResponse, ImportDocumentInput,
     ImportResult, IntelligenceMode, JsonLdParser, LocalAiStatus, NormalizedDocument,
-    OLLAMA_CHAT_URL, OLLAMA_TAGS_URL, PROVIDERS, PackInfo, ParsedCandidate, PlaintextParser,
-    ProviderConfig, ProviderId, RedactionPolicy, SearchHit, SearchableDocument, SourceDocument,
-    TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripStatus, TripSummary, UpdateTripInput,
-    WeatherSnapshot, assess_readiness, build_assist_preview, build_ollama_chat_body,
-    build_trip_brief, changed_payload_fields, detect_itinerary_conflicts, new_id, now_rfc3339,
-    pack_catalog, pack_download_url, parse_fcdo_content, parse_forecast_response,
-    parse_geocoding_response, parse_ollama_chat_reply, parse_pack_content, provider_info,
-    search_trip_corpus, validate_api_key, validate_country_slug, validate_create_trip,
-    validate_document_content, validate_fact_payload, validate_model_name, validate_pack_id,
-    validate_provider_id, validate_search_query, validate_update_trip,
+    OLLAMA_CHAT_URL, OLLAMA_TAGS_URL, OPENAI_CHAT_URL, PROVIDERS, PackInfo, ParsedCandidate,
+    PlaintextParser, ProviderConfig, ProviderId, RedactionPolicy, SearchHit, SearchableDocument,
+    SourceDocument, TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripStatus, TripSummary,
+    UpdateTripInput, WeatherSnapshot, assess_readiness, build_anthropic_messages_body,
+    build_assist_preview, build_ollama_chat_body, build_openai_chat_body, build_trip_brief,
+    changed_payload_fields, detect_itinerary_conflicts, new_id, now_rfc3339, pack_catalog,
+    pack_download_url, parse_anthropic_reply, parse_fcdo_content, parse_forecast_response,
+    parse_geocoding_response, parse_ollama_chat_reply, parse_openai_chat_reply, parse_pack_content,
+    provider_info, search_trip_corpus, validate_api_key, validate_country_slug,
+    validate_create_trip, validate_document_content, validate_fact_payload, validate_model_name,
+    validate_pack_id, validate_provider_id, validate_search_query, validate_update_trip,
 };
 
 const DATABASE_FILE: &str = "voyalier.sqlite3";
@@ -32,10 +34,16 @@ const DATABASE_FILE: &str = "voyalier.sqlite3";
 pub trait AdviceFetcher: Send + Sync {
     fn fetch_text(&self, url: &str) -> Result<String, AppError>;
 
-    /// POST a JSON body and return the response text. Defaults to an error so
-    /// only fetchers that need it (the on-device inference path) implement it;
-    /// the many GET-only test stubs are unaffected.
-    fn post_json(&self, _url: &str, _body: &str) -> Result<String, AppError> {
+    /// POST a JSON body (with any extra request headers, e.g. an auth header)
+    /// and return the response text. Defaults to an error so only fetchers that
+    /// need it (the inference path) implement it; the many GET-only test stubs
+    /// are unaffected.
+    fn post_json(
+        &self,
+        _url: &str,
+        _body: &str,
+        _headers: &[(&str, &str)],
+    ) -> Result<String, AppError> {
         Err(AppError::new(
             ErrorCode::AssistFailed,
             "this fetcher does not support POST",
@@ -58,18 +66,23 @@ impl AdviceFetcher for UreqFetcher {
         response.body_mut().read_to_string().map_err(fetch_failure)
     }
 
-    fn post_json(&self, url: &str, body: &str) -> Result<String, AppError> {
-        // Local model inference can be slow; allow a generous timeout.
+    fn post_json(
+        &self,
+        url: &str,
+        body: &str,
+        headers: &[(&str, &str)],
+    ) -> Result<String, AppError> {
+        // Model inference can be slow; allow a generous timeout.
         let config = ureq::Agent::config_builder()
             .timeout_global(Some(std::time::Duration::from_secs(120)))
             .user_agent("Voyalier/0.1 (+https://github.com/udhawan97/Voyalier)")
             .build();
         let agent: ureq::Agent = config.into();
-        let mut response = agent
-            .post(url)
-            .header("Content-Type", "application/json")
-            .send(body)
-            .map_err(assist_transport_failure)?;
+        let mut request = agent.post(url).header("Content-Type", "application/json");
+        for (name, value) in headers {
+            request = request.header(*name, *value);
+        }
+        let mut response = request.send(body).map_err(assist_transport_failure)?;
         response
             .body_mut()
             .read_to_string()
@@ -99,6 +112,10 @@ pub trait SecretStore: Send + Sync {
     fn set(&self, account: &str, secret: &str) -> Result<(), AppError>;
     fn has(&self, account: &str) -> bool;
     fn delete(&self, account: &str) -> Result<(), AppError>;
+    /// Read a stored secret, or `None` if absent. Used only on the inference
+    /// path to place the key in an outgoing request header — never logged,
+    /// returned to the UI, or written anywhere else.
+    fn get(&self, account: &str) -> Result<Option<String>, AppError>;
 }
 
 const KEYRING_SERVICE: &str = "com.voyalier.keys";
@@ -128,6 +145,14 @@ impl SecretStore for KeyringSecretStore {
     fn delete(&self, account: &str) -> Result<(), AppError> {
         match Self::entry(account)?.delete_credential() {
             Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(error) => Err(keyring_failure(error)),
+        }
+    }
+
+    fn get(&self, account: &str) -> Result<Option<String>, AppError> {
+        match Self::entry(account)?.get_password() {
+            Ok(secret) => Ok(Some(secret)),
+            Err(keyring::Error::NoEntry) => Ok(None),
             Err(error) => Err(keyring_failure(error)),
         }
     }
@@ -161,6 +186,15 @@ impl SecretStore for MemorySecretStore {
             .map_err(|_| storage_error(PoisonError))?
             .remove(account);
         Ok(())
+    }
+
+    fn get(&self, account: &str) -> Result<Option<String>, AppError> {
+        Ok(self
+            .entries
+            .lock()
+            .map_err(|_| storage_error(PoisonError))?
+            .get(account)
+            .cloned())
     }
 }
 
@@ -716,30 +750,18 @@ impl AppService {
         ))
     }
 
-    /// Run on-device assist for a trip: build the same redacted request the
-    /// preview shows, send it to the local Ollama runtime, and return the
-    /// reply. The explicit call is the consent — and because Ollama is local,
-    /// nothing leaves the device. Cloud providers are preview-only for now and
-    /// are rejected here rather than silently sending data anywhere.
+    /// Run assist for a trip: build the same redacted request the preview shows
+    /// and send it to the chosen provider. The explicit call is the consent. For
+    /// Ollama nothing leaves the device; for a cloud provider the redacted
+    /// request goes to that provider using the key stored in the OS keychain —
+    /// which is placed only in the outgoing auth header and is never logged,
+    /// returned, or stored anywhere else. Every successful call is logged
+    /// (metadata only).
     pub fn run_assist(&self, trip_id: &str, provider: &str) -> Result<AssistReply, AppError> {
         let id = validate_provider_id(provider)?;
-        if !matches!(id, ProviderId::Ollama) {
-            return Err(AppError::with_detail(
-                ErrorCode::AssistFailed,
-                "cloud assist is not available yet — run on-device with Ollama",
-                "field",
-                "provider",
-            ));
-        }
         // Reuse the preview: identical redaction, grounding, and system prompt.
         let preview = self.preview_assist(trip_id, provider)?;
-        let model = preview
-            .model
-            .clone()
-            .unwrap_or_else(|| DEFAULT_OLLAMA_MODEL.to_owned());
-        let body = build_ollama_chat_body(&model, &preview.system_prompt, &preview.user_content);
-        let response = self.fetcher.post_json(OLLAMA_CHAT_URL, &body)?;
-        let text = parse_ollama_chat_reply(&response)?;
+        let (model, text) = self.dispatch_assist(id, &preview)?;
         let generated_at = now_rfc3339();
         // Log that a call happened — metadata only, never the prompt or reply.
         let connection = self.connection()?;
@@ -755,6 +777,72 @@ impl AppService {
             model,
             text,
             generated_at,
+        })
+    }
+
+    /// Send a previewed request to `id`'s runtime and return `(model, reply)`.
+    /// The BYOK key, when needed, is read from the keychain and used only here.
+    fn dispatch_assist(
+        &self,
+        id: ProviderId,
+        preview: &AssistRequestPreview,
+    ) -> Result<(String, String), AppError> {
+        let system = &preview.system_prompt;
+        let user = &preview.user_content;
+        match id {
+            ProviderId::Ollama => {
+                let model = preview
+                    .model
+                    .clone()
+                    .unwrap_or_else(|| DEFAULT_OLLAMA_MODEL.to_owned());
+                let body = build_ollama_chat_body(&model, system, user);
+                let response = self.fetcher.post_json(OLLAMA_CHAT_URL, &body, &[])?;
+                Ok((model.clone(), parse_ollama_chat_reply(&response)?))
+            }
+            ProviderId::OpenAi => {
+                let key = self.require_provider_key(id)?;
+                let model = preview
+                    .model
+                    .clone()
+                    .unwrap_or_else(|| DEFAULT_OPENAI_MODEL.to_owned());
+                let body = build_openai_chat_body(&model, system, user);
+                let auth = format!("Bearer {key}");
+                let response = self.fetcher.post_json(
+                    OPENAI_CHAT_URL,
+                    &body,
+                    &[("Authorization", auth.as_str())],
+                )?;
+                Ok((model.clone(), parse_openai_chat_reply(&response)?))
+            }
+            ProviderId::Anthropic => {
+                let key = self.require_provider_key(id)?;
+                let model = preview
+                    .model
+                    .clone()
+                    .unwrap_or_else(|| DEFAULT_ANTHROPIC_MODEL.to_owned());
+                let body = build_anthropic_messages_body(&model, system, user);
+                let response = self.fetcher.post_json(
+                    ANTHROPIC_MESSAGES_URL,
+                    &body,
+                    &[
+                        ("x-api-key", key.as_str()),
+                        ("anthropic-version", ANTHROPIC_VERSION),
+                    ],
+                )?;
+                Ok((model.clone(), parse_anthropic_reply(&response)?))
+            }
+        }
+    }
+
+    /// Read the BYOK key for a cloud provider, or a clear "add a key" error.
+    fn require_provider_key(&self, id: ProviderId) -> Result<String, AppError> {
+        self.secrets.get(&key_account(id))?.ok_or_else(|| {
+            AppError::with_detail(
+                ErrorCode::ValidationInvalidInput,
+                "add an API key for this provider under AI providers, then try again",
+                "field",
+                "provider",
+            )
         })
     }
 
@@ -2192,7 +2280,12 @@ mod tests {
             fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
                 panic!("assist must POST, not GET");
             }
-            fn post_json(&self, url: &str, body: &str) -> Result<String, AppError> {
+            fn post_json(
+                &self,
+                url: &str,
+                body: &str,
+                _headers: &[(&str, &str)],
+            ) -> Result<String, AppError> {
                 assert_eq!(url, "http://localhost:11434/api/chat");
                 *self.last_body.lock().expect("lock") = body.to_owned();
                 Ok(r#"{ "message": { "role": "assistant", "content": "Your Kyoto plans look ready." } }"#
@@ -2238,22 +2331,113 @@ mod tests {
         assert_eq!(activity.len(), 1);
         assert_eq!(activity[0].provider, ProviderId::Ollama);
         assert_eq!(activity[0].model, "llama3.2");
+        cleanup_database(database);
+    }
 
-        // Cloud providers are refused (no data leaves the device) and not logged.
+    #[test]
+    fn run_assist_sends_cloud_requests_with_the_key_only_in_the_auth_header() {
+        // Captures the outgoing request; the key must ride only in the header.
+        // (url, body, headers)
+        type Captured = (String, String, Vec<(String, String)>);
+        struct CloudStub {
+            last: std::sync::Mutex<Captured>,
+        }
+        impl AdviceFetcher for CloudStub {
+            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+                panic!("cloud assist must POST, not GET");
+            }
+            fn post_json(
+                &self,
+                url: &str,
+                body: &str,
+                headers: &[(&str, &str)],
+            ) -> Result<String, AppError> {
+                *self.last.lock().expect("lock") = (
+                    url.to_owned(),
+                    body.to_owned(),
+                    headers
+                        .iter()
+                        .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+                        .collect(),
+                );
+                if url.contains("openai") {
+                    Ok(
+                        r#"{ "choices": [{ "message": { "content": "OpenAI reply." } }] }"#
+                            .to_owned(),
+                    )
+                } else {
+                    Ok(
+                        r#"{ "content": [{ "type": "text", "text": "Anthropic reply." }] }"#
+                            .to_owned(),
+                    )
+                }
+            }
+        }
+
+        let database = temp_database("run-assist-cloud");
+        let stub = Arc::new(CloudStub {
+            last: std::sync::Mutex::new((String::new(), String::new(), Vec::new())),
+        });
+        let secrets = Arc::new(MemorySecretStore::default());
+        let service = AppService::open_path_with_deps(&database, stub.clone(), secrets.clone())
+            .expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        service
+            .add_manual_fact(AddManualFactInput {
+                trip_id: trip.id.clone(),
+                fact_type: FactType::FlightSegment,
+                payload: FactPayload {
+                    flight_number: Some("FP18".to_owned()),
+                    confirmation_code: Some("SECRET-PNR".to_owned()),
+                    passenger_name: Some("Jamie Traveler".to_owned()),
+                    ..FactPayload::default()
+                },
+            })
+            .expect("flight");
+
+        // Without a stored key, a cloud run is refused before any request.
         assert_eq!(
             service
                 .run_assist(&trip.id, "openai")
-                .expect_err("cloud refused")
+                .expect_err("no key")
                 .code,
-            ErrorCode::AssistFailed
+            ErrorCode::ValidationInvalidInput
         );
-        assert_eq!(
-            service
-                .list_assist_activity(&trip.id)
-                .expect("activity")
-                .len(),
-            1
-        );
+
+        // OpenAI: key rides in the Authorization header, never the body.
+        service
+            .set_provider_key("openai", "sk-openai-live")
+            .expect("set key");
+        let reply = service.run_assist(&trip.id, "openai").expect("reply");
+        assert_eq!(reply.text, "OpenAI reply.");
+        assert_eq!(reply.provider, ProviderId::OpenAi);
+        let (url, body, headers) = stub.last.lock().expect("lock").clone();
+        assert!(url.contains("api.openai.com"));
+        assert!(body.contains("FP18"));
+        assert!(!body.contains("SECRET-PNR"));
+        assert!(!body.contains("sk-openai-live"));
+        assert!(headers.contains(&(
+            "Authorization".to_owned(),
+            "Bearer sk-openai-live".to_owned()
+        )));
+
+        // Anthropic: key in x-api-key plus the version header.
+        service
+            .set_provider_key("anthropic", "sk-anthropic-live")
+            .expect("set key");
+        let reply = service.run_assist(&trip.id, "anthropic").expect("reply");
+        assert_eq!(reply.text, "Anthropic reply.");
+        let (_, body, headers) = stub.last.lock().expect("lock").clone();
+        assert!(!body.contains("sk-anthropic-live"));
+        assert!(headers.contains(&("x-api-key".to_owned(), "sk-anthropic-live".to_owned())));
+        assert!(headers.iter().any(|(name, _)| name == "anthropic-version"));
+
+        // Both successful calls are logged, and the log never carries a key.
+        let activity = service.list_assist_activity(&trip.id).expect("activity");
+        assert_eq!(activity.len(), 2);
+        let serialized = serde_json::to_string(&activity).expect("ser");
+        assert!(!serialized.contains("sk-openai-live"));
+        assert!(!serialized.contains("sk-anthropic-live"));
         cleanup_database(database);
     }
 

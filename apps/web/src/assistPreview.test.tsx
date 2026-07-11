@@ -57,7 +57,7 @@ describe("AI request preview", () => {
     ).toBeInTheDocument();
   });
 
-  it("warns when the chosen provider would leave the device", async () => {
+  it("warns and offers to send when the chosen provider is cloud", async () => {
     renderApp(createMockGateway());
     const region = await openTrip();
 
@@ -74,12 +74,20 @@ describe("AI request preview", () => {
     expect(
       within(region).getByText("https://api.openai.com/v1/chat/completions"),
     ).toBeInTheDocument();
-    // Cloud is preview-only: no run button, and an explicit note says so.
+    // Cloud offers a "Send to <provider>" action, not the on-device one.
     expect(
       within(region).queryByRole("button", { name: "Run on-device assist" }),
     ).toBeNull();
     expect(
-      within(region).getByText(/Cloud assist isn.t available yet/i),
+      within(region).getByRole("button", { name: "Send to OpenAI" }),
+    ).toBeInTheDocument();
+
+    // Sending without a stored key surfaces a clear, non-destructive error.
+    fireEvent.click(
+      within(region).getByRole("button", { name: "Send to OpenAI" }),
+    );
+    expect(
+      await within(region).findByText(/add an API key/i),
     ).toBeInTheDocument();
   });
 

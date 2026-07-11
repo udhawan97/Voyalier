@@ -1,6 +1,7 @@
 //! Deterministic preview of the exact request Voyalier would send to an AI
-//! provider — the consent step from ADR-0003. Before any cloud call is wired up,
-//! the user can see precisely what would leave the device.
+//! provider — the consent step from ADR-0003 — plus the request builders and
+//! response parsers for each provider (Ollama, OpenAI, Anthropic). The preview
+//! lets the user see precisely what would leave the device before they send it.
 //!
 //! The preview reuses the same generation-time exclusion as the shareable brief
 //! ([`crate::brief`]): confirmation codes and traveler names are stripped from a
@@ -17,8 +18,18 @@ use crate::types::{AppError, ConfirmedFact, ErrorCode, FactPayload, Trip};
 
 /// The on-device Ollama chat endpoint.
 pub const OLLAMA_CHAT_URL: &str = "http://localhost:11434/api/chat";
-/// Model used when the user has not chosen one for Ollama.
+/// The OpenAI chat-completions endpoint.
+pub const OPENAI_CHAT_URL: &str = "https://api.openai.com/v1/chat/completions";
+/// The Anthropic messages endpoint.
+pub const ANTHROPIC_MESSAGES_URL: &str = "https://api.anthropic.com/v1/messages";
+/// The Anthropic API version header value.
+pub const ANTHROPIC_VERSION: &str = "2023-06-01";
+/// Model used when the user has not chosen one, per provider.
 pub const DEFAULT_OLLAMA_MODEL: &str = "llama3.2";
+pub const DEFAULT_OPENAI_MODEL: &str = "gpt-4o-mini";
+pub const DEFAULT_ANTHROPIC_MODEL: &str = "claude-3-5-haiku-latest";
+/// Cap on reply length for providers that require an explicit token budget.
+pub const ASSIST_MAX_TOKENS: u32 = 1024;
 
 /// The instruction sent with every assist request. Fixed and deterministic so a
 /// user can review it once; it forbids inventing high-stakes facts, which
@@ -31,9 +42,9 @@ health requirements, or safety guidance; if the trip details do not answer a que
 /// from user data.
 fn endpoint_for(id: ProviderId) -> &'static str {
     match id {
-        ProviderId::OpenAi => "https://api.openai.com/v1/chat/completions",
-        ProviderId::Anthropic => "https://api.anthropic.com/v1/messages",
-        ProviderId::Ollama => "http://localhost:11434/api/chat",
+        ProviderId::OpenAi => OPENAI_CHAT_URL,
+        ProviderId::Anthropic => ANTHROPIC_MESSAGES_URL,
+        ProviderId::Ollama => OLLAMA_CHAT_URL,
     }
 }
 
@@ -231,6 +242,113 @@ pub fn parse_ollama_chat_reply(body: &str) -> Result<String, AppError> {
     Ok(text)
 }
 
+/// Build the OpenAI chat-completions request body from a preview's content.
+pub fn build_openai_chat_body(model: &str, system_prompt: &str, user_content: &str) -> String {
+    serde_json::json!({
+        "model": model,
+        "messages": [
+            { "role": "system", "content": system_prompt },
+            { "role": "user", "content": user_content },
+        ],
+    })
+    .to_string()
+}
+
+/// Extract the assistant text from an OpenAI chat-completions response.
+pub fn parse_openai_chat_reply(body: &str) -> Result<String, AppError> {
+    let value: serde_json::Value = serde_json::from_str(body).map_err(|_| {
+        AppError::new(
+            ErrorCode::AssistFailed,
+            "OpenAI returned an unreadable response",
+        )
+    })?;
+    if let Some(message) = value
+        .get("error")
+        .and_then(|error| error.get("message"))
+        .and_then(|message| message.as_str())
+    {
+        return Err(AppError::new(
+            ErrorCode::AssistFailed,
+            format!("OpenAI reported: {message}"),
+        ));
+    }
+    let text = value
+        .get("choices")
+        .and_then(|choices| choices.get(0))
+        .and_then(|choice| choice.get("message"))
+        .and_then(|message| message.get("content"))
+        .and_then(|content| content.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_owned();
+    if text.is_empty() {
+        return Err(AppError::new(
+            ErrorCode::AssistFailed,
+            "OpenAI returned an empty reply",
+        ));
+    }
+    Ok(text)
+}
+
+/// Build the Anthropic messages request body. Anthropic takes the system prompt
+/// as a top-level field and requires an explicit `max_tokens`.
+pub fn build_anthropic_messages_body(
+    model: &str,
+    system_prompt: &str,
+    user_content: &str,
+) -> String {
+    serde_json::json!({
+        "model": model,
+        "max_tokens": ASSIST_MAX_TOKENS,
+        "system": system_prompt,
+        "messages": [
+            { "role": "user", "content": user_content },
+        ],
+    })
+    .to_string()
+}
+
+/// Extract the assistant text from an Anthropic messages response, whose
+/// `content` is an array of typed blocks (we concatenate the text blocks).
+pub fn parse_anthropic_reply(body: &str) -> Result<String, AppError> {
+    let value: serde_json::Value = serde_json::from_str(body).map_err(|_| {
+        AppError::new(
+            ErrorCode::AssistFailed,
+            "Anthropic returned an unreadable response",
+        )
+    })?;
+    if let Some(message) = value
+        .get("error")
+        .and_then(|error| error.get("message"))
+        .and_then(|message| message.as_str())
+    {
+        return Err(AppError::new(
+            ErrorCode::AssistFailed,
+            format!("Anthropic reported: {message}"),
+        ));
+    }
+    let text = value
+        .get("content")
+        .and_then(|content| content.as_array())
+        .map(|blocks| {
+            blocks
+                .iter()
+                .filter_map(|block| block.get("text").and_then(|text| text.as_str()))
+                .collect::<Vec<_>>()
+                .join("")
+        })
+        .unwrap_or_default()
+        .trim()
+        .to_owned();
+    if text.is_empty() {
+        return Err(AppError::new(
+            ErrorCode::AssistFailed,
+            "Anthropic returned an empty reply",
+        ));
+    }
+    Ok(text)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -361,6 +479,49 @@ mod tests {
         assert_eq!(value["messages"][0]["content"], "be careful");
         assert_eq!(value["messages"][1]["role"], "user");
         assert_eq!(value["messages"][1]["content"], "Trip: Kyoto");
+    }
+
+    #[test]
+    fn openai_body_and_reply_round_trip() {
+        let body = build_openai_chat_body("gpt-x", "be careful", "Trip: Kyoto");
+        let value: serde_json::Value = serde_json::from_str(&body).expect("json");
+        assert_eq!(value["model"], "gpt-x");
+        assert_eq!(value["messages"][0]["role"], "system");
+        assert_eq!(value["messages"][1]["content"], "Trip: Kyoto");
+
+        let reply = parse_openai_chat_reply(
+            r#"{ "choices": [{ "message": { "role": "assistant", "content": " All set. " } }] }"#,
+        )
+        .expect("reply");
+        assert_eq!(reply, "All set.");
+        assert_eq!(
+            parse_openai_chat_reply(r#"{ "error": { "message": "invalid key" } }"#)
+                .expect_err("error")
+                .code,
+            ErrorCode::AssistFailed
+        );
+    }
+
+    #[test]
+    fn anthropic_body_and_reply_round_trip() {
+        let body = build_anthropic_messages_body("claude-x", "be careful", "Trip: Kyoto");
+        let value: serde_json::Value = serde_json::from_str(&body).expect("json");
+        assert_eq!(value["model"], "claude-x");
+        assert_eq!(value["system"], "be careful");
+        assert_eq!(value["max_tokens"], ASSIST_MAX_TOKENS);
+        assert_eq!(value["messages"][0]["role"], "user");
+
+        let reply = parse_anthropic_reply(
+            r#"{ "content": [{ "type": "text", "text": "Your " }, { "type": "text", "text": "trip." }] }"#,
+        )
+        .expect("reply");
+        assert_eq!(reply, "Your trip.");
+        assert_eq!(
+            parse_anthropic_reply(r#"{ "error": { "type": "auth", "message": "bad key" } }"#)
+                .expect_err("error")
+                .code,
+            ErrorCode::AssistFailed
+        );
     }
 
     #[test]

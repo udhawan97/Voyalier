@@ -20,9 +20,11 @@ pub use advice::{
     FCDO_COUNTRIES, FcdoCountry, TravelAdviceSnapshot, parse_fcdo_content, validate_country_slug,
 };
 pub use assist::{
-    ASSIST_SYSTEM_PROMPT, AssistActivityEntry, AssistReply, AssistRequestPreview,
-    DEFAULT_OLLAMA_MODEL, OLLAMA_CHAT_URL, build_assist_preview, build_ollama_chat_body,
-    parse_ollama_chat_reply,
+    ANTHROPIC_MESSAGES_URL, ANTHROPIC_VERSION, ASSIST_SYSTEM_PROMPT, AssistActivityEntry,
+    AssistReply, AssistRequestPreview, DEFAULT_ANTHROPIC_MODEL, DEFAULT_OLLAMA_MODEL,
+    DEFAULT_OPENAI_MODEL, OLLAMA_CHAT_URL, OPENAI_CHAT_URL, build_anthropic_messages_body,
+    build_assist_preview, build_ollama_chat_body, build_openai_chat_body, parse_anthropic_reply,
+    parse_ollama_chat_reply, parse_openai_chat_reply,
 };
 pub use brief::{RedactionPolicy, TripBrief, build_trip_brief};
 pub use itinerary::detect_itinerary_conflicts;
