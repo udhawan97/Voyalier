@@ -41,13 +41,14 @@ describe("readiness", () => {
     );
     const readiness = await screen.findByRole("region", { name: "Readiness" });
 
-    // The item is labeled as the traveler's own check, not a status claim.
+    // Both link-only reference items are labeled as the traveler's own check.
     expect(
       within(readiness).getByText("Entry & travel requirements"),
     ).toBeInTheDocument();
-    expect(within(readiness).getByText(/Check yourself/)).toBeInTheDocument();
+    expect(within(readiness).getByText("Health notices")).toBeInTheDocument();
+    expect(within(readiness).getAllByText(/Check yourself/)).toHaveLength(2);
 
-    // Curated official links open externally.
+    // Curated official links (entry + health) open externally.
     const fcdo = within(readiness).getByRole("link", {
       name: /UK FCDO travel advice/,
     });
@@ -57,6 +58,14 @@ describe("readiness", () => {
     );
     expect(fcdo).toHaveAttribute("target", "_blank");
     expect(fcdo.getAttribute("rel")).toContain("noopener");
+
+    const cdc = within(readiness).getByRole("link", {
+      name: /US CDC — Travelers' Health/,
+    });
+    expect(cdc).toHaveAttribute(
+      "href",
+      "https://wwwnc.cdc.gov/travel/destinations/list",
+    );
   });
 
   it("keeps the overall rollup unaffected by the link-only entry item", async () => {

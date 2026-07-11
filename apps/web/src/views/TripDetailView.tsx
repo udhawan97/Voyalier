@@ -202,7 +202,8 @@ function ReadinessPanel({ readiness }: { readiness: ReadinessSummary }) {
                 {item.title}
                 <span className="voy-readiness__item-status">
                   {" · "}
-                  {item.id === "entry_requirements"
+                  {item.id === "entry_requirements" ||
+                  item.id === "health_notices"
                     ? "Check yourself"
                     : READINESS_LABEL[item.status]}
                 </span>

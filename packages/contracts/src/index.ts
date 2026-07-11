@@ -31,7 +31,8 @@ export type ReadinessCheck =
   | "schedule_conflicts"
   | "lodging_coverage"
   | "pending_review"
-  | "entry_requirements";
+  | "entry_requirements"
+  | "health_notices";
 /** A labelled link to an authoritative external source (curated, never model-derived). */
 export interface SourceLink {
   label: string;

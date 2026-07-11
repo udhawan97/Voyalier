@@ -552,7 +552,27 @@ function assessReadiness(
     ],
   };
 
-  return { status, items: [...logistics, entryRequirements] };
+  const healthNotices: ReadinessItem = {
+    id: "health_notices",
+    status: "not_checked",
+    title: "Health notices",
+    detail:
+      "Vaccination and health advice depends on your destination and health, " +
+      "and changes often. Check an official source before you travel — " +
+      "Voyalier links to official sources and never gives medical advice.",
+    links: [
+      {
+        label: "US CDC — Travelers' Health, destination notices",
+        url: "https://wwwnc.cdc.gov/travel/destinations/list",
+      },
+      {
+        label: "WHO — International travel and health",
+        url: "https://www.who.int/travel-advice",
+      },
+    ],
+  };
+
+  return { status, items: [...logistics, entryRequirements, healthNotices] };
 }
 
 const MOCK_PROVIDERS: ReadonlyArray<{

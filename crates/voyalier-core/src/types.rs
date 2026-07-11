@@ -87,9 +87,10 @@ pub struct TripDetail {
 
 /// Which deterministic plan-completeness check a readiness item reports on.
 ///
-/// Logistics checks are deterministic. `EntryRequirements` is a link-only,
-/// reference item that never asserts or clears requirements. Sourced readiness
-/// (health, safety, weather) is a later milestone; it is never LLM-authored.
+/// Logistics checks are deterministic. `EntryRequirements` and `HealthNotices`
+/// are link-only reference items that never assert or clear requirements — they
+/// point at official sources and never affect the rollup. High-stakes readiness
+/// is never LLM-authored.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ReadinessCheck {
@@ -97,6 +98,7 @@ pub enum ReadinessCheck {
     LodgingCoverage,
     PendingReview,
     EntryRequirements,
+    HealthNotices,
 }
 
 /// A labelled link to an authoritative external source. URLs are curated in

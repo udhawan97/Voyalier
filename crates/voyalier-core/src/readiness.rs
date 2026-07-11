@@ -36,6 +36,7 @@ pub fn assess_readiness(
 
     let mut items = logistics;
     items.push(entry_requirements_item());
+    items.push(health_notices_item());
 
     ReadinessSummary { status, items }
 }
@@ -54,6 +55,37 @@ fn entry_requirements_item() -> ReadinessItem {
             .to_owned(),
         links: official_source_links(),
     }
+}
+
+/// A link-only, high-stakes-safe health reference. Voyalier never asserts,
+/// infers, or clears health requirements — it points at official sources.
+fn health_notices_item() -> ReadinessItem {
+    ReadinessItem {
+        id: ReadinessCheck::HealthNotices,
+        status: ReadinessStatus::NotChecked,
+        title: "Health notices".to_owned(),
+        detail: "Vaccination and health advice depends on your destination and \
+                 health, and changes often. Check an official source before you \
+                 travel — Voyalier links to official sources and never gives \
+                 medical advice."
+            .to_owned(),
+        links: health_source_links(),
+    }
+}
+
+/// Curated, stable official health-source starting points. Hard-coded here,
+/// never derived from trip data or a model.
+fn health_source_links() -> Vec<SourceLink> {
+    vec![
+        SourceLink {
+            label: "US CDC — Travelers' Health, destination notices".to_owned(),
+            url: "https://wwwnc.cdc.gov/travel/destinations/list".to_owned(),
+        },
+        SourceLink {
+            label: "WHO — International travel and health".to_owned(),
+            url: "https://www.who.int/travel-advice".to_owned(),
+        },
+    ]
 }
 
 /// Curated, stable official-source starting points. URLs are hard-coded here,
@@ -340,6 +372,33 @@ mod tests {
         );
         // The item explains that Voyalier never asserts entry rules.
         assert!(entry.detail.contains("never asserts"));
+    }
+
+    #[test]
+    fn health_notices_item_links_out_and_never_moves_the_rollup() {
+        let facts = [
+            flight("f1", "2026-11-03T09:00", "2026-11-03T12:00"),
+            lodging("l1", "2026-11-03", "2026-11-05"),
+        ];
+        let summary = assess(&trip("2026-11-03", "2026-11-05"), &facts, 0);
+        // Fully covered trip stays Clear despite the link-only health item.
+        assert_eq!(summary.status, ReadinessStatus::Clear);
+
+        let health = summary
+            .items
+            .iter()
+            .find(|item| item.id == ReadinessCheck::HealthNotices)
+            .expect("health item present");
+        assert_eq!(health.status, ReadinessStatus::NotChecked);
+        assert!(!health.links.is_empty());
+        assert!(
+            health
+                .links
+                .iter()
+                .all(|link| link.url.starts_with("https://"))
+        );
+        // Voyalier links out and never gives medical advice.
+        assert!(health.detail.contains("never gives"));
     }
 
     #[test]
