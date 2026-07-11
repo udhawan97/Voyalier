@@ -156,6 +156,9 @@ Every current remote edge is narrow and attributable:
 
 - GOV.UK FCDO advice and Open-Meteo weather through the injectable Rust fetcher.
 - GitHub Release downloads for explicitly selected offline city packs.
+- The in-app updater, after you opt in: a once-a-day release-metadata check plus
+  the signed update download over `github.com` + `objects.githubusercontent.com`,
+  run entirely in the Rust core (never the web view).
 - OpenFreeMap tiles directly from the map view after user consent.
 - Localhost Ollama probing/inference, or BYOK OpenAI/Anthropic inference after an
   exact payload preview.
@@ -180,8 +183,10 @@ aggregation, background scraping, or silent document upload.
 - Browser development still uses a fixed `127.0.0.1:8787` port. A random port
   plus per-launch token remains defense-in-depth work if browser mode becomes a
   distributed product surface.
-- The product is run from source; signed/notarized installers and updater
-  provenance are still release work.
+- In-app updates ship signature verification (minisign), per-platform checksums,
+  and SLSA build provenance; the packaged app is not yet OS code-signed (Apple
+  notarization / Windows Authenticode), so the first manual install uses the
+  documented Gatekeeper / SmartScreen "open anyway" path.
 - Map PMTiles are the intended offline route, but the current interactive map
   uses consent-gated OpenFreeMap tiles.
 - Voyalier surfaces official links and dated snapshots; it does not claim legal,
