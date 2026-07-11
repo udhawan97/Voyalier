@@ -155,7 +155,10 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   and the vault unlock screen for violations on every test run; the first pass
   fixed a heading-level skip on trip cards and a duplicate `banner` landmark from
   dialog headers. Colour contrast is checked in the browser, which jsdom can't
-  compute.)_
+  compute. Documentation: the docs site now has a **Guides** section covering
+  each workflow — trips and the Blueprint, importing confirmations, readiness and
+  official advice, offline packs/recommendations/maps, AI assist, and the
+  encrypted vault. Still to do: localization readiness and support playbooks.)_
 
 ## Later
 

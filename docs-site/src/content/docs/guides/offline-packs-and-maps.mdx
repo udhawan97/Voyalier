@@ -1,0 +1,37 @@
+---
+title: Offline city packs, recommendations, and maps
+description: Download local place data and explore it offline.
+---
+
+City **packs** bring local place data and prose into a trip so you can explore a
+destination without depending on a live service.
+
+## Browse and download
+
+The **Offline city data** panel lists the available packs — Nashville, the four
+Hawaiian islands as separate packs, and more. Each pack keeps two layers with
+their own licenses: Overture **places** (permissive) and Wikivoyage **prose**
+(share-alike), shown with per-layer attribution.
+
+**Download for this trip** pulls a pack's contents from the project's releases and
+stores them locally with the trip. The click is your consent, and the fetch is
+one-way — it pulls place data in; nothing about your trip goes out. The pack id
+is validated before any request, and the downloaded body is verified to match the
+pack you asked for. A **Remove** control deletes it again.
+
+## Persona-weighted recommendations
+
+Once a pack with places is downloaded, the **Recommendations** panel ranks its
+places by five persona weights — food, culture, nature, nightlife, and shopping —
+that you set with sliders (with Balanced, Foodie, and Explorer presets). Ranking
+is a deterministic keyword-to-dimension rule, never a model, and every pick shows
+its source, license, score, and the reasons it was chosen, plus one
+cross-dimension "wildcard."
+
+## The map
+
+The **map** is consent-gated: nothing loads until you click **Show map**. It then
+fetches a keyless [OpenFreeMap](https://openfreemap.org) basemap (OpenStreetMap
+data) and plots your destination plus the downloaded pack's recommended places.
+The map library is a large download, so it is fetched only on that first click —
+if you never open a map, you never download it.

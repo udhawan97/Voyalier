@@ -1,0 +1,40 @@
+---
+title: The encrypted vault
+description: How sensitive trip data is encrypted at rest, and the optional passphrase.
+---
+
+Voyalier encrypts your sensitive trip data **at rest** on your device. This
+covers every field that carries a confirmation code or a traveler name: your
+confirmed facts, the original text you imported, and any pending candidates
+(including their evidence excerpts).
+
+## The default: keychain
+
+Encryption uses an authenticated cipher (XChaCha20-Poly1305). The encryption key
+is generated on your device the first time it is needed and kept in your
+operating-system keychain, so unlocking is transparent — the app just works, and
+the data on disk is sealed.
+
+If no keychain is available (for example, a headless build), Voyalier falls back
+to storing the data as plaintext so the app still runs everywhere; on macOS and
+Windows the keychain is present and encryption is applied.
+
+## The optional passphrase
+
+For a second layer, you can set a **passphrase** under **Encryption** on the home
+screen. When you do:
+
+- The encryption key is wrapped with a key derived from your passphrase (Argon2id).
+- The raw key is **removed from the keychain**.
+
+From then on, the app opens **locked**: it asks for your passphrase before your
+workspace appears. This protects your data even on an unlocked computer, where the
+keychain alone would otherwise let anyone in. Removing the passphrase returns the
+key to the keychain and restores transparent unlock.
+
+## Important: there is no recovery
+
+Your passphrase is only ever used locally to derive a key. It is never stored,
+returned, or logged — so **if you forget it, there is no way to recover your
+encrypted data.** Choose something you will remember, or keep the keychain default
+if you do not need the extra layer.

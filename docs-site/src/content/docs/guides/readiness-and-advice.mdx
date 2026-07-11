@@ -1,0 +1,38 @@
+---
+title: Readiness and official advice
+description: Track what's left to do and fetch source-backed advice on demand.
+---
+
+Voyalier separates two kinds of readiness: logistics it can check itself, and
+high-stakes facts it will only ever quote from a cited source.
+
+## Deterministic readiness
+
+The **readiness** rollup checks plan completeness — schedule conflicts, lodging
+coverage, and items still pending review — and shows an overall status. This is
+logistics only, computed on your device from your confirmed facts.
+
+## Sourced items are link-only or consented
+
+Entry requirements, health notices, and government advisories are never asserted
+or "cleared" by Voyalier, and never authored by a model. They appear as
+**link-only** items pointing to the official source (for example, the US State
+Department advisories index, or the CDC and WHO travel-health pages), and are
+excluded from the readiness rollup so they never give a false sense of "done."
+
+## Consent-gated snapshots
+
+Two sources can be fetched on an explicit click — the click is your consent, and
+nothing about your trip is sent:
+
+- **UK FCDO travel advice** (GOV.UK Content API): stores a dated, verbatim
+  snapshot with its source link, Open Government Licence attribution, retrieval
+  time, a staleness note after 7 days, and a UK-passport-holders label. The
+  country comes from a curated list in code, never from your trip text.
+- **Weather outlook** (Open-Meteo): geocodes the destination and stores a dated
+  daily forecast for your trip window, with honest coverage against the ~16-day
+  horizon, "Weather data by Open-Meteo.com" attribution, and a staleness note.
+  Weather is planning texture, never a safety claim.
+
+Each snapshot is invalidated automatically when you change the trip's destination
+or dates, so stale advice never lingers.

@@ -1,0 +1,47 @@
+---
+title: Trips and the Blueprint
+description: Create a trip and read its deterministic itinerary.
+---
+
+A **trip** is the container for everything about one journey. Create one from the
+home screen with an origin, destination, and dates; it is stored locally in
+SQLite on your device.
+
+## The Blueprint
+
+Inside a trip, the **Blueprint** is a deterministic view of your confirmed
+flights and stays in itinerary order. It is built only from facts you have
+confirmed — never from a model — so it always reflects exactly what you have
+entered or reviewed.
+
+Two deterministic checks run over the Blueprint and surface as advisory findings,
+never as blockers:
+
+- **Itinerary conflicts** — overlapping flights, overlapping lodging, and nights
+  with no lodging coverage.
+- **Readiness** — a plan-completeness rollup (schedule conflicts, lodging
+  coverage, pending items to review) with an overall status. Sourced readiness
+  (advisories, entry rules, health) is covered in
+  [Readiness and official advice](/Voyalier/guides/readiness-and-advice/).
+
+## Adding reservations
+
+You can add a flight or stay two ways:
+
+- **Manually**, by entering its details directly.
+- **By importing a confirmation** and reviewing what Voyalier extracts — see
+  [Importing confirmations](/Voyalier/guides/importing-confirmations/).
+
+## The "Today" summary
+
+At the top of an active trip, an offline **Today** summary shows where the trip
+stands right now: its phase (upcoming, active, or completed, with day counts),
+today's departures, arrivals, and check-ins, and the next anchor coming up. It is
+computed from your confirmed facts against the current date — no network, no
+model.
+
+## Sharing a redacted brief
+
+**Share brief** produces a print-friendly summary you can print or save as a PDF.
+Confirmation codes and traveler names are excluded from the brief by
+construction, so it is safe to hand to someone helping with your trip.

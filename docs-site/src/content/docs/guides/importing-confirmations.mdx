@@ -1,0 +1,38 @@
+---
+title: Importing confirmations
+description: Turn a pasted confirmation into reviewed trip facts.
+---
+
+Rather than retyping a booking, you can import its confirmation and review what
+Voyalier extracts.
+
+## Import
+
+Paste the confirmation as text, or paste the page's HTML. The document is stored
+locally with the trip. Voyalier then runs a deterministic parser over it:
+
+- **HTML** confirmations are read for structured `schema.org` reservation data
+  when present.
+- **Pasted text** is scanned for recognizable flight and lodging details.
+
+## Review candidates
+
+Extraction never silently changes your trip. Each extracted flight or stay
+appears as a **candidate** for you to review, with the exact **evidence excerpt**
+it came from and any warnings (for example, missing dates). You decide what
+happens to each one:
+
+- **Confirm** it — optionally editing any field first — and it becomes a
+  confirmed fact on the Blueprint.
+- **Reject** it, and it is discarded.
+
+Because untrusted text can contain misleading instructions, imported content is
+treated as data, not commands: nothing an imported document "says" can mark a
+trip ready, confirm a fact, or trigger an action. Only your review does.
+
+## What is stored, and how
+
+The original imported text, the candidates, and their evidence excerpts all carry
+the same confirmation codes and traveler names as your confirmed facts, so they
+are **encrypted at rest** alongside them. See
+[The encrypted vault](/Voyalier/guides/encrypted-vault/).

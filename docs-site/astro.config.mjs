@@ -24,6 +24,29 @@ export default defineConfig({
       sidebar: [
         { label: "Introduction", link: "/introduction/" },
         { label: "Getting started", link: "/getting-started/" },
+        {
+          label: "Guides",
+          items: [
+            {
+              label: "Trips and the Blueprint",
+              link: "/guides/trips-and-blueprint/",
+            },
+            {
+              label: "Importing confirmations",
+              link: "/guides/importing-confirmations/",
+            },
+            {
+              label: "Readiness and official advice",
+              link: "/guides/readiness-and-advice/",
+            },
+            {
+              label: "Offline packs, recommendations, and maps",
+              link: "/guides/offline-packs-and-maps/",
+            },
+            { label: "AI assist (BYOK)", link: "/guides/ai-assist/" },
+            { label: "The encrypted vault", link: "/guides/encrypted-vault/" },
+          ],
+        },
         { label: "Architecture", link: "/architecture/" },
         { label: "Privacy and trust", link: "/privacy/" },
         { label: "Roadmap", link: "/roadmap/" },

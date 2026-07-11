@@ -1,0 +1,42 @@
+---
+title: AI assist (bring your own key)
+description: Optional, consented AI that can never see your secrets.
+---
+
+AI assist is **optional** and **bring-your-own-key**. It is built so that a
+provider can never receive your confirmation codes or traveler names, and so that
+nothing is ever sent without you seeing it first.
+
+## Providers
+
+Under **AI providers** you can:
+
+- Detect an on-device model by probing a local [Ollama](https://ollama.com)
+  (`ollama pull llama3.2` to get one). On-device runs never leave your device.
+- Add an **OpenAI** or **Anthropic** key. The key is stored in your operating
+  system keychain — never in Voyalier's files, database, logs, or any request
+  body. It is read only to place it in that request's authorization header, and
+  the interface only ever shows whether a key is set, never its value.
+
+## Preview before anything is sent
+
+The **Preview an AI request** panel builds, on your device, the exact request
+Voyalier would send: the fixed system prompt and the grounded trip details, plus
+a clear "leaves your device / stays on your device" signal for the chosen
+provider. It reuses the same redaction as the shared brief, so **confirmation
+codes and traveler names are excluded by construction** and could never reach a
+provider; imported document text is withheld too. The preview also cites what it
+is grounded in and shows a rough token estimate.
+
+Nothing is transmitted until you choose to send the previewed request.
+
+## Running a request, and the log
+
+When you send it, the same redacted request goes to your chosen provider
+(on-device Ollama, or OpenAI/Anthropic using your keychain key). A fixed system
+prompt forbids inventing high-stakes facts — entry, visa, health, and safety
+details are quoted from cited sources, never generated — and every reply carries
+a non-authoritative disclaimer.
+
+Each successful run is recorded in a per-trip **activity log** that stores
+metadata only (provider, model, time) — never the prompt or the reply.
