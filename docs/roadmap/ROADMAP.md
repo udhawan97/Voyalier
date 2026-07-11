@@ -23,7 +23,13 @@
   with an overall status. Logistics only; sourced readiness (advisories, entry
   rules, health, safety) stays Phase 2 and is quoted from cited sources, never
   inferred or LLM-authored.
-- Redacted traveler PDF — remaining (Typst; see Phase 0 prototype gate).
+- Redacted traveler PDF — in progress. Redaction core shipped
+  (`voyalier-core::build_trip_brief`): a shareable `TripBrief` projection that
+  excludes confirmation codes and traveler names by construction
+  (generation-time exclusion, not black-box overlay), with tests asserting
+  redacted values never enter the brief. Remaining: a renderer (embedded Typst
+  vs print-friendly HTML) plus an export path — a deliberate dependency and
+  contract decision, gated by the Phase 0 Typst prototype.
 
 ## Phase 2 — grounded intelligence
 
