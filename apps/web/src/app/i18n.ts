@@ -307,6 +307,39 @@ const en = {
   "providers.announce.keyRemoved": "{provider} key removed.",
   "providers.announce.keySaved": "{provider} key saved.",
   "providers.announce.modelSaved": "{provider} model saved.",
+
+  "packs.title": "Offline city data",
+  "packs.intro":
+    "Download local place data and travel notes for a city to use offline. Downloading pulls a pack in from GitHub and stores it on this device for this trip — nothing about your trip is sent. Each pack pairs Overture places with a separate Wikivoyage notes layer, each under its own license.",
+  "packs.browse": "Browse city packs",
+  "packs.layers.aria": "{name} data layers",
+  "packs.remove": "Remove",
+  "packs.download": "Download for this trip",
+  "packs.scope":
+    "Packs are stored on this device for this trip. Downloading pulls data in from GitHub; nothing about your trip is sent.",
+  "packs.announce.downloaded": "{name} pack downloaded.",
+  "packs.announce.removed": "{name} pack removed.",
+
+  "recs.title": "Recommendations",
+  "recs.intro":
+    "Ranked picks from a downloaded city pack, weighted by your interests. The scoring is a transparent rule — not a model — and each pick keeps its source and license.",
+  "recs.presets.aria": "Persona presets",
+  "recs.get": "Get recommendations",
+  "recs.list.aria": "Recommended places",
+  "recs.wildcard": "wildcard",
+  "recs.announce.none": "No recommendations yet.",
+  "recs.none":
+    "No recommendations yet — download a city pack for this trip (under “Offline city data”), or widen your interests.",
+  "recs.scope":
+    "Suggestions from open place data — never authoritative for prices, hours, or safety. Nothing leaves your device.",
+  "recs.dim.food": "Food",
+  "recs.dim.culture": "Culture",
+  "recs.dim.nature": "Nature",
+  "recs.dim.nightlife": "Nightlife",
+  "recs.dim.shopping": "Shopping",
+  "recs.preset.balanced": "Balanced",
+  "recs.preset.foodie": "Foodie",
+  "recs.preset.explorer": "Explorer",
 } as const;
 
 export type MessageKey = keyof typeof en;

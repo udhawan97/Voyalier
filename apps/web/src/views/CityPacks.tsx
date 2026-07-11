@@ -3,6 +3,7 @@ import type { AppError, DownloadedPack, PackInfo } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError, pluralize } from "../app/format";
+import { t } from "../app/i18n";
 import { Button } from "../components/Button";
 
 /**
@@ -47,7 +48,7 @@ export function CityPacks({ tripId }: { tripId: string }) {
     try {
       const result = await gateway.downloadPack(tripId, pack.id);
       setDownloaded((prev) => new Map(prev).set(pack.id, result));
-      announce(`${pack.name} pack downloaded.`);
+      announce(t("packs.announce.downloaded", { name: pack.name }));
     } catch (caught) {
       setError(describeError(caught as AppError).title);
     } finally {
@@ -65,7 +66,7 @@ export function CityPacks({ tripId }: { tripId: string }) {
         next.delete(pack.id);
         return next;
       });
-      announce(`${pack.name} pack removed.`);
+      announce(t("packs.announce.removed", { name: pack.name }));
     } catch (caught) {
       setError(describeError(caught as AppError).title);
     } finally {
@@ -76,20 +77,14 @@ export function CityPacks({ tripId }: { tripId: string }) {
   return (
     <section className="voy-packs" aria-labelledby="packs-title">
       <h2 id="packs-title" className="voy-packs__title">
-        Offline city data
+        {t("packs.title")}
       </h2>
 
       {packs === null ? (
         <>
-          <p className="voy-packs__intro">
-            Download local place data and travel notes for a city to use
-            offline. Downloading pulls a pack in from GitHub and stores it on
-            this device for this trip — nothing about your trip is sent. Each
-            pack pairs Overture places with a separate Wikivoyage notes layer,
-            each under its own license.
-          </p>
+          <p className="voy-packs__intro">{t("packs.intro")}</p>
           <Button variant="secondary" busy={loading} onClick={load}>
-            Browse city packs
+            {t("packs.browse")}
           </Button>
         </>
       ) : (
@@ -104,7 +99,7 @@ export function CityPacks({ tripId }: { tripId: string }) {
                 </div>
                 <ul
                   className="voy-packs__layers"
-                  aria-label={`${pack.name} data layers`}
+                  aria-label={t("packs.layers.aria", { name: pack.name })}
                 >
                   {pack.layers.map((layer) => (
                     <li key={layer.layer} className="voy-packs__layer">
@@ -114,6 +109,7 @@ export function CityPacks({ tripId }: { tripId: string }) {
                 </ul>
                 {mine ? (
                   <div className="voy-packs__downloaded">
+                    {/* counts keep English pluralize() pending Intl.PluralRules */}
                     <span className="voy-packs__count">
                       {mine.placeCount} {pluralize(mine.placeCount, "place")}
                       {", "}
@@ -125,7 +121,7 @@ export function CityPacks({ tripId }: { tripId: string }) {
                       busy={busyId === pack.id}
                       onClick={() => remove(pack)}
                     >
-                      Remove
+                      {t("packs.remove")}
                     </Button>
                   </div>
                 ) : (
@@ -134,7 +130,7 @@ export function CityPacks({ tripId }: { tripId: string }) {
                     busy={busyId === pack.id}
                     onClick={() => download(pack)}
                   >
-                    Download for this trip
+                    {t("packs.download")}
                   </Button>
                 )}
               </li>
@@ -149,10 +145,7 @@ export function CityPacks({ tripId }: { tripId: string }) {
         </p>
       ) : null}
 
-      <p className="voy-packs__scope">
-        Packs are stored on this device for this trip. Downloading pulls data in
-        from GitHub; nothing about your trip is sent.
-      </p>
+      <p className="voy-packs__scope">{t("packs.scope")}</p>
     </section>
   );
 }

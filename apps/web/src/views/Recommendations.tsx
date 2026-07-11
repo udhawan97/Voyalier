@@ -7,21 +7,22 @@ import type {
 
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError } from "../app/format";
+import { t, type MessageKey } from "../app/i18n";
 import { Button } from "../components/Button";
 
 type Dimension = keyof PersonaWeights;
 
-const DIMENSIONS: { key: Dimension; label: string }[] = [
-  { key: "food", label: "Food" },
-  { key: "culture", label: "Culture" },
-  { key: "nature", label: "Nature" },
-  { key: "nightlife", label: "Nightlife" },
-  { key: "shopping", label: "Shopping" },
+const DIMENSIONS: { key: Dimension; label: MessageKey }[] = [
+  { key: "food", label: "recs.dim.food" },
+  { key: "culture", label: "recs.dim.culture" },
+  { key: "nature", label: "recs.dim.nature" },
+  { key: "nightlife", label: "recs.dim.nightlife" },
+  { key: "shopping", label: "recs.dim.shopping" },
 ];
 
-const PRESETS: { name: string; weights: PersonaWeights }[] = [
+const PRESETS: { nameKey: MessageKey; weights: PersonaWeights }[] = [
   {
-    name: "Balanced",
+    nameKey: "recs.preset.balanced",
     weights: {
       food: 0.5,
       culture: 0.5,
@@ -31,7 +32,7 @@ const PRESETS: { name: string; weights: PersonaWeights }[] = [
     },
   },
   {
-    name: "Foodie",
+    nameKey: "recs.preset.foodie",
     weights: {
       food: 1,
       culture: 0.4,
@@ -41,7 +42,7 @@ const PRESETS: { name: string; weights: PersonaWeights }[] = [
     },
   },
   {
-    name: "Explorer",
+    nameKey: "recs.preset.explorer",
     weights: {
       food: 0.4,
       culture: 0.9,
@@ -78,8 +79,9 @@ export function Recommendations({ tripId }: { tripId: string }) {
       const result = await gateway.getRecommendations(tripId, weights);
       setRecs(result);
       announce(
+        // count string keeps English form pending Intl.PluralRules
         result.length === 0
-          ? "No recommendations yet."
+          ? t("recs.announce.none")
           : `${result.length} recommendations.`,
       );
     } catch (caught) {
@@ -93,26 +95,22 @@ export function Recommendations({ tripId }: { tripId: string }) {
   return (
     <section className="voy-recs" aria-labelledby="recs-title">
       <h2 id="recs-title" className="voy-recs__title">
-        Recommendations
+        {t("recs.title")}
       </h2>
-      <p className="voy-recs__intro">
-        Ranked picks from a downloaded city pack, weighted by your interests.
-        The scoring is a transparent rule — not a model — and each pick keeps
-        its source and license.
-      </p>
+      <p className="voy-recs__intro">{t("recs.intro")}</p>
 
       <div
         className="voy-recs__presets"
         role="group"
-        aria-label="Persona presets"
+        aria-label={t("recs.presets.aria")}
       >
         {PRESETS.map((preset) => (
           <Button
-            key={preset.name}
+            key={preset.nameKey}
             variant="ghost"
             onClick={() => setWeights(preset.weights)}
           >
-            {preset.name}
+            {t(preset.nameKey)}
           </Button>
         ))}
       </div>
@@ -123,7 +121,7 @@ export function Recommendations({ tripId }: { tripId: string }) {
           return (
             <div key={key} className="voy-recs__slider">
               <label htmlFor={id}>
-                {label}
+                {t(label)}
                 <span className="voy-recs__weight">
                   {Math.round(weights[key] * 100)}
                 </span>
@@ -144,7 +142,7 @@ export function Recommendations({ tripId }: { tripId: string }) {
       </div>
 
       <Button variant="secondary" busy={loading} onClick={load}>
-        Get recommendations
+        {t("recs.get")}
       </Button>
 
       {error ? (
@@ -155,12 +153,9 @@ export function Recommendations({ tripId }: { tripId: string }) {
 
       {recs !== null ? (
         recs.length === 0 ? (
-          <p className="voy-recs__none">
-            No recommendations yet — download a city pack for this trip (under
-            “Offline city data”), or widen your interests.
-          </p>
+          <p className="voy-recs__none">{t("recs.none")}</p>
         ) : (
-          <ul className="voy-recs__list" aria-label="Recommended places">
+          <ul className="voy-recs__list" aria-label={t("recs.list.aria")}>
             {recs.map((rec) => (
               <li
                 key={`${rec.name}:${rec.lat},${rec.lon}`}
@@ -170,7 +165,7 @@ export function Recommendations({ tripId }: { tripId: string }) {
                   <span className="voy-recs__name">{rec.name}</span>
                   <span className="voy-recs__dim">{rec.dimension}</span>
                   {rec.wildcard ? (
-                    <span className="voy-recs__wild">wildcard</span>
+                    <span className="voy-recs__wild">{t("recs.wildcard")}</span>
                   ) : null}
                 </div>
                 <p className="voy-recs__reasons">{rec.reasons.join(" · ")}</p>
@@ -183,10 +178,7 @@ export function Recommendations({ tripId }: { tripId: string }) {
         )
       ) : null}
 
-      <p className="voy-recs__scope">
-        Suggestions from open place data — never authoritative for prices,
-        hours, or safety. Nothing leaves your device.
-      </p>
+      <p className="voy-recs__scope">{t("recs.scope")}</p>
     </section>
   );
 }
