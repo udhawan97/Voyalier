@@ -144,9 +144,19 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   and downloaded-pack recommendations. Default basemap is OpenFreeMap (free, no
   API key, OpenStreetMap-derived, self-hostable); per-pack PMTiles extracts
   (built by the pack CI) are the offline path. See `docs/architecture/MAPS.md`.
-- Signed installers: DMG and EXE/MSI signing, notarization, checksums, and an
-  updater. _(Blocked on paid Apple ($99/yr) and Windows code-signing
-  certificates.)_
+- ✓ In-app updater: a `tauri-plugin-updater` loop wrapped in Rust commands (the
+  webview never gets the updater capability — no hidden network path),
+  minisign-signed updates verified on-device, per-platform checksums, and SLSA
+  build provenance from a SHA-pinned, environment-protected release workflow.
+  Full accessible UI — updates panel, topbar pill, one-time reversible consent,
+  per-platform install fork, staged restart, just-updated toast, clear-backups.
+  See `docs/architecture/UPDATES.md`. Turning it on is the owner's key +
+  `v0.3.0` publish (the first install-once base); the free updater signing is
+  independent of the paid OS code-signing below.
+- Signed installers: DMG and EXE/MSI OS code-signing + notarization.
+  _(Blocked on paid Apple ($99/yr) and Windows code-signing certificates. First
+  launch of the unsigned build uses the documented Gatekeeper / SmartScreen
+  "open anyway" path.)_
 - Documentation, accessibility, performance, localization readiness, and support
   playbooks. _(In progress. Performance: the consent-gated map now lazy-loads
   MapLibre GL on first use, cutting the initial JavaScript payload from ~357 KB to
@@ -159,12 +169,13 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   each workflow — trips and the Blueprint, importing confirmations, readiness and
   official advice, offline packs/recommendations/maps, AI assist, and the
   encrypted vault, plus a **Troubleshooting** page of support playbooks (common
-  failures, and where data lives / how to back up or reset). Localization
-  readiness: date formatting is now locale-aware (`Intl`, UTC-anchored so the
-  wall-clock day never shifts), and a message-catalog `t()` foundation is in
-  place with the vault UI migrated as the reference — English is the source of
-  truth, added locales are data-only, and rendered output is unchanged.
-  Remaining: migrate the rest of the UI strings onto `t()` incrementally.)_
+  failures, and where data lives / how to back up or reset). Localization: date
+  and number formatting are locale-aware (`Intl`, UTC-anchored so the wall-clock
+  day never shifts), and the **entire UI now renders through a message-catalog
+  `t()`** with locale-aware pluralization (`Intl.PluralRules`) — every panel,
+  dialog, shell, and label migrated, English the byte-identical source of truth,
+  added locales data-only. The catalog is type-safe (`MessageKey` +
+  compile-checked plural bases). Complete.)_
 
 ## Later
 
