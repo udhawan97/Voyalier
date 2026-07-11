@@ -71,8 +71,15 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   "leaves your device" signal. It reuses the brief's generation-time exclusion,
   so confirmation codes and traveler names never enter it and could never reach
   a provider; imported document text is withheld too. Nothing is transmitted —
-  this is the consent step before any assist call. Remaining: an activity log of
-  real calls, then actual inference — Ollama first, then OpenAI/Anthropic.
+  this is the consent step before an assist call.
+- ✓ Providers (C), on-device inference: `runAssist` sends the same redacted
+  request to a local Ollama and returns the reply, gated by the explicit click
+  (and, being local, nothing leaves the device). Cloud providers are refused
+  server-side for now. A fixed system prompt forbids inventing high-stakes
+  facts, and the reply carries a non-authoritative disclaimer.
+- ✓ Providers (C), activity log: every successful run is recorded in a visible
+  per-trip log (metadata only — never the prompt or reply). Remaining for C:
+  cloud inference (OpenAI/Anthropic) behind the same consent + logging.
 - ✓ Local retrieval, first slice: `searchTrip` ships as a deterministic scan
   over stored documents and confirmed facts with provenance and transparent
   scoring ("Find in this trip"). FTS5/embeddings may replace the internals
