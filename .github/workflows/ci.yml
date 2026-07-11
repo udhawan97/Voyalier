@@ -41,6 +41,10 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config
       - run: cargo fmt --all -- --check
       - run: cargo clippy --locked -p voyalier-core -p voyalier-app -p voyalier-server --all-targets -- -D warnings
       - run: cargo test --locked -p voyalier-core -p voyalier-app -p voyalier-server
