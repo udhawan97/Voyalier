@@ -436,6 +436,42 @@ const en = {
   "packs.offline": "offline",
   "recs.announce.count.one": "{count} recommendation.",
   "recs.announce.count.other": "{count} recommendations.",
+
+  "detail.back": "All trips",
+  "detail.loading": "Loading trip…",
+  "detail.backToTrips": "Back to trips",
+  "detail.status": "Status: ",
+  "detail.import": "Import",
+  "detail.addFact": "Add a fact",
+  "detail.shareBrief": "Share brief",
+  "detail.archive": "Archive",
+  "detail.delete": "Delete",
+  "detail.pending.desc":
+    "Confirm or dismiss what Voyalier found in your documents.",
+  "detail.nopending": "No suggestions waiting. Import a document to find more.",
+  "detail.blueprint": "Blueprint",
+  "detail.empty.title": "Your Blueprint is empty",
+  "detail.importDocument": "Import a document",
+  "detail.empty.body":
+    "Confirmed flights and stays land here in itinerary order. Import a confirmation or add a fact by hand to begin.",
+  "detail.edited": "Edited before confirming: {fields}",
+  "detail.unconfirm": "Unconfirm",
+  "detail.announce.archived": "Trip archived.",
+  "detail.announce.unconfirmed": "{fact} moved back to review.",
+  "detail.announce.added": "{fact} added.",
+  "readiness.title": "Readiness",
+  "readiness.checkYourself": "Check yourself",
+  "readiness.scope":
+    "Plan completeness plus official starting points. Voyalier never asserts or clears entry, health, or safety requirements — sourced, dated readiness arrives in a later milestone.",
+  "readiness.label.not_checked": "Not started",
+  "readiness.label.clear": "On track",
+  "readiness.label.monitor": "Worth a look",
+  "readiness.label.action_needed": "Needs attention",
+  "readiness.label.critical": "Critical",
+  "schedule.title": "Schedule check",
+  "schedule.clear": "No schedule conflicts found in your confirmed plans.",
+  "schedule.conflict": "Conflict",
+  "schedule.notice": "Notice",
 } as const;
 
 export type MessageKey = keyof typeof en;

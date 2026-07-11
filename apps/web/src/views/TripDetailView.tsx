@@ -19,7 +19,7 @@ import {
   formatFieldValue,
   tripRoute,
 } from "../app/format";
-import { plural } from "../app/i18n";
+import { plural, t, type MessageKey } from "../app/i18n";
 import { useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
@@ -108,8 +108,11 @@ function FactCard({
       </dl>
       {fact.correctedFields.length > 0 ? (
         <p className="voy-fact__edited">
-          Edited before confirming:{" "}
-          {fact.correctedFields.map((path) => fieldLabel(path)).join(", ")}
+          {t("detail.edited", {
+            fields: fact.correctedFields
+              .map((path) => fieldLabel(path))
+              .join(", "),
+          })}
         </p>
       ) : null}
       <div className="voy-fact__actions">
@@ -118,7 +121,7 @@ function FactCard({
           onClick={() => onUnconfirm(fact)}
           busy={unconfirming}
         >
-          Unconfirm
+          {t("detail.unconfirm")}
         </Button>
       </div>
     </article>
@@ -162,12 +165,12 @@ function FactGroup({
   );
 }
 
-const READINESS_LABEL: Record<ReadinessStatus, string> = {
-  not_checked: "Not started",
-  clear: "On track",
-  monitor: "Worth a look",
-  action_needed: "Needs attention",
-  critical: "Critical",
+const READINESS_LABEL: Record<ReadinessStatus, MessageKey> = {
+  not_checked: "readiness.label.not_checked",
+  clear: "readiness.label.clear",
+  monitor: "readiness.label.monitor",
+  action_needed: "readiness.label.action_needed",
+  critical: "readiness.label.critical",
 };
 
 /**
@@ -181,12 +184,12 @@ function ReadinessPanel({ readiness }: { readiness: ReadinessSummary }) {
     <section className="voy-readiness" aria-labelledby="readiness-title">
       <div className="voy-readiness__head">
         <h2 id="readiness-title" className="voy-readiness__title">
-          Readiness
+          {t("readiness.title")}
         </h2>
         <span
           className={`voy-readiness__overall voy-readiness__overall--${readiness.status}`}
         >
-          {READINESS_LABEL[readiness.status]}
+          {t(READINESS_LABEL[readiness.status])}
         </span>
       </div>
       <ul className="voy-readiness__list">
@@ -205,8 +208,8 @@ function ReadinessPanel({ readiness }: { readiness: ReadinessSummary }) {
                   {" · "}
                   {item.id === "entry_requirements" ||
                   item.id === "health_notices"
-                    ? "Check yourself"
-                    : READINESS_LABEL[item.status]}
+                    ? t("readiness.checkYourself")
+                    : t(READINESS_LABEL[item.status])}
                 </span>
               </span>
               <span className="voy-readiness__detail">{item.detail}</span>
@@ -220,7 +223,9 @@ function ReadinessPanel({ readiness }: { readiness: ReadinessSummary }) {
                         rel="noreferrer noopener"
                       >
                         {link.label}
-                        <span className="voy-sr-only"> (opens in new tab)</span>
+                        <span className="voy-sr-only">
+                          {t("a11y.opensInNewTab")}
+                        </span>
                       </a>
                     </li>
                   ))}
@@ -230,11 +235,7 @@ function ReadinessPanel({ readiness }: { readiness: ReadinessSummary }) {
           </li>
         ))}
       </ul>
-      <p className="voy-readiness__scope">
-        Plan completeness plus official starting points. Voyalier never asserts
-        or clears entry, health, or safety requirements — sourced, dated
-        readiness arrives in a later milestone.
-      </p>
+      <p className="voy-readiness__scope">{t("readiness.scope")}</p>
     </section>
   );
 }
@@ -248,13 +249,13 @@ function ScheduleCheck({ conflicts }: { conflicts: ItineraryConflict[] }) {
     return (
       <section className="voy-schedule" aria-labelledby="schedule-title">
         <h2 id="schedule-title" className="voy-schedule__title">
-          Schedule check
+          {t("schedule.title")}
         </h2>
         <p className="voy-schedule__clear">
           <span className="voy-schedule__clear-icon" aria-hidden="true">
             <CheckIcon />
           </span>
-          No schedule conflicts found in your confirmed plans.
+          {t("schedule.clear")}
         </p>
       </section>
     );
@@ -262,7 +263,7 @@ function ScheduleCheck({ conflicts }: { conflicts: ItineraryConflict[] }) {
   return (
     <section className="voy-schedule" aria-labelledby="schedule-title">
       <h2 className="voy-schedule__title">
-        <span id="schedule-title">Schedule check</span>
+        <span id="schedule-title">{t("schedule.title")}</span>
         <span className="voy-schedule__count">{conflicts.length}</span>
       </h2>
       <ul className="voy-schedule__list">
@@ -276,7 +277,9 @@ function ScheduleCheck({ conflicts }: { conflicts: ItineraryConflict[] }) {
             </span>
             <span className="voy-schedule__text">
               <span className="voy-schedule__badge">
-                {conflict.severity === "warning" ? "Conflict" : "Notice"}
+                {conflict.severity === "warning"
+                  ? t("schedule.conflict")
+                  : t("schedule.notice")}
               </span>
               {conflict.message}
             </span>
@@ -324,7 +327,7 @@ export function TripDetailView({
     setArchiving(true);
     try {
       await gateway.archiveTrip(tripId);
-      announce("Trip archived.");
+      announce(t("detail.announce.archived"));
       reload();
     } catch (caught) {
       announce(describeError(caught as AppError).title);
@@ -338,7 +341,9 @@ export function TripDetailView({
     try {
       await gateway.unconfirmFact(fact.id);
       announce(
-        `${factTitle(fact.factType, fact.payload)} moved back to review.`,
+        t("detail.announce.unconfirmed", {
+          fact: factTitle(fact.factType, fact.payload),
+        }),
       );
       reload();
     } catch (caught) {
@@ -351,14 +356,14 @@ export function TripDetailView({
   const backButton = (
     <button type="button" className="voy-back" onClick={onBack}>
       <ArrowLeftIcon aria-hidden="true" />
-      <span>All trips</span>
+      <span>{t("detail.back")}</span>
     </button>
   );
 
   if (status === "loading" && !data) {
     return (
       <section className="voy-detail" aria-busy="true" role="status">
-        <span className="voy-sr-only">Loading trip…</span>
+        <span className="voy-sr-only">{t("detail.loading")}</span>
         {backButton}
         <div className="voy-detail__head">
           <Skeleton width="40%" height="2.4rem" />
@@ -386,11 +391,11 @@ export function TripDetailView({
           action={
             error!.code === "trip/not_found" ? (
               <Button variant="secondary" onClick={onBack}>
-                Back to trips
+                {t("detail.backToTrips")}
               </Button>
             ) : (
               <Button variant="secondary" icon={<RetryIcon />} onClick={reload}>
-                Retry
+                {t("action.retry")}
               </Button>
             )
           }
@@ -427,7 +432,7 @@ export function TripDetailView({
           <p className="voy-detail__dates">
             {formatDateRange(trip.startDate, trip.endDate)}
             <span aria-hidden="true"> · </span>
-            <span className="voy-sr-only">Status: </span>
+            <span className="voy-sr-only">{t("detail.status")}</span>
             <TripStatusBadge status={trip.status} />
           </p>
         </div>
@@ -437,14 +442,14 @@ export function TripDetailView({
             icon={<PlusIcon />}
             onClick={() => setShowImport(true)}
           >
-            Import
+            {t("detail.import")}
           </Button>
           <Button variant="secondary" onClick={() => setShowAddFact(true)}>
-            Add a fact
+            {t("detail.addFact")}
           </Button>
           {confirmedFacts.length > 0 ? (
             <Button variant="ghost" onClick={() => setShowBrief(true)}>
-              Share brief
+              {t("detail.shareBrief")}
             </Button>
           ) : null}
           {!isArchived ? (
@@ -454,11 +459,11 @@ export function TripDetailView({
               onClick={archive}
               busy={archiving}
             >
-              Archive
+              {t("detail.archive")}
             </Button>
           ) : null}
           <Button variant="ghost" onClick={() => setShowDelete(true)}>
-            Delete
+            {t("detail.delete")}
           </Button>
         </div>
       </header>
@@ -477,23 +482,19 @@ export function TripDetailView({
           />
           <span className="voy-pending-entry__text">
             <strong>{plural("import.review", pendingCount)}</strong>
-            <span>
-              Confirm or dismiss what Voyalier found in your documents.
-            </span>
+            <span>{t("detail.pending.desc")}</span>
           </span>
           <ChevronRightIcon aria-hidden="true" />
         </button>
       ) : (
-        <p className="voy-detail__nopending">
-          No suggestions waiting. Import a document to find more.
-        </p>
+        <p className="voy-detail__nopending">{t("detail.nopending")}</p>
       )}
 
       <div className="voy-detail__blueprint">
-        <h2 className="voy-detail__blueprint-title">Blueprint</h2>
+        <h2 className="voy-detail__blueprint-title">{t("detail.blueprint")}</h2>
         {confirmedFacts.length === 0 ? (
           <Empty
-            title="Your Blueprint is empty"
+            title={t("detail.empty.title")}
             action={
               <div className="voy-empty__actions">
                 <Button
@@ -501,31 +502,30 @@ export function TripDetailView({
                   icon={<PlusIcon />}
                   onClick={() => setShowImport(true)}
                 >
-                  Import a document
+                  {t("detail.importDocument")}
                 </Button>
                 <Button
                   variant="secondary"
                   onClick={() => setShowAddFact(true)}
                 >
-                  Add a fact
+                  {t("detail.addFact")}
                 </Button>
               </div>
             }
           >
-            Confirmed flights and stays land here in itinerary order. Import a
-            confirmation or add a fact by hand to begin.
+            {t("detail.empty.body")}
           </Empty>
         ) : (
           <>
             <FactGroup
-              title="Flights"
+              title={t("brief.flights")}
               icon={<PlaneIcon />}
               facts={flights}
               onUnconfirm={unconfirm}
               unconfirmingId={unconfirmingId}
             />
             <FactGroup
-              title="Stays"
+              title={t("brief.stays")}
               icon={<BedIcon />}
               facts={stays}
               onUnconfirm={unconfirm}
@@ -600,7 +600,11 @@ export function TripDetailView({
           onClose={() => setShowAddFact(false)}
           onAdded={(fact) => {
             setShowAddFact(false);
-            announce(`${factTitle(fact.factType, fact.payload)} added.`);
+            announce(
+              t("detail.announce.added", {
+                fact: factTitle(fact.factType, fact.payload),
+              }),
+            );
             reload();
           }}
         />

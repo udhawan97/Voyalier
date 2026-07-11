@@ -238,14 +238,6 @@ export function fieldInputType(
   return "text";
 }
 
-export function pluralize(
-  count: number,
-  singular: string,
-  plural?: string,
-): string {
-  return count === 1 ? singular : (plural ?? `${singular}s`);
-}
-
 /** A payload as editable strings (contract payloads are all optional strings). */
 export type PayloadDraft = Record<string, string>;
 
