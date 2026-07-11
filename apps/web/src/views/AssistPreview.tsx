@@ -145,6 +145,12 @@ export function AssistPreview({ tripId }: { tripId: string }) {
           {preview.model ? (
             <p className="voy-assist__model">Model: {preview.model}</p>
           ) : null}
+          <p className="voy-assist__meta">
+            {preview.groundedIn.length > 0
+              ? `Grounded in ${preview.groundedIn.join(", ")}`
+              : "No confirmed plans to ground in yet"}
+            {" · "}~{preview.estimatedTokens} tokens
+          </p>
 
           <h3 className="voy-assist__subhead">System instruction</h3>
           <pre className="voy-assist__block">{preview.systemPrompt}</pre>

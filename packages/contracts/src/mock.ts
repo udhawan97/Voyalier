@@ -1394,14 +1394,31 @@ export function createMockGateway(options?: {
         );
         const brief = buildShareBrief(trip, tripFacts, timestamp());
         const model = providerModels.get(provider);
+        const groundedIn: string[] = [];
+        if (brief.flights.length > 0) {
+          groundedIn.push(
+            `${brief.flights.length} confirmed ${brief.flights.length === 1 ? "flight" : "flights"}`,
+          );
+        }
+        if (brief.stays.length > 0) {
+          groundedIn.push(
+            `${brief.stays.length} confirmed ${brief.stays.length === 1 ? "stay" : "stays"}`,
+          );
+        }
+        const userContent = formatAssistItinerary(brief);
         const preview: AssistRequestPreview = {
           provider,
           providerLabel: info.label,
           endpoint: assistEndpoint(provider),
           leavesDevice: provider !== "ollama",
           systemPrompt: ASSIST_SYSTEM_PROMPT,
-          userContent: formatAssistItinerary(brief),
+          userContent,
           withheld: [...brief.redactedFields, "Imported document text"],
+          groundedIn,
+          estimatedTokens:
+            Math.floor(
+              ([...ASSIST_SYSTEM_PROMPT].length + [...userContent].length) / 4,
+            ) + 1,
         };
         return model ? { ...preview, model } : preview;
       }),

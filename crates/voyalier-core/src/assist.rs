@@ -69,6 +69,11 @@ pub struct AssistRequestPreview {
     pub user_content: String,
     /// Field kinds excluded from the request, for transparency.
     pub withheld: Vec<String>,
+    /// A citation of what the request is grounded in (e.g. "2 confirmed
+    /// flights"). The request carries only these confirmed facts.
+    pub grounded_in: Vec<String>,
+    /// A rough estimate of the tokens the request would use, for cost awareness.
+    pub estimated_tokens: u32,
 }
 
 /// Build the preview for `provider`, grounded only in the trip's confirmed facts.
@@ -89,6 +94,27 @@ pub fn build_assist_preview(
     // Only structured, confirmed facts are grounded in — never raw document text.
     withheld.push("Imported document text".to_owned());
 
+    // A plain-language citation of exactly what grounds the request.
+    let mut grounded_in = Vec::new();
+    if !brief.flights.is_empty() {
+        grounded_in.push(format!(
+            "{} confirmed {}",
+            brief.flights.len(),
+            plural(brief.flights.len(), "flight")
+        ));
+    }
+    if !brief.stays.is_empty() {
+        grounded_in.push(format!(
+            "{} confirmed {}",
+            brief.stays.len(),
+            plural(brief.stays.len(), "stay")
+        ));
+    }
+
+    let system_prompt = ASSIST_SYSTEM_PROMPT.to_owned();
+    let user_content = format_itinerary(&brief);
+    let estimated_tokens = estimate_tokens(&system_prompt, &user_content);
+
     let info = provider_info(provider);
     AssistRequestPreview {
         provider,
@@ -96,10 +122,27 @@ pub fn build_assist_preview(
         model: model.map(str::to_owned),
         endpoint: endpoint_for(provider).to_owned(),
         leaves_device: !matches!(provider, ProviderId::Ollama),
-        system_prompt: ASSIST_SYSTEM_PROMPT.to_owned(),
-        user_content: format_itinerary(&brief),
+        estimated_tokens,
+        grounded_in,
+        system_prompt,
+        user_content,
         withheld,
     }
+}
+
+fn plural(count: usize, word: &str) -> String {
+    if count == 1 {
+        word.to_owned()
+    } else {
+        format!("{word}s")
+    }
+}
+
+/// A rough token estimate (~4 characters per token) for cost awareness. Not a
+/// billing figure — providers tokenize differently — just an order of magnitude.
+fn estimate_tokens(system: &str, user: &str) -> u32 {
+    let characters = system.chars().count() + user.chars().count();
+    (characters / 4 + 1) as u32
 }
 
 /// Render the redacted brief as the plain-text itinerary the model would receive.
@@ -437,6 +480,14 @@ mod tests {
                 .withheld
                 .contains(&"Imported document text".to_owned())
         );
+        // Citation of the grounding and a non-zero cost estimate.
+        assert!(
+            preview
+                .grounded_in
+                .contains(&"1 confirmed flight".to_owned())
+        );
+        assert!(preview.grounded_in.contains(&"1 confirmed stay".to_owned()));
+        assert!(preview.estimated_tokens > 0);
     }
 
     #[test]

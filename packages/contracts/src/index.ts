@@ -249,6 +249,10 @@ export interface AssistRequestPreview {
   userContent: string;
   /** Field kinds excluded from the request, for transparency. */
   withheld: string[];
+  /** A citation of what the request is grounded in (e.g. "2 confirmed flights"). */
+  groundedIn: string[];
+  /** A rough token estimate for cost awareness (not a billing figure). */
+  estimatedTokens: number;
 }
 /**
  * The assistant's reply from a completed on-device run. `text` is model output

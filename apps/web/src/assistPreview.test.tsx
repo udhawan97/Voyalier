@@ -55,6 +55,11 @@ describe("AI request preview", () => {
     expect(
       within(region).getByText("Imported document text"),
     ).toBeInTheDocument();
+
+    // Citation of the grounding and a token estimate for cost awareness.
+    expect(
+      within(region).getByText(/Grounded in .*flight.*~\d+ tokens/),
+    ).toBeInTheDocument();
   });
 
   it("warns and offers to send when the chosen provider is cloud", async () => {
