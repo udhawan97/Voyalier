@@ -210,6 +210,18 @@ const en = {
     "Detection only — a local check on this device. Assist that uses these models is a later milestone and will always be opt-in.",
   "action.checkAgain": "Check again",
   "a11y.opensInNewTab": " (opens in new tab)",
+
+  "search.title": "Find in this trip",
+  "search.label": "Search your documents and confirmed plans",
+  "search.placeholder": "Shuttle, confirmation code, hotel…",
+  "search.submit": "Search",
+  "search.error.empty": "Type something to search for.",
+  "search.announce.none": "No matches for {query}.",
+  "search.none":
+    "No matches for “{query}” in your documents or confirmed plans.",
+  "search.results.aria": "Search results",
+  "search.hit.document": "imported document",
+  "search.hit.confirmed": "confirmed plan",
 } as const;
 
 export type MessageKey = keyof typeof en;

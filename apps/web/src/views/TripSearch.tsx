@@ -3,6 +3,7 @@ import type { AppError, SearchHit } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError, pluralize } from "../app/format";
+import { t } from "../app/i18n";
 import { Button } from "../components/Button";
 import { BedIcon, PlaneIcon } from "../components/icons";
 
@@ -36,7 +37,7 @@ export function TripSearch({ tripId }: { tripId: string }) {
     setFieldError(null);
     const trimmed = query.trim();
     if (trimmed.length === 0) {
-      setFieldError("Type something to search for.");
+      setFieldError(t("search.error.empty"));
       return;
     }
     setSearching(true);
@@ -45,8 +46,10 @@ export function TripSearch({ tripId }: { tripId: string }) {
       setResults(hits);
       setLastQuery(trimmed);
       announce(
+        // The match-count announce keeps English pluralize() pending the
+        // Intl.PluralRules pass; the no-match case is catalogued.
         hits.length === 0
-          ? `No matches for ${trimmed}.`
+          ? t("search.announce.none", { query: trimmed })
           : `${hits.length} ${pluralize(hits.length, "match", "matches")} for ${trimmed}.`,
       );
     } catch (caught) {
@@ -64,11 +67,11 @@ export function TripSearch({ tripId }: { tripId: string }) {
   return (
     <section className="voy-search" aria-labelledby="trip-search-title">
       <h2 id="trip-search-title" className="voy-search__title">
-        Find in this trip
+        {t("search.title")}
       </h2>
       <form className="voy-search__form" onSubmit={handleSubmit} noValidate>
         <label className="voy-sr-only" htmlFor={inputId}>
-          Search your documents and confirmed plans
+          {t("search.label")}
         </label>
         <input
           id={inputId}
@@ -76,13 +79,13 @@ export function TripSearch({ tripId }: { tripId: string }) {
           type="search"
           value={query}
           maxLength={MAX_QUERY}
-          placeholder="Shuttle, confirmation code, hotel…"
+          placeholder={t("search.placeholder")}
           onChange={(event) => setQuery(event.target.value)}
           aria-invalid={fieldError ? true : undefined}
           aria-describedby={fieldError ? `${inputId}-error` : undefined}
         />
         <Button variant="secondary" type="submit" busy={searching}>
-          Search
+          {t("search.submit")}
         </Button>
       </form>
       {fieldError ? (
@@ -94,10 +97,13 @@ export function TripSearch({ tripId }: { tripId: string }) {
       {results !== null ? (
         results.length === 0 ? (
           <p className="voy-search__none">
-            No matches for “{lastQuery}” in your documents or confirmed plans.
+            {t("search.none", { query: lastQuery })}
           </p>
         ) : (
-          <ul className="voy-search__results" aria-label="Search results">
+          <ul
+            className="voy-search__results"
+            aria-label={t("search.results.aria")}
+          >
             {results.map((hit) => (
               <li
                 key={`${hit.source}:${hit.recordId}`}
@@ -112,8 +118,8 @@ export function TripSearch({ tripId }: { tripId: string }) {
                     <span className="voy-search__hit-kind">
                       {" · "}
                       {hit.source === "document"
-                        ? "imported document"
-                        : "confirmed plan"}
+                        ? t("search.hit.document")
+                        : t("search.hit.confirmed")}
                     </span>
                   </span>
                   <span className="voy-search__hit-snippet">{hit.snippet}</span>
