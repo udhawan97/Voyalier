@@ -284,6 +284,29 @@ const en = {
   "review.dismiss": "Dismiss",
   "review.empty.title": "All caught up",
   "review.empty.body": "Every suggestion has been confirmed or dismissed.",
+
+  "providers.title": "AI providers",
+  "providers.intro":
+    "Bring your own OpenAI or Anthropic key for optional cloud assist. Keys are stored in your device's keychain — never in Voyalier's files or any shared server.",
+  "providers.manage": "Manage AI providers",
+  "providers.scope":
+    "Keys stay in your OS keychain and never leave your device. A key is only used to send a request you preview and choose to send, under “Preview an AI request”.",
+  "providers.status.onDevice": "On-device",
+  "providers.status.keyStored": "Key stored",
+  "providers.status.noKey": "No key",
+  "providers.error": "That didn't work — nothing changed.",
+  "providers.stored": "API key stored in your keychain.",
+  "providers.removeKey": "Remove key",
+  "providers.apiKey": "{provider} API key",
+  "providers.apiKey.placeholder": "Paste your API key",
+  "providers.saveKey": "Save key",
+  "providers.onDeviceNote": "Runs locally on this device — no key needed.",
+  "providers.model.label": "{provider} model",
+  "providers.model.placeholder": "Model (optional)",
+  "providers.saveModel": "Save model",
+  "providers.announce.keyRemoved": "{provider} key removed.",
+  "providers.announce.keySaved": "{provider} key saved.",
+  "providers.announce.modelSaved": "{provider} model saved.",
 } as const;
 
 export type MessageKey = keyof typeof en;

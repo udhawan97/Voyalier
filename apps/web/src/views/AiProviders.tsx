@@ -2,13 +2,16 @@ import { useState } from "react";
 import type { AppError, ProviderConfig } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
+import { t } from "../app/i18n";
 import { Button } from "../components/Button";
 
 type Busy = null | "key" | "clear" | "model";
 
 function statusLabel(config: ProviderConfig): string {
-  if (!config.keyRequired) return "On-device";
-  return config.hasKey ? "Key stored" : "No key";
+  if (!config.keyRequired) return t("providers.status.onDevice");
+  return config.hasKey
+    ? t("providers.status.keyStored")
+    : t("providers.status.noKey");
 }
 
 function ProviderRow({
@@ -36,9 +39,7 @@ function ProviderRow({
       onChanged(await action());
       announce(done);
     } catch (caught) {
-      setError(
-        (caught as AppError).message || "That didn't work — nothing changed.",
-      );
+      setError((caught as AppError).message || t("providers.error"));
     } finally {
       setBusy(null);
     }
@@ -62,7 +63,7 @@ function ProviderRow({
         config.hasKey ? (
           <div className="voy-providers__keyrow">
             <span className="voy-providers__stored">
-              API key stored in your keychain.
+              {t("providers.stored")}
             </span>
             <Button
               variant="ghost"
@@ -71,17 +72,19 @@ function ProviderRow({
                 run(
                   "clear",
                   () => gateway.clearProviderKey(config.id),
-                  `${config.label} key removed.`,
+                  t("providers.announce.keyRemoved", {
+                    provider: config.label,
+                  }),
                 )
               }
             >
-              Remove key
+              {t("providers.removeKey")}
             </Button>
           </div>
         ) : (
           <div className="voy-providers__keyrow">
             <label className="voy-sr-only" htmlFor={`key-${config.id}`}>
-              {config.label} API key
+              {t("providers.apiKey", { provider: config.label })}
             </label>
             <input
               id={`key-${config.id}`}
@@ -89,7 +92,7 @@ function ProviderRow({
               type="password"
               autoComplete="off"
               spellCheck={false}
-              placeholder="Paste your API key"
+              placeholder={t("providers.apiKey.placeholder")}
               value={keyInput}
               onChange={(event) => setKeyInput(event.target.value)}
             />
@@ -108,30 +111,28 @@ function ProviderRow({
                     setKeyInput(""); // never retain the key in the DOM
                     return updated;
                   },
-                  `${config.label} key saved.`,
+                  t("providers.announce.keySaved", { provider: config.label }),
                 )
               }
             >
-              Save key
+              {t("providers.saveKey")}
             </Button>
           </div>
         )
       ) : (
-        <p className="voy-providers__note">
-          Runs locally on this device — no key needed.
-        </p>
+        <p className="voy-providers__note">{t("providers.onDeviceNote")}</p>
       )}
 
       <div className="voy-providers__modelrow">
         <label className="voy-sr-only" htmlFor={`model-${config.id}`}>
-          {config.label} model
+          {t("providers.model.label", { provider: config.label })}
         </label>
         <input
           id={`model-${config.id}`}
           className="voy-providers__input"
           type="text"
           autoComplete="off"
-          placeholder="Model (optional)"
+          placeholder={t("providers.model.placeholder")}
           value={modelInput}
           onChange={(event) => setModelInput(event.target.value)}
         />
@@ -147,11 +148,11 @@ function ProviderRow({
                   provider: config.id,
                   model: modelInput,
                 }),
-              `${config.label} model saved.`,
+              t("providers.announce.modelSaved", { provider: config.label }),
             )
           }
         >
-          Save model
+          {t("providers.saveModel")}
         </Button>
       </div>
 
@@ -196,18 +197,14 @@ export function AiProviders() {
   return (
     <section className="voy-providers" aria-labelledby="providers-title">
       <h2 id="providers-title" className="voy-providers__title">
-        AI providers
+        {t("providers.title")}
       </h2>
 
       {providers === null ? (
         <>
-          <p className="voy-providers__intro">
-            Bring your own OpenAI or Anthropic key for optional cloud assist.
-            Keys are stored in your device's keychain — never in Voyalier's
-            files or any shared server.
-          </p>
+          <p className="voy-providers__intro">{t("providers.intro")}</p>
           <Button variant="secondary" busy={loading} onClick={load}>
-            Manage AI providers
+            {t("providers.manage")}
           </Button>
         </>
       ) : (
@@ -218,11 +215,7 @@ export function AiProviders() {
         </ul>
       )}
 
-      <p className="voy-providers__scope">
-        Keys stay in your OS keychain and never leave your device. A key is only
-        used to send a request you preview and choose to send, under “Preview an
-        AI request”.
-      </p>
+      <p className="voy-providers__scope">{t("providers.scope")}</p>
     </section>
   );
 }
