@@ -28,6 +28,17 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v7
+      # A tagged release must not ship with an unreplaced updater pubkey — the
+      # result is a broken updater (installs that can never verify). Only guard
+      # real releases; workflow_dispatch stays a build-only dry-run.
+      - name: Fail if the updater pubkey is still the placeholder
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          if grep -q "REPLACE_WITH_TAURI_SIGNER_GENERATE_PUBKEY" apps/desktop/src-tauri/tauri.conf.json; then
+            echo "::error::plugins.updater.pubkey is still the placeholder — generate the real key (docs/security/UPDATE_KEY_RUNBOOK.md) and set the signing secrets before releasing." >&2
+            exit 1
+          fi
       - uses: pnpm/action-setup@v6
         with:
           version: 11.7.0

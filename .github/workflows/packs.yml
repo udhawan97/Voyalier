@@ -68,9 +68,15 @@ jobs:
         run: |
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release create "$RELEASE_TAG" \
+              --prerelease \
               --title "City packs ($RELEASE_TAG)" \
               --notes "Overture places (CDLA-Permissive-2.0) + Wikivoyage prose (CC BY-SA 3.0), per pack. Built by .github/workflows/packs.yml."
           fi
+          # BLOCKER fix (UPDATES.md §5): pack releases MUST be pre-release so
+          # GitHub's releases/latest — which excludes pre-releases — never flips
+          # to a pack release and 404s the in-app updater's latest.json. Enforced
+          # even for a pre-existing release so it can't regress.
+          gh release edit "$RELEASE_TAG" --prerelease
           gh release upload "$RELEASE_TAG" dist/packs/*.json --clobber
 
       - uses: actions/upload-artifact@v4
