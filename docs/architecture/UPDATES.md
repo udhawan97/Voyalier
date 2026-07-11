@@ -207,8 +207,8 @@ Phase A shipped reviewed-clean; the reviewer logged four minor items to carry
 forward (none blocked Phase A):
 
 - **B — mode signal off `is_packaged`, not `debug_assertions`.** The wrappers
-  currently gate the plugin on `!debug_assertions`. That makes a `cargo run
-  --release` from source (unpackaged, debug off) register the plugin and let
+  currently gate the plugin on `!debug_assertions`. That makes an unpackaged
+  release build from source (debug off) register the plugin and let
   `updater_check` make a live GitHub call (install still fails safe at verify).
   Normal `tauri dev` is correctly "disabled". When Phase B adds the gateway mode
   signal, drive it off `is_packaged`/`!is_dev` and scope the "disabled in source"
