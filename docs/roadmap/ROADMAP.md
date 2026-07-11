@@ -132,8 +132,10 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   key, wire encryption into storage with a migration, and design the unlock
   experience — passphrase vs. transparent OS-keychain unlock is a product
   decision that gates the wiring.)_
-- Map view (MapLibre + offline tiles). _(Needs tile/pack map assets to be
-  meaningful; not started.)_
+- ✓ Map view: a consent-gated MapLibre GL map plotting the trip's destination
+  and downloaded-pack recommendations. Default basemap is OpenFreeMap (free, no
+  API key, OpenStreetMap-derived, self-hostable); per-pack PMTiles extracts
+  (built by the pack CI) are the offline path. See `docs/architecture/MAPS.md`.
 - Signed installers: DMG and EXE/MSI signing, notarization, checksums, and an
   updater. _(Blocked on paid Apple ($99/yr) and Windows code-signing
   certificates.)_
