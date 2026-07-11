@@ -201,6 +201,31 @@ missing download).
 - **E** cut **v0.3.0** (first updatable base — must be installed manually once; document the
   chicken-and-egg); local-endpoint E2E first. On **v0.3.1** the real loop self-proves.
 
+## Phase A review — deferred items (address in the named phase)
+
+Phase A shipped reviewed-clean; the reviewer logged four minor items to carry
+forward (none blocked Phase A):
+
+- **B — mode signal off `is_packaged`, not `debug_assertions`.** The wrappers
+  currently gate the plugin on `!debug_assertions`. That makes a `cargo run
+  --release` from source (unpackaged, debug off) register the plugin and let
+  `updater_check` make a live GitHub call (install still fails safe at verify).
+  Normal `tauri dev` is correctly "disabled". When Phase B adds the gateway mode
+  signal, drive it off `is_packaged`/`!is_dev` and scope the "disabled in source"
+  wording to debug builds.
+- **D — release guard against an unreplaced pubkey.** Nothing stops a real
+  release from being cut with the placeholder (or empty) `plugins.updater.pubkey`
+  → a silently broken updater (installs that can never verify). Add a step to the
+  hardened `release.yml` that fails the release job if the pubkey equals the
+  placeholder or is empty. (Highest-value follow-up.)
+- **D — tighten `bundle.targets`.** It is `"all"` while D4 scopes platforms to
+  macOS aarch64 + Windows (Linux deferred). Harmless now (the CI matrix scopes
+  actual builds) but tighten targets / rely on `--target` so Linux artifacts are
+  not published inadvertently.
+- **(standing) app_settings is "never secrets" by convention only.** Values are
+  unencrypted KV; keep the doc-comment authoritative and never route a secret
+  through it — secrets stay in the OS keychain.
+
 ## Net changes vs the original draft (what the reviews forced)
 
 Rust-command-wrapped updater (no webview capability); hardened + pinned release.yml + attestation;
