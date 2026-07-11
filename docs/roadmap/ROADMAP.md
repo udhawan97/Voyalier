@@ -48,8 +48,20 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   a dated snapshot, and renders trip-window days with honest coverage
   (full/partial/none against the ~16-day horizon), "Weather data by
   Open-Meteo.com" CC BY 4.0 attribution, and 12-hour staleness. Weather is
-  planning texture, never a safety claim. Remaining sources: US State
-  advisories and health notices behind the same consent pattern.
+  planning texture, never a safety claim.
+- ✓ US State Dept advisories: link-only (ADR-0003 owner decision). No
+  machine-readable per-country feed exists, so the entry-requirements item links
+  to the official advisories index rather than asserting a level. Health notices
+  (CDC/WHO) can follow the same link-or-consent pattern later.
+
+**Owner decisions recorded (ADR-0003), not yet built:**
+
+- Packs (B): CI-built, ~20 cities, Overture places + Wikivoyage prose as a
+  separate CC BY-SA layer with a per-layer license manifest, hosted on GitHub
+  Releases, downloaded per trip with consent.
+- Providers (C): OS keychain (`keyring`) key storage, hybrid consent (first call
+  per provider previews the payload; every call logged), Ollama (keyless, local)
+  ships before OpenAI/Anthropic.
 - ✓ Local retrieval, first slice: `searchTrip` ships as a deterministic scan
   over stored documents and confirmed facts with provenance and transparent
   scoring ("Find in this trip"). FTS5/embeddings may replace the internals
