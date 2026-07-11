@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import type { AppGateway } from "@voyalier/contracts";
 import { createMockGateway } from "@voyalier/contracts";
 
 import { App } from "./App";
@@ -6,6 +7,34 @@ import { createMockUpdater } from "./updater/mockUpdater";
 import { UPDATER_KEYS } from "./updater/types";
 
 describe("App shell", () => {
+  it("offers the updates surface even while the vault is locked (D2)", async () => {
+    const gateway: AppGateway = {
+      ...createMockGateway(),
+      getVaultStatus: () =>
+        Promise.resolve({ active: false, protected: true, locked: true }),
+    };
+    const updater = createMockUpdater({
+      settings: { [UPDATER_KEYS.consent]: "yes" },
+      onCheck: {
+        availability: "available",
+        currentVersion: "0.3.0",
+        availableVersion: "0.3.1",
+        notes: null,
+      },
+    });
+    render(<App gateway={gateway} updater={updater} />);
+
+    // The unlock gate stands in for the workspace...
+    await screen.findByRole("heading", { name: "Your vault is locked" });
+    // ...but a locked user can still reach the updater (it needs no trip data).
+    expect(
+      screen.getByRole("heading", { name: "Updates" }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("Update available: 0.3.1"),
+    ).toBeInTheDocument();
+  });
+
   it("shows the updated-to toast when the running build is newer than last seen", async () => {
     const updater = createMockUpdater({
       settings: {

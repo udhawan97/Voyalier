@@ -10,6 +10,7 @@ import { OfflineBanner } from "./components/OfflineBanner";
 import { Topbar, type HealthState } from "./components/Topbar";
 import { TripDetailView } from "./views/TripDetailView";
 import { TripListView } from "./views/TripListView";
+import { UpdatesPanel } from "./views/UpdatesPanel";
 import { VaultUnlock } from "./views/VaultUnlock";
 
 type View = { name: "list" } | { name: "trip"; tripId: string };
@@ -95,7 +96,12 @@ export function App({
                 <OfflineBanner error={healthError} onRetry={retry} />
               ) : null}
               {locked ? (
-                <VaultUnlock onUnlocked={checkVault} />
+                <>
+                  <VaultUnlock onUnlocked={checkVault} />
+                  {/* D2: a locked user can still update — the updater needs zero
+                      trip data, so the panel renders pre-unlock too. */}
+                  <UpdatesPanel />
+                </>
               ) : view.name === "list" ? (
                 <TripListView onOpenTrip={openTrip} reloadKey={reloadKey} />
               ) : (
