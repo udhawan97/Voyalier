@@ -8,39 +8,57 @@ import type {
   WarningCode,
 } from "@voyalier/contracts";
 
-const MONTHS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-];
-
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 /**
- * Format a contract date ("YYYY-MM-DD") as "Nov 3, 2026" WITHOUT constructing a
- * Date — contract datetimes are local wall-clock strings with no offset, so any
- * timezone conversion would shift them. Unparseable input is returned verbatim.
+ * The active display locale. In a browser this is the user's language; elsewhere
+ * (Node, tests) it falls back to `en-US` for deterministic output. Resolved once
+ * at load; a future settings surface can supply an override.
  */
-export function formatDate(value: string): string {
-  const match = DATE_ONLY.exec(value);
-  if (!match) return value;
-  const [, year, month, day] = match;
-  const monthName = MONTHS[Number(month) - 1] ?? month;
-  return `${monthName} ${Number(day)}, ${year}`;
+export const APP_LOCALE: string =
+  (typeof navigator !== "undefined" && navigator.language) || "en-US";
+
+const dateFormatters = new Map<string, Intl.DateTimeFormat>();
+
+function dateFormatterFor(locale: string): Intl.DateTimeFormat {
+  let formatter = dateFormatters.get(locale);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      // Contract dates are wall-clock strings with no offset. Anchor to UTC so
+      // month/number names localize without any timezone shifting the day.
+      timeZone: "UTC",
+    });
+    dateFormatters.set(locale, formatter);
+  }
+  return formatter;
 }
 
 /**
- * Format a local datetime ("2026-11-03T11:20") as "Nov 3, 2026 · 11:20",
- * verbatim — never through Date/timezone conversion.
+ * Format a contract date ("YYYY-MM-DD") for a specific locale — e.g. "Nov 3,
+ * 2026" (en-US) or "3 nov. 2026" (fr-FR). Anchored to UTC so the calendar day is
+ * never shifted. Unparseable input is returned verbatim.
+ */
+export function formatDateIn(value: string, locale: string): string {
+  const match = DATE_ONLY.exec(value);
+  if (!match) return value;
+  const [, year, month, day] = match;
+  return dateFormatterFor(locale).format(
+    new Date(Date.UTC(Number(year), Number(month) - 1, Number(day))),
+  );
+}
+
+/** Format a contract date for the active locale ([[formatDateIn]]). */
+export function formatDate(value: string): string {
+  return formatDateIn(value, APP_LOCALE);
+}
+
+/**
+ * Format a local datetime ("2026-11-03T11:20") as "Nov 3, 2026 · 11:20". The
+ * date localizes; the wall-clock time is kept verbatim (never through Date, so
+ * no timezone conversion).
  */
 export function formatDateTimeLocal(value: string): string {
   const [datePart, timePart] = value.split("T");
