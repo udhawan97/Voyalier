@@ -18,6 +18,22 @@ export interface TripDetail {
   trip: Trip;
   confirmedFacts: ConfirmedFact[];
   pendingCandidateCount: number;
+  /** Deterministic advisory checks over the confirmed itinerary. Empty when coherent. */
+  itineraryConflicts: ItineraryConflict[];
+}
+export type ItineraryConflictKind =
+  "flight_overlap" | "lodging_overlap" | "lodging_gap";
+export type ConflictSeverity = "notice" | "warning";
+export interface ItineraryConflict {
+  kind: ItineraryConflictKind;
+  severity: ConflictSeverity;
+  message: string;
+  /** Confirmed-fact ids involved (sorted); empty for window-level findings like gaps. */
+  factIds: string[];
+  /** First affected night (ISO YYYY-MM-DD) for date-range findings. */
+  startDate?: string;
+  /** Last affected night inclusive (ISO YYYY-MM-DD) for date-range findings. */
+  endDate?: string;
 }
 export type FactType = "flight_segment" | "lodging_stay";
 export interface FlightSegmentPayload {

@@ -66,6 +66,48 @@ pub struct TripDetail {
     pub trip: Trip,
     pub confirmed_facts: Vec<ConfirmedFact>,
     pub pending_candidate_count: u32,
+    /// Deterministic, advisory cross-segment checks over the confirmed facts.
+    /// Always present; empty when the itinerary is coherent. Never blocks confirmation.
+    pub itinerary_conflicts: Vec<ItineraryConflict>,
+}
+
+/// The kind of cross-segment issue found in a trip's confirmed itinerary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ItineraryConflictKind {
+    /// Two flight segments occupy overlapping time — physically impossible.
+    FlightOverlap,
+    /// Two lodging stays cover the same night — likely a double booking.
+    LodgingOverlap,
+    /// One or more nights inside the trip window have no lodging booked.
+    LodgingGap,
+}
+
+/// How strongly a conflict should be surfaced. Advisory only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConflictSeverity {
+    /// Worth knowing; not necessarily wrong (e.g. an overnight-flight night with no room).
+    Notice,
+    /// Almost certainly a mistake to resolve (e.g. two flights at once).
+    Warning,
+}
+
+/// A single deterministic finding about the confirmed itinerary.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ItineraryConflict {
+    pub kind: ItineraryConflictKind,
+    pub severity: ConflictSeverity,
+    pub message: String,
+    /// Confirmed-fact ids involved (sorted). Empty for window-level findings like gaps.
+    pub fact_ids: Vec<String>,
+    /// For date-range findings (gaps): first affected night, ISO `YYYY-MM-DD`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_date: Option<String>,
+    /// For date-range findings (gaps): last affected night inclusive, ISO `YYYY-MM-DD`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_date: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

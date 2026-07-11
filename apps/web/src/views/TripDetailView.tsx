@@ -1,5 +1,10 @@
 import { useState } from "react";
-import type { AppError, CandidateFact, ConfirmedFact } from "@voyalier/contracts";
+import type {
+  AppError,
+  CandidateFact,
+  ConfirmedFact,
+  ItineraryConflict,
+} from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import {
@@ -17,9 +22,11 @@ import { useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 import {
+  AlertIcon,
   ArchiveIcon,
   ArrowLeftIcon,
   BedIcon,
+  CheckIcon,
   ChevronRightIcon,
   PlaneIcon,
   PlusIcon,
@@ -141,6 +148,54 @@ function FactGroup({
   );
 }
 
+/**
+ * Deterministic, advisory schedule review over the confirmed itinerary.
+ * Severity is always carried by the text badge, never by color/icon alone.
+ */
+function ScheduleCheck({ conflicts }: { conflicts: ItineraryConflict[] }) {
+  if (conflicts.length === 0) {
+    return (
+      <section className="voy-schedule" aria-labelledby="schedule-title">
+        <h2 id="schedule-title" className="voy-schedule__title">
+          Schedule check
+        </h2>
+        <p className="voy-schedule__clear">
+          <span className="voy-schedule__clear-icon" aria-hidden="true">
+            <CheckIcon />
+          </span>
+          No schedule conflicts found in your confirmed plans.
+        </p>
+      </section>
+    );
+  }
+  return (
+    <section className="voy-schedule" aria-labelledby="schedule-title">
+      <h2 className="voy-schedule__title">
+        <span id="schedule-title">Schedule check</span>
+        <span className="voy-schedule__count">{conflicts.length}</span>
+      </h2>
+      <ul className="voy-schedule__list">
+        {conflicts.map((conflict) => (
+          <li
+            key={`${conflict.kind}:${conflict.factIds.join(",")}:${conflict.startDate ?? ""}`}
+            className={`voy-schedule__item voy-schedule__item--${conflict.severity}`}
+          >
+            <span className="voy-schedule__icon" aria-hidden="true">
+              <AlertIcon />
+            </span>
+            <span className="voy-schedule__text">
+              <span className="voy-schedule__badge">
+                {conflict.severity === "warning" ? "Conflict" : "Notice"}
+              </span>
+              {conflict.message}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function TripDetailView({
   tripId,
   onBack,
@@ -190,7 +245,9 @@ export function TripDetailView({
     setUnconfirmingId(fact.id);
     try {
       await gateway.unconfirmFact(fact.id);
-      announce(`${factTitle(fact.factType, fact.payload)} moved back to review.`);
+      announce(
+        `${factTitle(fact.factType, fact.payload)} moved back to review.`,
+      );
       reload();
     } catch (caught) {
       announce(describeError(caught as AppError).title);
@@ -254,7 +311,7 @@ export function TripDetailView({
 
   if (!data) return null;
 
-  const { trip, confirmedFacts } = data.detail;
+  const { trip, confirmedFacts, itineraryConflicts } = data.detail;
   const pending = data.pending;
   const pendingCount = data.detail.pendingCandidateCount;
   const flights = confirmedFacts
@@ -271,7 +328,9 @@ export function TripDetailView({
 
       <header className="voy-detail__head">
         <div className="voy-detail__headmain">
-          <p className="voy-eyebrow">{tripRoute(trip.origin, trip.destination)}</p>
+          <p className="voy-eyebrow">
+            {tripRoute(trip.origin, trip.destination)}
+          </p>
           <h1 id="detail-heading">{trip.title}</h1>
           <p className="voy-detail__dates">
             {formatDateRange(trip.startDate, trip.endDate)}
@@ -321,7 +380,9 @@ export function TripDetailView({
             <strong>
               Review {pendingCount} {pluralize(pendingCount, "suggestion")}
             </strong>
-            <span>Confirm or dismiss what Voyalier found in your documents.</span>
+            <span>
+              Confirm or dismiss what Voyalier found in your documents.
+            </span>
           </span>
           <ChevronRightIcon aria-hidden="true" />
         </button>
@@ -345,7 +406,10 @@ export function TripDetailView({
                 >
                   Import a document
                 </Button>
-                <Button variant="secondary" onClick={() => setShowAddFact(true)}>
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowAddFact(true)}
+                >
                   Add a fact
                 </Button>
               </div>
@@ -373,6 +437,10 @@ export function TripDetailView({
           </>
         )}
       </div>
+
+      {confirmedFacts.length > 0 ? (
+        <ScheduleCheck conflicts={itineraryConflicts} />
+      ) : null}
 
       <p className="voy-detail__later" aria-hidden="true">
         Readiness arrives in a later milestone.

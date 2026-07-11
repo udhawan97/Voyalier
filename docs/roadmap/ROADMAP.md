@@ -11,12 +11,17 @@
 
 ## Phase 1 — first vertical slice
 
-- Create and persist a trip.
-- Deterministic Blueprint and readiness rules.
-- Manually add one reservation.
-- Import and review one confirmation.
-- Basic itinerary conflict validation.
-- Redacted traveler PDF.
+- ✓ Create and persist a trip.
+- ✓ Deterministic Blueprint (confirmed flights and stays in itinerary order).
+- ✓ Manually add one reservation.
+- ✓ Import and review one confirmation.
+- ✓ Basic itinerary conflict validation — deterministic cross-segment checks
+  (flight overlaps, lodging overlaps, uncovered-night gaps) surfaced as advisory
+  findings on `TripDetail.itineraryConflicts`; never blocks confirmation.
+- Deterministic readiness rules — remaining. A completeness-based readiness
+  rollup (missing outbound/return, unresolved candidates) can ship here; sourced
+  readiness (advisories, entry rules) belongs to Phase 2.
+- Redacted traveler PDF — remaining (Typst; see Phase 0 prototype gate).
 
 ## Phase 2 — grounded intelligence
 

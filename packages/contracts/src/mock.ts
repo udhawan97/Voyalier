@@ -9,9 +9,12 @@ import type {
   CreateTripInput,
   ErrorCode,
   FactPayload,
+  FlightSegmentPayload,
   HealthResponse,
   ImportDocumentInput,
   ImportResult,
+  ItineraryConflict,
+  LodgingStayPayload,
   SourceDocument,
   Trip,
   TripDetail,
@@ -233,6 +236,153 @@ function validateDates(startDate: string, endDate: string): void {
   }
 }
 
+function normalizeDateTime(value: string): string | null {
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(trimmed)) return `${trimmed}:00`;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(trimmed)) return trimmed;
+  return null;
+}
+
+function nextDay(date: string): string {
+  const parsed = new Date(`${date}T00:00:00Z`);
+  parsed.setUTCDate(parsed.getUTCDate() + 1);
+  return parsed.toISOString().slice(0, 10);
+}
+
+function flightLabel(payload: FlightSegmentPayload): string {
+  if (payload.flightNumber?.trim())
+    return `Flight ${payload.flightNumber.trim()}`;
+  const from = payload.departureAirportIata?.trim();
+  const to = payload.arrivalAirportIata?.trim();
+  if (from && to) return `Flight ${from}→${to}`;
+  return "A flight";
+}
+
+function lodgingLabel(payload: LodgingStayPayload): string {
+  return payload.propertyName?.trim() || "A lodging stay";
+}
+
+function collapseRuns(dates: string[]): Array<[string, string]> {
+  const runs: Array<[string, string]> = [];
+  for (const date of dates) {
+    const last = runs[runs.length - 1];
+    if (last && nextDay(last[1]) === date) {
+      last[1] = date;
+    } else {
+      runs.push([date, date]);
+    }
+  }
+  return runs;
+}
+
+/**
+ * Deterministic mirror of voyalier-core's itinerary checks. Kept behaviorally
+ * aligned with the Rust rule so UI development and tests see the same shape the
+ * live gateway returns.
+ */
+function detectItineraryConflicts(
+  trip: Trip,
+  facts: ConfirmedFact[],
+): ItineraryConflict[] {
+  const conflicts: ItineraryConflict[] = [];
+
+  const flights = facts
+    .filter((fact) => fact.factType === "flight_segment")
+    .map((fact) => {
+      const payload = fact.payload as FlightSegmentPayload;
+      const departure = payload.departureLocal
+        ? normalizeDateTime(payload.departureLocal)
+        : null;
+      const arrival = payload.arrivalLocal
+        ? normalizeDateTime(payload.arrivalLocal)
+        : null;
+      return departure && arrival && arrival >= departure
+        ? { fact, departure, arrival, payload }
+        : null;
+    })
+    .filter((entry) => entry !== null);
+  for (let left = 0; left < flights.length; left += 1) {
+    for (let right = left + 1; right < flights.length; right += 1) {
+      const a = flights[left];
+      const b = flights[right];
+      if (a.departure < b.arrival && b.departure < a.arrival) {
+        conflicts.push({
+          kind: "flight_overlap",
+          severity: "warning",
+          message: `${flightLabel(a.payload)} and ${flightLabel(b.payload)} overlap in time — a traveler can only be on one flight at once.`,
+          factIds: [a.fact.id, b.fact.id].sort(),
+        });
+      }
+    }
+  }
+
+  const stays = facts
+    .filter((fact) => fact.factType === "lodging_stay")
+    .map((fact) => {
+      const payload = fact.payload as LodgingStayPayload;
+      const checkin =
+        payload.checkinDate && isValidDate(payload.checkinDate)
+          ? payload.checkinDate
+          : null;
+      const checkout =
+        payload.checkoutDate && isValidDate(payload.checkoutDate)
+          ? payload.checkoutDate
+          : null;
+      return checkin && checkout && checkout > checkin
+        ? { fact, checkin, checkout, payload }
+        : null;
+    })
+    .filter((entry) => entry !== null);
+  for (let left = 0; left < stays.length; left += 1) {
+    for (let right = left + 1; right < stays.length; right += 1) {
+      const a = stays[left];
+      const b = stays[right];
+      if (a.checkin < b.checkout && b.checkin < a.checkout) {
+        conflicts.push({
+          kind: "lodging_overlap",
+          severity: "warning",
+          message: `${lodgingLabel(a.payload)} and ${lodgingLabel(b.payload)} overlap — two stays cover the same night.`,
+          factIds: [a.fact.id, b.fact.id].sort(),
+        });
+      }
+    }
+  }
+
+  if (
+    stays.length > 0 &&
+    isValidDate(trip.startDate) &&
+    isValidDate(trip.endDate) &&
+    trip.startDate < trip.endDate
+  ) {
+    const uncovered: string[] = [];
+    let night = trip.startDate;
+    let walked = 0;
+    while (night < trip.endDate && walked < 3660) {
+      const covered = stays.some(
+        (stay) => stay.checkin <= night && night < stay.checkout,
+      );
+      if (!covered) uncovered.push(night);
+      night = nextDay(night);
+      walked += 1;
+    }
+    for (const [first, last] of collapseRuns(uncovered)) {
+      conflicts.push({
+        kind: "lodging_gap",
+        severity: "notice",
+        message:
+          first === last
+            ? `No lodging is booked for the night of ${first}.`
+            : `No lodging is booked for the nights of ${first} through ${last}.`,
+        factIds: [],
+        startDate: first,
+        endDate: last,
+      });
+    }
+  }
+
+  return conflicts;
+}
+
 function changedFields(original: FactPayload, edited: FactPayload): string[] {
   const keys = new Set([...Object.keys(original), ...Object.keys(edited)]);
   return [...keys]
@@ -377,15 +527,17 @@ export function createMockGateway(options?: {
     getTrip: (tripId: string) =>
       execute("getTrip", () => {
         const trip = requireTrip(tripId);
+        const confirmedFacts = [...facts.values()]
+          .filter((fact) => fact.tripId === tripId)
+          .map(clone);
         return {
           trip: clone(trip),
-          confirmedFacts: [...facts.values()]
-            .filter((fact) => fact.tripId === tripId)
-            .map(clone),
+          confirmedFacts,
           pendingCandidateCount: [...candidates.values()].filter(
             (candidate) =>
               candidate.tripId === tripId && candidate.status === "pending",
           ).length,
+          itineraryConflicts: detectItineraryConflicts(trip, confirmedFacts),
         } satisfies TripDetail;
       }),
 

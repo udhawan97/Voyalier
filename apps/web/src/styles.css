@@ -850,6 +850,110 @@ h3 {
   font-size: 0.82rem;
 }
 
+/* ===== Schedule check =================================================== */
+
+.voy-schedule {
+  margin-top: 2.6rem;
+}
+
+.voy-schedule__title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 1.4rem;
+  font-family: var(--voy-font-display);
+  margin-bottom: 1.1rem;
+}
+
+.voy-schedule__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  background: var(--voy-tint-vermilion);
+  color: var(--voy-vermilion);
+  font-family: var(--voy-font-ui);
+  font-size: 0.8rem;
+  font-weight: 640;
+}
+
+.voy-schedule__clear {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.92rem;
+}
+
+.voy-schedule__clear-icon {
+  display: inline-flex;
+  font-size: 1.1rem;
+  color: var(--voy-success);
+}
+
+.voy-schedule__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.voy-schedule__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-raised);
+}
+
+.voy-schedule__item--warning {
+  border-color: color-mix(in srgb, var(--voy-vermilion) 42%, transparent);
+  background: var(--voy-tint-vermilion);
+}
+
+.voy-schedule__item--notice {
+  border-color: color-mix(in srgb, var(--voy-indigo) 34%, transparent);
+  background: var(--voy-tint-indigo);
+}
+
+.voy-schedule__icon {
+  display: inline-flex;
+  margin-top: 0.1rem;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.voy-schedule__item--warning .voy-schedule__icon {
+  color: var(--voy-vermilion);
+}
+
+.voy-schedule__item--notice .voy-schedule__icon {
+  color: var(--voy-indigo);
+}
+
+.voy-schedule__text {
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.voy-schedule__badge {
+  display: inline-block;
+  margin-right: 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 680;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--voy-ink-muted);
+}
+
 .voy-factgroup {
   margin-bottom: 2.2rem;
 }

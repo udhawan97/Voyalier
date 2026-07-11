@@ -12,8 +12,9 @@ use voyalier_core::{
     ConfirmationParser, ConfirmedFact, CreateTripInput, DocumentKind, ErrorCode, ExtractionMethod,
     HealthResponse, ImportDocumentInput, ImportResult, IntelligenceMode, JsonLdParser,
     NormalizedDocument, ParsedCandidate, PlaintextParser, SourceDocument, Trip, TripDetail,
-    TripStatus, TripSummary, UpdateTripInput, changed_payload_fields, new_id, now_rfc3339,
-    validate_create_trip, validate_document_content, validate_fact_payload, validate_update_trip,
+    TripStatus, TripSummary, UpdateTripInput, changed_payload_fields, detect_itinerary_conflicts,
+    new_id, now_rfc3339, validate_create_trip, validate_document_content, validate_fact_payload,
+    validate_update_trip,
 };
 
 const DATABASE_FILE: &str = "voyalier.sqlite3";
@@ -119,10 +120,12 @@ impl AppService {
                 |row| row.get::<_, i64>(0),
             )
             .map_err(storage_error)?;
+        let itinerary_conflicts = detect_itinerary_conflicts(&trip, &confirmed_facts);
         Ok(TripDetail {
             trip,
             confirmed_facts,
             pending_candidate_count: pending_candidate_count as u32,
+            itinerary_conflicts,
         })
     }
 
@@ -881,6 +884,43 @@ mod tests {
             service.get_trip(&trip.id).expect_err("gone").code,
             ErrorCode::TripNotFound
         );
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn get_trip_reports_overlapping_flight_conflict() {
+        use voyalier_core::{ConflictSeverity, ItineraryConflictKind};
+
+        let database = temp_database("conflicts");
+        let service = AppService::open_path(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        for (departure, arrival) in [
+            ("2027-04-02T09:00", "2027-04-02T13:00"),
+            ("2027-04-02T12:00", "2027-04-02T16:00"),
+        ] {
+            service
+                .add_manual_fact(AddManualFactInput {
+                    trip_id: trip.id.clone(),
+                    fact_type: FactType::FlightSegment,
+                    payload: FactPayload {
+                        departure_airport_iata: Some("SFO".to_owned()),
+                        arrival_airport_iata: Some("NRT".to_owned()),
+                        departure_local: Some(departure.to_owned()),
+                        arrival_local: Some(arrival.to_owned()),
+                        ..FactPayload::default()
+                    },
+                })
+                .expect("manual flight");
+        }
+
+        let detail = service.get_trip(&trip.id).expect("detail");
+        let overlap = detail
+            .itinerary_conflicts
+            .iter()
+            .find(|conflict| conflict.kind == ItineraryConflictKind::FlightOverlap)
+            .expect("flight overlap surfaced through get_trip");
+        assert_eq!(overlap.severity, ConflictSeverity::Warning);
+        assert_eq!(overlap.fact_ids.len(), 2);
         cleanup_database(database);
     }
 

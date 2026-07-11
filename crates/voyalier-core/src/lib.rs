@@ -3,9 +3,11 @@
 //! This crate deliberately has no dependency on the web, desktop, or storage
 //! shells. It treats documents as untrusted data and never performs IO.
 
+mod itinerary;
 mod parser;
 mod types;
 
+pub use itinerary::detect_itinerary_conflicts;
 pub use parser::{
     ConfirmationParser, JsonLdParser, NormalizedDocument, ParsedCandidate, ParserDiagnostic,
     ParserOutcome, PlaintextParser,
