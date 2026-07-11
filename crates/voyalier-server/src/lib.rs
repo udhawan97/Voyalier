@@ -40,6 +40,16 @@ struct FetchAdviceBody {
     country_slug: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct SetProviderKeyBody {
+    key: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct SetProviderModelBody {
+    model: String,
+}
+
 #[derive(Debug)]
 struct ApiError(AppError);
 
@@ -75,6 +85,15 @@ pub fn app(service: AppService) -> Router {
         .route("/api/v1/trips/{trip_id}/archive", post(archive_trip))
         .route("/api/v1/advice/countries", get(list_advice_countries))
         .route("/api/v1/local-ai", get(detect_local_ai))
+        .route("/api/v1/providers", get(list_providers))
+        .route(
+            "/api/v1/providers/{provider}/key",
+            post(set_provider_key).delete(clear_provider_key),
+        )
+        .route(
+            "/api/v1/providers/{provider}/model",
+            post(set_provider_model),
+        )
         .route("/api/v1/trips/{trip_id}/brief", get(get_trip_brief))
         .route(
             "/api/v1/trips/{trip_id}/travel-advice",
@@ -160,6 +179,33 @@ async fn list_advice_countries(
 
 async fn detect_local_ai(State(service): State<AppService>) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(service.detect_local_ai()))
+}
+
+async fn list_providers(State(service): State<AppService>) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.list_providers()?))
+}
+
+async fn set_provider_key(
+    State(service): State<AppService>,
+    Path(provider): Path<String>,
+    Json(body): Json<SetProviderKeyBody>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.set_provider_key(&provider, &body.key)?))
+}
+
+async fn clear_provider_key(
+    State(service): State<AppService>,
+    Path(provider): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.clear_provider_key(&provider)?))
+}
+
+async fn set_provider_model(
+    State(service): State<AppService>,
+    Path(provider): Path<String>,
+    Json(body): Json<SetProviderModelBody>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.set_provider_model(&provider, &body.model)?))
 }
 
 async fn fetch_travel_advice(
@@ -706,6 +752,62 @@ mod tests {
         )
         .await;
         assert_eq!(detail.json["weather"]["placeName"], "Kyoto");
+        cleanup_database(database);
+    }
+
+    #[tokio::test]
+    async fn provider_endpoints_manage_keys_without_touching_the_keychain() {
+        use std::sync::Arc;
+        use voyalier_app::MemorySecretStore;
+
+        struct NoFetcher;
+        impl voyalier_app::AdviceFetcher for NoFetcher {
+            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+                Ok(String::new())
+            }
+        }
+
+        let database = temp_database("providers");
+        let service = AppService::open_path_with_deps(
+            &database,
+            Arc::new(NoFetcher),
+            Arc::new(MemorySecretStore::default()),
+        )
+        .expect("service");
+        let router = app(service);
+
+        let list = request(router.clone(), Method::GET, "/api/v1/providers", None).await;
+        assert_eq!(list.status, StatusCode::OK);
+        assert_eq!(list.json.as_array().expect("providers").len(), 3);
+
+        let set = request(
+            router.clone(),
+            Method::POST,
+            "/api/v1/providers/openai/key",
+            Some(json!({ "key": "sk-fake-server" })),
+        )
+        .await;
+        assert_eq!(set.status, StatusCode::OK);
+        assert_eq!(set.json["hasKey"], true);
+        // The key must never echo back.
+        assert!(
+            !serde_json::to_string(&set.json)
+                .unwrap()
+                .contains("sk-fake-server")
+        );
+
+        let bad = request(
+            router.clone(),
+            Method::POST,
+            "/api/v1/providers/ollama/key",
+            Some(json!({ "key": "x" })),
+        )
+        .await;
+        assert_eq!(bad.status, StatusCode::BAD_REQUEST);
+
+        let cleared = request(router, Method::DELETE, "/api/v1/providers/openai/key", None).await;
+        assert_eq!(cleared.status, StatusCode::OK);
+        assert_eq!(cleared.json["hasKey"], false);
         cleanup_database(database);
     }
 

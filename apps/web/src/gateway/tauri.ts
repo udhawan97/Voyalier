@@ -12,7 +12,11 @@ import type {
   ImportDocumentInput,
   ImportResult,
   LocalAiStatus,
+  ProviderConfig,
+  ProviderId,
   SearchHit,
+  SetProviderKeyInput,
+  SetProviderModelInput,
   TravelAdviceSnapshot,
   Trip,
   TripBrief,
@@ -80,6 +84,17 @@ export function createTauriGateway(
       call<TripBrief>("get_trip_brief", { tripId }),
 
     detectLocalAi: () => call<LocalAiStatus>("detect_local_ai", {}),
+
+    listProviders: () => call<ProviderConfig[]>("list_providers", {}),
+
+    setProviderKey: (input: SetProviderKeyInput) =>
+      call<ProviderConfig>("set_provider_key", input),
+
+    clearProviderKey: (provider: ProviderId) =>
+      call<ProviderConfig>("clear_provider_key", { provider }),
+
+    setProviderModel: (input: SetProviderModelInput) =>
+      call<ProviderConfig>("set_provider_model", input),
 
     listAdviceCountries: () => call<FcdoCountry[]>("list_advice_countries", {}),
 

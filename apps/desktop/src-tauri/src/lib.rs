@@ -4,8 +4,8 @@ use voyalier_app::AppService;
 use voyalier_core::{
     AddManualFactInput, AppError, CandidateFact, CandidateStatus, ConfirmCandidateInput,
     ConfirmedFact, CreateTripInput, FcdoCountry, HealthResponse, ImportDocumentInput, ImportResult,
-    LocalAiStatus, SearchHit, TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripSummary,
-    UpdateTripInput, WeatherSnapshot,
+    LocalAiStatus, ProviderConfig, SearchHit, TravelAdviceSnapshot, Trip, TripBrief, TripDetail,
+    TripSummary, UpdateTripInput, WeatherSnapshot,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -137,6 +137,59 @@ fn detect_local_ai(
     Ok(service.detect_local_ai())
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SetProviderKeyInput {
+    provider: String,
+    key: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SetProviderModelInput {
+    provider: String,
+    model: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProviderInput {
+    provider: String,
+}
+
+#[tauri::command]
+fn list_providers(
+    input: EmptyInput,
+    service: State<'_, AppService>,
+) -> Result<Vec<ProviderConfig>, AppError> {
+    let _ = input;
+    service.list_providers()
+}
+
+#[tauri::command]
+fn set_provider_key(
+    input: SetProviderKeyInput,
+    service: State<'_, AppService>,
+) -> Result<ProviderConfig, AppError> {
+    service.set_provider_key(&input.provider, &input.key)
+}
+
+#[tauri::command]
+fn clear_provider_key(
+    input: ProviderInput,
+    service: State<'_, AppService>,
+) -> Result<ProviderConfig, AppError> {
+    service.clear_provider_key(&input.provider)
+}
+
+#[tauri::command]
+fn set_provider_model(
+    input: SetProviderModelInput,
+    service: State<'_, AppService>,
+) -> Result<ProviderConfig, AppError> {
+    service.set_provider_model(&input.provider, &input.model)
+}
+
 #[tauri::command]
 fn fetch_travel_advice(
     input: FetchAdviceInput,
@@ -224,6 +277,10 @@ fn builder<R: tauri::Runtime>(
             search_trip,
             list_advice_countries,
             detect_local_ai,
+            list_providers,
+            set_provider_key,
+            clear_provider_key,
+            set_provider_model,
             fetch_travel_advice,
             fetch_weather,
             delete_trip,
@@ -425,6 +482,10 @@ mod tests {
             "search_trip",
             "list_advice_countries",
             "detect_local_ai",
+            "list_providers",
+            "set_provider_key",
+            "clear_provider_key",
+            "set_provider_model",
             "fetch_travel_advice",
             "fetch_weather",
             "delete_trip",

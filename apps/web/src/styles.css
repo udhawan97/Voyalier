@@ -1248,6 +1248,117 @@ h3 {
   }
 }
 
+/* ===== AI providers (BYOK) ============================================= */
+
+.voy-providers {
+  margin-top: 2.6rem;
+  padding-top: 1.8rem;
+  border-top: 1px solid var(--voy-line);
+}
+
+.voy-providers__title {
+  font-size: 1.4rem;
+  font-family: var(--voy-font-display);
+  margin-bottom: 0.8rem;
+}
+
+.voy-providers__intro {
+  margin: 0 0 1rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  max-width: 42rem;
+}
+
+.voy-providers__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.voy-providers__row {
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-raised);
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.voy-providers__row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.voy-providers__name {
+  font-weight: 620;
+}
+
+.voy-providers__status {
+  font-size: 0.78rem;
+  font-weight: 640;
+  padding: 0.18rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--voy-line-strong);
+  color: var(--voy-ink-muted);
+}
+
+.voy-providers__status--on {
+  border-color: color-mix(in srgb, var(--voy-moss) 40%, transparent);
+  background: var(--voy-tint-moss);
+  color: var(--voy-success);
+}
+
+.voy-providers__keyrow,
+.voy-providers__modelrow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.voy-providers__input {
+  flex: 1;
+  min-width: 12rem;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-sm);
+  background: var(--voy-paper);
+  color: var(--voy-ink);
+  font: inherit;
+}
+
+.voy-providers__input:focus-visible {
+  outline: 2px solid var(--voy-focus);
+  outline-offset: 1px;
+}
+
+.voy-providers__stored,
+.voy-providers__note {
+  margin: 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.9rem;
+}
+
+.voy-providers__error {
+  margin: 0;
+  color: var(--voy-danger);
+  font-size: 0.88rem;
+}
+
+.voy-providers__scope {
+  margin: 1.1rem 0 0;
+  color: var(--voy-silver);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
 /* ===== On-device AI ==================================================== */
 
 .voy-localai {

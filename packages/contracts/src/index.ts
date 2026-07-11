@@ -193,6 +193,27 @@ export interface WeatherSnapshot {
   /** When this device retrieved the snapshot (RFC 3339). */
   retrievedAt: string;
 }
+export type ProviderId = "openai" | "anthropic" | "ollama";
+/**
+ * A provider's configuration. Never carries the API key — `hasKey` reports only
+ * whether one is stored in the OS keychain. Keys are write-only via
+ * `setProviderKey` and never returned.
+ */
+export interface ProviderConfig {
+  id: ProviderId;
+  label: string;
+  keyRequired: boolean;
+  hasKey: boolean;
+  model?: string;
+}
+export interface SetProviderKeyInput {
+  provider: ProviderId;
+  key: string;
+}
+export interface SetProviderModelInput {
+  provider: ProviderId;
+  model: string;
+}
 /** One locally-installed on-device model reported by the runtime. */
 export interface LocalAiModel {
   name: string;
@@ -298,6 +319,10 @@ export interface AppGateway {
   archiveTrip(tripId: string): Promise<Trip>;
   getTripBrief(tripId: string): Promise<TripBrief>;
   detectLocalAi(): Promise<LocalAiStatus>;
+  listProviders(): Promise<ProviderConfig[]>;
+  setProviderKey(input: SetProviderKeyInput): Promise<ProviderConfig>;
+  clearProviderKey(provider: ProviderId): Promise<ProviderConfig>;
+  setProviderModel(input: SetProviderModelInput): Promise<ProviderConfig>;
   listAdviceCountries(): Promise<FcdoCountry[]>;
   fetchTravelAdvice(
     input: FetchTravelAdviceInput,

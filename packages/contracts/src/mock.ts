@@ -18,6 +18,10 @@ import type {
   ItineraryConflict,
   LocalAiStatus,
   LodgingStayPayload,
+  ProviderConfig,
+  ProviderId,
+  SetProviderKeyInput,
+  SetProviderModelInput,
   ReadinessCheck,
   ReadinessItem,
   ReadinessStatus,
@@ -541,6 +545,16 @@ function assessReadiness(
   return { status, items: [...logistics, entryRequirements] };
 }
 
+const MOCK_PROVIDERS: ReadonlyArray<{
+  id: ProviderId;
+  label: string;
+  keyRequired: boolean;
+}> = [
+  { id: "openai", label: "OpenAI", keyRequired: true },
+  { id: "anthropic", label: "Anthropic", keyRequired: true },
+  { id: "ollama", label: "Ollama (on-device)", keyRequired: false },
+];
+
 const MOCK_ADVICE_COUNTRIES: FcdoCountry[] = [
   { slug: "france", name: "France" },
   { slug: "japan", name: "Japan" },
@@ -663,7 +677,24 @@ export function createMockGateway(options?: {
   const documents = new Map<string, StoredDocument>();
   const adviceSnapshots = new Map<string, TravelAdviceSnapshot>();
   const weatherSnapshots = new Map<string, WeatherSnapshot>();
+  // Provider config: which providers have a key stored, and their chosen model.
+  // The mock never retains the key value itself, mirroring the real gateway.
+  const providerKeys = new Set<ProviderId>();
+  const providerModels = new Map<ProviderId, string>();
   let sequence = 1;
+
+  function providerConfig(id: ProviderId): ProviderConfig {
+    const info = MOCK_PROVIDERS.find((entry) => entry.id === id);
+    if (!info) throw appError("validation/invalid_input", "unknown provider");
+    const config: ProviderConfig = {
+      id,
+      label: info.label,
+      keyRequired: info.keyRequired,
+      hasKey: info.keyRequired && providerKeys.has(id),
+    };
+    const model = providerModels.get(id);
+    return model ? { ...config, model } : config;
+  }
 
   function timestamp(): string {
     const value = new Date(Date.parse(FIXTURE_TIME) + sequence * 1_000);
@@ -937,6 +968,57 @@ export function createMockGateway(options?: {
             models: [{ name: "llama3.2:latest" }, { name: "qwen2.5:7b" }],
           }) satisfies LocalAiStatus,
       ),
+
+    listProviders: () =>
+      execute("listProviders", () =>
+        MOCK_PROVIDERS.map((entry) => providerConfig(entry.id)),
+      ),
+
+    setProviderKey: (input: SetProviderKeyInput) =>
+      execute("setProviderKey", () => {
+        const info = MOCK_PROVIDERS.find(
+          (entry) => entry.id === input.provider,
+        );
+        if (!info)
+          throw appError("validation/invalid_input", "unknown provider");
+        if (!info.keyRequired) {
+          throw appError(
+            "validation/invalid_input",
+            "this provider runs locally and does not use an API key",
+            { field: "provider" },
+          );
+        }
+        if (input.key.trim().length === 0) {
+          throw appError("validation/invalid_input", "API key is required", {
+            field: "key",
+          });
+        }
+        providerKeys.add(input.provider);
+        return providerConfig(input.provider);
+      }),
+
+    clearProviderKey: (provider: ProviderId) =>
+      execute("clearProviderKey", () => {
+        if (!MOCK_PROVIDERS.some((entry) => entry.id === provider)) {
+          throw appError("validation/invalid_input", "unknown provider");
+        }
+        providerKeys.delete(provider);
+        return providerConfig(provider);
+      }),
+
+    setProviderModel: (input: SetProviderModelInput) =>
+      execute("setProviderModel", () => {
+        if (!MOCK_PROVIDERS.some((entry) => entry.id === input.provider)) {
+          throw appError("validation/invalid_input", "unknown provider");
+        }
+        if (input.model.trim().length === 0) {
+          throw appError("validation/invalid_input", "model is required", {
+            field: "model",
+          });
+        }
+        providerModels.set(input.provider, input.model.trim());
+        return providerConfig(input.provider);
+      }),
 
     listAdviceCountries: () =>
       execute("listAdviceCountries", () => MOCK_ADVICE_COUNTRIES.map(clone)),

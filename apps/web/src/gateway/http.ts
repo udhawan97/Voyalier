@@ -12,7 +12,11 @@ import type {
   ImportDocumentInput,
   ImportResult,
   LocalAiStatus,
+  ProviderConfig,
+  ProviderId,
   SearchHit,
+  SetProviderKeyInput,
+  SetProviderModelInput,
   TravelAdviceSnapshot,
   Trip,
   TripBrief,
@@ -101,6 +105,28 @@ export function createHttpGateway(
       request<TripBrief>("GET", `/api/v1/trips/${enc(tripId)}/brief`),
 
     detectLocalAi: () => request<LocalAiStatus>("GET", "/api/v1/local-ai"),
+
+    listProviders: () => request<ProviderConfig[]>("GET", "/api/v1/providers"),
+
+    setProviderKey: (input: SetProviderKeyInput) =>
+      request<ProviderConfig>(
+        "POST",
+        `/api/v1/providers/${enc(input.provider)}/key`,
+        { key: input.key },
+      ),
+
+    clearProviderKey: (provider: ProviderId) =>
+      request<ProviderConfig>(
+        "DELETE",
+        `/api/v1/providers/${enc(provider)}/key`,
+      ),
+
+    setProviderModel: (input: SetProviderModelInput) =>
+      request<ProviderConfig>(
+        "POST",
+        `/api/v1/providers/${enc(input.provider)}/model`,
+        { model: input.model },
+      ),
 
     listAdviceCountries: () =>
       request<FcdoCountry[]>("GET", "/api/v1/advice/countries"),
