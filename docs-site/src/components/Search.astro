@@ -1,0 +1,642 @@
+---
+/**
+ * Starlight `Search` override: the default always-open search bar becomes a
+ * quiet circular magnifier that springs open into an inline pill, with live
+ * Pagefind results in a floating card beneath it.
+ *
+ * The Pagefind backend is unchanged — `@pagefind/default-ui` renders results
+ * into the panel; its own input stays hidden and is driven from the pill's
+ * input via `triggerSearch()`.
+ */
+import { Icon } from "@astrojs/starlight/components";
+
+const pagefindTranslations = {
+  placeholder: Astro.locals.t("search.label"),
+  ...Object.fromEntries(
+    Object.entries(Astro.locals.t.all())
+      .filter(([key]) => key.startsWith("pagefind."))
+      .map(([key, value]) => [key.replace("pagefind.", ""), value]),
+  ),
+};
+---
+
+<voyalier-search
+  class={Astro.props.class}
+  data-translations={JSON.stringify(pagefindTranslations)}
+>
+  <kbd class="vs-hint sl-hidden md:sl-flex" style="display: none;" aria-hidden="true">
+    <kbd>{Astro.locals.t("search.ctrlKey")}</kbd><kbd>K</kbd>
+  </kbd>
+
+  <button
+    class="vs-trigger"
+    type="button"
+    disabled
+    aria-label={Astro.locals.t("search.label")}
+    aria-expanded="false"
+    aria-controls="voyalier-search-panel"
+    aria-keyshortcuts="Control+K"
+  >
+    <Icon name="magnifier" />
+  </button>
+
+  <div class="vs-pill" role="search">
+    <Icon name="magnifier" class="vs-pill-icon" />
+    <input
+      class="vs-input"
+      type="search"
+      placeholder={Astro.locals.t("search.label")}
+      aria-label={Astro.locals.t("search.label")}
+      autocomplete="off"
+      autocorrect="off"
+      autocapitalize="off"
+      spellcheck="false"
+      enterkeyhint="search"
+    />
+    <button class="vs-close" type="button" aria-label={Astro.locals.t("search.cancelLabel")}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M5 5l14 14M19 5L5 19"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"></path>
+      </svg>
+    </button>
+  </div>
+
+  <div class="vs-panel" id="voyalier-search-panel">
+    {
+      import.meta.env.DEV ? (
+        <p class="vs-devnote" dir="ltr">
+          {Astro.locals.t("search.devWarning")}
+        </p>
+      ) : (
+        <div class="vs-results" id="voyalier-search-results" />
+      )
+    }
+  </div>
+</voyalier-search>
+
+{/* Inlined to avoid briefly flashing the wrong shortcut key. `navigator.platform`
+is used on purpose: user agents are spoofed when devtools emulate devices. */}
+<script is:inline>
+  (() => {
+    const root = document.querySelector("voyalier-search");
+    const shortcut = root?.querySelector(".vs-hint");
+    if (!root || !(shortcut instanceof HTMLElement)) return;
+    const platformKey = shortcut.querySelector("kbd");
+    if (platformKey && /(Mac|iPhone|iPod|iPad)/i.test(navigator.platform)) {
+      platformKey.textContent = "⌘";
+      root.querySelector(".vs-trigger")?.setAttribute("aria-keyshortcuts", "Meta+K");
+    }
+    shortcut.style.display = "";
+  })();
+</script>
+
+<script>
+  import type { PagefindUI as PagefindUIType } from "@pagefind/default-ui";
+
+  class VoyalierSearch extends HTMLElement {
+    #ui: PagefindUIType | null = null;
+    #windowListeners: AbortController | undefined;
+    #trigger: HTMLButtonElement;
+    #input: HTMLInputElement;
+
+    constructor() {
+      super();
+      const trigger = this.querySelector<HTMLButtonElement>(".vs-trigger")!;
+      const input = this.querySelector<HTMLInputElement>(".vs-input")!;
+      const closeBtn = this.querySelector<HTMLButtonElement>(".vs-close")!;
+      this.#trigger = trigger;
+      this.#input = input;
+
+      trigger.addEventListener("click", () => this.#openSearch());
+      closeBtn.addEventListener("click", () => this.#closeSearch(true));
+
+      this.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && this.#isOpen()) {
+          event.preventDefault();
+          event.stopPropagation();
+          this.#closeSearch(true);
+        }
+      });
+
+      // No debounce here — Pagefind UI already debounces (debounceTimeoutMs).
+      input.addEventListener("input", () => {
+        if (input.value.trim()) this.dataset.query = "true";
+        else delete this.dataset.query;
+        this.#search(input.value);
+      });
+
+      // The panel only shows once Pagefind's drawer has something to render,
+      // so an empty card never flashes while the first search is in flight.
+      const results = this.querySelector(".vs-results");
+      if (results) {
+        const observer = new MutationObserver(() => {
+          const drawer = results.querySelector(".pagefind-ui__drawer");
+          const visible = drawer && !drawer.classList.contains("pagefind-ui__hidden");
+          if (visible) this.dataset.results = "true";
+          else delete this.dataset.results;
+        });
+        observer.observe(results, {
+          subtree: true,
+          childList: true,
+          attributes: true,
+          attributeFilter: ["class"],
+        });
+      }
+
+      if (!import.meta.env.DEV) {
+        const init = () => this.#initPagefind();
+        if (document.readyState === "loading") {
+          window.addEventListener("DOMContentLoaded", init, { once: true });
+        } else {
+          init();
+        }
+      }
+
+      trigger.disabled = false;
+    }
+
+    connectedCallback() {
+      this.#windowListeners = new AbortController();
+      const { signal } = this.#windowListeners;
+
+      window.addEventListener(
+        "keydown",
+        (event) => {
+          if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+            event.preventDefault();
+            if (this.#isOpen()) this.#closeSearch(true);
+            else this.#openSearch();
+          }
+        },
+        { signal },
+      );
+
+      // Any click that lands outside the control collapses it (no focus steal).
+      window.addEventListener(
+        "click",
+        (event) => {
+          if (!this.#isOpen()) return;
+          if (!(event.target instanceof Node) || !this.contains(event.target)) {
+            this.#closeSearch(false);
+          }
+        },
+        { signal },
+      );
+    }
+
+    disconnectedCallback() {
+      this.#windowListeners?.abort();
+    }
+
+    #isOpen() {
+      return this.dataset.open === "true";
+    }
+
+    #openSearch() {
+      if (this.#isOpen()) return;
+      this.dataset.open = "true";
+      this.#trigger.setAttribute("aria-expanded", "true");
+      this.#input.focus({ preventScroll: true });
+    }
+
+    #closeSearch(returnFocus: boolean) {
+      if (!this.#isOpen()) return;
+      delete this.dataset.open;
+      delete this.dataset.query;
+      delete this.dataset.results;
+      this.#trigger.setAttribute("aria-expanded", "false");
+      this.#input.value = "";
+      this.#resetPagefind();
+      if (returnFocus) this.#trigger.focus();
+    }
+
+    #search(term: string) {
+      if (!term) {
+        this.#resetPagefind();
+        return;
+      }
+      try {
+        this.#ui?.triggerSearch(term);
+      } catch {
+        // Pagefind not ready yet — the init path re-runs the pending query.
+      }
+    }
+
+    /**
+     * `triggerSearch("")` is a no-op in `@pagefind/default-ui`, which would
+     * leave its internal state on the previous term — repeating that term
+     * later would then cause no DOM change and the results panel would stay
+     * gated off. Clearing through Pagefind's own (hidden) input runs its real
+     * reset path and re-hides the drawer.
+     */
+    #resetPagefind() {
+      const pagefindInput = this.querySelector<HTMLInputElement>(".pagefind-ui__search-input");
+      if (pagefindInput && pagefindInput.value !== "") {
+        pagefindInput.value = "";
+        pagefindInput.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    }
+
+    #initPagefind() {
+      const onIdle = window.requestIdleCallback || ((cb: () => void) => setTimeout(cb, 1));
+      onIdle(async () => {
+        if (this.#ui) return;
+        let translations = {};
+        try {
+          translations = JSON.parse(this.dataset.translations || "{}");
+        } catch {}
+        const { PagefindUI } = await import("@pagefind/default-ui");
+        this.#ui = new PagefindUI({
+          element: "#voyalier-search-results",
+          baseUrl: import.meta.env.BASE_URL,
+          bundlePath: import.meta.env.BASE_URL.replace(/\/$/, "") + "/pagefind/",
+          showImages: false,
+          showSubResults: true,
+          debounceTimeoutMs: 150,
+          translations,
+        });
+        if (this.#input.value) this.#search(this.#input.value);
+      });
+    }
+  }
+
+  if (!customElements.get("voyalier-search")) {
+    customElements.define("voyalier-search", VoyalierSearch);
+  }
+</script>
+
+{/* Global on purpose: Pagefind injects its DOM at runtime, which Astro's scoped
+styles can't reach. Everything is namespaced under `voyalier-search`. */}
+<style is:global>
+  @import url("@pagefind/default-ui/css/ui.css") layer(starlight.core);
+
+  voyalier-search {
+    --vs-size: 2.5rem;
+    --vs-expanded: min(26rem, calc(100vw - 4.5rem));
+    --vs-ease: cubic-bezier(0.16, 0.7, 0.3, 1);
+    --vs-duration: 0.48s;
+    --vs-accent: var(--sl-color-accent);
+    --vs-pill-bg: color-mix(in srgb, var(--sl-color-bg-nav) 94%, transparent);
+    --vs-panel-bg: var(--sl-color-black);
+    --vs-panel-border: var(--sl-color-gray-5);
+
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    height: var(--vs-size);
+    margin-inline-start: auto;
+    z-index: 4;
+  }
+
+  /* Elevation in dark mode lifts toward white — the panel must read as a
+     fully opaque card sitting ABOVE the page, never darker than it. */
+  :root[data-theme="dark"] voyalier-search {
+    --vs-panel-bg: color-mix(in srgb, var(--sl-color-bg-nav) 90%, #fff);
+    --vs-panel-border: color-mix(in srgb, var(--sl-color-bg-nav) 78%, #fff);
+  }
+
+  /* ---- Collapsed trigger ---- */
+
+  voyalier-search .vs-hint {
+    align-items: center;
+    gap: 0.3em;
+    padding: 0.22rem 0.5rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.45rem;
+    background: var(--sl-color-bg-nav);
+    color: var(--sl-color-gray-3);
+    font-family: var(--__sl-font);
+    font-size: var(--sl-text-2xs);
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+  }
+
+  voyalier-search[data-open] .vs-hint {
+    opacity: 0;
+  }
+
+  voyalier-search .vs-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: var(--vs-size);
+    height: var(--vs-size);
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 50%;
+    background: var(--sl-color-bg-nav);
+    color: var(--sl-color-gray-2);
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition:
+      opacity 0.15s ease,
+      color 0.2s ease,
+      border-color 0.2s ease;
+  }
+
+  voyalier-search .vs-trigger:hover {
+    color: var(--sl-color-white);
+    border-color: var(--sl-color-gray-3);
+  }
+
+  voyalier-search .vs-trigger:focus-visible {
+    outline: 2px solid var(--vs-accent);
+    outline-offset: 2px;
+  }
+
+  /* `visibility` is only ever transitioned in the HIDING direction: it stays
+     `visible` for the whole transition and flips at the end, sequencing it
+     after the opacity fade. Showing must flip instantly (no transition), or
+     the synchronous `focus()` right after opening would target an element
+     that still computes as hidden and silently fail. */
+  voyalier-search[data-open] .vs-trigger {
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity 0.12s ease,
+      visibility 0.12s;
+  }
+
+  /* ---- Expanding pill ---- */
+
+  voyalier-search .vs-pill {
+    position: absolute;
+    inset-inline-end: 0;
+    top: 50%;
+    translate: 0 -50%;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    width: var(--vs-size);
+    height: var(--vs-size);
+    padding-inline: 0.55rem 0.3rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 999px;
+    background: var(--vs-pill-bg);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    backdrop-filter: blur(12px) saturate(140%);
+    box-shadow: var(--sl-shadow-sm);
+    overflow: hidden;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    z-index: 2;
+    transition:
+      width var(--vs-duration) var(--vs-ease),
+      opacity 0.16s ease 0.12s,
+      box-shadow 0.2s ease,
+      border-color 0.2s ease,
+      visibility 0.3s;
+  }
+
+  voyalier-search[data-open] .vs-pill {
+    width: var(--vs-expanded);
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    box-shadow: var(--sl-shadow-md);
+    transition:
+      width var(--vs-duration) var(--vs-ease),
+      opacity 0.12s ease,
+      box-shadow 0.2s ease,
+      border-color 0.2s ease;
+  }
+
+  voyalier-search .vs-pill:focus-within {
+    border-color: var(--vs-accent);
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--vs-accent) 22%, transparent),
+      var(--sl-shadow-md);
+  }
+
+  voyalier-search .vs-pill-icon {
+    flex-shrink: 0;
+    font-size: 1.15rem;
+    color: var(--sl-color-gray-3);
+  }
+
+  voyalier-search .vs-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--sl-color-white);
+    font-family: var(--__sl-font);
+    font-size: var(--sl-text-sm);
+  }
+
+  voyalier-search .vs-input::placeholder {
+    color: var(--sl-color-gray-3);
+  }
+
+  voyalier-search .vs-input::-webkit-search-cancel-button,
+  voyalier-search .vs-input::-webkit-search-decoration {
+    -webkit-appearance: none;
+    display: none;
+  }
+
+  voyalier-search .vs-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 1.9rem;
+    height: 1.9rem;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--sl-color-gray-3);
+    cursor: pointer;
+    transition:
+      color 0.15s ease,
+      background 0.15s ease;
+  }
+
+  voyalier-search .vs-close:hover {
+    color: var(--sl-color-white);
+    background: color-mix(in srgb, var(--sl-color-gray-5) 55%, transparent);
+  }
+
+  voyalier-search .vs-close:focus-visible {
+    outline: 2px solid var(--vs-accent);
+    outline-offset: 1px;
+  }
+
+  /* ---- Floating results panel ---- */
+
+  voyalier-search .vs-panel {
+    position: absolute;
+    top: calc(100% + 0.6rem);
+    inset-inline-end: 0;
+    width: min(30rem, 88vw);
+    max-height: min(65vh, 30rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0.6rem;
+    border: 1px solid var(--vs-panel-border);
+    border-radius: 1rem;
+    background: var(--vs-panel-bg);
+    box-shadow:
+      var(--sl-shadow-lg),
+      0 24px 60px -24px rgb(0 0 0 / 0.5);
+    isolation: isolate;
+    z-index: 3;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(-6px);
+    transition:
+      opacity 0.16s ease,
+      transform 0.24s var(--vs-ease),
+      visibility 0.2s;
+  }
+
+  voyalier-search[data-open][data-query][data-results] .vs-panel,
+  voyalier-search[data-open] .vs-panel:has(.vs-devnote) {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+    transition:
+      opacity 0.2s ease,
+      transform 0.3s var(--vs-ease);
+  }
+
+  voyalier-search .vs-devnote {
+    margin: 0;
+    padding: 0.5rem;
+    color: var(--sl-color-gray-3);
+    font-size: var(--sl-text-sm);
+    white-space: pre-line;
+    text-align: center;
+  }
+
+  /* ---- Pagefind results, restyled for the panel ---- */
+
+  voyalier-search .vs-results {
+    --pagefind-ui-scale: 0.82;
+    --pagefind-ui-primary: var(--vs-accent);
+    --pagefind-ui-text: var(--sl-color-gray-2);
+    --pagefind-ui-background: var(--vs-panel-bg);
+    --pagefind-ui-border: var(--vs-panel-border);
+    --pagefind-ui-border-width: 1px;
+    --pagefind-ui-border-radius: 0.6rem;
+    --pagefind-ui-tag: var(--sl-color-gray-5);
+    --pagefind-ui-font: var(--__sl-font);
+  }
+
+  /* The pill owns the visible input; Pagefind's stays hidden but functional. */
+  voyalier-search .vs-results .pagefind-ui__form::before,
+  voyalier-search .vs-results .pagefind-ui__search-input,
+  voyalier-search .vs-results .pagefind-ui__search-clear {
+    display: none;
+  }
+
+  voyalier-search .vs-results .pagefind-ui__drawer {
+    gap: 0;
+  }
+
+  voyalier-search .vs-results .pagefind-ui__results-area {
+    margin-top: 0.15rem;
+  }
+
+  voyalier-search .vs-results .pagefind-ui__message {
+    padding: 0.3rem 0.45rem 0.45rem;
+    color: var(--sl-color-gray-3);
+    font-size: var(--sl-text-xs);
+    font-weight: 500;
+  }
+
+  voyalier-search .vs-results .pagefind-ui__result {
+    padding: 0.55rem 0.45rem;
+    border: 0;
+    border-radius: 0.6rem;
+    transition: background 0.12s ease;
+  }
+
+  voyalier-search .vs-results .pagefind-ui__result:hover,
+  voyalier-search .vs-results .pagefind-ui__result:focus-within {
+    background: color-mix(in srgb, var(--vs-accent) 10%, transparent);
+  }
+
+  voyalier-search .vs-results .pagefind-ui__result-link {
+    color: var(--sl-color-white);
+    font-weight: 600;
+    font-size: var(--sl-text-sm);
+  }
+
+  voyalier-search .vs-results .pagefind-ui__result-link:hover {
+    text-decoration: none;
+  }
+
+  voyalier-search .vs-results .pagefind-ui__result-excerpt {
+    margin-top: 0.15rem;
+    color: var(--sl-color-gray-3);
+    font-size: var(--sl-text-xs);
+    overflow-wrap: anywhere;
+  }
+
+  /* Matched terms glow in the brand accent. */
+  voyalier-search .vs-results mark {
+    padding-inline: 0.08em;
+    border-radius: 0.2em;
+    background: color-mix(in srgb, var(--vs-accent) 16%, transparent);
+    color: var(--vs-accent);
+    font-weight: 650;
+  }
+
+  voyalier-search .vs-results .pagefind-ui__button {
+    width: 100%;
+    margin-top: 0.55rem;
+    padding: 0.5rem;
+    border: 1px solid var(--vs-panel-border);
+    border-radius: 0.6rem;
+    background: transparent;
+    color: var(--vs-accent);
+    font-size: var(--sl-text-xs);
+    font-weight: 600;
+  }
+
+  voyalier-search .vs-results .pagefind-ui__button:hover {
+    background: color-mix(in srgb, var(--vs-accent) 10%, transparent);
+  }
+
+  /* ---- Mobile ---- */
+
+  @media (max-width: 49.99rem) {
+    voyalier-search {
+      --vs-expanded: min(26rem, calc(100vw - 4.75rem));
+    }
+
+    voyalier-search .vs-panel {
+      position: fixed;
+      top: calc(var(--sl-nav-height, 3.5rem) + 0.4rem);
+      inset-inline-end: 0.75rem;
+      width: min(30rem, calc(100vw - 1.5rem));
+      max-height: calc(100dvh - var(--sl-nav-height, 3.5rem) - 2rem);
+    }
+  }
+
+  /* ---- Reduced motion: near-instant, no drop ---- */
+
+  @media (prefers-reduced-motion: reduce) {
+    voyalier-search .vs-pill,
+    voyalier-search .vs-panel,
+    voyalier-search .vs-trigger,
+    voyalier-search .vs-hint,
+    voyalier-search .vs-close {
+      transition-duration: 0.01s !important;
+      transition-delay: 0s !important;
+    }
+
+    voyalier-search .vs-panel {
+      transform: none !important;
+    }
+  }
+</style>
