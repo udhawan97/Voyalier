@@ -119,8 +119,12 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   nightlife, shopping). Deterministic and transparent — a keyword-to-dimension
   rule, never a model — with per-pick source, license, score, "because" reasons,
   and a cross-dimension wildcard. Empty until a pack with places is downloaded.
+- ✓ Offline Today view: a deterministic "now / next" summary at the top of a
+  trip — phase (upcoming/active/completed with day counts), today's items
+  (departures, arrivals, check-ins/outs, staying-tonight), and the next anchor.
+  Computed from confirmed facts against the current date; no network, no model.
 - Encrypted vault and migration/backup tests.
-- Map and offline Today view.
+- Map view (MapLibre + offline tiles).
 - DMG and EXE/MSI release automation, signing, notarization, checksums, and updater.
 - Documentation, accessibility, performance, localization readiness, and support playbooks.
 
