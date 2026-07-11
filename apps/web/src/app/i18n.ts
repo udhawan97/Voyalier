@@ -189,6 +189,27 @@ const en = {
   "today.empty.active": "Nothing scheduled today.",
   "today.empty.other": "No plans for today.",
   "today.next": "Next",
+
+  "localai.title": "On-device AI",
+  "localai.badge.available": "Available",
+  "localai.badge.notDetected": "Not detected",
+  "localai.precheck":
+    "Voyalier can use a local Ollama for optional, private assist — nothing would leave your device. Check whether one is running.",
+  "localai.models.aria": "Installed models",
+  // Split around the <code> command (which stays a literal).
+  "localai.noModels.before":
+    "Ollama is running but no models are installed. Pull one (for example ",
+  "localai.noModels.after": ") to enable optional on-device assist.",
+  // Split around the <a>Ollama</a> link.
+  "localai.notDetected.before": "No on-device AI detected. Install ",
+  "localai.notDetected.after":
+    " to enable optional, private assist. Voyalier stays fully usable without it.",
+  "localai.ollama": "Ollama",
+  "localai.check": "Check for on-device AI",
+  "localai.scope":
+    "Detection only — a local check on this device. Assist that uses these models is a later milestone and will always be opt-in.",
+  "action.checkAgain": "Check again",
+  "a11y.opensInNewTab": " (opens in new tab)",
 } as const;
 
 export type MessageKey = keyof typeof en;
