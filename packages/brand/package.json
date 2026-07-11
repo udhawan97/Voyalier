@@ -1,6 +1,6 @@
 {
   "name": "@voyalier/brand",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "exports": {
     "./voyalier-app-icon.svg": "./src/voyalier-app-icon.svg",
