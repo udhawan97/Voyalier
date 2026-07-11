@@ -340,6 +340,39 @@ const en = {
   "recs.preset.balanced": "Balanced",
   "recs.preset.foodie": "Foodie",
   "recs.preset.explorer": "Explorer",
+
+  "advice.title": "Official travel advice",
+  "advice.announce.saved": "Official advice for {country} saved.",
+  "advice.stale": "Fetched {days} days ago — fetch again before you rely on it",
+  "advice.fresh": "Recently fetched",
+  "advice.readMore": "Read the full advice on GOV.UK",
+  "advice.retrieved": "Retrieved {stamp}",
+  "advice.sourceUpdated": "Source updated {stamp}",
+  "advice.licence":
+    "Written for UK passport holders. Contains public sector information licensed under the Open Government Licence v3.0.",
+  "advice.selectLabel": "Country to fetch official advice for",
+  "advice.chooseCountry": "Choose a country…",
+  "advice.fetchAgain": "Fetch again",
+  "advice.fetch": "Fetch official advice",
+  "advice.consent":
+    "Fetching contacts www.gov.uk once from this device and stores a dated copy locally. Nothing else is sent, and nothing about your trip leaves this device.",
+
+  "weather.title": "Weather outlook",
+  "weather.announce.saved": "Weather outlook for {place} saved.",
+  "weather.stale":
+    "Fetched {hours} hours ago — fetch again for current numbers",
+  "weather.fresh": "Recently fetched",
+  "weather.rain": "{pct}% rain",
+  "weather.coverage.none":
+    "Your trip starts beyond the ~16-day forecast horizon, so no days are available yet. Fetch again closer to departure.",
+  "weather.coverage.partial":
+    "The forecast horizon covers only the first part of your trip. Later days will appear as departure gets closer.",
+  "weather.attribution": "Weather data by Open-Meteo.com",
+  "weather.retrieved": "Retrieved {stamp}",
+  "weather.fetchAgain": "Fetch again",
+  "weather.fetch": "Fetch weather outlook",
+  "weather.consent":
+    "Fetching sends your destination name (“{destination}”) to open-meteo.com to place it on the map, then retrieves the forecast. Nothing else about your trip leaves this device.",
 } as const;
 
 export type MessageKey = keyof typeof en;

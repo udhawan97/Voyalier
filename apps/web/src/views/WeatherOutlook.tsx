@@ -3,6 +3,7 @@ import type { AppError, WeatherSnapshot } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError, formatDate, formatDateTimeLocal } from "../app/format";
+import { t } from "../app/i18n";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 
@@ -49,7 +50,7 @@ export function WeatherOutlook({
     setFetching(true);
     try {
       const fetched = await gateway.fetchWeather(tripId);
-      announce(`Weather outlook for ${fetched.placeName} saved.`);
+      announce(t("weather.announce.saved", { place: fetched.placeName }));
       onFetched();
     } catch (caught) {
       setError(caught as AppError);
@@ -64,7 +65,7 @@ export function WeatherOutlook({
   return (
     <section className="voy-weather" aria-labelledby="weather-title">
       <h2 id="weather-title" className="voy-weather__title">
-        Weather outlook
+        {t("weather.title")}
       </h2>
 
       {snapshot ? (
@@ -83,8 +84,8 @@ export function WeatherOutlook({
               className={`voy-weather__freshness${isStale ? " voy-weather__freshness--stale" : ""}`}
             >
               {isStale
-                ? `Fetched ${staleHours} hours ago — fetch again for current numbers`
-                : "Recently fetched"}
+                ? t("weather.stale", { hours: staleHours as number })
+                : t("weather.fresh")}
             </span>
           </header>
 
@@ -103,7 +104,9 @@ export function WeatherOutlook({
                   </span>
                   {day.precipitationChancePct != null ? (
                     <span className="voy-weather__day-precip">
-                      {Math.round(day.precipitationChancePct)}% rain
+                      {t("weather.rain", {
+                        pct: Math.round(day.precipitationChancePct),
+                      })}
                     </span>
                   ) : null}
                 </li>
@@ -113,13 +116,11 @@ export function WeatherOutlook({
 
           {snapshot.coverage === "none" ? (
             <p className="voy-weather__coverage">
-              Your trip starts beyond the ~16-day forecast horizon, so no days
-              are available yet. Fetch again closer to departure.
+              {t("weather.coverage.none")}
             </p>
           ) : snapshot.coverage === "partial" ? (
             <p className="voy-weather__coverage">
-              The forecast horizon covers only the first part of your trip.
-              Later days will appear as departure gets closer.
+              {t("weather.coverage.partial")}
             </p>
           ) : null}
 
@@ -129,26 +130,26 @@ export function WeatherOutlook({
               target="_blank"
               rel="noreferrer noopener"
             >
-              Weather data by Open-Meteo.com
-              <span className="voy-sr-only"> (opens in new tab)</span>
+              {t("weather.attribution")}
+              <span className="voy-sr-only">{t("a11y.opensInNewTab")}</span>
             </a>
             <span aria-hidden="true"> · </span>
             CC BY 4.0
             <span aria-hidden="true"> · </span>
-            Retrieved {formatStamp(snapshot.retrievedAt)}
+            {t("weather.retrieved", {
+              stamp: formatStamp(snapshot.retrievedAt),
+            })}
           </p>
         </article>
       ) : null}
 
       <div className="voy-weather__fetch">
         <Button variant="secondary" onClick={fetchOutlook} busy={fetching}>
-          {snapshot ? "Fetch again" : "Fetch weather outlook"}
+          {snapshot ? t("weather.fetchAgain") : t("weather.fetch")}
         </Button>
       </div>
       <p className="voy-weather__consent">
-        Fetching sends your destination name (“{destination}”) to open-meteo.com
-        to place it on the map, then retrieves the forecast. Nothing else about
-        your trip leaves this device.
+        {t("weather.consent", { destination })}
       </p>
       {error ? (
         <Banner tone="error" role="alert" title={describeError(error).title}>

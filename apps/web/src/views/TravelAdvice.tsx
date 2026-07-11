@@ -7,6 +7,7 @@ import type {
 
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError, formatDateTimeLocal } from "../app/format";
+import { t } from "../app/i18n";
 import { useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
@@ -61,7 +62,7 @@ export function TravelAdvice({
         tripId,
         countrySlug: slug,
       });
-      announce(`Official advice for ${fetched.countryName} saved.`);
+      announce(t("advice.announce.saved", { country: fetched.countryName }));
       onFetched();
     } catch (caught) {
       setError(caught as AppError);
@@ -76,7 +77,7 @@ export function TravelAdvice({
   return (
     <section className="voy-advice" aria-labelledby="advice-title">
       <h2 id="advice-title" className="voy-advice__title">
-        Official travel advice
+        {t("advice.title")}
       </h2>
 
       {snapshot ? (
@@ -87,8 +88,8 @@ export function TravelAdvice({
               className={`voy-advice__freshness${isStale ? " voy-advice__freshness--stale" : ""}`}
             >
               {isStale
-                ? `Fetched ${staleDays} days ago — fetch again before you rely on it`
-                : "Recently fetched"}
+                ? t("advice.stale", { days: staleDays as number })
+                : t("advice.fresh")}
             </span>
           </header>
           {snapshot.alertStatus.length > 0 ? (
@@ -112,28 +113,29 @@ export function TravelAdvice({
               target="_blank"
               rel="noreferrer noopener"
             >
-              Read the full advice on GOV.UK
-              <span className="voy-sr-only"> (opens in new tab)</span>
+              {t("advice.readMore")}
+              <span className="voy-sr-only">{t("a11y.opensInNewTab")}</span>
             </a>
             <span aria-hidden="true"> · </span>
-            Retrieved {formatSourceStamp(snapshot.retrievedAt)}
+            {t("advice.retrieved", {
+              stamp: formatSourceStamp(snapshot.retrievedAt),
+            })}
             {snapshot.sourceUpdatedAt ? (
               <>
                 <span aria-hidden="true"> · </span>
-                Source updated {formatSourceStamp(snapshot.sourceUpdatedAt)}
+                {t("advice.sourceUpdated", {
+                  stamp: formatSourceStamp(snapshot.sourceUpdatedAt),
+                })}
               </>
             ) : null}
           </p>
-          <p className="voy-advice__licence">
-            Written for UK passport holders. Contains public sector information
-            licensed under the Open Government Licence v3.0.
-          </p>
+          <p className="voy-advice__licence">{t("advice.licence")}</p>
         </article>
       ) : null}
 
       <div className="voy-advice__fetch">
         <label className="voy-sr-only" htmlFor={selectId}>
-          Country to fetch official advice for
+          {t("advice.selectLabel")}
         </label>
         <select
           id={selectId}
@@ -141,7 +143,7 @@ export function TravelAdvice({
           value={slug}
           onChange={(event) => setSlug(event.target.value)}
         >
-          <option value="">Choose a country…</option>
+          <option value="">{t("advice.chooseCountry")}</option>
           {(countries ?? []).map((country) => (
             <option key={country.slug} value={country.slug}>
               {country.name}
@@ -154,14 +156,10 @@ export function TravelAdvice({
           busy={fetching}
           disabled={!slug}
         >
-          {snapshot ? "Fetch again" : "Fetch official advice"}
+          {snapshot ? t("advice.fetchAgain") : t("advice.fetch")}
         </Button>
       </div>
-      <p className="voy-advice__consent">
-        Fetching contacts www.gov.uk once from this device and stores a dated
-        copy locally. Nothing else is sent, and nothing about your trip leaves
-        this device.
-      </p>
+      <p className="voy-advice__consent">{t("advice.consent")}</p>
       {error ? (
         <Banner tone="error" role="alert" title={describeError(error).title}>
           {describeError(error).body}
