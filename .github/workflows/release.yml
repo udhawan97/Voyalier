@@ -27,9 +27,19 @@ permissions:
 jobs:
   desktop:
     name: Desktop build (${{ matrix.artifact }})
-    environment: release
+    # Only a real tag build enters the protected environment (approval + the
+    # signing secrets). A workflow_dispatch build gets no environment, no key,
+    # and no updater artifacts — so an actor can't dispatch a malicious ref and
+    # have a reviewer's "dry-run" approval sign it. Owner: scope the signing
+    # secrets to the `release` environment (not repo-wide) to close this fully.
+    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
     strategy:
       fail-fast: false
+      # Serialize the two legs: tauri-action read-modify-writes the shared
+      # latest.json to merge per-platform keys, and parallel legs would race
+      # (last writer wins → only one of darwin-aarch64 / windows-x86_64 survives,
+      # so half the fleet can't update). D4 requires BOTH keys.
+      max-parallel: 1
       matrix:
         include:
           # macOS Apple Silicon (aarch64) — the ARM runner builds it natively
@@ -54,8 +64,10 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         run: |
-          if grep -q "REPLACE_WITH_TAURI_SIGNER_GENERATE_PUBKEY" apps/desktop/src-tauri/tauri.conf.json; then
-            echo "::error::plugins.updater.pubkey is still the placeholder — generate the real key (docs/security/UPDATE_KEY_RUNBOOK.md) and set the signing secrets before releasing." >&2
+          conf=apps/desktop/src-tauri/tauri.conf.json
+          if grep -q "REPLACE_WITH_TAURI_SIGNER_GENERATE_PUBKEY" "$conf" \
+            || grep -qE '"pubkey"[[:space:]]*:[[:space:]]*""' "$conf"; then
+            echo "::error::plugins.updater.pubkey is the placeholder or empty — generate the real key (docs/security/UPDATE_KEY_RUNBOOK.md) and set the signing secrets before releasing." >&2
             exit 1
           fi
       - uses: pnpm/action-setup@b0f76dfb45f55f8421693e4803ac7bb65143bd34 # v6
@@ -76,14 +88,20 @@ jobs:
       - name: Build, sign, and draft the release
         uses: tauri-apps/tauri-action@944946e3e4cac6603d1fe8f514171e9ecd3c78aa # v1
         env:
-          # Step-scoped signing env — never job-level, so no other step (nor a
-          # poisoned dependency's build.rs) can read the private key.
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Step-scoped so no OTHER step (checkout, checksum, attest) can read
+          # the key. Note: `cargo build` runs INSIDE this step, so a dependency's
+          # build.rs still sees the key — that risk is mitigated by SHA-pinning +
+          # --frozen-lockfile + the dropped cache above, not by this scoping.
+          # Also tag-gated: a workflow_dispatch build never receives the key.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: apps/desktop
-          args: --verbose
+          # On a tag, build normally (updater artifacts need the signing key). On
+          # a keyless dispatch dry-run, disable updater artifacts so the build
+          # still succeeds as a smoke test without a key.
+          args: ${{ startsWith(github.ref, 'refs/tags/v') && '--verbose' || '--verbose --config {"bundle":{"createUpdaterArtifacts":false}}' }}
           # On a tag: create a DRAFT release and upload the signed bundles, the
           # updater .sig files, and latest.json. On workflow_dispatch the empty
           # tagName makes it a build-only dry-run (no uploads).
@@ -105,7 +123,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd target/release/bundle
+          # `shasum -a 256` (Perl) is stock on the macOS runner AND git-bash on
+          # Windows; GNU `sha256sum` is not present on macOS.
           find . -type f \
             \( -name '*.dmg' -o -name '*.app.tar.gz' -o -name '*-setup.exe' -o -name '*.msi' -o -name '*.sig' \) \
-            -print0 | sort -z | xargs -0 sha256sum > "SHA256SUMS-${{ matrix.artifact }}.txt"
+            -print0 | sort -z | xargs -0 shasum -a 256 > "SHA256SUMS-${{ matrix.artifact }}.txt"
           gh release upload "${{ github.ref_name }}" "SHA256SUMS-${{ matrix.artifact }}.txt" --clobber
