@@ -492,6 +492,13 @@ const en = {
 
 export type MessageKey = keyof typeof en;
 
+// Distributes over the MessageKey union, keeping only keys with a `.one`
+// plural form and stripping the suffix — so `PluralBase` is exactly the set of
+// valid `plural()` bases, auto-derived from the catalog. A typo'd base is now a
+// compile error (previously `plural(base: string)` silently returned the base).
+type PluralBaseOf<K> = K extends `${infer Base}.one` ? Base : never;
+export type PluralBase = PluralBaseOf<MessageKey>;
+
 // Registry of locales. English is always present; others are added here.
 const catalogs: Record<string, Partial<Record<MessageKey, string>>> = { en };
 
@@ -543,7 +550,7 @@ function rulesFor(locale: string): Intl.PluralRules {
  * back to `{base}.other`, then to the English source. `count` is always exposed
  * as a `{count}` variable in addition to any passed `vars`.
  */
-export function plural(base: string, count: number, vars?: Vars): string {
+export function plural(base: PluralBase, count: number, vars?: Vars): string {
   const category = rulesFor(APP_LOCALE).select(count);
   const merged: Vars = { count, ...vars };
   const candidates = [`${base}.${category}`, `${base}.other`];
