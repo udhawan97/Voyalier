@@ -48,6 +48,23 @@ describe("UpdatePill", () => {
     ).toBeInTheDocument();
   });
 
+  it("stays hidden for a skipped available version (skip silences the pill)", async () => {
+    const updater = createMockUpdater({
+      settings: {
+        [UPDATER_KEYS.consent]: "yes",
+        [UPDATER_KEYS.skippedVersion]: "0.3.1",
+      },
+      onCheck: available,
+    });
+    const { container } = render(<Harness updater={updater} />);
+    // Wait until the check has completed (it persists last-seen), then confirm
+    // the available-but-skipped version produced no pill.
+    await waitFor(() =>
+      expect(updater.store.get(UPDATER_KEYS.lastSeenVersion)).toBe("0.3.0"),
+    );
+    expect(container.querySelector(".voy-updatepill")).toBeNull();
+  });
+
   it("renders nothing when up to date", async () => {
     const updater = createMockUpdater({
       settings: { [UPDATER_KEYS.consent]: "yes" },

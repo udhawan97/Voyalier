@@ -532,6 +532,7 @@ const en = {
   "updates.unsupported.download": "Or download the packaged desktop app.",
   "updates.pill.available": "Update available",
   "updates.pill.staged": "Restart to update",
+  "updates.autocheck": "Check for updates automatically",
   "updates.justUpdated": "Updated to Voyalier {version}.",
   "updates.dismiss": "Dismiss",
 } as const;

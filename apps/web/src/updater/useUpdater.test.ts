@@ -294,6 +294,24 @@ describe("useUpdater", () => {
     expect(r3.current.justUpdated).toBeNull();
   });
 
+  it("clears the staged marker on restart (consent=no path)", async () => {
+    const gw = createMockUpdater({
+      settings: {
+        [UPDATER_KEYS.consent]: "no",
+        [UPDATER_KEYS.stagedVersion]: "0.3.1",
+      },
+    });
+    const { result } = renderHook(() => useUpdater(gw));
+    await waitFor(() => expect(result.current.phase.name).toBe("staged"));
+
+    await act(async () => {
+      await result.current.restart();
+    });
+    // Cleared so the next launch won't keep nagging "restart to finish".
+    expect(gw.store.get(UPDATER_KEYS.stagedVersion)).toBe("");
+    expect(gw.relaunchCalls).toBe(1);
+  });
+
   it("restarts to finish and maps a failed check to a coarse error", async () => {
     const staged = createMockUpdater({
       platform: "macos",

@@ -258,6 +258,30 @@ describe("UpdatesPanel", () => {
     }
   });
 
+  it("reverses the auto-check consent with the panel toggle (D1)", async () => {
+    const updater = createMockUpdater({
+      settings: { [UPDATER_KEYS.consent]: "yes" },
+      onCheck: {
+        availability: "upToDate",
+        currentVersion: "0.3.0",
+        availableVersion: null,
+        notes: null,
+      },
+    });
+    render(<Harness updater={updater} />);
+    await screen.findByText("You're on the latest version (0.3.0).");
+
+    const toggle = screen.getByRole("checkbox", {
+      name: "Check for updates automatically",
+    });
+    expect(toggle).toBeChecked();
+    fireEvent.click(toggle);
+    await waitFor(() =>
+      expect(updater.store.get(UPDATER_KEYS.consent)).toBe("no"),
+    );
+    expect(toggle).not.toBeChecked();
+  });
+
   it("shows the honest dual copy when updates are unsupported", async () => {
     render(
       <Harness

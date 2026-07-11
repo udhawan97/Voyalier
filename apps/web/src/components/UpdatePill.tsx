@@ -14,12 +14,16 @@ export function UpdatePill() {
   const controller = useContext(UpdaterContext);
   if (!controller) return null;
   const { phase } = controller;
-  if (phase.name !== "available" && phase.name !== "staged") return null;
 
+  // Staged always shows; an available update shows unless the user skipped it
+  // (§9: skipping only silences the pill, the panel still lists it).
   const label =
     phase.name === "staged"
       ? t("updates.pill.staged")
-      : t("updates.pill.available");
+      : phase.name === "available" && !phase.skipped
+        ? t("updates.pill.available")
+        : null;
+  if (!label) return null;
 
   return (
     <button

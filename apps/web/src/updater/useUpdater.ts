@@ -43,6 +43,9 @@ export interface UpdaterController {
    *  user saw — drives a one-shot "updated to vX" toast. Null otherwise. */
   justUpdated: string | null;
   dismissJustUpdated: () => void;
+  /** Whether the daily auto-check is on (consent = "yes"). Drives the panel
+   *  toggle so the one-time consent can be reversed later (D1). */
+  autoCheck: boolean;
   check: () => Promise<void>;
   install: () => Promise<void>;
   restart: () => Promise<void>;
@@ -70,6 +73,7 @@ export function useUpdater(gateway: UpdaterGateway): UpdaterController {
   );
   const currentVersion = useRef<string | null>(null);
   const [justUpdated, setJustUpdated] = useState<string | null>(null);
+  const [autoCheck, setAutoCheck] = useState(false);
 
   /** A staged version still pending unless the running build already caught up. */
   const reconcileStaged = useCallback(
@@ -177,10 +181,13 @@ export function useUpdater(gateway: UpdaterGateway): UpdaterController {
     }
   }, [gateway, phase]);
 
-  const restart = useCallback(
-    () => gateway.relaunch().catch(() => {}),
-    [gateway],
-  );
+  const restart = useCallback(async () => {
+    // Clear the staged marker before relaunching so the next launch doesn't keep
+    // showing "restart to finish" (§8) — this covers the consent="no" path,
+    // where a live check never runs to reconcile it.
+    await gateway.setSetting(UPDATER_KEYS.stagedVersion, "").catch(() => {});
+    await gateway.relaunch().catch(() => {});
+  }, [gateway]);
 
   const skip = useCallback(async () => {
     if (phase.name !== "available") return;
@@ -197,6 +204,7 @@ export function useUpdater(gateway: UpdaterGateway): UpdaterController {
   const answerConsent = useCallback(
     async (allow: boolean) => {
       await gateway.setSetting(UPDATER_KEYS.consent, allow ? "yes" : "no");
+      setAutoCheck(allow);
       if (allow) await check();
       else setPhase({ name: "idle" });
     },
@@ -223,6 +231,7 @@ export function useUpdater(gateway: UpdaterGateway): UpdaterController {
         gateway.getSetting(UPDATER_KEYS.stagedVersion),
       ]);
       if (cancelled) return;
+      setAutoCheck(consent === "yes");
       // A live check (auto or manual) reconciles a staged version against the
       // running build; with consent it happens immediately below.
       if (consent === "yes") {
@@ -250,6 +259,7 @@ export function useUpdater(gateway: UpdaterGateway): UpdaterController {
     platform: gateway.platform,
     justUpdated,
     dismissJustUpdated: () => setJustUpdated(null),
+    autoCheck,
     check,
     install,
     restart,

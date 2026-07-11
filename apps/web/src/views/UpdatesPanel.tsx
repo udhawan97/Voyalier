@@ -33,6 +33,7 @@ export function UpdatesPanel() {
   const {
     phase,
     platform,
+    autoCheck,
     check,
     install,
     restart,
@@ -41,6 +42,12 @@ export function UpdatesPanel() {
     answerConsent,
   } = useUpdaterController();
   const windows = platform === "windows";
+  // The one-time consent (D1) is reversible here: a persistent toggle in the
+  // settled phases turns the daily auto-check on/off after the first answer.
+  const showToggle =
+    phase.name === "idle" ||
+    phase.name === "upToDate" ||
+    phase.name === "available";
 
   // Keep focus off <body> when a user-initiated action ("Check", consent) makes
   // the phase — and thus the button subtree — change out from under the focused
@@ -259,6 +266,16 @@ export function UpdatesPanel() {
         {t("updates.title")}
       </h2>
       <div className="voy-updates__body">{body()}</div>
+      {showToggle ? (
+        <label className="voy-updates__toggle">
+          <input
+            type="checkbox"
+            checked={autoCheck}
+            onChange={(event) => void answerConsent(event.target.checked)}
+          />
+          <span>{t("updates.autocheck")}</span>
+        </label>
+      ) : null}
     </section>
   );
 }

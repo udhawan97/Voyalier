@@ -1496,6 +1496,16 @@ h3 {
   font-size: 0.9rem;
 }
 
+.voy-updates__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  color: var(--voy-ink-muted);
+  cursor: pointer;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .voy-updates__progress-bar {
     transition: none;
