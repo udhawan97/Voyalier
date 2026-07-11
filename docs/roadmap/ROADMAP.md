@@ -59,12 +59,14 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
 - Packs (B): CI-built, ~20 cities, Overture places + Wikivoyage prose as a
   separate CC BY-SA layer with a per-layer license manifest, hosted on GitHub
   Releases, downloaded per trip with consent.
-- ✓ Providers (C), first slice: on-device AI **detection** — a user-initiated
-  "Check for on-device AI" probes `localhost:11434/api/tags` and reports whether
-  Ollama is running plus its installed models (keyless, inference-free, nothing
-  leaves the device; device-wide, not per-trip). Remaining: OS keychain
-  (`keyring`) key storage, hybrid consent (first call per provider previews the
-  payload; every call logged), then Ollama inference before OpenAI/Anthropic.
+- ✓ Providers (C), detection + key storage: on-device AI **detection**
+  (user-initiated "Check for on-device AI" probes `localhost:11434/api/tags`);
+  plus **BYOK key storage** — OpenAI/Anthropic keys stored in the OS keychain
+  via the `keyring` crate behind an injectable `SecretStore` (in-memory in
+  tests). The lazy "AI providers" panel never returns, renders, or persists a
+  key value (`hasKey` only); models persist in SQLite. Remaining: hybrid consent
+  (first call per provider previews the payload; every call logged), then actual
+  inference — Ollama first, then OpenAI/Anthropic.
 - ✓ Local retrieval, first slice: `searchTrip` ships as a deterministic scan
   over stored documents and confirmed facts with provenance and transparent
   scoring ("Find in this trip"). FTS5/embeddings may replace the internals
