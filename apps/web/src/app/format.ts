@@ -8,15 +8,13 @@ import type {
   WarningCode,
 } from "@voyalier/contracts";
 
-const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
+import { t } from "./i18n";
+import { APP_LOCALE } from "./locale";
 
-/**
- * The active display locale. In a browser this is the user's language; elsewhere
- * (Node, tests) it falls back to `en-US` for deterministic output. Resolved once
- * at load; a future settings surface can supply an override.
- */
-export const APP_LOCALE: string =
-  (typeof navigator !== "undefined" && navigator.language) || "en-US";
+// Re-exported for callers (and tests) that import it from here.
+export { APP_LOCALE };
+
+const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 const dateFormatters = new Map<string, Intl.DateTimeFormat>();
 
@@ -281,75 +279,67 @@ export function describeError(error: AppError): ErrorCopy {
   switch (error.code) {
     case "transport/failure":
       return {
-        title: "Local core unreachable",
-        body: "Voyalier can't reach the local core on this device right now. Your data is safe.",
+        title: t("error.transport.title"),
+        body: t("error.transport.body"),
       };
     case "storage/failure":
-      return {
-        title: "Local storage is unavailable",
-        body: "Voyalier couldn't read or write your local data. Nothing was changed.",
-      };
+      return { title: t("error.storage.title"), body: t("error.storage.body") };
     case "trip/not_found":
       return {
-        title: "This trip is no longer here",
-        body: "It may have been deleted on this device.",
+        title: t("error.tripNotFound.title"),
+        body: t("error.tripNotFound.body"),
       };
     case "candidate/not_found":
       return {
-        title: "This suggestion is no longer here",
-        body: "It may have already been resolved. Refresh to see the current list.",
+        title: t("error.candidateNotFound.title"),
+        body: t("error.candidateNotFound.body"),
       };
     case "candidate/already_resolved":
       return {
-        title: "Already resolved",
-        body: "This suggestion was already confirmed or dismissed.",
+        title: t("error.candidateResolved.title"),
+        body: t("error.candidateResolved.body"),
       };
     case "fact/not_found":
       return {
-        title: "This fact is no longer here",
-        body: "It may have already been removed.",
+        title: t("error.factNotFound.title"),
+        body: t("error.factNotFound.body"),
       };
     case "document/empty":
       return {
-        title: "Nothing to import",
-        body: "The pasted content was empty.",
+        title: t("error.documentEmpty.title"),
+        body: t("error.documentEmpty.body"),
       };
     case "document/too_large":
       return {
-        title: "That document is too large",
-        body: "Documents are limited to 1,000,000 characters.",
+        title: t("error.documentTooLarge.title"),
+        body: t("error.documentTooLarge.body"),
       };
     case "document/duplicate":
       return {
-        title: "Already imported",
-        body: "This exact document was imported before.",
+        title: t("error.documentDuplicate.title"),
+        body: t("error.documentDuplicate.body"),
       };
     case "advice/fetch_failed":
       return {
-        title: "Couldn't reach the official source",
-        body: "Voyalier couldn't fetch the advice page right now. Check your connection and try again — nothing was changed.",
+        title: t("error.adviceFetch.title"),
+        body: t("error.adviceFetch.body"),
       };
     case "assist/failed":
-      return {
-        title: "Assist didn't finish",
-        body: "Voyalier couldn't complete the request. Check the model and your connection (or that your local AI is running), then try again — nothing was changed.",
-      };
+      return { title: t("error.assist.title"), body: t("error.assist.body") };
     case "pack/download_failed":
       return {
-        title: "Couldn't download that city pack",
-        body: "Voyalier couldn't fetch the pack right now. Check your connection and try again — nothing was changed.",
+        title: t("error.packDownload.title"),
+        body: t("error.packDownload.body"),
       };
     case "validation/invalid_input":
     case "validation/invalid_date_range":
-      return {
-        title: "Check the highlighted fields",
-        body: error.message,
-      };
+      // The body is the server's field-level message, kept verbatim.
+      return { title: t("error.validation.title"), body: error.message };
     case "internal/unexpected":
     default:
       return {
-        title: "Something went wrong",
-        body: "An unexpected error occurred. Nothing was changed.",
+        title: t("error.unexpected.title"),
+        body: t("error.unexpected.body"),
       };
   }
 }

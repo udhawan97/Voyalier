@@ -1,6 +1,7 @@
 import type { AppError } from "@voyalier/contracts";
 
 import { describeError } from "../app/format";
+import { t } from "../app/i18n";
 import { Banner } from "./Banner";
 import { Button } from "./Button";
 import { RetryIcon } from "./icons";
@@ -27,7 +28,7 @@ export function OfflineBanner({
           onClick={onRetry}
           busy={retrying}
         >
-          Retry
+          {t("action.retry")}
         </Button>
       }
     >

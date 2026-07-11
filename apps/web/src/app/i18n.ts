@@ -1,4 +1,4 @@
-import { APP_LOCALE } from "./format";
+import { APP_LOCALE } from "./locale";
 
 /**
  * Minimal message catalog — the localization-readiness foundation.
@@ -51,6 +51,48 @@ const en = {
   "vault.unlock.passphrase": "Passphrase",
   "vault.unlock.action": "Unlock",
   "vault.unlock.error": "That passphrase didn't work.",
+
+  "error.transport.title": "Local core unreachable",
+  "error.transport.body":
+    "Voyalier can't reach the local core on this device right now. Your data is safe.",
+  "error.storage.title": "Local storage is unavailable",
+  "error.storage.body":
+    "Voyalier couldn't read or write your local data. Nothing was changed.",
+  "error.tripNotFound.title": "This trip is no longer here",
+  "error.tripNotFound.body": "It may have been deleted on this device.",
+  "error.candidateNotFound.title": "This suggestion is no longer here",
+  "error.candidateNotFound.body":
+    "It may have already been resolved. Refresh to see the current list.",
+  "error.candidateResolved.title": "Already resolved",
+  "error.candidateResolved.body":
+    "This suggestion was already confirmed or dismissed.",
+  "error.factNotFound.title": "This fact is no longer here",
+  "error.factNotFound.body": "It may have already been removed.",
+  "error.documentEmpty.title": "Nothing to import",
+  "error.documentEmpty.body": "The pasted content was empty.",
+  "error.documentTooLarge.title": "That document is too large",
+  "error.documentTooLarge.body":
+    "Documents are limited to 1,000,000 characters.",
+  "error.documentDuplicate.title": "Already imported",
+  "error.documentDuplicate.body": "This exact document was imported before.",
+  "error.adviceFetch.title": "Couldn't reach the official source",
+  "error.adviceFetch.body":
+    "Voyalier couldn't fetch the advice page right now. Check your connection and try again — nothing was changed.",
+  "error.assist.title": "Assist didn't finish",
+  "error.assist.body":
+    "Voyalier couldn't complete the request. Check the model and your connection (or that your local AI is running), then try again — nothing was changed.",
+  "error.packDownload.title": "Couldn't download that city pack",
+  "error.packDownload.body":
+    "Voyalier couldn't fetch the pack right now. Check your connection and try again — nothing was changed.",
+  "error.validation.title": "Check the highlighted fields",
+  "error.unexpected.title": "Something went wrong",
+  "error.unexpected.body": "An unexpected error occurred. Nothing was changed.",
+
+  "topbar.home": "Voyalier — all trips",
+  "health.checking": "Checking local core",
+  "health.online": "Local core ready",
+  "health.offline": "Local core offline",
+  "action.retry": "Retry",
 } as const;
 
 export type MessageKey = keyof typeof en;
