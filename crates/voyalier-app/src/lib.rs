@@ -992,6 +992,39 @@ impl AppService {
         })
     }
 
+    /// Read a durable app-level setting from the KV store, or `None` if unset.
+    /// Values are opaque strings; callers own any JSON encoding. Used for the
+    /// updater's one-time auto-check consent and skipped/staged/last-seen
+    /// versions — never trip content or secrets.
+    pub fn get_app_setting(&self, key: &str) -> Result<Option<String>, AppError> {
+        let key = validate_setting_key(key)?;
+        let connection = self.connection()?;
+        connection
+            .query_row(
+                "SELECT value FROM app_settings WHERE key = ?1",
+                params![key],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(storage_error)
+    }
+
+    /// Write a durable app-level setting to the KV store (upsert). The value is
+    /// stored verbatim and its `updated_at` refreshed on every write.
+    pub fn set_app_setting(&self, key: &str, value: &str) -> Result<(), AppError> {
+        let key = validate_setting_key(key)?;
+        let value = validate_setting_value(value)?;
+        let connection = self.connection()?;
+        connection
+            .execute(
+                "INSERT INTO app_settings (key, value, updated_at) VALUES (?1, ?2, ?3)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+                params![key, value, now_rfc3339()],
+            )
+            .map_err(storage_error)?;
+        Ok(())
+    }
+
     /// Detect an optional on-device AI runtime (Ollama) by probing its localhost
     /// `/api/tags` endpoint. Best-effort and infallible: an unreachable runtime
     /// reports `available: false`. No inference runs and nothing leaves the
@@ -1672,6 +1705,59 @@ impl AppService {
     }
 }
 
+/// Max lengths for the app_settings KV store. Keys are app-controlled and
+/// short; values hold small metadata (consent flags, version strings), so the
+/// caps are generous but bounded to keep a wayward caller from bloating the DB.
+const MAX_SETTING_KEY_LEN: usize = 128;
+const MAX_SETTING_VALUE_LEN: usize = 8 * 1024;
+
+/// Validate an app_settings key: non-empty, length-bounded, and restricted to a
+/// safe namespaced identifier charset so keys stay predictable and greppable.
+fn validate_setting_key(raw: &str) -> Result<String, AppError> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::with_detail(
+            ErrorCode::ValidationInvalidInput,
+            "setting key is required",
+            "field",
+            "key",
+        ));
+    }
+    if trimmed.chars().count() > MAX_SETTING_KEY_LEN {
+        return Err(AppError::with_detail(
+            ErrorCode::ValidationInvalidInput,
+            "setting key is too long",
+            "field",
+            "key",
+        ));
+    }
+    if !trimmed
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+    {
+        return Err(AppError::with_detail(
+            ErrorCode::ValidationInvalidInput,
+            "setting key has invalid characters",
+            "field",
+            "key",
+        ));
+    }
+    Ok(trimmed.to_owned())
+}
+
+/// Validate an app_settings value: length-bounded only. Content is opaque.
+fn validate_setting_value(raw: &str) -> Result<String, AppError> {
+    if raw.len() > MAX_SETTING_VALUE_LEN {
+        return Err(AppError::with_detail(
+            ErrorCode::ValidationInvalidInput,
+            "setting value is too long",
+            "field",
+            "value",
+        ));
+    }
+    Ok(raw.to_owned())
+}
+
 fn default_database_path() -> Result<PathBuf, AppError> {
     if let Ok(path) = env::var("VOYALIER_DATA_DIR") {
         return Ok(PathBuf::from(path).join(DATABASE_FILE));
@@ -1808,6 +1894,16 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
                 id INTEGER PRIMARY KEY CHECK (id = 1),
                 salt TEXT NOT NULL,
                 wrapped_key TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            -- Durable, transport-agnostic key/value store for app-level settings
+            -- (e.g. the updater's one-time auto-check consent, skipped/staged/
+            -- last-seen versions). Values are opaque strings; callers own any
+            -- JSON encoding. Never holds trip content or secret material.
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
 
@@ -2652,6 +2748,87 @@ mod tests {
         assert!(!config.has_key);
         assert_eq!(config.model.as_deref(), Some("some-model"));
         assert!(!secrets.has("api_key.openai"));
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn app_settings_kv_reads_writes_upserts_and_persists() {
+        let database = temp_database("app-settings");
+        let service = open_test_service(&database).expect("service");
+
+        // Unset keys read as None.
+        assert_eq!(
+            service.get_app_setting("updater.consent").expect("get"),
+            None
+        );
+
+        // Set then read back.
+        service
+            .set_app_setting("updater.consent", "yes")
+            .expect("set");
+        assert_eq!(
+            service.get_app_setting("updater.consent").expect("get"),
+            Some("yes".to_owned())
+        );
+
+        // Upsert overwrites in place (no duplicate rows, latest wins).
+        service
+            .set_app_setting("updater.consent", "no")
+            .expect("upsert");
+        assert_eq!(
+            service.get_app_setting("updater.consent").expect("get"),
+            Some("no".to_owned())
+        );
+
+        // A distinct key is independent.
+        service
+            .set_app_setting("updater.skipped_version", "0.3.1")
+            .expect("set");
+        assert_eq!(
+            service
+                .get_app_setting("updater.skipped_version")
+                .expect("get"),
+            Some("0.3.1".to_owned())
+        );
+
+        // Values survive a reopen (durable, unencrypted app metadata).
+        drop(service);
+        let reopened = open_test_service(&database).expect("reopen");
+        assert_eq!(
+            reopened.get_app_setting("updater.consent").expect("get"),
+            Some("no".to_owned())
+        );
+
+        // Key validation: empty, bad charset, and over-long are rejected.
+        assert_eq!(
+            reopened.get_app_setting("  ").expect_err("empty key").code,
+            ErrorCode::ValidationInvalidInput
+        );
+        assert_eq!(
+            reopened
+                .set_app_setting("bad key!", "x")
+                .expect_err("bad charset")
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
+        let long_key = "k".repeat(MAX_SETTING_KEY_LEN + 1);
+        assert_eq!(
+            reopened
+                .set_app_setting(&long_key, "x")
+                .expect_err("long key")
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
+        // Value length is bounded too.
+        let long_value = "v".repeat(MAX_SETTING_VALUE_LEN + 1);
+        assert_eq!(
+            reopened
+                .set_app_setting("updater.consent", &long_value)
+                .expect_err("long value")
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
+
         cleanup_database(database);
     }
 

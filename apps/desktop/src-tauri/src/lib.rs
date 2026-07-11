@@ -398,6 +398,35 @@ fn unconfirm_fact(input: FactIdInput, service: State<'_, AppService>) -> Result<
     service.unconfirm_fact(&input.fact_id)
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GetAppSettingInput {
+    key: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SetAppSettingInput {
+    key: String,
+    value: String,
+}
+
+#[tauri::command]
+fn get_app_setting(
+    input: GetAppSettingInput,
+    service: State<'_, AppService>,
+) -> Result<Option<String>, AppError> {
+    service.get_app_setting(&input.key)
+}
+
+#[tauri::command]
+fn set_app_setting(
+    input: SetAppSettingInput,
+    service: State<'_, AppService>,
+) -> Result<(), AppError> {
+    service.set_app_setting(&input.key, &input.value)
+}
+
 fn builder<R: tauri::Runtime>(
     builder: tauri::Builder<R>,
     service: AppService,
@@ -440,7 +469,9 @@ fn builder<R: tauri::Runtime>(
             confirm_candidate,
             reject_candidate,
             add_manual_fact,
-            unconfirm_fact
+            unconfirm_fact,
+            get_app_setting,
+            set_app_setting
         ])
 }
 
@@ -669,6 +700,32 @@ mod tests {
         assert!(today["phase"]["state"].as_str().is_some());
         assert_eq!(today["referenceDate"].as_str().expect("date").len(), 10);
 
+        // App-settings KV round-trips over IPC: unset → null, then set → read.
+        assert!(
+            invoke(
+                &webview,
+                "get_app_setting",
+                json!({ "key": "updater.consent" })
+            )
+            .expect("get setting")
+            .is_null()
+        );
+        invoke(
+            &webview,
+            "set_app_setting",
+            json!({ "key": "updater.consent", "value": "yes" }),
+        )
+        .expect("set setting");
+        assert_eq!(
+            invoke(
+                &webview,
+                "get_app_setting",
+                json!({ "key": "updater.consent" })
+            )
+            .expect("get setting"),
+            "yes"
+        );
+
         assert_eq!(
             invoke(&webview, "archive_trip", json!({ "tripId": trip_id })).expect("archive trip")["status"],
             "archived"
@@ -721,6 +778,8 @@ mod tests {
             "reject_candidate",
             "add_manual_fact",
             "unconfirm_fact",
+            "get_app_setting",
+            "set_app_setting",
         ] {
             let error = invoke_with_body(&webview, command, json!({})).expect_err(command);
             assert!(
