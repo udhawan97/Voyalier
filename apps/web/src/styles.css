@@ -842,12 +842,121 @@ h3 {
   margin-bottom: 1.2rem;
 }
 
-.voy-detail__later {
-  margin-top: 3rem;
-  padding-top: 1.4rem;
+/* ===== Readiness ======================================================= */
+
+.voy-readiness {
+  margin-top: 2.6rem;
+  padding-top: 1.8rem;
   border-top: 1px solid var(--voy-line);
+}
+
+.voy-readiness__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 1.1rem;
+}
+
+.voy-readiness__title {
+  font-size: 1.4rem;
+  font-family: var(--voy-font-display);
+}
+
+.voy-readiness__overall {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--voy-line-strong);
+  font-size: 0.78rem;
+  font-weight: 640;
+  letter-spacing: 0.02em;
+  color: var(--voy-ink-muted);
+}
+
+.voy-readiness__overall--clear {
+  border-color: color-mix(in srgb, var(--voy-moss) 40%, transparent);
+  background: var(--voy-tint-moss);
+  color: var(--voy-success);
+}
+
+.voy-readiness__overall--monitor {
+  border-color: color-mix(in srgb, var(--voy-indigo) 36%, transparent);
+  background: var(--voy-tint-indigo);
+  color: var(--voy-indigo);
+}
+
+.voy-readiness__overall--action_needed,
+.voy-readiness__overall--critical {
+  border-color: color-mix(in srgb, var(--voy-vermilion) 42%, transparent);
+  background: var(--voy-tint-vermilion);
+  color: var(--voy-vermilion);
+}
+
+.voy-readiness__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.voy-readiness__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+}
+
+.voy-readiness__dot {
+  display: inline-flex;
+  margin-top: 0.05rem;
+  font-size: 0.7rem;
+  flex-shrink: 0;
   color: var(--voy-silver);
-  font-size: 0.82rem;
+}
+
+.voy-readiness__dot--clear {
+  color: var(--voy-success);
+}
+
+.voy-readiness__dot--monitor {
+  color: var(--voy-indigo);
+}
+
+.voy-readiness__dot--action_needed,
+.voy-readiness__dot--critical {
+  color: var(--voy-vermilion);
+}
+
+.voy-readiness__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.voy-readiness__item-title {
+  font-size: 0.92rem;
+  font-weight: 580;
+}
+
+.voy-readiness__item-status {
+  font-weight: 480;
+  color: var(--voy-ink-muted);
+}
+
+.voy-readiness__detail {
+  font-size: 0.88rem;
+  color: var(--voy-ink-muted);
+  line-height: 1.5;
+}
+
+.voy-readiness__scope {
+  margin: 1.2rem 0 0;
+  color: var(--voy-silver);
+  font-size: 0.8rem;
+  line-height: 1.5;
 }
 
 /* ===== Schedule check =================================================== */

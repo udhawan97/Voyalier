@@ -15,6 +15,10 @@ import type {
   ImportResult,
   ItineraryConflict,
   LodgingStayPayload,
+  ReadinessCheck,
+  ReadinessItem,
+  ReadinessStatus,
+  ReadinessSummary,
   SourceDocument,
   Trip,
   TripDetail,
@@ -383,6 +387,121 @@ function detectItineraryConflicts(
   return conflicts;
 }
 
+const READINESS_SEVERITY: Record<ReadinessStatus, number> = {
+  not_checked: 0,
+  clear: 1,
+  monitor: 2,
+  action_needed: 3,
+  critical: 4,
+};
+
+/**
+ * Deterministic mirror of voyalier-core's readiness rollup. Logistics only;
+ * sourced (entry/health/safety) readiness is a later milestone.
+ */
+function assessReadiness(
+  facts: ConfirmedFact[],
+  pendingCandidateCount: number,
+  conflicts: ItineraryConflict[],
+): ReadinessSummary {
+  const item = (
+    id: ReadinessCheck,
+    status: ReadinessStatus,
+    title: string,
+    detail: string,
+  ): ReadinessItem => ({ id, status, title, detail });
+  const noun = (count: number, singular: string) =>
+    count === 1 ? singular : `${singular}s`;
+
+  const hasFacts = facts.length > 0;
+  const hasLodging = facts.some((fact) => fact.factType === "lodging_stay");
+  const warnings = conflicts.filter(
+    (conflict) => conflict.severity === "warning",
+  ).length;
+  const notices = conflicts.filter(
+    (conflict) => conflict.severity === "notice",
+  ).length;
+  const gaps = conflicts.filter(
+    (conflict) => conflict.kind === "lodging_gap",
+  ).length;
+
+  const schedule = !hasFacts
+    ? item(
+        "schedule_conflicts",
+        "not_checked",
+        "Schedule conflicts",
+        "Add flights or stays to check for overlaps.",
+      )
+    : warnings > 0
+      ? item(
+          "schedule_conflicts",
+          "action_needed",
+          "Schedule conflicts",
+          `${warnings} scheduling ${noun(warnings, "conflict")} to resolve.`,
+        )
+      : notices > 0
+        ? item(
+            "schedule_conflicts",
+            "monitor",
+            "Schedule conflicts",
+            `${notices} scheduling ${noun(notices, "notice")} to review.`,
+          )
+        : item(
+            "schedule_conflicts",
+            "clear",
+            "Schedule conflicts",
+            "No overlaps in your confirmed plans.",
+          );
+
+  const lodging = !hasLodging
+    ? item(
+        "lodging_coverage",
+        "not_checked",
+        "Lodging coverage",
+        "No lodging added yet.",
+      )
+    : gaps > 0
+      ? item(
+          "lodging_coverage",
+          "monitor",
+          "Lodging coverage",
+          "Some nights in your trip have no lodging booked.",
+        )
+      : item(
+          "lodging_coverage",
+          "clear",
+          "Lodging coverage",
+          "Every night of your trip has lodging.",
+        );
+
+  const pending =
+    pendingCandidateCount > 0
+      ? item(
+          "pending_review",
+          "monitor",
+          "Suggestions to review",
+          `${pendingCandidateCount} imported ${noun(pendingCandidateCount, "suggestion")} waiting for review.`,
+        )
+      : item(
+          "pending_review",
+          "clear",
+          "Suggestions to review",
+          "Nothing is waiting for review.",
+        );
+
+  const items = [schedule, lodging, pending];
+  let worst: ReadinessStatus = "not_checked";
+  for (const entry of items) {
+    if (READINESS_SEVERITY[entry.status] > READINESS_SEVERITY[worst]) {
+      worst = entry.status;
+    }
+  }
+  const status: ReadinessStatus =
+    !hasFacts && worst === "clear" ? "not_checked" : worst;
+
+  return { status, items };
+}
+
 function changedFields(original: FactPayload, edited: FactPayload): string[] {
   const keys = new Set([...Object.keys(original), ...Object.keys(edited)]);
   return [...keys]
@@ -530,14 +649,24 @@ export function createMockGateway(options?: {
         const confirmedFacts = [...facts.values()]
           .filter((fact) => fact.tripId === tripId)
           .map(clone);
+        const pendingCandidateCount = [...candidates.values()].filter(
+          (candidate) =>
+            candidate.tripId === tripId && candidate.status === "pending",
+        ).length;
+        const itineraryConflicts = detectItineraryConflicts(
+          trip,
+          confirmedFacts,
+        );
         return {
           trip: clone(trip),
           confirmedFacts,
-          pendingCandidateCount: [...candidates.values()].filter(
-            (candidate) =>
-              candidate.tripId === tripId && candidate.status === "pending",
-          ).length,
-          itineraryConflicts: detectItineraryConflicts(trip, confirmedFacts),
+          pendingCandidateCount,
+          itineraryConflicts,
+          readiness: assessReadiness(
+            confirmedFacts,
+            pendingCandidateCount,
+            itineraryConflicts,
+          ),
         } satisfies TripDetail;
       }),
 

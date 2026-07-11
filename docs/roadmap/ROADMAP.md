@@ -18,9 +18,11 @@
 - ✓ Basic itinerary conflict validation — deterministic cross-segment checks
   (flight overlaps, lodging overlaps, uncovered-night gaps) surfaced as advisory
   findings on `TripDetail.itineraryConflicts`; never blocks confirmation.
-- Deterministic readiness rules — remaining. A completeness-based readiness
-  rollup (missing outbound/return, unresolved candidates) can ship here; sourced
-  readiness (advisories, entry rules) belongs to Phase 2.
+- ✓ Deterministic readiness rules — plan-completeness rollup on
+  `TripDetail.readiness` (schedule conflicts, lodging coverage, pending review)
+  with an overall status. Logistics only; sourced readiness (advisories, entry
+  rules, health, safety) stays Phase 2 and is quoted from cited sources, never
+  inferred or LLM-authored.
 - Redacted traveler PDF — remaining (Typst; see Phase 0 prototype gate).
 
 ## Phase 2 — grounded intelligence

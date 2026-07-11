@@ -4,6 +4,8 @@ import type {
   CandidateFact,
   ConfirmedFact,
   ItineraryConflict,
+  ReadinessStatus,
+  ReadinessSummary,
 } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
@@ -28,6 +30,7 @@ import {
   BedIcon,
   CheckIcon,
   ChevronRightIcon,
+  DotIcon,
   PlaneIcon,
   PlusIcon,
   RetryIcon,
@@ -144,6 +147,61 @@ function FactGroup({
           />
         ))}
       </div>
+    </section>
+  );
+}
+
+const READINESS_LABEL: Record<ReadinessStatus, string> = {
+  not_checked: "Not started",
+  clear: "On track",
+  monitor: "Worth a look",
+  action_needed: "Needs attention",
+  critical: "Critical",
+};
+
+/**
+ * Deterministic plan-completeness rollup (logistics only). Status is always
+ * spelled out in words, never conveyed by color alone.
+ */
+function ReadinessPanel({ readiness }: { readiness: ReadinessSummary }) {
+  return (
+    <section className="voy-readiness" aria-labelledby="readiness-title">
+      <div className="voy-readiness__head">
+        <h2 id="readiness-title" className="voy-readiness__title">
+          Readiness
+        </h2>
+        <span
+          className={`voy-readiness__overall voy-readiness__overall--${readiness.status}`}
+        >
+          {READINESS_LABEL[readiness.status]}
+        </span>
+      </div>
+      <ul className="voy-readiness__list">
+        {readiness.items.map((item) => (
+          <li key={item.id} className="voy-readiness__item">
+            <span
+              className={`voy-readiness__dot voy-readiness__dot--${item.status}`}
+              aria-hidden="true"
+            >
+              <DotIcon />
+            </span>
+            <span className="voy-readiness__body">
+              <span className="voy-readiness__item-title">
+                {item.title}
+                <span className="voy-readiness__item-status">
+                  {" · "}
+                  {READINESS_LABEL[item.status]}
+                </span>
+              </span>
+              <span className="voy-readiness__detail">{item.detail}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="voy-readiness__scope">
+        Plan completeness only. Entry rules, health, and safety readiness arrive
+        in a later milestone from cited sources.
+      </p>
     </section>
   );
 }
@@ -311,7 +369,7 @@ export function TripDetailView({
 
   if (!data) return null;
 
-  const { trip, confirmedFacts, itineraryConflicts } = data.detail;
+  const { trip, confirmedFacts, itineraryConflicts, readiness } = data.detail;
   const pending = data.pending;
   const pendingCount = data.detail.pendingCandidateCount;
   const flights = confirmedFacts
@@ -438,13 +496,13 @@ export function TripDetailView({
         )}
       </div>
 
+      {confirmedFacts.length > 0 || pendingCount > 0 ? (
+        <ReadinessPanel readiness={readiness} />
+      ) : null}
+
       {confirmedFacts.length > 0 ? (
         <ScheduleCheck conflicts={itineraryConflicts} />
       ) : null}
-
-      <p className="voy-detail__later" aria-hidden="true">
-        Readiness arrives in a later milestone.
-      </p>
 
       {showImport ? (
         <ImportDialog

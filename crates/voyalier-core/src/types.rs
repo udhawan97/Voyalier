@@ -69,6 +69,39 @@ pub struct TripDetail {
     /// Deterministic, advisory cross-segment checks over the confirmed facts.
     /// Always present; empty when the itinerary is coherent. Never blocks confirmation.
     pub itinerary_conflicts: Vec<ItineraryConflict>,
+    /// Deterministic plan-completeness rollup (logistics only, no sourced/entry data).
+    pub readiness: ReadinessSummary,
+}
+
+/// Which deterministic plan-completeness check a readiness item reports on.
+///
+/// Logistics only. Sourced readiness (entry rules, health, safety, weather) is a
+/// later milestone and will extend this enum additively; it is never LLM-authored.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReadinessCheck {
+    ScheduleConflicts,
+    LodgingCoverage,
+    PendingReview,
+}
+
+/// A single readiness check with its status and a plain-language explanation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadinessItem {
+    pub id: ReadinessCheck,
+    pub status: ReadinessStatus,
+    pub title: String,
+    pub detail: String,
+}
+
+/// The overall readiness rollup plus the per-check items it was derived from.
+/// `status` is the worst item; an empty plan is `NotChecked`, never `Clear`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadinessSummary {
+    pub status: ReadinessStatus,
+    pub items: Vec<ReadinessItem>,
 }
 
 /// The kind of cross-segment issue found in a trip's confirmed itinerary.

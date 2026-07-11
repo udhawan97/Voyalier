@@ -20,6 +20,20 @@ export interface TripDetail {
   pendingCandidateCount: number;
   /** Deterministic advisory checks over the confirmed itinerary. Empty when coherent. */
   itineraryConflicts: ItineraryConflict[];
+  /** Deterministic plan-completeness rollup (logistics only, no sourced/entry data). */
+  readiness: ReadinessSummary;
+}
+export type ReadinessCheck =
+  "schedule_conflicts" | "lodging_coverage" | "pending_review";
+export interface ReadinessItem {
+  id: ReadinessCheck;
+  status: ReadinessStatus;
+  title: string;
+  detail: string;
+}
+export interface ReadinessSummary {
+  status: ReadinessStatus;
+  items: ReadinessItem[];
 }
 export type ItineraryConflictKind =
   "flight_overlap" | "lodging_overlap" | "lodging_gap";

@@ -12,9 +12,9 @@ use voyalier_core::{
     ConfirmationParser, ConfirmedFact, CreateTripInput, DocumentKind, ErrorCode, ExtractionMethod,
     HealthResponse, ImportDocumentInput, ImportResult, IntelligenceMode, JsonLdParser,
     NormalizedDocument, ParsedCandidate, PlaintextParser, SourceDocument, Trip, TripDetail,
-    TripStatus, TripSummary, UpdateTripInput, changed_payload_fields, detect_itinerary_conflicts,
-    new_id, now_rfc3339, validate_create_trip, validate_document_content, validate_fact_payload,
-    validate_update_trip,
+    TripStatus, TripSummary, UpdateTripInput, assess_readiness, changed_payload_fields,
+    detect_itinerary_conflicts, new_id, now_rfc3339, validate_create_trip,
+    validate_document_content, validate_fact_payload, validate_update_trip,
 };
 
 const DATABASE_FILE: &str = "voyalier.sqlite3";
@@ -120,12 +120,20 @@ impl AppService {
                 |row| row.get::<_, i64>(0),
             )
             .map_err(storage_error)?;
+        let pending_candidate_count = pending_candidate_count as u32;
         let itinerary_conflicts = detect_itinerary_conflicts(&trip, &confirmed_facts);
+        let readiness = assess_readiness(
+            &trip,
+            &confirmed_facts,
+            pending_candidate_count,
+            &itinerary_conflicts,
+        );
         Ok(TripDetail {
             trip,
             confirmed_facts,
-            pending_candidate_count: pending_candidate_count as u32,
+            pending_candidate_count,
             itinerary_conflicts,
+            readiness,
         })
     }
 
@@ -921,6 +929,11 @@ mod tests {
             .expect("flight overlap surfaced through get_trip");
         assert_eq!(overlap.severity, ConflictSeverity::Warning);
         assert_eq!(overlap.fact_ids.len(), 2);
+        // The same overlap drives the readiness rollup through get_trip.
+        assert_eq!(
+            detail.readiness.status,
+            voyalier_core::ReadinessStatus::ActionNeeded
+        );
         cleanup_database(database);
     }
 

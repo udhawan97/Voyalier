@@ -5,6 +5,7 @@
 
 mod itinerary;
 mod parser;
+mod readiness;
 mod types;
 
 pub use itinerary::detect_itinerary_conflicts;
@@ -12,6 +13,7 @@ pub use parser::{
     ConfirmationParser, JsonLdParser, NormalizedDocument, ParsedCandidate, ParserDiagnostic,
     ParserOutcome, PlaintextParser,
 };
+pub use readiness::assess_readiness;
 pub use types::*;
 
 #[cfg(test)]
