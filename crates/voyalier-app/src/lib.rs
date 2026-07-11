@@ -11,13 +11,15 @@ use voyalier_core::{
     AddManualFactInput, AppError, CandidateFact, CandidateStatus, ConfirmCandidateInput,
     ConfirmationParser, ConfirmedFact, CreateTripInput, DocumentKind, ErrorCode, ExtractionMethod,
     FCDO_COUNTRIES, FcdoCountry, HealthResponse, ImportDocumentInput, ImportResult,
-    IntelligenceMode, JsonLdParser, LocalAiStatus, NormalizedDocument, OLLAMA_TAGS_URL,
-    ParsedCandidate, PlaintextParser, RedactionPolicy, SearchHit, SearchableDocument,
-    SourceDocument, TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripStatus, TripSummary,
-    UpdateTripInput, WeatherSnapshot, assess_readiness, build_trip_brief, changed_payload_fields,
-    detect_itinerary_conflicts, new_id, now_rfc3339, parse_fcdo_content, parse_forecast_response,
-    parse_geocoding_response, search_trip_corpus, validate_country_slug, validate_create_trip,
-    validate_document_content, validate_fact_payload, validate_search_query, validate_update_trip,
+    IntelligenceMode, JsonLdParser, LocalAiStatus, NormalizedDocument, OLLAMA_TAGS_URL, PROVIDERS,
+    ParsedCandidate, PlaintextParser, ProviderConfig, ProviderId, RedactionPolicy, SearchHit,
+    SearchableDocument, SourceDocument, TravelAdviceSnapshot, Trip, TripBrief, TripDetail,
+    TripStatus, TripSummary, UpdateTripInput, WeatherSnapshot, assess_readiness, build_trip_brief,
+    changed_payload_fields, detect_itinerary_conflicts, new_id, now_rfc3339, parse_fcdo_content,
+    parse_forecast_response, parse_geocoding_response, provider_info, search_trip_corpus,
+    validate_api_key, validate_country_slug, validate_create_trip, validate_document_content,
+    validate_fact_payload, validate_model_name, validate_provider_id, validate_search_query,
+    validate_update_trip,
 };
 
 const DATABASE_FILE: &str = "voyalier.sqlite3";
@@ -51,10 +53,100 @@ fn fetch_failure(cause: ureq::Error) -> AppError {
     )
 }
 
+/// Stores BYOK secrets outside the database and outside any contract payload.
+/// Injectable so tests never touch the real OS keychain. Account names are
+/// opaque keys chosen by the caller; the secret value is never returned by any
+/// method other than `get`, which is reserved for the (later) inference path.
+pub trait SecretStore: Send + Sync {
+    fn set(&self, account: &str, secret: &str) -> Result<(), AppError>;
+    fn has(&self, account: &str) -> bool;
+    fn delete(&self, account: &str) -> Result<(), AppError>;
+}
+
+const KEYRING_SERVICE: &str = "com.voyalier.keys";
+
+/// Production secret store: the OS keychain via the `keyring` crate.
+struct KeyringSecretStore;
+
+impl KeyringSecretStore {
+    fn entry(account: &str) -> Result<keyring::Entry, AppError> {
+        keyring::Entry::new(KEYRING_SERVICE, account).map_err(keyring_failure)
+    }
+}
+
+impl SecretStore for KeyringSecretStore {
+    fn set(&self, account: &str, secret: &str) -> Result<(), AppError> {
+        Self::entry(account)?
+            .set_password(secret)
+            .map_err(keyring_failure)
+    }
+
+    fn has(&self, account: &str) -> bool {
+        Self::entry(account)
+            .and_then(|entry| entry.get_password().map_err(keyring_failure))
+            .is_ok()
+    }
+
+    fn delete(&self, account: &str) -> Result<(), AppError> {
+        match Self::entry(account)?.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(error) => Err(keyring_failure(error)),
+        }
+    }
+}
+
+/// In-memory secret store for tests and embedding contexts without a keychain.
+#[derive(Default)]
+pub struct MemorySecretStore {
+    entries: Mutex<std::collections::HashMap<String, String>>,
+}
+
+impl SecretStore for MemorySecretStore {
+    fn set(&self, account: &str, secret: &str) -> Result<(), AppError> {
+        self.entries
+            .lock()
+            .map_err(|_| storage_error(PoisonError))?
+            .insert(account.to_owned(), secret.to_owned());
+        Ok(())
+    }
+
+    fn has(&self, account: &str) -> bool {
+        self.entries
+            .lock()
+            .map(|entries| entries.contains_key(account))
+            .unwrap_or(false)
+    }
+
+    fn delete(&self, account: &str) -> Result<(), AppError> {
+        self.entries
+            .lock()
+            .map_err(|_| storage_error(PoisonError))?
+            .remove(account);
+        Ok(())
+    }
+}
+
+fn keyring_failure(error: keyring::Error) -> AppError {
+    AppError::new(
+        ErrorCode::StorageFailure,
+        format!("the OS keychain could not be reached: {error}"),
+    )
+}
+
+#[derive(Debug)]
+struct PoisonError;
+impl std::fmt::Display for PoisonError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "in-memory secret store lock poisoned")
+    }
+}
+impl std::error::Error for PoisonError {}
+
 #[derive(Clone)]
 pub struct AppService {
     connection: Arc<Mutex<Connection>>,
     fetcher: Arc<dyn AdviceFetcher>,
+    secrets: Arc<dyn SecretStore>,
 }
 
 impl AppService {
@@ -66,10 +158,20 @@ impl AppService {
         Self::open_path_with_fetcher(path, Arc::new(UreqFetcher))
     }
 
-    /// Test/embedding constructor with an injected fetcher.
+    /// Test/embedding constructor with an injected fetcher and the real keychain.
     pub fn open_path_with_fetcher(
         path: impl AsRef<Path>,
         fetcher: Arc<dyn AdviceFetcher>,
+    ) -> Result<Self, AppError> {
+        Self::open_path_with_deps(path, fetcher, Arc::new(KeyringSecretStore))
+    }
+
+    /// Test/embedding constructor with both the fetcher and the secret store
+    /// injected, so provider-key tests never touch the OS keychain.
+    pub fn open_path_with_deps(
+        path: impl AsRef<Path>,
+        fetcher: Arc<dyn AdviceFetcher>,
+        secrets: Arc<dyn SecretStore>,
     ) -> Result<Self, AppError> {
         let path = path.as_ref();
         if let Some(parent) = path.parent() {
@@ -80,6 +182,7 @@ impl AppService {
         Ok(Self {
             connection: Arc::new(Mutex::new(connection)),
             fetcher,
+            secrets,
         })
     }
 
@@ -186,6 +289,85 @@ impl AppService {
     /// The curated list of fetchable FCDO country pages.
     pub fn list_advice_countries(&self) -> Vec<FcdoCountry> {
         FCDO_COUNTRIES.to_vec()
+    }
+
+    /// The configured state of every supported AI provider. Reports only whether
+    /// a key is stored (`has_key`) plus the chosen model — never the key itself.
+    pub fn list_providers(&self) -> Result<Vec<ProviderConfig>, AppError> {
+        let connection = self.connection()?;
+        PROVIDERS
+            .iter()
+            .map(|info| self.build_provider_config(&connection, info.id))
+            .collect()
+    }
+
+    /// Store a BYOK API key for a cloud provider in the OS keychain. The key is
+    /// consumed here and never returned, logged, or written to the database.
+    pub fn set_provider_key(&self, provider: &str, key: &str) -> Result<ProviderConfig, AppError> {
+        let id = validate_provider_id(provider)?;
+        if !provider_info(id).key_required {
+            return Err(AppError::with_detail(
+                ErrorCode::ValidationInvalidInput,
+                "this provider runs locally and does not use an API key",
+                "field",
+                "provider",
+            ));
+        }
+        let key = validate_api_key(key)?;
+        self.secrets.set(&key_account(id), &key)?;
+        let connection = self.connection()?;
+        self.build_provider_config(&connection, id)
+    }
+
+    /// Remove a provider's stored API key from the keychain.
+    pub fn clear_provider_key(&self, provider: &str) -> Result<ProviderConfig, AppError> {
+        let id = validate_provider_id(provider)?;
+        self.secrets.delete(&key_account(id))?;
+        let connection = self.connection()?;
+        self.build_provider_config(&connection, id)
+    }
+
+    /// Set a provider's chosen model (stored locally in the database).
+    pub fn set_provider_model(
+        &self,
+        provider: &str,
+        model: &str,
+    ) -> Result<ProviderConfig, AppError> {
+        let id = validate_provider_id(provider)?;
+        let model = validate_model_name(model)?;
+        let connection = self.connection()?;
+        connection
+            .execute(
+                "INSERT INTO provider_settings (provider, model) VALUES (?1, ?2)
+                 ON CONFLICT(provider) DO UPDATE SET model = excluded.model",
+                params![id.as_str(), model],
+            )
+            .map_err(storage_error)?;
+        self.build_provider_config(&connection, id)
+    }
+
+    fn build_provider_config(
+        &self,
+        connection: &Connection,
+        id: ProviderId,
+    ) -> Result<ProviderConfig, AppError> {
+        let info = provider_info(id);
+        let model = connection
+            .query_row(
+                "SELECT model FROM provider_settings WHERE provider = ?1",
+                params![id.as_str()],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(storage_error)?;
+        let has_key = info.key_required && self.secrets.has(&key_account(id));
+        Ok(ProviderConfig {
+            id,
+            label: info.label.to_owned(),
+            key_required: info.key_required,
+            has_key,
+            model,
+        })
     }
 
     /// Detect an optional on-device AI runtime (Ollama) by probing its localhost
@@ -765,6 +947,11 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
                 retrieved_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS provider_settings (
+                provider TEXT PRIMARY KEY,
+                model TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS weather_snapshots (
                 trip_id TEXT PRIMARY KEY REFERENCES trips(id) ON DELETE CASCADE,
                 place_name TEXT NOT NULL,
@@ -890,6 +1077,11 @@ fn fetch_weather_snapshot(
         )
         .optional()
         .map_err(storage_error)
+}
+
+/// The keychain account name under which a provider's API key is stored.
+fn key_account(id: ProviderId) -> String {
+    format!("api_key.{}", id.as_str())
 }
 
 /// Minimal RFC 3986 percent-encoding for a single query value.
@@ -1525,6 +1717,72 @@ mod tests {
         assert_eq!(percent_encode("Kyoto"), "Kyoto");
         assert_eq!(percent_encode("New York"), "New%20York");
         assert_eq!(percent_encode("São Paulo"), "S%C3%A3o%20Paulo");
+    }
+
+    #[test]
+    fn provider_keys_live_in_the_secret_store_never_the_config_or_db() {
+        use voyalier_core::ProviderId;
+
+        // Provider config never touches the network.
+        struct NoFetcher;
+        impl AdviceFetcher for NoFetcher {
+            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+                panic!("provider configuration must not fetch");
+            }
+        }
+
+        let database = temp_database("providers");
+        let secrets = Arc::new(MemorySecretStore::default());
+        let service =
+            AppService::open_path_with_deps(&database, Arc::new(NoFetcher), secrets.clone())
+                .expect("service");
+
+        // Fresh: nothing has a key.
+        let providers = service.list_providers().expect("list");
+        assert_eq!(providers.len(), 3);
+        assert!(providers.iter().all(|config| !config.has_key));
+
+        // Set an OpenAI key: has_key flips, and the key is in the store only.
+        let config = service
+            .set_provider_key("openai", "  sk-fake-123  ")
+            .expect("set key");
+        assert!(config.has_key);
+        assert_eq!(config.id, ProviderId::OpenAi);
+        assert!(secrets.has("api_key.openai"));
+        // The returned config must not carry the key anywhere.
+        let serialized = serde_json::to_string(&config).expect("ser");
+        assert!(!serialized.contains("sk-fake-123"));
+
+        // Model is stored in the db, surfaced on the config.
+        let config = service
+            .set_provider_model("openai", "some-model")
+            .expect("set model");
+        assert_eq!(config.model.as_deref(), Some("some-model"));
+
+        // Ollama is local and rejects a key.
+        assert_eq!(
+            service
+                .set_provider_key("ollama", "nope")
+                .expect_err("no key for ollama")
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
+        // Empty key and unknown provider are validation errors.
+        assert_eq!(
+            service
+                .set_provider_key("openai", "   ")
+                .expect_err("empty")
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
+        assert!(service.set_provider_key("bard", "x").is_err());
+
+        // Clearing removes the secret; model persists.
+        let config = service.clear_provider_key("openai").expect("clear");
+        assert!(!config.has_key);
+        assert_eq!(config.model.as_deref(), Some("some-model"));
+        assert!(!secrets.has("api_key.openai"));
+        cleanup_database(database);
     }
 
     #[test]

@@ -8,6 +8,7 @@ mod brief;
 mod itinerary;
 mod local_ai;
 mod parser;
+mod provider;
 mod readiness;
 mod search;
 mod types;
@@ -22,6 +23,10 @@ pub use local_ai::{LocalAiModel, LocalAiStatus, OLLAMA_TAGS_URL, parse_ollama_mo
 pub use parser::{
     ConfirmationParser, JsonLdParser, NormalizedDocument, ParsedCandidate, ParserDiagnostic,
     ParserOutcome, PlaintextParser,
+};
+pub use provider::{
+    MAX_API_KEY_LEN, MAX_MODEL_LEN, PROVIDERS, ProviderConfig, ProviderId, ProviderInfo,
+    provider_info, validate_api_key, validate_model_name, validate_provider_id,
 };
 pub use readiness::assess_readiness;
 pub use search::{
