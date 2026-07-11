@@ -108,6 +108,16 @@ pattern used for conflicts, readiness, and the brief.
   packs — Overture places (permissive) plus Wikivoyage prose as a separate
   CC BY-SA layer with a per-layer LICENSE/ATTRIBUTION manifest — published to
   GitHub Releases; the app downloads one pack per trip behind explicit consent.
+  - **Required seed cities (must be in the first pack set):** Nashville
+    (US-TN); Hawaii — see note. Both are owner-requested and non-negotiable for
+    the initial build; the rest of the ~20 fill in around them.
+  - **Hawaii is not a single city.** The pack model extracts a bounded area
+    (an Overture bbox + one Wikivoyage article), so "Hawaii" must resolve to a
+    concrete scope. Default until decided otherwise: an **Oʻahu / Honolulu**
+    pack (Wikivoyage "Honolulu" + island bbox), because it covers the main
+    arrival point and most visitors. If broader coverage is wanted, ship
+    per-island packs (Oʻahu, Maui, Kauaʻi, Hawaiʻi/Big Island) using their
+    respective Wikivoyage articles rather than one oversized state bbox.
 - **Providers (C): OS keychain + hybrid consent, Ollama first.** BYOK keys live
   in the OS keychain via the `keyring` crate (desktop-only until a browser-mode
   fallback is designed). Consent: the first AI call per provider shows a full
