@@ -1107,6 +1107,147 @@ h3 {
   max-width: 40rem;
 }
 
+/* ===== Weather outlook ================================================= */
+
+.voy-weather {
+  margin-top: 2.6rem;
+  padding-top: 1.8rem;
+  border-top: 1px solid var(--voy-line);
+}
+
+.voy-weather__title {
+  font-size: 1.4rem;
+  font-family: var(--voy-font-display);
+  margin-bottom: 1rem;
+}
+
+.voy-weather__card {
+  padding: 1.1rem 1.25rem;
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-raised);
+  margin-bottom: 1.1rem;
+}
+
+.voy-weather__card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.7rem;
+}
+
+.voy-weather__place {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 620;
+}
+
+.voy-weather__region {
+  font-weight: 480;
+  color: var(--voy-ink-muted);
+  font-size: 0.9rem;
+}
+
+.voy-weather__freshness {
+  font-size: 0.8rem;
+  color: var(--voy-ink-muted);
+}
+
+.voy-weather__freshness--stale {
+  color: var(--voy-vermilion);
+  font-weight: 600;
+}
+
+.voy-weather__days {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.voy-weather__day {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr auto auto;
+  gap: 0.9rem;
+  align-items: baseline;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--voy-line);
+  font-size: 0.92rem;
+}
+
+.voy-weather__day:last-child {
+  border-bottom: none;
+}
+
+.voy-weather__day-date {
+  color: var(--voy-ink-muted);
+}
+
+.voy-weather__day-temps {
+  font-variant-numeric: tabular-nums;
+}
+
+.voy-weather__day-precip {
+  color: var(--voy-indigo);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.voy-weather__coverage {
+  margin: 0.8rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.voy-weather__meta {
+  margin: 0.9rem 0 0;
+  font-size: 0.82rem;
+  color: var(--voy-ink-muted);
+}
+
+.voy-weather__meta a {
+  color: var(--voy-indigo);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.voy-weather__consent {
+  margin: 0.7rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  max-width: 40rem;
+}
+
+@media (max-width: 40rem) {
+  .voy-weather__day {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "date temps"
+      "desc precip";
+  }
+
+  .voy-weather__day-date {
+    grid-area: date;
+  }
+
+  .voy-weather__day-desc {
+    grid-area: desc;
+  }
+
+  .voy-weather__day-temps {
+    grid-area: temps;
+  }
+
+  .voy-weather__day-precip {
+    grid-area: precip;
+  }
+}
+
 /* ===== Trip search ===================================================== */
 
 .voy-search {

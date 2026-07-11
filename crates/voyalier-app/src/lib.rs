@@ -13,10 +13,11 @@ use voyalier_core::{
     FCDO_COUNTRIES, FcdoCountry, HealthResponse, ImportDocumentInput, ImportResult,
     IntelligenceMode, JsonLdParser, NormalizedDocument, ParsedCandidate, PlaintextParser,
     RedactionPolicy, SearchHit, SearchableDocument, SourceDocument, TravelAdviceSnapshot, Trip,
-    TripBrief, TripDetail, TripStatus, TripSummary, UpdateTripInput, assess_readiness,
-    build_trip_brief, changed_payload_fields, detect_itinerary_conflicts, new_id, now_rfc3339,
-    parse_fcdo_content, search_trip_corpus, validate_country_slug, validate_create_trip,
-    validate_document_content, validate_fact_payload, validate_search_query, validate_update_trip,
+    TripBrief, TripDetail, TripStatus, TripSummary, UpdateTripInput, WeatherSnapshot,
+    assess_readiness, build_trip_brief, changed_payload_fields, detect_itinerary_conflicts, new_id,
+    now_rfc3339, parse_fcdo_content, parse_forecast_response, parse_geocoding_response,
+    search_trip_corpus, validate_country_slug, validate_create_trip, validate_document_content,
+    validate_fact_payload, validate_search_query, validate_update_trip,
 };
 
 const DATABASE_FILE: &str = "voyalier.sqlite3";
@@ -170,6 +171,7 @@ impl AppService {
             &itinerary_conflicts,
         );
         let travel_advice = fetch_travel_advice_snapshot(&connection, trip_id)?;
+        let weather = fetch_weather_snapshot(&connection, trip_id)?;
         Ok(TripDetail {
             trip,
             confirmed_facts,
@@ -177,6 +179,7 @@ impl AppService {
             itinerary_conflicts,
             readiness,
             travel_advice,
+            weather,
         })
     }
 
@@ -270,6 +273,68 @@ impl AppService {
         let facts = fetch_confirmed_facts(&connection, trip_id)?;
 
         Ok(search_trip_corpus(&query, &searchable, &facts))
+    }
+
+    /// Fetch and store a dated weather outlook for the trip's destination.
+    /// Called only from an explicit user action — the click is the consent for
+    /// two keyless requests to open-meteo.com (geocode the destination name,
+    /// then the daily forecast). The snapshot replaces the trip's previous one.
+    pub fn fetch_weather(&self, trip_id: &str) -> Result<WeatherSnapshot, AppError> {
+        let trip = {
+            let connection = self.connection()?;
+            fetch_trip(&connection, trip_id)?
+        };
+
+        let geocode_url = format!(
+            "https://geocoding-api.open-meteo.com/v1/search?name={}&count=1&language=en&format=json",
+            percent_encode(&trip.destination)
+        );
+        let place = parse_geocoding_response(&self.fetcher.fetch_text(&geocode_url)?)?;
+
+        let forecast_url = format!(
+            "https://api.open-meteo.com/v1/forecast?latitude={:.5}&longitude={:.5}\
+             &daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max\
+             &timezone=auto&forecast_days=16",
+            place.latitude, place.longitude
+        );
+        let snapshot = parse_forecast_response(
+            &place,
+            &self.fetcher.fetch_text(&forecast_url)?,
+            &trip.start_date,
+            &trip.end_date,
+            &now_rfc3339(),
+        )?;
+
+        let connection = self.connection()?;
+        connection
+            .execute(
+                "INSERT INTO weather_snapshots
+                 (trip_id, place_name, place_region, latitude, longitude, days, coverage,
+                  source_url, retrieved_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                 ON CONFLICT(trip_id) DO UPDATE SET
+                   place_name = excluded.place_name,
+                   place_region = excluded.place_region,
+                   latitude = excluded.latitude,
+                   longitude = excluded.longitude,
+                   days = excluded.days,
+                   coverage = excluded.coverage,
+                   source_url = excluded.source_url,
+                   retrieved_at = excluded.retrieved_at",
+                params![
+                    trip_id,
+                    snapshot.place_name,
+                    snapshot.place_region,
+                    snapshot.latitude,
+                    snapshot.longitude,
+                    json_to_sql(&snapshot.days)?,
+                    enum_to_sql(snapshot.coverage)?,
+                    snapshot.source_url,
+                    snapshot.retrieved_at
+                ],
+            )
+            .map_err(storage_error)?;
+        Ok(snapshot)
     }
 
     /// Build a redacted, shareable brief from the confirmed plan. The brief is
@@ -667,6 +732,18 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
                 retrieved_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS weather_snapshots (
+                trip_id TEXT PRIMARY KEY REFERENCES trips(id) ON DELETE CASCADE,
+                place_name TEXT NOT NULL,
+                place_region TEXT NOT NULL,
+                latitude REAL NOT NULL,
+                longitude REAL NOT NULL,
+                days TEXT NOT NULL,
+                coverage TEXT NOT NULL,
+                source_url TEXT NOT NULL,
+                retrieved_at TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS confirmed_facts (
                 id TEXT PRIMARY KEY,
                 trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
@@ -753,6 +830,50 @@ fn fetch_travel_advice_snapshot(
         )
         .optional()
         .map_err(storage_error)
+}
+
+fn fetch_weather_snapshot(
+    connection: &Connection,
+    trip_id: &str,
+) -> Result<Option<WeatherSnapshot>, AppError> {
+    connection
+        .query_row(
+            "SELECT place_name, place_region, latitude, longitude, days, coverage,
+                    source_url, retrieved_at
+             FROM weather_snapshots WHERE trip_id = ?1",
+            params![trip_id],
+            |row| {
+                Ok(WeatherSnapshot {
+                    place_name: row.get(0)?,
+                    place_region: row.get(1)?,
+                    latitude: row.get(2)?,
+                    longitude: row.get(3)?,
+                    days: sql_to_json(row.get::<_, String>(4)?)?,
+                    coverage: sql_to_enum(row.get::<_, String>(5)?)?,
+                    source_url: row.get(6)?,
+                    retrieved_at: row.get(7)?,
+                })
+            },
+        )
+        .optional()
+        .map_err(storage_error)
+}
+
+/// Minimal RFC 3986 percent-encoding for a single query value.
+fn percent_encode(value: &str) -> String {
+    let mut encoded = String::with_capacity(value.len());
+    for byte in value.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                encoded.push(byte as char);
+            }
+            _ => {
+                encoded.push('%');
+                encoded.push_str(&format!("{byte:02X}"));
+            }
+        }
+    }
+    encoded
 }
 
 fn fetch_confirmed_facts(
@@ -1246,6 +1367,70 @@ mod tests {
                 .any(|country| country.slug == "japan")
         );
         cleanup_database(database);
+    }
+
+    #[test]
+    fn fetch_weather_geocodes_the_destination_and_stores_the_outlook() {
+        use voyalier_core::WeatherCoverage;
+
+        struct RoutedFetcher {
+            calls: std::sync::Mutex<Vec<String>>,
+        }
+        impl AdviceFetcher for RoutedFetcher {
+            fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+                self.calls.lock().expect("lock").push(url.to_owned());
+                if url.contains("geocoding-api.open-meteo.com") {
+                    Ok(r#"{ "results": [ { "name": "Kyoto", "latitude": 35.02107,
+                        "longitude": 135.75385, "country": "Japan", "admin1": "Kyoto" } ] }"#
+                        .to_owned())
+                } else {
+                    Ok(r#"{ "daily": {
+                        "time": ["2027-04-01", "2027-04-02"],
+                        "weather_code": [0, 61],
+                        "temperature_2m_max": [18.4, 15.1],
+                        "temperature_2m_min": [9.2, 8.7],
+                        "precipitation_probability_max": [5, 80]
+                    } }"#
+                        .to_owned())
+                }
+            }
+        }
+
+        let database = temp_database("weather");
+        let fetcher = Arc::new(RoutedFetcher {
+            calls: std::sync::Mutex::new(Vec::new()),
+        });
+        let service =
+            AppService::open_path_with_fetcher(&database, fetcher.clone()).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        let snapshot = service.fetch_weather(&trip.id).expect("snapshot");
+        assert_eq!(snapshot.place_name, "Kyoto");
+        assert_eq!(snapshot.place_region, "Kyoto, Japan");
+        assert_eq!(snapshot.days.len(), 2);
+        // Trip runs 2027-04-01..10 but the horizon covered only two days.
+        assert_eq!(snapshot.coverage, WeatherCoverage::Partial);
+
+        let calls = fetcher.calls.lock().expect("lock").clone();
+        assert_eq!(calls.len(), 2);
+        assert!(calls[0].contains("geocoding-api.open-meteo.com"));
+        assert!(calls[0].contains("name=Kyoto"));
+        assert!(calls[1].contains("api.open-meteo.com/v1/forecast"));
+        assert!(calls[1].contains("latitude=35.02107"));
+
+        // Persists and rides on the trip detail.
+        let detail = service.get_trip(&trip.id).expect("detail");
+        let stored = detail.weather.expect("stored weather");
+        assert_eq!(stored.days[1].description, "Light rain");
+        assert_eq!(stored.days[1].precipitation_chance_pct, Some(80.0));
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn percent_encoding_covers_spaces_and_unicode() {
+        assert_eq!(percent_encode("Kyoto"), "Kyoto");
+        assert_eq!(percent_encode("New York"), "New%20York");
+        assert_eq!(percent_encode("São Paulo"), "S%C3%A3o%20Paulo");
     }
 
     #[test]

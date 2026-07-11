@@ -42,8 +42,14 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   (ureq, identifying User-Agent), stores a dated verbatim snapshot locally, and
   renders it with source link, OGL v3.0 attribution, retrieval time, staleness
   after 7 days, and a UK-passport-holders label. Country slugs come from a
-  curated list in code, never from trip text or a model. Remaining: additional
-  sources (US State RSS, health, weather) behind the same consent pattern.
+  curated list in code, never from trip text or a model.
+- ✓ Weather adapter: consent-gated Open-Meteo outlook — an explicit click sends
+  the destination name to open-meteo.com (geocode, then daily forecast), stores
+  a dated snapshot, and renders trip-window days with honest coverage
+  (full/partial/none against the ~16-day horizon), "Weather data by
+  Open-Meteo.com" CC BY 4.0 attribution, and 12-hour staleness. Weather is
+  planning texture, never a safety claim. Remaining sources: US State
+  advisories and health notices behind the same consent pattern.
 - ✓ Local retrieval, first slice: `searchTrip` ships as a deterministic scan
   over stored documents and confirmed facts with provenance and transparent
   scoring ("Find in this trip"). FTS5/embeddings may replace the internals

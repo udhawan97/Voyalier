@@ -10,6 +10,7 @@ mod parser;
 mod readiness;
 mod search;
 mod types;
+mod weather;
 
 pub use advice::{
     FCDO_COUNTRIES, FcdoCountry, TravelAdviceSnapshot, parse_fcdo_content, validate_country_slug,
@@ -25,6 +26,10 @@ pub use search::{
     SearchHit, SearchHitSource, SearchableDocument, search_trip_corpus, validate_search_query,
 };
 pub use types::*;
+pub use weather::{
+    GeocodedPlace, WeatherCoverage, WeatherDay, WeatherSnapshot, describe_weather_code,
+    parse_forecast_response, parse_geocoding_response,
+};
 
 #[cfg(test)]
 mod schema_validation;

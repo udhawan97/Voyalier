@@ -26,6 +26,7 @@ import type {
   TravelAdviceSnapshot,
   Trip,
   TripBrief,
+  WeatherSnapshot,
   TripDetail,
   TripSummary,
   UpdateTripInput,
@@ -256,6 +257,12 @@ function nextDay(date: string): string {
   const parsed = new Date(`${date}T00:00:00Z`);
   parsed.setUTCDate(parsed.getUTCDate() + 1);
   return parsed.toISOString().slice(0, 10);
+}
+
+function nextDayN(date: string, offset: number): string {
+  let current = date;
+  for (let step = 0; step < offset; step += 1) current = nextDay(current);
+  return current;
 }
 
 function flightLabel(payload: FlightSegmentPayload): string {
@@ -650,6 +657,7 @@ export function createMockGateway(options?: {
   );
   const documents = new Map<string, StoredDocument>();
   const adviceSnapshots = new Map<string, TravelAdviceSnapshot>();
+  const weatherSnapshots = new Map<string, WeatherSnapshot>();
   let sequence = 1;
 
   function timestamp(): string {
@@ -771,6 +779,7 @@ export function createMockGateway(options?: {
           confirmedFacts,
         );
         const travelAdvice = adviceSnapshots.get(tripId);
+        const weather = weatherSnapshots.get(tripId);
         return {
           trip: clone(trip),
           confirmedFacts,
@@ -782,6 +791,7 @@ export function createMockGateway(options?: {
             itineraryConflicts,
           ),
           ...(travelAdvice ? { travelAdvice: clone(travelAdvice) } : {}),
+          ...(weather ? { weather: clone(weather) } : {}),
         } satisfies TripDetail;
       }),
 
@@ -932,6 +942,42 @@ export function createMockGateway(options?: {
         return clone(snapshot);
       }),
 
+    fetchWeather: (tripId: string) =>
+      execute("fetchWeather", () => {
+        const trip = requireTrip(tripId);
+        // Fictional outlook shaped like a real Open-Meteo response: covers up
+        // to the first three trip days so partial coverage is exercisable.
+        const days = [0, 1, 2]
+          .map((offset) => {
+            const date =
+              offset === 0 ? trip.startDate : nextDayN(trip.startDate, offset);
+            return date <= trip.endDate ? date : null;
+          })
+          .filter((date): date is string => date !== null)
+          .map((date, index) => ({
+            date,
+            weatherCode: [2, 61, 0][index] ?? 2,
+            description:
+              ["Partly cloudy", "Light rain", "Clear sky"][index] ??
+              "Partly cloudy",
+            tempMaxC: [17.2, 14.8, 18.1][index] ?? 16,
+            tempMinC: [8.4, 7.9, 9.3][index] ?? 8,
+            precipitationChancePct: [10, 75, 5][index] ?? 10,
+          }));
+        const snapshot: WeatherSnapshot = {
+          placeName: trip.destination,
+          placeRegion: "Fictional fixture",
+          latitude: 35.0,
+          longitude: 135.8,
+          days,
+          coverage: days.length === 0 ? "none" : "partial",
+          sourceUrl: "https://open-meteo.com/",
+          retrievedAt: timestamp(),
+        };
+        weatherSnapshots.set(tripId, snapshot);
+        return clone(snapshot);
+      }),
+
     deleteTrip: (tripId: string) =>
       execute("deleteTrip", () => {
         requireTrip(tripId);
@@ -946,6 +992,7 @@ export function createMockGateway(options?: {
           if (stored.document.tripId === tripId) documents.delete(id);
         }
         adviceSnapshots.delete(tripId);
+        weatherSnapshots.delete(tripId);
       }),
 
     importDocument: (input: ImportDocumentInput) =>

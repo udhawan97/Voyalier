@@ -5,6 +5,7 @@ use voyalier_core::{
     AddManualFactInput, AppError, CandidateFact, CandidateStatus, ConfirmCandidateInput,
     ConfirmedFact, CreateTripInput, FcdoCountry, HealthResponse, ImportDocumentInput, ImportResult,
     SearchHit, TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripSummary, UpdateTripInput,
+    WeatherSnapshot,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -136,6 +137,14 @@ fn fetch_travel_advice(
 }
 
 #[tauri::command]
+fn fetch_weather(
+    input: TripIdInput,
+    service: State<'_, AppService>,
+) -> Result<WeatherSnapshot, AppError> {
+    service.fetch_weather(&input.trip_id)
+}
+
+#[tauri::command]
 fn delete_trip(input: TripIdInput, service: State<'_, AppService>) -> Result<(), AppError> {
     service.delete_trip(&input.trip_id)
 }
@@ -206,6 +215,7 @@ fn builder<R: tauri::Runtime>(
             search_trip,
             list_advice_countries,
             fetch_travel_advice,
+            fetch_weather,
             delete_trip,
             import_document,
             list_candidates,
@@ -405,6 +415,7 @@ mod tests {
             "search_trip",
             "list_advice_countries",
             "fetch_travel_advice",
+            "fetch_weather",
             "delete_trip",
             "import_document",
             "list_candidates",

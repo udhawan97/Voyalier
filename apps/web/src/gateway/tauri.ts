@@ -18,6 +18,7 @@ import type {
   TripDetail,
   TripSummary,
   UpdateTripInput,
+  WeatherSnapshot,
 } from "@voyalier/contracts";
 
 import { toAppError } from "./errors";
@@ -81,6 +82,9 @@ export function createTauriGateway(
 
     fetchTravelAdvice: (input: FetchTravelAdviceInput) =>
       call<TravelAdviceSnapshot>("fetch_travel_advice", input),
+
+    fetchWeather: (tripId: string) =>
+      call<WeatherSnapshot>("fetch_weather", { tripId }),
 
     searchTrip: (tripId: string, query: string) =>
       call<SearchHit[]>("search_trip", { tripId, query }),

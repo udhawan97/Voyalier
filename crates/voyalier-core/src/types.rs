@@ -6,6 +6,7 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::advice::TravelAdviceSnapshot;
+use crate::weather::WeatherSnapshot;
 
 pub const MAX_LOCATION_LEN: usize = 120;
 pub const MAX_DOCUMENT_CHARS: usize = 1_000_000;
@@ -62,7 +63,8 @@ pub struct TripSummary {
     pub pending_candidate_count: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+// PartialEq only: the weather snapshot carries f64 temperatures.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TripDetail {
     pub trip: Trip,
@@ -77,6 +79,10 @@ pub struct TripDetail {
     /// Additive; omitted on the wire when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub travel_advice: Option<TravelAdviceSnapshot>,
+    /// The latest user-fetched destination weather outlook, when one exists.
+    /// Additive; omitted on the wire when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weather: Option<WeatherSnapshot>,
 }
 
 /// Which deterministic plan-completeness check a readiness item reports on.

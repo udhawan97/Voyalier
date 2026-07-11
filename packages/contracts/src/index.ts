@@ -24,6 +24,8 @@ export interface TripDetail {
   readiness: ReadinessSummary;
   /** The latest user-fetched official travel-advice snapshot, when one exists. */
   travelAdvice?: TravelAdviceSnapshot;
+  /** The latest user-fetched destination weather outlook, when one exists. */
+  weather?: WeatherSnapshot;
 }
 export type ReadinessCheck =
   | "schedule_conflicts"
@@ -162,6 +164,35 @@ export interface FetchTravelAdviceInput {
   tripId: string;
   countrySlug: string;
 }
+/** How much of the trip window the forecast horizon could cover. */
+export type WeatherCoverage = "full" | "partial" | "none";
+/** One forecast day, metric units, verbatim from the source. */
+export interface WeatherDay {
+  /** ISO YYYY-MM-DD, local to the destination. */
+  date: string;
+  /** WMO weather interpretation code as sent by the source. */
+  weatherCode: number;
+  /** Deterministic human description of the code. */
+  description: string;
+  tempMaxC: number;
+  tempMinC: number;
+  /** Daily maximum precipitation probability, percent. */
+  precipitationChancePct?: number;
+}
+/** A dated destination weather outlook (Open-Meteo, CC BY 4.0). */
+export interface WeatherSnapshot {
+  /** Geocoded place name, verbatim, so a wrong geocode is visible. */
+  placeName: string;
+  placeRegion: string;
+  latitude: number;
+  longitude: number;
+  /** Days inside the trip window the forecast could cover, in order. */
+  days: WeatherDay[];
+  coverage: WeatherCoverage;
+  sourceUrl: string;
+  /** When this device retrieved the snapshot (RFC 3339). */
+  retrievedAt: string;
+}
 export type SearchHitSource = "document" | "confirmed_fact";
 export interface SearchHit {
   source: SearchHitSource;
@@ -257,6 +288,7 @@ export interface AppGateway {
   fetchTravelAdvice(
     input: FetchTravelAdviceInput,
   ): Promise<TravelAdviceSnapshot>;
+  fetchWeather(tripId: string): Promise<WeatherSnapshot>;
   searchTrip(tripId: string, query: string): Promise<SearchHit[]>;
   deleteTrip(tripId: string): Promise<void>;
   importDocument(input: ImportDocumentInput): Promise<ImportResult>;

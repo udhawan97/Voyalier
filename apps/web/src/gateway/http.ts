@@ -18,6 +18,7 @@ import type {
   TripDetail,
   TripSummary,
   UpdateTripInput,
+  WeatherSnapshot,
 } from "@voyalier/contracts";
 
 import { toAppError } from "./errors";
@@ -107,6 +108,9 @@ export function createHttpGateway(
         `/api/v1/trips/${enc(input.tripId)}/travel-advice`,
         { countrySlug: input.countrySlug },
       ),
+
+    fetchWeather: (tripId: string) =>
+      request<WeatherSnapshot>("POST", `/api/v1/trips/${enc(tripId)}/weather`),
 
     searchTrip: (tripId: string, query: string) =>
       request<SearchHit[]>(

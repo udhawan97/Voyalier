@@ -79,6 +79,7 @@ pub fn app(service: AppService) -> Router {
             "/api/v1/trips/{trip_id}/travel-advice",
             post(fetch_travel_advice),
         )
+        .route("/api/v1/trips/{trip_id}/weather", post(fetch_weather))
         .route("/api/v1/trips/{trip_id}/search", get(search_trip))
         .route("/api/v1/trips/{trip_id}/documents", post(import_document))
         .route("/api/v1/trips/{trip_id}/candidates", get(list_candidates))
@@ -164,6 +165,13 @@ async fn fetch_travel_advice(
     Ok(Json(
         service.fetch_travel_advice(&trip_id, &body.country_slug)?,
     ))
+}
+
+async fn fetch_weather(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.fetch_weather(&trip_id)?))
 }
 
 async fn delete_trip(
@@ -586,7 +594,22 @@ mod tests {
 
         struct StubFetcher;
         impl AdviceFetcher for StubFetcher {
-            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+            fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+                if url.contains("geocoding-api.open-meteo.com") {
+                    return Ok(r#"{ "results": [ { "name": "Kyoto", "latitude": 35.0,
+                        "longitude": 135.8, "country": "Japan" } ] }"#
+                        .to_owned());
+                }
+                if url.contains("api.open-meteo.com") {
+                    return Ok(r#"{ "daily": {
+                        "time": ["2027-04-01"],
+                        "weather_code": [2],
+                        "temperature_2m_max": [17.0],
+                        "temperature_2m_min": [8.0],
+                        "precipitation_probability_max": [10]
+                    } }"#
+                        .to_owned());
+                }
                 Ok(
                     r#"{ "description": "FCDO travel advice for Japan.", "details": {} }"#
                         .to_owned(),
@@ -641,13 +664,34 @@ mod tests {
         assert_eq!(detail.json["travelAdvice"]["countrySlug"], "japan");
 
         let bad_slug = request(
-            router,
+            router.clone(),
             Method::POST,
             &format!("/api/v1/trips/{trip_id}/travel-advice"),
             Some(json!({ "countrySlug": "atlantis" })),
         )
         .await;
         assert_eq!(bad_slug.status, StatusCode::BAD_REQUEST);
+
+        // Weather rides the same consent-gated pattern, no request body needed.
+        let weather = request(
+            router.clone(),
+            Method::POST,
+            &format!("/api/v1/trips/{trip_id}/weather"),
+            None,
+        )
+        .await;
+        assert_eq!(weather.status, StatusCode::OK);
+        assert_eq!(weather.json["placeName"], "Kyoto");
+        assert_eq!(weather.json["days"][0]["description"], "Partly cloudy");
+
+        let detail = request(
+            router,
+            Method::GET,
+            &format!("/api/v1/trips/{trip_id}"),
+            None,
+        )
+        .await;
+        assert_eq!(detail.json["weather"]["placeName"], "Kyoto");
         cleanup_database(database);
     }
 
