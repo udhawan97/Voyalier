@@ -69,6 +69,26 @@ decrypt the data without it. Your options are to keep trying to remember it, or
 to start over with an empty workspace by removing the database (see below), which
 permanently discards the encrypted trips.
 
+## An update won't install, or the app won't open after one
+
+**Likely cause:** a transient GitHub/network issue, or a rare bundle-swap
+problem.
+
+- **"Couldn't check for updates":** Voyalier keeps update errors deliberately
+  coarse (it never guesses at GitHub's internals). Check your connection and
+  click **Try again**, or open the
+  [releases page](https://github.com/udhawan97/Voyalier/releases) to download a
+  build by hand. If you're offline it says so instead.
+- **The update downloaded but the app won't reopen (macOS):** re-download the
+  latest build from the releases page and reinstall it into **Applications**.
+  Your data is safe — trips, documents, and your keys live outside the app
+  bundle, so a reinstall keeps everything, and Voyalier took a database backup
+  right before the update (see below).
+- **On macOS the app must be updated from `/Applications`** — updating a copy run
+  from Downloads or a mounted disk image can fail to swap in place.
+- **Windows** updates by closing, installing, and reopening on their own (under a
+  minute); there is no separate "restart" step.
+
 ## Where your data lives (and how to back up or reset)
 
 Everything is stored locally in a single SQLite file, `voyalier.sqlite3`:
@@ -83,6 +103,11 @@ Set `VOYALIER_DATA_DIR` to point Voyalier at a different location.
   closed. Sensitive fields inside it are already encrypted at rest.
 - **Reset:** delete the file to start with an empty workspace. This is
   irreversible.
+- **Pre-update backups:** Voyalier keeps its most recent database backups in a
+  `backups/` subfolder of that same directory (named `pre-update-*.sqlite3`).
+  Each is a complete snapshot, so a trip you delete still exists in older backups
+  until they rotate out — delete the files if you want them gone. Backups are
+  never included in an exported or shared brief.
 
 Your provider API keys and the vault key live separately in the OS keychain
 (service `com.voyalier.keys`), not in that file. Removing a provider key is done
