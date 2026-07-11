@@ -3,6 +3,7 @@ import type { AppError } from "@voyalier/contracts";
 
 import { useGateway } from "../app/context";
 import { describeError } from "../app/format";
+import { t } from "../app/i18n";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 import { Dialog } from "../components/Dialog";
@@ -39,14 +40,14 @@ export function DeleteTripDialog({
 
   return (
     <Dialog
-      title="Delete this trip?"
+      title={t("deleteTrip.title")}
       onClose={onClose}
       initialFocusRef={inputRef}
-      description={`This permanently deletes “${trip.title}” and everything in it. This can't be undone.`}
+      description={t("deleteTrip.description", { title: trip.title })}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t("action.cancel")}
           </Button>
           <Button
             variant="danger"
@@ -54,7 +55,7 @@ export function DeleteTripDialog({
             busy={submitting}
             disabled={!ready}
           >
-            Delete trip
+            {t("deleteTrip.confirm")}
           </Button>
         </>
       }
@@ -66,13 +67,13 @@ export function DeleteTripDialog({
       ) : null}
       <TextField
         id="delete-confirm"
-        label="Type delete to confirm"
+        label={t("deleteTrip.confirmLabel")}
         inputRef={inputRef}
         value={confirmText}
         onChange={(event) => setConfirmText(event.target.value)}
         autoComplete="off"
-        placeholder="delete"
-        hint="Prefer to keep it? Archiving hides the trip without removing anything."
+        placeholder={t("deleteTrip.placeholder")}
+        hint={t("deleteTrip.hint")}
       />
     </Dialog>
   );

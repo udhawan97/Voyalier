@@ -93,6 +93,17 @@ const en = {
   "health.online": "Local core ready",
   "health.offline": "Local core offline",
   "action.retry": "Retry",
+  "action.cancel": "Cancel",
+
+  "deleteTrip.title": "Delete this trip?",
+  "deleteTrip.description":
+    "This permanently deletes “{title}” and everything in it. This can't be undone.",
+  "deleteTrip.confirm": "Delete trip",
+  "deleteTrip.confirmLabel": "Type delete to confirm",
+  // The word the user must type is intentionally left as the literal "delete".
+  "deleteTrip.placeholder": "delete",
+  "deleteTrip.hint":
+    "Prefer to keep it? Archiving hides the trip without removing anything.",
 } as const;
 
 export type MessageKey = keyof typeof en;
