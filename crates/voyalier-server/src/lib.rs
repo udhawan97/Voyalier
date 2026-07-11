@@ -60,6 +60,11 @@ struct SetProviderModelBody {
     model: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct PassphraseBody {
+    passphrase: String,
+}
+
 #[derive(Debug)]
 struct ApiError(AppError);
 
@@ -112,6 +117,13 @@ pub fn app(service: AppService) -> Router {
         )
         .route("/api/v1/trips/{trip_id}/brief", get(get_trip_brief))
         .route("/api/v1/trips/{trip_id}/today", get(get_today))
+        .route("/api/v1/vault", get(get_vault_status))
+        .route("/api/v1/vault/passphrase", post(set_vault_passphrase))
+        .route("/api/v1/vault/unlock", post(unlock_vault))
+        .route(
+            "/api/v1/vault/remove-passphrase",
+            post(remove_vault_passphrase),
+        )
         .route(
             "/api/v1/trips/{trip_id}/assist-preview",
             get(preview_assist),
@@ -198,6 +210,33 @@ async fn get_today(
     Path(trip_id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(service.get_today(&trip_id)?))
+}
+
+async fn get_vault_status(
+    State(service): State<AppService>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.get_vault_status()?))
+}
+
+async fn set_vault_passphrase(
+    State(service): State<AppService>,
+    Json(body): Json<PassphraseBody>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.set_vault_passphrase(&body.passphrase)?))
+}
+
+async fn unlock_vault(
+    State(service): State<AppService>,
+    Json(body): Json<PassphraseBody>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.unlock_vault(&body.passphrase)?))
+}
+
+async fn remove_vault_passphrase(
+    State(service): State<AppService>,
+    Json(body): Json<PassphraseBody>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.remove_vault_passphrase(&body.passphrase)?))
 }
 
 async fn search_trip(
@@ -457,6 +496,8 @@ fn status_for_error(code: ErrorCode) -> StatusCode {
         ErrorCode::AdviceFetchFailed | ErrorCode::AssistFailed | ErrorCode::PackDownloadFailed => {
             StatusCode::BAD_GATEWAY
         }
+        ErrorCode::VaultLocked => StatusCode::LOCKED,
+        ErrorCode::VaultPassphraseIncorrect => StatusCode::UNAUTHORIZED,
         _ => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }
@@ -474,7 +515,7 @@ mod tests {
     #[tokio::test]
     async fn http_contract_endpoints_work() {
         let database = temp_database("contract");
-        let service = AppService::open_path(&database).expect("service");
+        let service = open_test_service(&database).expect("service");
         let router = app(service);
 
         let health = request(router.clone(), Method::GET, "/api/health", None).await;
@@ -666,7 +707,7 @@ mod tests {
     #[tokio::test]
     async fn http_error_paths_match_contract_status_map() {
         let database = temp_database("errors");
-        let service = AppService::open_path(&database).expect("service");
+        let service = open_test_service(&database).expect("service");
         let router = app(service);
 
         assert_eq!(
@@ -769,7 +810,7 @@ mod tests {
 
         let database = temp_database("advice");
         let service =
-            AppService::open_path_with_fetcher(&database, Arc::new(StubFetcher)).expect("service");
+            open_test_service_with_fetcher(&database, Arc::new(StubFetcher)).expect("service");
         let router = app(service);
 
         let local_ai = request(router.clone(), Method::GET, "/api/v1/local-ai", None).await;
@@ -982,7 +1023,7 @@ mod tests {
     #[tokio::test]
     async fn today_route_returns_a_phase_for_the_trip() {
         let database = temp_database("today");
-        let service = AppService::open_path(&database).expect("service");
+        let service = open_test_service(&database).expect("service");
         let router = app(service);
         let trip = create_trip_direct(&router).await;
         let trip_id = trip["id"].as_str().expect("id");
@@ -1001,9 +1042,88 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn vault_routes_set_lock_and_unlock_with_a_passphrase() {
+        use std::sync::Arc;
+        use voyalier_app::MemorySecretStore;
+
+        struct NoFetcher;
+        impl voyalier_app::AdviceFetcher for NoFetcher {
+            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+                Ok(String::new())
+            }
+        }
+
+        // In-memory secret store so the vault is active and the test never
+        // touches (or wipes) the real OS keychain.
+        let database = temp_database("vault");
+        let secrets = Arc::new(MemorySecretStore::default());
+        let router =
+            app(
+                AppService::open_path_with_deps(&database, Arc::new(NoFetcher), secrets.clone())
+                    .expect("service"),
+            );
+
+        let status = request(router.clone(), Method::GET, "/api/v1/vault", None).await;
+        assert_eq!(status.status, StatusCode::OK);
+        assert_eq!(status.json["active"], true);
+        assert_eq!(status.json["protected"], false);
+
+        // A too-short passphrase is rejected.
+        let short = request(
+            router.clone(),
+            Method::POST,
+            "/api/v1/vault/passphrase",
+            Some(json!({ "passphrase": "short" })),
+        )
+        .await;
+        assert_eq!(short.status, StatusCode::BAD_REQUEST);
+
+        let set = request(
+            router.clone(),
+            Method::POST,
+            "/api/v1/vault/passphrase",
+            Some(json!({ "passphrase": "river-paper-inn" })),
+        )
+        .await;
+        assert_eq!(set.status, StatusCode::OK);
+        assert_eq!(set.json["protected"], true);
+
+        // Reopening the same database finds the wrapped key and opens locked.
+        let reopened =
+            app(
+                AppService::open_path_with_deps(&database, Arc::new(NoFetcher), secrets.clone())
+                    .expect("reopen"),
+            );
+        let locked = request(reopened.clone(), Method::GET, "/api/v1/vault", None).await;
+        assert_eq!(locked.json["locked"], true);
+
+        // Wrong passphrase → 401; correct passphrase → 200 and unlocked.
+        let wrong = request(
+            reopened.clone(),
+            Method::POST,
+            "/api/v1/vault/unlock",
+            Some(json!({ "passphrase": "not-the-one" })),
+        )
+        .await;
+        assert_eq!(wrong.status, StatusCode::UNAUTHORIZED);
+
+        let unlock = request(
+            reopened,
+            Method::POST,
+            "/api/v1/vault/unlock",
+            Some(json!({ "passphrase": "river-paper-inn" })),
+        )
+        .await;
+        assert_eq!(unlock.status, StatusCode::OK);
+        assert_eq!(unlock.json["locked"], false);
+        assert_eq!(unlock.json["active"], true);
+        cleanup_database(database);
+    }
+
+    #[tokio::test]
     async fn recommendations_route_accepts_weights_and_is_empty_without_packs() {
         let database = temp_database("recommendations");
-        let service = AppService::open_path(&database).expect("service");
+        let service = open_test_service(&database).expect("service");
         let router = app(service);
         let trip = create_trip_direct(&router).await;
         let trip_id = trip["id"].as_str().expect("id");
@@ -1026,7 +1146,7 @@ mod tests {
     #[tokio::test]
     async fn packs_route_lists_the_required_seed_cities() {
         let database = temp_database("packs");
-        let service = AppService::open_path(&database).expect("service");
+        let service = open_test_service(&database).expect("service");
         let router = app(service);
 
         let response = request(router, Method::GET, "/api/v1/packs", None).await;
@@ -1057,9 +1177,8 @@ mod tests {
         }
 
         let database = temp_database("pack-dl");
-        let service =
-            AppService::open_path_with_fetcher(&database, std::sync::Arc::new(PackFetcher))
-                .expect("service");
+        let service = open_test_service_with_fetcher(&database, std::sync::Arc::new(PackFetcher))
+            .expect("service");
         let router = app(service);
         let trip = create_trip_direct(&router).await;
         let trip_id = trip["id"].as_str().expect("id");
@@ -1107,7 +1226,7 @@ mod tests {
     #[tokio::test]
     async fn rejects_tauri_origins_and_unexpected_hosts() {
         let database = temp_database("origin");
-        let service = AppService::open_path(&database).expect("service");
+        let service = open_test_service(&database).expect("service");
         let router = app(service);
         let response = router
             .clone()
@@ -1187,6 +1306,31 @@ mod tests {
             serde_json::from_slice(&body).expect("json response")
         };
         TestResponse { status, json }
+    }
+
+    struct NoNetFetcher;
+    impl voyalier_app::AdviceFetcher for NoNetFetcher {
+        fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+            Ok(String::new())
+        }
+    }
+
+    /// Open a service for tests with an in-memory secret store, so tests never
+    /// touch (or mutate) the real OS keychain — the vault now reads/writes its
+    /// data key there on every open, which would be slow and a real side effect.
+    fn open_test_service(database: &std::path::Path) -> Result<AppService, AppError> {
+        open_test_service_with_fetcher(database, std::sync::Arc::new(NoNetFetcher))
+    }
+
+    fn open_test_service_with_fetcher(
+        database: &std::path::Path,
+        fetcher: std::sync::Arc<dyn voyalier_app::AdviceFetcher>,
+    ) -> Result<AppService, AppError> {
+        AppService::open_path_with_deps(
+            database,
+            fetcher,
+            std::sync::Arc::new(voyalier_app::MemorySecretStore::default()),
+        )
     }
 
     fn temp_database(name: &str) -> PathBuf {

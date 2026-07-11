@@ -19,7 +19,20 @@ license = "Apache-2.0"
 repository = "https://github.com/udhawan97/Voyalier"
 rust-version = "1.85"
 
+# Argon2 is memory-hard by design; unoptimized it is ~1000x slower, which would
+# make the test suite take many minutes. Optimize just the crypto crates in dev
+# and test builds — the security parameters are unchanged, only the code speed.
+[profile.dev.package.argon2]
+opt-level = 3
+[profile.dev.package.blake2]
+opt-level = 3
+[profile.test.package.argon2]
+opt-level = 3
+[profile.test.package.blake2]
+opt-level = 3
+
 [workspace.dependencies]
+argon2 = "0.5"
 axum = "0.8"
 base64 = "0.22"
 chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }

@@ -31,6 +31,7 @@ import type {
   TripDetail,
   TripSummary,
   UpdateTripInput,
+  VaultStatus,
   WeatherSnapshot,
 } from "@voyalier/contracts";
 
@@ -114,6 +115,19 @@ export function createHttpGateway(
 
     getToday: (tripId: string) =>
       request<TodayView>("GET", `/api/v1/trips/${enc(tripId)}/today`),
+
+    getVaultStatus: () => request<VaultStatus>("GET", "/api/v1/vault"),
+
+    setVaultPassphrase: (passphrase: string) =>
+      request<VaultStatus>("POST", "/api/v1/vault/passphrase", { passphrase }),
+
+    unlockVault: (passphrase: string) =>
+      request<VaultStatus>("POST", "/api/v1/vault/unlock", { passphrase }),
+
+    removeVaultPassphrase: (passphrase: string) =>
+      request<VaultStatus>("POST", "/api/v1/vault/remove-passphrase", {
+        passphrase,
+      }),
 
     detectLocalAi: () => request<LocalAiStatus>("GET", "/api/v1/local-ai"),
 

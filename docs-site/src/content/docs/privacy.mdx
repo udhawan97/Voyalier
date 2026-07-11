@@ -9,6 +9,8 @@ Before any AI request runs, the "Preview an AI request" panel shows exactly what
 
 Provider keys live in the operating-system keychain, never browser storage or the database. A key is read only to send a request you chose to send, is placed only in that request's authorization header, and is never returned to the interface, logged, or stored anywhere else. On-device (Ollama) runs never leave the device; cloud runs go only to the provider you picked.
 
+Sensitive stored fields — confirmation codes and traveler names — are encrypted at rest with an authenticated cipher. The encryption key is generated on your device and kept in the operating-system keychain, so decryption is transparent. You can also add an optional passphrase: it wraps the key with a memory-hard key-derivation function and removes the plain key from the keychain, so Voyalier opens locked and asks for the passphrase before your workspace appears — protecting your data even on an unlocked computer. The passphrase is only ever used locally to derive a key; it is never stored, returned, or logged, and there is no recovery if you forget it.
+
 Live fetches — official advice, weather, and pack downloads — happen only on an explicit click, and each is labeled with its source, retrieval time, license, and freshness. There is no telemetry.
 
 Documents, websites, model output, and provider output remain untrusted until validated. Extracted facts never silently become accepted trip facts, and high-stakes facts (entry, visa, health, safety) are quoted from cited sources, never originated by a model.

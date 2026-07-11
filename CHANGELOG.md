@@ -6,7 +6,37 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
-Phase 3 (encrypted vault, maps, signed installers, offline Today view) will land here.
+Phase 3 (public beta) work, landing incrementally. Signed installers remain
+blocked on paid code-signing certificates.
+
+### Added
+
+- **Persona-weighted recommendations.** `getRecommendations` ranks a trip's
+  downloaded-pack places by per-trip persona weights (food, culture, nature,
+  nightlife, shopping) with a deterministic keyword-to-dimension rule — per-pick
+  source, license, score, and reasons, plus a cross-dimension wildcard.
+- **Offline Today view.** A deterministic "now / next" summary (trip phase with
+  day counts, today's departures/arrivals/check-ins, and the next anchor) from
+  confirmed facts against the current date. No network, no model.
+- **Encrypted vault.** Confirmation codes and traveler names are sealed at rest
+  with an XChaCha20-Poly1305 data key. By default the key lives in the OS
+  keychain (transparent unlock); an **optional passphrase** wraps the key with
+  Argon2id and removes it from the keychain, so the app opens locked behind a
+  full-screen unlock gate and data is protected even on an unlocked machine. The
+  passphrase is only ever used locally to derive a key — never stored, returned,
+  or logged — and encryption degrades to plaintext where no keychain exists so
+  the app still runs everywhere.
+- **Map view.** A consent-gated MapLibre GL map plotting the destination and
+  downloaded-pack recommendations, using the keyless OpenFreeMap basemap; per-pack
+  PMTiles extracts are the planned offline path.
+- **Grounded-intelligence polish.** The AI request preview now cites what it is
+  grounded in and shows a rough token estimate; a link-only "Health notices"
+  readiness item (CDC/WHO) joins entry requirements.
+
+### Changed
+
+- New `vault/locked` and `vault/passphrase_incorrect` error codes; `TripDetail`
+  and the gateway gained the additive vault, recommendations, and Today surfaces.
 
 ## [0.2.0] - 2026-07-11 — Grounded intelligence (Phase 2)
 

@@ -6,7 +6,7 @@ use voyalier_core::{
     CandidateFact, CandidateStatus, ConfirmCandidateInput, ConfirmedFact, CreateTripInput,
     DownloadedPack, FcdoCountry, HealthResponse, ImportDocumentInput, ImportResult, LocalAiStatus,
     PackInfo, PersonaWeights, ProviderConfig, Recommendation, SearchHit, TodayView,
-    TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripSummary, UpdateTripInput,
+    TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripSummary, UpdateTripInput, VaultStatus,
     WeatherSnapshot,
 };
 
@@ -123,6 +123,44 @@ fn get_trip_brief(
 #[tauri::command]
 fn get_today(input: TripIdInput, service: State<'_, AppService>) -> Result<TodayView, AppError> {
     service.get_today(&input.trip_id)
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PassphraseInput {
+    passphrase: String,
+}
+
+#[tauri::command]
+fn get_vault_status(
+    _input: EmptyInput,
+    service: State<'_, AppService>,
+) -> Result<VaultStatus, AppError> {
+    service.get_vault_status()
+}
+
+#[tauri::command]
+fn set_vault_passphrase(
+    input: PassphraseInput,
+    service: State<'_, AppService>,
+) -> Result<VaultStatus, AppError> {
+    service.set_vault_passphrase(&input.passphrase)
+}
+
+#[tauri::command]
+fn unlock_vault(
+    input: PassphraseInput,
+    service: State<'_, AppService>,
+) -> Result<VaultStatus, AppError> {
+    service.unlock_vault(&input.passphrase)
+}
+
+#[tauri::command]
+fn remove_vault_passphrase(
+    input: PassphraseInput,
+    service: State<'_, AppService>,
+) -> Result<VaultStatus, AppError> {
+    service.remove_vault_passphrase(&input.passphrase)
 }
 
 #[tauri::command]
@@ -375,6 +413,10 @@ fn builder<R: tauri::Runtime>(
             archive_trip,
             get_trip_brief,
             get_today,
+            get_vault_status,
+            set_vault_passphrase,
+            unlock_vault,
+            remove_vault_passphrase,
             search_trip,
             preview_assist,
             run_assist,
@@ -651,6 +693,10 @@ mod tests {
             "archive_trip",
             "get_trip_brief",
             "get_today",
+            "get_vault_status",
+            "set_vault_passphrase",
+            "unlock_vault",
+            "remove_vault_passphrase",
             "search_trip",
             "preview_assist",
             "run_assist",
@@ -685,8 +731,22 @@ mod tests {
         cleanup_database(database);
     }
 
+    // In-memory secret store so tests never touch (or mutate) the real OS
+    // keychain — the vault now reads/writes its data key there on every open.
+    struct NoNetFetcher;
+    impl voyalier_app::AdviceFetcher for NoNetFetcher {
+        fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+            Ok(String::new())
+        }
+    }
+
     fn test_app(database: &PathBuf) -> tauri::App<MockRuntime> {
-        let service = AppService::open_path(database).expect("service");
+        let service = AppService::open_path_with_deps(
+            database,
+            std::sync::Arc::new(NoNetFetcher),
+            std::sync::Arc::new(voyalier_app::MemorySecretStore::default()),
+        )
+        .expect("service");
         builder(mock_builder(), service)
             .build(mock_context(noop_assets()))
             .expect("app")

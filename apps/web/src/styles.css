@@ -1359,6 +1359,159 @@ h3 {
   line-height: 1.5;
 }
 
+/* ===== Encrypted vault =============================================== */
+
+.voy-vault {
+  margin-top: 2.6rem;
+  padding-top: 1.8rem;
+  border-top: 1px solid var(--voy-line);
+}
+
+.voy-vault__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.4rem;
+  font-family: var(--voy-font-display);
+  margin-bottom: 0.8rem;
+}
+
+.voy-vault__title-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+  color: var(--voy-indigo);
+}
+
+.voy-vault__intro,
+.voy-vault__note {
+  margin: 0 0 1rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  max-width: 42rem;
+}
+
+.voy-vault__state {
+  display: inline-block;
+  margin: 0 0 1rem;
+  font-size: 0.78rem;
+  font-weight: 640;
+  padding: 0.18rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--voy-line-strong);
+  color: var(--voy-ink-muted);
+}
+
+.voy-vault__state--on {
+  border-color: color-mix(in srgb, var(--voy-moss) 40%, transparent);
+  background: var(--voy-tint-moss);
+  color: var(--voy-success);
+}
+
+.voy-vault__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  max-width: 26rem;
+}
+
+.voy-vault__input {
+  padding: 0.55rem 0.85rem;
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-sm);
+  background: var(--voy-paper);
+  color: var(--voy-ink);
+  font: inherit;
+}
+
+.voy-vault__input:focus-visible {
+  outline: 2px solid var(--voy-focus);
+  outline-offset: 1px;
+}
+
+.voy-vault__actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.voy-vault__warn {
+  margin: 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.voy-vault__error {
+  margin: 0.8rem 0 0;
+  color: var(--voy-danger);
+  font-size: 0.88rem;
+}
+
+/* ===== Vault unlock gate ============================================= */
+
+.voy-unlock {
+  display: flex;
+  justify-content: center;
+  padding: 3rem 1rem;
+}
+
+.voy-unlock__card {
+  width: 100%;
+  max-width: 26rem;
+  padding: 2rem 1.8rem;
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-raised);
+  text-align: center;
+}
+
+.voy-unlock__icon {
+  width: 2rem;
+  height: 2rem;
+  color: var(--voy-indigo);
+}
+
+.voy-unlock__title {
+  font-size: 1.5rem;
+  font-family: var(--voy-font-display);
+  margin: 0.6rem 0 0.5rem;
+}
+
+.voy-unlock__intro {
+  margin: 0 0 1.3rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.voy-unlock__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.voy-unlock__input {
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-sm);
+  background: var(--voy-paper);
+  color: var(--voy-ink);
+  font: inherit;
+  text-align: center;
+}
+
+.voy-unlock__input:focus-visible {
+  outline: 2px solid var(--voy-focus);
+  outline-offset: 1px;
+}
+
+.voy-unlock__error {
+  margin: 1rem 0 0;
+  color: var(--voy-danger);
+  font-size: 0.88rem;
+}
+
 /* ===== AI request preview ============================================= */
 
 .voy-assist {

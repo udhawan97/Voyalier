@@ -20,7 +20,7 @@
 </p>
 
 > [!IMPORTANT]
-> **Phases 1–2 are functional as a running app.** You can create and persist trips, get a deterministic Blueprint, import and review confirmations, see conflict/readiness checks, share a redacted brief, fetch consent-gated official advice and weather, search a trip, browse and download offline city packs, and run BYOK AI assist on-device (Ollama) or via OpenAI/Anthropic — all grounded and privacy-first. There is **no signed installer yet**: run it from source (below). Packaging, notarization, encrypted vault, and maps are Phase 3.
+> **Phases 1–2 are functional as a running app, and Phase 3 is landing.** You can create and persist trips, get a deterministic Blueprint, import and review confirmations, see conflict/readiness checks, share a redacted brief, fetch consent-gated official advice and weather, search a trip, browse and download offline city packs, and run BYOK AI assist on-device (Ollama) or via OpenAI/Anthropic — all grounded and privacy-first. Phase 3 additions already in: persona recommendations, an offline Today view, a consent-gated map, and an encrypted vault (sensitive fields sealed at rest, with an optional passphrase). There is **no signed installer yet**: run it from source (below). Packaging and notarization remain Phase 3, blocked on paid code-signing certificates.
 
 ## Product direction
 
@@ -109,10 +109,12 @@ weather, deterministic trip search, CI-built offline city packs downloaded per
 trip, and BYOK AI assist (on-device Ollama plus OpenAI/Anthropic) with a
 redaction preview, an activity log, and keys kept only in the OS keychain.
 
-See the full [roadmap](docs/roadmap/ROADMAP.md). Phase 3 (encrypted vault, maps,
-signed installers, offline Today view) is next. Live inventory aggregation,
-authoritative visa determinations, real-time collaboration, and booking/payment
-are explicitly deferred.
+See the full [roadmap](docs/roadmap/ROADMAP.md). **Phase 3 (public beta)** is
+underway — persona recommendations, an offline Today view, a consent-gated map,
+and an encrypted vault (at-rest sealing plus an optional passphrase) have landed;
+signed installers remain blocked on paid certificates. Live inventory
+aggregation, authoritative visa determinations, real-time collaboration, and
+booking/payment are explicitly deferred.
 
 ## Contributing and security
 

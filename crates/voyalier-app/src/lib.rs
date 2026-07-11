@@ -29,7 +29,10 @@ use voyalier_core::{
     validate_create_trip, validate_document_content, validate_fact_payload, validate_model_name,
     validate_pack_id, validate_provider_id, validate_search_query, validate_update_trip,
 };
-use voyalier_core::{VAULT_KEY_LEN, VAULT_NONCE_LEN, open as vault_open, seal as vault_seal};
+use voyalier_core::{
+    VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, VaultStatus, derive_key as vault_derive_key,
+    open as vault_open, seal as vault_seal,
+};
 
 const DATABASE_FILE: &str = "voyalier.sqlite3";
 
@@ -216,74 +219,144 @@ fn keyring_failure(error: keyring::Error) -> AppError {
     )
 }
 
-/// The keychain account holding the vault's data key.
+/// The keychain account holding the vault's data key. Present in keychain-only
+/// mode; absent once a passphrase guards the key instead.
 const VAULT_KEY_ACCOUNT: &str = "vault.data_key";
 /// Tag marking a stored field as sealed; anything without it is legacy plaintext.
 const VAULT_PREFIX: &str = "v1:";
+/// Minimum passphrase length. Deliberately low friction — this is a second
+/// factor on an already-encrypted store, not the sole secret.
+const MIN_PASSPHRASE_LEN: usize = 8;
+
+/// In-memory vault state, shared behind interior mutability so an unlock or a
+/// passphrase change (through `&self`) is visible to every reader for the
+/// lifetime of the process.
+#[derive(Clone, Copy, Default)]
+struct VaultState {
+    /// The data key. Present when the vault is usable (keychain mode, or once a
+    /// passphrase-protected vault has been unlocked this session).
+    key: Option<[u8; VAULT_KEY_LEN]>,
+    /// True when a passphrase wraps the key. With `protected` set and no `key`,
+    /// the vault is **locked**: sealed fields cannot be read or written.
+    protected: bool,
+}
 
 /// At-rest encryption for sensitive stored fields (confirmed-fact payloads).
 ///
-/// The data key lives in the OS keychain. The vault is **active** when a key is
-/// available and **degrades to storing plaintext** when the keychain is
-/// unavailable (e.g. a headless CI runner) — so the app still works everywhere,
-/// and encryption is applied wherever the keychain exists. Sealed values are
-/// tagged, so plaintext and sealed values coexist during migration.
+/// Three states:
+/// - **active** (`key` present): fields are sealed/opened transparently. This is
+///   keychain-only mode, or a passphrase vault after unlock.
+/// - **locked** (`protected`, no `key`): a passphrase is set but not yet entered
+///   this session; reads and writes of sealed fields error until unlock.
+/// - **inactive** (neither): no keychain and no passphrase — e.g. a headless CI
+///   runner — so fields are stored as plaintext and the app still works.
+///
+/// Sealed values are tagged, so plaintext and sealed values coexist during
+/// migration.
 #[derive(Clone)]
 pub struct Vault {
-    key: Option<[u8; VAULT_KEY_LEN]>,
+    state: Arc<Mutex<VaultState>>,
 }
 
 impl Vault {
-    /// Load the data key from the keychain, generating and storing one on first
-    /// run. Any keychain error leaves the vault inactive (plaintext).
-    fn load_or_init(secrets: &dyn SecretStore) -> Self {
-        match secrets.get(VAULT_KEY_ACCOUNT) {
-            Ok(Some(encoded)) => Self {
+    fn new(state: VaultState) -> Self {
+        Self {
+            state: Arc::new(Mutex::new(state)),
+        }
+    }
+
+    /// Resolve the vault's state at open time. When a passphrase is set (a
+    /// `vault_meta` row exists) the vault opens **locked** and the data key stays
+    /// wrapped until unlock. Otherwise the raw data key is read from — or, on
+    /// first run, generated into — the OS keychain. Any keychain error leaves the
+    /// vault inactive (plaintext), which keeps CI and keychain-less hosts working.
+    fn load_or_init(secrets: &dyn SecretStore, connection: &Connection) -> Result<Self, AppError> {
+        if read_vault_wrap(connection)?.is_some() {
+            return Ok(Self::new(VaultState {
+                key: None,
+                protected: true,
+            }));
+        }
+        let state = match secrets.get(VAULT_KEY_ACCOUNT) {
+            Ok(Some(encoded)) => VaultState {
                 key: decode_key(&encoded),
+                protected: false,
             },
             Ok(None) => {
                 let mut key = [0u8; VAULT_KEY_LEN];
                 if getrandom::getrandom(&mut key).is_err() {
-                    return Self { key: None };
-                }
-                match secrets.set(VAULT_KEY_ACCOUNT, &BASE64.encode(key)) {
-                    Ok(()) => Self { key: Some(key) },
+                    VaultState::default()
+                } else if secrets.set(VAULT_KEY_ACCOUNT, &BASE64.encode(key)).is_ok() {
+                    VaultState {
+                        key: Some(key),
+                        protected: false,
+                    }
+                } else {
                     // Couldn't persist the key — never encrypt with a key we
                     // can't recover, or the data would be unreadable next run.
-                    Err(_) => Self { key: None },
+                    VaultState::default()
                 }
             }
-            Err(_) => Self { key: None },
+            Err(_) => VaultState::default(),
+        };
+        Ok(Self::new(state))
+    }
+
+    fn snapshot(&self) -> VaultState {
+        self.state.lock().map(|guard| *guard).unwrap_or_default()
+    }
+
+    fn set_state(&self, next: VaultState) {
+        if let Ok(mut guard) = self.state.lock() {
+            *guard = next;
         }
     }
 
     fn is_active(&self) -> bool {
-        self.key.is_some()
+        self.snapshot().key.is_some()
     }
 
-    /// Seal a plaintext field. When inactive, returns the plaintext unchanged.
+    fn status(&self) -> VaultStatus {
+        let state = self.snapshot();
+        VaultStatus {
+            active: state.key.is_some(),
+            protected: state.protected,
+            locked: state.protected && state.key.is_none(),
+        }
+    }
+
+    /// Seal a plaintext field. Inactive → plaintext passthrough; locked → error.
     fn seal_field(&self, plaintext: &str) -> Result<String, AppError> {
-        let Some(key) = self.key else {
-            return Ok(plaintext.to_owned());
+        let state = self.snapshot();
+        let Some(key) = state.key else {
+            return if state.protected {
+                Err(vault_locked_error())
+            } else {
+                Ok(plaintext.to_owned())
+            };
         };
         let mut nonce = [0u8; VAULT_NONCE_LEN];
-        getrandom::getrandom(&mut nonce).map_err(|_| {
-            AppError::new(ErrorCode::InternalUnexpected, "could not generate a nonce")
-        })?;
+        getrandom::getrandom(&mut nonce).map_err(|_| nonce_error())?;
         let sealed = vault_seal(&key, &nonce, plaintext.as_bytes())?;
         Ok(format!("{VAULT_PREFIX}{}", BASE64.encode(sealed)))
     }
 
-    /// Open a stored field. Untagged (legacy plaintext) values pass through.
+    /// Open a stored field. Untagged (legacy plaintext) values pass through;
+    /// tagged values require the key (locked → error until unlock).
     fn open_field(&self, stored: &str) -> Result<String, AppError> {
         let Some(encoded) = stored.strip_prefix(VAULT_PREFIX) else {
             return Ok(stored.to_owned());
         };
-        let Some(key) = self.key else {
-            return Err(AppError::new(
-                ErrorCode::StorageFailure,
-                "this data is encrypted but the vault key is unavailable",
-            ));
+        let state = self.snapshot();
+        let Some(key) = state.key else {
+            return Err(if state.protected {
+                vault_locked_error()
+            } else {
+                AppError::new(
+                    ErrorCode::StorageFailure,
+                    "this data is encrypted but the vault key is unavailable",
+                )
+            });
         };
         let bytes = BASE64
             .decode(encoded)
@@ -301,6 +374,70 @@ impl Vault {
 fn decode_key(encoded: &str) -> Option<[u8; VAULT_KEY_LEN]> {
     let bytes = BASE64.decode(encoded).ok()?;
     <[u8; VAULT_KEY_LEN]>::try_from(bytes.as_slice()).ok()
+}
+
+fn nonce_error() -> AppError {
+    AppError::new(ErrorCode::InternalUnexpected, "could not generate a nonce")
+}
+
+fn vault_locked_error() -> AppError {
+    AppError::new(
+        ErrorCode::VaultLocked,
+        "the vault is locked — unlock it with your passphrase to read or change this trip",
+    )
+}
+
+fn wrong_passphrase_error() -> AppError {
+    AppError::new(
+        ErrorCode::VaultPassphraseIncorrect,
+        "that passphrase is incorrect",
+    )
+}
+
+/// Reject an empty or too-short passphrase before it is used to derive a key.
+fn validate_passphrase(passphrase: &str) -> Result<(), AppError> {
+    if passphrase.chars().count() < MIN_PASSPHRASE_LEN {
+        return Err(AppError::new(
+            ErrorCode::ValidationInvalidInput,
+            format!("the passphrase must be at least {MIN_PASSPHRASE_LEN} characters"),
+        ));
+    }
+    Ok(())
+}
+
+/// The passphrase-wrapped data key and its salt, decoded from `vault_meta`.
+struct VaultWrap {
+    salt: Vec<u8>,
+    wrapped_key: Vec<u8>,
+}
+
+/// Read the single `vault_meta` row, decoding its base64 columns. `None` when no
+/// passphrase is set. Corrupt encoding is a hard error rather than a silent
+/// fallback, so a protected vault never appears unprotected.
+fn read_vault_wrap(connection: &Connection) -> Result<Option<VaultWrap>, AppError> {
+    let row: Option<(String, String)> = connection
+        .query_row(
+            "SELECT salt, wrapped_key FROM vault_meta WHERE id = 1",
+            [],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        )
+        .optional()
+        .map_err(storage_error)?;
+    let Some((salt, wrapped)) = row else {
+        return Ok(None);
+    };
+    let decode = |value: &str| {
+        BASE64.decode(value).map_err(|_| {
+            AppError::new(
+                ErrorCode::StorageFailure,
+                "the vault passphrase record is corrupt",
+            )
+        })
+    };
+    Ok(Some(VaultWrap {
+        salt: decode(&salt)?,
+        wrapped_key: decode(&wrapped)?,
+    }))
 }
 
 fn app_to_rusqlite(error: AppError) -> rusqlite::Error {
@@ -386,7 +523,7 @@ impl AppService {
         }
         let connection = Connection::open(path).map_err(storage_error)?;
         init_connection(&connection)?;
-        let vault = Vault::load_or_init(secrets.as_ref());
+        let vault = Vault::load_or_init(secrets.as_ref(), &connection)?;
         // Encrypt any pre-existing plaintext payloads now the vault is available.
         migrate_encrypt_confirmed_facts(&connection, &vault)?;
         Ok(Self {
@@ -403,6 +540,102 @@ impl AppService {
             service: "voyalier-app".to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             intelligence_mode: IntelligenceMode::Local,
+        })
+    }
+
+    /// The vault's encryption state for the UI. Never returns key material.
+    pub fn get_vault_status(&self) -> Result<VaultStatus, AppError> {
+        Ok(self.vault.status())
+    }
+
+    /// Turn on the optional passphrase: wrap the active data key under an
+    /// Argon2-derived key, persist the wrap, and remove the raw key from the
+    /// keychain — so subsequent app opens require the passphrase. Requires an
+    /// active, unprotected vault. The vault stays unlocked for this session.
+    pub fn set_vault_passphrase(&self, passphrase: &str) -> Result<VaultStatus, AppError> {
+        validate_passphrase(passphrase)?;
+        let state = self.vault.snapshot();
+        if state.protected {
+            return Err(AppError::new(
+                ErrorCode::ValidationInvalidInput,
+                "a passphrase is already set; remove it before choosing a new one",
+            ));
+        }
+        let Some(data_key) = state.key else {
+            return Err(AppError::new(
+                ErrorCode::ValidationInvalidInput,
+                "encryption is not active on this device, so there is no key to protect",
+            ));
+        };
+        let mut salt = [0u8; VAULT_SALT_LEN];
+        getrandom::getrandom(&mut salt).map_err(|_| nonce_error())?;
+        let kek = vault_derive_key(passphrase, &salt)?;
+        let mut nonce = [0u8; VAULT_NONCE_LEN];
+        getrandom::getrandom(&mut nonce).map_err(|_| nonce_error())?;
+        let wrapped = vault_seal(&kek, &nonce, &data_key)?;
+        self.connection()?
+            .execute(
+                "INSERT OR REPLACE INTO vault_meta (id, salt, wrapped_key, updated_at)
+                 VALUES (1, ?1, ?2, ?3)",
+                params![BASE64.encode(salt), BASE64.encode(wrapped), now_rfc3339()],
+            )
+            .map_err(storage_error)?;
+        // The passphrase now guards the key; the keychain no longer holds it.
+        self.secrets.delete(VAULT_KEY_ACCOUNT)?;
+        self.vault.set_state(VaultState {
+            key: Some(data_key),
+            protected: true,
+        });
+        Ok(self.vault.status())
+    }
+
+    /// Unlock a passphrase-protected vault for this session by unwrapping the
+    /// data key. A no-op if already unlocked; an error if no passphrase is set.
+    pub fn unlock_vault(&self, passphrase: &str) -> Result<VaultStatus, AppError> {
+        if self.vault.snapshot().key.is_some() {
+            return Ok(self.vault.status());
+        }
+        let data_key = self.unwrap_data_key(passphrase)?;
+        self.vault.set_state(VaultState {
+            key: Some(data_key),
+            protected: true,
+        });
+        Ok(self.vault.status())
+    }
+
+    /// Turn the optional passphrase off after verifying it: restore the raw data
+    /// key to the keychain and drop the wrap, returning to transparent unlock.
+    pub fn remove_vault_passphrase(&self, passphrase: &str) -> Result<VaultStatus, AppError> {
+        let data_key = self.unwrap_data_key(passphrase)?;
+        self.secrets
+            .set(VAULT_KEY_ACCOUNT, &BASE64.encode(data_key))?;
+        self.connection()?
+            .execute("DELETE FROM vault_meta WHERE id = 1", [])
+            .map_err(storage_error)?;
+        self.vault.set_state(VaultState {
+            key: Some(data_key),
+            protected: false,
+        });
+        Ok(self.vault.status())
+    }
+
+    /// Recover the data key from the passphrase-wrapped record, verifying the
+    /// passphrase in the process. Errors if no passphrase is set or it is wrong.
+    fn unwrap_data_key(&self, passphrase: &str) -> Result<[u8; VAULT_KEY_LEN], AppError> {
+        let connection = self.connection()?;
+        let wrap = read_vault_wrap(&connection)?.ok_or_else(|| {
+            AppError::new(
+                ErrorCode::ValidationInvalidInput,
+                "no passphrase is set on this vault",
+            )
+        })?;
+        let kek = vault_derive_key(passphrase, &wrap.salt)?;
+        let opened = vault_open(&kek, &wrap.wrapped_key).map_err(|_| wrong_passphrase_error())?;
+        <[u8; VAULT_KEY_LEN]>::try_from(opened.as_slice()).map_err(|_| {
+            AppError::new(
+                ErrorCode::StorageFailure,
+                "the stored key was the wrong size",
+            )
         })
     }
 
@@ -1524,6 +1757,16 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
                 PRIMARY KEY (trip_id, pack_id)
             );
 
+            -- Single-row store for the optional passphrase: the data key wrapped
+            -- under a passphrase-derived key, plus its salt. Present exactly when
+            -- a passphrase is set. Holds no plaintext key material.
+            CREATE TABLE IF NOT EXISTS vault_meta (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                salt TEXT NOT NULL,
+                wrapped_key TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
             PRAGMA user_version = 1;
             ",
         )
@@ -1813,7 +2056,19 @@ where
     F: FnMut(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
 {
     rows.collect::<rusqlite::Result<Vec<_>>>()
-        .map_err(storage_error)
+        .map_err(rusqlite_to_app)
+}
+
+/// Convert a rusqlite error to an `AppError`, recovering the original code when a
+/// row mapper wrapped one via [`app_to_rusqlite`] (e.g. a locked-vault read must
+/// surface as `vault/locked`, not a generic `storage/failure`).
+fn rusqlite_to_app(error: rusqlite::Error) -> AppError {
+    if let rusqlite::Error::FromSqlConversionFailure(_, _, source) = &error {
+        if let Some(app) = source.downcast_ref::<AppError>() {
+            return app.clone();
+        }
+    }
+    storage_error(error)
 }
 
 fn enum_to_sql<T: serde::Serialize>(value: T) -> Result<String, AppError> {
@@ -1878,7 +2133,7 @@ mod tests {
     #[test]
     fn persists_trips_across_restarts() {
         let database = temp_database("persistence");
-        let service = AppService::open_path(&database).expect("service");
+        let service = open_test_service(&database).expect("service");
         let trip = service
             .create_trip(CreateTripInput {
                 title: None,
@@ -1890,7 +2145,7 @@ mod tests {
             .expect("trip");
         drop(service);
 
-        let reopened = AppService::open_path(&database).expect("reopen");
+        let reopened = open_test_service(&database).expect("reopen");
         let detail = reopened.get_trip(&trip.id).expect("read trip");
         assert_eq!(detail.trip.destination, "Kyoto");
         cleanup_database(database);
@@ -1899,7 +2154,7 @@ mod tests {
     #[test]
     fn duplicate_import_returns_existing_document_id() {
         let database = temp_database("duplicate");
-        let service = AppService::open_path(&database).expect("service");
+        let service = open_test_service(&database).expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
         let input = ImportDocumentInput {
             trip_id: trip.id,
@@ -1926,7 +2181,7 @@ mod tests {
     #[test]
     fn unconfirm_fact_returns_linked_candidate_to_pending() {
         let database = temp_database("unconfirm");
-        let service = AppService::open_path(&database).expect("service");
+        let service = open_test_service(&database).expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
         let imported = service
             .import_document(ImportDocumentInput {
@@ -1965,7 +2220,7 @@ mod tests {
     #[test]
     fn delete_trip_cascades_documents_candidates_and_facts() {
         let database = temp_database("cascade");
-        let service = AppService::open_path(&database).expect("service");
+        let service = open_test_service(&database).expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
         let fact = service
             .add_manual_fact(AddManualFactInput {
@@ -1994,7 +2249,7 @@ mod tests {
         use voyalier_core::{ConflictSeverity, ItineraryConflictKind};
 
         let database = temp_database("conflicts");
-        let service = AppService::open_path(&database).expect("service");
+        let service = open_test_service(&database).expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
         for (departure, arrival) in [
             ("2027-04-02T09:00", "2027-04-02T13:00"),
@@ -2036,7 +2291,7 @@ mod tests {
         use voyalier_core::SearchHitSource;
 
         let database = temp_database("search");
-        let service = AppService::open_path(&database).expect("service");
+        let service = open_test_service(&database).expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
         let imported = service
             .import_document(ImportDocumentInput {
@@ -2109,8 +2364,7 @@ mod tests {
         let fetcher = Arc::new(StubFetcher {
             calls: std::sync::Mutex::new(Vec::new()),
         });
-        let service =
-            AppService::open_path_with_fetcher(&database, fetcher.clone()).expect("service");
+        let service = open_test_service_with_fetcher(&database, fetcher.clone()).expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
 
         // Unknown slug is rejected before any fetch happens.
@@ -2204,8 +2458,7 @@ mod tests {
         let fetcher = Arc::new(RoutedFetcher {
             calls: std::sync::Mutex::new(Vec::new()),
         });
-        let service =
-            AppService::open_path_with_fetcher(&database, fetcher.clone()).expect("service");
+        let service = open_test_service_with_fetcher(&database, fetcher.clone()).expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
 
         let snapshot = service.fetch_weather(&trip.id).expect("snapshot");
@@ -2365,11 +2618,9 @@ mod tests {
         }
 
         let database = temp_database("local-ai-up");
-        let up = AppService::open_path_with_fetcher(
-            &database,
-            Arc::new(OllamaFetcher { reachable: true }),
-        )
-        .expect("service");
+        let up =
+            open_test_service_with_fetcher(&database, Arc::new(OllamaFetcher { reachable: true }))
+                .expect("service");
         let status = up.detect_local_ai();
         assert!(status.available);
         assert_eq!(status.provider, "ollama");
@@ -2378,11 +2629,9 @@ mod tests {
         cleanup_database(database);
 
         let database = temp_database("local-ai-down");
-        let down = AppService::open_path_with_fetcher(
-            &database,
-            Arc::new(OllamaFetcher { reachable: false }),
-        )
-        .expect("service");
+        let down =
+            open_test_service_with_fetcher(&database, Arc::new(OllamaFetcher { reachable: false }))
+                .expect("service");
         let status = down.detect_local_ai();
         assert!(!status.available);
         assert!(status.models.is_empty());
@@ -2392,7 +2641,7 @@ mod tests {
     #[test]
     fn trip_brief_excludes_secrets() {
         let database = temp_database("brief");
-        let service = AppService::open_path(&database).expect("service");
+        let service = open_test_service(&database).expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
         service
             .add_manual_fact(AddManualFactInput {
@@ -2520,9 +2769,130 @@ mod tests {
     }
 
     #[test]
+    fn optional_passphrase_locks_the_vault_and_unlock_restores_access() {
+        struct NoNet;
+        impl AdviceFetcher for NoNet {
+            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+                panic!("no network");
+            }
+        }
+
+        let database = temp_database("vault-passphrase");
+        let secrets = Arc::new(MemorySecretStore::default());
+        let service = AppService::open_path_with_deps(&database, Arc::new(NoNet), secrets.clone())
+            .expect("service");
+
+        // Keychain mode to start: active, no passphrase.
+        let status = service.get_vault_status().expect("status");
+        assert!(status.active && !status.protected && !status.locked);
+
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        service
+            .add_manual_fact(AddManualFactInput {
+                trip_id: trip.id.clone(),
+                fact_type: FactType::FlightSegment,
+                payload: FactPayload {
+                    confirmation_code: Some("SECRET-PNR".to_owned()),
+                    passenger_name: Some("Jamie Traveler".to_owned()),
+                    ..FactPayload::default()
+                },
+            })
+            .expect("manual flight");
+
+        // A too-short passphrase is rejected before any key is derived.
+        assert_eq!(
+            service
+                .set_vault_passphrase("short")
+                .expect_err("short")
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
+
+        // Setting a passphrase protects the key and removes it from the keychain,
+        // but the vault stays unlocked for this session.
+        let status = service
+            .set_vault_passphrase("correct horse battery")
+            .expect("set passphrase");
+        assert!(status.active && status.protected && !status.locked);
+        assert!(
+            !secrets.has(VAULT_KEY_ACCOUNT),
+            "the raw key must leave the keychain once a passphrase guards it"
+        );
+        assert_eq!(
+            service
+                .set_vault_passphrase("another one entirely")
+                .expect_err("already set")
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
+        // Still readable this session.
+        assert!(service.get_trip(&trip.id).is_ok());
+
+        // Reopening finds the wrapped key: the vault opens LOCKED and refuses to
+        // read or write sealed data until unlocked.
+        let reopened = AppService::open_path_with_deps(&database, Arc::new(NoNet), secrets.clone())
+            .expect("reopen");
+        let status = reopened.get_vault_status().expect("status");
+        assert!(status.protected && status.locked && !status.active);
+        assert_eq!(
+            reopened.get_trip(&trip.id).expect_err("locked read").code,
+            ErrorCode::VaultLocked
+        );
+        assert_eq!(
+            reopened
+                .add_manual_fact(AddManualFactInput {
+                    trip_id: trip.id.clone(),
+                    fact_type: FactType::LodgingStay,
+                    payload: FactPayload::default(),
+                })
+                .expect_err("locked write")
+                .code,
+            ErrorCode::VaultLocked
+        );
+        // list_trips only counts rows, so it still works while locked.
+        assert!(reopened.list_trips().is_ok());
+
+        // Wrong passphrase is rejected; the correct one unlocks for the session.
+        assert_eq!(
+            reopened
+                .unlock_vault("not the passphrase")
+                .expect_err("wrong")
+                .code,
+            ErrorCode::VaultPassphraseIncorrect
+        );
+        let status = reopened
+            .unlock_vault("correct horse battery")
+            .expect("unlock");
+        assert!(status.active && status.protected && !status.locked);
+        assert!(
+            reopened
+                .get_trip(&trip.id)
+                .expect("read after unlock")
+                .confirmed_facts
+                .iter()
+                .any(|fact| fact.payload.confirmation_code.as_deref() == Some("SECRET-PNR"))
+        );
+
+        // Removing the passphrase returns the key to the keychain (transparent
+        // unlock again) and a fresh open needs no passphrase.
+        let status = reopened
+            .remove_vault_passphrase("correct horse battery")
+            .expect("remove");
+        assert!(status.active && !status.protected && !status.locked);
+        assert!(secrets.has(VAULT_KEY_ACCOUNT));
+        let reopened_plain =
+            AppService::open_path_with_deps(&database, Arc::new(NoNet), secrets.clone())
+                .expect("reopen plain");
+        assert!(reopened_plain.get_vault_status().expect("status").active);
+        assert!(reopened_plain.get_trip(&trip.id).is_ok());
+
+        cleanup_database(database);
+    }
+
+    #[test]
     fn get_today_builds_a_view_for_the_current_date() {
         let database = temp_database("today");
-        let service = AppService::open_path(&database).expect("service");
+        let service = open_test_service(&database).expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
 
         let view = service.get_today(&trip.id).expect("today");
@@ -2540,7 +2910,7 @@ mod tests {
     #[test]
     fn preview_assist_excludes_secrets_and_reflects_chosen_provider_and_model() {
         let database = temp_database("assist-preview");
-        let service = AppService::open_path(&database).expect("service");
+        let service = open_test_service(&database).expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
         service
             .add_manual_fact(AddManualFactInput {
@@ -2614,7 +2984,7 @@ mod tests {
         let stub = Arc::new(OllamaStub {
             last_body: std::sync::Mutex::new(String::new()),
         });
-        let service = AppService::open_path_with_fetcher(&database, stub.clone()).expect("service");
+        let service = open_test_service_with_fetcher(&database, stub.clone()).expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
         service
             .add_manual_fact(AddManualFactInput {
@@ -2830,8 +3200,7 @@ mod tests {
         let fetcher = Arc::new(PackFetcher {
             calls: std::sync::Mutex::new(Vec::new()),
         });
-        let service =
-            AppService::open_path_with_fetcher(&database, fetcher.clone()).expect("service");
+        let service = open_test_service_with_fetcher(&database, fetcher.clone()).expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
 
         // Unknown pack is rejected before any fetch happens.
@@ -2887,7 +3256,7 @@ mod tests {
 
         let database = temp_database("recommendations");
         let service =
-            AppService::open_path_with_fetcher(&database, Arc::new(PackFetcher)).expect("service");
+            open_test_service_with_fetcher(&database, Arc::new(PackFetcher)).expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
 
         // No packs downloaded yet → no recommendations.
@@ -2930,8 +3299,8 @@ mod tests {
         }
 
         let database = temp_database("packs-mismatch");
-        let service = AppService::open_path_with_fetcher(&database, Arc::new(WrongPackFetcher))
-            .expect("service");
+        let service =
+            open_test_service_with_fetcher(&database, Arc::new(WrongPackFetcher)).expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
         assert_eq!(
             service
@@ -2951,6 +3320,25 @@ mod tests {
             start_date: "2027-04-01".to_owned(),
             end_date: "2027-04-10".to_owned(),
         }
+    }
+
+    /// Open a service for tests with an in-memory secret store, so tests never
+    /// touch (or mutate) the real OS keychain — which is both slow and a real
+    /// side effect now that the vault reads/writes its data key there on open.
+    /// The vault is active (a key is available), exercising the encrypted path.
+    fn open_test_service(database: &Path) -> Result<AppService, AppError> {
+        AppService::open_path_with_deps(
+            database,
+            Arc::new(UreqFetcher),
+            Arc::new(MemorySecretStore::default()),
+        )
+    }
+
+    fn open_test_service_with_fetcher(
+        database: &Path,
+        fetcher: Arc<dyn AdviceFetcher>,
+    ) -> Result<AppService, AppError> {
+        AppService::open_path_with_deps(database, fetcher, Arc::new(MemorySecretStore::default()))
     }
 
     fn temp_database(name: &str) -> PathBuf {

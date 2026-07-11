@@ -341,6 +341,21 @@ pub struct HealthResponse {
     pub intelligence_mode: IntelligenceMode,
 }
 
+/// The encrypted vault's state, for the UI. Carries no key material.
+///
+/// - `active`: a data key is available, so sensitive fields are encrypted at rest
+///   and can be read (true in keychain mode, or once unlocked with a passphrase).
+/// - `protected`: a passphrase guards the key (the "optional passphrase" is on).
+/// - `locked`: a passphrase is set but not yet entered this session, so encrypted
+///   data cannot be read or written until the vault is unlocked.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultStatus {
+    pub active: bool,
+    pub protected: bool,
+    pub locked: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ErrorCode {
     #[serde(rename = "validation/invalid_input")]
@@ -367,6 +382,10 @@ pub enum ErrorCode {
     AssistFailed,
     #[serde(rename = "pack/download_failed")]
     PackDownloadFailed,
+    #[serde(rename = "vault/locked")]
+    VaultLocked,
+    #[serde(rename = "vault/passphrase_incorrect")]
+    VaultPassphraseIncorrect,
     #[serde(rename = "storage/failure")]
     StorageFailure,
     #[serde(rename = "transport/failure")]
@@ -390,6 +409,8 @@ impl ErrorCode {
             Self::AdviceFetchFailed => "advice/fetch_failed",
             Self::AssistFailed => "assist/failed",
             Self::PackDownloadFailed => "pack/download_failed",
+            Self::VaultLocked => "vault/locked",
+            Self::VaultPassphraseIncorrect => "vault/passphrase_incorrect",
             Self::StorageFailure => "storage/failure",
             Self::TransportFailure => "transport/failure",
             Self::InternalUnexpected => "internal/unexpected",

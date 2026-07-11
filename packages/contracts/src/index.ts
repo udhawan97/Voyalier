@@ -401,6 +401,20 @@ export interface HealthResponse {
   version: string;
   intelligenceMode: IntelligenceMode;
 }
+/**
+ * The encrypted vault's state. Carries no key material.
+ *
+ * - `active`: sensitive fields are encrypted at rest and readable (keychain
+ *   mode, or a passphrase vault after unlock).
+ * - `protected`: the optional passphrase is on.
+ * - `locked`: a passphrase is set but not yet entered this session, so encrypted
+ *   data cannot be read or written until the vault is unlocked.
+ */
+export interface VaultStatus {
+  active: boolean;
+  protected: boolean;
+  locked: boolean;
+}
 export type ErrorCode =
   | "validation/invalid_input"
   | "validation/invalid_date_range"
@@ -414,6 +428,8 @@ export type ErrorCode =
   | "advice/fetch_failed"
   | "assist/failed"
   | "pack/download_failed"
+  | "vault/locked"
+  | "vault/passphrase_incorrect"
   | "storage/failure"
   | "transport/failure"
   | "internal/unexpected";
@@ -460,6 +476,10 @@ export interface AppGateway {
   archiveTrip(tripId: string): Promise<Trip>;
   getTripBrief(tripId: string): Promise<TripBrief>;
   getToday(tripId: string): Promise<TodayView>;
+  getVaultStatus(): Promise<VaultStatus>;
+  setVaultPassphrase(passphrase: string): Promise<VaultStatus>;
+  unlockVault(passphrase: string): Promise<VaultStatus>;
+  removeVaultPassphrase(passphrase: string): Promise<VaultStatus>;
   detectLocalAi(): Promise<LocalAiStatus>;
   listProviders(): Promise<ProviderConfig[]>;
   setProviderKey(input: SetProviderKeyInput): Promise<ProviderConfig>;

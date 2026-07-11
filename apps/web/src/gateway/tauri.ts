@@ -31,6 +31,7 @@ import type {
   TripDetail,
   TripSummary,
   UpdateTripInput,
+  VaultStatus,
   WeatherSnapshot,
 } from "@voyalier/contracts";
 
@@ -92,6 +93,17 @@ export function createTauriGateway(
       call<TripBrief>("get_trip_brief", { tripId }),
 
     getToday: (tripId: string) => call<TodayView>("get_today", { tripId }),
+
+    getVaultStatus: () => call<VaultStatus>("get_vault_status", {}),
+
+    setVaultPassphrase: (passphrase: string) =>
+      call<VaultStatus>("set_vault_passphrase", { passphrase }),
+
+    unlockVault: (passphrase: string) =>
+      call<VaultStatus>("unlock_vault", { passphrase }),
+
+    removeVaultPassphrase: (passphrase: string) =>
+      call<VaultStatus>("remove_vault_passphrase", { passphrase }),
 
     detectLocalAi: () => call<LocalAiStatus>("detect_local_ai", {}),
 

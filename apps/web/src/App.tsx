@@ -7,6 +7,7 @@ import { OfflineBanner } from "./components/OfflineBanner";
 import { Topbar, type HealthState } from "./components/Topbar";
 import { TripDetailView } from "./views/TripDetailView";
 import { TripListView } from "./views/TripListView";
+import { VaultUnlock } from "./views/VaultUnlock";
 
 type View = { name: "list" } | { name: "trip"; tripId: string };
 
@@ -17,8 +18,24 @@ export function App({ gateway: injected }: { gateway?: AppGateway } = {}) {
   const [healthError, setHealthError] = useState<AppError | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [message, setMessage] = useState("");
+  // Whether the encrypted vault needs a passphrase before the workspace opens.
+  // `null` until the first check completes (treated as "not locked").
+  const [locked, setLocked] = useState<boolean | null>(null);
 
   const announce = useCallback((next: string) => setMessage(next), []);
+
+  const checkVault = useCallback(() => {
+    gateway.getVaultStatus().then(
+      (status) => setLocked(status.locked),
+      // A gateway without vault support (or a transient error) must never wall
+      // off the app — fail open to the normal workspace.
+      () => setLocked(false),
+    );
+  }, [gateway]);
+
+  useEffect(() => {
+    checkVault();
+  }, [checkVault]);
 
   // Only the async result touches state, so the mount effect never calls
   // setState synchronously; the retry handler does its own "checking" reset.
@@ -64,7 +81,9 @@ export function App({ gateway: injected }: { gateway?: AppGateway } = {}) {
             {health === "offline" && healthError ? (
               <OfflineBanner error={healthError} onRetry={retry} />
             ) : null}
-            {view.name === "list" ? (
+            {locked ? (
+              <VaultUnlock onUnlocked={checkVault} />
+            ) : view.name === "list" ? (
               <TripListView onOpenTrip={openTrip} reloadKey={reloadKey} />
             ) : (
               <TripDetailView

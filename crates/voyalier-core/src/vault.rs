@@ -6,9 +6,11 @@
 //! a unique random nonce per message, and storing the data key in the OS
 //! keychain, is the application layer's job — never reuse a nonce with a key.
 //!
-//! This is the cryptographic foundation only; wiring it into storage (and the
-//! unlock experience) is a later, separate step.
+//! [`derive_key`] turns a passphrase into a key-encryption key (Argon2id) so the
+//! data key can optionally be wrapped under a passphrase the user knows. It is
+//! pure too — the salt is supplied by the caller.
 
+use argon2::Argon2;
 use chacha20poly1305::aead::{Aead, KeyInit};
 use chacha20poly1305::{Key, XChaCha20Poly1305, XNonce};
 
@@ -18,6 +20,28 @@ use crate::types::{AppError, ErrorCode};
 pub const VAULT_KEY_LEN: usize = 32;
 /// The XChaCha20-Poly1305 nonce length (bytes).
 pub const VAULT_NONCE_LEN: usize = 24;
+/// The passphrase-salt length (bytes) — comfortably above Argon2's minimum.
+pub const VAULT_SALT_LEN: usize = 16;
+
+/// Derive a 32-byte key-encryption key from a passphrase and salt using Argon2id.
+///
+/// Pure and deterministic: the same passphrase and salt always produce the same
+/// key, which is what lets the vault unwrap its data key when the user re-enters
+/// their passphrase. Generating and storing the random salt — and never using
+/// the derived key for anything but wrapping the data key — is the application
+/// layer's job.
+pub fn derive_key(passphrase: &str, salt: &[u8]) -> Result<[u8; VAULT_KEY_LEN], AppError> {
+    let mut key = [0u8; VAULT_KEY_LEN];
+    Argon2::default()
+        .hash_password_into(passphrase.as_bytes(), salt, &mut key)
+        .map_err(|_| {
+            AppError::new(
+                ErrorCode::InternalUnexpected,
+                "the vault could not derive a key from the passphrase",
+            )
+        })?;
+    Ok(key)
+}
 
 /// Encrypt `plaintext` under `key` with `nonce`. The nonce is prepended to the
 /// returned bytes so [`open`] needs only the key. The caller MUST pass a unique
@@ -112,5 +136,41 @@ mod tests {
         sealed[last] ^= 0x01; // flip a ciphertext/tag bit
         assert!(open(&key(), &sealed).is_err());
         assert!(open(&key(), &[0u8; 4]).is_err());
+    }
+
+    #[test]
+    fn derives_the_same_key_for_the_same_passphrase_and_salt() {
+        let salt = [9u8; VAULT_SALT_LEN];
+        let a = derive_key("correct horse battery staple", &salt).expect("derive");
+        let b = derive_key("correct horse battery staple", &salt).expect("derive");
+        assert_eq!(a, b);
+        assert_ne!(a, [0u8; VAULT_KEY_LEN]);
+    }
+
+    #[test]
+    fn derives_a_different_key_for_a_different_passphrase_or_salt() {
+        let salt = [9u8; VAULT_SALT_LEN];
+        let base = derive_key("passphrase-one", &salt).expect("derive");
+        assert_ne!(base, derive_key("passphrase-two", &salt).expect("derive"));
+        assert_ne!(
+            base,
+            derive_key("passphrase-one", &[1u8; VAULT_SALT_LEN]).expect("derive")
+        );
+    }
+
+    #[test]
+    fn wraps_and_unwraps_a_data_key_under_a_passphrase() {
+        // The real flow: derive a KEK, seal the data key under it, then recover
+        // the data key only with the correct passphrase.
+        let data_key = [42u8; VAULT_KEY_LEN];
+        let salt = [5u8; VAULT_SALT_LEN];
+        let kek = derive_key("open sesame", &salt).expect("derive");
+        let wrapped = seal(&kek, &nonce(), &data_key).expect("wrap");
+
+        let right = derive_key("open sesame", &salt).expect("derive");
+        assert_eq!(open(&right, &wrapped).expect("unwrap"), data_key);
+
+        let wrong = derive_key("not it", &salt).expect("derive");
+        assert!(open(&wrong, &wrapped).is_err());
     }
 }

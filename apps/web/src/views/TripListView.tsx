@@ -20,6 +20,7 @@ import {
 } from "../components/primitives";
 import { CreateTripDialog } from "./CreateTripDialog";
 import { DeleteTripDialog } from "./DeleteTripDialog";
+import { VaultPanel } from "./VaultPanel";
 
 function TripCard({
   trip,
@@ -145,14 +146,13 @@ export function TripListView({
       </header>
 
       {status === "loading" && !data ? (
-        <div
-          className="voy-triplist__grid"
-          role="status"
-          aria-busy="true"
-        >
+        <div className="voy-triplist__grid" role="status" aria-busy="true">
           <span className="voy-sr-only">Loading trips…</span>
           {[0, 1, 2].map((index) => (
-            <article className="voy-tripcard voy-tripcard--skeleton" key={index}>
+            <article
+              className="voy-tripcard voy-tripcard--skeleton"
+              key={index}
+            >
               <Skeleton width="60%" height="1.4rem" />
               <Skeleton width="40%" />
               <Skeleton width="50%" />
@@ -209,6 +209,8 @@ export function TripListView({
           ))}
         </div>
       ) : null}
+
+      <VaultPanel />
 
       {showCreate ? (
         <CreateTripDialog

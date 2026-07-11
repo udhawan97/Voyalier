@@ -45,6 +45,7 @@ import type {
   TripDetail,
   TripSummary,
   UpdateTripInput,
+  VaultStatus,
 } from "./index";
 
 interface StoredDocument {
@@ -1031,7 +1032,19 @@ export function createMockGateway(options?: {
   const assistActivity: (AssistActivityEntry & { tripId: string })[] = [];
   // Downloaded packs, keyed loosely by trip.
   const downloadedPacks: (DownloadedPack & { tripId: string })[] = [];
+  // Encrypted-vault state: active by default (keychain mode). An optional
+  // passphrase can be set; the mock keeps it only to validate unlock, mirroring
+  // that the real gateway never returns or persists the passphrase in plaintext.
+  const vault = { protected: false, unlocked: true, passphrase: "" };
   let sequence = 1;
+
+  function vaultStatus(): VaultStatus {
+    return {
+      active: vault.unlocked,
+      protected: vault.protected,
+      locked: vault.protected && !vault.unlocked,
+    };
+  }
 
   function providerConfig(id: ProviderId): ProviderConfig {
     const info = MOCK_PROVIDERS.find((entry) => entry.id === id);
@@ -1316,6 +1329,61 @@ export function createMockGateway(options?: {
         );
         // Deterministic "today" for the mock.
         return buildTodayView(trip, tripFacts, FIXTURE_TIME.slice(0, 10));
+      }),
+
+    getVaultStatus: () => execute("getVaultStatus", () => vaultStatus()),
+
+    setVaultPassphrase: (passphrase: string) =>
+      execute("setVaultPassphrase", () => {
+        if (passphrase.length < 8)
+          throw appError(
+            "validation/invalid_input",
+            "the passphrase must be at least 8 characters",
+          );
+        if (vault.protected)
+          throw appError(
+            "validation/invalid_input",
+            "a passphrase is already set; remove it before choosing a new one",
+          );
+        vault.protected = true;
+        vault.unlocked = true;
+        vault.passphrase = passphrase;
+        return vaultStatus();
+      }),
+
+    unlockVault: (passphrase: string) =>
+      execute("unlockVault", () => {
+        if (!vault.protected)
+          throw appError(
+            "validation/invalid_input",
+            "no passphrase is set on this vault",
+          );
+        if (vault.unlocked) return vaultStatus();
+        if (passphrase !== vault.passphrase)
+          throw appError(
+            "vault/passphrase_incorrect",
+            "that passphrase is incorrect",
+          );
+        vault.unlocked = true;
+        return vaultStatus();
+      }),
+
+    removeVaultPassphrase: (passphrase: string) =>
+      execute("removeVaultPassphrase", () => {
+        if (!vault.protected)
+          throw appError(
+            "validation/invalid_input",
+            "no passphrase is set on this vault",
+          );
+        if (passphrase !== vault.passphrase)
+          throw appError(
+            "vault/passphrase_incorrect",
+            "that passphrase is incorrect",
+          );
+        vault.protected = false;
+        vault.unlocked = true;
+        vault.passphrase = "";
+        return vaultStatus();
       }),
 
     detectLocalAi: () =>

@@ -112,3 +112,10 @@ export const RetryIcon = (p: SVGProps<SVGSVGElement>) => (
     <path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5" />
   </Base>
 );
+
+export const LockIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <rect x="4.5" y="10.5" width="15" height="10" rx="1.6" />
+    <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
+  </Base>
+);
