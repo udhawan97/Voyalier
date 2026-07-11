@@ -4,6 +4,8 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
 };
 
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use directories::ProjectDirs;
 use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256};
@@ -27,6 +29,7 @@ use voyalier_core::{
     validate_create_trip, validate_document_content, validate_fact_payload, validate_model_name,
     validate_pack_id, validate_provider_id, validate_search_query, validate_update_trip,
 };
+use voyalier_core::{VAULT_KEY_LEN, VAULT_NONCE_LEN, open as vault_open, seal as vault_seal};
 
 const DATABASE_FILE: &str = "voyalier.sqlite3";
 
@@ -213,6 +216,129 @@ fn keyring_failure(error: keyring::Error) -> AppError {
     )
 }
 
+/// The keychain account holding the vault's data key.
+const VAULT_KEY_ACCOUNT: &str = "vault.data_key";
+/// Tag marking a stored field as sealed; anything without it is legacy plaintext.
+const VAULT_PREFIX: &str = "v1:";
+
+/// At-rest encryption for sensitive stored fields (confirmed-fact payloads).
+///
+/// The data key lives in the OS keychain. The vault is **active** when a key is
+/// available and **degrades to storing plaintext** when the keychain is
+/// unavailable (e.g. a headless CI runner) — so the app still works everywhere,
+/// and encryption is applied wherever the keychain exists. Sealed values are
+/// tagged, so plaintext and sealed values coexist during migration.
+#[derive(Clone)]
+pub struct Vault {
+    key: Option<[u8; VAULT_KEY_LEN]>,
+}
+
+impl Vault {
+    /// Load the data key from the keychain, generating and storing one on first
+    /// run. Any keychain error leaves the vault inactive (plaintext).
+    fn load_or_init(secrets: &dyn SecretStore) -> Self {
+        match secrets.get(VAULT_KEY_ACCOUNT) {
+            Ok(Some(encoded)) => Self {
+                key: decode_key(&encoded),
+            },
+            Ok(None) => {
+                let mut key = [0u8; VAULT_KEY_LEN];
+                if getrandom::getrandom(&mut key).is_err() {
+                    return Self { key: None };
+                }
+                match secrets.set(VAULT_KEY_ACCOUNT, &BASE64.encode(key)) {
+                    Ok(()) => Self { key: Some(key) },
+                    // Couldn't persist the key — never encrypt with a key we
+                    // can't recover, or the data would be unreadable next run.
+                    Err(_) => Self { key: None },
+                }
+            }
+            Err(_) => Self { key: None },
+        }
+    }
+
+    fn is_active(&self) -> bool {
+        self.key.is_some()
+    }
+
+    /// Seal a plaintext field. When inactive, returns the plaintext unchanged.
+    fn seal_field(&self, plaintext: &str) -> Result<String, AppError> {
+        let Some(key) = self.key else {
+            return Ok(plaintext.to_owned());
+        };
+        let mut nonce = [0u8; VAULT_NONCE_LEN];
+        getrandom::getrandom(&mut nonce).map_err(|_| {
+            AppError::new(ErrorCode::InternalUnexpected, "could not generate a nonce")
+        })?;
+        let sealed = vault_seal(&key, &nonce, plaintext.as_bytes())?;
+        Ok(format!("{VAULT_PREFIX}{}", BASE64.encode(sealed)))
+    }
+
+    /// Open a stored field. Untagged (legacy plaintext) values pass through.
+    fn open_field(&self, stored: &str) -> Result<String, AppError> {
+        let Some(encoded) = stored.strip_prefix(VAULT_PREFIX) else {
+            return Ok(stored.to_owned());
+        };
+        let Some(key) = self.key else {
+            return Err(AppError::new(
+                ErrorCode::StorageFailure,
+                "this data is encrypted but the vault key is unavailable",
+            ));
+        };
+        let bytes = BASE64
+            .decode(encoded)
+            .map_err(|_| AppError::new(ErrorCode::StorageFailure, "corrupt encrypted field"))?;
+        let opened = vault_open(&key, &bytes)?;
+        String::from_utf8(opened).map_err(|_| {
+            AppError::new(
+                ErrorCode::StorageFailure,
+                "decrypted data was not valid text",
+            )
+        })
+    }
+}
+
+fn decode_key(encoded: &str) -> Option<[u8; VAULT_KEY_LEN]> {
+    let bytes = BASE64.decode(encoded).ok()?;
+    <[u8; VAULT_KEY_LEN]>::try_from(bytes.as_slice()).ok()
+}
+
+fn app_to_rusqlite(error: AppError) -> rusqlite::Error {
+    rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, Box::new(error))
+}
+
+/// Seal any legacy plaintext confirmed-fact payloads once the vault is active.
+/// Idempotent: already-sealed rows (tagged) are skipped.
+fn migrate_encrypt_confirmed_facts(connection: &Connection, vault: &Vault) -> Result<(), AppError> {
+    if !vault.is_active() {
+        return Ok(());
+    }
+    let legacy: Vec<(String, String)> = {
+        let mut statement = connection
+            .prepare("SELECT id, payload FROM confirmed_facts")
+            .map_err(storage_error)?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(storage_error)?;
+        collect_rows(rows)?
+    };
+    for (id, payload) in legacy {
+        if payload.starts_with(VAULT_PREFIX) {
+            continue;
+        }
+        let sealed = vault.seal_field(&payload)?;
+        connection
+            .execute(
+                "UPDATE confirmed_facts SET payload = ?1 WHERE id = ?2",
+                params![sealed, id],
+            )
+            .map_err(storage_error)?;
+    }
+    Ok(())
+}
+
 #[derive(Debug)]
 struct PoisonError;
 impl std::fmt::Display for PoisonError {
@@ -227,6 +353,7 @@ pub struct AppService {
     connection: Arc<Mutex<Connection>>,
     fetcher: Arc<dyn AdviceFetcher>,
     secrets: Arc<dyn SecretStore>,
+    vault: Vault,
 }
 
 impl AppService {
@@ -259,10 +386,14 @@ impl AppService {
         }
         let connection = Connection::open(path).map_err(storage_error)?;
         init_connection(&connection)?;
+        let vault = Vault::load_or_init(secrets.as_ref());
+        // Encrypt any pre-existing plaintext payloads now the vault is available.
+        migrate_encrypt_confirmed_facts(&connection, &vault)?;
         Ok(Self {
             connection: Arc::new(Mutex::new(connection)),
             fetcher,
             secrets,
+            vault,
         })
     }
 
@@ -337,7 +468,7 @@ impl AppService {
     pub fn get_trip(&self, trip_id: &str) -> Result<TripDetail, AppError> {
         let connection = self.connection()?;
         let trip = fetch_trip(&connection, trip_id)?;
-        let confirmed_facts = fetch_confirmed_facts(&connection, trip_id)?;
+        let confirmed_facts = fetch_confirmed_facts(&connection, trip_id, &self.vault)?;
         let pending_candidate_count: i64 = connection
             .query_row(
                 "SELECT COUNT(*) FROM candidate_facts WHERE trip_id = ?1 AND status = 'pending'",
@@ -685,7 +816,7 @@ impl AppService {
             .iter()
             .map(|(id, label, content)| SearchableDocument { id, label, content })
             .collect();
-        let facts = fetch_confirmed_facts(&connection, trip_id)?;
+        let facts = fetch_confirmed_facts(&connection, trip_id, &self.vault)?;
 
         Ok(search_trip_corpus(&query, &searchable, &facts))
     }
@@ -758,7 +889,7 @@ impl AppService {
     pub fn get_trip_brief(&self, trip_id: &str) -> Result<TripBrief, AppError> {
         let connection = self.connection()?;
         let trip = fetch_trip(&connection, trip_id)?;
-        let confirmed_facts = fetch_confirmed_facts(&connection, trip_id)?;
+        let confirmed_facts = fetch_confirmed_facts(&connection, trip_id, &self.vault)?;
         Ok(build_trip_brief(
             &trip,
             &confirmed_facts,
@@ -772,7 +903,7 @@ impl AppService {
     pub fn get_today(&self, trip_id: &str) -> Result<TodayView, AppError> {
         let connection = self.connection()?;
         let trip = fetch_trip(&connection, trip_id)?;
-        let facts = fetch_confirmed_facts(&connection, trip_id)?;
+        let facts = fetch_confirmed_facts(&connection, trip_id, &self.vault)?;
         let now = now_rfc3339();
         let today = now.get(..10).unwrap_or(now.as_str());
         Ok(build_today_view(&trip, &facts, today))
@@ -790,7 +921,7 @@ impl AppService {
         let id = validate_provider_id(provider)?;
         let connection = self.connection()?;
         let trip = fetch_trip(&connection, trip_id)?;
-        let confirmed_facts = fetch_confirmed_facts(&connection, trip_id)?;
+        let confirmed_facts = fetch_confirmed_facts(&connection, trip_id, &self.vault)?;
         let model = connection
             .query_row(
                 "SELECT model FROM provider_settings WHERE provider = ?1",
@@ -1174,7 +1305,7 @@ impl AppService {
             corrected_fields,
             confirmed_at: now_rfc3339(),
         };
-        insert_confirmed_fact(&transaction, &confirmed)?;
+        insert_confirmed_fact(&transaction, &confirmed, &self.vault)?;
 
         candidate.status = CandidateStatus::Confirmed;
         candidate.resolved_at = Some(confirmed.confirmed_at.clone());
@@ -1209,7 +1340,7 @@ impl AppService {
             corrected_fields: Vec::new(),
             confirmed_at: now_rfc3339(),
         };
-        insert_confirmed_fact(&connection, &confirmed)?;
+        insert_confirmed_fact(&connection, &confirmed, &self.vault)?;
         Ok(confirmed)
     }
 
@@ -1522,6 +1653,7 @@ fn percent_encode(value: &str) -> String {
 fn fetch_confirmed_facts(
     connection: &Connection,
     trip_id: &str,
+    vault: &Vault,
 ) -> Result<Vec<ConfirmedFact>, AppError> {
     let mut statement = connection
         .prepare(
@@ -1532,7 +1664,7 @@ fn fetch_confirmed_facts(
         )
         .map_err(storage_error)?;
     let rows = statement
-        .query_map(params![trip_id], row_to_confirmed_fact)
+        .query_map(params![trip_id], |row| row_to_confirmed_fact(row, vault))
         .map_err(storage_error)?;
     collect_rows(rows)
 }
@@ -1565,7 +1697,10 @@ fn insert_candidate(connection: &Connection, candidate: &CandidateFact) -> Resul
 fn insert_confirmed_fact(
     connection: &Connection,
     confirmed: &ConfirmedFact,
+    vault: &Vault,
 ) -> Result<(), AppError> {
+    // The payload carries confirmation codes and traveler names — seal it at rest.
+    let sealed_payload = vault.seal_field(&json_to_sql(&confirmed.payload)?)?;
     connection
         .execute(
             "INSERT INTO confirmed_facts
@@ -1575,7 +1710,7 @@ fn insert_confirmed_fact(
                 confirmed.id,
                 confirmed.trip_id,
                 enum_to_sql(confirmed.fact_type)?,
-                json_to_sql(&confirmed.payload)?,
+                sealed_payload,
                 enum_to_sql(confirmed.method)?,
                 confirmed.candidate_id,
                 json_to_sql(&confirmed.corrected_fields)?,
@@ -1654,12 +1789,18 @@ fn row_to_candidate(row: &rusqlite::Row<'_>) -> rusqlite::Result<CandidateFact> 
     })
 }
 
-fn row_to_confirmed_fact(row: &rusqlite::Row<'_>) -> rusqlite::Result<ConfirmedFact> {
+fn row_to_confirmed_fact(
+    row: &rusqlite::Row<'_>,
+    vault: &Vault,
+) -> rusqlite::Result<ConfirmedFact> {
+    let payload_json = vault
+        .open_field(&row.get::<_, String>(3)?)
+        .map_err(app_to_rusqlite)?;
     Ok(ConfirmedFact {
         id: row.get(0)?,
         trip_id: row.get(1)?,
         fact_type: sql_to_enum(row.get::<_, String>(2)?)?,
-        payload: sql_to_json(row.get::<_, String>(3)?)?,
+        payload: sql_to_json(payload_json)?,
         method: sql_to_enum(row.get::<_, String>(4)?)?,
         candidate_id: row.get(5)?,
         corrected_fields: sql_to_json(row.get::<_, String>(6)?)?,
@@ -2275,6 +2416,106 @@ mod tests {
         assert!(!serialized.contains("Jamie Traveler"));
         assert!(serialized.contains("FP18"));
         assert_eq!(brief.flights.len(), 1);
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn vault_encrypts_confirmed_fact_payloads_at_rest_and_migrates_legacy_rows() {
+        struct NoNet;
+        impl AdviceFetcher for NoNet {
+            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+                panic!("no network");
+            }
+        }
+
+        let database = temp_database("vault");
+        let secrets = Arc::new(MemorySecretStore::default());
+        let service = AppService::open_path_with_deps(&database, Arc::new(NoNet), secrets.clone())
+            .expect("service");
+        assert!(
+            service.vault.is_active(),
+            "memory store makes the vault active"
+        );
+
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        service
+            .add_manual_fact(AddManualFactInput {
+                trip_id: trip.id.clone(),
+                fact_type: FactType::FlightSegment,
+                payload: FactPayload {
+                    flight_number: Some("FP18".to_owned()),
+                    confirmation_code: Some("SECRET-PNR".to_owned()),
+                    passenger_name: Some("Jamie Traveler".to_owned()),
+                    ..FactPayload::default()
+                },
+            })
+            .expect("manual flight");
+
+        // At rest the payload is sealed: tagged, and free of the plaintext secrets.
+        let raw: String = {
+            let reader = Connection::open(&database).expect("reader");
+            reader
+                .query_row(
+                    "SELECT payload FROM confirmed_facts WHERE trip_id = ?1",
+                    params![trip.id],
+                    |row| row.get(0),
+                )
+                .expect("payload")
+        };
+        assert!(
+            raw.starts_with("v1:"),
+            "payload should be sealed, got: {raw}"
+        );
+        assert!(!raw.contains("SECRET-PNR"));
+        assert!(!raw.contains("Jamie Traveler"));
+
+        // Read back through the service decrypts transparently.
+        let detail = service.get_trip(&trip.id).expect("detail");
+        assert!(
+            detail
+                .confirmed_facts
+                .iter()
+                .any(|fact| fact.payload.confirmation_code.as_deref() == Some("SECRET-PNR"))
+        );
+
+        // A legacy plaintext row is sealed by the migration on the next open.
+        {
+            let writer = Connection::open(&database).expect("writer");
+            writer
+                .execute(
+                    "INSERT INTO confirmed_facts
+                     (id, trip_id, fact_type, payload, method, corrected_fields, confirmed_at)
+                     VALUES ('legacy', ?1, 'lodging_stay', ?2, 'manual', '[]', '2027-01-01T00:00:00Z')",
+                    params![
+                        trip.id,
+                        r#"{"propertyName":"Old Inn","confirmationCode":"LEGACY9"}"#
+                    ],
+                )
+                .expect("legacy insert");
+        }
+        let reopened = AppService::open_path_with_deps(&database, Arc::new(NoNet), secrets.clone())
+            .expect("reopen");
+        let migrated: String = {
+            let reader = Connection::open(&database).expect("reader");
+            reader
+                .query_row(
+                    "SELECT payload FROM confirmed_facts WHERE id = 'legacy'",
+                    [],
+                    |row| row.get(0),
+                )
+                .expect("payload")
+        };
+        assert!(migrated.starts_with("v1:"), "legacy row should be sealed");
+        assert!(!migrated.contains("LEGACY9"));
+        // And it still reads back correctly.
+        assert!(
+            reopened
+                .get_trip(&trip.id)
+                .expect("detail")
+                .confirmed_facts
+                .iter()
+                .any(|fact| fact.payload.confirmation_code.as_deref() == Some("LEGACY9"))
+        );
         cleanup_database(database);
     }
 
