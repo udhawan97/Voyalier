@@ -193,6 +193,19 @@ export interface WeatherSnapshot {
   /** When this device retrieved the snapshot (RFC 3339). */
   retrievedAt: string;
 }
+/** One locally-installed on-device model reported by the runtime. */
+export interface LocalAiModel {
+  name: string;
+}
+/** Whether an optional on-device AI runtime was detected, and its models. */
+export interface LocalAiStatus {
+  /** The runtime probed. Currently always "ollama". */
+  provider: string;
+  /** True when the runtime answered the localhost probe. */
+  available: boolean;
+  /** Installed models (may be empty even when available). */
+  models: LocalAiModel[];
+}
 export type SearchHitSource = "document" | "confirmed_fact";
 export interface SearchHit {
   source: SearchHitSource;
@@ -284,6 +297,7 @@ export interface AppGateway {
   updateTrip(tripId: string, input: UpdateTripInput): Promise<Trip>;
   archiveTrip(tripId: string): Promise<Trip>;
   getTripBrief(tripId: string): Promise<TripBrief>;
+  detectLocalAi(): Promise<LocalAiStatus>;
   listAdviceCountries(): Promise<FcdoCountry[]>;
   fetchTravelAdvice(
     input: FetchTravelAdviceInput,

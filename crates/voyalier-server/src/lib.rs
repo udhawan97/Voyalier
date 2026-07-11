@@ -74,6 +74,7 @@ pub fn app(service: AppService) -> Router {
         )
         .route("/api/v1/trips/{trip_id}/archive", post(archive_trip))
         .route("/api/v1/advice/countries", get(list_advice_countries))
+        .route("/api/v1/local-ai", get(detect_local_ai))
         .route("/api/v1/trips/{trip_id}/brief", get(get_trip_brief))
         .route(
             "/api/v1/trips/{trip_id}/travel-advice",
@@ -155,6 +156,10 @@ async fn list_advice_countries(
     State(service): State<AppService>,
 ) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(service.list_advice_countries()))
+}
+
+async fn detect_local_ai(State(service): State<AppService>) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.detect_local_ai()))
 }
 
 async fn fetch_travel_advice(
@@ -595,6 +600,9 @@ mod tests {
         struct StubFetcher;
         impl AdviceFetcher for StubFetcher {
             fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+                if url.contains("11434") {
+                    return Ok(r#"{ "models": [ { "name": "llama3.2:latest" } ] }"#.to_owned());
+                }
                 if url.contains("geocoding-api.open-meteo.com") {
                     return Ok(r#"{ "results": [ { "name": "Kyoto", "latitude": 35.0,
                         "longitude": 135.8, "country": "Japan" } ] }"#
@@ -621,6 +629,12 @@ mod tests {
         let service =
             AppService::open_path_with_fetcher(&database, Arc::new(StubFetcher)).expect("service");
         let router = app(service);
+
+        let local_ai = request(router.clone(), Method::GET, "/api/v1/local-ai", None).await;
+        assert_eq!(local_ai.status, StatusCode::OK);
+        assert_eq!(local_ai.json["available"], true);
+        assert_eq!(local_ai.json["provider"], "ollama");
+        assert_eq!(local_ai.json["models"][0]["name"], "llama3.2:latest");
 
         let countries = request(
             router.clone(),

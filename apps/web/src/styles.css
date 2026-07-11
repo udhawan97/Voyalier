@@ -1248,6 +1248,94 @@ h3 {
   }
 }
 
+/* ===== On-device AI ==================================================== */
+
+.voy-localai {
+  margin-top: 2.6rem;
+  padding-top: 1.8rem;
+  border-top: 1px solid var(--voy-line);
+}
+
+.voy-localai__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 0.8rem;
+}
+
+.voy-localai__title {
+  font-size: 1.4rem;
+  font-family: var(--voy-font-display);
+}
+
+.voy-localai__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.24rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--voy-line-strong);
+  font-size: 0.78rem;
+  font-weight: 640;
+  color: var(--voy-ink-muted);
+}
+
+.voy-localai__badge--on {
+  border-color: color-mix(in srgb, var(--voy-moss) 40%, transparent);
+  background: var(--voy-tint-moss);
+  color: var(--voy-success);
+}
+
+.voy-localai__detail {
+  margin: 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.voy-localai__detail a {
+  color: var(--voy-indigo);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.voy-localai__detail code {
+  font-family: var(--voy-font-mono);
+  font-size: 0.85em;
+  padding: 0.05rem 0.3rem;
+  border-radius: 0.35rem;
+  background: var(--voy-paper-sunken);
+}
+
+.voy-localai__models {
+  list-style: none;
+  margin: 0.7rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.voy-localai__models li {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--voy-line);
+  background: var(--voy-paper-raised);
+  font-family: var(--voy-font-mono);
+  font-size: 0.8rem;
+}
+
+.voy-localai__actions {
+  margin-top: 1rem;
+}
+
+.voy-localai__scope {
+  margin: 1rem 0 0;
+  color: var(--voy-silver);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
 /* ===== Trip search ===================================================== */
 
 .voy-search {

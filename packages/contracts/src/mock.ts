@@ -16,6 +16,7 @@ import type {
   ImportDocumentInput,
   ImportResult,
   ItineraryConflict,
+  LocalAiStatus,
   LodgingStayPayload,
   ReadinessCheck,
   ReadinessItem,
@@ -925,6 +926,17 @@ export function createMockGateway(options?: {
         );
         return buildShareBrief(trip, tripFacts, timestamp());
       }),
+
+    detectLocalAi: () =>
+      execute(
+        "detectLocalAi",
+        () =>
+          ({
+            provider: "ollama",
+            available: true,
+            models: [{ name: "llama3.2:latest" }, { name: "qwen2.5:7b" }],
+          }) satisfies LocalAiStatus,
+      ),
 
     listAdviceCountries: () =>
       execute("listAdviceCountries", () => MOCK_ADVICE_COUNTRIES.map(clone)),

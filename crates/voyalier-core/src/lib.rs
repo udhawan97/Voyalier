@@ -6,6 +6,7 @@
 mod advice;
 mod brief;
 mod itinerary;
+mod local_ai;
 mod parser;
 mod readiness;
 mod search;
@@ -17,6 +18,7 @@ pub use advice::{
 };
 pub use brief::{RedactionPolicy, TripBrief, build_trip_brief};
 pub use itinerary::detect_itinerary_conflicts;
+pub use local_ai::{LocalAiModel, LocalAiStatus, OLLAMA_TAGS_URL, parse_ollama_models};
 pub use parser::{
     ConfirmationParser, JsonLdParser, NormalizedDocument, ParsedCandidate, ParserDiagnostic,
     ParserOutcome, PlaintextParser,

@@ -4,8 +4,8 @@ use voyalier_app::AppService;
 use voyalier_core::{
     AddManualFactInput, AppError, CandidateFact, CandidateStatus, ConfirmCandidateInput,
     ConfirmedFact, CreateTripInput, FcdoCountry, HealthResponse, ImportDocumentInput, ImportResult,
-    SearchHit, TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripSummary, UpdateTripInput,
-    WeatherSnapshot,
+    LocalAiStatus, SearchHit, TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripSummary,
+    UpdateTripInput, WeatherSnapshot,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -129,6 +129,15 @@ fn list_advice_countries(
 }
 
 #[tauri::command]
+fn detect_local_ai(
+    input: EmptyInput,
+    service: State<'_, AppService>,
+) -> Result<LocalAiStatus, AppError> {
+    let _ = input;
+    Ok(service.detect_local_ai())
+}
+
+#[tauri::command]
 fn fetch_travel_advice(
     input: FetchAdviceInput,
     service: State<'_, AppService>,
@@ -214,6 +223,7 @@ fn builder<R: tauri::Runtime>(
             get_trip_brief,
             search_trip,
             list_advice_countries,
+            detect_local_ai,
             fetch_travel_advice,
             fetch_weather,
             delete_trip,
@@ -414,6 +424,7 @@ mod tests {
             "get_trip_brief",
             "search_trip",
             "list_advice_countries",
+            "detect_local_ai",
             "fetch_travel_advice",
             "fetch_weather",
             "delete_trip",

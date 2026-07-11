@@ -11,6 +11,7 @@ import type {
   HealthResponse,
   ImportDocumentInput,
   ImportResult,
+  LocalAiStatus,
   SearchHit,
   TravelAdviceSnapshot,
   Trip,
@@ -98,6 +99,8 @@ export function createHttpGateway(
 
     getTripBrief: (tripId: string) =>
       request<TripBrief>("GET", `/api/v1/trips/${enc(tripId)}/brief`),
+
+    detectLocalAi: () => request<LocalAiStatus>("GET", "/api/v1/local-ai"),
 
     listAdviceCountries: () =>
       request<FcdoCountry[]>("GET", "/api/v1/advice/countries"),

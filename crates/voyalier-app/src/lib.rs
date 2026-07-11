@@ -11,13 +11,13 @@ use voyalier_core::{
     AddManualFactInput, AppError, CandidateFact, CandidateStatus, ConfirmCandidateInput,
     ConfirmationParser, ConfirmedFact, CreateTripInput, DocumentKind, ErrorCode, ExtractionMethod,
     FCDO_COUNTRIES, FcdoCountry, HealthResponse, ImportDocumentInput, ImportResult,
-    IntelligenceMode, JsonLdParser, NormalizedDocument, ParsedCandidate, PlaintextParser,
-    RedactionPolicy, SearchHit, SearchableDocument, SourceDocument, TravelAdviceSnapshot, Trip,
-    TripBrief, TripDetail, TripStatus, TripSummary, UpdateTripInput, WeatherSnapshot,
-    assess_readiness, build_trip_brief, changed_payload_fields, detect_itinerary_conflicts, new_id,
-    now_rfc3339, parse_fcdo_content, parse_forecast_response, parse_geocoding_response,
-    search_trip_corpus, validate_country_slug, validate_create_trip, validate_document_content,
-    validate_fact_payload, validate_search_query, validate_update_trip,
+    IntelligenceMode, JsonLdParser, LocalAiStatus, NormalizedDocument, OLLAMA_TAGS_URL,
+    ParsedCandidate, PlaintextParser, RedactionPolicy, SearchHit, SearchableDocument,
+    SourceDocument, TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripStatus, TripSummary,
+    UpdateTripInput, WeatherSnapshot, assess_readiness, build_trip_brief, changed_payload_fields,
+    detect_itinerary_conflicts, new_id, now_rfc3339, parse_fcdo_content, parse_forecast_response,
+    parse_geocoding_response, search_trip_corpus, validate_country_slug, validate_create_trip,
+    validate_document_content, validate_fact_payload, validate_search_query, validate_update_trip,
 };
 
 const DATABASE_FILE: &str = "voyalier.sqlite3";
@@ -186,6 +186,17 @@ impl AppService {
     /// The curated list of fetchable FCDO country pages.
     pub fn list_advice_countries(&self) -> Vec<FcdoCountry> {
         FCDO_COUNTRIES.to_vec()
+    }
+
+    /// Detect an optional on-device AI runtime (Ollama) by probing its localhost
+    /// `/api/tags` endpoint. Best-effort and infallible: an unreachable runtime
+    /// reports `available: false`. No inference runs and nothing leaves the
+    /// device — Voyalier stays fully usable whatever this returns.
+    pub fn detect_local_ai(&self) -> LocalAiStatus {
+        match self.fetcher.fetch_text(OLLAMA_TAGS_URL) {
+            Ok(body) => LocalAiStatus::from_tags_body(&body),
+            Err(_) => LocalAiStatus::unavailable(),
+        }
     }
 
     /// Fetch and store a dated snapshot of official FCDO travel advice for a
@@ -1514,6 +1525,51 @@ mod tests {
         assert_eq!(percent_encode("Kyoto"), "Kyoto");
         assert_eq!(percent_encode("New York"), "New%20York");
         assert_eq!(percent_encode("São Paulo"), "S%C3%A3o%20Paulo");
+    }
+
+    #[test]
+    fn detect_local_ai_reports_models_when_reachable_and_unavailable_when_not() {
+        struct OllamaFetcher {
+            reachable: bool,
+        }
+        impl AdviceFetcher for OllamaFetcher {
+            fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+                assert!(url.contains("11434"));
+                if self.reachable {
+                    Ok(r#"{ "models": [ { "name": "llama3.2:latest" }, { "name": "qwen2.5:7b" } ] }"#
+                        .to_owned())
+                } else {
+                    Err(AppError::new(
+                        ErrorCode::AdviceFetchFailed,
+                        "connection refused",
+                    ))
+                }
+            }
+        }
+
+        let database = temp_database("local-ai-up");
+        let up = AppService::open_path_with_fetcher(
+            &database,
+            Arc::new(OllamaFetcher { reachable: true }),
+        )
+        .expect("service");
+        let status = up.detect_local_ai();
+        assert!(status.available);
+        assert_eq!(status.provider, "ollama");
+        assert_eq!(status.models.len(), 2);
+        assert_eq!(status.models[0].name, "llama3.2:latest");
+        cleanup_database(database);
+
+        let database = temp_database("local-ai-down");
+        let down = AppService::open_path_with_fetcher(
+            &database,
+            Arc::new(OllamaFetcher { reachable: false }),
+        )
+        .expect("service");
+        let status = down.detect_local_ai();
+        assert!(!status.available);
+        assert!(status.models.is_empty());
+        cleanup_database(database);
     }
 
     #[test]

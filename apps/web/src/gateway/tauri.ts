@@ -11,6 +11,7 @@ import type {
   HealthResponse,
   ImportDocumentInput,
   ImportResult,
+  LocalAiStatus,
   SearchHit,
   TravelAdviceSnapshot,
   Trip,
@@ -77,6 +78,8 @@ export function createTauriGateway(
 
     getTripBrief: (tripId: string) =>
       call<TripBrief>("get_trip_brief", { tripId }),
+
+    detectLocalAi: () => call<LocalAiStatus>("detect_local_ai", {}),
 
     listAdviceCountries: () => call<FcdoCountry[]>("list_advice_countries", {}),
 
