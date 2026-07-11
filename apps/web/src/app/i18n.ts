@@ -104,6 +104,25 @@ const en = {
   "deleteTrip.placeholder": "delete",
   "deleteTrip.hint":
     "Prefer to keep it? Archiving hides the trip without removing anything.",
+
+  "createTrip.title": "Create a trip",
+  "createTrip.description":
+    "Start with where you're going and when. Everything else can come later.",
+  "createTrip.submit": "Create trip",
+  "createTrip.origin.label": "From",
+  "createTrip.origin.placeholder": "Chicago",
+  "createTrip.origin.required": "Enter where the trip starts.",
+  "createTrip.destination.label": "To",
+  "createTrip.destination.placeholder": "Kyoto",
+  "createTrip.destination.required": "Enter where the trip goes.",
+  "createTrip.tooLong": "Keep this under 120 characters.",
+  "createTrip.startDate": "Start date",
+  "createTrip.endDate": "End date",
+  "createTrip.dates.required": "Add both a start and end date.",
+  "createTrip.dates.order": "The start date must be on or before the end date.",
+  "createTrip.name.label": "Trip name (optional)",
+  "createTrip.name.hint": "Defaults to “From → To”.",
+  "createTrip.name.placeholder": "Kyoto autumn journey",
 } as const;
 
 export type MessageKey = keyof typeof en;

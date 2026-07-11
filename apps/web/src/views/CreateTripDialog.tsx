@@ -3,6 +3,7 @@ import type { AppError, CreateTripInput, Trip } from "@voyalier/contracts";
 
 import { useGateway } from "../app/context";
 import { describeError, tripFieldError } from "../app/format";
+import { t } from "../app/i18n";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 import { Dialog } from "../components/Dialog";
@@ -37,15 +38,14 @@ export function CreateTripDialog({
     const next: FieldErrors = {};
     const trimmedOrigin = origin.trim();
     const trimmedDestination = destination.trim();
-    if (!trimmedOrigin) next.origin = "Enter where the trip starts.";
-    else if (trimmedOrigin.length > 120)
-      next.origin = "Keep this under 120 characters.";
-    if (!trimmedDestination) next.destination = "Enter where the trip goes.";
+    if (!trimmedOrigin) next.origin = t("createTrip.origin.required");
+    else if (trimmedOrigin.length > 120) next.origin = t("createTrip.tooLong");
+    if (!trimmedDestination)
+      next.destination = t("createTrip.destination.required");
     else if (trimmedDestination.length > 120)
-      next.destination = "Keep this under 120 characters.";
-    if (!startDate || !endDate) next.dates = "Add both a start and end date.";
-    else if (startDate > endDate)
-      next.dates = "The start date must be on or before the end date.";
+      next.destination = t("createTrip.tooLong");
+    if (!startDate || !endDate) next.dates = t("createTrip.dates.required");
+    else if (startDate > endDate) next.dates = t("createTrip.dates.order");
     return next;
   }
 
@@ -87,14 +87,14 @@ export function CreateTripDialog({
 
   return (
     <Dialog
-      title="Create a trip"
+      title={t("createTrip.title")}
       onClose={onClose}
       initialFocusRef={originRef}
-      description="Start with where you're going and when. Everything else can come later."
+      description={t("createTrip.description")}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t("action.cancel")}
           </Button>
           <Button
             variant="primary"
@@ -102,7 +102,7 @@ export function CreateTripDialog({
             form="create-trip-form"
             busy={submitting}
           >
-            Create trip
+            {t("createTrip.submit")}
           </Button>
         </>
       }
@@ -124,7 +124,7 @@ export function CreateTripDialog({
         ) : null}
         <TextField
           id="trip-origin"
-          label="From"
+          label={t("createTrip.origin.label")}
           inputRef={originRef}
           value={origin}
           onChange={(event) => setOrigin(event.target.value)}
@@ -132,23 +132,23 @@ export function CreateTripDialog({
           required
           maxLength={120}
           autoComplete="off"
-          placeholder="Chicago"
+          placeholder={t("createTrip.origin.placeholder")}
         />
         <TextField
           id="trip-destination"
-          label="To"
+          label={t("createTrip.destination.label")}
           value={destination}
           onChange={(event) => setDestination(event.target.value)}
           error={errors.destination}
           required
           maxLength={120}
           autoComplete="off"
-          placeholder="Kyoto"
+          placeholder={t("createTrip.destination.placeholder")}
         />
         <div className="voy-form__row">
           <TextField
             id="trip-start"
-            label="Start date"
+            label={t("createTrip.startDate")}
             type="date"
             value={startDate}
             onChange={(event) => setStartDate(event.target.value)}
@@ -158,7 +158,7 @@ export function CreateTripDialog({
           />
           <TextField
             id="trip-end"
-            label="End date"
+            label={t("createTrip.endDate")}
             type="date"
             value={endDate}
             onChange={(event) => setEndDate(event.target.value)}
@@ -168,13 +168,13 @@ export function CreateTripDialog({
         </div>
         <TextField
           id="trip-title"
-          label="Trip name (optional)"
+          label={t("createTrip.name.label")}
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           maxLength={120}
           autoComplete="off"
-          hint="Defaults to “From → To”."
-          placeholder="Kyoto autumn journey"
+          hint={t("createTrip.name.hint")}
+          placeholder={t("createTrip.name.placeholder")}
         />
       </form>
     </Dialog>
