@@ -8,20 +8,20 @@ use directories::ProjectDirs;
 use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256};
 use voyalier_core::{
-    AddManualFactInput, AppError, AssistReply, AssistRequestPreview, CandidateFact,
-    CandidateStatus, ConfirmCandidateInput, ConfirmationParser, ConfirmedFact, CreateTripInput,
-    DEFAULT_OLLAMA_MODEL, DocumentKind, ErrorCode, ExtractionMethod, FCDO_COUNTRIES, FcdoCountry,
-    HealthResponse, ImportDocumentInput, ImportResult, IntelligenceMode, JsonLdParser,
-    LocalAiStatus, NormalizedDocument, OLLAMA_CHAT_URL, OLLAMA_TAGS_URL, PROVIDERS,
-    ParsedCandidate, PlaintextParser, ProviderConfig, ProviderId, RedactionPolicy, SearchHit,
-    SearchableDocument, SourceDocument, TravelAdviceSnapshot, Trip, TripBrief, TripDetail,
-    TripStatus, TripSummary, UpdateTripInput, WeatherSnapshot, assess_readiness,
-    build_assist_preview, build_ollama_chat_body, build_trip_brief, changed_payload_fields,
-    detect_itinerary_conflicts, new_id, now_rfc3339, parse_fcdo_content, parse_forecast_response,
-    parse_geocoding_response, parse_ollama_chat_reply, provider_info, search_trip_corpus,
-    validate_api_key, validate_country_slug, validate_create_trip, validate_document_content,
-    validate_fact_payload, validate_model_name, validate_provider_id, validate_search_query,
-    validate_update_trip,
+    AddManualFactInput, AppError, AssistActivityEntry, AssistReply, AssistRequestPreview,
+    CandidateFact, CandidateStatus, ConfirmCandidateInput, ConfirmationParser, ConfirmedFact,
+    CreateTripInput, DEFAULT_OLLAMA_MODEL, DocumentKind, ErrorCode, ExtractionMethod,
+    FCDO_COUNTRIES, FcdoCountry, HealthResponse, ImportDocumentInput, ImportResult,
+    IntelligenceMode, JsonLdParser, LocalAiStatus, NormalizedDocument, OLLAMA_CHAT_URL,
+    OLLAMA_TAGS_URL, PROVIDERS, ParsedCandidate, PlaintextParser, ProviderConfig, ProviderId,
+    RedactionPolicy, SearchHit, SearchableDocument, SourceDocument, TravelAdviceSnapshot, Trip,
+    TripBrief, TripDetail, TripStatus, TripSummary, UpdateTripInput, WeatherSnapshot,
+    assess_readiness, build_assist_preview, build_ollama_chat_body, build_trip_brief,
+    changed_payload_fields, detect_itinerary_conflicts, new_id, now_rfc3339, parse_fcdo_content,
+    parse_forecast_response, parse_geocoding_response, parse_ollama_chat_reply, provider_info,
+    search_trip_corpus, validate_api_key, validate_country_slug, validate_create_trip,
+    validate_document_content, validate_fact_payload, validate_model_name, validate_provider_id,
+    validate_search_query, validate_update_trip,
 };
 
 const DATABASE_FILE: &str = "voyalier.sqlite3";
@@ -636,12 +636,61 @@ impl AppService {
         let body = build_ollama_chat_body(&model, &preview.system_prompt, &preview.user_content);
         let response = self.fetcher.post_json(OLLAMA_CHAT_URL, &body)?;
         let text = parse_ollama_chat_reply(&response)?;
+        let generated_at = now_rfc3339();
+        // Log that a call happened — metadata only, never the prompt or reply.
+        let connection = self.connection()?;
+        connection
+            .execute(
+                "INSERT INTO assist_activity (id, trip_id, provider, model, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![new_id("act"), trip_id, id.as_str(), model, generated_at],
+            )
+            .map_err(storage_error)?;
         Ok(AssistReply {
             provider: id,
             model,
             text,
-            generated_at: now_rfc3339(),
+            generated_at,
         })
+    }
+
+    /// The visible per-trip log of assist calls, most recent first. Metadata
+    /// only — prompts and replies are never stored.
+    pub fn list_assist_activity(
+        &self,
+        trip_id: &str,
+    ) -> Result<Vec<AssistActivityEntry>, AppError> {
+        let connection = self.connection()?;
+        fetch_trip(&connection, trip_id)?;
+        let mut statement = connection
+            .prepare(
+                "SELECT id, provider, model, created_at
+                 FROM assist_activity
+                 WHERE trip_id = ?1
+                 ORDER BY created_at DESC, id DESC",
+            )
+            .map_err(storage_error)?;
+        let rows = statement
+            .query_map(params![trip_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            })
+            .map_err(storage_error)?;
+        let mut entries = Vec::new();
+        for row in rows {
+            let (id, provider, model, created_at) = row.map_err(storage_error)?;
+            entries.push(AssistActivityEntry {
+                id,
+                provider: validate_provider_id(&provider)?,
+                model,
+                created_at,
+            });
+        }
+        Ok(entries)
     }
 
     pub fn update_trip(&self, trip_id: &str, input: UpdateTripInput) -> Result<Trip, AppError> {
@@ -1072,6 +1121,14 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
                 candidate_id TEXT REFERENCES candidate_facts(id) ON DELETE SET NULL,
                 corrected_fields TEXT NOT NULL,
                 confirmed_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS assist_activity (
+                id TEXT PRIMARY KEY,
+                trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                provider TEXT NOT NULL,
+                model TEXT NOT NULL,
+                created_at TEXT NOT NULL
             );
 
             PRAGMA user_version = 1;
@@ -2060,13 +2117,26 @@ mod tests {
         assert!(!body.contains("SECRET-PNR"));
         assert!(!body.contains("Jamie Traveler"));
 
-        // Cloud providers are refused (no data leaves the device).
+        // The successful call was logged (metadata only).
+        let activity = service.list_assist_activity(&trip.id).expect("activity");
+        assert_eq!(activity.len(), 1);
+        assert_eq!(activity[0].provider, ProviderId::Ollama);
+        assert_eq!(activity[0].model, "llama3.2");
+
+        // Cloud providers are refused (no data leaves the device) and not logged.
         assert_eq!(
             service
                 .run_assist(&trip.id, "openai")
                 .expect_err("cloud refused")
                 .code,
             ErrorCode::AssistFailed
+        );
+        assert_eq!(
+            service
+                .list_assist_activity(&trip.id)
+                .expect("activity")
+                .len(),
+            1
         );
         cleanup_database(database);
     }

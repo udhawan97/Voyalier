@@ -1,13 +1,14 @@
 import { useId, useState } from "react";
 import type {
   AppError,
+  AssistActivityEntry,
   AssistReply,
   AssistRequestPreview,
   ProviderId,
 } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
-import { describeError } from "../app/format";
+import { describeError, formatDateTimeLocal } from "../app/format";
 import { Button } from "../components/Button";
 
 /** Static labels for the picker; the authoritative label comes back on the preview. */
@@ -34,6 +35,15 @@ export function AssistPreview({ tripId }: { tripId: string }) {
   const [reply, setReply] = useState<AssistReply | null>(null);
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
+  const [activity, setActivity] = useState<AssistActivityEntry[]>([]);
+
+  async function refreshActivity() {
+    try {
+      setActivity(await gateway.listAssistActivity(tripId));
+    } catch {
+      // The log is a transparency aid; a read failure must not block assist.
+    }
+  }
 
   async function load() {
     setError(null);
@@ -43,6 +53,8 @@ export function AssistPreview({ tripId }: { tripId: string }) {
     try {
       const result = await gateway.previewAssist(tripId, provider);
       setPreview(result);
+      // Surface past runs now that the user is engaging with assist.
+      void refreshActivity();
       announce(
         result.leavesDevice
           ? `Preview ready. This request would leave your device to ${result.providerLabel}.`
@@ -63,6 +75,7 @@ export function AssistPreview({ tripId }: { tripId: string }) {
     try {
       const result = await gateway.runAssist(tripId, preview.provider);
       setReply(result);
+      void refreshActivity();
       announce(`On-device assist finished with ${result.model}.`);
     } catch (caught) {
       setReply(null);
@@ -176,9 +189,26 @@ export function AssistPreview({ tripId }: { tripId: string }) {
         </div>
       ) : null}
 
+      {activity.length > 0 ? (
+        <div className="voy-assist__activity">
+          <h3 className="voy-assist__subhead">Recent on-device runs</h3>
+          <ul className="voy-assist__log" aria-label="Assist activity log">
+            {activity.map((entry) => (
+              <li key={entry.id} className="voy-assist__log-item">
+                <span className="voy-assist__log-model">{entry.model}</span>
+                <span className="voy-assist__log-time">
+                  {formatDateTimeLocal(entry.createdAt)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <p className="voy-assist__scope">
         Preview shows exactly what would be sent. On-device runs stay on this
-        device via Ollama; cloud providers remain preview-only for now.
+        device via Ollama; cloud providers remain preview-only for now. Every
+        run is listed above.
       </p>
     </section>
   );

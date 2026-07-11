@@ -101,5 +101,11 @@ describe("AI request preview", () => {
     expect(
       within(region).getByText(/never treats this as authoritative/i),
     ).toBeInTheDocument();
+
+    // The run is recorded in the visible activity log.
+    const log = await within(region).findByRole("list", {
+      name: "Assist activity log",
+    });
+    expect(within(log).getByText("llama3.2")).toBeInTheDocument();
   });
 });

@@ -1,6 +1,7 @@
 import type {
   AddManualFactInput,
   AppGateway,
+  AssistActivityEntry,
   AssistReply,
   AssistRequestPreview,
   CandidateFact,
@@ -140,6 +141,12 @@ export function createHttpGateway(
       request<AssistReply>("POST", `/api/v1/trips/${enc(tripId)}/assist`, {
         provider,
       }),
+
+    listAssistActivity: (tripId: string) =>
+      request<AssistActivityEntry[]>(
+        "GET",
+        `/api/v1/trips/${enc(tripId)}/assist-activity`,
+      ),
 
     listAdviceCountries: () =>
       request<FcdoCountry[]>("GET", "/api/v1/advice/countries"),

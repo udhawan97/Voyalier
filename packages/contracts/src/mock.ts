@@ -2,6 +2,7 @@ import type {
   AddManualFactInput,
   AppError,
   AppGateway,
+  AssistActivityEntry,
   AssistReply,
   AssistRequestPreview,
   CandidateFact,
@@ -749,6 +750,8 @@ export function createMockGateway(options?: {
   // The mock never retains the key value itself, mirroring the real gateway.
   const providerKeys = new Set<ProviderId>();
   const providerModels = new Map<ProviderId, string>();
+  // Assist activity log, most recent appended last (metadata only).
+  const assistActivity: (AssistActivityEntry & { tripId: string })[] = [];
   let sequence = 1;
 
   function providerConfig(id: ProviderId): ProviderConfig {
@@ -1125,12 +1128,34 @@ export function createMockGateway(options?: {
           );
         }
         // Deterministic canned reply — the mock runs no model.
+        const model = providerModels.get(provider) ?? "llama3.2";
+        assistActivity.push({
+          id: nextId("act"),
+          tripId,
+          provider,
+          model,
+          createdAt: timestamp(),
+        });
         return {
           provider,
-          model: providerModels.get(provider) ?? "llama3.2",
+          model,
           text: `Your trip to ${trip.destination} looks ready. Everything in your confirmed plans lines up.`,
           generatedAt: timestamp(),
         } satisfies AssistReply;
+      }),
+
+    listAssistActivity: (tripId: string) =>
+      execute("listAssistActivity", () => {
+        requireTrip(tripId);
+        return assistActivity
+          .filter((entry) => entry.tripId === tripId)
+          .map((entry) => ({
+            id: entry.id,
+            provider: entry.provider,
+            model: entry.model,
+            createdAt: entry.createdAt,
+          }))
+          .reverse(); // most recent first
       }),
 
     listAdviceCountries: () =>

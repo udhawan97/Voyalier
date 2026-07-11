@@ -19,8 +19,9 @@ pub use advice::{
     FCDO_COUNTRIES, FcdoCountry, TravelAdviceSnapshot, parse_fcdo_content, validate_country_slug,
 };
 pub use assist::{
-    ASSIST_SYSTEM_PROMPT, AssistReply, AssistRequestPreview, DEFAULT_OLLAMA_MODEL, OLLAMA_CHAT_URL,
-    build_assist_preview, build_ollama_chat_body, parse_ollama_chat_reply,
+    ASSIST_SYSTEM_PROMPT, AssistActivityEntry, AssistReply, AssistRequestPreview,
+    DEFAULT_OLLAMA_MODEL, OLLAMA_CHAT_URL, build_assist_preview, build_ollama_chat_body,
+    parse_ollama_chat_reply,
 };
 pub use brief::{RedactionPolicy, TripBrief, build_trip_brief};
 pub use itinerary::detect_itinerary_conflicts;

@@ -2,10 +2,10 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 use voyalier_app::AppService;
 use voyalier_core::{
-    AddManualFactInput, AppError, AssistReply, AssistRequestPreview, CandidateFact,
-    CandidateStatus, ConfirmCandidateInput, ConfirmedFact, CreateTripInput, FcdoCountry,
-    HealthResponse, ImportDocumentInput, ImportResult, LocalAiStatus, ProviderConfig, SearchHit,
-    TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripSummary, UpdateTripInput,
+    AddManualFactInput, AppError, AssistActivityEntry, AssistReply, AssistRequestPreview,
+    CandidateFact, CandidateStatus, ConfirmCandidateInput, ConfirmedFact, CreateTripInput,
+    FcdoCountry, HealthResponse, ImportDocumentInput, ImportResult, LocalAiStatus, ProviderConfig,
+    SearchHit, TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripSummary, UpdateTripInput,
     WeatherSnapshot,
 };
 
@@ -141,6 +141,14 @@ fn run_assist(
     service: State<'_, AppService>,
 ) -> Result<AssistReply, AppError> {
     service.run_assist(&input.trip_id, &input.provider)
+}
+
+#[tauri::command]
+fn list_assist_activity(
+    input: TripIdInput,
+    service: State<'_, AppService>,
+) -> Result<Vec<AssistActivityEntry>, AppError> {
+    service.list_assist_activity(&input.trip_id)
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -308,6 +316,7 @@ fn builder<R: tauri::Runtime>(
             search_trip,
             preview_assist,
             run_assist,
+            list_assist_activity,
             list_advice_countries,
             detect_local_ai,
             list_providers,
@@ -487,6 +496,16 @@ mod tests {
                 .contains("SFO")
         );
 
+        // Activity log is reachable and empty until a call runs (run_assist
+        // needs a live Ollama and is covered at the app layer with a stub).
+        let activity = invoke(
+            &webview,
+            "list_assist_activity",
+            json!({ "tripId": trip_id }),
+        )
+        .expect("assist activity");
+        assert!(activity.as_array().expect("activity array").is_empty());
+
         // Countries list is local and static; the fetch command itself is
         // network-backed and is exercised at the app/server layers with stubs.
         let countries =
@@ -530,6 +549,7 @@ mod tests {
             "search_trip",
             "preview_assist",
             "run_assist",
+            "list_assist_activity",
             "list_advice_countries",
             "detect_local_ai",
             "list_providers",

@@ -1504,6 +1504,40 @@ h3 {
   line-height: 1.5;
 }
 
+.voy-assist__activity {
+  margin-top: 1.2rem;
+}
+
+.voy-assist__log {
+  list-style: none;
+  margin: 0.3rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.voy-assist__log-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-sm);
+  background: var(--voy-paper-raised);
+  font-size: 0.84rem;
+}
+
+.voy-assist__log-model {
+  font-family: var(--voy-font-mono);
+  color: var(--voy-ink);
+}
+
+.voy-assist__log-time {
+  color: var(--voy-ink-muted);
+}
+
 .voy-assist__scope {
   margin: 1.1rem 0 0;
   color: var(--voy-silver);

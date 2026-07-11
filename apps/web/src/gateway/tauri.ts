@@ -1,6 +1,7 @@
 import type {
   AddManualFactInput,
   AppGateway,
+  AssistActivityEntry,
   AssistReply,
   AssistRequestPreview,
   CandidateFact,
@@ -103,6 +104,9 @@ export function createTauriGateway(
 
     runAssist: (tripId: string, provider: ProviderId) =>
       call<AssistReply>("run_assist", { tripId, provider }),
+
+    listAssistActivity: (tripId: string) =>
+      call<AssistActivityEntry[]>("list_assist_activity", { tripId }),
 
     listAdviceCountries: () => call<FcdoCountry[]>("list_advice_countries", {}),
 

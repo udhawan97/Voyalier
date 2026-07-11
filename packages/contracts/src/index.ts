@@ -260,6 +260,16 @@ export interface AssistReply {
   text: string;
   generatedAt: string;
 }
+/**
+ * A record that an assist call happened, for the visible per-trip activity log.
+ * Metadata only — prompts and replies are never stored.
+ */
+export interface AssistActivityEntry {
+  id: string;
+  provider: ProviderId;
+  model: string;
+  createdAt: string;
+}
 export type SearchHitSource = "document" | "confirmed_fact";
 export interface SearchHit {
   source: SearchHitSource;
@@ -362,6 +372,7 @@ export interface AppGateway {
     provider: ProviderId,
   ): Promise<AssistRequestPreview>;
   runAssist(tripId: string, provider: ProviderId): Promise<AssistReply>;
+  listAssistActivity(tripId: string): Promise<AssistActivityEntry[]>;
   listAdviceCountries(): Promise<FcdoCountry[]>;
   fetchTravelAdvice(
     input: FetchTravelAdviceInput,

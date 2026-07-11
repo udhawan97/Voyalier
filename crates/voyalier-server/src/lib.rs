@@ -111,6 +111,10 @@ pub fn app(service: AppService) -> Router {
         )
         .route("/api/v1/trips/{trip_id}/assist", post(run_assist))
         .route(
+            "/api/v1/trips/{trip_id}/assist-activity",
+            get(list_assist_activity),
+        )
+        .route(
             "/api/v1/trips/{trip_id}/travel-advice",
             post(fetch_travel_advice),
         )
@@ -200,6 +204,13 @@ async fn run_assist(
     Json(body): Json<RunAssistBody>,
 ) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(service.run_assist(&trip_id, &body.provider)?))
+}
+
+async fn list_assist_activity(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.list_assist_activity(&trip_id)?))
 }
 
 async fn list_advice_countries(
@@ -877,13 +888,25 @@ mod tests {
         // (The on-device path needs a running Ollama and is covered at the app
         // layer with a stubbed fetcher.)
         let cloud = request(
-            router,
+            router.clone(),
             Method::POST,
             &format!("/api/v1/trips/{trip_id}/assist"),
             Some(json!({ "provider": "openai" })),
         )
         .await;
         assert_eq!(cloud.status, StatusCode::BAD_GATEWAY);
+
+        // The activity log route is reachable and starts empty (cloud attempt
+        // was refused before any call, so nothing is logged).
+        let activity = request(
+            router,
+            Method::GET,
+            &format!("/api/v1/trips/{trip_id}/assist-activity"),
+            None,
+        )
+        .await;
+        assert_eq!(activity.status, StatusCode::OK);
+        assert_eq!(activity.json.as_array().expect("array").len(), 0);
         cleanup_database(database);
     }
 

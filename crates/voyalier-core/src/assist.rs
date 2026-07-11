@@ -175,6 +175,17 @@ pub struct AssistReply {
     pub generated_at: String,
 }
 
+/// A record that an assist call happened, for a visible per-trip activity log.
+/// Metadata only — the prompt and reply text are never stored here.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssistActivityEntry {
+    pub id: String,
+    pub provider: ProviderId,
+    pub model: String,
+    pub created_at: String,
+}
+
 /// Build the Ollama `/api/chat` request body (non-streaming) from a preview's
 /// system and user content. `serde_json` handles all escaping.
 pub fn build_ollama_chat_body(model: &str, system_prompt: &str, user_content: &str) -> String {
