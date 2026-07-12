@@ -3456,6 +3456,117 @@ h3 {
   }
 }
 
+/* ===== Motion & texture polish ======================================== */
+
+/* A faint paper grain over the whole surface. Fixed, non-interactive, and
+   hidden from print; opacity is deliberately near-threshold so it reads as
+   texture, not noise. Inherits the reduced-motion rules trivially (it's
+   static) and costs nothing at scroll (a single fixed layer). */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.03;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+:root[data-theme="dark"] body::before {
+  opacity: 0.05;
+  mix-blend-mode: screen;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) body::before {
+    opacity: 0.05;
+    mix-blend-mode: screen;
+  }
+}
+
+@media print {
+  body::before {
+    display: none;
+  }
+}
+
+/* Micro-state transitions: small color/background/shadow changes should ease,
+   not snap. Each of these elements already carries its own base rules; here we
+   only add the transition. */
+.voy-badge,
+.voy-chip,
+.voy-count,
+.voy-readiness__overall,
+.voy-today__phase,
+.voy-health__dot {
+  transition:
+    background var(--voy-motion-fast) var(--voy-ease),
+    color var(--voy-motion-fast) var(--voy-ease),
+    border-color var(--voy-motion-fast) var(--voy-ease);
+}
+
+/* One-time entrance for list items. Stable React keys mean these DOM nodes
+   persist across a reload, so the animation plays when a card first appears
+   and does NOT replay when the list refetches. */
+.voy-tripcard,
+.voy-review,
+.voy-fact {
+  animation: voy-rise var(--voy-motion-slow) var(--voy-ease) both;
+}
+
+.voy-triplist__grid .voy-tripcard:nth-child(2),
+.voy-review__list > li:nth-child(2) {
+  animation-delay: 40ms;
+}
+.voy-triplist__grid .voy-tripcard:nth-child(3),
+.voy-review__list > li:nth-child(3) {
+  animation-delay: 80ms;
+}
+.voy-triplist__grid .voy-tripcard:nth-child(n + 4),
+.voy-review__list > li:nth-child(n + 4) {
+  animation-delay: 120ms;
+}
+
+/* Interactive summary rows get resting elevation that lifts on hover, matching
+   the trip cards' affordance. */
+.voy-pending-entry {
+  box-shadow: var(--voy-shadow-sm);
+}
+.voy-pending-entry:hover {
+  box-shadow: var(--voy-shadow);
+}
+
+/* Toast slides up as it appears. */
+.voy-toast {
+  animation: voy-toast-in var(--voy-motion) var(--voy-ease);
+}
+
+@keyframes voy-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* Native disclosures animate their height where the engine supports it
+   (progressive enhancement; ignored gracefully elsewhere). */
+@supports (interpolate-size: allow-keywords) {
+  :root {
+    interpolate-size: allow-keywords;
+  }
+  details::details-content {
+    height: 0;
+    overflow: hidden;
+    transition:
+      height var(--voy-motion) var(--voy-ease),
+      content-visibility var(--voy-motion) allow-discrete;
+  }
+  details[open]::details-content {
+    height: auto;
+  }
+}
+
 /* ===== Reduced motion ================================================== */
 
 @media (prefers-reduced-motion: reduce) {
