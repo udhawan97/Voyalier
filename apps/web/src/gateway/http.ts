@@ -12,11 +12,13 @@ import type {
   DownloadedPack,
   FcdoCountry,
   FetchTravelAdviceInput,
+  FieldSuggestion,
   HealthResponse,
   ImportDocumentInput,
   ImportResult,
   LocalAiStatus,
   PackInfo,
+  PackSuggestion,
   PersonaWeights,
   ProviderConfig,
   ProviderId,
@@ -24,6 +26,7 @@ import type {
   SearchHit,
   SetProviderKeyInput,
   SetProviderModelInput,
+  SuggestFieldValuesInput,
   TodayView,
   TravelAdviceSnapshot,
   Trip,
@@ -171,6 +174,20 @@ export function createHttpGateway(
       ),
 
     listPacks: () => request<PackInfo[]>("GET", "/api/v1/packs"),
+
+    suggestPacks: (tripId: string) =>
+      request<PackSuggestion[]>(
+        "GET",
+        `/api/v1/trips/${enc(tripId)}/pack-suggestions`,
+      ),
+
+    suggestFieldValues: (input: SuggestFieldValuesInput) =>
+      request<FieldSuggestion[]>(
+        "GET",
+        `/api/v1/trips/${enc(input.tripId)}/field-suggestions?field=${enc(
+          input.field,
+        )}&q=${enc(input.query)}`,
+      ),
 
     downloadPack: (tripId: string, packId: string) =>
       request<DownloadedPack>(

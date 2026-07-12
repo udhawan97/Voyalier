@@ -1,11 +1,17 @@
-import { useRef, useState } from "react";
-import type { AppError, CreateTripInput, Trip } from "@voyalier/contracts";
+import { useCallback, useRef, useState } from "react";
+import type {
+  AppError,
+  CreateTripInput,
+  PackInfo,
+  Trip,
+} from "@voyalier/contracts";
 
 import { useGateway } from "../app/context";
 import { describeError, tripFieldError } from "../app/format";
 import { t } from "../app/i18n";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
+import { Combobox, type ComboboxItem } from "../components/Combobox";
 import { Dialog } from "../components/Dialog";
 import { TextField } from "../components/fields";
 
@@ -32,6 +38,51 @@ export function CreateTripDialog({
   const [formError, setFormError] = useState<AppError | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const originRef = useRef<HTMLInputElement>(null);
+
+  // Place suggestions come from local data only: the offline pack catalog plus
+  // the origins/destinations of the user's existing trips. Loaded lazily on
+  // first focus and cached — no per-keystroke geocoding, no external service.
+  const placeSourceRef = useRef<string[] | null>(null);
+  const loadPlaceSource = useCallback(async (): Promise<string[]> => {
+    if (placeSourceRef.current) return placeSourceRef.current;
+    const [packs, trips] = await Promise.all([
+      gateway.listPacks().catch(() => [] as PackInfo[]),
+      gateway.listTrips().catch(() => []),
+    ]);
+    const seen = new Set<string>();
+    const values: string[] = [];
+    const add = (raw: string) => {
+      const trimmed = raw.trim();
+      const key = trimmed.toLowerCase();
+      if (trimmed && !seen.has(key)) {
+        seen.add(key);
+        values.push(trimmed);
+      }
+    };
+    for (const pack of packs) add(pack.name);
+    for (const trip of trips) {
+      add(trip.origin);
+      add(trip.destination);
+    }
+    placeSourceRef.current = values;
+    return values;
+  }, [gateway]);
+
+  const fetchPlaceSuggestions = useCallback(
+    async (query: string): Promise<ComboboxItem[]> => {
+      const source = await loadPlaceSource();
+      const needle = query.trim().toLowerCase();
+      const prefix: ComboboxItem[] = [];
+      const contains: ComboboxItem[] = [];
+      for (const value of source) {
+        const folded = value.toLowerCase();
+        if (!needle || folded.startsWith(needle)) prefix.push({ value });
+        else if (folded.includes(needle)) contains.push({ value });
+      }
+      return [...prefix, ...contains].slice(0, 8);
+    },
+    [loadPlaceSource],
+  );
 
   // Client validation mirrors the contract: trimmed non-empty ≤120, start ≤ end.
   function validate(): FieldErrors {
@@ -122,27 +173,27 @@ export function CreateTripDialog({
             {describeError(formError).body}
           </Banner>
         ) : null}
-        <TextField
+        <Combobox
           id="trip-origin"
           label={t("createTrip.origin.label")}
           inputRef={originRef}
           value={origin}
-          onChange={(event) => setOrigin(event.target.value)}
+          onChange={setOrigin}
+          fetchSuggestions={fetchPlaceSuggestions}
           error={errors.origin}
           required
           maxLength={120}
-          autoComplete="off"
           placeholder={t("createTrip.origin.placeholder")}
         />
-        <TextField
+        <Combobox
           id="trip-destination"
           label={t("createTrip.destination.label")}
           value={destination}
-          onChange={(event) => setDestination(event.target.value)}
+          onChange={setDestination}
+          fetchSuggestions={fetchPlaceSuggestions}
           error={errors.destination}
           required
           maxLength={120}
-          autoComplete="off"
           placeholder={t("createTrip.destination.placeholder")}
         />
         <div className="voy-form__row">

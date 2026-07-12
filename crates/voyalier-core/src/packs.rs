@@ -295,6 +295,182 @@ pub struct DownloadedPack {
     pub downloaded_at: String,
 }
 
+/// How strongly a trip destination matched a catalog pack.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PackMatchKind {
+    /// The destination is (or contains as whole words) the pack's own name or
+    /// Wikivoyage article title — e.g. "Kyoto" → `jp-kyoto`.
+    Exact,
+    /// The destination matched a curated alias — e.g. "NYC" → `us-nyc`.
+    Alias,
+    /// Only the pack's region overlapped — e.g. "Japan" → both Kyoto and Tokyo.
+    Partial,
+}
+
+/// A catalog pack suggested for a trip destination, with why it matched. Built
+/// entirely on-device from the compiled-in catalog; suggesting a pack sends
+/// nothing and downloads nothing — that stays an explicit user action.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackSuggestion {
+    pub pack: PackInfo,
+    pub match_kind: PackMatchKind,
+    /// The pack-side term that matched (its name, alias, or region), for display.
+    pub matched_text: String,
+}
+
+/// Curated extra search terms per pack, beyond its name, region, and Wikivoyage
+/// article. Lowercase ASCII; matched after normalization. Every id here MUST be
+/// a real catalog id and no term may be blank — both are enforced by tests.
+fn pack_aliases(pack_id: &str) -> &'static [&'static str] {
+    match pack_id {
+        "us-nashville" => &["music city"],
+        "us-hi-oahu" => &["honolulu", "waikiki"],
+        "us-hi-maui" => &["lahaina", "kahului"],
+        "us-hi-kauai" => &["lihue"],
+        "us-hi-hawaii-island" => &["big island", "kona", "hilo"],
+        "gb-london" => &["london uk"],
+        "us-nyc" => &["new york", "nyc", "manhattan", "brooklyn"],
+        "us-san-francisco" => &["san francisco", "sf", "san fran"],
+        "es-barcelona" => &["barca"],
+        "it-rome" => &["roma"],
+        "is-reykjavik" => &["reykjavik"],
+        _ => &[],
+    }
+}
+
+/// Region tokens too generic to imply a specific pack on their own.
+fn is_region_stopword(token: &str) -> bool {
+    matches!(token, "usa" | "the" | "and" | "of")
+}
+
+/// Fold one character for place matching: keep ASCII letters/digits (lowercased),
+/// fold common Latin diacritics to ASCII, drop apostrophe-like marks (including
+/// the Hawaiian ʻokina) with no gap, and treat everything else as a separator.
+enum Fold {
+    Keep(char),
+    Drop,
+    Sep,
+}
+
+fn fold_char(c: char) -> Fold {
+    match c {
+        'a'..='z' | '0'..='9' => Fold::Keep(c),
+        'A'..='Z' => Fold::Keep(c.to_ascii_lowercase()),
+        // Apostrophe-like marks are removed without splitting the word, so
+        // "Oʻahu" folds to "oahu" (matching the "Oahu" article title).
+        '\'' | '`' | '\u{2018}' | '\u{2019}' | '\u{02BB}' | '\u{00B4}' => Fold::Drop,
+        'á' | 'à' | 'â' | 'ä' | 'ã' | 'å' | 'ā' => Fold::Keep('a'),
+        'é' | 'è' | 'ê' | 'ë' | 'ē' => Fold::Keep('e'),
+        'í' | 'ì' | 'î' | 'ï' | 'ī' => Fold::Keep('i'),
+        'ó' | 'ò' | 'ô' | 'ö' | 'õ' | 'ō' | 'ø' => Fold::Keep('o'),
+        'ú' | 'ù' | 'û' | 'ü' | 'ū' => Fold::Keep('u'),
+        'ñ' => Fold::Keep('n'),
+        'ç' => Fold::Keep('c'),
+        'ß' => Fold::Keep('s'),
+        _ => Fold::Sep,
+    }
+}
+
+/// Normalize a place string to lowercase ASCII, space-separated tokens: fold
+/// diacritics, strip the ʻokina/apostrophes, and collapse other punctuation and
+/// whitespace to single spaces. "Kauaʻi, Hawaii" and "kauai hawaii" converge.
+pub fn normalize_place(input: &str) -> String {
+    let mut out = String::new();
+    let mut prev_sep = true; // suppress a leading separator
+    for c in input.chars() {
+        match fold_char(c) {
+            Fold::Keep(ch) => {
+                out.push(ch);
+                prev_sep = false;
+            }
+            Fold::Drop => {}
+            Fold::Sep => {
+                if !prev_sep {
+                    out.push(' ');
+                    prev_sep = true;
+                }
+            }
+        }
+    }
+    if out.ends_with(' ') {
+        out.pop();
+    }
+    out
+}
+
+/// True when `term_norm` appears in `padded_dest` as a whole run of tokens.
+/// `padded_dest` must be the normalized destination wrapped in single spaces.
+fn phrase_in(padded_dest: &str, term_norm: &str) -> bool {
+    !term_norm.is_empty() && padded_dest.contains(&format!(" {term_norm} "))
+}
+
+fn tier_rank(kind: PackMatchKind) -> u8 {
+    match kind {
+        PackMatchKind::Exact => 0,
+        PackMatchKind::Alias => 1,
+        PackMatchKind::Partial => 2,
+    }
+}
+
+/// The strongest match between a destination and one pack, if any. Exact (name
+/// or article) beats alias beats region-only partial.
+fn classify_match(
+    info: &PackInfo,
+    padded_dest: &str,
+    dest_tokens: &[&str],
+) -> Option<(PackMatchKind, String)> {
+    for term in [info.name.as_str(), info.wikivoyage_article.as_str()] {
+        if phrase_in(padded_dest, &normalize_place(term)) {
+            return Some((PackMatchKind::Exact, info.name.clone()));
+        }
+    }
+    for alias in pack_aliases(&info.id) {
+        if phrase_in(padded_dest, &normalize_place(alias)) {
+            return Some((PackMatchKind::Alias, (*alias).to_owned()));
+        }
+    }
+    let region_norm = normalize_place(&info.region);
+    for token in region_norm.split(' ') {
+        if token.len() >= 4 && !is_region_stopword(token) && dest_tokens.contains(&token) {
+            return Some((PackMatchKind::Partial, info.region.clone()));
+        }
+    }
+    None
+}
+
+/// Suggest catalog packs for a free-text destination, best match first.
+///
+/// Deterministic and offline: it reads only the compiled-in catalog, so it makes
+/// no network request and reveals nothing about the trip. Returns every match so
+/// a caller can render the ambiguous case (e.g. "Japan" → Kyoto and Tokyo) and
+/// the empty vec for a no-match destination.
+pub fn suggest_packs(destination: &str) -> Vec<PackSuggestion> {
+    let normalized = normalize_place(destination);
+    if normalized.is_empty() {
+        return Vec::new();
+    }
+    let padded = format!(" {normalized} ");
+    let dest_tokens: Vec<&str> = normalized.split(' ').collect();
+
+    let mut suggestions: Vec<PackSuggestion> = pack_catalog()
+        .into_iter()
+        .filter_map(|info| {
+            classify_match(&info, &padded, &dest_tokens).map(|(kind, matched_text)| {
+                PackSuggestion {
+                    pack: info,
+                    match_kind: kind,
+                    matched_text,
+                }
+            })
+        })
+        .collect();
+    // Stable sort keeps catalog order within a tier.
+    suggestions.sort_by_key(|suggestion| tier_rank(suggestion.match_kind));
+    suggestions
+}
+
 /// Parse a downloaded pack body, verifying it is the pack we asked for. A
 /// mismatched or unreadable body is a [`ErrorCode::PackDownloadFailed`].
 pub fn parse_pack_content(expected_id: &str, body: &str) -> Result<PackContent, AppError> {
@@ -383,6 +559,94 @@ mod tests {
             validate_pack_id("atlantis").expect_err("unknown").code,
             ErrorCode::ValidationInvalidInput
         );
+    }
+
+    fn matched_ids(destination: &str) -> Vec<String> {
+        suggest_packs(destination)
+            .into_iter()
+            .map(|suggestion| suggestion.pack.id)
+            .collect()
+    }
+
+    #[test]
+    fn every_alias_targets_a_real_pack_and_is_non_blank() {
+        let catalog = pack_catalog();
+        let ids: HashSet<&str> = catalog.iter().map(|info| info.id.as_str()).collect();
+        // Also assert no alias maps to two different packs (would make a match
+        // ambiguous for the wrong reason).
+        let mut seen_alias = HashSet::new();
+        for info in pack_catalog() {
+            for alias in pack_aliases(&info.id) {
+                assert!(!alias.trim().is_empty(), "blank alias for {}", info.id);
+                assert_eq!(
+                    normalize_place(alias),
+                    *alias,
+                    "alias {alias:?} for {} must already be normalized",
+                    info.id
+                );
+                assert!(
+                    seen_alias.insert(*alias),
+                    "alias {alias:?} is shared across packs"
+                );
+            }
+        }
+        // `pack_aliases` is only ever called with catalog ids.
+        assert!(ids.contains("us-nyc"));
+    }
+
+    #[test]
+    fn exact_destination_suggests_its_pack_first() {
+        let suggestion = &suggest_packs("Kyoto")[0];
+        assert_eq!(suggestion.pack.id, "jp-kyoto");
+        assert_eq!(suggestion.match_kind, PackMatchKind::Exact);
+    }
+
+    #[test]
+    fn diacritics_and_okina_are_folded_when_matching() {
+        // ʻokina, trailing region, and comma punctuation all normalize away.
+        assert_eq!(matched_ids("Kauaʻi, Hawaii")[0], "us-hi-kauai");
+        assert_eq!(matched_ids("kauai")[0], "us-hi-kauai");
+        assert_eq!(matched_ids("Reykjavík")[0], "is-reykjavik");
+    }
+
+    #[test]
+    fn aliases_match_at_the_alias_tier() {
+        let nyc = &suggest_packs("NYC")[0];
+        assert_eq!(nyc.pack.id, "us-nyc");
+        assert_eq!(nyc.match_kind, PackMatchKind::Alias);
+        assert_eq!(matched_ids("Big Island")[0], "us-hi-hawaii-island");
+    }
+
+    #[test]
+    fn ambiguous_region_returns_all_matches_as_partial() {
+        let japan = suggest_packs("Japan");
+        let ids: Vec<&str> = japan.iter().map(|s| s.pack.id.as_str()).collect();
+        assert!(ids.contains(&"jp-kyoto") && ids.contains(&"jp-tokyo"));
+        assert!(japan.iter().all(|s| s.match_kind == PackMatchKind::Partial));
+
+        // The four Hawaii island packs are all partial matches for "Hawaii".
+        assert_eq!(matched_ids("Hawaii").len(), 4);
+    }
+
+    #[test]
+    fn exact_matches_sort_ahead_of_partial_ones() {
+        // "Kyoto, Japan": Kyoto is exact; Tokyo is a Japan-region partial.
+        let ranked = suggest_packs("Kyoto, Japan");
+        assert_eq!(ranked[0].pack.id, "jp-kyoto");
+        assert_eq!(ranked[0].match_kind, PackMatchKind::Exact);
+        assert!(
+            ranked[1..]
+                .iter()
+                .all(|s| s.match_kind == PackMatchKind::Partial)
+        );
+    }
+
+    #[test]
+    fn no_match_and_blank_return_empty() {
+        assert!(suggest_packs("Atlantis").is_empty());
+        assert!(suggest_packs("   ").is_empty());
+        // A bare stopword region token never matches everything.
+        assert!(suggest_packs("USA").is_empty());
     }
 
     #[test]

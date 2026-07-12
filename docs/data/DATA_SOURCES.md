@@ -24,3 +24,16 @@ Every adapter and stored source snapshot must record:
 | Community sentiment | Approved APIs, user-provided links, or licensed search | No unauthorized scraping or bulk retention                                      |
 
 `Not checked` is a first-class state and must never be collapsed into `Clear`.
+
+## Place entry and geocoding
+
+Origin, destination, and lodging fields offer type-ahead suggestions, but only
+from **local** data: the offline pack catalog, place names inside packs the user
+has already downloaded, and the user's own previously confirmed facts. There is
+no per-keystroke network geocoding.
+
+Public **Nominatim** must not be used for autocomplete — its usage policy forbids
+autocomplete-style querying. If server-backed geocoding is needed later, the
+intended path is a **self-hosted Pelias (or equivalent) instance** under our own
+terms, never a shared public endpoint. Until then, suggestions stay offline and
+pack-backed.

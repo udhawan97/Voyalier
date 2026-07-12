@@ -4,10 +4,10 @@ use voyalier_app::{AppService, BackupInfo};
 use voyalier_core::{
     AddManualFactInput, AppError, AssistActivityEntry, AssistReply, AssistRequestPreview,
     CandidateFact, CandidateStatus, ConfirmCandidateInput, ConfirmedFact, CreateTripInput,
-    DownloadedPack, ErrorCode, FcdoCountry, HealthResponse, ImportDocumentInput, ImportResult,
-    LocalAiStatus, PackInfo, PersonaWeights, ProviderConfig, Recommendation, SearchHit, TodayView,
-    TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripSummary, UpdateTripInput, VaultStatus,
-    WeatherSnapshot,
+    DownloadedPack, ErrorCode, FcdoCountry, FieldSuggestion, HealthResponse, ImportDocumentInput,
+    ImportResult, LocalAiStatus, PackInfo, PackSuggestion, PersonaWeights, ProviderConfig,
+    Recommendation, SearchHit, TodayView, TravelAdviceSnapshot, Trip, TripBrief, TripDetail,
+    TripSummary, UpdateTripInput, VaultStatus, WeatherSnapshot,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -233,6 +233,30 @@ fn download_pack(
     service: State<'_, AppService>,
 ) -> Result<DownloadedPack, AppError> {
     service.download_pack(&input.trip_id, &input.pack_id)
+}
+
+#[tauri::command]
+fn suggest_packs(
+    input: TripIdInput,
+    service: State<'_, AppService>,
+) -> Result<Vec<PackSuggestion>, AppError> {
+    service.suggest_packs(&input.trip_id)
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SuggestFieldValuesInput {
+    trip_id: String,
+    field: String,
+    query: String,
+}
+
+#[tauri::command]
+fn suggest_field_values(
+    input: SuggestFieldValuesInput,
+    service: State<'_, AppService>,
+) -> Result<Vec<FieldSuggestion>, AppError> {
+    service.suggest_field_values(&input.trip_id, &input.field, &input.query)
 }
 
 #[tauri::command]
@@ -627,6 +651,8 @@ fn builder<R: tauri::Runtime>(
             list_assist_activity,
             list_advice_countries,
             list_packs,
+            suggest_packs,
+            suggest_field_values,
             download_pack,
             list_downloaded_packs,
             delete_downloaded_pack,
@@ -962,6 +988,8 @@ mod tests {
             "list_assist_activity",
             "list_advice_countries",
             "list_packs",
+            "suggest_packs",
+            "suggest_field_values",
             "download_pack",
             "list_downloaded_packs",
             "delete_downloaded_pack",

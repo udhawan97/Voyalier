@@ -1975,6 +1975,94 @@ h3 {
   line-height: 1.5;
 }
 
+.voy-packs__suggested {
+  margin-bottom: 1.6rem;
+  padding: 1rem 1.1rem 1.2rem;
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-sunken);
+}
+
+.voy-packs__suggested-title {
+  font-size: 1.05rem;
+  font-weight: 640;
+  margin: 0 0 0.4rem;
+}
+
+.voy-packs__suggested-note {
+  margin: 0 0 0.8rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.88rem;
+}
+
+.voy-packs__reason {
+  margin: 0 0 0.2rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.82rem;
+}
+
+.voy-packs__suggested-consent {
+  margin: 0.9rem 0 0;
+  color: var(--voy-silver);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.voy-packs__suggested-none {
+  margin: 0 0 1.4rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+/* Accessible combobox: input + suggestion listbox. No animation, so it is
+   correct under reduced motion; the popup scrolls within a bounded height so it
+   stays usable at high zoom. */
+.voy-combobox {
+  position: relative;
+}
+
+.voy-combobox__list {
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+  max-height: 15rem;
+  overflow-y: auto;
+  background: var(--voy-paper-raised);
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-sm);
+  box-shadow: var(--voy-shadow);
+}
+
+.voy-combobox__option {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: var(--voy-radius-sm);
+  cursor: pointer;
+}
+
+.voy-combobox__option--active {
+  background: var(--voy-tint-indigo);
+}
+
+.voy-combobox__value {
+  color: var(--voy-ink);
+}
+
+.voy-combobox__detail {
+  flex-shrink: 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.78rem;
+}
+
 /* ===== Today ========================================================== */
 
 .voy-today {
