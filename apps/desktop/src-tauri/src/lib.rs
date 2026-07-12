@@ -2,12 +2,12 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 use voyalier_app::{AppService, BackupInfo};
 use voyalier_core::{
-    AddManualFactInput, AppError, AssistActivityEntry, AssistDraftResult, AssistReply,
-    AssistRequestPreview, CandidateFact, CandidateStatus, ConfirmCandidateInput, ConfirmedFact,
-    CreateTripInput, DownloadedPack, ErrorCode, FcdoCountry, FieldSuggestion, HealthResponse,
-    ImportDocumentInput, ImportResult, LocalAiStatus, PackInfo, PackSuggestion, PersonaWeights,
-    ProviderConfig, Recommendation, SearchHit, TodayView, TravelAdviceSnapshot, Trip, TripBrief,
-    TripDetail, TripSummary, UpdateTripInput, VaultStatus, WeatherSnapshot,
+    AddManualFactInput, AiPromptSettings, AppError, AssistActivityEntry, AssistDraftResult,
+    AssistReply, AssistRequestPreview, CandidateFact, CandidateStatus, ConfirmCandidateInput,
+    ConfirmedFact, CreateTripInput, DownloadedPack, ErrorCode, FcdoCountry, FieldSuggestion,
+    HealthResponse, ImportDocumentInput, ImportResult, LocalAiStatus, PackInfo, PackSuggestion,
+    PersonaWeights, ProviderConfig, Recommendation, SearchHit, TodayView, TravelAdviceSnapshot,
+    Trip, TripBrief, TripDetail, TripSummary, UpdateTripInput, VaultStatus, WeatherSnapshot,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -208,6 +208,31 @@ fn run_assist_draft(
     service: State<'_, AppService>,
 ) -> Result<AssistDraftResult, AppError> {
     service.run_assist_draft(&input.trip_id, &input.kind)
+}
+
+#[tauri::command]
+fn get_ai_prompts(
+    input: EmptyInput,
+    service: State<'_, AppService>,
+) -> Result<AiPromptSettings, AppError> {
+    let _ = input;
+    service.get_ai_prompts()
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SetAiPromptInput {
+    kind: String,
+    /// The override text, or null to reset the instruction to its default.
+    text: Option<String>,
+}
+
+#[tauri::command]
+fn set_ai_prompt(
+    input: SetAiPromptInput,
+    service: State<'_, AppService>,
+) -> Result<AiPromptSettings, AppError> {
+    service.set_ai_prompt(&input.kind, input.text.as_deref())
 }
 
 #[tauri::command]
@@ -673,6 +698,8 @@ fn builder<R: tauri::Runtime>(
             run_assist,
             preview_assist_draft,
             run_assist_draft,
+            get_ai_prompts,
+            set_ai_prompt,
             list_assist_activity,
             list_advice_countries,
             list_packs,
@@ -1012,6 +1039,8 @@ mod tests {
             "run_assist",
             "preview_assist_draft",
             "run_assist_draft",
+            "get_ai_prompts",
+            "set_ai_prompt",
             "list_assist_activity",
             "list_advice_countries",
             "list_packs",

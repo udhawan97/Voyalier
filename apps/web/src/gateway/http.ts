@@ -1,5 +1,7 @@
 import type {
   AddManualFactInput,
+  AiPromptKind,
+  AiPromptSettings,
   AppGateway,
   AssistActivityEntry,
   AssistDraftKind,
@@ -187,6 +189,12 @@ export function createHttpGateway(
         "GET",
         `/api/v1/trips/${enc(tripId)}/assist-activity`,
       ),
+
+    getAiPrompts: () =>
+      request<AiPromptSettings>("GET", "/api/v1/ai/prompts"),
+
+    setAiPrompt: (kind: AiPromptKind, text: string | null) =>
+      request<AiPromptSettings>("POST", "/api/v1/ai/prompts", { kind, text }),
 
     listPacks: () => request<PackInfo[]>("GET", "/api/v1/packs"),
 

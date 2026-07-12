@@ -11,10 +11,11 @@ use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use voyalier_core::{
-    ANTHROPIC_MESSAGES_URL, ANTHROPIC_VERSION, ASSIST_DRAFT_LODGING_DATES, AddManualFactInput,
-    AppError, AssistActivityEntry, AssistDraftResult, AssistReply, AssistRequestPreview,
-    CandidateFact, CandidateStatus, ConfirmCandidateInput, ConfirmationParser, ConfirmedFact,
-    CreateTripInput, DEFAULT_ANTHROPIC_MODEL, DEFAULT_OLLAMA_MODEL, DEFAULT_OPENAI_MODEL,
+    ANTHROPIC_MESSAGES_URL, ANTHROPIC_VERSION, ASSIST_DRAFT_LODGING_DATES, ASSIST_SYSTEM_PROMPT,
+    AddManualFactInput, AiPrompt, AiPromptKind, AiPromptSettings, AppError, AssistActivityEntry,
+    AssistDraftResult, AssistReply, AssistRequestPreview, CandidateFact, CandidateStatus,
+    ConfirmCandidateInput, ConfirmationParser, ConfirmedFact, CreateTripInput,
+    DEFAULT_ANTHROPIC_MODEL, DEFAULT_OLLAMA_MODEL, DEFAULT_OPENAI_MODEL,
     DRAFT_LODGING_DATES_SYSTEM_PROMPT, DocumentKind, DownloadedPack, ErrorCode, ExtractionMethod,
     FCDO_COUNTRIES, FactPayload, FactType, FcdoCountry, FieldSuggestion, HealthResponse,
     ImportDocumentInput, ImportResult, IntelligenceMode, JsonLdParser, LocalAiStatus,
@@ -1410,13 +1411,76 @@ impl AppService {
             )
             .optional()
             .map_err(storage_error)?;
-        Ok(build_assist_preview(
+        let mut preview = build_assist_preview(
             &trip,
             &confirmed_facts,
             id,
             model.as_deref(),
             &now_rfc3339(),
-        ))
+        );
+        // Apply the user's custom assist instruction, if they set one. Run reuses
+        // this preview, so the sent request matches exactly what is shown.
+        apply_prompt_override(
+            &mut preview,
+            effective_ai_prompt(&connection, AiPromptKind::Assist)?,
+        );
+        Ok(preview)
+    }
+
+    /// The editable AI instructions with their defaults and any user overrides.
+    pub fn get_ai_prompts(&self) -> Result<AiPromptSettings, AppError> {
+        let connection = self.connection()?;
+        let mut prompts = Vec::new();
+        for kind in [AiPromptKind::Assist, AiPromptKind::DraftLodgingDates] {
+            prompts.push(AiPrompt {
+                kind,
+                default_text: ai_prompt_default(kind).to_owned(),
+                custom_text: read_app_setting(&connection, ai_prompt_key(kind))?,
+            });
+        }
+        Ok(AiPromptSettings { prompts })
+    }
+
+    /// Set (or, with `text = None`, reset to default) one AI instruction. A blank
+    /// override is rejected — resetting is the way to return to the default.
+    pub fn set_ai_prompt(
+        &self,
+        kind: &str,
+        text: Option<&str>,
+    ) -> Result<AiPromptSettings, AppError> {
+        let kind = validate_ai_prompt_kind(kind)?;
+        match text {
+            Some(text) => {
+                let trimmed = text.trim();
+                if trimmed.is_empty() {
+                    return Err(AppError::with_detail(
+                        ErrorCode::ValidationInvalidInput,
+                        "the instruction can't be empty — reset it to the default instead",
+                        "field",
+                        "text",
+                    ));
+                }
+                if trimmed.chars().count() > MAX_AI_PROMPT_LEN {
+                    return Err(AppError::with_detail(
+                        ErrorCode::ValidationInvalidInput,
+                        "the instruction is too long",
+                        "field",
+                        "text",
+                    ));
+                }
+                self.set_app_setting(ai_prompt_key(kind), trimmed)?;
+            }
+            None => {
+                let connection = self.connection()?;
+                connection
+                    .execute(
+                        "DELETE FROM app_settings WHERE key = ?1",
+                        params![ai_prompt_key(kind)],
+                    )
+                    .map_err(storage_error)?;
+            }
+        }
+        self.get_ai_prompts()
     }
 
     /// Run assist for a trip: build the same redacted request the preview shows
@@ -1493,7 +1557,14 @@ impl AppService {
             .into_iter()
             .map(|(_, label, text)| (label, text))
             .collect();
-        Ok(build_draft_preview(&trip, &doc_pairs, model.as_deref()))
+        let connection = self.connection()?;
+        let system_prompt = effective_ai_prompt(&connection, AiPromptKind::DraftLodgingDates)?;
+        Ok(build_draft_preview(
+            &trip,
+            &doc_pairs,
+            model.as_deref(),
+            &system_prompt,
+        ))
     }
 
     /// Run a lodging-dates draft: send the previewed request to the on-device
@@ -1520,7 +1591,13 @@ impl AppService {
         let user_content =
             build_lodging_dates_user_content(&trip.start_date, &trip.end_date, &doc_pairs);
         let model = model.unwrap_or_else(|| DEFAULT_OLLAMA_MODEL.to_owned());
-        let body = build_ollama_chat_body(&model, DRAFT_LODGING_DATES_SYSTEM_PROMPT, &user_content);
+        // Read the (possibly customized) instruction in a scoped lock so the
+        // storage guard is released before the network call and the later insert.
+        let system_prompt = {
+            let connection = self.connection()?;
+            effective_ai_prompt(&connection, AiPromptKind::DraftLodgingDates)?
+        };
+        let body = build_ollama_chat_body(&model, &system_prompt, &user_content);
         let response = self.fetcher.post_json(OLLAMA_CHAT_URL, &body, &[])?;
         let text = parse_ollama_chat_reply(&response)?;
         let proposals = parse_lodging_dates_reply(&text)?;
@@ -2599,13 +2676,15 @@ fn fetch_trip_document_texts(
 
 /// Build the on-device draft request preview from a trip and its document texts.
 /// Ollama-only, so it never leaves the device and withholds nothing (the text is
-/// the traveler's own imported content).
+/// the traveler's own imported content). `system_prompt` is the effective
+/// instruction (the default or the user's override).
 fn build_draft_preview(
     trip: &Trip,
     documents: &[(String, String)],
     model: Option<&str>,
+    system_prompt: &str,
 ) -> AssistRequestPreview {
-    let system_prompt = DRAFT_LODGING_DATES_SYSTEM_PROMPT.to_owned();
+    let system_prompt = system_prompt.to_owned();
     let user_content =
         build_lodging_dates_user_content(&trip.start_date, &trip.end_date, documents);
     let estimated_tokens =
@@ -2650,6 +2729,67 @@ fn draft_window_warnings(trip: &Trip, proposal: &LodgingDateProposal) -> Vec<War
     } else {
         Vec::new()
     }
+}
+
+/// Longest custom AI instruction accepted (well under the app_settings cap).
+const MAX_AI_PROMPT_LEN: usize = 6000;
+
+/// The app_settings key that holds a user override for one AI instruction.
+fn ai_prompt_key(kind: AiPromptKind) -> &'static str {
+    match kind {
+        AiPromptKind::Assist => "ai_prompt.assist",
+        AiPromptKind::DraftLodgingDates => "ai_prompt.draft_lodging_dates",
+    }
+}
+
+/// The built-in default instruction for one AI kind.
+fn ai_prompt_default(kind: AiPromptKind) -> &'static str {
+    match kind {
+        AiPromptKind::Assist => ASSIST_SYSTEM_PROMPT,
+        AiPromptKind::DraftLodgingDates => DRAFT_LODGING_DATES_SYSTEM_PROMPT,
+    }
+}
+
+fn validate_ai_prompt_kind(kind: &str) -> Result<AiPromptKind, AppError> {
+    match kind {
+        "assist" => Ok(AiPromptKind::Assist),
+        "draft_lodging_dates" => Ok(AiPromptKind::DraftLodgingDates),
+        _ => Err(AppError::with_detail(
+            ErrorCode::ValidationInvalidInput,
+            "unknown AI instruction",
+            "field",
+            "kind",
+        )),
+    }
+}
+
+/// Read one app_settings value on an existing connection.
+fn read_app_setting(connection: &Connection, key: &str) -> Result<Option<String>, AppError> {
+    connection
+        .query_row(
+            "SELECT value FROM app_settings WHERE key = ?1",
+            params![key],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(storage_error)
+}
+
+/// The effective instruction for `kind`: the user's override, or the default.
+fn effective_ai_prompt(connection: &Connection, kind: AiPromptKind) -> Result<String, AppError> {
+    Ok(read_app_setting(connection, ai_prompt_key(kind))?
+        .unwrap_or_else(|| ai_prompt_default(kind).to_owned()))
+}
+
+/// Swap a preview's system instruction for `prompt`, keeping the token estimate
+/// honest. A no-op when the prompt is unchanged.
+fn apply_prompt_override(preview: &mut AssistRequestPreview, prompt: String) {
+    if prompt == preview.system_prompt {
+        return;
+    }
+    preview.estimated_tokens =
+        ((prompt.chars().count() + preview.user_content.chars().count()) / 4 + 1) as u32;
+    preview.system_prompt = prompt;
 }
 
 /// Place names from a trip's downloaded packs, newest pack first. Pack contents
@@ -4797,6 +4937,88 @@ mod tests {
             .expect("assisted confirmed fact now allowed");
         // Re-running is a no-op (the constraint already allows 'assisted').
         migrate_method_check(&connection).expect("idempotent");
+    }
+
+    #[test]
+    fn ai_prompt_overrides_and_reset_flow_into_requests() {
+        // Captures the draft POST so we can see which instruction was sent.
+        struct CaptureStub {
+            last_body: std::sync::Mutex<String>,
+        }
+        impl AdviceFetcher for CaptureStub {
+            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+                panic!("assist must POST, not GET");
+            }
+            fn post_json(
+                &self,
+                _url: &str,
+                body: &str,
+                _headers: &[(&str, &str)],
+            ) -> Result<String, AppError> {
+                *self.last_body.lock().expect("lock") = body.to_owned();
+                Ok(serde_json::json!({ "message": { "content": "{\"stays\":[]}" } }).to_string())
+            }
+        }
+
+        let database = temp_database("ai-prompts");
+        let stub = Arc::new(CaptureStub {
+            last_body: std::sync::Mutex::new(String::new()),
+        });
+        let service = open_test_service_with_fetcher(&database, stub.clone()).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        // Defaults out of the box, no overrides.
+        let prompts = service.get_ai_prompts().expect("prompts");
+        assert_eq!(prompts.prompts.len(), 2);
+        assert!(prompts.prompts.iter().all(|p| p.custom_text.is_none()));
+
+        // A custom assist instruction flows into the assist preview (which run reuses).
+        service
+            .set_ai_prompt("assist", Some("ASSIST-CUSTOM-RULE"))
+            .expect("set assist");
+        let preview = service.preview_assist(&trip.id, "ollama").expect("preview");
+        assert_eq!(preview.system_prompt, "ASSIST-CUSTOM-RULE");
+
+        // Resetting restores the default, which forbids inventing high-stakes facts.
+        service.set_ai_prompt("assist", None).expect("reset assist");
+        let preview = service.preview_assist(&trip.id, "ollama").expect("preview");
+        assert!(preview.system_prompt.contains("Do not invent"));
+
+        // A custom draft instruction is what actually gets POSTed to the model.
+        import_stay_text(&service, &trip.id);
+        service
+            .set_ai_prompt("draft_lodging_dates", Some("DRAFT-CUSTOM-RULE"))
+            .expect("set draft");
+        let draft_preview = service
+            .preview_assist_draft(&trip.id, "lodging_dates")
+            .expect("draft preview");
+        assert_eq!(draft_preview.system_prompt, "DRAFT-CUSTOM-RULE");
+        service
+            .run_assist_draft(&trip.id, "lodging_dates")
+            .expect("run draft");
+        assert!(
+            stub.last_body
+                .lock()
+                .expect("lock")
+                .contains("DRAFT-CUSTOM-RULE")
+        );
+
+        // A blank override and an unknown kind are validation errors.
+        assert_eq!(
+            service
+                .set_ai_prompt("assist", Some("   "))
+                .expect_err("blank")
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
+        assert_eq!(
+            service
+                .set_ai_prompt("made_up", None)
+                .expect_err("kind")
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
+        cleanup_database(database);
     }
 
     #[test]

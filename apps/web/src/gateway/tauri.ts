@@ -1,5 +1,7 @@
 import type {
   AddManualFactInput,
+  AiPromptKind,
+  AiPromptSettings,
   AppGateway,
   AssistActivityEntry,
   AssistDraftKind,
@@ -137,6 +139,11 @@ export function createTauriGateway(
 
     listAssistActivity: (tripId: string) =>
       call<AssistActivityEntry[]>("list_assist_activity", { tripId }),
+
+    getAiPrompts: () => call<AiPromptSettings>("get_ai_prompts", {}),
+
+    setAiPrompt: (kind: AiPromptKind, text: string | null) =>
+      call<AiPromptSettings>("set_ai_prompt", { kind, text }),
 
     listPacks: () => call<PackInfo[]>("list_packs", {}),
 

@@ -315,6 +315,25 @@ const en = {
   "providers.announce.keySaved": "{provider} key saved.",
   "providers.announce.modelSaved": "{provider} model saved.",
 
+  "prompts.title": "Customize AI instructions",
+  "prompts.intro":
+    "Advanced: change what Voyalier tells the AI. The date draft still only accepts dates no matter what you write. Loosening the assist instruction can make replies riskier — Voyalier still marks AI replies as not official.",
+  "prompts.kind.assist": "Assist & preview instruction",
+  "prompts.kind.draft_lodging_dates": "Lodging-date draft instruction",
+  "prompts.desc.assist":
+    "Used when you preview or run an AI request for a trip.",
+  "prompts.desc.draft_lodging_dates":
+    "Used when the on-device AI drafts missing lodging dates.",
+  "prompts.badge.custom": "Customized",
+  "prompts.badge.default": "Default",
+  "prompts.save": "Save instruction",
+  "prompts.reset": "Reset to default",
+  "prompts.error": "That didn't work — nothing changed.",
+  "prompts.announce.saved": "{name} saved.",
+  "prompts.announce.reset": "{name} reset to default.",
+  "prompts.scope":
+    "Stored on this device. Applies to future AI requests you make; it never changes what leaves your device beyond the instruction text you see in the preview.",
+
   "packs.suggested.title": "Recommended for this trip",
   "packs.suggested.matchExact": "Matches your destination",
   "packs.suggested.matchAlias": "Matches your destination",

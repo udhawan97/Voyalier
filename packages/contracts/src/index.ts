@@ -209,6 +209,18 @@ export type AssistDraftKind = "lodging_dates";
 export interface AssistDraftResult {
   candidates: CandidateFact[];
 }
+/** Which AI system instruction a user override applies to. */
+export type AiPromptKind = "assist" | "draft_lodging_dates";
+/** One editable AI instruction: its built-in default plus the user's override if set. */
+export interface AiPrompt {
+  kind: AiPromptKind;
+  defaultText: string;
+  /** Present when the user has overridden the default. */
+  customText?: string;
+}
+export interface AiPromptSettings {
+  prompts: AiPrompt[];
+}
 export type ProviderId = "openai" | "anthropic" | "ollama";
 /**
  * A provider's configuration. Never carries the API key — `hasKey` reports only
@@ -547,6 +559,12 @@ export interface AppGateway {
     kind: AssistDraftKind,
   ): Promise<AssistDraftResult>;
   listAssistActivity(tripId: string): Promise<AssistActivityEntry[]>;
+  getAiPrompts(): Promise<AiPromptSettings>;
+  /** Set an AI instruction, or pass `null` text to reset it to the default. */
+  setAiPrompt(
+    kind: AiPromptKind,
+    text: string | null,
+  ): Promise<AiPromptSettings>;
   listPacks(): Promise<PackInfo[]>;
   suggestPacks(tripId: string): Promise<PackSuggestion[]>;
   suggestFieldValues(input: SuggestFieldValuesInput): Promise<FieldSuggestion[]>;
