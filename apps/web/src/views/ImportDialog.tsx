@@ -167,6 +167,7 @@ export function ImportDialog({
             options={[
               { value: "pasted_text", label: t("import.format.text") },
               { value: "html", label: t("import.format.html") },
+              { value: "email", label: t("import.format.email") },
             ]}
           />
         </div>
@@ -187,7 +188,11 @@ export function ImportDialog({
           error={fieldError ?? undefined}
           rows={10}
           required
-          placeholder={t("import.content.placeholder")}
+          placeholder={
+            kind === "email"
+              ? t("import.content.placeholder.email")
+              : t("import.content.placeholder")
+          }
         />
         <p
           className={`voy-charcount${over ? " is-over" : ""}`}

@@ -249,10 +249,13 @@ const en = {
   "import.formatChoice": "Document format",
   "import.format.text": "Plain text",
   "import.format.html": "HTML",
+  "import.format.email": "Email",
   "import.label": "Label (optional)",
   "import.label.placeholder": "Flight confirmation",
   "import.content": "Content",
   "import.content.placeholder": "Paste your confirmation here…",
+  "import.content.placeholder.email":
+    "Paste the whole confirmation email — headers and all. Voyalier reads the body and ignores the rest.",
   "import.charcount": "{count} / {max} characters",
   "import.done.title": "Imported",
   "import.done.label": "“{label}” imported.",

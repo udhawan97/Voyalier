@@ -6,6 +6,7 @@
 mod advice;
 mod assist;
 mod brief;
+mod email;
 mod itinerary;
 mod local_ai;
 mod packs;
@@ -30,6 +31,7 @@ pub use assist::{
     parse_ollama_chat_reply, parse_openai_chat_reply,
 };
 pub use brief::{RedactionPolicy, TripBrief, build_trip_brief};
+pub use email::{EmailBody, extract_email_body};
 pub use itinerary::detect_itinerary_conflicts;
 pub use local_ai::{LocalAiModel, LocalAiStatus, OLLAMA_TAGS_URL, parse_ollama_models};
 pub use packs::{

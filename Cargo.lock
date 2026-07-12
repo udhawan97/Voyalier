@@ -5068,6 +5068,7 @@ name = "voyalier-core"
 version = "0.2.0"
 dependencies = [
  "argon2",
+ "base64 0.22.1",
  "chacha20poly1305",
  "jiff",
  "serde",

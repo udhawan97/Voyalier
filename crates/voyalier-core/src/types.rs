@@ -310,6 +310,9 @@ pub struct ConfirmedFact {
 pub enum DocumentKind {
     PastedText,
     Html,
+    /// Input-only: a raw RFC 822 email. `import_document` extracts the body and
+    /// stores it as `Html` or `PastedText`, so this variant is never persisted.
+    Email,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

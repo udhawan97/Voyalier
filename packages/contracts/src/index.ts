@@ -124,7 +124,10 @@ export interface ConfirmedFact {
   correctedFields: string[];
   confirmedAt: string;
 }
-export type DocumentKind = "pasted_text" | "html";
+// "email" is input-only for imports: the Rust core extracts the confirmation
+// body and stores it as "html" or "pasted_text", so a stored document's kind is
+// only ever one of those two.
+export type DocumentKind = "pasted_text" | "html" | "email";
 export interface SourceDocument {
   id: string;
   tripId: string;

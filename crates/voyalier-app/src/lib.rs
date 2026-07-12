@@ -23,12 +23,13 @@ use voyalier_core::{
     TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripStatus, TripSummary, UpdateTripInput,
     WeatherSnapshot, assess_readiness, build_anthropic_messages_body, build_assist_preview,
     build_ollama_chat_body, build_openai_chat_body, build_today_view, build_trip_brief,
-    changed_payload_fields, detect_itinerary_conflicts, new_id, now_rfc3339, pack_catalog,
-    pack_download_url, parse_anthropic_reply, parse_fcdo_content, parse_forecast_response,
-    parse_geocoding_response, parse_ollama_chat_reply, parse_openai_chat_reply, parse_pack_content,
-    provider_info, recommend_places, search_trip_corpus, validate_api_key, validate_country_slug,
-    validate_create_trip, validate_document_content, validate_fact_payload, validate_model_name,
-    validate_pack_id, validate_provider_id, validate_search_query, validate_update_trip,
+    changed_payload_fields, detect_itinerary_conflicts, extract_email_body, new_id, now_rfc3339,
+    pack_catalog, pack_download_url, parse_anthropic_reply, parse_fcdo_content,
+    parse_forecast_response, parse_geocoding_response, parse_ollama_chat_reply,
+    parse_openai_chat_reply, parse_pack_content, provider_info, recommend_places,
+    search_trip_corpus, validate_api_key, validate_country_slug, validate_create_trip,
+    validate_document_content, validate_fact_payload, validate_model_name, validate_pack_id,
+    validate_provider_id, validate_search_query, validate_update_trip,
 };
 use voyalier_core::{
     VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, VaultStatus, derive_key as vault_derive_key,
@@ -1542,19 +1543,40 @@ impl AppService {
     }
 
     pub fn import_document(&self, input: ImportDocumentInput) -> Result<ImportResult, AppError> {
-        let char_count = validate_document_content(&input.content)?;
-        let hash = sha256_hex(input.content.as_bytes());
+        // Email is input-only: extract the confirmation body (preferring the HTML
+        // part so JSON-LD can parse) and import it as a normal html/pasted-text
+        // document. Everything downstream — dedup, sealing, field spans, parser
+        // dispatch — then sees the extracted body, not the raw email.
+        let (kind, content, email_subject) = match input.kind {
+            DocumentKind::Email => {
+                let extracted = extract_email_body(&input.content);
+                (extracted.kind, extracted.content, extracted.subject)
+            }
+            other => (other, input.content.clone(), None),
+        };
+        let char_count = validate_document_content(&content)?;
+        let hash = sha256_hex(content.as_bytes());
         let label = input
             .label
             .as_deref()
             .map(str::trim)
             .filter(|label| !label.is_empty())
-            .unwrap_or(match input.kind {
-                DocumentKind::Html => "Imported HTML",
-                DocumentKind::PastedText => "Pasted text",
+            .map(str::to_owned)
+            .or_else(|| {
+                email_subject
+                    .map(|subject| subject.trim().to_owned())
+                    .filter(|subject| !subject.is_empty())
             })
-            .to_owned();
-        let document = NormalizedDocument::new(input.kind, input.content.clone());
+            .unwrap_or_else(|| {
+                match kind {
+                    DocumentKind::Html => "Imported HTML",
+                    DocumentKind::PastedText => "Pasted text",
+                    // Unreachable: email was normalized to a body kind above.
+                    DocumentKind::Email => "Imported email",
+                }
+                .to_owned()
+            });
+        let document = NormalizedDocument::new(kind, content.clone());
         let (parser_id, parser_version, parsed_candidates) = parse_document(&document);
         let now = now_rfc3339();
         let document_id = new_id("doc");
@@ -1581,9 +1603,9 @@ impl AppService {
             ));
         }
 
-        // The raw imported text carries the same confirmation codes and traveler
+        // The imported body carries the same confirmation codes and traveler
         // names as the parsed facts, so it is sealed at rest too.
-        let sealed_content = self.vault.seal_field(&input.content)?;
+        let sealed_content = self.vault.seal_field(&content)?;
         transaction
             .execute(
                 "INSERT INTO source_documents (id, trip_id, kind, label, content_hash, char_count, imported_at, raw_content)
@@ -1591,7 +1613,7 @@ impl AppService {
                 params![
                     document_id,
                     input.trip_id,
-                    enum_to_sql(input.kind)?,
+                    enum_to_sql(kind)?,
                     label,
                     hash,
                     char_count,
@@ -1641,7 +1663,9 @@ impl AppService {
             document: SourceDocument {
                 id: document_id,
                 trip_id: input.trip_id,
-                kind: input.kind,
+                // The normalized body kind that was actually stored (email input
+                // becomes html/pasted_text), not the raw input kind.
+                kind,
                 label,
                 content_hash: hash,
                 char_count,
@@ -2097,6 +2121,13 @@ fn parse_document(
             let outcome = parser.parse(document);
             (parser.id(), parser.version(), outcome.candidates)
         }
+        DocumentKind::Email => {
+            // Email is normalized to a body kind before import calls this; handle
+            // a direct call defensively by extracting the body and re-dispatching.
+            let extracted = extract_email_body(&document.raw_content);
+            let inner = NormalizedDocument::new(extracted.kind, extracted.content);
+            parse_document(&inner)
+        }
     }
 }
 
@@ -2499,6 +2530,33 @@ mod tests {
                 .and_then(|details| details.get("existingDocumentId")),
             Some(&first.document.id)
         );
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn imports_a_plain_text_email_using_the_subject_as_the_label() {
+        let database = temp_database("email-import");
+        let service = open_test_service(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        let raw_email = "From: airline@example.com\r\nSubject: Flight SFO to NRT\r\nContent-Type: text/plain\r\n\r\nConfirmation CODE7\nRoute SFO-NRT\n2027-04-02T10:00";
+        let imported = service
+            .import_document(ImportDocumentInput {
+                trip_id: trip.id.clone(),
+                kind: DocumentKind::Email,
+                label: None,
+                content: raw_email.to_owned(),
+            })
+            .expect("import email");
+
+        // A candidate was extracted from the email body.
+        assert!(!imported.candidates.is_empty());
+        // Stored as a normal body kind (never Email), with the email subject as
+        // the default label and the headers stripped from the stored body.
+        assert_eq!(imported.document.kind, DocumentKind::PastedText);
+        assert_eq!(imported.document.label, "Flight SFO to NRT");
+        assert!(!imported.document.label.contains("airline@example.com"));
+
         cleanup_database(database);
     }
 
