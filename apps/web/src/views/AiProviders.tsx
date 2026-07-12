@@ -3,6 +3,8 @@ import type { AppError, ProviderConfig, ProviderId } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import { t } from "../app/i18n";
+import { SectionTitle } from "../components/primitives";
+import { KeyIcon } from "../components/icons";
 import { Button } from "../components/Button";
 
 type Busy = null | "key" | "clear" | "model";
@@ -257,9 +259,9 @@ export function AiProviders() {
 
   return (
     <section className="voy-providers" aria-labelledby="providers-title">
-      <h2 id="providers-title" className="voy-providers__title">
+      <SectionTitle id="providers-title" icon={<KeyIcon />}>
         {t("providers.title")}
-      </h2>
+      </SectionTitle>
 
       {providers === null ? (
         <>

@@ -40,6 +40,31 @@ h3 {
   letter-spacing: -0.02em;
 }
 
+/* Shared section heading: display-serif title with a leading line-icon.
+   Unifies the ~14 per-view heading treatments. */
+.voy-shead {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0 0.9rem;
+  font-size: var(--voy-text-xl);
+  font-family: var(--voy-font-display);
+}
+
+.voy-shead__icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--voy-indigo);
+  font-size: 1.2rem;
+}
+
+/* When the heading shares a flex row with a trailing pill, drop its bottom
+   margin so the row stays vertically centered. */
+.voy-today__head .voy-shead,
+.voy-localai__head .voy-shead {
+  margin-bottom: 0;
+}
+
 :focus-visible {
   outline: 2px solid var(--voy-focus);
   outline-offset: 2px;

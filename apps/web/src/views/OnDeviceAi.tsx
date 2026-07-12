@@ -3,6 +3,8 @@ import type { AppError, LocalAiStatus } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import { plural, t } from "../app/i18n";
+import { SectionTitle } from "../components/primitives";
+import { CpuIcon } from "../components/icons";
 import {
   pullCommand,
   RECOMMENDED_MODELS,
@@ -220,9 +222,9 @@ export function OnDeviceAi() {
   return (
     <section className="voy-localai" aria-labelledby="localai-title">
       <div className="voy-localai__head">
-        <h2 id="localai-title" className="voy-localai__title">
+        <SectionTitle id="localai-title" icon={<CpuIcon />}>
           {t("localai.title")}
-        </h2>
+        </SectionTitle>
         {checked ? (
           <span
             className={`voy-localai__badge voy-localai__badge--${detected ? "on" : "off"}`}

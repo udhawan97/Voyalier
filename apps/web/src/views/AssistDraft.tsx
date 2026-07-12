@@ -8,6 +8,8 @@ import type {
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError } from "../app/format";
 import { plural, t } from "../app/i18n";
+import { SectionTitle } from "../components/primitives";
+import { SparklesIcon } from "../components/icons";
 import { Button } from "../components/Button";
 
 /**
@@ -82,9 +84,9 @@ export function AssistDraft({
 
   return (
     <section className="voy-assist" aria-labelledby="draft-title">
-      <h2 id="draft-title" className="voy-assist__title">
+      <SectionTitle id="draft-title" icon={<SparklesIcon />}>
         {t("draft.title")}
-      </h2>
+      </SectionTitle>
       <p className="voy-assist__intro">{t("draft.intro")}</p>
 
       <div className="voy-assist__controls">

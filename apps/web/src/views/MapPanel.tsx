@@ -4,6 +4,8 @@ import type { PersonaWeights, Recommendation } from "@voyalier/contracts";
 
 import { useGateway } from "../app/context";
 import { t } from "../app/i18n";
+import { SectionTitle } from "../components/primitives";
+import { MapIcon } from "../components/icons";
 import { Button } from "../components/Button";
 
 // MapLibre GL is ~1 MB — far larger than the rest of the app. The map is
@@ -159,9 +161,9 @@ export function MapPanel({
 
   return (
     <section className="voy-map" aria-labelledby="map-title">
-      <h2 id="map-title" className="voy-map__title">
+      <SectionTitle id="map-title" icon={<MapIcon />}>
         {t("map.title")}
-      </h2>
+      </SectionTitle>
 
       {!shown ? (
         <>

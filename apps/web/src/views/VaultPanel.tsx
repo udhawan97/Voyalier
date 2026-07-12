@@ -4,6 +4,7 @@ import type { AppError, VaultStatus } from "@voyalier/contracts";
 import { useAnnounce, useGateway } from "../app/context";
 import { t } from "../app/i18n";
 import { Button } from "../components/Button";
+import { SectionTitle } from "../components/primitives";
 import { LockIcon } from "../components/icons";
 
 const MIN_PASSPHRASE = 8;
@@ -68,10 +69,9 @@ export function VaultPanel() {
 
   return (
     <section className="voy-vault" aria-labelledby="vault-title">
-      <h2 id="vault-title" className="voy-vault__title">
-        <LockIcon className="voy-vault__title-icon" aria-hidden="true" />
+      <SectionTitle id="vault-title" icon={<LockIcon />}>
         {t("vault.section")}
-      </h2>
+      </SectionTitle>
 
       {!status.active ? (
         <p className="voy-vault__note">{t("vault.inactive")}</p>

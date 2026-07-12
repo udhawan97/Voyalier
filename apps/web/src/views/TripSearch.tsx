@@ -3,8 +3,9 @@ import type { SearchHit } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import { plural, t } from "../app/i18n";
+import { SectionTitle } from "../components/primitives";
 import { Button } from "../components/Button";
-import { BedIcon, PlaneIcon } from "../components/icons";
+import { BedIcon, PlaneIcon, SearchIcon } from "../components/icons";
 
 const MAX_QUERY = 200;
 const MIN_QUERY = 2;
@@ -110,9 +111,9 @@ export function TripSearch({ tripId }: { tripId: string }) {
 
   return (
     <section className="voy-search" aria-labelledby="trip-search-title">
-      <h2 id="trip-search-title" className="voy-search__title">
+      <SectionTitle id="trip-search-title" icon={<SearchIcon />}>
         {t("search.title")}
-      </h2>
+      </SectionTitle>
       <p className="voy-search__hint">{t("search.hint")}</p>
 
       <div className="voy-search__form">

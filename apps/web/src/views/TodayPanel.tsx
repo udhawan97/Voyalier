@@ -5,7 +5,8 @@ import { useAsyncData } from "../app/useAsync";
 import { formatDate } from "../app/format";
 import { t } from "../app/i18n";
 import { Button } from "../components/Button";
-import { RetryIcon } from "../components/icons";
+import { SectionTitle } from "../components/primitives";
+import { CalendarIcon, RetryIcon } from "../components/icons";
 
 function phaseHeadline(phase: TripPhase): string {
   switch (phase.state) {
@@ -47,9 +48,9 @@ export function TodayPanel({ tripId }: { tripId: string }) {
         className="voy-today voy-today--error"
         aria-labelledby="today-title"
       >
-        <h2 id="today-title" className="voy-today__title">
+        <SectionTitle id="today-title" icon={<CalendarIcon />}>
           {t("today.title")}
-        </h2>
+        </SectionTitle>
         <p className="voy-today__error">
           <span>{t("today.error")}</span>
           <Button variant="ghost" icon={<RetryIcon />} onClick={today.reload}>
@@ -69,9 +70,9 @@ export function TodayPanel({ tripId }: { tripId: string }) {
   return (
     <section className="voy-today" aria-labelledby="today-title">
       <div className="voy-today__head">
-        <h2 id="today-title" className="voy-today__title">
+        <SectionTitle id="today-title" icon={<CalendarIcon />}>
           {t("today.title")}
-        </h2>
+        </SectionTitle>
         <span
           className={`voy-today__phase voy-today__phase--${view.phase.state}`}
         >

@@ -8,6 +8,8 @@ import type {
 
 import { useAnnounce, useGateway } from "../app/context";
 import { t, type MessageKey } from "../app/i18n";
+import { SectionTitle } from "../components/primitives";
+import { SlidersIcon } from "../components/icons";
 import { Button } from "../components/Button";
 import { TextArea } from "../components/fields";
 
@@ -146,9 +148,9 @@ export function AiPromptSettings() {
 
   return (
     <section className="voy-prompts" aria-labelledby="prompts-title">
-      <h2 id="prompts-title" className="voy-prompts__title">
+      <SectionTitle id="prompts-title" icon={<SlidersIcon />}>
         {t("prompts.title")}
-      </h2>
+      </SectionTitle>
       <p className="voy-prompts__intro">{t("prompts.intro")}</p>
 
       {settings ? (

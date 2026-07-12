@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef } from "react";
 
 import { useAnnounce, useUpdaterController } from "../app/context";
 import { plural, t } from "../app/i18n";
+import { SectionTitle } from "../components/primitives";
+import { DownloadIcon } from "../components/icons";
 import { Button } from "../components/Button";
 
 const RELEASES_URL = "https://github.com/udhawan97/Voyalier/releases";
@@ -269,9 +271,9 @@ export function UpdatesPanel() {
 
   return (
     <section className="voy-updates" aria-labelledby="updates-title">
-      <h2 id="updates-title" className="voy-updates__title">
+      <SectionTitle id="updates-title" icon={<DownloadIcon />}>
         {t("updates.title")}
-      </h2>
+      </SectionTitle>
       <div className="voy-updates__body">{body()}</div>
       {showToggle ? (
         <div className="voy-updates__footer">

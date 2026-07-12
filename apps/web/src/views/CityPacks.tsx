@@ -10,6 +10,8 @@ import type {
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError } from "../app/format";
 import { plural, t, type MessageKey } from "../app/i18n";
+import { SectionTitle } from "../components/primitives";
+import { PackageIcon } from "../components/icons";
 import { Button } from "../components/Button";
 
 const MATCH_REASON: Record<PackMatchKind, MessageKey> = {
@@ -152,9 +154,9 @@ export function CityPacks({
 
   return (
     <section className="voy-packs" aria-labelledby="packs-title">
-      <h2 id="packs-title" className="voy-packs__title">
+      <SectionTitle id="packs-title" icon={<PackageIcon />}>
         {t("packs.title")}
-      </h2>
+      </SectionTitle>
 
       {suggestions && suggestions.length > 0 ? (
         <div className="voy-packs__suggested">

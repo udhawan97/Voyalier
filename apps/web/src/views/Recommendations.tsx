@@ -8,6 +8,8 @@ import type {
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError } from "../app/format";
 import { plural, t, type MessageKey } from "../app/i18n";
+import { SectionTitle } from "../components/primitives";
+import { CompassIcon } from "../components/icons";
 import { Button } from "../components/Button";
 
 type Dimension = keyof PersonaWeights;
@@ -93,9 +95,9 @@ export function Recommendations({ tripId }: { tripId: string }) {
 
   return (
     <section className="voy-recs" aria-labelledby="recs-title">
-      <h2 id="recs-title" className="voy-recs__title">
+      <SectionTitle id="recs-title" icon={<CompassIcon />}>
         {t("recs.title")}
-      </h2>
+      </SectionTitle>
       <p className="voy-recs__intro">{t("recs.intro")}</p>
 
       <div
