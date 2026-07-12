@@ -8,6 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::assist::ANTHROPIC_VERSION;
 use crate::types::{AppError, ErrorCode};
 
 /// The longest API key Voyalier will store — generous, but bounds pathological input.
@@ -146,6 +147,71 @@ pub fn validate_model_name(raw: &str) -> Result<String, AppError> {
     Ok(trimmed.to_owned())
 }
 
+/// The verdict of a live check of a BYOK key against its provider. Carries no key
+/// and no response body — only a coarse status and a human message.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum KeyValidationStatus {
+    /// The provider accepted the key.
+    Valid,
+    /// The provider actively rejected the key (401/403) — a bad or revoked key.
+    Rejected,
+    /// The provider could not be reached or answered inconclusively — offline, a
+    /// transient error, or an unexpected status. The key may still be fine.
+    Unreachable,
+}
+
+/// The outcome of validating a provider key. Never carries the key itself.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyValidation {
+    pub status: KeyValidationStatus,
+    pub message: String,
+}
+
+/// The cheap, read-only endpoint used to prove a BYOK key works. `None` for
+/// keyless providers (Ollama), which have no key to validate.
+pub fn provider_validation_endpoint(id: ProviderId) -> Option<&'static str> {
+    match id {
+        ProviderId::OpenAi => Some("https://api.openai.com/v1/models"),
+        ProviderId::Anthropic => Some("https://api.anthropic.com/v1/models"),
+        ProviderId::Ollama => None,
+    }
+}
+
+/// The auth headers to send when validating `id`'s key. Empty for keyless
+/// providers. The key is placed only in the returned header value.
+pub fn provider_validation_headers(id: ProviderId, key: &str) -> Vec<(String, String)> {
+    match id {
+        ProviderId::OpenAi => vec![("Authorization".to_owned(), format!("Bearer {key}"))],
+        ProviderId::Anthropic => vec![
+            ("x-api-key".to_owned(), key.to_owned()),
+            ("anthropic-version".to_owned(), ANTHROPIC_VERSION.to_owned()),
+        ],
+        ProviderId::Ollama => Vec::new(),
+    }
+}
+
+/// Interpret a validation request's HTTP status into a verdict. A 2xx means the
+/// key works; 401/403 is an authoritative rejection; anything else is treated as
+/// inconclusive so a transient hiccup never looks like a bad key.
+pub fn interpret_key_validation(status: u16) -> KeyValidation {
+    match status {
+        200..=299 => KeyValidation {
+            status: KeyValidationStatus::Valid,
+            message: "The provider accepted this key.".to_owned(),
+        },
+        401 | 403 => KeyValidation {
+            status: KeyValidationStatus::Rejected,
+            message: "The provider rejected this key. Check it and try again.".to_owned(),
+        },
+        other => KeyValidation {
+            status: KeyValidationStatus::Unreachable,
+            message: format!("Could not verify the key (the provider replied {other})."),
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -214,5 +280,71 @@ mod tests {
         assert!(json.contains("\"hasKey\":true"));
         assert!(!json.to_lowercase().contains("\"key\""));
         assert!(!json.to_lowercase().contains("secret"));
+    }
+
+    #[test]
+    fn key_validation_maps_status_to_verdict() {
+        assert_eq!(
+            interpret_key_validation(200).status,
+            KeyValidationStatus::Valid
+        );
+        assert_eq!(
+            interpret_key_validation(204).status,
+            KeyValidationStatus::Valid
+        );
+        assert_eq!(
+            interpret_key_validation(401).status,
+            KeyValidationStatus::Rejected
+        );
+        assert_eq!(
+            interpret_key_validation(403).status,
+            KeyValidationStatus::Rejected
+        );
+        // A server error is inconclusive, not a rejection.
+        assert_eq!(
+            interpret_key_validation(500).status,
+            KeyValidationStatus::Unreachable
+        );
+        assert_eq!(
+            interpret_key_validation(429).status,
+            KeyValidationStatus::Unreachable
+        );
+    }
+
+    #[test]
+    fn validation_targets_only_cloud_providers() {
+        assert!(provider_validation_endpoint(ProviderId::OpenAi).is_some());
+        assert!(provider_validation_endpoint(ProviderId::Anthropic).is_some());
+        assert!(provider_validation_endpoint(ProviderId::Ollama).is_none());
+    }
+
+    #[test]
+    fn validation_headers_carry_the_key_per_provider() {
+        let openai = provider_validation_headers(ProviderId::OpenAi, "sk-abc");
+        assert_eq!(openai, vec![("Authorization".to_owned(), "Bearer sk-abc".to_owned())]);
+
+        let anthropic = provider_validation_headers(ProviderId::Anthropic, "sk-ant");
+        assert!(anthropic.contains(&("x-api-key".to_owned(), "sk-ant".to_owned())));
+        assert!(anthropic
+            .iter()
+            .any(|(name, value)| name == "anthropic-version" && value == ANTHROPIC_VERSION));
+
+        assert!(provider_validation_headers(ProviderId::Ollama, "x").is_empty());
+    }
+
+    #[test]
+    fn key_validation_status_serializes_lowercase() {
+        assert_eq!(
+            serde_json::to_string(&KeyValidationStatus::Valid).expect("ser"),
+            "\"valid\""
+        );
+        assert_eq!(
+            serde_json::to_string(&KeyValidationStatus::Rejected).expect("ser"),
+            "\"rejected\""
+        );
+        assert_eq!(
+            serde_json::to_string(&KeyValidationStatus::Unreachable).expect("ser"),
+            "\"unreachable\""
+        );
     }
 }

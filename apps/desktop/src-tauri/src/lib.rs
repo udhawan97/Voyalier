@@ -5,7 +5,8 @@ use voyalier_core::{
     AddManualFactInput, AppError, AssistActivityEntry, AssistDraftResult, AssistReply,
     AssistRequestPreview, CandidateFact, CandidateStatus, ConfirmCandidateInput, ConfirmedFact,
     CreateTripInput, DownloadedPack, ErrorCode, FcdoCountry, FieldSuggestion, HealthResponse,
-    ImportDocumentInput, ImportResult, LocalAiStatus, PackInfo, PackSuggestion, PersonaWeights,
+    ImportDocumentInput, ImportResult, KeyValidation, LocalAiStatus, LocalModelPullResult, PackInfo,
+    PackSuggestion, PersonaWeights,
     ProviderConfig, Recommendation, SearchHit, TodayView, TravelAdviceSnapshot, Trip, TripBrief,
     TripDetail, TripSummary, UpdateTripInput, VaultStatus, WeatherSnapshot,
 };
@@ -320,6 +321,28 @@ fn detect_local_ai(
 ) -> Result<LocalAiStatus, AppError> {
     let _ = input;
     Ok(service.detect_local_ai())
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PullModelInput {
+    model: String,
+}
+
+#[tauri::command]
+fn pull_local_model(
+    input: PullModelInput,
+    service: State<'_, AppService>,
+) -> Result<LocalModelPullResult, AppError> {
+    service.pull_local_model(&input.model)
+}
+
+#[tauri::command]
+fn validate_provider_key(
+    input: SetProviderKeyInput,
+    service: State<'_, AppService>,
+) -> Result<KeyValidation, AppError> {
+    service.validate_provider_key(&input.provider, &input.key)
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -683,8 +706,10 @@ fn builder<R: tauri::Runtime>(
             delete_downloaded_pack,
             get_recommendations,
             detect_local_ai,
+            pull_local_model,
             list_providers,
             set_provider_key,
+            validate_provider_key,
             clear_provider_key,
             set_provider_model,
             fetch_travel_advice,
@@ -1022,8 +1047,10 @@ mod tests {
             "delete_downloaded_pack",
             "get_recommendations",
             "detect_local_ai",
+            "pull_local_model",
             "list_providers",
             "set_provider_key",
+            "validate_provider_key",
             "clear_provider_key",
             "set_provider_model",
             "fetch_travel_advice",

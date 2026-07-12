@@ -211,6 +211,32 @@ const en = {
   "localai.check": "Check for on-device AI",
   "localai.scope":
     "Detection only — a local check on this device. Assist that uses these models is a later milestone and will always be opt-in.",
+
+  // Guided setup shown when no runtime is detected, and the model cards.
+  "localai.setup.lead":
+    "Set it up in a few steps — it's free, runs entirely on your device, and stays optional.",
+  "localai.step.install.title": "1. Install Ollama",
+  // Split around the <a>Ollama</a> link.
+  "localai.step.install.before": "Download and install ",
+  "localai.step.install.after": " — it's free and runs locally.",
+  "localai.step.start.title": "2. Start Ollama",
+  "localai.step.start.body":
+    "Open the Ollama app. On macOS it lives in your menu bar and usually starts on its own after installing.",
+  "localai.step.model.title": "3. Get a model",
+  "localai.step.model.body":
+    "Pick one below. Copy the command into your terminal, or — once Ollama is running — download it right here.",
+  "localai.nomodels.lead":
+    "Ollama is running. Add a model to enable optional, private assist.",
+  "localai.recommended.aria": "Recommended models",
+  "localai.addAnother": "Add another model",
+  "localai.card.tag": "Model tag for {model}",
+  "localai.card.copy": "Copy command",
+  "localai.card.copied": "Copied",
+  "localai.card.download": "Download",
+  "localai.card.downloading":
+    "Downloading… keep the app open (this can take several minutes)",
+  "localai.card.needsRunning": "Start Ollama to download from here.",
+
   "action.checkAgain": "Check again",
   "a11y.opensInNewTab": " (opens in new tab)",
   "a11y.skipToContent": "Skip to content",
@@ -313,7 +339,19 @@ const en = {
   "providers.saveModel": "Save model",
   "providers.announce.keyRemoved": "{provider} key removed.",
   "providers.announce.keySaved": "{provider} key saved.",
+  "providers.announce.keyVerified": "{provider} key saved and verified.",
+  "providers.announce.keySavedUnverified":
+    "{provider} key saved, but it couldn't be verified right now.",
   "providers.announce.modelSaved": "{provider} model saved.",
+  "providers.validateSave": "Validate & save",
+  "providers.help.summary": "How to get a key",
+  "providers.help.intro": "Get an API key from {provider}:",
+  "providers.help.step.account": "Sign in or create a {provider} account.",
+  // Split around the <a>API keys page</a> link.
+  "providers.help.step.create.before": "Open the ",
+  "providers.help.step.create.link": "API keys page",
+  "providers.help.step.create.after": " and create a new secret key.",
+  "providers.help.step.paste": "Paste it above, then choose Validate & save.",
 
   "packs.suggested.title": "Recommended for this trip",
   "packs.suggested.matchExact": "Matches your destination",
@@ -447,8 +485,7 @@ const en = {
   "draft.none": "No missing lodging dates were found in your imported text.",
   "draft.needDocs":
     "Import a booking first — there's no text for the AI to read yet.",
-  "draft.announce.drafted.one":
-    "Drafted {count} lodging suggestion to review.",
+  "draft.announce.drafted.one": "Drafted {count} lodging suggestion to review.",
   "draft.announce.drafted.other":
     "Drafted {count} lodging suggestions to review.",
   "draft.scope":

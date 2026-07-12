@@ -243,6 +243,25 @@ export interface LocalAiStatus {
   /** Installed models (may be empty even when available). */
   models: LocalAiModel[];
 }
+/** The outcome of an in-app model download (an Ollama pull). Carries no secrets. */
+export interface LocalModelPullResult {
+  /** True when the model finished downloading and is ready to use. */
+  ok: boolean;
+  /** A short, human-readable status — a confirmation or the reason it failed. */
+  message: string;
+}
+/**
+ * The verdict of a live check of a BYOK key against its provider.
+ * - "valid": the provider accepted the key.
+ * - "rejected": the provider actively rejected it (a bad or revoked key).
+ * - "unreachable": couldn't verify (offline/transient) — the key may still work.
+ */
+export type KeyValidationStatus = "valid" | "rejected" | "unreachable";
+/** The outcome of validating a provider key. Never carries the key itself. */
+export interface KeyValidation {
+  status: KeyValidationStatus;
+  message: string;
+}
 /**
  * A deterministic, redacted preview of the request Voyalier would send to a
  * provider — the consent step before any assist call. Built entirely on-device;
@@ -341,10 +360,7 @@ export interface PackSuggestion {
 }
 /** Where a field-value suggestion came from, so the UI can label it honestly. */
 export type SuggestionSource =
-  | "catalog"
-  | "pack_place"
-  | "confirmed_fact"
-  | "trip_history";
+  "catalog" | "pack_place" | "confirmed_fact" | "trip_history";
 /** One suggested value for a form field, from local data only. */
 export interface FieldSuggestion {
   value: string;
@@ -529,8 +545,10 @@ export interface AppGateway {
   unlockVault(passphrase: string): Promise<VaultStatus>;
   removeVaultPassphrase(passphrase: string): Promise<VaultStatus>;
   detectLocalAi(): Promise<LocalAiStatus>;
+  pullLocalModel(model: string): Promise<LocalModelPullResult>;
   listProviders(): Promise<ProviderConfig[]>;
   setProviderKey(input: SetProviderKeyInput): Promise<ProviderConfig>;
+  validateProviderKey(input: SetProviderKeyInput): Promise<KeyValidation>;
   clearProviderKey(provider: ProviderId): Promise<ProviderConfig>;
   setProviderModel(input: SetProviderModelInput): Promise<ProviderConfig>;
   previewAssist(
@@ -549,7 +567,9 @@ export interface AppGateway {
   listAssistActivity(tripId: string): Promise<AssistActivityEntry[]>;
   listPacks(): Promise<PackInfo[]>;
   suggestPacks(tripId: string): Promise<PackSuggestion[]>;
-  suggestFieldValues(input: SuggestFieldValuesInput): Promise<FieldSuggestion[]>;
+  suggestFieldValues(
+    input: SuggestFieldValuesInput,
+  ): Promise<FieldSuggestion[]>;
   downloadPack(tripId: string, packId: string): Promise<DownloadedPack>;
   listDownloadedPacks(tripId: string): Promise<DownloadedPack[]>;
   deleteDownloadedPack(tripId: string, packId: string): Promise<void>;

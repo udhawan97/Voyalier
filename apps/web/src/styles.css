@@ -1358,6 +1358,42 @@ h3 {
   font-size: 0.88rem;
 }
 
+.voy-providers__keyblock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.voy-providers__help {
+  font-size: 0.88rem;
+  color: var(--voy-ink-muted);
+}
+
+.voy-providers__help > summary {
+  cursor: pointer;
+  color: var(--voy-indigo);
+  width: fit-content;
+}
+
+.voy-providers__help-intro {
+  margin: 0.5rem 0 0.3rem;
+}
+
+.voy-providers__help-steps {
+  margin: 0;
+  padding-left: 1.3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  line-height: 1.5;
+}
+
+.voy-providers__help-steps a {
+  color: var(--voy-indigo);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
 .voy-providers__scope {
   margin: 1.1rem 0 0;
   color: var(--voy-silver);
@@ -2416,6 +2452,133 @@ h3 {
   color: var(--voy-silver);
   font-size: 0.8rem;
   line-height: 1.5;
+}
+
+.voy-localai__setup {
+  margin-top: 0.4rem;
+}
+
+.voy-localai__steps {
+  list-style: none;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.voy-localai__step-title {
+  font-weight: 640;
+  font-size: 0.92rem;
+}
+
+.voy-localai__steps .voy-localai__detail {
+  margin-top: 0.2rem;
+}
+
+.voy-localai__more {
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
+
+.voy-localai__more > summary {
+  cursor: pointer;
+  color: var(--voy-indigo);
+  width: fit-content;
+}
+
+/* Recommended-model cards (setup + add-a-model). */
+.voy-modelcards {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.8rem;
+}
+
+.voy-modelcard {
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-sm);
+  background: var(--voy-paper-raised);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.voy-modelcard__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.voy-modelcard__name {
+  font-weight: 640;
+}
+
+.voy-modelcard__size {
+  font-size: 0.78rem;
+  color: var(--voy-ink-muted);
+  font-family: var(--voy-font-mono);
+}
+
+.voy-modelcard__blurb {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--voy-ink-muted);
+  line-height: 1.5;
+}
+
+.voy-modelcard__tag {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-sm);
+  background: var(--voy-paper);
+  color: var(--voy-ink);
+  font-family: var(--voy-font-mono);
+  font-size: 0.82rem;
+}
+
+.voy-modelcard__tag:focus-visible {
+  outline: 2px solid var(--voy-focus);
+  outline-offset: 1px;
+}
+
+.voy-modelcard__cmd {
+  font-family: var(--voy-font-mono);
+  font-size: 0.8rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 0.35rem;
+  background: var(--voy-paper-sunken);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.voy-modelcard__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.voy-modelcard__note {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--voy-ink-muted);
+}
+
+.voy-modelcard__result {
+  margin: 0;
+  font-size: 0.84rem;
+}
+
+.voy-modelcard__result--ok {
+  color: var(--voy-success);
+}
+
+.voy-modelcard__result--err {
+  color: var(--voy-danger);
 }
 
 /* ===== Trip search ===================================================== */

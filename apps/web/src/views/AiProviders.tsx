@@ -1,11 +1,17 @@
 import { useState } from "react";
-import type { AppError, ProviderConfig } from "@voyalier/contracts";
+import type { AppError, ProviderConfig, ProviderId } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import { t } from "../app/i18n";
 import { Button } from "../components/Button";
 
 type Busy = null | "key" | "clear" | "model";
+
+/** Where each cloud provider mints an API key — shown in the "how to get a key" guide. */
+const KEY_HELP: Partial<Record<ProviderId, string>> = {
+  openai: "https://platform.openai.com/api-keys",
+  anthropic: "https://console.anthropic.com/settings/keys",
+};
 
 function statusLabel(config: ProviderConfig): string {
   if (!config.keyRequired) return t("providers.status.onDevice");
@@ -45,6 +51,46 @@ function ProviderRow({
     }
   }
 
+  /**
+   * Validate the pasted key against the provider, then store it only if it
+   * wasn't actively rejected. A rejection (bad/revoked key) blocks the save; an
+   * inconclusive check (offline) saves anyway with a "couldn't verify" note so a
+   * transient hiccup never traps a valid key. The key is cleared from the DOM the
+   * moment it's stored and is never rendered back.
+   */
+  async function saveKey() {
+    setError(null);
+    setBusy("key");
+    try {
+      const verdict = await gateway.validateProviderKey({
+        provider: config.id,
+        key: keyInput,
+      });
+      if (verdict.status === "rejected") {
+        setError(verdict.message);
+        return;
+      }
+      const updated = await gateway.setProviderKey({
+        provider: config.id,
+        key: keyInput,
+      });
+      setKeyInput("");
+      onChanged(updated);
+      announce(
+        verdict.status === "valid"
+          ? t("providers.announce.keyVerified", { provider: config.label })
+          : t("providers.announce.keySavedUnverified", {
+              provider: config.label,
+            }),
+      );
+    } catch (caught) {
+      setError((caught as AppError).message || t("providers.error"));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const help = KEY_HELP[config.id];
   const modelDirty =
     modelInput.trim().length > 0 && modelInput.trim() !== (config.model ?? "");
 
@@ -82,41 +128,56 @@ function ProviderRow({
             </Button>
           </div>
         ) : (
-          <div className="voy-providers__keyrow">
-            <label className="voy-sr-only" htmlFor={`key-${config.id}`}>
-              {t("providers.apiKey", { provider: config.label })}
-            </label>
-            <input
-              id={`key-${config.id}`}
-              className="voy-providers__input"
-              type="password"
-              autoComplete="off"
-              spellCheck={false}
-              placeholder={t("providers.apiKey.placeholder")}
-              value={keyInput}
-              onChange={(event) => setKeyInput(event.target.value)}
-            />
-            <Button
-              variant="secondary"
-              busy={busy === "key"}
-              disabled={keyInput.trim().length === 0}
-              onClick={() =>
-                run(
-                  "key",
-                  async () => {
-                    const updated = await gateway.setProviderKey({
-                      provider: config.id,
-                      key: keyInput,
-                    });
-                    setKeyInput(""); // never retain the key in the DOM
-                    return updated;
-                  },
-                  t("providers.announce.keySaved", { provider: config.label }),
-                )
-              }
-            >
-              {t("providers.saveKey")}
-            </Button>
+          <div className="voy-providers__keyblock">
+            <div className="voy-providers__keyrow">
+              <label className="voy-sr-only" htmlFor={`key-${config.id}`}>
+                {t("providers.apiKey", { provider: config.label })}
+              </label>
+              <input
+                id={`key-${config.id}`}
+                className="voy-providers__input"
+                type="password"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder={t("providers.apiKey.placeholder")}
+                value={keyInput}
+                onChange={(event) => setKeyInput(event.target.value)}
+              />
+              <Button
+                variant="secondary"
+                busy={busy === "key"}
+                disabled={keyInput.trim().length === 0}
+                onClick={saveKey}
+              >
+                {t("providers.validateSave")}
+              </Button>
+            </div>
+            {help ? (
+              <details className="voy-providers__help">
+                <summary>{t("providers.help.summary")}</summary>
+                <p className="voy-providers__help-intro">
+                  {t("providers.help.intro", { provider: config.label })}
+                </p>
+                <ol className="voy-providers__help-steps">
+                  <li>
+                    {t("providers.help.step.account", {
+                      provider: config.label,
+                    })}
+                  </li>
+                  <li>
+                    {t("providers.help.step.create.before")}
+                    <a href={help} target="_blank" rel="noreferrer noopener">
+                      {t("providers.help.step.create.link")}
+                      <span className="voy-sr-only">
+                        {t("a11y.opensInNewTab")}
+                      </span>
+                    </a>
+                    {t("providers.help.step.create.after")}
+                  </li>
+                  <li>{t("providers.help.step.paste")}</li>
+                </ol>
+              </details>
+            ) : null}
           </div>
         )
       ) : (

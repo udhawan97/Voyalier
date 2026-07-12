@@ -18,7 +18,9 @@ import type {
   HealthResponse,
   ImportDocumentInput,
   ImportResult,
+  KeyValidation,
   LocalAiStatus,
+  LocalModelPullResult,
   PackInfo,
   PackSuggestion,
   PersonaWeights,
@@ -112,10 +114,16 @@ export function createTauriGateway(
 
     detectLocalAi: () => call<LocalAiStatus>("detect_local_ai", {}),
 
+    pullLocalModel: (model: string) =>
+      call<LocalModelPullResult>("pull_local_model", { model }),
+
     listProviders: () => call<ProviderConfig[]>("list_providers", {}),
 
     setProviderKey: (input: SetProviderKeyInput) =>
       call<ProviderConfig>("set_provider_key", input),
+
+    validateProviderKey: (input: SetProviderKeyInput) =>
+      call<KeyValidation>("validate_provider_key", input),
 
     clearProviderKey: (provider: ProviderId) =>
       call<ProviderConfig>("clear_provider_key", { provider }),
