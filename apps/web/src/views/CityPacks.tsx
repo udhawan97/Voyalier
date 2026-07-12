@@ -13,6 +13,7 @@ import { plural, t, type MessageKey } from "../app/i18n";
 import { SectionTitle } from "../components/primitives";
 import { PackageIcon } from "../components/icons";
 import { Button } from "../components/Button";
+import { ConfirmButton } from "../components/ConfirmButton";
 
 const MATCH_REASON: Record<PackMatchKind, MessageKey> = {
   exact: "packs.suggested.matchExact",
@@ -131,13 +132,11 @@ export function CityPacks({
             {" · "}
             {t("packs.offline")}
           </span>
-          <Button
-            variant="ghost"
+          <ConfirmButton
+            label={t("packs.remove")}
             busy={busyId === pack.id}
-            onClick={() => remove(pack)}
-          >
-            {t("packs.remove")}
-          </Button>
+            onConfirm={() => remove(pack)}
+          />
         </div>
       );
     }

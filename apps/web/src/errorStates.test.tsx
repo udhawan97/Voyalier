@@ -133,9 +133,12 @@ describe("AppError rendered states", () => {
     const dialog = await screen.findByRole("dialog", {
       name: "Review suggestions",
     });
-    fireEvent.click(
-      within(dialog).getAllByRole("button", { name: "Dismiss" })[0],
-    );
+    // Dismiss is a two-step confirm: arm, then confirm.
+    const dismiss = within(dialog).getAllByRole("button", {
+      name: "Dismiss",
+    })[0];
+    fireEvent.click(dismiss);
+    fireEvent.click(dismiss);
     expect(
       await within(dialog).findByText("Already resolved"),
     ).toBeInTheDocument();
@@ -151,8 +154,11 @@ describe("AppError rendered states", () => {
     const factCard = (await screen.findByText("Flight FP18")).closest(
       "article",
     ) as HTMLElement;
-    // FP18 is a hand-entered (manual) fact, so the action is "Remove".
-    fireEvent.click(within(factCard).getByRole("button", { name: "Remove" }));
+    // FP18 is a hand-entered (manual) fact, so the action is a "Remove" that
+    // takes a two-step confirm (arm, then confirm).
+    const remove = within(factCard).getByRole("button", { name: "Remove" });
+    fireEvent.click(remove);
+    fireEvent.click(remove);
     expect(
       await screen.findByText("This fact is no longer here"),
     ).toBeInTheDocument();

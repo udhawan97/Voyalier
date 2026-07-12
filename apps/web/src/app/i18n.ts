@@ -99,6 +99,7 @@ const en = {
   "health.offline": "Offline",
   "action.retry": "Retry",
   "action.cancel": "Cancel",
+  "confirm.arm": "{label} — sure?",
 
   "deleteTrip.title": "Delete this trip?",
   "deleteTrip.description":
@@ -306,6 +307,14 @@ const en = {
   "import.format.email": "Email",
   "import.label": "Label (optional)",
   "import.label.placeholder": "Flight confirmation",
+  "import.file.label": "Add a file",
+  "import.file.button": "Choose a file",
+  "import.file.drop": "Drop a file here",
+  "import.file.hint":
+    "Drop a .eml, .html, or .txt file — or paste the content below. It's read on this device; nothing is uploaded.",
+  "import.file.tooLarge": "That file is over the 1,000,000 character limit.",
+  "import.file.unreadable": "That file couldn't be read. Try pasting instead.",
+  "import.file.loaded": "Loaded “{name}”. Review it below, then import.",
   "import.content": "Content",
   "import.content.placeholder": "Paste your confirmation here…",
   "import.content.placeholder.email":

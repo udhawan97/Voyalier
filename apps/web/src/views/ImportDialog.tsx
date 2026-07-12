@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type {
   AppError,
   CandidateFact,
@@ -6,7 +6,7 @@ import type {
   ImportResult,
 } from "@voyalier/contracts";
 
-import { useGateway } from "../app/context";
+import { useAnnounce, useGateway } from "../app/context";
 import { describeError } from "../app/format";
 import { plural, t } from "../app/i18n";
 import { Banner } from "../components/Banner";
@@ -16,6 +16,14 @@ import { Dialog } from "../components/Dialog";
 import { TextArea, TextField } from "../components/fields";
 
 const MAX_CHARS = 1_000_000;
+
+/** Map a filename extension to the import format it most likely is. */
+function kindForFilename(name: string): DocumentKind {
+  const lower = name.toLowerCase();
+  if (lower.endsWith(".eml")) return "email";
+  if (lower.endsWith(".html") || lower.endsWith(".htm")) return "html";
+  return "pasted_text";
+}
 
 export function ImportDialog({
   tripId,
@@ -29,6 +37,7 @@ export function ImportDialog({
   onReview: (candidates: CandidateFact[]) => void;
 }) {
   const gateway = useGateway();
+  const announce = useAnnounce();
   const [kind, setKind] = useState<DocumentKind>("pasted_text");
   const [label, setLabel] = useState("");
   const [content, setContent] = useState("");
@@ -37,9 +46,42 @@ export function ImportDialog({
   const [duplicateId, setDuplicateId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const charCount = [...content].length; // code points, matching the contract
   const over = charCount > MAX_CHARS;
+
+  // Read a local file's text on-device (no upload) and prime the form: infer the
+  // format from the extension, default the label to the filename, and drop the
+  // content into the same textarea the user could paste into.
+  async function loadFile(file: File) {
+    setError(null);
+    setFieldError(null);
+    setDuplicateId(null);
+    let text: string;
+    try {
+      text = await file.text();
+    } catch {
+      setFieldError(t("import.file.unreadable"));
+      return;
+    }
+    if ([...text].length > MAX_CHARS) {
+      setFieldError(t("import.file.tooLarge"));
+      return;
+    }
+    setContent(text);
+    setKind(kindForFilename(file.name));
+    if (!label.trim()) setLabel(file.name);
+    announce(t("import.file.loaded", { name: file.name }));
+  }
+
+  function onDrop(event: React.DragEvent) {
+    event.preventDefault();
+    setDragging(false);
+    const file = event.dataTransfer.files[0];
+    if (file) void loadFile(file);
+  }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -155,6 +197,34 @@ export function ImportDialog({
             {t("import.duplicate.body", { doc: "" })}
           </Banner>
         ) : null}
+        <div
+          className={`voy-dropzone${dragging ? " is-dragging" : ""}`}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setDragging(true);
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={onDrop}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".eml,.html,.htm,.txt,text/plain,text/html,message/rfc822"
+            className="voy-sr-only"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void loadFile(file);
+              event.target.value = ""; // allow re-selecting the same file
+            }}
+          />
+          <p className="voy-dropzone__hint">{t("import.file.hint")}</p>
+          <Button
+            variant="secondary"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {t("import.file.button")}
+          </Button>
+        </div>
         <div className="voy-field">
           <span className="voy-field__label">{t("import.format")}</span>
           <ChoiceGroup
