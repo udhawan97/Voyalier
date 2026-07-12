@@ -66,9 +66,10 @@ dependency.
 
 ### Imported confirmations
 
-1. Voyalier validates and hashes pasted text, HTML, or a raw confirmation
-   email (`.eml`) — email is extracted to its best body first and never
-   itself stored — then stores the raw body only in local SQLite.
+1. Voyalier validates and hashes text, HTML, or a raw confirmation email
+   (`.eml`) supplied by paste, file picker, or drag-and-drop. Email is extracted
+   to its best body first and never itself stored; the selected body stays only
+   in local SQLite.
 2. Deterministic parsers create candidate facts with a parser run, method,
    source spans, excerpts, and warnings.
 3. The traveler confirms/corrects, rejects, or leaves each candidate pending.
@@ -154,7 +155,9 @@ aggregation, background scraping, or silent document upload.
 
 - Browser development uses a fixed loopback port; a per-launch token and random
   port remain defense-in-depth work if browser mode becomes distributable.
-- Signed/notarized installers and update provenance are still public-beta work.
+- OS-signed and notarized installers still depend on paid platform certificates.
+  The separate minisign-verified updater, checksums, and build provenance have
+  shipped, but the current source-only release has no packaged assets yet.
 - The interactive map currently uses consent-gated OpenFreeMap tiles; PMTiles
   remain the planned offline map path.
 - Voyalier shows sources and uncertainty but does not claim legal, medical,

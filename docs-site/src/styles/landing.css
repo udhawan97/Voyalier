@@ -186,9 +186,11 @@ h2 em {
 .hero {
   position: relative;
   display: grid;
-  place-items: center;
+  grid-template-columns: minmax(0, 0.9fr) minmax(32rem, 1.1fr);
+  align-items: center;
+  gap: clamp(2rem, 5vw, 5rem);
   min-height: 100svh;
-  padding: 8rem 1.5rem 6rem;
+  padding: 8rem max(1.5rem, calc((100vw - 1320px) / 2)) 6rem;
   overflow: hidden;
   background: radial-gradient(
     circle at 72% 45%,
@@ -199,8 +201,7 @@ h2 em {
 .hero-inner {
   position: relative;
   z-index: 2;
-  width: min(1260px, 100%);
-  padding-right: min(38vw, 31rem);
+  min-width: 0;
 }
 .hero-lede {
   max-width: 42rem;
@@ -231,79 +232,67 @@ h2 em {
   border-radius: 50%;
   background: var(--shu);
 }
-.fold-stage {
-  position: absolute;
-  right: max(3vw, 1rem);
-  top: 50%;
-  width: min(42vw, 39rem);
-  aspect-ratio: 1;
-  overflow: hidden;
-  border-radius: 50%;
-  isolation: isolate;
-  contain: layout paint;
-  transform: translateY(-48%);
-}
-.fold-stage > svg {
-  position: absolute;
-  z-index: 3;
-  inset: 26%;
-  width: 48%;
-  filter: drop-shadow(0 26px 42px rgb(26 25 23/0.18));
-  animation: mark-breathe 7s var(--ease) infinite;
-}
-.fold-stage .dot {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: waypoint-breathe 4.8s var(--ease) infinite;
-}
-.orbit {
-  position: absolute;
-  z-index: 1;
-  inset: 7%;
-  border: 1px solid rgb(70 83 107/0.14);
-  border-radius: 50%;
-}
-.orbit-one::before {
-  position: absolute;
-  inset: -2px;
-  border: 1px solid transparent;
-  border-top-color: rgb(70 83 107/0.2);
-  border-radius: inherit;
-  content: "";
-  animation: orbit-spin 24s linear infinite;
-}
-.orbit-two {
-  inset: 17%;
-  border-color: rgb(195 78 51/0.13);
-  animation: orbit-spin 18s linear infinite;
-}
-.orbit-two::after {
-  position: absolute;
-  top: -4px;
-  left: 50%;
-  width: 8px;
-  height: 8px;
-  border: 2px solid var(--washi);
-  border-radius: 50%;
-  background: var(--shu);
-  box-shadow:
-    0 0 0 5px rgb(195 78 51/0.1),
-    0 8px 18px rgb(195 78 51/0.24);
-  content: "";
-  transform: translateX(-50%);
-}
-.mark-medallion {
-  position: absolute;
+.hero-product {
+  position: relative;
   z-index: 2;
-  inset: 22%;
-  border: 1px solid rgb(26 25 23/0.07);
+  min-width: 0;
+  margin: 0;
+  transform: perspective(1400px) rotateY(-4deg) rotateX(1deg);
+  transform-origin: center right;
+}
+.product-window {
+  overflow: hidden;
+  border: 1px solid rgb(26 25 23/0.16);
+  border-radius: 22px;
+  background: var(--deep);
+  box-shadow: 0 42px 100px rgb(26 25 23/0.25);
+}
+.product-window img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.window-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.38rem;
+  min-height: 2.45rem;
+  padding: 0 0.9rem;
+  border-bottom: 1px solid rgb(242 237 225/0.1);
+  color: rgb(242 237 225/0.55);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.window-bar span {
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 42% 35%, rgb(255 255 255/0.76), transparent 42%),
-    rgb(250 247 239/0.58);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255/0.8),
-    0 28px 70px rgb(26 25 23/0.1);
+  background: rgb(242 237 225/0.22);
+}
+.window-bar span:first-child {
+  background: var(--shu);
+}
+.window-bar strong {
+  margin-left: auto;
+  font-weight: 500;
+}
+.hero-product figcaption {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  margin-top: 0.75rem;
+  color: var(--muted);
+  font-size: 0.67rem;
+}
+.hero-product figcaption span {
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgb(250 247 239/0.66);
+}
+.hero-product figcaption strong {
+  color: var(--shu);
 }
 .hero-glow {
   position: absolute;
@@ -356,6 +345,76 @@ h2 em {
   gap: 1px;
   margin-top: clamp(4rem, 8vw, 7rem);
   background: var(--line);
+}
+.product {
+  min-height: 100svh;
+  padding: clamp(7rem, 10vw, 10rem) max(1.5rem, calc((100vw - 1320px) / 2));
+  background: #e9e4d8;
+}
+.capability-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  margin-top: clamp(3.5rem, 7vw, 6rem);
+  background: rgb(26 25 23/0.16);
+}
+.capability {
+  min-height: 13rem;
+  padding: 1.6rem;
+  background: #e9e4d8;
+}
+.capability > span {
+  color: var(--shu);
+  font-family: var(--serif);
+  font-size: 0.72rem;
+}
+.capability h3 {
+  margin: 2.8rem 0 0.65rem;
+  font-family: var(--serif);
+  font-size: 1.35rem;
+  font-weight: 500;
+}
+.capability p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.65;
+}
+.product-gallery {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 1.25rem;
+  margin-top: clamp(3rem, 6vw, 5rem);
+}
+.product-shot {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid rgb(26 25 23/0.14);
+  border-radius: 24px;
+  background: var(--deep);
+  box-shadow: 0 28px 70px rgb(26 25 23/0.15);
+}
+.product-shot img {
+  display: block;
+  width: 100%;
+  height: 25rem;
+  object-fit: cover;
+  object-position: top left;
+}
+.product-shot:not(.product-shot-wide) img {
+  object-position: 50% 8%;
+}
+.product-shot .frame-bar {
+  border-color: rgb(242 237 225/0.12);
+  color: rgb(242 237 225/0.62);
+}
+.product-shot figcaption {
+  min-height: 4.8rem;
+  padding: 1.15rem 1.35rem;
+  color: rgb(242 237 225/0.64);
+  font-size: 0.78rem;
+  line-height: 1.55;
 }
 .principle {
   position: relative;
@@ -614,31 +673,6 @@ footer > div a {
     transform: translateY(-12px) rotate(1deg);
   }
 }
-@keyframes mark-breathe {
-  0%,
-  100% {
-    transform: translateY(0) scale(1);
-  }
-  50% {
-    transform: translateY(-7px) scale(1.012);
-  }
-}
-@keyframes waypoint-breathe {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.12);
-    opacity: 0.82;
-  }
-}
-@keyframes orbit-spin {
-  to {
-    transform: rotate(1turn);
-  }
-}
 @keyframes nudge {
   0%,
   100% {
@@ -671,11 +705,7 @@ footer > div a {
   .hero h1 {
     font-size: clamp(3.1rem, 15vw, 5.7rem);
   }
-  .fold-stage {
-    position: relative;
-    right: auto;
-    top: auto;
-    width: min(95vw, 32rem);
+  .hero-product {
     margin: 3rem auto -1rem;
     transform: none;
   }
@@ -683,6 +713,12 @@ footer > div a {
     display: none;
   }
   .promise-grid {
+    grid-template-columns: 1fr;
+  }
+  .capability-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .product-gallery {
     grid-template-columns: 1fr;
   }
   .principle {
@@ -756,6 +792,15 @@ footer > div a {
   }
   .story {
     padding-inline: 1rem;
+  }
+  .capability-grid {
+    grid-template-columns: 1fr;
+  }
+  .capability {
+    min-height: auto;
+  }
+  .product-shot img {
+    height: auto;
   }
   .diagram-frame img {
     width: 760px;

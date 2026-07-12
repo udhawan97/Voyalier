@@ -9,6 +9,17 @@ const promises = [
   ['Evidence, not vibes', 'Every candidate keeps its source, freshness, and confidence until you confirm it.'],
   ['Useful without AI', 'Rules, review, readiness, offline packs, and sharing work without a model or paid key.'],
 ]
+
+const capabilities = [
+  ['Plan', 'A deterministic Blueprint turns dates and places into a useful starting route.'],
+  ['Import', 'Paste, pick, or drop confirmation text, HTML, email, and .eml files.'],
+  ['Review', 'Confirm, fix, dismiss, or send a fact back to review—with its source still attached.'],
+  ['Check', 'See schedule conflicts, lodging gaps, and honest readiness without false clearance.'],
+  ['Prepare', 'Save dated advice, weather, open-data city packs, recommendations, and maps deliberately.'],
+  ['Travel', 'Use local search and Today for a quiet now-and-next view when the signal disappears.'],
+  ['Protect', 'Seal sensitive evidence with the OS keychain and an optional local passphrase.'],
+  ['Assist', 'Invite Ollama, OpenAI, or Anthropic only after an exact redacted-payload preview.'],
+]
 ---
 
 <!doctype html>
@@ -20,6 +31,14 @@ const promises = [
     <meta name="theme-color" content="#f3efe4" />
     <meta property="og:title" content="Voyalier — One trip, folded into focus" />
     <meta property="og:description" content="A local-first, evidence-backed trip workspace. Useful without AI. Deeper when invited." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://udhawan97.github.io/Voyalier/" />
+    <meta property="og:image" content="https://udhawan97.github.io/Voyalier/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Voyalier — One trip, folded into focus. Local-first, evidence-backed, AI optional." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://udhawan97.github.io/Voyalier/og.png" />
     <link rel="icon" href={`${base}/favicon.svg`} type="image/svg+xml" />
     <title>Voyalier — One trip, folded into focus</title>
   </head>
@@ -33,6 +52,7 @@ const promises = [
           <span>Voyalier</span>
         </a>
         <div class="nav-links">
+          <a href="#product">Product</a>
           <a href="#journey">Journey</a>
           <a href="#trust">Trust</a>
           <a href="#architecture">Architecture</a>
@@ -56,12 +76,14 @@ const promises = [
             <span><i></i> Runs locally</span><span><i></i> Open source</span><span><i></i> AI is optional</span>
           </div>
         </div>
-        <div class="fold-stage" aria-hidden="true">
-          <span class="orbit orbit-one"></span><span class="orbit orbit-two"></span>
-          <span class="mark-medallion"></span>
-          <svg viewBox="0 0 96 96"><polygon class="ink" points="22,18 38,18 58,80 42,80"></polygon><polygon class="fold" points="42,80 58,80 73.5,32 57.5,32"></polygon><circle class="dot" cx="69" cy="21" r="5"></circle></svg>
-        </div>
-        <a class="scroll-hint" href="#journey"><span>See the journey</span><i aria-hidden="true"></i></a>
+        <figure class="hero-product reveal">
+          <div class="product-window">
+            <div class="window-bar"><span></span><span></span><span></span><strong>Kyoto · ready on this device</strong></div>
+            <img src={`${base}/assets/screenshots/voyalier-trip-workspace.jpg`} width="1440" height="900" alt="Voyalier trip workspace showing a Kyoto journey, Today summary, pending evidence review, and the deterministic Blueprint." decoding="async" fetchpriority="high" />
+          </div>
+          <figcaption><span><strong>2</strong> confirmed facts</span><span><strong>3</strong> suggestions to review</span><span><strong>0</strong> silent uploads</span></figcaption>
+        </figure>
+        <a class="scroll-hint" href="#product"><span>See the product</span><i aria-hidden="true"></i></a>
       </section>
 
       <section class="promise snap" aria-labelledby="promise-title">
@@ -76,6 +98,33 @@ const promises = [
               <span class="number">0{index + 1}</span><h3>{title}</h3><p>{body}</p>
             </article>
           ))}
+        </div>
+      </section>
+
+      <section class="product snap" id="product" aria-labelledby="product-title">
+        <div class="section-intro reveal">
+          <p class="eyebrow">The working product · v0.4.1</p>
+          <h2 id="product-title">The whole trip loop.<br />Visible in one scan.</h2>
+          <p>For a traveler, Voyalier is a calmer place to keep the trip. For a developer, every feature below crosses the same versioned contract and keeps its trust boundary explicit.</p>
+        </div>
+        <div class="capability-grid">
+          {capabilities.map(([title, body], index) => (
+            <article class="capability reveal" style={`--delay:${index % 4}`}>
+              <span>0{index + 1}</span><h3>{title}</h3><p>{body}</p>
+            </article>
+          ))}
+        </div>
+        <div class="product-gallery">
+          <figure class="product-shot product-shot-wide reveal">
+            <div class="frame-bar"><span>Your trips</span><span>Local workspace</span></div>
+            <img src={`${base}/assets/screenshots/voyalier-trips.jpg`} width="1440" height="900" loading="lazy" decoding="async" alt="Voyalier trip list with active, draft, and archived journeys plus local update and encryption controls." />
+            <figcaption>Trips stay simple at the surface: status, dates, confirmed facts, and anything still waiting for you.</figcaption>
+          </figure>
+          <figure class="product-shot reveal">
+            <div class="frame-bar"><span>Evidence review</span><span>Nothing saved yet</span></div>
+            <img src={`${base}/assets/screenshots/voyalier-evidence-review.jpg`} width="1440" height="900" loading="lazy" decoding="async" alt="Voyalier review dialog comparing a suggested flight with a quoted source excerpt before confirm, edit, or dismissal." />
+            <figcaption>The important interaction is not extraction. It is the review gate between a suggestion and a fact.</figcaption>
+          </figure>
         </div>
       </section>
 

@@ -44,8 +44,8 @@
     <circle cx="96" cy="334" r="17" fill="#46536b"/>
     <text x="96" y="340" class="sans" font-size="14" font-weight="700" text-anchor="middle" fill="#fff">1</text>
     <text x="124" y="341" class="sans card-title">Bring the details</text>
-    <text x="92" y="382" class="sans copy">Paste reservation text or</text>
-    <text x="92" y="406" class="sans copy">structured HTML.</text>
+    <text x="92" y="382" class="sans copy">Paste, pick, or drop text, HTML,</text>
+    <text x="92" y="406" class="sans copy">email, or a saved .eml file.</text>
     <rect x="92" y="432" width="214" height="50" rx="12" fill="#ebe6d7"/>
     <text x="106" y="454" class="sans small">Raw content stays local.</text>
     <text x="106" y="474" class="sans tech">hash · label · importedAt</text>
@@ -143,7 +143,7 @@
       <text x="914" y="924">→</text>
       <text x="962" y="924" font-weight="700">Reply stays labeled</text>
       <text x="1184" y="924">→</text>
-      <text x="1232" y="924" font-weight="700">Activity logged</text>
+      <text x="1232" y="924" font-weight="700">Metadata logged</text>
     </g>
   </g>
 

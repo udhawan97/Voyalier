@@ -3,11 +3,27 @@ title: Introduction
 description: What Voyalier is building and what it will not pretend to be.
 ---
 
-Voyalier is a local-first travel intelligence workspace. It turns trip constraints, source-backed research, and messy confirmations into a living Smart Blueprint.
+Voyalier is a local-first, evidence-backed trip workspace. It turns scattered
+confirmations, research, trip constraints, and half-made plans into a reviewed
+Blueprint, an honest readiness check, and a redaction-first brief.
+
+![The Voyalier Kyoto trip workspace with Today, pending suggestions, and a deterministic Blueprint.](/Voyalier/assets/screenshots/voyalier-trip-workspace.jpg)
 
 ![How the Voyalier trip workspace works: a trip moves from setup through gathering sourced evidence, reviewing extracted facts, deterministic planning, offline preparation, travel-day use of the Today view, optional consented AI help, and redacted sharing.](/Voyalier/assets/voyalier-trip-workspace-flow.svg)
 
-Phases 1–2 are functional as a running app: deterministic planning, consent-gated official advice and weather, trip search, offline city packs, and BYOK AI assist (on-device Ollama plus OpenAI/Anthropic). Phase 3 additions already include persona recommendations, an offline Today view, a consent-gated map, an encrypted vault, and confirmation import from paste, HTML, email/`.eml`, or a picked or dragged-in file. More recent additions layer on relaxed as-you-type in-trip search with copy-to-reuse, editing and unarchiving trips, a guided on-device AI setup with in-app model pulls, validated cloud keys, editable AI instructions, on-device lodging-date drafts, a fully localized UI, self-hosted fonts (no web-font CDN), and an in-app updater (Rust-wrapped, minisign-verified, with checksums and build provenance). There is no OS-signed installer yet — run it from source; that packaging and notarization step remains Phase 3 release work and is independent of the updater above.
+The current v0.4.1 source-only beta covers the full local trip loop: create and
+edit a trip; import confirmation text, HTML, email, or a local file; review every
+suggestion; check conflicts and readiness; save consented advice, weather, city
+packs, recommendations, and maps; search locally; travel with Today; protect
+sensitive evidence in the encrypted vault; and share a redacted brief.
+
+Optional Ollama, OpenAI, and Anthropic assistance sits beside that loop. It adds
+guided setup, validated keys, editable instructions, lodging-date drafts, and an
+exact outbound-payload preview—but never replaces deterministic rules or the
+traveler's review. The in-app updater is minisign-verified and carries checksums
+and build provenance. OS-signed installers still require paid platform
+certificates, so this release is run from source and currently has no packaged
+assets.
 
 ## Product promise
 

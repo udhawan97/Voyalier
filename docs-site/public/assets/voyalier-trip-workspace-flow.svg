@@ -53,8 +53,8 @@
     <circle cx="566" cy="286" r="19" fill="#c34e33"/>
     <text x="566" y="292" class="sans step" text-anchor="middle">02</text>
     <text x="598" y="293" class="sans card-title">Gather, then review</text>
-    <text x="560" y="340" class="sans copy">Paste confirmations and compare every</text>
-    <text x="560" y="366" class="sans copy">suggested detail with its source.</text>
+    <text x="560" y="340" class="sans copy">Paste, pick, or drop confirmations, then</text>
+    <text x="560" y="366" class="sans copy">compare every suggestion with its source.</text>
     <rect x="560" y="398" width="320" height="44" rx="13" fill="#c34e33"/>
     <text x="720" y="425" class="sans" font-size="15" font-weight="700" text-anchor="middle" fill="#fff">CONFIRM · FIX · REJECT</text>
     <text x="560" y="470" class="sans tech">candidate → confirmed · review gate</text>
@@ -123,8 +123,8 @@
   <g>
     <rect x="530" y="850" width="380" height="90" rx="18" fill="#211f1c" stroke="#d97a5f" stroke-width="1.7" stroke-dasharray="8 6"/>
     <text x="558" y="882" class="sans" font-size="14" font-weight="700" letter-spacing="1.5" fill="#d97a5f">OPTIONAL AI SIDECAR</text>
-    <text x="558" y="911" class="sans" font-size="16" fill="#f2ede1">Preview → consent → labeled reply</text>
-    <text x="558" y="926" class="sans" font-size="14" fill="#a9a69c">activity log · Ollama local · cloud BYOK</text>
+    <text x="558" y="911" class="sans" font-size="16" fill="#f2ede1">Set up → preview → consent → labeled reply</text>
+    <text x="558" y="926" class="sans" font-size="14" fill="#a9a69c">Ollama setup · cloud BYOK · editable instructions · activity log</text>
   </g>
 
   <g>

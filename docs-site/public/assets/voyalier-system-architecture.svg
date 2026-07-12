@@ -37,7 +37,7 @@
     <rect x="260" y="180" width="920" height="118" rx="22" fill="#faf7ef" stroke="#46536b" stroke-width="2"/>
     <rect x="260" y="180" width="12" height="118" rx="6" fill="#c34e33"/>
     <text x="302" y="212" class="sans label">THE TRIP WORKSPACE YOU SEE</text>
-    <text x="302" y="246" class="sans card-title">Trips · review · readiness · Today · packs · maps · sharing</text>
+    <text x="302" y="246" class="sans card-title">Trips · import · review · readiness · Today · search · packs · maps · sharing</text>
     <text x="302" y="275" class="sans tech">React + TypeScript + Vite  ·  one versioned AppGateway contract</text>
   </g>
 
@@ -85,7 +85,7 @@
     <rect x="80" y="750" width="650" height="122" rx="20" fill="#faf7ef" stroke="#46536b" stroke-width="1.7"/>
     <text x="108" y="782" class="sans label">DETERMINISTIC CORE</text>
     <text x="108" y="817" class="sans card-title">Rules that do not improvise</text>
-    <text x="108" y="838" class="sans copy">Validation · parsers · conflicts · readiness · search · Today · redaction</text>
+    <text x="108" y="838" class="sans copy">Validation · parsers · conflicts · readiness · ranking · search · Today · redaction</text>
     <text x="108" y="861" class="sans tech">crates/voyalier-core · no Tauri, Axum, database, or network dependency</text>
   </g>
   <g>

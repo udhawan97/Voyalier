@@ -23,6 +23,7 @@
   <img src="https://img.shields.io/badge/desktop-Tauri_2-46536b?style=flat-square&logo=tauri&logoColor=white" alt="Tauri 2 desktop">
   <img src="https://img.shields.io/badge/privacy-local--first-6f7a64?style=flat-square" alt="Local-first privacy">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-46536b?style=flat-square" alt="Apache 2.0 license"></a>
+  <a href="https://github.com/udhawan97/Voyalier/releases/tag/v0.4.1"><img src="https://img.shields.io/badge/release-v0.4.1-c34e33?style=flat-square" alt="Latest release v0.4.1"></a>
   <img src="https://img.shields.io/badge/status-source--only_beta-c34e33?style=flat-square" alt="Source-only beta">
 </p>
 
@@ -40,6 +41,21 @@
 
 > [!NOTE]
 > Voyalier is a **source-only beta**, built in the open. The working app already covers trip creation and editing, deterministic planning, confirmation review (paste, HTML, an `.eml` file, or drag-and-drop), conflicts, readiness, official advice, weather, offline city packs, persona recommendations, in-trip search, Today, maps, encrypted local storage, redacted sharing, a fully localized UI (with its own self-hosted type identity, no web-font CDN), an in-app updater, and optional Ollama/OpenAI/Anthropic assistance with a guided on-device setup, validated cloud keys, and editable instructions. Signed and notarized installers are still waiting for the traditional travel document of software distribution: paid certificates.
+
+<p align="center">
+  <img src="docs-site/public/assets/screenshots/voyalier-trip-workspace.jpg" alt="Voyalier trip workspace showing the Kyoto journey, Today summary, pending evidence review, and deterministic Blueprint" width="1100">
+</p>
+
+## At a glance
+
+| For a traveler                                                                       | For a developer                                                                                      |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| One calm workspace for confirmations, plans, checks, offline context, and travel day | One versioned gateway across React, Axum, and direct Tauri IPC                                       |
+| Suggestions stay reviewable until you confirm, edit, or dismiss them                 | Candidate facts, confirmed facts, retrieved snapshots, and model replies stay separate               |
+| Advice, weather, maps, packs, and cloud AI connect only after an explicit action     | Framework-independent Rust rules remain authoritative; connected providers are replaceable seams     |
+| Sensitive evidence stays local, keychain-backed, and optionally passphrase-wrapped   | Fixtures and tests cover parsing, ranking, readiness, redaction, transport parity, and accessibility |
+
+**Casual read:** [see what Voyalier does](#what-it-does) · **Build it:** [run from source](#run-it) · **Audit it:** [under the hood](#under-the-hood)
 
 ## The route
 
@@ -85,26 +101,30 @@ The useful parts work without a paid AI key. The connected parts ask first.
 
 <br>
 
-| Area                | What Voyalier does                                                                                                                                                          |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Trips**           | Create, edit, archive, unarchive, delete, and persist trips with a deterministic Blueprint; an accessible combobox suggests places from your history and the pack catalog     |
-| **Confirmations**   | Import pasted text, HTML, or a raw confirmation email (`.eml`) — by paste, file picker, or drag-and-drop; detect JSON-LD and plain-text flight/lodging facts; retain parser runs, field spans, excerpts, and warnings |
-| **Review**          | Keep extracted candidates pending until the traveler confirms or corrects them; reject candidates or undo confirmed facts back to review                                    |
-| **Itinerary**       | Order confirmed flights and stays; flag flight overlaps, lodging overlaps, and uncovered-night gaps without blocking the traveler                                           |
-| **Readiness**       | Roll up logistics checks and surface link-only official entry/health resources without making authoritative claims                                                          |
-| **Official advice** | Fetch a consented, dated GOV.UK FCDO snapshot with attribution, source URL, update metadata, and staleness handling                                                         |
-| **Weather**         | Fetch a consented Open-Meteo outlook with resolved place, trip-window coverage, retrieval time, and honest forecast-horizon limits                                          |
-| **Offline packs**   | Browse a validated catalog and download per-trip Overture + Wikivoyage packs from GitHub Releases with separate layer licenses                                              |
-| **Recommendations** | Rank downloaded places with transparent persona weights, scores, reasons, provenance, and a cross-dimension wildcard                                                        |
-| **Map**             | Lazy-load a consent-gated MapLibre/OpenFreeMap view; request no tiles before the traveler selects **Show map**                                                              |
-| **Search**          | Scan stored source documents and confirmed facts locally, returning snippets and provenance with deterministic ranking                                                      |
-| **Today**           | Build an offline upcoming/active/completed view with today’s anchors and the next known event                                                                               |
+| Area                | What Voyalier does                                                                                                                                                                                                                                                                                 |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Trips**           | Create, edit, archive, unarchive, delete, and persist trips with a deterministic Blueprint; an accessible combobox suggests places from your history and the pack catalog                                                                                                                          |
+| **Confirmations**   | Import pasted text, HTML, or a raw confirmation email (`.eml`) — by paste, file picker, or drag-and-drop; detect JSON-LD and plain-text flight/lodging facts; retain parser runs, field spans, excerpts, and warnings                                                                              |
+| **Review**          | Keep extracted candidates pending until the traveler confirms or corrects them; reject candidates or undo confirmed facts back to review                                                                                                                                                           |
+| **Itinerary**       | Order confirmed flights and stays; flag flight overlaps, lodging overlaps, and uncovered-night gaps without blocking the traveler                                                                                                                                                                  |
+| **Readiness**       | Roll up logistics checks and surface link-only official entry/health resources without making authoritative claims                                                                                                                                                                                 |
+| **Official advice** | Fetch a consented, dated GOV.UK FCDO snapshot with attribution, source URL, update metadata, and staleness handling                                                                                                                                                                                |
+| **Weather**         | Fetch a consented Open-Meteo outlook with resolved place, trip-window coverage, retrieval time, and honest forecast-horizon limits                                                                                                                                                                 |
+| **Offline packs**   | Browse a validated catalog and download per-trip Overture + Wikivoyage packs from GitHub Releases with separate layer licenses                                                                                                                                                                     |
+| **Recommendations** | Rank downloaded places with transparent persona weights, scores, reasons, provenance, and a cross-dimension wildcard                                                                                                                                                                               |
+| **Map**             | Lazy-load a consent-gated MapLibre/OpenFreeMap view; request no tiles before the traveler selects **Show map**                                                                                                                                                                                     |
+| **Search**          | Scan stored source documents and confirmed facts locally, returning snippets and provenance with deterministic ranking                                                                                                                                                                             |
+| **Today**           | Build an offline upcoming/active/completed view with today’s anchors and the next known event                                                                                                                                                                                                      |
 | **AI assist**       | Guided on-device Ollama setup (install → start → in-app model pull); BYOK OpenAI/Anthropic with **Validate & save**; editable, resettable system instructions; on-device lodging-date drafts you review; preview the exact redacted request; run only after consent; record metadata-only activity |
-| **Vault**           | Seal source text, pending evidence, and sensitive fact payloads with an OS-keychain data key; optionally wrap it with a local Argon2id passphrase                           |
-| **Share**           | Generate a redaction-first printable brief from confirmed facts; names and confirmation codes never enter the output model                                                  |
-| **Accessibility**   | Support keyboard flows, focus containment, reduced motion, semantic labeling, contrast review, and automated axe-core gates                                                 |
+| **Vault**           | Seal source text, pending evidence, and sensitive fact payloads with an OS-keychain data key; optionally wrap it with a local Argon2id passphrase                                                                                                                                                  |
+| **Share**           | Generate a redaction-first printable brief from confirmed facts; names and confirmation codes never enter the output model                                                                                                                                                                         |
+| **Accessibility**   | Support keyboard flows, focus containment, reduced motion, semantic labeling, contrast review, and automated axe-core gates                                                                                                                                                                        |
 
 </details>
+
+<p align="center">
+  <img src="docs-site/public/assets/screenshots/voyalier-evidence-review.jpg" alt="Voyalier evidence review dialog comparing a suggested flight with a quoted source excerpt before it can become a confirmed fact" width="1100">
+</p>
 
 ## Run it
 
