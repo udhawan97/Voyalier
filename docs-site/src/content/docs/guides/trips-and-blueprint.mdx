@@ -7,6 +7,17 @@ A **trip** is the container for everything about one journey. Create one from th
 home screen with an origin, destination, and dates; it is stored locally in
 SQLite on your device.
 
+## Editing and archiving a trip
+
+Plans move. **Edit trip** opens a dialog to fix a trip's destination, dates, or
+name — your imported documents, confirmed facts, and plans all stay exactly where
+they were.
+
+When a trip is over, **Archive** tucks it out of the way without deleting
+anything, and **Unarchive** brings it straight back. Archived trips are hidden by
+default; a **Show archived / Hide archived** toggle on the home screen reveals
+them so you can reopen one whenever you need it.
+
 ## The Blueprint
 
 Inside a trip, the **Blueprint** is a deterministic view of your confirmed
@@ -32,6 +43,10 @@ You can add a flight or stay two ways:
 - **By importing a confirmation** and reviewing what Voyalier extracts — see
   [Importing confirmations](/Voyalier/guides/importing-confirmations/).
 
+Imports accept a pasted confirmation or a local `.eml`/`.html`/`.txt` file you
+pick or drag and drop; either way it is read on your device and nothing is
+uploaded.
+
 ## The "Today" summary
 
 At the top of an active trip, an offline **Today** summary shows where the trip
@@ -39,6 +54,15 @@ stands right now: its phase (upcoming, active, or completed, with day counts),
 today's departures, arrivals, and check-ins, and the next anchor coming up. It is
 computed from your confirmed facts against the current date — no network, no
 model.
+
+## Find in this trip
+
+**Find in this trip** searches across your imported documents and confirmed plans
+as you type. It is relaxed on purpose: partial words work, and any word in your
+query can match — so "shuttle code" surfaces a result mentioning either. Matching
+terms are offered as **suggestion chips** you can tap to autofill the query, and
+every result has a **Copy** button to reuse its value (a confirmation code, a
+hotel name) without retyping. It is purely local — nothing leaves your device.
 
 ## Sharing a redacted brief
 

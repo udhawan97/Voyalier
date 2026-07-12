@@ -158,9 +158,7 @@ export function Combobox({
       if (items.length > 0) {
         suppressOpenRef.current = false;
         setOpen(true);
-        setActiveIndex((index) =>
-          index <= 0 ? items.length - 1 : index - 1,
-        );
+        setActiveIndex((index) => (index <= 0 ? items.length - 1 : index - 1));
       }
     } else if (event.key === "Home" && open) {
       event.preventDefault();

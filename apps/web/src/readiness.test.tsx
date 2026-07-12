@@ -21,7 +21,7 @@ describe("readiness", () => {
     });
 
     const readiness = await screen.findByRole("region", { name: "Readiness" });
-    expect(within(readiness).getByText("Worth a look")).toBeInTheDocument();
+    expect(within(readiness).getByText("Check soon")).toBeInTheDocument();
     expect(
       within(readiness).getByText(
         /Some nights in your trip have no lodging booked/,

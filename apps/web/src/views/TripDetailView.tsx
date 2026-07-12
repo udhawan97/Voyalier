@@ -23,6 +23,7 @@ import { plural, t, type MessageKey } from "../app/i18n";
 import { useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
+import { ConfirmButton } from "../components/ConfirmButton";
 import {
   AlertIcon,
   ArchiveIcon,
@@ -119,17 +120,24 @@ function FactCard({
         </p>
       ) : null}
       <div className="voy-fact__actions">
-        <Button
-          variant="ghost"
-          onClick={() => onUnconfirm(fact)}
-          busy={unconfirming}
-        >
-          {/* A manual fact has no candidate to return to review, so unconfirming
-              it is a removal — label and announce it honestly. */}
-          {fact.candidateId === null
-            ? t("detail.remove")
-            : t("detail.unconfirm")}
-        </Button>
+        {/* A manual fact has no candidate to return to review, so unconfirming
+            it destroys it — guard that behind a two-step confirm. Returning an
+            imported fact to review is reversible, so it stays a plain click. */}
+        {fact.candidateId === null ? (
+          <ConfirmButton
+            label={t("detail.remove")}
+            onConfirm={() => onUnconfirm(fact)}
+            busy={unconfirming}
+          />
+        ) : (
+          <Button
+            variant="ghost"
+            onClick={() => onUnconfirm(fact)}
+            busy={unconfirming}
+          >
+            {t("detail.unconfirm")}
+          </Button>
+        )}
       </div>
     </article>
   );
@@ -522,6 +530,11 @@ export function TripDetailView({
 
       <div className="voy-detail__blueprint">
         <h2 className="voy-detail__blueprint-title">{t("detail.blueprint")}</h2>
+        {confirmedFacts.length > 0 ? (
+          <p className="voy-detail__blueprint-sub">
+            {t("detail.blueprint.sub")}
+          </p>
+        ) : null}
         {confirmedFacts.length === 0 ? (
           <Empty
             title={t("detail.empty.title")}

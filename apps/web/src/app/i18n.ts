@@ -42,7 +42,8 @@ const en = {
   "vault.action.cancel": "Cancel",
   "vault.error.tooShort": "Use at least {min} characters.",
   "vault.error.mismatch": "The two passphrases don't match.",
-  "vault.error.generic": "That didn't work.",
+  "vault.error.generic":
+    "That didn't work. Check the passphrase and try again — nothing was changed.",
   "vault.announce.set": "Passphrase set.",
   "vault.announce.removed": "Passphrase removed.",
   "vault.unlock.title": "Your vault is locked",
@@ -52,9 +53,9 @@ const en = {
   "vault.unlock.action": "Unlock",
   "vault.unlock.error": "That passphrase didn't work.",
 
-  "error.transport.title": "Local core unreachable",
+  "error.transport.title": "Voyalier can't reach its engine",
   "error.transport.body":
-    "Voyalier can't reach the local core on this device right now. Your data is safe.",
+    "The part of Voyalier that runs on this device isn't responding right now. Your data is safe.",
   "error.storage.title": "Local storage is unavailable",
   "error.storage.body":
     "Voyalier couldn't read or write your local data. Nothing was changed.",
@@ -93,11 +94,12 @@ const en = {
   "error.unexpected.body": "An unexpected error occurred. Nothing was changed.",
 
   "topbar.home": "Voyalier — all trips",
-  "health.checking": "Checking local core",
-  "health.online": "Local core ready",
-  "health.offline": "Local core offline",
+  "health.checking": "Starting up…",
+  "health.online": "Ready",
+  "health.offline": "Offline",
   "action.retry": "Retry",
   "action.cancel": "Cancel",
+  "confirm.arm": "{label} — sure?",
 
   "deleteTrip.title": "Delete this trip?",
   "deleteTrip.description":
@@ -206,6 +208,8 @@ const en = {
   "today.empty.active": "Nothing scheduled today.",
   "today.empty.other": "No plans for today.",
   "today.next": "Next",
+  "today.error":
+    "Today couldn't load right now. The rest of your trip is fine.",
 
   "localai.title": "On-device AI",
   "localai.badge.available": "Available",
@@ -224,7 +228,7 @@ const en = {
   "localai.ollama": "Ollama",
   "localai.check": "Check for on-device AI",
   "localai.scope":
-    "Detection only — a local check on this device. When a model is installed, the AI features below (“Preview an AI request” and “Fill gaps with on-device AI”) can use it — always on this device, always opt-in.",
+    "Detection runs only on this device. Once a model is installed, the AI features below can use it — always on this device, always your choice.",
 
   // Guided setup shown when no runtime is detected, and the model cards.
   "localai.setup.lead":
@@ -275,9 +279,9 @@ const en = {
   "search.hit.document": "imported document",
   "search.hit.confirmed": "confirmed plan",
 
-  "addFact.title": "Add a fact",
+  "addFact.title": "Add a flight or stay",
   "addFact.description":
-    "Enter a flight or a stay by hand. Manual facts are yours and appear in the Blueprint right away.",
+    "Enter a flight or a stay by hand. Manual entries are yours and appear in the Blueprint right away.",
   "addFact.submit": "Add to Blueprint",
   "addFact.type": "Type",
   "addFact.typeChoice": "Fact type",
@@ -303,6 +307,14 @@ const en = {
   "import.format.email": "Email",
   "import.label": "Label (optional)",
   "import.label.placeholder": "Flight confirmation",
+  "import.file.label": "Add a file",
+  "import.file.button": "Choose a file",
+  "import.file.drop": "Drop a file here",
+  "import.file.hint":
+    "Drop a .eml, .html, or .txt file — or paste the content below. It's read on this device; nothing is uploaded.",
+  "import.file.tooLarge": "That file is over the 1,000,000 character limit.",
+  "import.file.unreadable": "That file couldn't be read. Try pasting instead.",
+  "import.file.loaded": "Loaded “{name}”. Review it below, then import.",
   "import.content": "Content",
   "import.content.placeholder": "Paste your confirmation here…",
   "import.content.placeholder.email":
@@ -349,7 +361,7 @@ const en = {
   "providers.status.onDevice": "On-device",
   "providers.status.keyStored": "Key stored",
   "providers.status.noKey": "No key",
-  "providers.error": "That didn't work — nothing changed.",
+  "providers.error": "Couldn't save that — nothing was changed.",
   "providers.stored": "API key stored in your keychain.",
   "providers.removeKey": "Remove key",
   "providers.apiKey": "{provider} API key",
@@ -377,7 +389,7 @@ const en = {
 
   "prompts.title": "Customize AI instructions",
   "prompts.intro":
-    "Advanced: change what Voyalier tells the AI. The date draft still only accepts dates no matter what you write. Loosening the assist instruction can make replies riskier — Voyalier still marks AI replies as not official.",
+    "Advanced: change what Voyalier tells the AI. The date draft still only accepts dates, whatever you write here. Loosening the assist instruction can make replies riskier — either way, Voyalier still marks AI replies as not official.",
   "prompts.kind.assist": "Assist & preview instruction",
   "prompts.kind.draft_lodging_dates": "Lodging-date draft instruction",
   "prompts.desc.assist":
@@ -388,7 +400,7 @@ const en = {
   "prompts.badge.default": "Default",
   "prompts.save": "Save instruction",
   "prompts.reset": "Reset to default",
-  "prompts.error": "That didn't work — nothing changed.",
+  "prompts.error": "Couldn't save that — nothing was changed.",
   "prompts.announce.saved": "{name} saved.",
   "prompts.announce.reset": "{name} reset to default.",
   "prompts.scope":
@@ -416,7 +428,7 @@ const en = {
 
   "packs.title": "Offline city data",
   "packs.intro":
-    "Download local place data and travel notes for a city to use offline. Downloading pulls a pack in from GitHub and stores it on this device for this trip — nothing about your trip is sent. Each pack pairs Overture places with a separate Wikivoyage notes layer, each under its own license.",
+    "Download a city's places and travel notes to use offline. The pack is pulled from GitHub and stored on this device for this trip — nothing about your trip is sent. Each pack pairs Overture places with a separate Wikivoyage notes layer, each under its own license.",
   "packs.browse": "Browse city packs",
   "packs.layers.aria": "{name} data layers",
   "packs.remove": "Remove",
@@ -470,9 +482,9 @@ const en = {
   "weather.fresh": "Recently fetched",
   "weather.rain": "{pct}% rain",
   "weather.coverage.none":
-    "Your trip starts beyond the ~16-day forecast horizon, so no days are available yet. Fetch again closer to departure.",
+    "Forecasts only reach about 16 days out, so your trip isn't covered yet. Fetch again closer to departure.",
   "weather.coverage.partial":
-    "The forecast horizon covers only the first part of your trip. Later days will appear as departure gets closer.",
+    "Forecasts only reach about 16 days out, so only the first part of your trip is covered. Later days will appear as departure gets closer.",
   "weather.attribution": "Weather data by Open-Meteo.com",
   "weather.retrieved": "Retrieved {stamp}",
   "weather.fetchAgain": "Fetch again",
@@ -498,8 +510,8 @@ const en = {
   "assist.route.local":
     "This request would run locally on this device via {provider}.",
   "assist.model": "Model: {model}",
-  "assist.grounded": "Grounded in {sources}",
-  "assist.noGrounding": "No confirmed plans to ground in yet",
+  "assist.grounded": "Based on {sources}",
+  "assist.noGrounding": "No confirmed plans to draw on yet",
   "assist.tokens": "~{tokens} tokens",
   "assist.systemInstruction": "System instruction",
   "assist.tripDetails": "Trip details it would include",
@@ -510,7 +522,7 @@ const en = {
     "This sends the request above to {provider} using your stored key. Add one under AI providers first if you haven’t.",
   "assist.reply": "Reply from {model}",
   "assist.disclaimer":
-    "AI-generated from your confirmed plans. Voyalier never treats this as authoritative — verify anything important (entry rules, health, safety) against an official source.",
+    "AI-generated from your confirmed plans. Voyalier never treats this as authoritative. Verify anything important — entry rules, health, safety — against an official source.",
   "assist.announce.finished": "Assist finished with {model}.",
   "assist.recentRuns": "Recent assist runs",
   "assist.log.aria": "Assist activity log",
@@ -573,7 +585,7 @@ const en = {
   "detail.unarchive": "Unarchive",
   "detail.announce.updated": "Trip updated.",
   "detail.announce.unarchived": "Trip unarchived.",
-  "detail.addFact": "Add a fact",
+  "detail.addFact": "Add flight or stay",
   "detail.shareBrief": "Share brief",
   "detail.archive": "Archive",
   "detail.delete": "Delete",
@@ -581,12 +593,13 @@ const en = {
     "Confirm or dismiss what Voyalier found in your documents.",
   "detail.nopending": "No suggestions waiting. Import a document to find more.",
   "detail.blueprint": "Blueprint",
+  "detail.blueprint.sub": "Your confirmed flights and stays, in order.",
   "detail.empty.title": "Your Blueprint is empty",
   "detail.importDocument": "Import a document",
   "detail.empty.body":
     "Confirmed flights and stays land here in itinerary order. Import a confirmation or add a fact by hand to begin.",
   "detail.edited": "Edited before confirming: {fields}",
-  "detail.unconfirm": "Unconfirm",
+  "detail.unconfirm": "Back to review",
   "detail.remove": "Remove",
   "detail.announce.archived": "Trip archived.",
   "detail.announce.unconfirmed": "{fact} moved back to review.",
@@ -595,10 +608,10 @@ const en = {
   "readiness.title": "Readiness",
   "readiness.checkYourself": "Check yourself",
   "readiness.scope":
-    "Plan completeness plus official starting points. Voyalier never asserts or clears entry, health, or safety requirements — sourced, dated readiness arrives in a later milestone.",
+    "This checks how complete your plan is and points you to official sources. Voyalier never asserts or clears entry, health, or safety rules — always confirm those with the official source.",
   "readiness.label.not_checked": "Not started",
   "readiness.label.clear": "On track",
-  "readiness.label.monitor": "Worth a look",
+  "readiness.label.monitor": "Check soon",
   "readiness.label.action_needed": "Needs attention",
   "readiness.label.critical": "Critical",
   "schedule.title": "Schedule check",
@@ -614,6 +627,10 @@ const en = {
   "map.scope": "Basemap © OpenFreeMap · map data © OpenStreetMap contributors.",
   "map.scope.empty":
     " Download a city pack and get recommendations to see places here.",
+  "map.error.load":
+    "The map couldn't start here. Everything else on your trip still works.",
+  "map.error.webgl":
+    "This device or browser can't show the map (no WebGL). Everything else on your trip still works.",
 
   "theme.label": "Color theme",
   "theme.light": "Light",
@@ -660,7 +677,7 @@ const en = {
     "This is a development build — in-app updates are disabled.",
   "updates.unsupported.title": "In-app updates aren't available here",
   "updates.unsupported.source":
-    "Running from source? Update with git pull, then make bootstrap.",
+    "Running from source? Update from the repository: git pull, then make bootstrap.",
   "updates.unsupported.download": "Or download the packaged desktop app.",
   "updates.pill.available": "Update available",
   "updates.pill.staged": "Restart to update",

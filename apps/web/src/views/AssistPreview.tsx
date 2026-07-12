@@ -10,6 +10,8 @@ import type {
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError, formatDateTimeLocal } from "../app/format";
 import { t, type MessageKey } from "../app/i18n";
+import { SectionTitle } from "../components/primitives";
+import { SparklesIcon } from "../components/icons";
 import { Button } from "../components/Button";
 
 /** Static labels for the picker; the authoritative label comes back on the preview. */
@@ -100,9 +102,9 @@ export function AssistPreview({ tripId }: { tripId: string }) {
 
   return (
     <section className="voy-assist" aria-labelledby="assist-title">
-      <h2 id="assist-title" className="voy-assist__title">
+      <SectionTitle id="assist-title" icon={<SparklesIcon />}>
         {t("assist.title")}
-      </h2>
+      </SectionTitle>
       <p className="voy-assist__intro">{t("assist.intro")}</p>
       <p className="voy-assist__note">{t("assist.readonly")}</p>
 

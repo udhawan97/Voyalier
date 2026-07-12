@@ -8,6 +8,8 @@ import type {
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError, formatDateTimeLocal } from "../app/format";
 import { t } from "../app/i18n";
+import { SectionTitle } from "../components/primitives";
+import { GlobeIcon } from "../components/icons";
 import { useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
@@ -76,9 +78,9 @@ export function TravelAdvice({
 
   return (
     <section className="voy-advice" aria-labelledby="advice-title">
-      <h2 id="advice-title" className="voy-advice__title">
+      <SectionTitle id="advice-title" icon={<GlobeIcon />}>
         {t("advice.title")}
-      </h2>
+      </SectionTitle>
 
       {snapshot ? (
         <article className="voy-advice__card">

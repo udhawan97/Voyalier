@@ -119,3 +119,95 @@ export const LockIcon = (p: SVGProps<SVGSVGElement>) => (
     <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
   </Base>
 );
+
+export const GlobeIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M3 12h18M12 3c2.5 2.5 3.8 5.7 3.8 9s-1.3 6.5-3.8 9c-2.5-2.5-3.8-5.7-3.8-9S9.5 5.5 12 3Z" />
+  </Base>
+);
+
+export const CloudSunIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <path d="M12 3v1.5M5.6 5.6l1 1M3 12h1.5M18.4 5.6l-1 1" />
+    <path d="M8.5 10.5a3.5 3.5 0 1 1 5.9 2.5" />
+    <path d="M7 20h9a3 3 0 0 0 0-6 4 4 0 0 0-7.7-1.3A3 3 0 0 0 7 20Z" />
+  </Base>
+);
+
+export const SearchIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5" />
+  </Base>
+);
+
+export const PackageIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <path d="M21 8 12 3 3 8v8l9 5 9-5V8Z" />
+    <path d="M3 8l9 5 9-5M12 13v8" />
+  </Base>
+);
+
+export const CompassIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="m15.5 8.5-2 5-5 2 2-5 5-2Z" />
+  </Base>
+);
+
+export const MapIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z" />
+    <path d="M9 4v14M15 6v14" />
+  </Base>
+);
+
+export const SparklesIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <path d="M12 3l1.6 4.9L18.5 9.5 13.6 11 12 16l-1.6-5L5.5 9.5l4.9-1.6L12 3Z" />
+    <path d="M19 15l.7 2.1 2.1.7-2.1.7L19 21l-.7-2.5-2.1-.7 2.1-.7L19 15Z" />
+  </Base>
+);
+
+export const CpuIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <rect x="6" y="6" width="12" height="12" rx="2" />
+    <path d="M9 9h6v6H9zM9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2" />
+  </Base>
+);
+
+export const KeyIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <circle cx="8" cy="8" r="4.5" />
+    <path d="m11.2 11.2 8.3 8.3M16 16l2-2M18.5 13.5l1.5 1.5" />
+  </Base>
+);
+
+export const SlidersIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <path d="M4 8h10M18 8h2M4 16h2M10 16h10" />
+    <circle cx="16" cy="8" r="2.2" />
+    <circle cx="8" cy="16" r="2.2" />
+  </Base>
+);
+
+export const CalendarIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <rect x="3.5" y="5" width="17" height="16" rx="2" />
+    <path d="M3.5 9.5h17M8 3v4M16 3v4" />
+  </Base>
+);
+
+export const DownloadIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
+  </Base>
+);
+
+export const GearIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <circle cx="12" cy="12" r="3.2" />
+    <path d="M12 2.5v2.2M12 19.3v2.2M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6" />
+  </Base>
+);

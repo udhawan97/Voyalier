@@ -94,6 +94,30 @@ export function EvidenceQuote({
   );
 }
 
+/**
+ * A section heading with a leading line-icon. Renders an `<h2 id>` so section
+ * `aria-labelledby` wiring keeps working; the icon is decorative (the title
+ * text always carries the meaning).
+ */
+export function SectionTitle({
+  id,
+  icon,
+  children,
+}: {
+  id?: string;
+  icon: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <h2 id={id} className="voy-shead">
+      <span className="voy-shead__icon" aria-hidden="true">
+        {icon}
+      </span>
+      <span>{children}</span>
+    </h2>
+  );
+}
+
 export function Skeleton({
   width = "100%",
   height = "1rem",

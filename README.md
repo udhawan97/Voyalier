@@ -39,7 +39,7 @@
 </p>
 
 > [!NOTE]
-> Voyalier is a **source-only beta**, built in the open. The working app already covers trip creation, deterministic planning, confirmation review (paste, HTML, or email), conflicts, readiness, official advice, weather, offline city packs, persona recommendations, Today, maps, encrypted local storage, redacted sharing, a fully localized UI, an in-app updater, and optional Ollama/OpenAI/Anthropic assistance. Signed and notarized installers are still waiting for the traditional travel document of software distribution: paid certificates.
+> Voyalier is a **source-only beta**, built in the open. The working app already covers trip creation and editing, deterministic planning, confirmation review (paste, HTML, an `.eml` file, or drag-and-drop), conflicts, readiness, official advice, weather, offline city packs, persona recommendations, in-trip search, Today, maps, encrypted local storage, redacted sharing, a fully localized UI (with its own self-hosted type identity, no web-font CDN), an in-app updater, and optional Ollama/OpenAI/Anthropic assistance with a guided on-device setup, validated cloud keys, and editable instructions. Signed and notarized installers are still waiting for the traditional travel document of software distribution: paid certificates.
 
 ## The route
 
@@ -87,8 +87,8 @@ The useful parts work without a paid AI key. The connected parts ask first.
 
 | Area                | What Voyalier does                                                                                                                                                          |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Trips**           | Create, update, archive, delete, and persist trips with a deterministic Blueprint                                                                                           |
-| **Confirmations**   | Import pasted text, HTML, or a raw confirmation email (`.eml`); detect JSON-LD and plain-text flight/lodging facts; retain parser runs, field spans, excerpts, and warnings |
+| **Trips**           | Create, edit, archive, unarchive, delete, and persist trips with a deterministic Blueprint; an accessible combobox suggests places from your history and the pack catalog     |
+| **Confirmations**   | Import pasted text, HTML, or a raw confirmation email (`.eml`) — by paste, file picker, or drag-and-drop; detect JSON-LD and plain-text flight/lodging facts; retain parser runs, field spans, excerpts, and warnings |
 | **Review**          | Keep extracted candidates pending until the traveler confirms or corrects them; reject candidates or undo confirmed facts back to review                                    |
 | **Itinerary**       | Order confirmed flights and stays; flag flight overlaps, lodging overlaps, and uncovered-night gaps without blocking the traveler                                           |
 | **Readiness**       | Roll up logistics checks and surface link-only official entry/health resources without making authoritative claims                                                          |
@@ -99,7 +99,7 @@ The useful parts work without a paid AI key. The connected parts ask first.
 | **Map**             | Lazy-load a consent-gated MapLibre/OpenFreeMap view; request no tiles before the traveler selects **Show map**                                                              |
 | **Search**          | Scan stored source documents and confirmed facts locally, returning snippets and provenance with deterministic ranking                                                      |
 | **Today**           | Build an offline upcoming/active/completed view with today’s anchors and the next known event                                                                               |
-| **AI assist**       | Detect local Ollama; configure BYOK OpenAI/Anthropic; preview the exact redacted request; run only after consent; record metadata-only activity                             |
+| **AI assist**       | Guided on-device Ollama setup (install → start → in-app model pull); BYOK OpenAI/Anthropic with **Validate & save**; editable, resettable system instructions; on-device lodging-date drafts you review; preview the exact redacted request; run only after consent; record metadata-only activity |
 | **Vault**           | Seal source text, pending evidence, and sensitive fact payloads with an OS-keychain data key; optionally wrap it with a local Argon2id passphrase                           |
 | **Share**           | Generate a redaction-first printable brief from confirmed facts; names and confirmation codes never enter the output model                                                  |
 | **Accessibility**   | Support keyboard flows, focus containment, reduced motion, semantic labeling, contrast review, and automated axe-core gates                                                 |

@@ -151,26 +151,42 @@ export function EditTripDialog({
           maxLength={120}
           placeholder={t("createTrip.destination.placeholder")}
         />
-        <div className="voy-form__row">
-          <TextField
-            id="edit-trip-start"
-            label={t("createTrip.startDate")}
-            type="date"
-            value={startDate}
-            onChange={(event) => setStartDate(event.target.value)}
-            required
-            aria-invalid={errors.dates ? true : undefined}
-            aria-describedby={errors.dates ? "edit-trip-end-error" : undefined}
-          />
-          <TextField
-            id="edit-trip-end"
-            label={t("createTrip.endDate")}
-            type="date"
-            value={endDate}
-            onChange={(event) => setEndDate(event.target.value)}
-            error={errors.dates}
-            required
-          />
+        <div className="voy-form__dates">
+          <div className="voy-form__row">
+            <TextField
+              id="edit-trip-start"
+              label={t("createTrip.startDate")}
+              type="date"
+              value={startDate}
+              onChange={(event) => setStartDate(event.target.value)}
+              required
+              aria-invalid={errors.dates ? true : undefined}
+              aria-describedby={
+                errors.dates ? "edit-trip-dates-error" : undefined
+              }
+            />
+            <TextField
+              id="edit-trip-end"
+              label={t("createTrip.endDate")}
+              type="date"
+              value={endDate}
+              onChange={(event) => setEndDate(event.target.value)}
+              required
+              aria-invalid={errors.dates ? true : undefined}
+              aria-describedby={
+                errors.dates ? "edit-trip-dates-error" : undefined
+              }
+            />
+          </div>
+          {errors.dates ? (
+            <p
+              className="voy-field__error"
+              id="edit-trip-dates-error"
+              role="alert"
+            >
+              {errors.dates}
+            </p>
+          ) : null}
         </div>
         <TextField
           id="edit-trip-title"

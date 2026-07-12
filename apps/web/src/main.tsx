@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
+import "./fonts.css";
 import "@voyalier/ui/tokens.css";
 import "./styles.css";
 import { App } from "./App";

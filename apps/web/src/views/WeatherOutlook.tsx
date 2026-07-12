@@ -4,6 +4,8 @@ import type { AppError, WeatherSnapshot } from "@voyalier/contracts";
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError, formatDate, formatDateTimeLocal } from "../app/format";
 import { t } from "../app/i18n";
+import { SectionTitle } from "../components/primitives";
+import { CloudSunIcon } from "../components/icons";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 
@@ -64,9 +66,9 @@ export function WeatherOutlook({
 
   return (
     <section className="voy-weather" aria-labelledby="weather-title">
-      <h2 id="weather-title" className="voy-weather__title">
+      <SectionTitle id="weather-title" icon={<CloudSunIcon />}>
         {t("weather.title")}
-      </h2>
+      </SectionTitle>
 
       {snapshot ? (
         <article className="voy-weather__card">

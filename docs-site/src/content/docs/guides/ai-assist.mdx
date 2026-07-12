@@ -9,14 +9,49 @@ nothing is ever sent without you seeing it first.
 
 ## Providers
 
-Under **AI providers** you can:
+Under **AI providers** you can choose between two paths, and there is no wrong
+one — Voyalier stays fully usable with neither:
 
-- Detect an on-device model by probing a local [Ollama](https://ollama.com)
-  (`ollama pull llama3.2` to get one). On-device runs never leave your device.
-- Add an **OpenAI** or **Anthropic** key. The key is stored in your operating
-  system keychain — never in Voyalier's files, database, logs, or any request
-  body. It is read only to place it in that request's authorization header, and
-  the interface only ever shows whether a key is set, never its value.
+- **On-device** via a local [Ollama](https://ollama.com). Detection runs only on
+  this device, and on-device runs never leave it. If no Ollama is found, a guided
+  setup walks you through it — see [On-device setup](#on-device-setup-step-by-step).
+- **Cloud**, by adding your own **OpenAI** or **Anthropic** key. The key is stored
+  in your operating system keychain — never in Voyalier's files, database, logs, or
+  any request body. It is read only to place it in that request's authorization
+  header, and the interface only ever shows whether a key is set, never its value.
+  See [Adding a cloud key](#adding-a-cloud-key).
+
+## On-device setup, step by step
+
+When no Ollama runtime is detected, the **On-device AI** panel offers a short,
+three-step wizard rather than sending you to hunt for docs:
+
+1. **Install Ollama** — a link to download it; it is free and runs locally.
+2. **Start Ollama** — open the app (on macOS it lives in your menu bar and
+   usually starts on its own after installing).
+3. **Get a model** — pick one of the recommended models below.
+
+For each recommended model you have two ways to get it. **Copy command** copies
+its `ollama pull <tag>` command to paste into your terminal, and once Ollama is
+running, **Download** pulls the model in-app with a progress indicator (keep the
+app open — it can take several minutes). The model tag is prefilled but editable,
+so you can adjust it or **Add another model** with a tag of your own.
+
+Everything here runs on this device. Detection, downloading, and later use all
+stay local — always on this device, always your choice.
+
+## Adding a cloud key
+
+In the **AI providers** panel, paste your OpenAI or Anthropic key and choose
+**Validate & save**. Voyalier checks the key with the provider before storing it,
+so a typo or an expired key is caught up front rather than at the moment you send
+a request. If it validates, the key is saved and verified; if the provider can't
+be reached to confirm it, Voyalier tells you it saved the key but couldn't verify
+it right now, so you're never left guessing.
+
+Don't have a key yet? The **How to get a key** helper expands into the exact
+steps and links straight to each provider's API-keys page. Either way, the key
+only ever lives in your OS keychain.
 
 ## Preview before anything is sent
 
@@ -40,3 +75,30 @@ a non-authoritative disclaimer.
 
 Each successful run is recorded in a per-trip **activity log** that stores
 metadata only (provider, model, time) — never the prompt or the reply.
+
+## Filling lodging-date gaps on-device
+
+If a booking you imported has lodging dates that the deterministic parser didn't
+pick up, **Fill gaps with on-device AI** can propose them from your own imported
+text. It is Ollama-only and runs entirely on this device — nothing leaves — and
+you can **Preview what it reads** before running it.
+
+Every proposal is a **draft**, not a save. Suggestions are routed into the same
+review dialog you use for imported candidates, so nothing changes on the
+Blueprint until you confirm it. Voyalier drafts dates from your imported text; it
+never invents prices, visas, health, or safety details.
+
+## Customizing the AI instructions
+
+For those who want it, **Customize AI instructions** lets you view and override
+the system instructions Voyalier uses, each with a **Reset to default**:
+
+- **Assist & preview instruction** — used when you preview or run an AI request.
+- **Lodging-date draft instruction** — used when the on-device AI drafts missing
+  lodging dates.
+
+Two guardrails hold regardless of what you write. The lodging-date draft stays
+**schema-locked to dates** — it only ever accepts dates, whatever the instruction
+says — and every AI reply is still marked **not official**. Instructions are
+stored on this device and change only future requests; they never change what
+leaves your device beyond the instruction text you already see in the preview.

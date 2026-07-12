@@ -3,7 +3,10 @@ import type { AppError, ProviderConfig, ProviderId } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import { t } from "../app/i18n";
+import { SectionTitle } from "../components/primitives";
+import { KeyIcon } from "../components/icons";
 import { Button } from "../components/Button";
+import { ConfirmButton } from "../components/ConfirmButton";
 
 type Busy = null | "key" | "clear" | "model";
 
@@ -111,10 +114,10 @@ function ProviderRow({
             <span className="voy-providers__stored">
               {t("providers.stored")}
             </span>
-            <Button
-              variant="ghost"
+            <ConfirmButton
+              label={t("providers.removeKey")}
               busy={busy === "clear"}
-              onClick={() =>
+              onConfirm={() =>
                 run(
                   "clear",
                   () => gateway.clearProviderKey(config.id),
@@ -123,9 +126,7 @@ function ProviderRow({
                   }),
                 )
               }
-            >
-              {t("providers.removeKey")}
-            </Button>
+            />
           </div>
         ) : (
           <div className="voy-providers__keyblock">
@@ -257,9 +258,9 @@ export function AiProviders() {
 
   return (
     <section className="voy-providers" aria-labelledby="providers-title">
-      <h2 id="providers-title" className="voy-providers__title">
+      <SectionTitle id="providers-title" icon={<KeyIcon />}>
         {t("providers.title")}
-      </h2>
+      </SectionTitle>
 
       {providers === null ? (
         <>

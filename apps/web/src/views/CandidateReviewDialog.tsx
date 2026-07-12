@@ -18,6 +18,7 @@ import {
 import { plural, t } from "../app/i18n";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
+import { ConfirmButton } from "../components/ConfirmButton";
 import { Dialog } from "../components/Dialog";
 import { FactPayloadForm } from "../components/FactPayloadForm";
 import { AlertIcon, BedIcon, PlaneIcon } from "../components/icons";
@@ -119,8 +120,6 @@ function ReviewCard({
                 <AlertIcon />
               </span>
               <span>{warningSentence(code)}</span>
-              <code className="voy-warning__code">{code}</code>
-              {/* the raw warning code is a debug token, not user copy */}
             </li>
           ))}
         </ul>
@@ -203,14 +202,12 @@ function ReviewCard({
             >
               {t("review.editConfirm")}
             </Button>
-            <Button
-              variant="ghost"
+            <ConfirmButton
+              label={t("review.dismiss")}
               busy={busy === "reject"}
               disabled={busy !== null}
-              onClick={reject}
-            >
-              {t("review.dismiss")}
-            </Button>
+              onConfirm={reject}
+            />
           </>
         )}
       </div>

@@ -148,26 +148,34 @@ export function CreateTripDialog({
           maxLength={120}
           placeholder={t("createTrip.destination.placeholder")}
         />
-        <div className="voy-form__row">
-          <TextField
-            id="trip-start"
-            label={t("createTrip.startDate")}
-            type="date"
-            value={startDate}
-            onChange={(event) => setStartDate(event.target.value)}
-            required
-            aria-invalid={errors.dates ? true : undefined}
-            aria-describedby={errors.dates ? "trip-end-error" : undefined}
-          />
-          <TextField
-            id="trip-end"
-            label={t("createTrip.endDate")}
-            type="date"
-            value={endDate}
-            onChange={(event) => setEndDate(event.target.value)}
-            error={errors.dates}
-            required
-          />
+        <div className="voy-form__dates">
+          <div className="voy-form__row">
+            <TextField
+              id="trip-start"
+              label={t("createTrip.startDate")}
+              type="date"
+              value={startDate}
+              onChange={(event) => setStartDate(event.target.value)}
+              required
+              aria-invalid={errors.dates ? true : undefined}
+              aria-describedby={errors.dates ? "trip-dates-error" : undefined}
+            />
+            <TextField
+              id="trip-end"
+              label={t("createTrip.endDate")}
+              type="date"
+              value={endDate}
+              onChange={(event) => setEndDate(event.target.value)}
+              required
+              aria-invalid={errors.dates ? true : undefined}
+              aria-describedby={errors.dates ? "trip-dates-error" : undefined}
+            />
+          </div>
+          {errors.dates ? (
+            <p className="voy-field__error" id="trip-dates-error" role="alert">
+              {errors.dates}
+            </p>
+          ) : null}
         </div>
         <TextField
           id="trip-title"

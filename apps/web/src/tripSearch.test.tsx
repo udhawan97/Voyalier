@@ -96,6 +96,40 @@ describe("trip search", () => {
     expect(await within(firstHit).findByText("Copied")).toBeInTheDocument();
   });
 
+  it("does not resurrect results after the box is cleared (stale-response guard)", async () => {
+    let releaseSearch: (() => void) | undefined;
+    const base = createMockGateway();
+    const gateway = {
+      ...base,
+      // Hold the first search open until we release it, so we can clear the box
+      // mid-flight and prove the stale result is discarded.
+      searchTrip: (tripId: string, query: string) =>
+        new Promise<Awaited<ReturnType<typeof base.searchTrip>>>((resolve) => {
+          releaseSearch = () => resolve(base.searchTrip(tripId, query));
+        }),
+      suggestSearchTerms: () => Promise.resolve([] as string[]),
+    };
+    renderApp(gateway);
+    const search = await openSearch();
+    const input = searchInput(search);
+
+    // Type a valid query; wait until the (held) request has actually started.
+    fireEvent.change(input, { target: { value: "paper" } });
+    await waitFor(() => expect(releaseSearch).toBeDefined());
+
+    // Clear to a too-short query before the first request resolves.
+    fireEvent.change(input, { target: { value: "h" } });
+    await new Promise((resolve) => setTimeout(resolve, 260));
+
+    // The stale "paper" request now lands — it must be ignored.
+    releaseSearch?.();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(
+      within(search).queryByRole("list", { name: "Search results" }),
+    ).toBeNull();
+  });
+
   it("finds imported document content, matching any word (relaxed)", async () => {
     const gateway = createMockGateway();
     const trip = await gateway.createTrip({

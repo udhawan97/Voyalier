@@ -34,7 +34,7 @@ describe("weather outlook", () => {
     expect(within(weather).getByText(/75% rain/)).toBeInTheDocument();
     // Partial coverage is disclosed, not padded.
     expect(
-      within(weather).getByText(/covers only the first part of your trip/),
+      within(weather).getByText(/only the first part of your trip is covered/),
     ).toBeInTheDocument();
     // Required attribution and licence.
     const attribution = within(weather).getByRole("link", {

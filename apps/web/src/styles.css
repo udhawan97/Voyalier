@@ -36,8 +36,33 @@ h1,
 h2,
 h3 {
   margin: 0;
-  font-weight: 500;
+  font-weight: var(--voy-w-medium);
   letter-spacing: -0.02em;
+}
+
+/* Shared section heading: display-serif title with a leading line-icon.
+   Unifies the ~14 per-view heading treatments. */
+.voy-shead {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0 0.9rem;
+  font-size: var(--voy-text-xl);
+  font-family: var(--voy-font-display);
+}
+
+.voy-shead__icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--voy-indigo);
+  font-size: 1.2rem;
+}
+
+/* When the heading shares a flex row with a trailing pill, drop its bottom
+   margin so the row stays vertically centered. */
+.voy-today__head .voy-shead,
+.voy-localai__head .voy-shead {
+  margin-bottom: 0;
 }
 
 :focus-visible {
@@ -66,7 +91,7 @@ h3 {
   position: absolute;
   left: 1rem;
   top: -3rem;
-  z-index: 100;
+  z-index: var(--voy-z-skip);
   padding: 0.6rem 1rem;
   background: var(--voy-paper-raised);
   border: 1px solid var(--voy-line-strong);
@@ -98,7 +123,7 @@ h3 {
   margin: 0 0 0.5rem;
   color: var(--voy-ink-muted);
   font-size: 0.74rem;
-  font-weight: 640;
+  font-weight: var(--voy-w-strong);
   letter-spacing: 0.13em;
   text-transform: uppercase;
 }
@@ -134,7 +159,7 @@ h3 {
 }
 
 .voy-brand__word {
-  font-weight: 600;
+  font-weight: var(--voy-w-medium);
   letter-spacing: 0.02em;
 }
 
@@ -234,7 +259,7 @@ h3 {
 }
 
 .voy-choice__label {
-  font-weight: 560;
+  font-weight: var(--voy-w-medium);
   font-size: 0.92rem;
 }
 
@@ -260,7 +285,7 @@ h3 {
   padding: 0.55rem 1.1rem;
   border: 1px solid transparent;
   border-radius: 999px;
-  font-weight: 560;
+  font-weight: var(--voy-w-medium);
   font-size: 0.94rem;
   cursor: pointer;
   transition:
@@ -315,7 +340,7 @@ h3 {
 
 .voy-btn--danger {
   background: var(--voy-danger);
-  color: #fff;
+  color: var(--voy-on-accent);
 }
 
 .voy-btn--danger:not(:disabled):hover {
@@ -356,6 +381,13 @@ h3 {
   gap: 1rem;
 }
 
+/* Groups the two date inputs with a single shared error message below both. */
+.voy-form__dates {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
 .voy-field {
   display: flex;
   flex-direction: column;
@@ -364,7 +396,7 @@ h3 {
 
 .voy-field__label {
   font-size: 0.86rem;
-  font-weight: 560;
+  font-weight: var(--voy-w-medium);
   color: var(--voy-ink);
 }
 
@@ -382,7 +414,7 @@ h3 {
 .voy-field__error {
   margin: 0.1rem 0 0;
   font-size: 0.82rem;
-  font-weight: 500;
+  font-weight: var(--voy-w-medium);
   color: var(--voy-vermilion);
 }
 
@@ -398,7 +430,7 @@ h3 {
 }
 
 .voy-input::placeholder {
-  color: var(--voy-silver);
+  color: var(--voy-ink-muted);
 }
 
 .voy-input:focus-visible {
@@ -413,7 +445,8 @@ h3 {
   line-height: 1.55;
 }
 
-.voy-field--invalid .voy-input {
+.voy-field--invalid .voy-input,
+.voy-input[aria-invalid="true"] {
   border-color: var(--voy-vermilion);
 }
 
@@ -426,7 +459,7 @@ h3 {
 
 .voy-charcount.is-over {
   color: var(--voy-vermilion);
-  font-weight: 560;
+  font-weight: var(--voy-w-medium);
 }
 
 /* ===== Badges, chips, counts =========================================== */
@@ -439,7 +472,7 @@ h3 {
   border-radius: 999px;
   border: 1px solid var(--voy-line);
   font-size: 0.76rem;
-  font-weight: 560;
+  font-weight: var(--voy-w-medium);
   color: var(--voy-ink-muted);
   white-space: nowrap;
 }
@@ -465,7 +498,7 @@ h3 {
   padding: 0.15rem 0.55rem;
   border-radius: 999px;
   font-size: 0.72rem;
-  font-weight: 560;
+  font-weight: var(--voy-w-medium);
   letter-spacing: 0.01em;
   background: var(--voy-paper-sunken);
   color: var(--voy-ink-muted);
@@ -500,9 +533,9 @@ h3 {
   padding: 0 0.45rem;
   border-radius: 999px;
   background: var(--voy-vermilion);
-  color: #fff;
+  color: var(--voy-on-accent);
   font-size: 0.82rem;
-  font-weight: 640;
+  font-weight: var(--voy-w-strong);
   font-variant-numeric: tabular-nums;
 }
 
@@ -548,7 +581,7 @@ h3 {
 
 .voy-banner__title {
   margin: 0;
-  font-weight: 600;
+  font-weight: var(--voy-w-medium);
 }
 
 .voy-banner__body {
@@ -578,13 +611,13 @@ h3 {
 
 .voy-empty__icon {
   font-size: 1.8rem;
-  color: var(--voy-silver);
+  color: var(--voy-ink-muted);
 }
 
 .voy-empty__title {
   margin: 0;
   font-size: 1.15rem;
-  font-weight: 600;
+  font-weight: var(--voy-w-medium);
 }
 
 .voy-empty__body {
@@ -614,7 +647,7 @@ h3 {
     var(--voy-paper-sunken) 70%
   );
   background-size: 200% 100%;
-  animation: voy-shimmer 1.4s ease-in-out infinite;
+  animation: voy-shimmer var(--voy-motion-shimmer) ease-in-out infinite;
 }
 
 @keyframes voy-shimmer {
@@ -693,7 +726,7 @@ h3 {
 
 .voy-tripcard__title {
   font-size: 1.15rem;
-  font-weight: 600;
+  font-weight: var(--voy-w-medium);
 }
 
 .voy-tripcard__open {
@@ -833,7 +866,7 @@ h3 {
 }
 
 .voy-pending-entry__text strong {
-  font-weight: 600;
+  font-weight: var(--voy-w-medium);
 }
 
 .voy-pending-entry__text span {
@@ -859,7 +892,13 @@ h3 {
 .voy-detail__blueprint-title {
   font-size: 1.4rem;
   font-family: var(--voy-font-display);
-  margin-bottom: 1.2rem;
+  margin-bottom: 0.4rem;
+}
+
+.voy-detail__blueprint-sub {
+  margin: 0 0 1.2rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.92rem;
 }
 
 /* ===== Readiness ======================================================= */
@@ -890,7 +929,7 @@ h3 {
   border-radius: 999px;
   border: 1px solid var(--voy-line-strong);
   font-size: 0.78rem;
-  font-weight: 640;
+  font-weight: var(--voy-w-strong);
   letter-spacing: 0.02em;
   color: var(--voy-ink-muted);
 }
@@ -934,7 +973,7 @@ h3 {
   margin-top: 0.05rem;
   font-size: 0.7rem;
   flex-shrink: 0;
-  color: var(--voy-silver);
+  color: var(--voy-ink-muted);
 }
 
 .voy-readiness__dot--clear {
@@ -958,11 +997,11 @@ h3 {
 
 .voy-readiness__item-title {
   font-size: 0.92rem;
-  font-weight: 580;
+  font-weight: var(--voy-w-medium);
 }
 
 .voy-readiness__item-status {
-  font-weight: 480;
+  font-weight: var(--voy-w-regular);
   color: var(--voy-ink-muted);
 }
 
@@ -994,7 +1033,7 @@ h3 {
 
 .voy-readiness__scope {
   margin: 1.2rem 0 0;
-  color: var(--voy-silver);
+  color: var(--voy-ink-muted);
   font-size: 0.8rem;
   line-height: 1.5;
 }
@@ -1032,7 +1071,7 @@ h3 {
 .voy-advice__country {
   margin: 0;
   font-size: 1.1rem;
-  font-weight: 620;
+  font-weight: var(--voy-w-strong);
 }
 
 .voy-advice__freshness {
@@ -1042,7 +1081,7 @@ h3 {
 
 .voy-advice__freshness--stale {
   color: var(--voy-vermilion);
-  font-weight: 600;
+  font-weight: var(--voy-w-medium);
 }
 
 .voy-advice__alerts {
@@ -1061,7 +1100,7 @@ h3 {
   background: var(--voy-tint-vermilion);
   color: var(--voy-vermilion);
   font-size: 0.78rem;
-  font-weight: 620;
+  font-weight: var(--voy-w-strong);
 }
 
 .voy-advice__summary {
@@ -1093,7 +1132,7 @@ h3 {
 
 .voy-advice__licence {
   margin: 0.6rem 0 0;
-  color: var(--voy-silver);
+  color: var(--voy-ink-muted);
   font-size: 0.78rem;
   line-height: 1.5;
 }
@@ -1161,11 +1200,11 @@ h3 {
 .voy-weather__place {
   margin: 0;
   font-size: 1.1rem;
-  font-weight: 620;
+  font-weight: var(--voy-w-strong);
 }
 
 .voy-weather__region {
-  font-weight: 480;
+  font-weight: var(--voy-w-regular);
   color: var(--voy-ink-muted);
   font-size: 0.9rem;
 }
@@ -1177,7 +1216,7 @@ h3 {
 
 .voy-weather__freshness--stale {
   color: var(--voy-vermilion);
-  font-weight: 600;
+  font-weight: var(--voy-w-medium);
 }
 
 .voy-weather__days {
@@ -1317,12 +1356,12 @@ h3 {
 }
 
 .voy-providers__name {
-  font-weight: 620;
+  font-weight: var(--voy-w-strong);
 }
 
 .voy-providers__status {
   font-size: 0.78rem;
-  font-weight: 640;
+  font-weight: var(--voy-w-strong);
   padding: 0.18rem 0.6rem;
   border-radius: 999px;
   border: 1px solid var(--voy-line-strong);
@@ -1410,7 +1449,7 @@ h3 {
 
 .voy-providers__scope {
   margin: 1.1rem 0 0;
-  color: var(--voy-silver);
+  color: var(--voy-ink-muted);
   font-size: 0.8rem;
   line-height: 1.5;
 }
@@ -1427,7 +1466,7 @@ h3 {
   background: color-mix(in srgb, var(--voy-indigo) 10%, transparent);
   color: var(--voy-indigo);
   font-size: 0.78rem;
-  font-weight: 640;
+  font-weight: var(--voy-w-strong);
   cursor: pointer;
 }
 
@@ -1442,7 +1481,7 @@ h3 {
   position: fixed;
   right: 1.2rem;
   bottom: 1.2rem;
-  z-index: 40;
+  z-index: var(--voy-z-popover);
   display: flex;
   align-items: center;
   gap: 0.8rem;
@@ -1451,7 +1490,7 @@ h3 {
   border-radius: 0.6rem;
   border: 1px solid var(--voy-line-strong);
   background: var(--voy-paper-raised);
-  box-shadow: 0 8px 24px color-mix(in srgb, #1a1917 12%, transparent);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--voy-ink) 12%, transparent);
   font-size: 0.9rem;
 }
 
@@ -1480,7 +1519,7 @@ h3 {
 .voy-updates__lead {
   margin: 0 0 0.5rem;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: var(--voy-w-medium);
 }
 
 .voy-updates__hint {
@@ -1512,7 +1551,7 @@ h3 {
 .voy-updates__notes-heading {
   margin: 0 0 0.3rem;
   font-size: 0.74rem;
-  font-weight: 640;
+  font-weight: var(--voy-w-strong);
   color: var(--voy-ink-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1544,7 +1583,7 @@ h3 {
   display: block;
   height: 100%;
   background: var(--voy-indigo);
-  transition: width 0.2s ease;
+  transition: width var(--voy-motion) var(--voy-ease);
 }
 
 .voy-updates__link {
@@ -1620,7 +1659,7 @@ h3 {
   display: inline-block;
   margin: 0 0 1rem;
   font-size: 0.78rem;
-  font-weight: 640;
+  font-weight: var(--voy-w-strong);
   padding: 0.18rem 0.6rem;
   border-radius: 999px;
   border: 1px solid var(--voy-line-strong);
@@ -1836,7 +1875,7 @@ h3 {
 .voy-assist__subhead {
   margin: 0.7rem 0 0.1rem;
   font-size: 0.86rem;
-  font-weight: 640;
+  font-weight: var(--voy-w-strong);
   color: var(--voy-ink-muted);
 }
 
@@ -1924,7 +1963,7 @@ h3 {
 
 .voy-assist__scope {
   margin: 1.1rem 0 0;
-  color: var(--voy-silver);
+  color: var(--voy-ink-muted);
   font-size: 0.8rem;
   line-height: 1.5;
 }
@@ -1973,12 +2012,12 @@ h3 {
 }
 
 .voy-prompt__name {
-  font-weight: 620;
+  font-weight: var(--voy-w-strong);
 }
 
 .voy-prompt__badge {
   font-size: 0.72rem;
-  font-weight: 560;
+  font-weight: var(--voy-w-medium);
   padding: 0.12rem 0.5rem;
   border-radius: 999px;
   border: 1px solid var(--voy-line);
@@ -2013,7 +2052,7 @@ h3 {
 
 .voy-prompts__scope {
   margin: 1.1rem 0 0;
-  color: var(--voy-silver);
+  color: var(--voy-ink-muted);
   font-size: 0.8rem;
   line-height: 1.5;
 }
@@ -2063,7 +2102,7 @@ h3 {
 }
 
 .voy-packs__name {
-  font-weight: 620;
+  font-weight: var(--voy-w-strong);
 }
 
 .voy-packs__region {
@@ -2101,7 +2140,7 @@ h3 {
 
 .voy-packs__count {
   font-size: 0.8rem;
-  font-weight: 620;
+  font-weight: var(--voy-w-strong);
   color: var(--voy-success);
 }
 
@@ -2113,7 +2152,7 @@ h3 {
 
 .voy-packs__scope {
   margin: 1.1rem 0 0;
-  color: var(--voy-silver);
+  color: var(--voy-ink-muted);
   font-size: 0.8rem;
   line-height: 1.5;
 }
@@ -2128,7 +2167,7 @@ h3 {
 
 .voy-packs__suggested-title {
   font-size: 1.05rem;
-  font-weight: 640;
+  font-weight: var(--voy-w-strong);
   margin: 0 0 0.4rem;
 }
 
@@ -2146,7 +2185,7 @@ h3 {
 
 .voy-packs__suggested-consent {
   margin: 0.9rem 0 0;
-  color: var(--voy-silver);
+  color: var(--voy-ink-muted);
   font-size: 0.8rem;
   line-height: 1.5;
 }
@@ -2167,7 +2206,7 @@ h3 {
 
 .voy-combobox__list {
   position: absolute;
-  z-index: 60;
+  z-index: var(--voy-z-toast);
   top: calc(100% + 0.25rem);
   left: 0;
   right: 0;
@@ -2230,7 +2269,7 @@ h3 {
 
 .voy-today__phase {
   font-size: 0.8rem;
-  font-weight: 640;
+  font-weight: var(--voy-w-strong);
   padding: 0.18rem 0.6rem;
   border-radius: 999px;
   border: 1px solid var(--voy-line-strong);
@@ -2266,7 +2305,7 @@ h3 {
 }
 
 .voy-today__item-title {
-  font-weight: 560;
+  font-weight: var(--voy-w-medium);
 }
 
 .voy-today__item-detail {
@@ -2275,6 +2314,16 @@ h3 {
 }
 
 .voy-today__empty {
+  margin: 0.7rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.9rem;
+}
+
+.voy-today__error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
   margin: 0.7rem 0 0;
   color: var(--voy-ink-muted);
   font-size: 0.9rem;
@@ -2292,7 +2341,7 @@ h3 {
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--voy-silver);
+  color: var(--voy-ink-muted);
   margin-right: 0.5rem;
 }
 
@@ -2328,9 +2377,28 @@ h3 {
 
 .voy-map__scope {
   margin: 0.7rem 0 0;
-  color: var(--voy-silver);
+  color: var(--voy-ink-muted);
   font-size: 0.8rem;
   line-height: 1.5;
+}
+
+.voy-map__failure {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border: 1px dashed var(--voy-line-strong);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-sunken);
+}
+
+.voy-map__failure p {
+  margin: 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  max-width: 42rem;
 }
 
 /* ===== Recommendations ================================================ */
@@ -2424,7 +2492,7 @@ h3 {
 }
 
 .voy-recs__name {
-  font-weight: 620;
+  font-weight: var(--voy-w-strong);
 }
 
 .voy-recs__dim {
@@ -2439,7 +2507,7 @@ h3 {
 
 .voy-recs__wild {
   font-size: 0.72rem;
-  font-weight: 640;
+  font-weight: var(--voy-w-strong);
   color: var(--voy-vermilion);
   border: 1px solid color-mix(in srgb, var(--voy-vermilion) 40%, transparent);
   background: var(--voy-tint-vermilion);
@@ -2456,13 +2524,13 @@ h3 {
 .voy-recs__prov {
   margin: 0.25rem 0 0;
   font-size: 0.76rem;
-  color: var(--voy-silver);
+  color: var(--voy-ink-muted);
   font-family: var(--voy-font-mono);
 }
 
 .voy-recs__scope {
   margin: 1.1rem 0 0;
-  color: var(--voy-silver);
+  color: var(--voy-ink-muted);
   font-size: 0.8rem;
   line-height: 1.5;
 }
@@ -2495,7 +2563,7 @@ h3 {
   border-radius: 999px;
   border: 1px solid var(--voy-line-strong);
   font-size: 0.78rem;
-  font-weight: 640;
+  font-weight: var(--voy-w-strong);
   color: var(--voy-ink-muted);
 }
 
@@ -2550,7 +2618,7 @@ h3 {
 
 .voy-localai__scope {
   margin: 1rem 0 0;
-  color: var(--voy-silver);
+  color: var(--voy-ink-muted);
   font-size: 0.8rem;
   line-height: 1.5;
 }
@@ -2569,7 +2637,7 @@ h3 {
 }
 
 .voy-localai__step-title {
-  font-weight: 640;
+  font-weight: var(--voy-w-strong);
   font-size: 0.92rem;
 }
 
@@ -2616,7 +2684,7 @@ h3 {
 }
 
 .voy-modelcard__name {
-  font-weight: 640;
+  font-weight: var(--voy-w-strong);
 }
 
 .voy-modelcard__size {
@@ -2715,12 +2783,6 @@ h3 {
 .voy-search__input:focus-visible {
   outline: 2px solid var(--voy-focus);
   outline-offset: 1px;
-}
-
-.voy-search__error {
-  margin: 0.5rem 0 0;
-  color: var(--voy-danger);
-  font-size: 0.88rem;
 }
 
 .voy-search__none {
@@ -2823,11 +2885,11 @@ h3 {
 
 .voy-search__hit-label {
   font-size: 0.92rem;
-  font-weight: 580;
+  font-weight: var(--voy-w-medium);
 }
 
 .voy-search__hit-kind {
-  font-weight: 480;
+  font-weight: var(--voy-w-regular);
   color: var(--voy-ink-muted);
 }
 
@@ -2871,7 +2933,7 @@ h3 {
 .voy-brief__section-title {
   margin: 0;
   font-size: 0.8rem;
-  font-weight: 640;
+  font-weight: var(--voy-w-strong);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--voy-ink-muted);
@@ -2893,7 +2955,7 @@ h3 {
 
 .voy-brief__entry-title {
   margin: 0;
-  font-weight: 600;
+  font-weight: var(--voy-w-medium);
 }
 
 .voy-brief__entry-sub {
@@ -2991,7 +3053,7 @@ h3 {
   color: var(--voy-vermilion);
   font-family: var(--voy-font-ui);
   font-size: 0.8rem;
-  font-weight: 640;
+  font-weight: var(--voy-w-strong);
 }
 
 .voy-schedule__clear {
@@ -3062,7 +3124,7 @@ h3 {
   display: inline-block;
   margin-right: 0.5rem;
   font-size: 0.72rem;
-  font-weight: 680;
+  font-weight: var(--voy-w-strong);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--voy-ink-muted);
@@ -3078,7 +3140,7 @@ h3 {
   gap: 0.5rem;
   margin-bottom: 1rem;
   font-size: 0.8rem;
-  font-weight: 640;
+  font-weight: var(--voy-w-strong);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--voy-ink-muted);
@@ -3144,7 +3206,7 @@ h3 {
 .voy-fact__title,
 .voy-review__title {
   margin: 0;
-  font-weight: 600;
+  font-weight: var(--voy-w-medium);
   font-size: 1.05rem;
 }
 
@@ -3197,7 +3259,7 @@ h3 {
 .voy-overlay {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: var(--voy-z-overlay);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -3361,7 +3423,7 @@ h3 {
   font-size: 0.72rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--voy-silver);
+  color: var(--voy-ink-muted);
 }
 
 .voy-review__editnote {
@@ -3391,7 +3453,7 @@ h3 {
 .voy-import-done__title {
   margin: 0;
   font-size: 1.1rem;
-  font-weight: 600;
+  font-weight: var(--voy-w-medium);
 }
 
 .voy-import-done__body {
@@ -3399,6 +3461,32 @@ h3 {
   max-width: 34ch;
   color: var(--voy-ink-muted);
   line-height: 1.55;
+}
+
+.voy-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1.1rem 1.2rem;
+  border: 1px dashed var(--voy-line-strong);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-sunken);
+  transition:
+    border-color var(--voy-motion-fast) var(--voy-ease),
+    background var(--voy-motion-fast) var(--voy-ease);
+}
+
+.voy-dropzone.is-dragging {
+  border-color: var(--voy-indigo);
+  background: var(--voy-tint-indigo);
+}
+
+.voy-dropzone__hint {
+  margin: 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
 }
 
 /* ===== Responsive ====================================================== */
@@ -3416,6 +3504,117 @@ h3 {
   .voy-triplist__head {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+/* ===== Motion & texture polish ======================================== */
+
+/* A faint paper grain over the whole surface. Fixed, non-interactive, and
+   hidden from print; opacity is deliberately near-threshold so it reads as
+   texture, not noise. Inherits the reduced-motion rules trivially (it's
+   static) and costs nothing at scroll (a single fixed layer). */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.03;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+:root[data-theme="dark"] body::before {
+  opacity: 0.05;
+  mix-blend-mode: screen;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) body::before {
+    opacity: 0.05;
+    mix-blend-mode: screen;
+  }
+}
+
+@media print {
+  body::before {
+    display: none;
+  }
+}
+
+/* Micro-state transitions: small color/background/shadow changes should ease,
+   not snap. Each of these elements already carries its own base rules; here we
+   only add the transition. */
+.voy-badge,
+.voy-chip,
+.voy-count,
+.voy-readiness__overall,
+.voy-today__phase,
+.voy-health__dot {
+  transition:
+    background var(--voy-motion-fast) var(--voy-ease),
+    color var(--voy-motion-fast) var(--voy-ease),
+    border-color var(--voy-motion-fast) var(--voy-ease);
+}
+
+/* One-time entrance for list items. Stable React keys mean these DOM nodes
+   persist across a reload, so the animation plays when a card first appears
+   and does NOT replay when the list refetches. */
+.voy-tripcard,
+.voy-review,
+.voy-fact {
+  animation: voy-rise var(--voy-motion-slow) var(--voy-ease) both;
+}
+
+.voy-triplist__grid .voy-tripcard:nth-child(2),
+.voy-review__list > li:nth-child(2) {
+  animation-delay: 40ms;
+}
+.voy-triplist__grid .voy-tripcard:nth-child(3),
+.voy-review__list > li:nth-child(3) {
+  animation-delay: 80ms;
+}
+.voy-triplist__grid .voy-tripcard:nth-child(n + 4),
+.voy-review__list > li:nth-child(n + 4) {
+  animation-delay: 120ms;
+}
+
+/* Interactive summary rows get resting elevation that lifts on hover, matching
+   the trip cards' affordance. */
+.voy-pending-entry {
+  box-shadow: var(--voy-shadow-sm);
+}
+.voy-pending-entry:hover {
+  box-shadow: var(--voy-shadow);
+}
+
+/* Toast slides up as it appears. */
+.voy-toast {
+  animation: voy-toast-in var(--voy-motion) var(--voy-ease);
+}
+
+@keyframes voy-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* Native disclosures animate their height where the engine supports it
+   (progressive enhancement; ignored gracefully elsewhere). */
+@supports (interpolate-size: allow-keywords) {
+  :root {
+    interpolate-size: allow-keywords;
+  }
+  details::details-content {
+    height: 0;
+    overflow: hidden;
+    transition:
+      height var(--voy-motion) var(--voy-ease),
+      content-visibility var(--voy-motion) allow-discrete;
+  }
+  details[open]::details-content {
+    height: auto;
   }
 }
 

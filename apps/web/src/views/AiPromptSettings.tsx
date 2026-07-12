@@ -8,8 +8,14 @@ import type {
 
 import { useAnnounce, useGateway } from "../app/context";
 import { t, type MessageKey } from "../app/i18n";
+import { SectionTitle } from "../components/primitives";
+import { SlidersIcon } from "../components/icons";
 import { Button } from "../components/Button";
 import { TextArea } from "../components/fields";
+
+// Mirror of the backend's MAX_AI_PROMPT_LEN so an over-long instruction is
+// prevented client-side rather than failing with a generic error on save.
+const MAX_PROMPT_LEN = 6000;
 
 const KIND_LABEL: Record<AiPromptKind, MessageKey> = {
   assist: "prompts.kind.assist",
@@ -85,6 +91,7 @@ function PromptRow({
         value={text}
         onChange={(event) => setText(event.target.value)}
         rows={5}
+        maxLength={MAX_PROMPT_LEN}
       />
       {error ? (
         <p className="voy-prompt__error" role="alert">
@@ -141,9 +148,9 @@ export function AiPromptSettings() {
 
   return (
     <section className="voy-prompts" aria-labelledby="prompts-title">
-      <h2 id="prompts-title" className="voy-prompts__title">
+      <SectionTitle id="prompts-title" icon={<SlidersIcon />}>
         {t("prompts.title")}
-      </h2>
+      </SectionTitle>
       <p className="voy-prompts__intro">{t("prompts.intro")}</p>
 
       {settings ? (

@@ -560,11 +560,16 @@ async fn unconfirm_fact(
 
 async fn validate_host_origin(request: Request<Body>, next: Next) -> Response {
     if !host_is_allowed(&request) || !origin_is_allowed(&request) {
-        return ApiError(AppError::new(
-            ErrorCode::TransportFailure,
-            "request host or origin is not allowed",
-        ))
-        .into_response();
+        // A blocked host/origin is an authorization rejection (the DNS-rebinding
+        // guard), not a server fault — respond 403, not 500.
+        return (
+            StatusCode::FORBIDDEN,
+            Json(AppError::new(
+                ErrorCode::TransportFailure,
+                "request host or origin is not allowed",
+            )),
+        )
+            .into_response();
     }
     next.run(request).await
 }
@@ -1426,7 +1431,7 @@ mod tests {
             )
             .await
             .expect("response");
-        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
 
         let response = router
             .oneshot(
@@ -1439,7 +1444,7 @@ mod tests {
             )
             .await
             .expect("response");
-        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
         cleanup_database(database);
     }
 

@@ -8,14 +8,21 @@ Include the affected version or commit, reproduction steps, expected impact, and
 
 ## Supported versions
 
-Voyalier has not published a production release yet. Security fixes currently target the latest `main` branch. A supported-version table will be added before the first public beta.
+Voyalier is a source-only public beta. Security fixes target the latest `main`
+branch and the most recent tagged release.
+
+| Version | Supported |
+| ------- | --------- |
+| `main` (unreleased) | ✅ |
+| 0.4.x   | ✅ |
+| < 0.4.0 | ❌ (upgrade to the latest) |
 
 ## Security boundaries
 
 Voyalier handles sensitive itineraries and documents. The project treats these as release-blocking requirements:
 
 - secrets never live in browser storage or committed configuration;
-- local services bind to loopback and require an authenticated session before public beta;
+- the desktop app uses direct Tauri IPC and binds no TCP port; the browser-development loopback service is guarded by strict Host, Origin, and CORS checks (DNS-rebinding protection). A per-launch bearer token remains defense-in-depth work, tracked in the [threat model](docs/security/THREAT_MODEL.md);
 - document and web content are untrusted and cannot directly invoke tools;
 - cloud AI receives only user-approved, redacted excerpts;
 - exports default to excluding sensitive identity fields;

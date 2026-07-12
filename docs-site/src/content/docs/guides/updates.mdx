@@ -1,0 +1,77 @@
+---
+title: Keeping Voyalier updated
+description: The in-app updater — consented checks, install flow, and on-device verification.
+---
+
+Voyalier updates itself from within the app, on your terms. It only ever fetches
+release metadata from GitHub, never anything about you or your trips, and every
+update is cryptographically verified on your device before it installs. You'll
+find all of this in the **Updates** panel on the home screen.
+
+## Choosing whether to check automatically
+
+The first time you launch a packaged build, Voyalier asks once: **Check for
+updates automatically?** Your options are **Yes, check automatically** or **No,
+I'll check manually** — and neither is a trap. When enabled, Voyalier asks GitHub
+about once a day whether a newer release exists; only release metadata is fetched,
+nothing about you or your trips is sent.
+
+The choice isn't permanent. A **Check for updates automatically** toggle in the
+Updates panel turns the daily check on or off whenever you like.
+
+## Checking manually
+
+Whether or not automatic checks are on, **Check for updates** asks GitHub right
+then. If you're current, Voyalier tells you you're on the latest version. If a
+newer release exists, it shows **Update available** with its version, and — when
+GitHub provides them — the release notes verbatim under a **Notes from GitHub
+(unverified)** label. Those notes can be attacker-influenced, so Voyalier shows
+them as inert plain text, never as anything it acts on.
+
+## Installing an update
+
+The install flow differs by operating system, but the download always runs in the
+Rust core (never the web view), and the update is **minisign-verified on your
+device** before anything is swapped in.
+
+- **macOS and Linux:** choose **Download and install**. Voyalier downloads the
+  update with a progress indicator and stages it, then shows **Update installed** —
+  click **Restart Voyalier** to finish. On macOS, update the copy in
+  `/Applications`; updating a copy run from Downloads or a mounted disk image can
+  fail to swap in place.
+- **Windows:** choose **Update and restart**. Voyalier closes, installs, and
+  reopens on its own in under a minute — there's no separate restart step.
+
+Before every update, Voyalier saves a database backup, so your trips are safe even
+if something goes wrong mid-swap. Your keys and data live outside the app bundle,
+so an update never touches them.
+
+## Skipping a version
+
+Not ready for a particular release? **Skip this version** dismisses it — Voyalier
+won't nag you about that one again. It marks the release as skipped and shows an
+**Un-skip** control if you change your mind. Skipping one version doesn't turn off
+checking; the next release still surfaces normally.
+
+## Clearing update backups
+
+Those pre-update database backups accumulate in your application data directory.
+**Clear update backups** in the Updates panel deletes them from disk and tells you
+how many it removed. Keep in mind that until you clear them, a trip you deleted
+still exists inside older backups — which is exactly why they're never included in
+an exported or shared brief.
+
+## What reaches the network
+
+In-app updates touch two GitHub-operated hosts — `github.com` for the release
+metadata and `objects.githubusercontent.com` for the download — and nothing else.
+No telemetry, no account, nothing about your trips. The bytes that arrive are
+verified against a minisign signature on your device before they're allowed to
+install, so a tampered or corrupted download simply won't run.
+
+If in-app updates aren't available in your build (a development build, or one run
+from source), Voyalier says so and points you to the
+[releases page](https://github.com/udhawan97/Voyalier/releases) or, for a source
+checkout, to `git pull` and `make bootstrap`. For fixes when an update won't
+install or the app won't reopen, see
+[Troubleshooting](/Voyalier/troubleshooting/).

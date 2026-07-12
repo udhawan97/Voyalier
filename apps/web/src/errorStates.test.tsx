@@ -133,9 +133,12 @@ describe("AppError rendered states", () => {
     const dialog = await screen.findByRole("dialog", {
       name: "Review suggestions",
     });
-    fireEvent.click(
-      within(dialog).getAllByRole("button", { name: "Dismiss" })[0],
-    );
+    // Dismiss is a two-step confirm: arm, then confirm.
+    const dismiss = within(dialog).getAllByRole("button", {
+      name: "Dismiss",
+    })[0];
+    fireEvent.click(dismiss);
+    fireEvent.click(dismiss);
     expect(
       await within(dialog).findByText("Already resolved"),
     ).toBeInTheDocument();
@@ -151,8 +154,11 @@ describe("AppError rendered states", () => {
     const factCard = (await screen.findByText("Flight FP18")).closest(
       "article",
     ) as HTMLElement;
-    // FP18 is a hand-entered (manual) fact, so the action is "Remove".
-    fireEvent.click(within(factCard).getByRole("button", { name: "Remove" }));
+    // FP18 is a hand-entered (manual) fact, so the action is a "Remove" that
+    // takes a two-step confirm (arm, then confirm).
+    const remove = within(factCard).getByRole("button", { name: "Remove" });
+    fireEvent.click(remove);
+    fireEvent.click(remove);
     expect(
       await screen.findByText("This fact is no longer here"),
     ).toBeInTheDocument();
@@ -174,7 +180,7 @@ describe("AppError rendered states", () => {
     ).toBeInTheDocument();
   });
 
-  it("document/duplicate links to the existing document", async () => {
+  it("document/duplicate warns without exposing the internal document id", async () => {
     renderApp(
       failingGateway({
         importDocument: rejectWith({
@@ -187,9 +193,10 @@ describe("AppError rendered states", () => {
     await openKyoto();
     await submitImport();
     expect(await screen.findByText("Already imported")).toBeInTheDocument();
+    // The internal document id is a debug token and must not reach the user.
     expect(
-      screen.getByText(/document_kyoto_confirmations/),
-    ).toBeInTheDocument();
+      screen.queryByText(/document_kyoto_confirmations/),
+    ).not.toBeInTheDocument();
   });
 
   it("document/empty renders inline in import", async () => {
@@ -227,7 +234,7 @@ describe("AppError rendered states", () => {
       }),
     );
     expect(
-      await screen.findByText("Local core unreachable"),
+      await screen.findByText("Voyalier can't reach its engine"),
     ).toBeInTheDocument();
   });
 

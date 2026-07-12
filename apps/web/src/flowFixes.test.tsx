@@ -26,7 +26,10 @@ describe("User-flow gap fixes", () => {
     expect(
       within(factCard).queryByRole("button", { name: "Unconfirm" }),
     ).toBeNull();
-    fireEvent.click(within(factCard).getByRole("button", { name: "Remove" }));
+    // Remove is a two-step confirm on a manual fact (arm, then confirm).
+    const remove = within(factCard).getByRole("button", { name: "Remove" });
+    fireEvent.click(remove);
+    fireEvent.click(remove);
 
     expect(await screen.findByText("Flight FP18 removed.")).toBeInTheDocument();
     expect(screen.queryByText("Flight FP18 moved back to review.")).toBeNull();
@@ -111,7 +114,8 @@ describe("User-flow gap fixes", () => {
       failingGateway({
         fetchWeather: rejectWith({
           code: "weather/fetch_failed",
-          message: "the weather source could not find that destination on the map",
+          message:
+            "the weather source could not find that destination on the map",
         }),
       }),
     );

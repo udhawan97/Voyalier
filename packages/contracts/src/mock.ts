@@ -1525,8 +1525,11 @@ export function createMockGateway(options?: {
 
         for (const fact of facts.values()) {
           if (fact.tripId !== tripId) continue;
-          let best: { matched: number; occurrences: number; snippet: string } | null =
-            null;
+          let best: {
+            matched: number;
+            occurrences: number;
+            snippet: string;
+          } | null = null;
           for (const value of factFieldStrings(fact)) {
             const { matched, occurrences } = scoreHaystack(
               value.toLowerCase(),
@@ -1953,6 +1956,15 @@ export function createMockGateway(options?: {
             throw appError(
               "validation/invalid_input",
               "the instruction can't be empty — reset it to the default instead",
+              { field: "text" },
+            );
+          }
+          // Mirror the backend's MAX_AI_PROMPT_LEN so the mock rejects the same
+          // over-long input the real service would.
+          if (trimmed.length > 6000) {
+            throw appError(
+              "validation/invalid_input",
+              "the instruction is too long",
               { field: "text" },
             );
           }

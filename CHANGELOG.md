@@ -6,9 +6,91 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
-Phase 3 (public beta) work, landing incrementally. OS code-signing (Apple
-notarization / Windows Authenticode) remains blocked on paid certificates; the
-in-app updater's own signing is separate and free, and ships in this release.
+Nothing pending — the polish wave shipped in 0.4.0.
+
+## [0.4.0] - 2026-07-12 — Public beta polish
+
+Assistive setup, a real type identity, and a correctness/robustness sweep on top
+of the 0.3.0 beta base. OS code-signing (Apple notarization / Windows
+Authenticode) remains blocked on paid certificates; the free in-app updater's own
+minisign signing is separate.
+
+### Added
+
+- **Destination-aware, assistive trip setup.** Origin/destination fields are an
+  accessible WAI-ARIA combobox with offline suggestions drawn from your existing
+  trips and the pack catalog; setup surfaces "Recommended for this trip" packs and
+  offline field suggestions for address/property fields. Nothing is geocoded per
+  keystroke and nothing leaves the device.
+- **Guided on-device AI setup.** When no runtime is detected, a step-by-step
+  install → start → get-a-model wizard; once Ollama is running, models can be
+  pulled in-app (`pullLocalModel`). Cloud keys gain **Validate & save**
+  (`validateProviderKey`) and a "How to get a key" helper.
+- **On-device lodging-date drafts.** "Fill gaps with on-device AI" proposes
+  missing lodging dates from your own imported text (`previewAssistDraft` /
+  `runAssistDraft`, `assisted` extraction method); every suggestion is a draft you
+  review before anything is saved.
+- **Editable AI instructions.** A settings panel to view and override the system
+  instructions used for assist and for the date draft, with per-instruction reset
+  (`getAiPrompts` / `setAiPrompt`). The date draft stays schema-locked to dates
+  regardless of the instruction, and replies stay marked non-authoritative.
+- **Relaxed, typeahead in-trip search.** As-you-type local search where any word
+  matches (partial words too), matching terms are offered as autofill
+  suggestions, and each result can be copied to reuse (`suggestSearchTerms`).
+- **Edit and unarchive trips.** An Edit dialog (`updateTrip`) that keeps imported
+  documents/facts/plans, an Unarchive action, and an archive show/hide toggle.
+- **Import from a file.** The import dialog accepts a local `.eml`/`.html`/`.txt`
+  file via a picker or drag-and-drop, read on-device (no upload) with the format
+  inferred from the extension — a saved confirmation email no longer has to be
+  hand-pasted.
+- **A real type identity.** The interface's named typefaces (Zen Kaku Gothic New,
+  Shippori Mincho) are now actually loaded — self-hosted Latin/Latin-Ext WOFF2
+  subsets (~94 KB, SIL OFL), with **no runtime web-font request**. The
+  documentation site self-hosts the same files, removing its only third-party
+  request.
+- **Branded macOS DMG installer window** (background + icon layout).
+- **Confirm-guards on destructive actions.** Dismissing a candidate and removing
+  a manual fact, a downloaded pack, or a stored provider key now take a two-step
+  confirm (arm → confirm); reversible actions stay one click.
+
+### Changed
+
+- **Copy pass for reading ease and one voice.** Architecture words retired from
+  the UI ("local core" → engine/ready wording), jargon removed ("grounded",
+  "forecast horizon", "milestone"), run-on scope lines split, "Unconfirm" →
+  "Back to review", "Add a fact" → "Add flight or stay".
+- **Design-token foundation.** Quantized ad-hoc font-weights onto the three
+  shipped weights; added type-scale, z-index, on-accent, and motion tokens.
+- **Subtle, token-driven motion + paper texture**, all under the existing
+  reduced-motion kill-switch; a shared `SectionTitle` gives every section the
+  same icon + display-serif heading.
+- New additive error codes `assist/unreachable` and `weather/fetch_failed` for
+  clearer failure messages.
+
+### Fixed
+
+- **Data loss:** returning a *manual* fact from the Blueprint used to delete it
+  silently; it is now an explicit, confirmed "Remove".
+- Trip search could repopulate results and announce a stale count after the box
+  was cleared (in-flight requests are now invalidated on every keystroke).
+- The delete-trip confirmation compared against a hardcoded English word; it now
+  tracks the localized field.
+- The map showed a silent empty frame on missing WebGL / library-load failure;
+  it now explains why (and its marker follows the theme). The Today panel shows a
+  retryable line instead of vanishing on error.
+- WCAG AA contrast fix for small "silver-on-paper" meta text; dark-mode toast
+  shadow and `theme-color` no longer use a frozen light-theme value.
+- Raw parser warning codes and internal document ids are no longer shown to
+  users; clipboard copy no longer reports success when no clipboard exists; the
+  AI-instruction editor caps length client-side; both date fields carry the
+  date-range error; the loopback dev server returns `403` (not `500`) for a
+  blocked host/origin.
+
+## [0.3.0] - 2026-07-11 — Phase 3 public beta base
+
+Phase 3 (public beta) work. OS code-signing (Apple notarization / Windows
+Authenticode) remains blocked on paid certificates; the in-app updater's own
+signing is separate and free, and ships in this release.
 
 ### Added
 

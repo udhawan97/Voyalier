@@ -3,8 +3,9 @@ import type { SearchHit } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import { plural, t } from "../app/i18n";
+import { SectionTitle } from "../components/primitives";
 import { Button } from "../components/Button";
-import { BedIcon, PlaneIcon } from "../components/icons";
+import { BedIcon, PlaneIcon, SearchIcon } from "../components/icons";
 
 const MAX_QUERY = 200;
 const MIN_QUERY = 2;
@@ -52,13 +53,16 @@ export function TripSearch({ tripId }: { tripId: string }) {
 
   async function runSearch(raw: string) {
     const trimmed = raw.trim();
+    // Invalidate any in-flight request on every call, including the too-short
+    // path — otherwise an older query that lands after the box is cleared would
+    // repopulate results and announce a stale count.
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
     if (trimmed.length < MIN_QUERY) {
       setResults(null);
       setSuggestions([]);
       return;
     }
-    const requestId = requestRef.current + 1;
-    requestRef.current = requestId;
     const [hits, terms] = await Promise.all([
       gateway.searchTrip(tripId, trimmed).catch(() => [] as SearchHit[]),
       gateway.suggestSearchTerms(tripId, trimmed).catch(() => [] as string[]),
@@ -92,8 +96,11 @@ export function TripSearch({ tripId }: { tripId: string }) {
   }
 
   async function copyHit(hit: SearchHit) {
+    // Optional chaining would let `await undefined` resolve and show a false
+    // "Copied" when no clipboard exists — require the API before claiming success.
+    if (!navigator.clipboard) return;
     try {
-      await navigator.clipboard?.writeText(hit.snippet);
+      await navigator.clipboard.writeText(hit.snippet);
       setCopiedKey(`${hit.source}:${hit.recordId}`);
       announce(t("search.announce.copied"));
     } catch {
@@ -104,9 +111,9 @@ export function TripSearch({ tripId }: { tripId: string }) {
 
   return (
     <section className="voy-search" aria-labelledby="trip-search-title">
-      <h2 id="trip-search-title" className="voy-search__title">
+      <SectionTitle id="trip-search-title" icon={<SearchIcon />}>
         {t("search.title")}
-      </h2>
+      </SectionTitle>
       <p className="voy-search__hint">{t("search.hint")}</p>
 
       <div className="voy-search__form">

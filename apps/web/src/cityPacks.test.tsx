@@ -76,7 +76,8 @@ describe("City packs", () => {
     // Once downloaded, the row shows offline counts and a remove control.
     expect(await within(nashville).findByText(/offline/)).toBeInTheDocument();
     const remove = within(nashville).getByRole("button", { name: "Remove" });
-    fireEvent.click(remove);
+    fireEvent.click(remove); // arm
+    fireEvent.click(remove); // confirm
 
     // Removing restores the download affordance.
     expect(
@@ -124,9 +125,7 @@ describe("City pack suggestions", () => {
     expect(
       await within(region).findByText(/No city pack matches “Lisbon” yet/),
     ).toBeInTheDocument();
-    expect(
-      within(region).queryByText("Recommended for this trip"),
-    ).toBeNull();
+    expect(within(region).queryByText("Recommended for this trip")).toBeNull();
   });
 
   it("supports an ambiguous match with more than one option", async () => {

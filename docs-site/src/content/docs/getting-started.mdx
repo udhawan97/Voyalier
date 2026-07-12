@@ -14,7 +14,7 @@ make dev
 
 The React interface runs at `127.0.0.1:5173`, with the local Axum API at `127.0.0.1:8787`.
 
-Open a trip to try it out: import a confirmation (paste, HTML, or a raw email), fetch official advice and a weather outlook, search the trip, browse and download offline city packs, get persona-weighted recommendations, view the map, and use AI assist. For on-device assist, install [Ollama](https://ollama.com) and pull a model (for example `ollama pull llama3.2`); for cloud assist, add an OpenAI or Anthropic key under **AI providers** (it is stored in your OS keychain). Every AI request shows a full preview before anything is sent.
+Open a trip to try it out: import a confirmation (paste, a local file, HTML, or a raw email), fetch official advice and a weather outlook, search the trip, browse and download offline city packs, get persona-weighted recommendations, view the map, and use AI assist. AI is optional — everything above works without it. For on-device assist, a guided setup under **AI providers** walks you through installing [Ollama](https://ollama.com), starting it, and pulling a recommended model in-app (no terminal required, though a copyable `ollama pull` command is offered too); for cloud assist, paste an OpenAI or Anthropic key and choose **Validate & save**, and it is checked before being stored in your OS keychain. Every AI request shows a full preview before anything is sent.
 
 Run `make check` before submitting changes.
 

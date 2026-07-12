@@ -122,7 +122,7 @@ describe("review hardening", () => {
     await waitFor(() => expect(document.activeElement).toBe(saveButton));
   });
 
-  it("links the start-date field to the date-range error for screen readers", async () => {
+  it("links both date fields to the shared date-range error for screen readers", async () => {
     renderApp();
     fireEvent.click(
       await screen.findByRole("button", { name: "Create a trip" }),
@@ -139,12 +139,16 @@ describe("review hardening", () => {
       within(dialog).getByRole("button", { name: "Create trip" }),
     );
 
+    // Both fields carry the invalid state and point at the one shared message.
     const start = await within(dialog).findByLabelText("Start date");
+    const end = within(dialog).getByLabelText("End date");
     expect(start).toHaveAttribute("aria-invalid", "true");
-    expect(start).toHaveAttribute("aria-describedby", "trip-end-error");
+    expect(start).toHaveAttribute("aria-describedby", "trip-dates-error");
+    expect(end).toHaveAttribute("aria-invalid", "true");
+    expect(end).toHaveAttribute("aria-describedby", "trip-dates-error");
     expect(within(dialog).getByRole("alert")).toHaveAttribute(
       "id",
-      "trip-end-error",
+      "trip-dates-error",
     );
   });
 });

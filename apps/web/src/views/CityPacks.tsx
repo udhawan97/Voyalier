@@ -10,7 +10,10 @@ import type {
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError } from "../app/format";
 import { plural, t, type MessageKey } from "../app/i18n";
+import { SectionTitle } from "../components/primitives";
+import { PackageIcon } from "../components/icons";
 import { Button } from "../components/Button";
+import { ConfirmButton } from "../components/ConfirmButton";
 
 const MATCH_REASON: Record<PackMatchKind, MessageKey> = {
   exact: "packs.suggested.matchExact",
@@ -129,13 +132,11 @@ export function CityPacks({
             {" · "}
             {t("packs.offline")}
           </span>
-          <Button
-            variant="ghost"
+          <ConfirmButton
+            label={t("packs.remove")}
             busy={busyId === pack.id}
-            onClick={() => remove(pack)}
-          >
-            {t("packs.remove")}
-          </Button>
+            onConfirm={() => remove(pack)}
+          />
         </div>
       );
     }
@@ -152,9 +153,9 @@ export function CityPacks({
 
   return (
     <section className="voy-packs" aria-labelledby="packs-title">
-      <h2 id="packs-title" className="voy-packs__title">
+      <SectionTitle id="packs-title" icon={<PackageIcon />}>
         {t("packs.title")}
-      </h2>
+      </SectionTitle>
 
       {suggestions && suggestions.length > 0 ? (
         <div className="voy-packs__suggested">
@@ -170,7 +171,9 @@ export function CityPacks({
             {suggestions.map((suggestion) => (
               <li key={suggestion.pack.id} className="voy-packs__row">
                 <div className="voy-packs__row-head">
-                  <span className="voy-packs__name">{suggestion.pack.name}</span>
+                  <span className="voy-packs__name">
+                    {suggestion.pack.name}
+                  </span>
                   <span className="voy-packs__region">
                     {suggestion.pack.region}
                   </span>

@@ -39,15 +39,41 @@
   --voy-danger: var(--voy-vermilion);
   --voy-success: var(--voy-moss);
 
+  /* On-accent text (buttons/badges filled with a brand color). */
+  --voy-on-accent: #ffffff;
+
   /* Shape */
   --voy-radius-sm: 0.75rem;
   --voy-radius-md: 1.25rem;
   --voy-radius-lg: 2rem;
 
+  /* Weight — the three static weights the self-hosted fonts actually ship.
+     Anything between snaps to these, so the scale is explicit, not implied. */
+  --voy-w-regular: 400;
+  --voy-w-medium: 500;
+  --voy-w-strong: 700;
+
+  /* Type scale — a small, named ladder. New code should use these; the legacy
+     ad-hoc rem sizes are being migrated onto them incrementally. */
+  --voy-text-xs: 0.72rem;
+  --voy-text-sm: 0.8rem;
+  --voy-text-base: 0.92rem;
+  --voy-text-md: 1rem;
+  --voy-text-lg: 1.15rem;
+  --voy-text-xl: 1.4rem;
+  --voy-text-2xl: clamp(2rem, 5vw, 2.8rem);
+
+  /* Stacking order — one place, so overlays never guess. */
+  --voy-z-popover: 40;
+  --voy-z-overlay: 50;
+  --voy-z-toast: 60;
+  --voy-z-skip: 100;
+
   /* Motion */
   --voy-motion-fast: 150ms;
   --voy-motion: 200ms;
   --voy-motion-slow: 250ms;
+  --voy-motion-shimmer: 1.4s;
   --voy-ease: cubic-bezier(0.2, 0, 0, 1);
 
   --voy-font-ui:
