@@ -19,7 +19,7 @@
     "tripId": { "type": "string" },
     "factType": { "enum": ["flight_segment", "lodging_stay"] },
     "payload": { "$ref": "#/$defs/factPayload" },
-    "method": { "enum": ["structured", "inferred", "manual"] },
+    "method": { "enum": ["structured", "inferred", "manual", "assisted"] },
     "candidateId": {
       "oneOf": [{ "type": "string" }, { "type": "null" }]
     },

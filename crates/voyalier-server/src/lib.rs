@@ -52,6 +52,16 @@ struct RunAssistBody {
 }
 
 #[derive(Debug, Deserialize)]
+struct AssistDraftQuery {
+    kind: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct AssistDraftBody {
+    kind: String,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct FetchAdviceBody {
     country_slug: String,
@@ -144,6 +154,14 @@ pub fn app(service: AppService) -> Router {
             get(preview_assist),
         )
         .route("/api/v1/trips/{trip_id}/assist", post(run_assist))
+        .route(
+            "/api/v1/trips/{trip_id}/assist-draft-preview",
+            get(preview_assist_draft),
+        )
+        .route(
+            "/api/v1/trips/{trip_id}/assist-draft",
+            post(run_assist_draft),
+        )
         .route(
             "/api/v1/trips/{trip_id}/assist-activity",
             get(list_assist_activity),
@@ -284,6 +302,22 @@ async fn run_assist(
     Json(body): Json<RunAssistBody>,
 ) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(service.run_assist(&trip_id, &body.provider)?))
+}
+
+async fn preview_assist_draft(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+    Query(query): Query<AssistDraftQuery>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.preview_assist_draft(&trip_id, &query.kind)?))
+}
+
+async fn run_assist_draft(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+    Json(body): Json<AssistDraftBody>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.run_assist_draft(&trip_id, &body.kind)?))
 }
 
 async fn list_assist_activity(

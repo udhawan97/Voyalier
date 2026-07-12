@@ -3,6 +3,7 @@ import type {
   AppError,
   AppGateway,
   AssistActivityEntry,
+  AssistDraftKind,
   AssistReply,
   AssistRequestPreview,
   CandidateFact,
@@ -1631,6 +1632,85 @@ export function createMockGateway(options?: {
         } satisfies AssistReply;
       }),
 
+    previewAssistDraft: (tripId: string, kind: AssistDraftKind) =>
+      execute("previewAssistDraft", () => {
+        const trip = requireTrip(tripId);
+        if (kind !== "lodging_dates") {
+          throw appError("validation/invalid_input", "unknown draft kind", {
+            field: "kind",
+          });
+        }
+        const docs = [...documents.values()].filter(
+          (stored) => stored.document.tripId === tripId,
+        );
+        const userContent =
+          `Trip dates: ${trip.startDate} to ${trip.endDate}\n\n` +
+          "Imported booking text:\n" +
+          docs
+            .map(
+              (stored) =>
+                `--- ${stored.document.label} ---\n${stored.content.trim()}\n`,
+            )
+            .join("");
+        return {
+          provider: "ollama",
+          providerLabel: "Ollama (on-device)",
+          endpoint: "http://localhost:11434/api/chat",
+          leavesDevice: false,
+          systemPrompt:
+            "You extract lodging check-in and check-out dates from a traveler's own booking text.",
+          userContent,
+          withheld: [],
+          groundedIn:
+            docs.length > 0
+              ? [
+                  `${docs.length} imported ${
+                    docs.length === 1 ? "document" : "documents"
+                  }`,
+                  "trip dates",
+                ]
+              : ["no imported documents yet"],
+          estimatedTokens: Math.ceil(userContent.length / 4) + 1,
+        } satisfies AssistRequestPreview;
+      }),
+
+    runAssistDraft: (tripId: string, kind: AssistDraftKind) =>
+      execute("runAssistDraft", () => {
+        const trip = requireTrip(tripId);
+        if (kind !== "lodging_dates") {
+          throw appError("validation/invalid_input", "unknown draft kind", {
+            field: "kind",
+          });
+        }
+        const docs = [...documents.values()].filter(
+          (stored) => stored.document.tripId === tripId,
+        );
+        // No imported text → nothing to draft from (mirrors the real gateway).
+        if (docs.length === 0) return { candidates: [] };
+        // Deterministic stand-in for the on-device model: propose one stay across
+        // the trip window as a pending, assisted candidate for review.
+        const candidate: CandidateFact = {
+          id: nextId("candidate"),
+          tripId,
+          documentId: docs[0].document.id,
+          parserRunId: nextId("assist"),
+          factType: "lodging_stay",
+          payload: {
+            propertyName: "Drafted stay",
+            checkinDate: trip.startDate,
+            checkoutDate: trip.endDate,
+          },
+          method: "assisted",
+          fieldSpans: [],
+          warnings: [],
+          status: "pending",
+          createdAt: timestamp(),
+          resolvedAt: null,
+        };
+        candidates.set(candidate.id, candidate);
+        return { candidates: [clone(candidate)] };
+      }),
+
     listAssistActivity: (tripId: string) =>
       execute("listAssistActivity", () => {
         requireTrip(tripId);
@@ -1665,26 +1745,21 @@ export function createMockGateway(options?: {
         }
         const candidates: FieldSuggestion[] = [];
 
-        // Confirmed lodging values (this trip first). A locked vault omits this
-        // source, mirroring the real gateway's behavior.
+        // Values confirmed on THIS trip only. A locked vault omits this source,
+        // mirroring the real gateway's behavior.
         if (!vaultStatus().locked) {
           const lodging = [...facts.values()].filter(
-            (fact) => fact.factType === "lodging_stay",
-          );
-          lodging.sort(
-            (a, b) =>
-              Number(b.tripId === input.tripId) -
-              Number(a.tripId === input.tripId),
+            (fact) =>
+              fact.factType === "lodging_stay" && fact.tripId === input.tripId,
           );
           for (const fact of lodging) {
             const values = fact.payload as Record<string, string | undefined>;
             const value = values[input.field]?.trim();
             if (!value) continue;
-            const sameTrip = fact.tripId === input.tripId;
             candidates.push({
               value,
-              source: sameTrip ? "confirmed_fact" : "trip_history",
-              detail: sameTrip ? "from this trip" : "from a previous stay",
+              source: "confirmed_fact",
+              detail: "from this trip",
             });
           }
         }

@@ -485,6 +485,12 @@ h3 {
   border-color: color-mix(in srgb, var(--voy-indigo) 30%, transparent);
 }
 
+.voy-chip--assisted {
+  color: var(--voy-moss);
+  background: var(--voy-tint-moss);
+  border-color: color-mix(in srgb, var(--voy-moss) 30%, transparent);
+}
+
 .voy-count {
   display: inline-flex;
   align-items: center;

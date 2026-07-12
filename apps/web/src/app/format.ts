@@ -131,6 +131,8 @@ export function methodLabel(method: ExtractionMethod): string {
       return t("method.inferred");
     case "manual":
       return t("method.manual");
+    case "assisted":
+      return t("method.assisted");
   }
 }
 
@@ -143,6 +145,8 @@ export function methodDescription(method: ExtractionMethod): string {
       return t("method.inferred.desc");
     case "manual":
       return t("method.manual.desc");
+    case "assisted":
+      return t("method.assisted.desc");
   }
 }
 

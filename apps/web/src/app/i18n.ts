@@ -152,11 +152,14 @@ const en = {
   "method.structured": "Structured",
   "method.inferred": "Inferred",
   "method.manual": "Manual",
+  "method.assisted": "AI-suggested",
   "method.structured.desc":
     "Read from structured data embedded in the document.",
   "method.inferred.desc":
     "Inferred from unstructured text — worth a closer look.",
   "method.manual.desc": "Entered by you.",
+  "method.assisted.desc":
+    "Drafted by your on-device AI from your imported text — check it before confirming.",
   "warning.missing_dates": "No dates were found for this item.",
   "warning.missing_locations": "No locations were found for this item.",
   "warning.ambiguous_date_format":
@@ -432,6 +435,24 @@ const en = {
   "assist.log.aria": "Assist activity log",
   "assist.scope":
     "Preview shows exactly what would be sent. On-device runs stay on this device via Ollama; cloud runs send the previewed request to your chosen provider using your stored key. Each completed run is listed above.",
+
+  "draft.title": "Fill gaps with on-device AI",
+  "draft.intro":
+    "If a booking you imported has lodging dates that weren't picked up, your on-device AI can propose them from the text. It runs on this device — nothing leaves — and every suggestion is a draft you review before anything is saved.",
+  "draft.route": "Runs on this device via Ollama — nothing leaves your device.",
+  "draft.preview": "Preview what it reads",
+  "draft.reads": "What it would read",
+  "draft.instruction": "Instruction",
+  "draft.run": "Draft lodging dates",
+  "draft.none": "No missing lodging dates were found in your imported text.",
+  "draft.needDocs":
+    "Import a booking first — there's no text for the AI to read yet.",
+  "draft.announce.drafted.one":
+    "Drafted {count} lodging suggestion to review.",
+  "draft.announce.drafted.other":
+    "Drafted {count} lodging suggestions to review.",
+  "draft.scope":
+    "On-device only. Voyalier drafts dates from your own imported text; it never invents prices, visas, health, or safety details, and nothing is saved until you review it.",
 
   // Plural messages (see plural()). ".one"/".other" are the English CLDR forms.
   // The trip-card noun phrases omit the count (it renders bold, separately).

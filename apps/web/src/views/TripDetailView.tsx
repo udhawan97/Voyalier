@@ -48,6 +48,7 @@ import { CandidateReviewDialog } from "./CandidateReviewDialog";
 import { AiProviders } from "./AiProviders";
 import { TodayPanel } from "./TodayPanel";
 import { AssistPreview } from "./AssistPreview";
+import { AssistDraft } from "./AssistDraft";
 import { CityPacks } from "./CityPacks";
 import { MapPanel } from "./MapPanel";
 import { Recommendations } from "./Recommendations";
@@ -563,6 +564,14 @@ export function TripDetailView({
       <AiProviders />
 
       <AssistPreview tripId={tripId} />
+
+      <AssistDraft
+        tripId={tripId}
+        onDrafted={(candidates) => {
+          setReviewCandidates(candidates);
+          reload();
+        }}
+      />
 
       <CityPacks tripId={tripId} destination={trip.destination} />
 

@@ -2,6 +2,8 @@ import type {
   AddManualFactInput,
   AppGateway,
   AssistActivityEntry,
+  AssistDraftKind,
+  AssistDraftResult,
   AssistReply,
   AssistRequestPreview,
   CandidateFact,
@@ -126,6 +128,12 @@ export function createTauriGateway(
 
     runAssist: (tripId: string, provider: ProviderId) =>
       call<AssistReply>("run_assist", { tripId, provider }),
+
+    previewAssistDraft: (tripId: string, kind: AssistDraftKind) =>
+      call<AssistRequestPreview>("preview_assist_draft", { tripId, kind }),
+
+    runAssistDraft: (tripId: string, kind: AssistDraftKind) =>
+      call<AssistDraftResult>("run_assist_draft", { tripId, kind }),
 
     listAssistActivity: (tripId: string) =>
       call<AssistActivityEntry[]>("list_assist_activity", { tripId }),

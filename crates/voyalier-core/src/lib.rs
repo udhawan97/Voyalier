@@ -5,6 +5,7 @@
 
 mod advice;
 mod assist;
+mod assist_draft;
 mod brief;
 mod email;
 mod itinerary;
@@ -30,6 +31,10 @@ pub use assist::{
     DEFAULT_OPENAI_MODEL, OLLAMA_CHAT_URL, OPENAI_CHAT_URL, build_anthropic_messages_body,
     build_assist_preview, build_ollama_chat_body, build_openai_chat_body, parse_anthropic_reply,
     parse_ollama_chat_reply, parse_openai_chat_reply,
+};
+pub use assist_draft::{
+    ASSIST_DRAFT_LODGING_DATES, AssistDraftResult, DRAFT_LODGING_DATES_SYSTEM_PROMPT,
+    LodgingDateProposal, build_lodging_dates_user_content, parse_lodging_dates_reply,
 };
 pub use brief::{RedactionPolicy, TripBrief, build_trip_brief};
 pub use email::{EmailBody, extract_email_body};

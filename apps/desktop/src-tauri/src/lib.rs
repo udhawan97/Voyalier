@@ -2,12 +2,12 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 use voyalier_app::{AppService, BackupInfo};
 use voyalier_core::{
-    AddManualFactInput, AppError, AssistActivityEntry, AssistReply, AssistRequestPreview,
-    CandidateFact, CandidateStatus, ConfirmCandidateInput, ConfirmedFact, CreateTripInput,
-    DownloadedPack, ErrorCode, FcdoCountry, FieldSuggestion, HealthResponse, ImportDocumentInput,
-    ImportResult, LocalAiStatus, PackInfo, PackSuggestion, PersonaWeights, ProviderConfig,
-    Recommendation, SearchHit, TodayView, TravelAdviceSnapshot, Trip, TripBrief, TripDetail,
-    TripSummary, UpdateTripInput, VaultStatus, WeatherSnapshot,
+    AddManualFactInput, AppError, AssistActivityEntry, AssistDraftResult, AssistReply,
+    AssistRequestPreview, CandidateFact, CandidateStatus, ConfirmCandidateInput, ConfirmedFact,
+    CreateTripInput, DownloadedPack, ErrorCode, FcdoCountry, FieldSuggestion, HealthResponse,
+    ImportDocumentInput, ImportResult, LocalAiStatus, PackInfo, PackSuggestion, PersonaWeights,
+    ProviderConfig, Recommendation, SearchHit, TodayView, TravelAdviceSnapshot, Trip, TripBrief,
+    TripDetail, TripSummary, UpdateTripInput, VaultStatus, WeatherSnapshot,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -185,6 +185,29 @@ fn run_assist(
     service: State<'_, AppService>,
 ) -> Result<AssistReply, AppError> {
     service.run_assist(&input.trip_id, &input.provider)
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AssistDraftInput {
+    trip_id: String,
+    kind: String,
+}
+
+#[tauri::command]
+fn preview_assist_draft(
+    input: AssistDraftInput,
+    service: State<'_, AppService>,
+) -> Result<AssistRequestPreview, AppError> {
+    service.preview_assist_draft(&input.trip_id, &input.kind)
+}
+
+#[tauri::command]
+fn run_assist_draft(
+    input: AssistDraftInput,
+    service: State<'_, AppService>,
+) -> Result<AssistDraftResult, AppError> {
+    service.run_assist_draft(&input.trip_id, &input.kind)
 }
 
 #[tauri::command]
@@ -648,6 +671,8 @@ fn builder<R: tauri::Runtime>(
             search_trip,
             preview_assist,
             run_assist,
+            preview_assist_draft,
+            run_assist_draft,
             list_assist_activity,
             list_advice_countries,
             list_packs,
@@ -985,6 +1010,8 @@ mod tests {
             "search_trip",
             "preview_assist",
             "run_assist",
+            "preview_assist_draft",
+            "run_assist_draft",
             "list_assist_activity",
             "list_advice_countries",
             "list_packs",
