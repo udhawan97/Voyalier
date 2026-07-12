@@ -24,7 +24,9 @@ import type {
   ImportDocumentInput,
   ImportResult,
   ItineraryConflict,
+  KeyValidation,
   LocalAiStatus,
+  LocalModelPullResult,
   FieldSuggestion,
   LodgingStayPayload,
   PackInfo,
@@ -777,7 +779,8 @@ function mockSuggestPacks(destination: string): PackSuggestion[] {
   if (!normalized) return [];
   const padded = ` ${normalized} `;
   const tokens = normalized.split(" ");
-  const phraseIn = (term: string) => term !== "" && padded.includes(` ${term} `);
+  const phraseIn = (term: string) =>
+    term !== "" && padded.includes(` ${term} `);
 
   const suggestions: PackSuggestion[] = [];
   for (const pack of MOCK_PACKS) {
@@ -1151,15 +1154,18 @@ export function createMockGateway(options?: {
   }
 
   function aiPromptSettings(): AiPromptSettings {
-    const prompts: AiPrompt[] = (["assist", "draft_lodging_dates"] as const).map(
-      (kind) => {
-        const custom = aiPromptOverrides.get(kind);
-        const prompt: AiPrompt = { kind, defaultText: mockAiPromptDefault(kind) };
-        return custom ? { ...prompt, customText: custom } : prompt;
-      },
-    );
+    const prompts: AiPrompt[] = (
+      ["assist", "draft_lodging_dates"] as const
+    ).map((kind) => {
+      const custom = aiPromptOverrides.get(kind);
+      const prompt: AiPrompt = { kind, defaultText: mockAiPromptDefault(kind) };
+      return custom ? { ...prompt, customText: custom } : prompt;
+    });
     return { prompts };
   }
+  // On-device models the mock "runtime" reports installed. Mutable so an in-app
+  // pull is reflected by a subsequent detect, mirroring the real flow.
+  const localAiModels = ["llama3.2:latest", "qwen2.5:7b"];
   // Assist activity log, most recent appended last (metadata only).
   const assistActivity: (AssistActivityEntry & { tripId: string })[] = [];
   // Downloaded packs, keyed loosely by trip.
@@ -1525,9 +1531,31 @@ export function createMockGateway(options?: {
           ({
             provider: "ollama",
             available: true,
-            models: [{ name: "llama3.2:latest" }, { name: "qwen2.5:7b" }],
+            models: localAiModels.map((name) => ({ name })),
           }) satisfies LocalAiStatus,
       ),
+
+    pullLocalModel: (model: string) =>
+      execute("pullLocalModel", () => {
+        const tag = model.trim();
+        if (tag.length === 0) {
+          throw appError("validation/invalid_input", "model is required", {
+            field: "model",
+          });
+        }
+        // "unknown" simulates a bad tag; anything else "downloads" and installs.
+        if (tag.includes("unknown")) {
+          return {
+            ok: false,
+            message: `pull model manifest: model "${tag}" not found`,
+          } satisfies LocalModelPullResult;
+        }
+        if (!localAiModels.includes(tag)) localAiModels.push(tag);
+        return {
+          ok: true,
+          message: `${tag} is downloaded and ready.`,
+        } satisfies LocalModelPullResult;
+      }),
 
     listProviders: () =>
       execute("listProviders", () =>
@@ -1555,6 +1583,39 @@ export function createMockGateway(options?: {
         }
         providerKeys.add(input.provider);
         return providerConfig(input.provider);
+      }),
+
+    validateProviderKey: (input: SetProviderKeyInput) =>
+      execute("validateProviderKey", () => {
+        const info = MOCK_PROVIDERS.find(
+          (entry) => entry.id === input.provider,
+        );
+        if (!info)
+          throw appError("validation/invalid_input", "unknown provider");
+        if (!info.keyRequired) {
+          throw appError(
+            "validation/invalid_input",
+            "this provider runs locally and has no key to validate",
+            { field: "provider" },
+          );
+        }
+        if (input.key.trim().length === 0) {
+          throw appError("validation/invalid_input", "API key is required", {
+            field: "key",
+          });
+        }
+        // "bad" simulates a rejected key; anything else validates. The mock never
+        // retains the key value, mirroring the real gateway.
+        return input.key.includes("bad")
+          ? ({
+              status: "rejected",
+              message:
+                "The provider rejected this key. Check it and try again.",
+            } satisfies KeyValidation)
+          : ({
+              status: "valid",
+              message: "The provider accepted this key.",
+            } satisfies KeyValidation);
       }),
 
     clearProviderKey: (provider: ProviderId) =>

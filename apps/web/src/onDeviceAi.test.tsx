@@ -102,4 +102,77 @@ describe("on-device AI detection", () => {
     );
     expect(await within(region).findByText("Not detected")).toBeInTheDocument();
   });
+
+  it("offers a copyable pull command but disables in-app download when not running", async () => {
+    const gateway: AppGateway = {
+      ...createMockGateway(),
+      detectLocalAi: () =>
+        Promise.resolve({
+          provider: "ollama",
+          available: false,
+          models: [],
+        } satisfies LocalAiStatus),
+    };
+    renderApp(gateway);
+    const region = await openKyotoLocalAi();
+
+    fireEvent.click(
+      within(region).getByRole("button", { name: "Check for on-device AI" }),
+    );
+    await within(region).findByText("Not detected");
+
+    const gemma = within(region).getByRole("listitem", { name: "Gemma · 12B" });
+    // The exact pull command is shown for copy/paste...
+    expect(
+      within(gemma).getByText("ollama pull gemma4:12b-it-qat"),
+    ).toBeInTheDocument();
+    expect(
+      within(gemma).getByRole("button", { name: "Copy command" }),
+    ).toBeInTheDocument();
+    // ...but downloading in-app needs a running Ollama, so it's disabled here.
+    expect(
+      within(gemma).getByRole("button", { name: "Download" }),
+    ).toBeDisabled();
+  });
+
+  it("downloads a model in-app, then re-detects to show it installed", async () => {
+    let pulled = false;
+    const base = createMockGateway();
+    const gateway: AppGateway = {
+      ...base,
+      detectLocalAi: () =>
+        Promise.resolve({
+          provider: "ollama",
+          available: true,
+          models: pulled ? [{ name: "gemma4:12b-it-qat" }] : [],
+        } satisfies LocalAiStatus),
+      pullLocalModel: (model) => {
+        pulled = true;
+        return Promise.resolve({
+          ok: true,
+          message: `${model} is downloaded and ready.`,
+        });
+      },
+    };
+    renderApp(gateway);
+    const region = await openKyotoLocalAi();
+
+    fireEvent.click(
+      within(region).getByRole("button", { name: "Check for on-device AI" }),
+    );
+    // Running but empty: the "add a model" prompt and enabled Download appear.
+    expect(
+      await within(region).findByText(/Ollama is running/),
+    ).toBeInTheDocument();
+    const gemma = within(region).getByRole("listitem", { name: "Gemma · 12B" });
+    fireEvent.click(within(gemma).getByRole("button", { name: "Download" }));
+
+    // The pull triggers a re-detect that surfaces the newly installed model.
+    const installed = await within(region).findByRole("list", {
+      name: "Installed models",
+    });
+    expect(
+      within(installed).getByText("gemma4:12b-it-qat"),
+    ).toBeInTheDocument();
+  });
 });

@@ -18,19 +18,22 @@ use voyalier_core::{
     DEFAULT_ANTHROPIC_MODEL, DEFAULT_OLLAMA_MODEL, DEFAULT_OPENAI_MODEL,
     DRAFT_LODGING_DATES_SYSTEM_PROMPT, DocumentKind, DownloadedPack, ErrorCode, ExtractionMethod,
     FCDO_COUNTRIES, FactPayload, FactType, FcdoCountry, FieldSuggestion, HealthResponse,
-    ImportDocumentInput, ImportResult, IntelligenceMode, JsonLdParser, LocalAiStatus,
-    LodgingDateProposal, NormalizedDocument, OLLAMA_CHAT_URL, OLLAMA_TAGS_URL, OPENAI_CHAT_URL,
+    ImportDocumentInput, ImportResult, IntelligenceMode, JsonLdParser, KeyValidation,
+    KeyValidationStatus, LocalAiStatus, LocalModelPullResult, LodgingDateProposal,
+    NormalizedDocument, OLLAMA_CHAT_URL, OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OPENAI_CHAT_URL,
     PROVIDERS, PackContent, PackInfo, PackSuggestion, ParsedCandidate, PersonaWeights,
     PlaintextParser, ProviderConfig, ProviderId, Recommendation, RedactionPolicy, SearchHit,
     SearchableDocument, SourceDocument, SuggestionSource, TodayView, TravelAdviceSnapshot, Trip,
     TripBrief, TripDetail, TripStatus, TripSummary, UpdateTripInput, WarningCode, WeatherSnapshot,
     assess_readiness, build_anthropic_messages_body, build_assist_preview,
     build_lodging_dates_user_content, build_ollama_chat_body, build_openai_chat_body,
-    build_today_view, build_trip_brief, changed_payload_fields, detect_itinerary_conflicts,
-    extract_email_body, new_id, now_rfc3339, pack_catalog, pack_download_url,
+    build_pull_body, build_today_view, build_trip_brief, changed_payload_fields,
+    detect_itinerary_conflicts, extract_email_body, interpret_key_validation,
+    interpret_pull_response, new_id, now_rfc3339, pack_catalog, pack_download_url,
     parse_anthropic_reply, parse_fcdo_content, parse_forecast_response, parse_geocoding_response,
     parse_lodging_dates_reply, parse_ollama_chat_reply, parse_openai_chat_reply,
-    parse_pack_content, provider_info, rank_field_suggestions, recommend_places,
+    parse_pack_content, provider_info, provider_validation_endpoint, provider_validation_headers,
+    rank_field_suggestions, recommend_places,
     search_trip_corpus, suggest_packs, validate_api_key, validate_country_slug,
     validate_create_trip, validate_document_content, validate_fact_payload, validate_model_name,
     validate_pack_id, validate_provider_id, validate_search_query, validate_update_trip,
@@ -63,6 +66,26 @@ pub trait AdviceFetcher: Send + Sync {
         Err(AppError::new(
             ErrorCode::AssistFailed,
             "this fetcher does not support POST",
+        ))
+    }
+
+    /// Issue a GET and return only its HTTP status code, following the same
+    /// default-error pattern as `post_json`. Used to validate a BYOK key against
+    /// a provider's cheap read-only endpoint without reading (or logging) a body.
+    fn get_status(&self, _url: &str, _headers: &[(&str, &str)]) -> Result<u16, AppError> {
+        Err(AppError::new(
+            ErrorCode::AssistFailed,
+            "this fetcher does not support status checks",
+        ))
+    }
+
+    /// POST a JSON body with no timeout ceiling, for operations that can legitimately
+    /// run for many minutes — pulling a multi-gigabyte on-device model. Defaults to
+    /// an error like the other optional methods so GET-only test stubs are unaffected.
+    fn post_json_long(&self, _url: &str, _body: &str) -> Result<String, AppError> {
+        Err(AppError::new(
+            ErrorCode::AssistFailed,
+            "this fetcher does not support long POST",
         ))
     }
 }
@@ -103,6 +126,43 @@ impl AdviceFetcher for UreqFetcher {
             request = request.header(*name, *value);
         }
         let mut response = request.send(body).map_err(assist_transport_failure)?;
+        response
+            .body_mut()
+            .read_to_string()
+            .map_err(assist_transport_failure)
+    }
+
+    fn get_status(&self, url: &str, headers: &[(&str, &str)]) -> Result<u16, AppError> {
+        // A non-2xx here is a *result* (e.g. 401 = bad key), not a transport error,
+        // so map only genuine reach failures to an error and report the code as-is.
+        let config = ureq::Agent::config_builder()
+            .timeout_global(Some(std::time::Duration::from_secs(15)))
+            .http_status_as_error(false)
+            .user_agent("Voyalier/0.1 (+https://github.com/udhawan97/Voyalier)")
+            .build();
+        let agent: ureq::Agent = config.into();
+        let mut request = agent.get(url);
+        for (name, value) in headers {
+            request = request.header(*name, *value);
+        }
+        let response = request.call().map_err(assist_transport_failure)?;
+        Ok(response.status().as_u16())
+    }
+
+    fn post_json_long(&self, url: &str, body: &str) -> Result<String, AppError> {
+        // Pulling a model streams gigabytes and can take many minutes; allow a
+        // generous ceiling rather than none so a truly stuck request still ends.
+        let config = ureq::Agent::config_builder()
+            .timeout_global(Some(std::time::Duration::from_secs(30 * 60)))
+            .http_status_as_error(false)
+            .user_agent("Voyalier/0.1 (+https://github.com/udhawan97/Voyalier)")
+            .build();
+        let agent: ureq::Agent = config.into();
+        let mut response = agent
+            .post(url)
+            .header("Content-Type", "application/json")
+            .send(body)
+            .map_err(assist_transport_failure)?;
         response
             .body_mut()
             .read_to_string()
@@ -1037,6 +1097,68 @@ impl AppService {
         self.secrets.delete(&key_account(id))?;
         let connection = self.connection()?;
         self.build_provider_config(&connection, id)
+    }
+
+    /// Check a BYOK key against its provider before storing it, by issuing a
+    /// cheap read-only request with the key in the auth header. Nothing is stored
+    /// or logged — the key is consumed here and only placed in the outgoing
+    /// header. A clear rejection (401/403) is authoritative; any reach failure or
+    /// odd status is reported as `unreachable` so a transient hiccup never looks
+    /// like a bad key. Keyless providers (Ollama) are rejected as invalid input.
+    pub fn validate_provider_key(
+        &self,
+        provider: &str,
+        key: &str,
+    ) -> Result<KeyValidation, AppError> {
+        let id = validate_provider_id(provider)?;
+        let Some(endpoint) = provider_validation_endpoint(id) else {
+            return Err(AppError::with_detail(
+                ErrorCode::ValidationInvalidInput,
+                "this provider runs locally and has no key to validate",
+                "field",
+                "provider",
+            ));
+        };
+        let key = validate_api_key(key)?;
+        let headers = provider_validation_headers(id, &key);
+        let header_refs: Vec<(&str, &str)> = headers
+            .iter()
+            .map(|(name, value)| (name.as_str(), value.as_str()))
+            .collect();
+        match self.fetcher.get_status(endpoint, &header_refs) {
+            Ok(status) => Ok(interpret_key_validation(status)),
+            Err(_) => Ok(KeyValidation {
+                status: KeyValidationStatus::Unreachable,
+                message: "Could not reach the provider to verify the key.".to_owned(),
+            }),
+        }
+    }
+
+    /// Download (pull) an on-device model into a running Ollama. Best-effort and
+    /// self-contained: the request goes only to localhost, and a failure — Ollama
+    /// not running, an unknown tag — is returned as `ok: false` with a readable
+    /// message rather than an error the UI has to decode. The download can take
+    /// several minutes for a multi-gigabyte model.
+    pub fn pull_local_model(&self, model: &str) -> Result<LocalModelPullResult, AppError> {
+        let model = validate_model_name(model)?;
+        let body = build_pull_body(&model);
+        match self.fetcher.post_json_long(OLLAMA_PULL_URL, &body) {
+            Ok(response) => match interpret_pull_response(&response) {
+                Ok(()) => Ok(LocalModelPullResult {
+                    ok: true,
+                    message: format!("{model} is downloaded and ready."),
+                }),
+                Err(reason) => Ok(LocalModelPullResult {
+                    ok: false,
+                    message: reason,
+                }),
+            },
+            Err(_) => Ok(LocalModelPullResult {
+                ok: false,
+                message: "Could not reach Ollama. Make sure it is installed and running, then try again."
+                    .to_owned(),
+            }),
+        }
     }
 
     /// Set a provider's chosen model (stored locally in the database).
@@ -3812,6 +3934,143 @@ mod tests {
         let status = down.detect_local_ai();
         assert!(!status.available);
         assert!(status.models.is_empty());
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn validate_provider_key_maps_status_and_never_stores_the_key() {
+        struct StatusFetcher {
+            status: Option<u16>, // None models a transport failure (offline).
+        }
+        impl AdviceFetcher for StatusFetcher {
+            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+                Err(AppError::new(ErrorCode::AdviceFetchFailed, "n/a"))
+            }
+            fn get_status(&self, url: &str, headers: &[(&str, &str)]) -> Result<u16, AppError> {
+                // The key rides only in the auth header, to the provider endpoint.
+                assert!(url.starts_with("https://"));
+                assert!(headers.iter().any(|(name, value)| {
+                    (*name == "Authorization" && value.contains("test-key"))
+                        || (*name == "x-api-key" && *value == "test-key")
+                }));
+                match self.status {
+                    Some(code) => Ok(code),
+                    None => Err(AppError::new(ErrorCode::AssistFailed, "offline")),
+                }
+            }
+        }
+
+        // A 200 is a valid key — and validation must never persist it.
+        let database = temp_database("validate-ok");
+        let service =
+            open_test_service_with_fetcher(&database, Arc::new(StatusFetcher { status: Some(200) }))
+                .expect("service");
+        let verdict = service
+            .validate_provider_key("openai", "test-key")
+            .expect("verdict");
+        assert_eq!(verdict.status, KeyValidationStatus::Valid);
+        let openai = service
+            .list_providers()
+            .expect("providers")
+            .into_iter()
+            .find(|config| config.id == ProviderId::OpenAi)
+            .expect("openai");
+        assert!(!openai.has_key, "validation must not store the key");
+        cleanup_database(database);
+
+        // A 401 is an authoritative rejection (exercises the x-api-key header).
+        let database = temp_database("validate-401");
+        let service =
+            open_test_service_with_fetcher(&database, Arc::new(StatusFetcher { status: Some(401) }))
+                .expect("service");
+        assert_eq!(
+            service
+                .validate_provider_key("anthropic", "test-key")
+                .expect("verdict")
+                .status,
+            KeyValidationStatus::Rejected
+        );
+        cleanup_database(database);
+
+        // A reach failure is inconclusive, not a rejection; keyless is invalid input.
+        let database = temp_database("validate-down");
+        let service =
+            open_test_service_with_fetcher(&database, Arc::new(StatusFetcher { status: None }))
+                .expect("service");
+        assert_eq!(
+            service
+                .validate_provider_key("openai", "test-key")
+                .expect("verdict")
+                .status,
+            KeyValidationStatus::Unreachable
+        );
+        assert_eq!(
+            service
+                .validate_provider_key("ollama", "test-key")
+                .expect_err("keyless")
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn pull_local_model_reports_success_and_failure() {
+        struct PullFetcher {
+            response: Option<String>, // None models Ollama not running.
+        }
+        impl AdviceFetcher for PullFetcher {
+            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+                Err(AppError::new(ErrorCode::AdviceFetchFailed, "n/a"))
+            }
+            fn post_json_long(&self, url: &str, body: &str) -> Result<String, AppError> {
+                assert!(url.contains("11434/api/pull"));
+                assert!(body.contains("gemma"));
+                match &self.response {
+                    Some(response) => Ok(response.clone()),
+                    None => Err(AppError::new(ErrorCode::AssistFailed, "connection refused")),
+                }
+            }
+        }
+
+        let database = temp_database("pull-ok");
+        let service = open_test_service_with_fetcher(
+            &database,
+            Arc::new(PullFetcher {
+                response: Some(r#"{"status":"success"}"#.to_owned()),
+            }),
+        )
+        .expect("service");
+        let result = service
+            .pull_local_model("gemma4:12b-it-qat")
+            .expect("result");
+        assert!(result.ok);
+        cleanup_database(database);
+
+        // A provider error body surfaces its reason verbatim.
+        let database = temp_database("pull-err");
+        let service = open_test_service_with_fetcher(
+            &database,
+            Arc::new(PullFetcher {
+                response: Some(r#"{"error":"model not found"}"#.to_owned()),
+            }),
+        )
+        .expect("service");
+        let result = service.pull_local_model("gemma4:nope").expect("result");
+        assert!(!result.ok);
+        assert!(result.message.contains("model not found"));
+        cleanup_database(database);
+
+        // Ollama not running is a friendly failure, not an error the UI must decode.
+        let database = temp_database("pull-down");
+        let service =
+            open_test_service_with_fetcher(&database, Arc::new(PullFetcher { response: None }))
+                .expect("service");
+        let result = service
+            .pull_local_model("gemma4:12b-it-qat")
+            .expect("result");
+        assert!(!result.ok);
+        assert!(result.message.contains("Ollama"));
         cleanup_database(database);
     }
 

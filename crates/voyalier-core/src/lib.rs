@@ -39,7 +39,10 @@ pub use assist_draft::{
 pub use brief::{RedactionPolicy, TripBrief, build_trip_brief};
 pub use email::{EmailBody, extract_email_body};
 pub use itinerary::detect_itinerary_conflicts;
-pub use local_ai::{LocalAiModel, LocalAiStatus, OLLAMA_TAGS_URL, parse_ollama_models};
+pub use local_ai::{
+    LocalAiModel, LocalAiStatus, LocalModelPullResult, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,
+    build_pull_body, interpret_pull_response, parse_ollama_models,
+};
 pub use packs::{
     BoundingBox, DownloadedPack, PACK_RELEASE_TAG, PackArticle, PackContent, PackInfo,
     PackLayerLicense, PackMatchKind, PackPlace, PackSuggestion, normalize_place, pack_catalog,
@@ -50,8 +53,9 @@ pub use parser::{
     ParserOutcome, PlaintextParser,
 };
 pub use provider::{
-    MAX_API_KEY_LEN, MAX_MODEL_LEN, PROVIDERS, ProviderConfig, ProviderId, ProviderInfo,
-    provider_info, validate_api_key, validate_model_name, validate_provider_id,
+    KeyValidation, KeyValidationStatus, MAX_API_KEY_LEN, MAX_MODEL_LEN, PROVIDERS, ProviderConfig,
+    ProviderId, ProviderInfo, interpret_key_validation, provider_info, provider_validation_endpoint,
+    provider_validation_headers, validate_api_key, validate_model_name, validate_provider_id,
 };
 pub use readiness::assess_readiness;
 pub use recommend::{PersonaWeights, Recommendation, recommend_places};

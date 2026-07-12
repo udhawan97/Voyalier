@@ -48,7 +48,7 @@ describe("AI providers (BYOK)", () => {
     expect(calls).toBe(1);
   });
 
-  it("stores a key and shows it as stored without echoing the value", async () => {
+  it("validates then stores a key without echoing the value", async () => {
     renderApp(createMockGateway());
     const region = await openProviders();
 
@@ -57,7 +57,7 @@ describe("AI providers (BYOK)", () => {
     const keyField = within(openaiRow).getByLabelText("OpenAI API key");
     fireEvent.change(keyField, { target: { value: "sk-secret-value" } });
     fireEvent.click(
-      within(openaiRow).getByRole("button", { name: "Save key" }),
+      within(openaiRow).getByRole("button", { name: "Validate & save" }),
     );
 
     expect(
@@ -69,6 +69,44 @@ describe("AI providers (BYOK)", () => {
     expect(
       within(openaiRow).getByRole("button", { name: "Remove key" }),
     ).toBeInTheDocument();
+  });
+
+  it("does not store a key the provider rejects, and shows why", async () => {
+    renderApp(createMockGateway());
+    const region = await openProviders();
+
+    await within(region).findByText("OpenAI");
+    const openaiRow = within(region).getByText("OpenAI").closest("li")!;
+    // The mock rejects any key containing "bad".
+    fireEvent.change(within(openaiRow).getByLabelText("OpenAI API key"), {
+      target: { value: "sk-bad-key" },
+    });
+    fireEvent.click(
+      within(openaiRow).getByRole("button", { name: "Validate & save" }),
+    );
+
+    expect(await within(openaiRow).findByRole("alert")).toHaveTextContent(
+      /rejected/i,
+    );
+    // The key was not stored: no "Key stored", and the input is still offered.
+    expect(within(openaiRow).queryByText("Key stored")).toBeNull();
+    expect(
+      within(openaiRow).getByRole("button", { name: "Validate & save" }),
+    ).toBeInTheDocument();
+  });
+
+  it("guides the user to where they can get an API key", async () => {
+    renderApp(createMockGateway());
+    const region = await openProviders();
+
+    const openaiRow = (await within(region).findByText("OpenAI")).closest(
+      "li",
+    )!;
+    const link = within(openaiRow).getByRole("link", { name: /API keys page/ });
+    expect(link).toHaveAttribute(
+      "href",
+      "https://platform.openai.com/api-keys",
+    );
   });
 
   it("does not offer a key field for the on-device provider", async () => {

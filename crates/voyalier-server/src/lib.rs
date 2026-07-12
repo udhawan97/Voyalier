@@ -86,6 +86,11 @@ struct SetProviderModelBody {
 }
 
 #[derive(Debug, Deserialize)]
+struct PullModelBody {
+    model: String,
+}
+
+#[derive(Debug, Deserialize)]
 struct PassphraseBody {
     passphrase: String,
 }
@@ -139,10 +144,15 @@ pub fn app(service: AppService) -> Router {
             post(download_pack).delete(delete_downloaded_pack),
         )
         .route("/api/v1/local-ai", get(detect_local_ai))
+        .route("/api/v1/local-ai/pull", post(pull_local_model))
         .route("/api/v1/providers", get(list_providers))
         .route(
             "/api/v1/providers/{provider}/key",
             post(set_provider_key).delete(clear_provider_key),
+        )
+        .route(
+            "/api/v1/providers/{provider}/validate",
+            post(validate_provider_key),
         )
         .route(
             "/api/v1/providers/{provider}/model",
@@ -405,6 +415,21 @@ async fn delete_downloaded_pack(
 
 async fn detect_local_ai(State(service): State<AppService>) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(service.detect_local_ai()))
+}
+
+async fn pull_local_model(
+    State(service): State<AppService>,
+    Json(body): Json<PullModelBody>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.pull_local_model(&body.model)?))
+}
+
+async fn validate_provider_key(
+    State(service): State<AppService>,
+    Path(provider): Path<String>,
+    Json(body): Json<SetProviderKeyBody>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.validate_provider_key(&provider, &body.key)?))
 }
 
 async fn list_providers(State(service): State<AppService>) -> Result<impl IntoResponse, ApiError> {
@@ -995,6 +1020,14 @@ mod tests {
             fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
                 Ok(String::new())
             }
+            // Canned responses (no real network) so the validate/pull routes can be
+            // exercised end-to-end: a 200 accepts the key, a success body installs.
+            fn get_status(&self, _url: &str, _headers: &[(&str, &str)]) -> Result<u16, AppError> {
+                Ok(200)
+            }
+            fn post_json_long(&self, _url: &str, _body: &str) -> Result<String, AppError> {
+                Ok(r#"{"status":"success"}"#.to_owned())
+            }
         }
 
         let database = temp_database("providers");
@@ -1034,6 +1067,43 @@ mod tests {
         )
         .await;
         assert_eq!(bad.status, StatusCode::BAD_REQUEST);
+
+        // Validate a key without storing it — the key must never echo back.
+        let validated = request(
+            router.clone(),
+            Method::POST,
+            "/api/v1/providers/openai/validate",
+            Some(json!({ "key": "sk-validate-me" })),
+        )
+        .await;
+        assert_eq!(validated.status, StatusCode::OK);
+        assert_eq!(validated.json["status"], "valid");
+        assert!(
+            !serde_json::to_string(&validated.json)
+                .unwrap()
+                .contains("sk-validate-me")
+        );
+
+        // A keyless provider has no key to validate.
+        let keyless = request(
+            router.clone(),
+            Method::POST,
+            "/api/v1/providers/ollama/validate",
+            Some(json!({ "key": "x" })),
+        )
+        .await;
+        assert_eq!(keyless.status, StatusCode::BAD_REQUEST);
+
+        // Pull an on-device model (canned success).
+        let pulled = request(
+            router.clone(),
+            Method::POST,
+            "/api/v1/local-ai/pull",
+            Some(json!({ "model": "gemma4:12b-it-qat" })),
+        )
+        .await;
+        assert_eq!(pulled.status, StatusCode::OK);
+        assert_eq!(pulled.json["ok"], true);
 
         let cleared = request(router, Method::DELETE, "/api/v1/providers/openai/key", None).await;
         assert_eq!(cleared.status, StatusCode::OK);

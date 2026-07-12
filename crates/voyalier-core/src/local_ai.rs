@@ -11,6 +11,9 @@ use serde::{Deserialize, Serialize};
 /// The localhost endpoint Voyalier probes for a running Ollama.
 pub const OLLAMA_TAGS_URL: &str = "http://localhost:11434/api/tags";
 
+/// The localhost endpoint that pulls (downloads) a model into a running Ollama.
+pub const OLLAMA_PULL_URL: &str = "http://localhost:11434/api/pull";
+
 /// One locally-installed model reported by the runtime.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -48,6 +51,47 @@ impl LocalAiStatus {
             available: true,
             models: parse_ollama_models(body),
         }
+    }
+}
+
+/// The outcome of an in-app model download (an Ollama `/api/pull`). Reports
+/// success plus a human message; never carries the raw runtime response.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelPullResult {
+    /// True when the model finished downloading and is ready to use.
+    pub ok: bool,
+    /// A short, human-readable status — a confirmation or the reason it failed.
+    pub message: String,
+}
+
+/// Build the `/api/pull` request body for `model`. Non-streaming so the runtime
+/// answers once, when the download is complete.
+pub fn build_pull_body(model: &str) -> String {
+    serde_json::json!({ "model": model, "stream": false }).to_string()
+}
+
+/// Interpret Ollama's non-streaming `/api/pull` response. Ollama reports a final
+/// `{"status":"success"}` on completion and an `{"error":"…"}` on failure; a
+/// non-streaming response can also arrive as newline-delimited JSON, so the last
+/// non-empty line is authoritative. Anything unrecognized is treated as a failure
+/// so a partial/garbled response is never mistaken for success.
+pub fn interpret_pull_response(body: &str) -> Result<(), String> {
+    let last = body
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .next_back()
+        .unwrap_or("");
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(last) else {
+        return Err("The download did not complete. Please try again.".to_owned());
+    };
+    if let Some(error) = value.get("error").and_then(|error| error.as_str()) {
+        return Err(error.to_owned());
+    }
+    match value.get("status").and_then(|status| status.as_str()) {
+        Some("success") => Ok(()),
+        _ => Err("The download did not complete. Please try again.".to_owned()),
     }
 }
 
@@ -127,5 +171,35 @@ mod tests {
         let status = LocalAiStatus::unavailable();
         assert!(!status.available);
         assert!(status.models.is_empty());
+    }
+
+    #[test]
+    fn pull_body_names_the_model_and_disables_streaming() {
+        let body = build_pull_body("gemma4:12b-it-qat");
+        let value: serde_json::Value = serde_json::from_str(&body).expect("json");
+        assert_eq!(value["model"], "gemma4:12b-it-qat");
+        assert_eq!(value["stream"], false);
+    }
+
+    #[test]
+    fn a_success_status_is_a_completed_pull() {
+        assert!(interpret_pull_response(r#"{"status":"success"}"#).is_ok());
+        // Non-streaming can still arrive as several JSON lines; the last wins.
+        assert!(interpret_pull_response(
+            "{\"status\":\"pulling manifest\"}\n{\"status\":\"success\"}\n"
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn an_error_or_garbled_pull_is_a_failure() {
+        assert_eq!(
+            interpret_pull_response(r#"{"error":"model not found"}"#),
+            Err("model not found".to_owned())
+        );
+        // In-progress-only (never reached success) is a failure, not success.
+        assert!(interpret_pull_response(r#"{"status":"pulling manifest"}"#).is_err());
+        assert!(interpret_pull_response("not json").is_err());
+        assert!(interpret_pull_response("").is_err());
     }
 }

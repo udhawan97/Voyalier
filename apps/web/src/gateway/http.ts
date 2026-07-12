@@ -20,7 +20,9 @@ import type {
   HealthResponse,
   ImportDocumentInput,
   ImportResult,
+  KeyValidation,
   LocalAiStatus,
+  LocalModelPullResult,
   PackInfo,
   PackSuggestion,
   PersonaWeights,
@@ -138,12 +140,22 @@ export function createHttpGateway(
 
     detectLocalAi: () => request<LocalAiStatus>("GET", "/api/v1/local-ai"),
 
+    pullLocalModel: (model: string) =>
+      request<LocalModelPullResult>("POST", "/api/v1/local-ai/pull", { model }),
+
     listProviders: () => request<ProviderConfig[]>("GET", "/api/v1/providers"),
 
     setProviderKey: (input: SetProviderKeyInput) =>
       request<ProviderConfig>(
         "POST",
         `/api/v1/providers/${enc(input.provider)}/key`,
+        { key: input.key },
+      ),
+
+    validateProviderKey: (input: SetProviderKeyInput) =>
+      request<KeyValidation>(
+        "POST",
+        `/api/v1/providers/${enc(input.provider)}/validate`,
         { key: input.key },
       ),
 
