@@ -69,6 +69,10 @@ export function VaultUnlock({ onUnlocked }: { onUnlocked: () => void }) {
             {error}
           </p>
         ) : null}
+        <details className="voy-unlock__forgot">
+          <summary>{t("vault.unlock.forgot")}</summary>
+          <p>{t("vault.unlock.forgot.body")}</p>
+        </details>
       </div>
     </section>
   );

@@ -173,7 +173,7 @@ export function ImportDialog({
             type="submit"
             form="import-form"
             busy={submitting}
-            disabled={over}
+            disabled={over || content.trim().length === 0}
           >
             {t("import.submit")}
           </Button>

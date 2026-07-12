@@ -80,6 +80,7 @@ export function AddFactDialog({
             type="submit"
             form="add-fact-form"
             busy={submitting}
+            disabled={isDraftEmpty(factType, draft)}
           >
             {t("addFact.submit")}
           </Button>

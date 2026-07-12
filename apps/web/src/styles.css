@@ -1776,6 +1776,23 @@ h3 {
   font-size: 0.88rem;
 }
 
+.voy-unlock__forgot {
+  margin: 1.5rem 0 0;
+  text-align: left;
+  font-size: 0.88rem;
+}
+
+.voy-unlock__forgot summary {
+  cursor: pointer;
+  color: var(--voy-ink-muted);
+}
+
+.voy-unlock__forgot p {
+  margin: 0.6rem 0 0;
+  color: var(--voy-ink-muted);
+  line-height: 1.55;
+}
+
 /* ===== AI request preview ============================================= */
 
 .voy-assist {
