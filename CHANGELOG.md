@@ -6,7 +6,14 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
-Nothing pending — the polish wave shipped in 0.4.0.
+### Fixed
+
+- More user-flow dead-ends: the **Import** and **Add flight or stay** primary
+  buttons were enabled on an empty form (they looked clickable but only errored),
+  and are now disabled until there's something to submit. The **vault unlock**
+  screen was a dead end on a forgotten passphrase — it now offers a "Forgot your
+  passphrase?" explainer with the honest no-recovery reality and the
+  restore-from-backup path.
 
 ## [0.4.0] - 2026-07-12 — Public beta polish
 
