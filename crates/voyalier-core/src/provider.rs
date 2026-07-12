@@ -321,13 +321,18 @@ mod tests {
     #[test]
     fn validation_headers_carry_the_key_per_provider() {
         let openai = provider_validation_headers(ProviderId::OpenAi, "sk-abc");
-        assert_eq!(openai, vec![("Authorization".to_owned(), "Bearer sk-abc".to_owned())]);
+        assert_eq!(
+            openai,
+            vec![("Authorization".to_owned(), "Bearer sk-abc".to_owned())]
+        );
 
         let anthropic = provider_validation_headers(ProviderId::Anthropic, "sk-ant");
         assert!(anthropic.contains(&("x-api-key".to_owned(), "sk-ant".to_owned())));
-        assert!(anthropic
-            .iter()
-            .any(|(name, value)| name == "anthropic-version" && value == ANTHROPIC_VERSION));
+        assert!(
+            anthropic
+                .iter()
+                .any(|(name, value)| name == "anthropic-version" && value == ANTHROPIC_VERSION)
+        );
 
         assert!(provider_validation_headers(ProviderId::Ollama, "x").is_empty());
     }

@@ -80,8 +80,7 @@ pub fn interpret_pull_response(body: &str) -> Result<(), String> {
     let last = body
         .lines()
         .map(str::trim)
-        .filter(|line| !line.is_empty())
-        .next_back()
+        .rfind(|line| !line.is_empty())
         .unwrap_or("");
     let Ok(value) = serde_json::from_str::<serde_json::Value>(last) else {
         return Err("The download did not complete. Please try again.".to_owned());
@@ -185,10 +184,12 @@ mod tests {
     fn a_success_status_is_a_completed_pull() {
         assert!(interpret_pull_response(r#"{"status":"success"}"#).is_ok());
         // Non-streaming can still arrive as several JSON lines; the last wins.
-        assert!(interpret_pull_response(
-            "{\"status\":\"pulling manifest\"}\n{\"status\":\"success\"}\n"
-        )
-        .is_ok());
+        assert!(
+            interpret_pull_response(
+                "{\"status\":\"pulling manifest\"}\n{\"status\":\"success\"}\n"
+            )
+            .is_ok()
+        );
     }
 
     #[test]

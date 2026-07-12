@@ -151,9 +151,8 @@ describe("AppError rendered states", () => {
     const factCard = (await screen.findByText("Flight FP18")).closest(
       "article",
     ) as HTMLElement;
-    fireEvent.click(
-      within(factCard).getByRole("button", { name: "Unconfirm" }),
-    );
+    // FP18 is a hand-entered (manual) fact, so the action is "Remove".
+    fireEvent.click(within(factCard).getByRole("button", { name: "Remove" }));
     expect(
       await screen.findByText("This fact is no longer here"),
     ).toBeInTheDocument();

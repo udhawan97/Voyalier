@@ -54,6 +54,7 @@ import { CityPacks } from "./CityPacks";
 import { MapPanel } from "./MapPanel";
 import { Recommendations } from "./Recommendations";
 import { DeleteTripDialog } from "./DeleteTripDialog";
+import { EditTripDialog } from "./EditTripDialog";
 import { ImportDialog } from "./ImportDialog";
 import { OnDeviceAi } from "./OnDeviceAi";
 import { TravelAdvice } from "./TravelAdvice";
@@ -123,7 +124,11 @@ function FactCard({
           onClick={() => onUnconfirm(fact)}
           busy={unconfirming}
         >
-          {t("detail.unconfirm")}
+          {/* A manual fact has no candidate to return to review, so unconfirming
+              it is a removal — label and announce it honestly. */}
+          {fact.candidateId === null
+            ? t("detail.remove")
+            : t("detail.unconfirm")}
         </Button>
       </div>
     </article>
@@ -322,7 +327,9 @@ export function TripDetailView({
   >(null);
   const [showDelete, setShowDelete] = useState(false);
   const [showBrief, setShowBrief] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [unarchiving, setUnarchiving] = useState(false);
   const [unconfirmingId, setUnconfirmingId] = useState<string | null>(null);
 
   async function archive() {
@@ -338,14 +345,28 @@ export function TripDetailView({
     }
   }
 
+  async function unarchive() {
+    setUnarchiving(true);
+    try {
+      await gateway.unarchiveTrip(tripId);
+      announce(t("detail.announce.unarchived"));
+      reload();
+    } catch (caught) {
+      announce(describeError(caught as AppError).title);
+    } finally {
+      setUnarchiving(false);
+    }
+  }
+
   async function unconfirm(fact: ConfirmedFact) {
     setUnconfirmingId(fact.id);
     try {
       await gateway.unconfirmFact(fact.id);
+      const title = factTitle(fact.factType, fact.payload);
       announce(
-        t("detail.announce.unconfirmed", {
-          fact: factTitle(fact.factType, fact.payload),
-        }),
+        fact.candidateId === null
+          ? t("detail.announce.removed", { fact: title })
+          : t("detail.announce.unconfirmed", { fact: title }),
       );
       reload();
     } catch (caught) {
@@ -449,12 +470,19 @@ export function TripDetailView({
           <Button variant="secondary" onClick={() => setShowAddFact(true)}>
             {t("detail.addFact")}
           </Button>
+          <Button variant="ghost" onClick={() => setShowEdit(true)}>
+            {t("detail.edit")}
+          </Button>
           {confirmedFacts.length > 0 ? (
             <Button variant="ghost" onClick={() => setShowBrief(true)}>
               {t("detail.shareBrief")}
             </Button>
           ) : null}
-          {!isArchived ? (
+          {isArchived ? (
+            <Button variant="ghost" onClick={unarchive} busy={unarchiving}>
+              {t("detail.unarchive")}
+            </Button>
+          ) : (
             <Button
               variant="ghost"
               icon={<ArchiveIcon />}
@@ -463,7 +491,7 @@ export function TripDetailView({
             >
               {t("detail.archive")}
             </Button>
-          ) : null}
+          )}
           <Button variant="ghost" onClick={() => setShowDelete(true)}>
             {t("detail.delete")}
           </Button>
@@ -640,6 +668,18 @@ export function TripDetailView({
 
       {showBrief ? (
         <BriefDialog tripId={tripId} onClose={() => setShowBrief(false)} />
+      ) : null}
+
+      {showEdit ? (
+        <EditTripDialog
+          trip={trip}
+          onClose={() => setShowEdit(false)}
+          onUpdated={() => {
+            setShowEdit(false);
+            announce(t("detail.announce.updated"));
+            reload();
+          }}
+        />
       ) : null}
     </section>
   );

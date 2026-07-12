@@ -502,7 +502,9 @@ export type ErrorCode =
   | "document/duplicate"
   | "document/empty"
   | "advice/fetch_failed"
+  | "weather/fetch_failed"
   | "assist/failed"
+  | "assist/unreachable"
   | "pack/download_failed"
   | "vault/locked"
   | "vault/passphrase_incorrect"
@@ -550,6 +552,8 @@ export interface AppGateway {
   getTrip(tripId: string): Promise<TripDetail>;
   updateTrip(tripId: string, input: UpdateTripInput): Promise<Trip>;
   archiveTrip(tripId: string): Promise<Trip>;
+  /** Bring an archived trip back into the workspace (restores it to draft). */
+  unarchiveTrip(tripId: string): Promise<Trip>;
   getTripBrief(tripId: string): Promise<TripBrief>;
   getToday(tripId: string): Promise<TodayView>;
   getVaultStatus(): Promise<VaultStatus>;

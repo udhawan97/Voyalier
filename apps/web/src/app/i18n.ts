@@ -81,6 +81,10 @@ const en = {
   "error.assist.title": "Assist didn't finish",
   "error.assist.body":
     "Voyalier couldn't complete the request. Check the model and your connection (or that your local AI is running), then try again — nothing was changed.",
+  "error.assistUnreachable.title": "Couldn't reach your AI",
+  "error.assistUnreachable.body":
+    "Voyalier couldn't reach the AI. If you're using on-device AI, make sure Ollama is running (and a model is pulled), then try again. For a cloud provider, check your connection. Nothing was changed.",
+  "error.weatherFetch.title": "Couldn't get the weather outlook",
   "error.packDownload.title": "Couldn't download that city pack",
   "error.packDownload.body":
     "Voyalier couldn't fetch the pack right now. Check your connection and try again — nothing was changed.",
@@ -124,6 +128,11 @@ const en = {
   "createTrip.name.hint": "Defaults to “From → To”.",
   "createTrip.name.placeholder": "Kyoto autumn journey",
 
+  "editTrip.title": "Edit trip",
+  "editTrip.description":
+    "Fix the destination, dates, or name. Your imported documents, facts, and plans stay.",
+  "editTrip.submit": "Save changes",
+
   "triplist.eyebrow": "Your workspace",
   "triplist.title": "Trips",
   "triplist.create": "Create a trip",
@@ -132,10 +141,15 @@ const en = {
   "triplist.empty.body":
     "Voyalier turns scattered confirmations and notes into one trustworthy journey — create a trip to begin.",
   "triplist.announce.archived": "{title} archived.",
+  "triplist.announce.unarchived": "{title} unarchived.",
   "triplist.announce.created": "Trip created: {title}.",
   "triplist.announce.deleted": "{title} deleted.",
+  "triplist.hideArchived": "Hide archived",
+  "triplist.allArchived":
+    "No active trips — your trips are archived. Show them below to reopen one.",
   "tripcard.open": "Open {title}",
   "tripcard.archive": "Archive",
+  "tripcard.unarchive": "Unarchive",
   "tripcard.delete": "Delete",
 
   "status.trip.draft": "Draft",
@@ -210,7 +224,7 @@ const en = {
   "localai.ollama": "Ollama",
   "localai.check": "Check for on-device AI",
   "localai.scope":
-    "Detection only — a local check on this device. Assist that uses these models is a later milestone and will always be opt-in.",
+    "Detection only — a local check on this device. When a model is installed, the AI features below (“Preview an AI request” and “Fill gaps with on-device AI”) can use it — always on this device, always opt-in.",
 
   // Guided setup shown when no runtime is detected, and the model cards.
   "localai.setup.lead":
@@ -461,6 +475,8 @@ const en = {
   "assist.title": "Preview an AI request",
   "assist.intro":
     "See exactly what Voyalier would send to a provider for this trip. Confirmation codes and traveler names are never included, and nothing is sent.",
+  "assist.readonly":
+    "This gives you a read-only answer — it won't change your trip. To have the AI fill in lodging dates from a booking you imported, use “Fill gaps with on-device AI” below.",
   "assist.provider.ollama": "Ollama (on-device)",
   "assist.provider.openai": "OpenAI",
   "assist.provider.anthropic": "Anthropic",
@@ -516,6 +532,8 @@ const en = {
   "tripcard.facts.other": "confirmed facts",
   "tripcard.pending.one": "pending suggestion",
   "tripcard.pending.other": "pending suggestions",
+  "triplist.showArchived.one": "Show {count} archived trip",
+  "triplist.showArchived.other": "Show {count} archived trips",
   "localai.running.one":
     "Ollama is running with {count} model installed. Voyalier can use it for optional, private assist — nothing leaves your device.",
   "localai.running.other":
@@ -543,6 +561,10 @@ const en = {
   "detail.backToTrips": "Back to trips",
   "detail.status": "Status: ",
   "detail.import": "Import",
+  "detail.edit": "Edit",
+  "detail.unarchive": "Unarchive",
+  "detail.announce.updated": "Trip updated.",
+  "detail.announce.unarchived": "Trip unarchived.",
   "detail.addFact": "Add a fact",
   "detail.shareBrief": "Share brief",
   "detail.archive": "Archive",
@@ -557,8 +579,10 @@ const en = {
     "Confirmed flights and stays land here in itinerary order. Import a confirmation or add a fact by hand to begin.",
   "detail.edited": "Edited before confirming: {fields}",
   "detail.unconfirm": "Unconfirm",
+  "detail.remove": "Remove",
   "detail.announce.archived": "Trip archived.",
   "detail.announce.unconfirmed": "{fact} moved back to review.",
+  "detail.announce.removed": "{fact} removed.",
   "detail.announce.added": "{fact} added.",
   "readiness.title": "Readiness",
   "readiness.checkYourself": "Check yourself",

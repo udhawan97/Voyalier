@@ -65,12 +65,15 @@ export function AssistDraft({
       }
     } catch (caught) {
       const appError = caught as AppError;
-      // assist/failed carries the "reply didn't validate" detail; surface it.
+      // An unreachable model gets "is Ollama running?"; a completed-but-invalid
+      // reply (assist/failed) carries its own "didn't validate" detail.
       setError(
-        appError.code === "assist/failed" ||
-          appError.code === "validation/invalid_input"
-          ? appError.message
-          : describeError(appError).title,
+        appError.code === "assist/unreachable"
+          ? describeError(appError).body
+          : appError.code === "assist/failed" ||
+              appError.code === "validation/invalid_input"
+            ? appError.message
+            : describeError(appError).title,
       );
     } finally {
       setRunning(false);

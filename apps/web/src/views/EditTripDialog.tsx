@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import type { AppError, CreateTripInput, Trip } from "@voyalier/contracts";
+import type { AppError, Trip, UpdateTripInput } from "@voyalier/contracts";
 
 import { useGateway } from "../app/context";
 import { describeError, tripFieldError } from "../app/format";
@@ -17,26 +17,31 @@ interface FieldErrors {
   dates?: string;
 }
 
-export function CreateTripDialog({
+/**
+ * Edit a trip's core fields after creation. Reuses the same validation and place
+ * suggestions as creation; imported documents, facts, and plans are untouched.
+ */
+export function EditTripDialog({
+  trip,
   onClose,
-  onCreated,
+  onUpdated,
 }: {
+  trip: Trip;
   onClose: () => void;
-  onCreated: (trip: Trip) => void;
+  onUpdated: (trip: Trip) => void;
 }) {
   const gateway = useGateway();
-  const [title, setTitle] = useState("");
-  const [origin, setOrigin] = useState("");
-  const [destination, setDestination] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [title, setTitle] = useState(trip.title);
+  const [origin, setOrigin] = useState(trip.origin);
+  const [destination, setDestination] = useState(trip.destination);
+  const [startDate, setStartDate] = useState(trip.startDate);
+  const [endDate, setEndDate] = useState(trip.endDate);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<AppError | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const originRef = useRef<HTMLInputElement>(null);
   const fetchPlaceSuggestions = usePlaceSuggestions();
 
-  // Client validation mirrors the contract: trimmed non-empty ≤120, start ≤ end.
   function validate(): FieldErrors {
     const next: FieldErrors = {};
     const trimmedOrigin = origin.trim();
@@ -60,18 +65,16 @@ export function CreateTripDialog({
     if (Object.keys(found).length > 0) return;
 
     setSubmitting(true);
-    const input: CreateTripInput = {
+    const patch: UpdateTripInput = {
+      title: title.trim(),
       origin: origin.trim(),
       destination: destination.trim(),
       startDate,
       endDate,
     };
-    const trimmedTitle = title.trim();
-    if (trimmedTitle) input.title = trimmedTitle;
-
     try {
-      const trip = await gateway.createTrip(input);
-      onCreated(trip);
+      const updated = await gateway.updateTrip(trip.id, patch);
+      onUpdated(updated);
     } catch (caught) {
       const appError = caught as AppError;
       const mapped = tripFieldError(appError);
@@ -90,10 +93,10 @@ export function CreateTripDialog({
 
   return (
     <Dialog
-      title={t("createTrip.title")}
+      title={t("editTrip.title")}
       onClose={onClose}
       initialFocusRef={originRef}
-      description={t("createTrip.description")}
+      description={t("editTrip.description")}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
@@ -102,16 +105,16 @@ export function CreateTripDialog({
           <Button
             variant="primary"
             type="submit"
-            form="create-trip-form"
+            form="edit-trip-form"
             busy={submitting}
           >
-            {t("createTrip.submit")}
+            {t("editTrip.submit")}
           </Button>
         </>
       }
     >
       <form
-        id="create-trip-form"
+        id="edit-trip-form"
         className="voy-form"
         onSubmit={handleSubmit}
         noValidate
@@ -126,7 +129,7 @@ export function CreateTripDialog({
           </Banner>
         ) : null}
         <Combobox
-          id="trip-origin"
+          id="edit-trip-origin"
           label={t("createTrip.origin.label")}
           inputRef={originRef}
           value={origin}
@@ -138,7 +141,7 @@ export function CreateTripDialog({
           placeholder={t("createTrip.origin.placeholder")}
         />
         <Combobox
-          id="trip-destination"
+          id="edit-trip-destination"
           label={t("createTrip.destination.label")}
           value={destination}
           onChange={setDestination}
@@ -150,17 +153,17 @@ export function CreateTripDialog({
         />
         <div className="voy-form__row">
           <TextField
-            id="trip-start"
+            id="edit-trip-start"
             label={t("createTrip.startDate")}
             type="date"
             value={startDate}
             onChange={(event) => setStartDate(event.target.value)}
             required
             aria-invalid={errors.dates ? true : undefined}
-            aria-describedby={errors.dates ? "trip-end-error" : undefined}
+            aria-describedby={errors.dates ? "edit-trip-end-error" : undefined}
           />
           <TextField
-            id="trip-end"
+            id="edit-trip-end"
             label={t("createTrip.endDate")}
             type="date"
             value={endDate}
@@ -170,7 +173,7 @@ export function CreateTripDialog({
           />
         </div>
         <TextField
-          id="trip-title"
+          id="edit-trip-title"
           label={t("createTrip.name.label")}
           value={title}
           onChange={(event) => setTitle(event.target.value)}
