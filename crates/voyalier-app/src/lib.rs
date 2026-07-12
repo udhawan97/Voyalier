@@ -1549,6 +1549,9 @@ impl AppService {
         // dispatch — then sees the extracted body, not the raw email.
         let (kind, content, email_subject) = match input.kind {
             DocumentKind::Email => {
+                // Bound the RAW email before the extractor walks its (untrusted)
+                // MIME tree — the extracted body is validated again below.
+                validate_document_content(&input.content)?;
                 let extracted = extract_email_body(&input.content);
                 (extracted.kind, extracted.content, extracted.subject)
             }
@@ -2557,6 +2560,27 @@ mod tests {
         assert_eq!(imported.document.label, "Flight SFO to NRT");
         assert!(!imported.document.label.contains("airline@example.com"));
 
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn oversized_raw_email_is_rejected_before_it_is_parsed() {
+        let database = temp_database("email-too-large");
+        let service = open_test_service(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        // Raw email past the 1,000,000-char cap: rejected up front so the MIME
+        // walker never sees a hostile payload.
+        let huge = format!("Content-Type: text/plain\r\n\r\n{}", "x".repeat(1_100_000));
+        let error = service
+            .import_document(ImportDocumentInput {
+                trip_id: trip.id,
+                kind: DocumentKind::Email,
+                label: None,
+                content: huge,
+            })
+            .expect_err("too large");
+        assert_eq!(error.code, ErrorCode::DocumentTooLarge);
         cleanup_database(database);
     }
 
