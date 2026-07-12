@@ -206,6 +206,8 @@ const en = {
   "today.empty.active": "Nothing scheduled today.",
   "today.empty.other": "No plans for today.",
   "today.next": "Next",
+  "today.error":
+    "Today couldn't load right now. The rest of your trip is fine.",
 
   "localai.title": "On-device AI",
   "localai.badge.available": "Available",
@@ -614,6 +616,10 @@ const en = {
   "map.scope": "Basemap © OpenFreeMap · map data © OpenStreetMap contributors.",
   "map.scope.empty":
     " Download a city pack and get recommendations to see places here.",
+  "map.error.load":
+    "The map couldn't start here. Everything else on your trip still works.",
+  "map.error.webgl":
+    "This device or browser can't show the map (no WebGL). Everything else on your trip still works.",
 
   "theme.label": "Color theme",
   "theme.light": "Light",

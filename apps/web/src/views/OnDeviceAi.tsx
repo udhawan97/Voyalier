@@ -45,8 +45,11 @@ function ModelCard({
   const command = pullCommand(tag);
 
   async function copy() {
+    // Optional chaining would let `await undefined` resolve and show a false
+    // "Copied" when no clipboard exists — require the API before claiming success.
+    if (!navigator.clipboard) return;
     try {
-      await navigator.clipboard?.writeText(command);
+      await navigator.clipboard.writeText(command);
       setCopied(true);
     } catch {
       // Clipboard may be unavailable; the command stays visible to copy by hand.

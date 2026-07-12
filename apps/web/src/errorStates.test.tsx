@@ -174,7 +174,7 @@ describe("AppError rendered states", () => {
     ).toBeInTheDocument();
   });
 
-  it("document/duplicate links to the existing document", async () => {
+  it("document/duplicate warns without exposing the internal document id", async () => {
     renderApp(
       failingGateway({
         importDocument: rejectWith({
@@ -187,9 +187,10 @@ describe("AppError rendered states", () => {
     await openKyoto();
     await submitImport();
     expect(await screen.findByText("Already imported")).toBeInTheDocument();
+    // The internal document id is a debug token and must not reach the user.
     expect(
-      screen.getByText(/document_kyoto_confirmations/),
-    ).toBeInTheDocument();
+      screen.queryByText(/document_kyoto_confirmations/),
+    ).not.toBeInTheDocument();
   });
 
   it("document/empty renders inline in import", async () => {

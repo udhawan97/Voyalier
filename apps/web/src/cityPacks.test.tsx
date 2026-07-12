@@ -124,9 +124,7 @@ describe("City pack suggestions", () => {
     expect(
       await within(region).findByText(/No city pack matches “Lisbon” yet/),
     ).toBeInTheDocument();
-    expect(
-      within(region).queryByText("Recommended for this trip"),
-    ).toBeNull();
+    expect(within(region).queryByText("Recommended for this trip")).toBeNull();
   });
 
   it("supports an ambiguous match with more than one option", async () => {

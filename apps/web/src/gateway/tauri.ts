@@ -98,8 +98,7 @@ export function createTauriGateway(
 
     archiveTrip: (tripId: string) => call<Trip>("archive_trip", { tripId }),
 
-    unarchiveTrip: (tripId: string) =>
-      call<Trip>("unarchive_trip", { tripId }),
+    unarchiveTrip: (tripId: string) => call<Trip>("unarchive_trip", { tripId }),
 
     getTripBrief: (tripId: string) =>
       call<TripBrief>("get_trip_brief", { tripId }),

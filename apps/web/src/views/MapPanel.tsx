@@ -29,6 +29,16 @@ export interface MapCenter {
   name: string;
 }
 
+/** Whether the environment can create a WebGL context (MapLibre needs one). */
+function webglSupported(): boolean {
+  try {
+    const canvas = document.createElement("canvas");
+    return Boolean(canvas.getContext("webgl2") || canvas.getContext("webgl"));
+  } catch {
+    return false;
+  }
+}
+
 /**
  * A consent-gated map of the trip's destination and recommended places.
  * Showing it fetches map tiles from OpenFreeMap (an explicit network request,
@@ -49,9 +59,19 @@ export function MapPanel({
   const [ml, setMl] = useState<Maplibre | null>(null);
   const [shown, setShown] = useState(false);
   const [places, setPlaces] = useState<Recommendation[]>([]);
+  // A visible reason the canvas is empty: "load" (library failed to import) or
+  // "webgl" (the map couldn't initialize). null means no error.
+  const [failure, setFailure] = useState<"load" | "webgl" | null>(null);
 
   async function show() {
     setShown(true);
+    // Detect the common failure (no WebGL: headless, disabled, or unsupported)
+    // up front so the reason is visible instead of a silent empty frame.
+    if (!webglSupported()) {
+      setFailure("webgl");
+      return;
+    }
+    setFailure(null);
     // Request markers straight away, independent of the (heavier) map library.
     const placesPromise = gateway
       .getRecommendations(tripId, BALANCED)
@@ -66,8 +86,9 @@ export function MapPanel({
       const lib = ((mod as { default?: Maplibre }).default ?? mod) as Maplibre;
       setMl(() => lib);
     } catch {
-      // The map library failed to load — leave the frame empty rather than
-      // crashing; the rest of the trip view is unaffected.
+      // The map library failed to load — tell the user rather than leaving a
+      // silent empty frame; the rest of the trip view is unaffected.
+      setFailure("load");
     }
     setPlaces(await placesPromise);
   }
@@ -84,8 +105,8 @@ export function MapPanel({
         zoom: center ? 10 : 1.4,
       });
     } catch {
-      // No WebGL (e.g. a headless/test environment) — leave the frame empty
-      // rather than crashing; the rest of the trip view is unaffected.
+      // Map construction still failed despite the WebGL pre-check — leave the
+      // frame empty rather than crashing; the rest of the trip view is fine.
       return;
     }
     map.addControl(new ml.NavigationControl({}), "top-right");
@@ -112,9 +133,15 @@ export function MapPanel({
     const map = mapRef.current;
     if (!map || !ml || places.length === 0) return;
     const plot = () => {
+      // Read the resolved brand accent so markers follow the active theme
+      // instead of a frozen light-mode hex.
+      const markerColor =
+        getComputedStyle(document.documentElement)
+          .getPropertyValue("--voy-vermilion")
+          .trim() || "#c34e33";
       const bounds = new ml.LngLatBounds();
       for (const place of places) {
-        new ml.Marker({ color: "#c34e33" })
+        new ml.Marker({ color: markerColor })
           .setLngLat([place.lon, place.lat])
           .setPopup(
             new ml.Popup({ offset: 16 }).setText(
@@ -143,6 +170,17 @@ export function MapPanel({
             {t("map.show")}
           </Button>
         </>
+      ) : failure ? (
+        <div className="voy-map__failure" role="status">
+          <p>
+            {failure === "webgl" ? t("map.error.webgl") : t("map.error.load")}
+          </p>
+          {failure === "load" ? (
+            <Button variant="secondary" onClick={show}>
+              {t("action.retry")}
+            </Button>
+          ) : null}
+        </div>
       ) : (
         <>
           <div

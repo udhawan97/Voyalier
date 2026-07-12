@@ -4,6 +4,8 @@ import { useGateway } from "../app/context";
 import { useAsyncData } from "../app/useAsync";
 import { formatDate } from "../app/format";
 import { t } from "../app/i18n";
+import { Button } from "../components/Button";
+import { RetryIcon } from "../components/icons";
 
 function phaseHeadline(phase: TripPhase): string {
   switch (phase.state) {
@@ -37,8 +39,28 @@ export function TodayPanel({ tripId }: { tripId: string }) {
     `today:${tripId}`,
   );
 
-  if (today.status === "error" || !today.data) {
-    // A best-effort summary; if it can't load, the rest of the trip still shows.
+  if (today.status === "error") {
+    // A best-effort summary — but surface a quiet, retryable line rather than
+    // silently removing a headline panel when it can't load.
+    return (
+      <section
+        className="voy-today voy-today--error"
+        aria-labelledby="today-title"
+      >
+        <h2 id="today-title" className="voy-today__title">
+          {t("today.title")}
+        </h2>
+        <p className="voy-today__error">
+          <span>{t("today.error")}</span>
+          <Button variant="ghost" icon={<RetryIcon />} onClick={today.reload}>
+            {t("action.retry")}
+          </Button>
+        </p>
+      </section>
+    );
+  }
+  if (!today.data) {
+    // No data for this trip yet (e.g. no confirmed facts) — render nothing.
     return null;
   }
 

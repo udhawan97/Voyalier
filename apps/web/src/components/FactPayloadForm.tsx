@@ -69,7 +69,9 @@ export function FactPayloadForm({
             label={fieldLabel(key)}
             type={fieldInputType(key)}
             value={draft[key] ?? ""}
-            onChange={(event) => onChange({ ...draft, [key]: event.target.value })}
+            onChange={(event) =>
+              onChange({ ...draft, [key]: event.target.value })
+            }
             autoComplete="off"
           />
         ),

@@ -111,7 +111,8 @@ describe("User-flow gap fixes", () => {
       failingGateway({
         fetchWeather: rejectWith({
           code: "weather/fetch_failed",
-          message: "the weather source could not find that destination on the map",
+          message:
+            "the weather source could not find that destination on the map",
         }),
       }),
     );

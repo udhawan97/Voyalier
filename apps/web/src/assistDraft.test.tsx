@@ -58,9 +58,9 @@ describe("On-device AI lodging draft", () => {
       name: "Review suggestions",
     });
     expect(within(dialog).getByText("AI-suggested")).toBeInTheDocument();
-    expect(
-      within(dialog).getAllByText("Drafted stay").length,
-    ).toBeGreaterThan(0);
+    expect(within(dialog).getAllByText("Drafted stay").length).toBeGreaterThan(
+      0,
+    );
   });
 
   it("asks you to import a booking when there is nothing to read", async () => {

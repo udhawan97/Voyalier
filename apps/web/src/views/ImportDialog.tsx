@@ -151,11 +151,8 @@ export function ImportDialog({
         ) : null}
         {duplicateId !== null ? (
           <Banner tone="warn" role="alert" title={t("import.duplicate.title")}>
-            {t("import.duplicate.body", {
-              doc: duplicateId
-                ? t("import.duplicate.docSuffix", { id: duplicateId })
-                : "",
-            })}
+            {/* The internal document id is a debug token, not user copy. */}
+            {t("import.duplicate.body", { doc: "" })}
           </Banner>
         ) : null}
         <div className="voy-field">

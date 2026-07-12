@@ -71,7 +71,9 @@ describe("Editable AI instructions", () => {
       name: "Fill gaps with on-device AI",
     });
     fireEvent.click(
-      within(draftRegion).getByRole("button", { name: "Preview what it reads" }),
+      within(draftRegion).getByRole("button", {
+        name: "Preview what it reads",
+      }),
     );
     expect(
       await within(draftRegion).findByText(/CUSTOM-DRAFT-INSTRUCTION/),

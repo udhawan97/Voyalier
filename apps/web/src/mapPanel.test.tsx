@@ -1,3 +1,4 @@
+import { afterEach, beforeEach, vi } from "vitest";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
 
@@ -17,10 +18,22 @@ async function openMap() {
 /**
  * The map is consent-gated: nothing is fetched until "Show map" is clicked.
  * Actual tile rendering needs WebGL and is verified live in the browser; here
- * we assert the consent seam and the request-on-consent, which are
- * environment-independent (the component degrades gracefully without WebGL).
+ * we assert the consent seam and the request-on-consent. jsdom has no WebGL, so
+ * the consent test stubs a context; a separate test covers the graceful
+ * no-WebGL message.
  */
 describe("Map panel", () => {
+  beforeEach(() => {
+    // Pretend a WebGL context is available so the consent path renders the
+    // canvas (real tile rendering still no-ops in jsdom and is verified live).
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
+      () => ({}) as unknown as RenderingContext,
+    );
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("fetches nothing until asked, then requests places on consent", async () => {
     let calls = 0;
     const base = createMockGateway();
@@ -53,5 +66,22 @@ describe("Map panel", () => {
       within(region).queryByRole("button", { name: "Show map" }),
     ).toBeNull();
     expect(calls).toBe(1);
+  });
+
+  it("shows a graceful message when WebGL is unavailable", async () => {
+    // Override the beforeEach stub: no WebGL context on this device.
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+    renderApp(createMockGateway());
+
+    const region = await openMap();
+    fireEvent.click(within(region).getByRole("button", { name: "Show map" }));
+
+    expect(
+      await within(region).findByText(/can't show the map/),
+    ).toBeInTheDocument();
+    // No broken empty canvas is shown in place of the map.
+    expect(
+      within(region).queryByRole("application", { name: "Trip map" }),
+    ).toBeNull();
   });
 });

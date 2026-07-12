@@ -356,6 +356,13 @@ h3 {
   gap: 1rem;
 }
 
+/* Groups the two date inputs with a single shared error message below both. */
+.voy-form__dates {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
 .voy-field {
   display: flex;
   flex-direction: column;
@@ -413,7 +420,8 @@ h3 {
   line-height: 1.55;
 }
 
-.voy-field--invalid .voy-input {
+.voy-field--invalid .voy-input,
+.voy-input[aria-invalid="true"] {
   border-color: var(--voy-vermilion);
 }
 
@@ -1451,7 +1459,7 @@ h3 {
   border-radius: 0.6rem;
   border: 1px solid var(--voy-line-strong);
   background: var(--voy-paper-raised);
-  box-shadow: 0 8px 24px color-mix(in srgb, #1a1917 12%, transparent);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--voy-ink) 12%, transparent);
   font-size: 0.9rem;
 }
 
@@ -2280,6 +2288,16 @@ h3 {
   font-size: 0.9rem;
 }
 
+.voy-today__error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin: 0.7rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.9rem;
+}
+
 .voy-today__next {
   margin: 0.8rem 0 0;
   padding-top: 0.7rem;
@@ -2328,9 +2346,28 @@ h3 {
 
 .voy-map__scope {
   margin: 0.7rem 0 0;
-  color: var(--voy-silver);
+  color: var(--voy-ink-muted);
   font-size: 0.8rem;
   line-height: 1.5;
+}
+
+.voy-map__failure {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border: 1px dashed var(--voy-line-strong);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-sunken);
+}
+
+.voy-map__failure p {
+  margin: 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  max-width: 42rem;
 }
 
 /* ===== Recommendations ================================================ */
@@ -2715,12 +2752,6 @@ h3 {
 .voy-search__input:focus-visible {
   outline: 2px solid var(--voy-focus);
   outline-offset: 1px;
-}
-
-.voy-search__error {
-  margin: 0.5rem 0 0;
-  color: var(--voy-danger);
-  font-size: 0.88rem;
 }
 
 .voy-search__none {

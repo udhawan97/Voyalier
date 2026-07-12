@@ -52,13 +52,16 @@ export function TripSearch({ tripId }: { tripId: string }) {
 
   async function runSearch(raw: string) {
     const trimmed = raw.trim();
+    // Invalidate any in-flight request on every call, including the too-short
+    // path — otherwise an older query that lands after the box is cleared would
+    // repopulate results and announce a stale count.
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
     if (trimmed.length < MIN_QUERY) {
       setResults(null);
       setSuggestions([]);
       return;
     }
-    const requestId = requestRef.current + 1;
-    requestRef.current = requestId;
     const [hits, terms] = await Promise.all([
       gateway.searchTrip(tripId, trimmed).catch(() => [] as SearchHit[]),
       gateway.suggestSearchTerms(tripId, trimmed).catch(() => [] as string[]),
@@ -92,8 +95,11 @@ export function TripSearch({ tripId }: { tripId: string }) {
   }
 
   async function copyHit(hit: SearchHit) {
+    // Optional chaining would let `await undefined` resolve and show a false
+    // "Copied" when no clipboard exists — require the API before claiming success.
+    if (!navigator.clipboard) return;
     try {
-      await navigator.clipboard?.writeText(hit.snippet);
+      await navigator.clipboard.writeText(hit.snippet);
       setCopiedKey(`${hit.source}:${hit.recordId}`);
       announce(t("search.announce.copied"));
     } catch {

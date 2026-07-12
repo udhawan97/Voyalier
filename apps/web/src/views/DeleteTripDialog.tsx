@@ -23,7 +23,10 @@ export function DeleteTripDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const ready = confirmText.trim().toLowerCase() === "delete";
+  // The required word is the localized placeholder, so the check always matches
+  // the word the UI actually asks for (rather than a hardcoded English literal).
+  const requiredWord = t("deleteTrip.placeholder").trim().toLowerCase();
+  const ready = confirmText.trim().toLowerCase() === requiredWord;
 
   async function handleDelete() {
     if (!ready) return;

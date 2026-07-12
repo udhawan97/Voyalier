@@ -119,8 +119,6 @@ function ReviewCard({
                 <AlertIcon />
               </span>
               <span>{warningSentence(code)}</span>
-              <code className="voy-warning__code">{code}</code>
-              {/* the raw warning code is a debug token, not user copy */}
             </li>
           ))}
         </ul>

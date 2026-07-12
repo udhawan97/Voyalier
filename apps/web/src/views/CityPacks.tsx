@@ -170,7 +170,9 @@ export function CityPacks({
             {suggestions.map((suggestion) => (
               <li key={suggestion.pack.id} className="voy-packs__row">
                 <div className="voy-packs__row-head">
-                  <span className="voy-packs__name">{suggestion.pack.name}</span>
+                  <span className="voy-packs__name">
+                    {suggestion.pack.name}
+                  </span>
                   <span className="voy-packs__region">
                     {suggestion.pack.region}
                   </span>

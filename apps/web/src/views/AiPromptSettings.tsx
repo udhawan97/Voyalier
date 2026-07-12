@@ -11,6 +11,10 @@ import { t, type MessageKey } from "../app/i18n";
 import { Button } from "../components/Button";
 import { TextArea } from "../components/fields";
 
+// Mirror of the backend's MAX_AI_PROMPT_LEN so an over-long instruction is
+// prevented client-side rather than failing with a generic error on save.
+const MAX_PROMPT_LEN = 6000;
+
 const KIND_LABEL: Record<AiPromptKind, MessageKey> = {
   assist: "prompts.kind.assist",
   draft_lodging_dates: "prompts.kind.draft_lodging_dates",
@@ -85,6 +89,7 @@ function PromptRow({
         value={text}
         onChange={(event) => setText(event.target.value)}
         rows={5}
+        maxLength={MAX_PROMPT_LEN}
       />
       {error ? (
         <p className="voy-prompt__error" role="alert">
