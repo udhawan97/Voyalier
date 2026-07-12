@@ -18,15 +18,22 @@ Voyalier is a private trip operating system. It turns fragmented research and co
 
 Blueprint, Discover, Itinerary, Documents, Readiness, and Share.
 
-## Persona lenses
+## Persona weights
 
-- Taste Seeker
-- Design and Architecture
-- First-Timer
-- Local Rhythm
-- Wildcard
+Recommendations are shaped by five adjustable interest weights over a shared,
+downloaded-pack candidate pool (per [ADR-0003](../architecture/ADR-0003-phase2-contract.md),
+which replaced hard-coded named personas with tunable weights):
 
-Personas are weighted lenses over a shared candidate pool. Traveler constraints always override persona preference.
+- Food
+- Culture
+- Nature
+- Nightlife
+- Shopping
+
+Presets (Balanced, Foodie, Explorer) are just starting points for those weights.
+Scoring is a transparent deterministic rule — not a model — and each pick keeps
+its source, license, score, and reasons. Traveler constraints always override
+interest preference.
 
 ## MVP non-goals
 
