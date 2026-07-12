@@ -1881,6 +1881,93 @@ h3 {
 
 /* ===== City packs ===================================================== */
 
+.voy-prompts {
+  margin-top: 2.6rem;
+  padding-top: 1.8rem;
+  border-top: 1px solid var(--voy-line);
+}
+
+.voy-prompts__title {
+  font-size: 1.4rem;
+  font-family: var(--voy-font-display);
+  margin-bottom: 0.5rem;
+}
+
+.voy-prompts__intro {
+  margin: 0 0 1.1rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  max-width: 44rem;
+}
+
+.voy-prompts__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+
+.voy-prompt {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-raised);
+}
+
+.voy-prompt__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+
+.voy-prompt__name {
+  font-weight: 620;
+}
+
+.voy-prompt__badge {
+  font-size: 0.72rem;
+  font-weight: 560;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--voy-line);
+  color: var(--voy-ink-muted);
+  background: var(--voy-paper-sunken);
+}
+
+.voy-prompt__badge--custom {
+  color: var(--voy-moss);
+  background: var(--voy-tint-moss);
+  border-color: color-mix(in srgb, var(--voy-moss) 30%, transparent);
+}
+
+.voy-prompt__actions {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.voy-prompt__error {
+  margin: 0.6rem 0 0;
+  color: var(--voy-danger);
+  font-size: 0.88rem;
+}
+
+.voy-prompts__error {
+  margin: 0.6rem 0 0;
+  color: var(--voy-danger);
+  font-size: 0.88rem;
+}
+
+.voy-prompts__scope {
+  margin: 1.1rem 0 0;
+  color: var(--voy-silver);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
 .voy-packs {
   margin-top: 2.6rem;
   padding-top: 1.8rem;

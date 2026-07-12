@@ -643,6 +643,34 @@ pub fn changed_payload_fields(original: &FactPayload, edited: &FactPayload) -> V
     changed
 }
 
+/// Which AI system instruction a user override applies to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AiPromptKind {
+    /// The assist request/chat instruction (preview + run).
+    Assist,
+    /// The on-device lodging-dates draft instruction.
+    DraftLodgingDates,
+}
+
+/// One editable AI system instruction: its built-in default plus the user's
+/// override when set. `custom_text` present means the default is overridden.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiPrompt {
+    pub kind: AiPromptKind,
+    pub default_text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_text: Option<String>,
+}
+
+/// The full set of editable AI instructions and their current values.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiPromptSettings {
+    pub prompts: Vec<AiPrompt>,
+}
+
 pub fn now_rfc3339() -> String {
     jiff::Timestamp::now().to_string()
 }

@@ -1,5 +1,8 @@
 import type {
   AddManualFactInput,
+  AiPrompt,
+  AiPromptKind,
+  AiPromptSettings,
   AppError,
   AppGateway,
   AssistActivityEntry,
@@ -591,6 +594,17 @@ const MOCK_PROVIDERS: ReadonlyArray<{
   { id: "ollama", label: "Ollama (on-device)", keyRequired: false },
 ];
 
+// Default AI instructions, mirroring the Rust constants closely enough for the
+// settings UI to render and edit them.
+const MOCK_ASSIST_PROMPT =
+  "You are a careful travel-planning assistant for Voyalier. Use only the trip details provided below. Do not invent flights, prices, visa or entry rules, health requirements, or safety guidance; if the trip details do not answer a question, say so.";
+const MOCK_DRAFT_PROMPT =
+  "You extract lodging check-in and check-out dates from a traveler's own booking text. Reply with ONLY a JSON object of the documented shape and no other keys.";
+
+function mockAiPromptDefault(kind: AiPromptKind): string {
+  return kind === "assist" ? MOCK_ASSIST_PROMPT : MOCK_DRAFT_PROMPT;
+}
+
 function packLayers(): PackInfo["layers"] {
   return [
     {
@@ -1129,6 +1143,23 @@ export function createMockGateway(options?: {
   // The mock never retains the key value itself, mirroring the real gateway.
   const providerKeys = new Set<ProviderId>();
   const providerModels = new Map<ProviderId, string>();
+  // User overrides for AI instructions; absent means "use the default".
+  const aiPromptOverrides = new Map<AiPromptKind, string>();
+
+  function effectiveAiPrompt(kind: AiPromptKind): string {
+    return aiPromptOverrides.get(kind) ?? mockAiPromptDefault(kind);
+  }
+
+  function aiPromptSettings(): AiPromptSettings {
+    const prompts: AiPrompt[] = (["assist", "draft_lodging_dates"] as const).map(
+      (kind) => {
+        const custom = aiPromptOverrides.get(kind);
+        const prompt: AiPrompt = { kind, defaultText: mockAiPromptDefault(kind) };
+        return custom ? { ...prompt, customText: custom } : prompt;
+      },
+    );
+    return { prompts };
+  }
   // Assist activity log, most recent appended last (metadata only).
   const assistActivity: (AssistActivityEntry & { tripId: string })[] = [];
   // Downloaded packs, keyed loosely by trip.
@@ -1657,8 +1688,7 @@ export function createMockGateway(options?: {
           providerLabel: "Ollama (on-device)",
           endpoint: "http://localhost:11434/api/chat",
           leavesDevice: false,
-          systemPrompt:
-            "You extract lodging check-in and check-out dates from a traveler's own booking text.",
+          systemPrompt: effectiveAiPrompt("draft_lodging_dates"),
           userContent,
           withheld: [],
           groundedIn:
@@ -1709,6 +1739,31 @@ export function createMockGateway(options?: {
         };
         candidates.set(candidate.id, candidate);
         return { candidates: [clone(candidate)] };
+      }),
+
+    getAiPrompts: () => execute("getAiPrompts", () => aiPromptSettings()),
+
+    setAiPrompt: (kind: AiPromptKind, text: string | null) =>
+      execute("setAiPrompt", () => {
+        if (kind !== "assist" && kind !== "draft_lodging_dates") {
+          throw appError("validation/invalid_input", "unknown AI instruction", {
+            field: "kind",
+          });
+        }
+        if (text === null) {
+          aiPromptOverrides.delete(kind);
+        } else {
+          const trimmed = text.trim();
+          if (!trimmed) {
+            throw appError(
+              "validation/invalid_input",
+              "the instruction can't be empty — reset it to the default instead",
+              { field: "text" },
+            );
+          }
+          aiPromptOverrides.set(kind, trimmed);
+        }
+        return aiPromptSettings();
       }),
 
     listAssistActivity: (tripId: string) =>

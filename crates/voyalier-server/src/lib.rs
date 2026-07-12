@@ -63,6 +63,14 @@ struct AssistDraftBody {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct SetAiPromptBody {
+    kind: String,
+    #[serde(default)]
+    text: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct FetchAdviceBody {
     country_slug: String,
 }
@@ -161,6 +169,10 @@ pub fn app(service: AppService) -> Router {
         .route(
             "/api/v1/trips/{trip_id}/assist-draft",
             post(run_assist_draft),
+        )
+        .route(
+            "/api/v1/ai/prompts",
+            get(get_ai_prompts).post(set_ai_prompt),
         )
         .route(
             "/api/v1/trips/{trip_id}/assist-activity",
@@ -318,6 +330,19 @@ async fn run_assist_draft(
     Json(body): Json<AssistDraftBody>,
 ) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(service.run_assist_draft(&trip_id, &body.kind)?))
+}
+
+async fn get_ai_prompts(State(service): State<AppService>) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.get_ai_prompts()?))
+}
+
+async fn set_ai_prompt(
+    State(service): State<AppService>,
+    Json(body): Json<SetAiPromptBody>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(
+        service.set_ai_prompt(&body.kind, body.text.as_deref())?,
+    ))
 }
 
 async fn list_assist_activity(

@@ -46,6 +46,7 @@ import { AddFactDialog } from "./AddFactDialog";
 import { BriefDialog } from "./BriefDialog";
 import { CandidateReviewDialog } from "./CandidateReviewDialog";
 import { AiProviders } from "./AiProviders";
+import { AiPromptSettings } from "./AiPromptSettings";
 import { TodayPanel } from "./TodayPanel";
 import { AssistPreview } from "./AssistPreview";
 import { AssistDraft } from "./AssistDraft";
@@ -562,6 +563,8 @@ export function TripDetailView({
       <OnDeviceAi />
 
       <AiProviders />
+
+      <AiPromptSettings />
 
       <AssistPreview tripId={tripId} />
 
