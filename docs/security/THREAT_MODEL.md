@@ -30,9 +30,12 @@ updater (see [`docs/architecture/UPDATES.md`](../architecture/UPDATES.md)):
 - **Checksums + provenance — done.** The release workflow publishes per-platform
   `SHA256SUMS` and attaches SLSA build provenance
   (`actions/attest-build-provenance`, verifiable with `gh attestation verify`).
-  Every CI action is SHA-pinned and the signing key is step-scoped to an
-  approved, protected environment; `packs-v1` releases are pre-release so they
-  cannot hijack the updater's `releases/latest` endpoint.
+  Every action in the release and pack-publish workflows is SHA-pinned and the
+  signing key is step-scoped to an approved, protected environment; `packs-v1`
+  releases are pre-release so they cannot hijack the updater's
+  `releases/latest` endpoint. (The build/lint/security-scan CI workflows are
+  not yet SHA-pinned — lower risk since they hold no signing key and run with
+  read-only permissions, but tightening them is worth doing.)
 - **OS code-signing — pending.** Bundles are not yet Apple Developer ID /
   Windows Authenticode signed (paid); first launch uses the documented
   Gatekeeper / SmartScreen "open anyway" path. This is independent of the (free)

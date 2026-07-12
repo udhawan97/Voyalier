@@ -57,10 +57,11 @@ in-app updater's own signing is separate and free, and ships in this release.
 
 ### Changed
 
-- Release pipeline hardened for signed updates: every CI action is pinned to a
-  commit SHA, the signing key is scoped to a single step and only reachable
-  from a protected environment on a real tag (never a manual dry run), build
-  provenance is attested, and city-pack releases are enforced pre-release so
+- Release pipeline hardened for signed updates: every action in the release and
+  pack-publish workflows is pinned to a commit SHA, the signing key is scoped
+  to a single step and only reachable from a protected environment on a real
+  tag (never a manual dry run), build provenance is attested, and city-pack
+  releases are enforced pre-release so
   they can never shadow `releases/latest` and break the updater.
 - New `vault/locked` and `vault/passphrase_incorrect` error codes; the gateway
   gained additive `getVaultStatus`/`setVaultPassphrase`/`unlockVault`/
