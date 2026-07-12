@@ -196,6 +196,10 @@ pub fn app(service: AppService) -> Router {
         .route("/api/v1/trips/{trip_id}/weather", post(fetch_weather))
         .route("/api/v1/trips/{trip_id}/search", get(search_trip))
         .route(
+            "/api/v1/trips/{trip_id}/search-suggestions",
+            get(suggest_search_terms),
+        )
+        .route(
             "/api/v1/trips/{trip_id}/recommendations",
             post(get_recommendations),
         )
@@ -308,6 +312,14 @@ async fn search_trip(
     Query(query): Query<SearchQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(service.search_trip(&trip_id, &query.q)?))
+}
+
+async fn suggest_search_terms(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+    Query(query): Query<SearchQuery>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.suggest_search_terms(&trip_id, &query.q)?))
 }
 
 async fn get_recommendations(

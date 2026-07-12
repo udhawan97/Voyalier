@@ -14,6 +14,8 @@ use crate::types::{AppError, ConfirmedFact, ErrorCode, FactType};
 pub const MAX_QUERY_LEN: usize = 200;
 const MAX_HITS: usize = 20;
 const SNIPPET_CONTEXT_CHARS: usize = 60;
+/// Most typeahead term suggestions returned for one query.
+pub const SEARCH_SUGGESTION_LIMIT: usize = 8;
 
 /// Where a search hit came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -68,60 +70,176 @@ pub fn validate_search_query(query: &str) -> Result<String, AppError> {
     Ok(trimmed.to_owned())
 }
 
-/// Search documents and confirmed facts for a validated query. Results are
-/// ranked by occurrence count, then stable by kind and id.
+/// Distinct, lowercased query words. The relaxed match works per word, so
+/// "airport shuttle" finds text with either word — not only the exact phrase.
+fn query_tokens(query: &str) -> Vec<String> {
+    let mut tokens: Vec<String> = Vec::new();
+    for word in query.split_whitespace() {
+        let lowered = word.to_lowercase();
+        if !lowered.is_empty() && !tokens.contains(&lowered) {
+            tokens.push(lowered);
+        }
+    }
+    tokens
+}
+
+/// Score one lowercased haystack against the query tokens: how many distinct
+/// tokens it contains, the total occurrences, and the earliest-matching token
+/// (for anchoring a snippet). `matched == 0` means no token appears.
+fn score_haystack<'t>(haystack: &str, tokens: &'t [String]) -> (u32, u32, Option<&'t str>) {
+    let mut matched = 0u32;
+    let mut occurrences = 0u32;
+    let mut earliest: Option<(usize, &str)> = None;
+    for token in tokens {
+        let count = count_occurrences(haystack, token);
+        if count > 0 {
+            matched += 1;
+            occurrences = occurrences.saturating_add(count);
+            if let Some(position) = haystack.find(token.as_str()) {
+                if earliest.is_none_or(|(prev, _)| position < prev) {
+                    earliest = Some((position, token));
+                }
+            }
+        }
+    }
+    (matched, occurrences, earliest.map(|(_, token)| token))
+}
+
+/// Search documents and confirmed facts for a validated query. Relaxed: a record
+/// matches if it contains ANY query word. Ranked by how many distinct query
+/// words it covers, then by total occurrences, then stable by id.
 pub fn search_trip_corpus(
     query: &str,
     documents: &[SearchableDocument<'_>],
     facts: &[ConfirmedFact],
 ) -> Vec<SearchHit> {
-    let needle = query.to_lowercase();
-    let mut hits: Vec<SearchHit> = Vec::new();
+    let tokens = query_tokens(query);
+    if tokens.is_empty() {
+        return Vec::new();
+    }
+    // Track (hit, distinct-tokens-matched) so ranking can prefer broader coverage
+    // without widening the public SearchHit shape.
+    let mut ranked: Vec<(SearchHit, u32)> = Vec::new();
 
     for document in documents {
         let haystack = document.content.to_lowercase();
-        let count = count_occurrences(&haystack, &needle);
-        if count == 0 {
+        let (matched, occurrences, first_token) = score_haystack(&haystack, &tokens);
+        if matched == 0 {
             continue;
         }
-        let snippet = snippet_around_first_match(document.content, &haystack, &needle);
-        hits.push(SearchHit {
-            source: SearchHitSource::Document,
-            record_id: document.id.to_owned(),
-            label: document.label.to_owned(),
-            snippet,
-            score: count,
-        });
+        let snippet = first_token
+            .map(|token| snippet_around_first_match(document.content, &haystack, token))
+            .unwrap_or_default();
+        ranked.push((
+            SearchHit {
+                source: SearchHitSource::Document,
+                record_id: document.id.to_owned(),
+                label: document.label.to_owned(),
+                snippet,
+                score: occurrences,
+            },
+            matched,
+        ));
     }
 
     for fact in facts {
-        let mut best: Option<(u32, String)> = None;
+        // Pick the field value that covers the most query words (then most
+        // occurrences); its verbatim text is the snippet — clean to reuse.
+        let mut best: Option<(u32, u32, String)> = None;
         for value in fact_field_values(fact) {
-            let haystack = value.to_lowercase();
-            let count = count_occurrences(&haystack, &needle);
-            if count > 0 && best.as_ref().is_none_or(|(prev, _)| count > *prev) {
-                best = Some((count, value.to_owned()));
+            let (matched, occurrences, _) = score_haystack(&value.to_lowercase(), &tokens);
+            if matched > 0
+                && best
+                    .as_ref()
+                    .is_none_or(|(m, o, _)| (matched, occurrences) > (*m, *o))
+            {
+                best = Some((matched, occurrences, value.to_owned()));
             }
         }
-        if let Some((score, snippet)) = best {
-            hits.push(SearchHit {
-                source: SearchHitSource::ConfirmedFact,
-                record_id: fact.id.clone(),
-                label: fact_label(fact),
-                snippet,
-                score,
-            });
+        if let Some((matched, occurrences, snippet)) = best {
+            ranked.push((
+                SearchHit {
+                    source: SearchHitSource::ConfirmedFact,
+                    record_id: fact.id.clone(),
+                    label: fact_label(fact),
+                    snippet,
+                    score: occurrences,
+                },
+                matched,
+            ));
         }
     }
 
-    hits.sort_by(|left, right| {
-        right
-            .score
-            .cmp(&left.score)
+    ranked.sort_by(|(left, left_matched), (right, right_matched)| {
+        right_matched
+            .cmp(left_matched)
+            .then_with(|| right.score.cmp(&left.score))
             .then_with(|| left.record_id.cmp(&right.record_id))
     });
-    hits.truncate(MAX_HITS);
-    hits
+    ranked.truncate(MAX_HITS);
+    ranked.into_iter().map(|(hit, _)| hit).collect()
+}
+
+/// Typeahead term suggestions for the query's last word: distinct words from the
+/// corpus (document text, fact field values, and fact labels) that contain it —
+/// so a partial "shut" surfaces "shuttle" to autofill. Prefix matches rank first,
+/// then by how often the term appears. Local only; nothing leaves the device.
+pub fn suggest_search_terms(
+    query: &str,
+    documents: &[SearchableDocument<'_>],
+    facts: &[ConfirmedFact],
+    limit: usize,
+) -> Vec<String> {
+    let last = match query.split_whitespace().next_back() {
+        Some(word) if word.chars().count() >= 2 => word.to_lowercase(),
+        _ => return Vec::new(),
+    };
+
+    // term (original casing) -> (occurrences, is_prefix_match)
+    let mut seen: std::collections::HashMap<String, (u32, bool)> = std::collections::HashMap::new();
+    let mut consider = |term: &str| {
+        let trimmed = term.trim();
+        if trimmed.chars().count() < 2 {
+            return;
+        }
+        let lowered = trimmed.to_lowercase();
+        if !lowered.contains(&last) {
+            return;
+        }
+        let entry = seen.entry(trimmed.to_owned()).or_insert((0, false));
+        entry.0 = entry.0.saturating_add(1);
+        entry.1 = lowered.starts_with(&last);
+    };
+
+    for document in documents {
+        for word in document.content.split(|c: char| !c.is_alphanumeric()) {
+            consider(word);
+        }
+    }
+    for fact in facts {
+        // Whole field values (e.g. "River Paper Inn", a confirmation code) are
+        // useful autofill targets alongside individual words.
+        for value in fact_field_values(fact) {
+            consider(value);
+            for word in value.split(|c: char| !c.is_alphanumeric()) {
+                consider(word);
+            }
+        }
+        consider(&fact_label(fact));
+    }
+
+    let mut terms: Vec<(String, u32, bool)> = seen
+        .into_iter()
+        .map(|(term, (count, prefix))| (term, count, prefix))
+        .collect();
+    // Prefix matches first, then more frequent, then alphabetical for stability.
+    terms.sort_by(|(left, lc, lp), (right, rc, rp)| {
+        rp.cmp(lp)
+            .then_with(|| rc.cmp(lc))
+            .then_with(|| left.to_lowercase().cmp(&right.to_lowercase()))
+    });
+    terms.truncate(limit);
+    terms.into_iter().map(|(term, _, _)| term).collect()
 }
 
 fn count_occurrences(haystack: &str, needle: &str) -> u32 {
@@ -299,6 +417,61 @@ mod tests {
         assert_eq!(hits.len(), 1);
         assert!(hits[0].snippet.contains("京都"));
         assert!(hits[0].snippet.starts_with('…') && hits[0].snippet.ends_with('…'));
+    }
+
+    #[test]
+    fn relaxed_matching_finds_any_word_and_ranks_by_coverage() {
+        let both = SearchableDocument {
+            id: "doc_both",
+            label: "Full",
+            content: "The airport shuttle leaves from door 4.",
+        };
+        let one = SearchableDocument {
+            id: "doc_one",
+            label: "Partial",
+            content: "Shuttle service is hourly.",
+        };
+        // The exact phrase "airport shuttle" is in neither as a phrase-with-count,
+        // but relaxed per-word matching still finds both.
+        let hits = search_trip_corpus("airport shuttle", &[both, one], &[]);
+        assert_eq!(hits.len(), 2);
+        // The doc covering BOTH words ranks first over the one with a single word.
+        assert_eq!(hits[0].record_id, "doc_both");
+        assert_eq!(hits[1].record_id, "doc_one");
+    }
+
+    #[test]
+    fn suggests_terms_that_complete_the_last_word() {
+        let documents = [SearchableDocument {
+            id: "doc_1",
+            label: "Hotel email",
+            content: "The airport shuttle leaves from the shuttle bay.",
+        }];
+        let facts = [fact("fact_1", "River Paper Inn", "RPI731")];
+
+        // A partial word surfaces the full word from the corpus.
+        let terms = suggest_search_terms("shut", &documents, &facts, 8);
+        assert!(
+            terms
+                .iter()
+                .any(|term| term.eq_ignore_ascii_case("shuttle"))
+        );
+
+        // Whole fact values are offered as autofill targets too.
+        let paper = suggest_search_terms("paper", &documents, &facts, 8);
+        assert!(paper.iter().any(|term| term == "River Paper Inn"));
+
+        // Completion targets the LAST word, so earlier words are kept by the UI.
+        let multi = suggest_search_terms("airport shut", &documents, &facts, 8);
+        assert!(
+            multi
+                .iter()
+                .any(|term| term.eq_ignore_ascii_case("shuttle"))
+        );
+
+        // Too-short or empty tails suggest nothing.
+        assert!(suggest_search_terms("a", &documents, &facts, 8).is_empty());
+        assert!(suggest_search_terms("   ", &documents, &facts, 8).is_empty());
     }
 
     #[test]

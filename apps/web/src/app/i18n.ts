@@ -259,11 +259,19 @@ const en = {
   "search.label": "Search your documents and confirmed plans",
   "search.placeholder": "Shuttle, confirmation code, hotel…",
   "search.submit": "Search",
+  "search.hint":
+    "Type to search as you go — partial words work, and any word matches. Pick a suggestion, or copy a result to reuse it.",
   "search.error.empty": "Type something to search for.",
   "search.announce.none": "No matches for {query}.",
   "search.none":
     "No matches for “{query}” in your documents or confirmed plans.",
   "search.results.aria": "Search results",
+  "search.suggestions.aria": "Search suggestions",
+  "search.suggestions.label": "Try:",
+  "search.copy": "Copy",
+  "search.copied": "Copied",
+  "search.copy.aria": "Copy “{value}”",
+  "search.announce.copied": "Copied to clipboard.",
   "search.hit.document": "imported document",
   "search.hit.confirmed": "confirmed plan",
 

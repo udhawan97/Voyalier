@@ -268,6 +268,12 @@ export function createHttpGateway(
         `/api/v1/trips/${enc(tripId)}/search?q=${enc(query)}`,
       ),
 
+    suggestSearchTerms: (tripId: string, query: string) =>
+      request<string[]>(
+        "GET",
+        `/api/v1/trips/${enc(tripId)}/search-suggestions?q=${enc(query)}`,
+      ),
+
     deleteTrip: (tripId: string) =>
       request<void>("DELETE", `/api/v1/trips/${enc(tripId)}`),
 

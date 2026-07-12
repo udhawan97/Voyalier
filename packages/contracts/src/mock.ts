@@ -883,6 +883,92 @@ function omit<T extends object>(value: T, keys: string[]): T {
   return copy;
 }
 
+// JS mirror of voyalier-core::search relaxed matching + term suggestions.
+function queryTokens(query: string): string[] {
+  const tokens: string[] = [];
+  for (const word of query.toLowerCase().split(/\s+/)) {
+    if (word && !tokens.includes(word)) tokens.push(word);
+  }
+  return tokens;
+}
+
+function scoreHaystack(
+  haystack: string,
+  tokens: string[],
+): { matched: number; occurrences: number; first?: string } {
+  let matched = 0;
+  let occurrences = 0;
+  let firstPos = Number.POSITIVE_INFINITY;
+  let first: string | undefined;
+  for (const token of tokens) {
+    const count = countOccurrences(haystack, token);
+    if (count > 0) {
+      matched += 1;
+      occurrences += count;
+      const pos = haystack.indexOf(token);
+      if (pos >= 0 && pos < firstPos) {
+        firstPos = pos;
+        first = token;
+      }
+    }
+  }
+  return { matched, occurrences, first };
+}
+
+const MOCK_SEARCH_SUGGESTION_LIMIT = 8;
+
+function factFieldStrings(fact: CandidateFact | ConfirmedFact): string[] {
+  return Object.values(fact.payload).filter(
+    (value): value is string => typeof value === "string",
+  );
+}
+
+function suggestSearchTermsFrom(
+  query: string,
+  docs: string[],
+  facts: ConfirmedFact[],
+): string[] {
+  const last = query.trim().toLowerCase().split(/\s+/).pop() ?? "";
+  if (last.length < 2) return [];
+  const seen = new Map<string, { count: number; prefix: boolean }>();
+  const consider = (term: string) => {
+    const trimmed = term.trim();
+    if (trimmed.length < 2) return;
+    const lower = trimmed.toLowerCase();
+    if (!lower.includes(last)) return;
+    const entry = seen.get(trimmed) ?? { count: 0, prefix: false };
+    entry.count += 1;
+    entry.prefix = lower.startsWith(last);
+    seen.set(trimmed, entry);
+  };
+  for (const content of docs) {
+    for (const word of content.split(/[^\p{L}\p{N}]+/u)) consider(word);
+  }
+  for (const fact of facts) {
+    for (const value of factFieldStrings(fact)) {
+      consider(value);
+      for (const word of value.split(/[^\p{L}\p{N}]+/u)) consider(word);
+    }
+    const label =
+      fact.factType === "flight_segment"
+        ? (fact.payload as Record<string, string | undefined>).flightNumber
+          ? `Flight ${(fact.payload as Record<string, string>).flightNumber}`
+          : "Flight"
+        : ((fact.payload as Record<string, string | undefined>).propertyName ??
+          "Stay");
+    consider(label);
+  }
+  return [...seen.entries()]
+    .sort(
+      (a, b) =>
+        Number(b[1].prefix) - Number(a[1].prefix) ||
+        b[1].count - a[1].count ||
+        a[0].toLowerCase().localeCompare(b[0].toLowerCase()),
+    )
+    .slice(0, MOCK_SEARCH_SUGGESTION_LIMIT)
+    .map(([term]) => term);
+}
+
 /**
  * Deterministic mirror of voyalier-core::build_trip_brief under the default
  * sharing policy: confirmation codes and traveler names are excluded by
@@ -1413,53 +1499,89 @@ export function createMockGateway(options?: {
             { field: "query" },
           );
         }
-        const needle = trimmed.toLowerCase();
-        const hits: SearchHit[] = [];
+        // Relaxed: match ANY query word, rank by how many distinct words a
+        // record covers, then by total occurrences.
+        const tokens = queryTokens(trimmed);
+        const ranked: { hit: SearchHit; matched: number }[] = [];
 
         for (const stored of documents.values()) {
           if (stored.document.tripId !== tripId) continue;
-          const score = countOccurrences(stored.content.toLowerCase(), needle);
-          if (score === 0) continue;
-          hits.push({
-            source: "document",
-            recordId: stored.document.id,
-            label: stored.document.label,
-            snippet: snippetAround(stored.content, needle),
-            score,
+          const { matched, occurrences, first } = scoreHaystack(
+            stored.content.toLowerCase(),
+            tokens,
+          );
+          if (matched === 0) continue;
+          ranked.push({
+            hit: {
+              source: "document",
+              recordId: stored.document.id,
+              label: stored.document.label,
+              snippet: first ? snippetAround(stored.content, first) : "",
+              score: occurrences,
+            },
+            matched,
           });
         }
 
         for (const fact of facts.values()) {
           if (fact.tripId !== tripId) continue;
-          let best: { score: number; snippet: string } | null = null;
-          for (const value of Object.values(fact.payload)) {
-            if (typeof value !== "string") continue;
-            const score = countOccurrences(value.toLowerCase(), needle);
-            if (score > 0 && (!best || score > best.score)) {
-              best = { score, snippet: value };
+          let best: { matched: number; occurrences: number; snippet: string } | null =
+            null;
+          for (const value of factFieldStrings(fact)) {
+            const { matched, occurrences } = scoreHaystack(
+              value.toLowerCase(),
+              tokens,
+            );
+            if (
+              matched > 0 &&
+              (!best ||
+                matched > best.matched ||
+                (matched === best.matched && occurrences > best.occurrences))
+            ) {
+              best = { matched, occurrences, snippet: value };
             }
           }
           if (best) {
             const payload = fact.payload as Record<string, string | undefined>;
-            hits.push({
-              source: "confirmed_fact",
-              recordId: fact.id,
-              label:
-                fact.factType === "flight_segment"
-                  ? payload.flightNumber
-                    ? `Flight ${payload.flightNumber}`
-                    : "Flight"
-                  : (payload.propertyName ?? "Stay"),
-              snippet: best.snippet,
-              score: best.score,
+            ranked.push({
+              hit: {
+                source: "confirmed_fact",
+                recordId: fact.id,
+                label:
+                  fact.factType === "flight_segment"
+                    ? payload.flightNumber
+                      ? `Flight ${payload.flightNumber}`
+                      : "Flight"
+                    : (payload.propertyName ?? "Stay"),
+                snippet: best.snippet,
+                score: best.occurrences,
+              },
+              matched: best.matched,
             });
           }
         }
 
-        hits.sort(
-          (a, b) => b.score - a.score || a.recordId.localeCompare(b.recordId),
+        ranked.sort(
+          (a, b) =>
+            b.matched - a.matched ||
+            b.hit.score - a.hit.score ||
+            a.hit.recordId.localeCompare(b.hit.recordId),
         );
-        return hits.slice(0, 20);
+        return ranked.slice(0, 20).map((entry) => entry.hit);
+      }),
+
+    suggestSearchTerms: (tripId: string, query: string) =>
+      execute("suggestSearchTerms", () => {
+        requireTrip(tripId);
+        const trimmed = query.trim();
+        if (trimmed.length === 0 || trimmed.length > 200) return [];
+        const docs = [...documents.values()]
+          .filter((stored) => stored.document.tripId === tripId)
+          .map((stored) => stored.content);
+        const tripFacts = [...facts.values()].filter(
+          (fact) => fact.tripId === tripId,
+        );
+        return suggestSearchTermsFrom(trimmed, docs, tripFacts);
       }),
 
     getTripBrief: (tripId: string) =>
