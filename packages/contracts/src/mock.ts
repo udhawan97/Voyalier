@@ -21,8 +21,12 @@ import type {
   ImportResult,
   ItineraryConflict,
   LocalAiStatus,
+  FieldSuggestion,
   LodgingStayPayload,
   PackInfo,
+  PackMatchKind,
+  PackSuggestion,
+  SuggestFieldValuesInput,
   PersonaWeights,
   ProviderConfig,
   ProviderId,
@@ -723,6 +727,102 @@ const MOCK_PACKS: PackInfo[] = [
     layers: packLayers(),
   },
 ];
+
+/** A trimmed slice of voyalier-core::packs::pack_aliases for the mock's packs. */
+const MOCK_PACK_ALIASES: Record<string, readonly string[]> = {
+  "us-nashville": ["music city"],
+  "us-hi-oahu": ["honolulu", "waikiki"],
+  "us-hi-maui": ["lahaina", "kahului"],
+  "us-hi-kauai": ["lihue"],
+  "us-hi-hawaii-island": ["big island", "kona", "hilo"],
+};
+
+const REGION_STOPWORDS = new Set(["usa", "the", "and", "of"]);
+
+/** JS mirror of voyalier-core::packs::normalize_place. */
+function mockNormalizePlace(input: string): string {
+  return input
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "") // combining diacritics
+    .replace(/['`´‘’ʻ]/g, "") // apostrophe-like + ʻokina
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+const MATCH_RANK: Record<PackMatchKind, number> = {
+  exact: 0,
+  alias: 1,
+  partial: 2,
+};
+
+/** JS mirror of voyalier-core::packs::suggest_packs over the mock catalog. */
+function mockSuggestPacks(destination: string): PackSuggestion[] {
+  const normalized = mockNormalizePlace(destination);
+  if (!normalized) return [];
+  const padded = ` ${normalized} `;
+  const tokens = normalized.split(" ");
+  const phraseIn = (term: string) => term !== "" && padded.includes(` ${term} `);
+
+  const suggestions: PackSuggestion[] = [];
+  for (const pack of MOCK_PACKS) {
+    let match: Pick<PackSuggestion, "matchKind" | "matchedText"> | null = null;
+    for (const term of [pack.name, pack.wikivoyageArticle]) {
+      if (phraseIn(mockNormalizePlace(term))) {
+        match = { matchKind: "exact", matchedText: pack.name };
+        break;
+      }
+    }
+    if (!match) {
+      for (const alias of MOCK_PACK_ALIASES[pack.id] ?? []) {
+        if (phraseIn(mockNormalizePlace(alias))) {
+          match = { matchKind: "alias", matchedText: alias };
+          break;
+        }
+      }
+    }
+    if (!match) {
+      for (const token of mockNormalizePlace(pack.region).split(" ")) {
+        if (
+          token.length >= 4 &&
+          !REGION_STOPWORDS.has(token) &&
+          tokens.includes(token)
+        ) {
+          match = { matchKind: "partial", matchedText: pack.region };
+          break;
+        }
+      }
+    }
+    if (match) suggestions.push({ pack: clone(pack), ...match });
+  }
+  // Array.sort is stable, so catalog order is preserved within a tier.
+  suggestions.sort((a, b) => MATCH_RANK[a.matchKind] - MATCH_RANK[b.matchKind]);
+  return suggestions;
+}
+
+const MOCK_FIELD_SUGGESTION_LIMIT = 8;
+
+/** JS mirror of voyalier-core::suggest::rank_field_suggestions. */
+function mockRankFieldSuggestions(
+  query: string,
+  candidates: FieldSuggestion[],
+): FieldSuggestion[] {
+  const needle = query.trim().toLowerCase();
+  const seen = new Set<string>();
+  const prefix: FieldSuggestion[] = [];
+  const contains: FieldSuggestion[] = [];
+  for (const candidate of candidates) {
+    const value = candidate.value.trim();
+    if (!value) continue;
+    const folded = value.toLowerCase();
+    if (seen.has(folded)) continue;
+    seen.add(folded);
+    const normalized = { ...candidate, value };
+    if (!needle || folded.startsWith(needle)) prefix.push(normalized);
+    else if (folded.includes(needle)) contains.push(normalized);
+  }
+  return [...prefix, ...contains].slice(0, MOCK_FIELD_SUGGESTION_LIMIT);
+}
 
 const MOCK_ADVICE_COUNTRIES: FcdoCountry[] = [
   { slug: "france", name: "France" },
@@ -1546,6 +1646,66 @@ export function createMockGateway(options?: {
       }),
 
     listPacks: () => execute("listPacks", () => MOCK_PACKS.map(clone)),
+
+    suggestPacks: (tripId: string) =>
+      execute("suggestPacks", () => {
+        const trip = requireTrip(tripId);
+        return mockSuggestPacks(trip.destination);
+      }),
+
+    suggestFieldValues: (input: SuggestFieldValuesInput) =>
+      execute("suggestFieldValues", () => {
+        requireTrip(input.tripId);
+        if (input.field !== "address" && input.field !== "propertyName") {
+          throw appError(
+            "validation/invalid_input",
+            "suggestions are only available for lodging address and property name",
+            { field: "field" },
+          );
+        }
+        const candidates: FieldSuggestion[] = [];
+
+        // Confirmed lodging values (this trip first). A locked vault omits this
+        // source, mirroring the real gateway's behavior.
+        if (!vaultStatus().locked) {
+          const lodging = [...facts.values()].filter(
+            (fact) => fact.factType === "lodging_stay",
+          );
+          lodging.sort(
+            (a, b) =>
+              Number(b.tripId === input.tripId) -
+              Number(a.tripId === input.tripId),
+          );
+          for (const fact of lodging) {
+            const values = fact.payload as Record<string, string | undefined>;
+            const value = values[input.field]?.trim();
+            if (!value) continue;
+            const sameTrip = fact.tripId === input.tripId;
+            candidates.push({
+              value,
+              source: sameTrip ? "confirmed_fact" : "trip_history",
+              detail: sameTrip ? "from this trip" : "from a previous stay",
+            });
+          }
+        }
+
+        // Pack place names for this trip (property name only; places carry no
+        // address).
+        if (
+          input.field === "propertyName" &&
+          downloadedPacks.some((pack) => pack.tripId === input.tripId)
+        ) {
+          for (const place of MOCK_PLACES) {
+            candidates.push({
+              value: place.name,
+              source: "pack_place",
+              detail: "from a downloaded city pack",
+            });
+          }
+        }
+
+        return mockRankFieldSuggestions(input.query, candidates);
+      }),
 
     downloadPack: (tripId: string, packId: string) =>
       execute("downloadPack", () => {

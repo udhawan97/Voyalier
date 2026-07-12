@@ -134,6 +134,7 @@ function ReviewCard({
             draft={draft}
             onChange={setDraft}
             idPrefix={`edit-${candidate.id}`}
+            tripId={candidate.tripId}
           />
         </div>
       ) : (

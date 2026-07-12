@@ -312,6 +312,26 @@ const en = {
   "providers.announce.keySaved": "{provider} key saved.",
   "providers.announce.modelSaved": "{provider} model saved.",
 
+  "packs.suggested.title": "Recommended for this trip",
+  "packs.suggested.matchExact": "Matches your destination",
+  "packs.suggested.matchAlias": "Matches your destination",
+  "packs.suggested.matchPartial": "In this region",
+  "packs.suggested.download": "Download {name} city data",
+  "packs.suggested.ambiguous": "More than one pack could match — choose one:",
+  "packs.suggested.none":
+    "No city pack matches “{destination}” yet. Browse all packs below.",
+  "packs.suggested.downloaded": "Downloaded for this trip.",
+  "packs.suggested.consent":
+    "Downloading pulls this pack's data in; nothing about your trip is sent except the request for the pack file.",
+
+  "combobox.listLabel": "{label} suggestions",
+  "combobox.available.one": "{count} suggestion available.",
+  "combobox.available.other": "{count} suggestions available.",
+  "suggest.source.confirmed_fact": "from this trip",
+  "suggest.source.trip_history": "from a previous stay",
+  "suggest.source.pack_place": "from a city pack",
+  "suggest.source.catalog": "city pack",
+
   "packs.title": "Offline city data",
   "packs.intro":
     "Download local place data and travel notes for a city to use offline. Downloading pulls a pack in from GitHub and stores it on this device for this trip — nothing about your trip is sent. Each pack pairs Overture places with a separate Wikivoyage notes layer, each under its own license.",

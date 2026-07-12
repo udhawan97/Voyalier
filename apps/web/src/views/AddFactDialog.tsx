@@ -119,6 +119,7 @@ export function AddFactDialog({
           draft={draft}
           onChange={setDraft}
           idPrefix="add-fact"
+          tripId={tripId}
         />
       </form>
     </Dialog>

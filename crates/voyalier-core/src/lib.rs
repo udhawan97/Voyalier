@@ -15,6 +15,7 @@ mod provider;
 mod readiness;
 mod recommend;
 mod search;
+mod suggest;
 mod today;
 mod types;
 mod vault;
@@ -36,8 +37,8 @@ pub use itinerary::detect_itinerary_conflicts;
 pub use local_ai::{LocalAiModel, LocalAiStatus, OLLAMA_TAGS_URL, parse_ollama_models};
 pub use packs::{
     BoundingBox, DownloadedPack, PACK_RELEASE_TAG, PackArticle, PackContent, PackInfo,
-    PackLayerLicense, PackPlace, pack_catalog, pack_download_url, parse_pack_content,
-    validate_pack_id,
+    PackLayerLicense, PackMatchKind, PackPlace, PackSuggestion, normalize_place, pack_catalog,
+    pack_download_url, parse_pack_content, suggest_packs, validate_pack_id,
 };
 pub use parser::{
     ConfirmationParser, JsonLdParser, NormalizedDocument, ParsedCandidate, ParserDiagnostic,
@@ -51,6 +52,9 @@ pub use readiness::assess_readiness;
 pub use recommend::{PersonaWeights, Recommendation, recommend_places};
 pub use search::{
     SearchHit, SearchHitSource, SearchableDocument, search_trip_corpus, validate_search_query,
+};
+pub use suggest::{
+    FIELD_SUGGESTION_LIMIT, FieldSuggestion, SuggestionSource, rank_field_suggestions,
 };
 pub use today::{TodayItem, TodayItemKind, TodayView, TripPhase, TripPhaseState, build_today_view};
 pub use types::*;

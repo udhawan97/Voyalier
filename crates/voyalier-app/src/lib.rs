@@ -15,21 +15,21 @@ use voyalier_core::{
     AssistReply, AssistRequestPreview, CandidateFact, CandidateStatus, ConfirmCandidateInput,
     ConfirmationParser, ConfirmedFact, CreateTripInput, DEFAULT_ANTHROPIC_MODEL,
     DEFAULT_OLLAMA_MODEL, DEFAULT_OPENAI_MODEL, DocumentKind, DownloadedPack, ErrorCode,
-    ExtractionMethod, FCDO_COUNTRIES, FcdoCountry, HealthResponse, ImportDocumentInput,
-    ImportResult, IntelligenceMode, JsonLdParser, LocalAiStatus, NormalizedDocument,
-    OLLAMA_CHAT_URL, OLLAMA_TAGS_URL, OPENAI_CHAT_URL, PROVIDERS, PackContent, PackInfo,
-    ParsedCandidate, PersonaWeights, PlaintextParser, ProviderConfig, ProviderId, Recommendation,
-    RedactionPolicy, SearchHit, SearchableDocument, SourceDocument, TodayView,
-    TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripStatus, TripSummary, UpdateTripInput,
-    WeatherSnapshot, assess_readiness, build_anthropic_messages_body, build_assist_preview,
-    build_ollama_chat_body, build_openai_chat_body, build_today_view, build_trip_brief,
-    changed_payload_fields, detect_itinerary_conflicts, extract_email_body, new_id, now_rfc3339,
-    pack_catalog, pack_download_url, parse_anthropic_reply, parse_fcdo_content,
-    parse_forecast_response, parse_geocoding_response, parse_ollama_chat_reply,
-    parse_openai_chat_reply, parse_pack_content, provider_info, recommend_places,
-    search_trip_corpus, validate_api_key, validate_country_slug, validate_create_trip,
-    validate_document_content, validate_fact_payload, validate_model_name, validate_pack_id,
-    validate_provider_id, validate_search_query, validate_update_trip,
+    ExtractionMethod, FCDO_COUNTRIES, FcdoCountry, FieldSuggestion, HealthResponse,
+    ImportDocumentInput, ImportResult, IntelligenceMode, JsonLdParser, LocalAiStatus,
+    NormalizedDocument, OLLAMA_CHAT_URL, OLLAMA_TAGS_URL, OPENAI_CHAT_URL, PROVIDERS, PackContent,
+    PackInfo, PackSuggestion, ParsedCandidate, PersonaWeights, PlaintextParser, ProviderConfig,
+    ProviderId, Recommendation, RedactionPolicy, SearchHit, SearchableDocument, SourceDocument,
+    SuggestionSource, TodayView, TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripStatus,
+    TripSummary, UpdateTripInput, WeatherSnapshot, assess_readiness, build_anthropic_messages_body,
+    build_assist_preview, build_ollama_chat_body, build_openai_chat_body, build_today_view,
+    build_trip_brief, changed_payload_fields, detect_itinerary_conflicts, extract_email_body,
+    new_id, now_rfc3339, pack_catalog, pack_download_url, parse_anthropic_reply,
+    parse_fcdo_content, parse_forecast_response, parse_geocoding_response, parse_ollama_chat_reply,
+    parse_openai_chat_reply, parse_pack_content, provider_info, rank_field_suggestions,
+    recommend_places, search_trip_corpus, suggest_packs, validate_api_key, validate_country_slug,
+    validate_create_trip, validate_document_content, validate_fact_payload, validate_model_name,
+    validate_pack_id, validate_provider_id, validate_search_query, validate_update_trip,
 };
 use voyalier_core::{
     VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, VaultStatus, derive_key as vault_derive_key,
@@ -792,6 +792,74 @@ impl AppService {
     /// step.
     pub fn list_packs(&self) -> Vec<PackInfo> {
         pack_catalog()
+    }
+
+    /// Suggest catalog packs for a trip's destination, best match first.
+    ///
+    /// A local, deterministic read: it matches the trip's stored destination
+    /// against the compiled-in catalog and makes no network request. Downloading
+    /// a suggested pack stays a separate, explicit user action.
+    pub fn suggest_packs(&self, trip_id: &str) -> Result<Vec<PackSuggestion>, AppError> {
+        let connection = self.connection()?;
+        let trip = fetch_trip(&connection, trip_id)?;
+        Ok(suggest_packs(&trip.destination))
+    }
+
+    /// Suggest values for a lodging form field from local data only.
+    ///
+    /// Sources are the trip's downloaded pack place names (for `propertyName`)
+    /// and the user's previously confirmed lodging values. There is no external
+    /// geocoding or per-keystroke network call. Confirmed values live in the
+    /// encrypted vault; when it is locked that source is skipped rather than
+    /// erroring, so the field still offers pack-based suggestions.
+    pub fn suggest_field_values(
+        &self,
+        trip_id: &str,
+        field: &str,
+        query: &str,
+    ) -> Result<Vec<FieldSuggestion>, AppError> {
+        if !matches!(field, "address" | "propertyName") {
+            return Err(AppError::with_detail(
+                ErrorCode::ValidationInvalidInput,
+                "suggestions are only available for lodging address and property name",
+                "field",
+                "field",
+            ));
+        }
+        let connection = self.connection()?;
+        fetch_trip(&connection, trip_id)?;
+
+        let mut candidates: Vec<FieldSuggestion> = Vec::new();
+
+        // Previously confirmed lodging values (this trip first). Reading needs
+        // the vault; a locked vault simply omits this source.
+        match confirmed_lodging_values(&connection, &self.vault, field, trip_id) {
+            Ok(values) => {
+                for (value, same_trip) in values {
+                    let (source, detail) = if same_trip {
+                        (SuggestionSource::ConfirmedFact, "from this trip")
+                    } else {
+                        (SuggestionSource::TripHistory, "from a previous stay")
+                    };
+                    candidates.push(FieldSuggestion::new(value, source).with_detail(detail));
+                }
+            }
+            Err(error) if error.code == ErrorCode::VaultLocked => {}
+            Err(error) => return Err(error),
+        }
+
+        // Place names from this trip's downloaded packs. Pack places carry a
+        // name but no address, so they only inform the property-name field.
+        if field == "propertyName" {
+            for name in downloaded_pack_place_names(&connection, trip_id)? {
+                candidates.push(
+                    FieldSuggestion::new(name, SuggestionSource::PackPlace)
+                        .with_detail("from a downloaded city pack"),
+                );
+            }
+        }
+
+        Ok(rank_field_suggestions(query, candidates))
     }
 
     /// Download a city pack's contents for a trip. Called only from an explicit
@@ -2258,6 +2326,74 @@ fn fetch_confirmed_facts(
         .query_map(params![trip_id], |row| row_to_confirmed_fact(row, vault))
         .map_err(storage_error)?;
     collect_rows(rows)
+}
+
+/// Read one string field from every confirmed lodging fact, across all trips,
+/// as `(value, is_current_trip)` with the current trip's values first. The
+/// sealed payload is opened through the vault, so a locked vault surfaces as
+/// [`ErrorCode::VaultLocked`] for the caller to treat as "no confirmed source".
+fn confirmed_lodging_values(
+    connection: &Connection,
+    vault: &Vault,
+    field: &str,
+    current_trip_id: &str,
+) -> Result<Vec<(String, bool)>, AppError> {
+    let mut statement = connection
+        .prepare(
+            "SELECT trip_id, payload FROM confirmed_facts
+             WHERE fact_type = 'lodging_stay'
+             ORDER BY confirmed_at DESC, id ASC",
+        )
+        .map_err(storage_error)?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(storage_error)?;
+
+    let mut values: Vec<(String, bool)> = Vec::new();
+    for row in rows {
+        let (row_trip_id, sealed_payload) = row.map_err(storage_error)?;
+        let payload_json = vault.open_field(&sealed_payload)?;
+        let payload: serde_json::Value = serde_json::from_str(&payload_json)
+            .map_err(|_| AppError::new(ErrorCode::StorageFailure, "unreadable stored payload"))?;
+        if let Some(text) = payload.get(field).and_then(serde_json::Value::as_str) {
+            let text = text.trim();
+            if !text.is_empty() {
+                values.push((text.to_owned(), row_trip_id == current_trip_id));
+            }
+        }
+    }
+    // Current-trip values first; the query already orders newest-first within each.
+    values.sort_by_key(|(_, is_current)| u8::from(!is_current));
+    Ok(values)
+}
+
+/// Place names from a trip's downloaded packs, newest pack first. Pack contents
+/// are not vault-sealed, so this reads regardless of vault state.
+fn downloaded_pack_place_names(
+    connection: &Connection,
+    trip_id: &str,
+) -> Result<Vec<String>, AppError> {
+    let mut statement = connection
+        .prepare(
+            "SELECT content FROM downloaded_packs
+             WHERE trip_id = ?1
+             ORDER BY downloaded_at DESC, pack_id ASC",
+        )
+        .map_err(storage_error)?;
+    let rows = statement
+        .query_map(params![trip_id], |row| row.get::<_, String>(0))
+        .map_err(storage_error)?;
+
+    let mut names: Vec<String> = Vec::new();
+    for row in rows {
+        let content = row.map_err(storage_error)?;
+        if let Ok(parsed) = serde_json::from_str::<PackContent>(&content) {
+            names.extend(parsed.places.into_iter().map(|place| place.name));
+        }
+    }
+    Ok(names)
 }
 
 fn insert_candidate(
@@ -4007,5 +4143,143 @@ mod tests {
         if let Some(parent) = database.parent() {
             let _ = fs::remove_dir_all(parent);
         }
+    }
+
+    #[test]
+    fn suggest_packs_matches_the_trip_destination() {
+        let database = temp_database("suggest-packs");
+        let service = open_test_service(&database).expect("service");
+        // valid_trip_input's destination is "Kyoto".
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        let suggestions = service.suggest_packs(&trip.id).expect("suggest");
+        assert_eq!(suggestions[0].pack.id, "jp-kyoto");
+        assert!(matches!(
+            suggestions[0].match_kind,
+            voyalier_core::PackMatchKind::Exact
+        ));
+
+        assert_eq!(
+            service
+                .suggest_packs("nope")
+                .expect_err("unknown trip")
+                .code,
+            ErrorCode::TripNotFound
+        );
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn suggest_field_values_draws_on_confirmed_facts_and_pack_places() {
+        // A stub that serves one Kyoto pack with a single named place.
+        struct PackFetcher;
+        impl AdviceFetcher for PackFetcher {
+            fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+                assert!(url.contains("jp-kyoto.json"));
+                Ok(r#"{"packId":"jp-kyoto","places":[{"name":"Nishiki Market",
+                       "category":"market","lat":35.0,"lon":135.76}],"articles":[]}"#
+                    .to_owned())
+            }
+        }
+
+        let database = temp_database("suggest-fields");
+        let service =
+            open_test_service_with_fetcher(&database, Arc::new(PackFetcher)).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        service
+            .add_manual_fact(AddManualFactInput {
+                trip_id: trip.id.clone(),
+                fact_type: FactType::LodgingStay,
+                payload: FactPayload {
+                    property_name: Some("River Paper Inn".to_owned()),
+                    address: Some("7 Paper Street, Kyoto".to_owned()),
+                    ..FactPayload::default()
+                },
+            })
+            .expect("manual stay");
+        service
+            .download_pack(&trip.id, "jp-kyoto")
+            .expect("download");
+
+        // Property-name suggestions combine confirmed values and pack places.
+        let property = service
+            .suggest_field_values(&trip.id, "propertyName", "")
+            .expect("property suggestions");
+        let values: Vec<&str> = property.iter().map(|s| s.value.as_str()).collect();
+        assert!(values.contains(&"River Paper Inn"));
+        assert!(values.contains(&"Nishiki Market"));
+        assert!(
+            property
+                .iter()
+                .any(|s| s.source == SuggestionSource::ConfirmedFact)
+        );
+        assert!(
+            property
+                .iter()
+                .any(|s| s.source == SuggestionSource::PackPlace)
+        );
+
+        // Address suggestions come only from confirmed facts (places carry none),
+        // and the query filters case-insensitively.
+        let address = service
+            .suggest_field_values(&trip.id, "address", "paper")
+            .expect("address suggestions");
+        assert_eq!(address.len(), 1);
+        assert_eq!(address[0].value, "7 Paper Street, Kyoto");
+        assert!(
+            address
+                .iter()
+                .all(|s| s.source != SuggestionSource::PackPlace)
+        );
+
+        // An unsupported field is a validation error, not a silent empty list.
+        assert_eq!(
+            service
+                .suggest_field_values(&trip.id, "confirmationCode", "")
+                .expect_err("unsupported field")
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn suggest_field_values_skips_confirmed_source_when_the_vault_is_locked() {
+        struct NoNet;
+        impl AdviceFetcher for NoNet {
+            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+                panic!("no network");
+            }
+        }
+
+        let database = temp_database("suggest-fields-locked");
+        let secrets = Arc::new(MemorySecretStore::default());
+        let service = AppService::open_path_with_deps(&database, Arc::new(NoNet), secrets.clone())
+            .expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        service
+            .add_manual_fact(AddManualFactInput {
+                trip_id: trip.id.clone(),
+                fact_type: FactType::LodgingStay,
+                payload: FactPayload {
+                    address: Some("7 Paper Street, Kyoto".to_owned()),
+                    ..FactPayload::default()
+                },
+            })
+            .expect("manual stay");
+        service
+            .set_vault_passphrase("correct horse battery")
+            .expect("set passphrase");
+
+        // Reopen: the vault is locked, so the confirmed-fact source is unreadable.
+        // Suggestions must degrade to empty rather than surfacing a locked error.
+        let reopened = AppService::open_path_with_deps(&database, Arc::new(NoNet), secrets.clone())
+            .expect("reopen");
+        assert!(reopened.get_vault_status().expect("status").locked);
+        let address = reopened
+            .suggest_field_values(&trip.id, "address", "")
+            .expect("suggestions must not error when locked");
+        assert!(address.is_empty());
+        cleanup_database(database);
     }
 }

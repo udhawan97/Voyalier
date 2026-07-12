@@ -314,6 +314,39 @@ export interface DownloadedPack {
   articleCount: number;
   downloadedAt: string;
 }
+/** How strongly a trip destination matched a catalog pack. */
+export type PackMatchKind = "exact" | "alias" | "partial";
+/**
+ * A catalog pack suggested for a trip's destination, with why it matched. Built
+ * on-device from the compiled-in catalog — suggesting sends nothing and
+ * downloads nothing; downloading stays an explicit user action.
+ */
+export interface PackSuggestion {
+  pack: PackInfo;
+  matchKind: PackMatchKind;
+  /** The pack-side term that matched (its name, alias, or region). */
+  matchedText: string;
+}
+/** Where a field-value suggestion came from, so the UI can label it honestly. */
+export type SuggestionSource =
+  | "catalog"
+  | "pack_place"
+  | "confirmed_fact"
+  | "trip_history";
+/** One suggested value for a form field, from local data only. */
+export interface FieldSuggestion {
+  value: string;
+  source: SuggestionSource;
+  /** A short human note ("from a previous stay"), when useful. */
+  detail?: string;
+}
+/** Lodging fields that support local suggestions. */
+export type SuggestableField = "address" | "propertyName";
+export interface SuggestFieldValuesInput {
+  tripId: string;
+  field: SuggestableField;
+  query: string;
+}
 /** Per-trip persona interest weights (each 0.0–1.0). Presets map onto these. */
 export interface PersonaWeights {
   food: number;
@@ -495,6 +528,8 @@ export interface AppGateway {
   runAssist(tripId: string, provider: ProviderId): Promise<AssistReply>;
   listAssistActivity(tripId: string): Promise<AssistActivityEntry[]>;
   listPacks(): Promise<PackInfo[]>;
+  suggestPacks(tripId: string): Promise<PackSuggestion[]>;
+  suggestFieldValues(input: SuggestFieldValuesInput): Promise<FieldSuggestion[]>;
   downloadPack(tripId: string, packId: string): Promise<DownloadedPack>;
   listDownloadedPacks(tripId: string): Promise<DownloadedPack[]>;
   deleteDownloadedPack(tripId: string, packId: string): Promise<void>;

@@ -40,6 +40,13 @@ struct AssistPreviewQuery {
 }
 
 #[derive(Debug, Deserialize)]
+struct FieldSuggestionsQuery {
+    field: String,
+    #[serde(default)]
+    q: String,
+}
+
+#[derive(Debug, Deserialize)]
 struct RunAssistBody {
     provider: String,
 }
@@ -100,6 +107,14 @@ pub fn app(service: AppService) -> Router {
         .route("/api/v1/trips/{trip_id}/archive", post(archive_trip))
         .route("/api/v1/advice/countries", get(list_advice_countries))
         .route("/api/v1/packs", get(list_packs))
+        .route(
+            "/api/v1/trips/{trip_id}/pack-suggestions",
+            get(suggest_packs),
+        )
+        .route(
+            "/api/v1/trips/{trip_id}/field-suggestions",
+            get(suggest_field_values),
+        )
         .route("/api/v1/trips/{trip_id}/packs", get(list_downloaded_packs))
         .route(
             "/api/v1/trips/{trip_id}/packs/{pack_id}",
@@ -286,6 +301,25 @@ async fn list_advice_countries(
 
 async fn list_packs(State(service): State<AppService>) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(service.list_packs()))
+}
+
+async fn suggest_packs(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.suggest_packs(&trip_id)?))
+}
+
+async fn suggest_field_values(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+    Query(query): Query<FieldSuggestionsQuery>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.suggest_field_values(
+        &trip_id,
+        &query.field,
+        &query.q,
+    )?))
 }
 
 async fn list_downloaded_packs(

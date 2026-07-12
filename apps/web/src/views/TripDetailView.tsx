@@ -564,7 +564,7 @@ export function TripDetailView({
 
       <AssistPreview tripId={tripId} />
 
-      <CityPacks tripId={tripId} />
+      <CityPacks tripId={tripId} destination={trip.destination} />
 
       <Recommendations tripId={tripId} />
 

@@ -12,11 +12,13 @@ import type {
   DownloadedPack,
   FcdoCountry,
   FetchTravelAdviceInput,
+  FieldSuggestion,
   HealthResponse,
   ImportDocumentInput,
   ImportResult,
   LocalAiStatus,
   PackInfo,
+  PackSuggestion,
   PersonaWeights,
   ProviderConfig,
   ProviderId,
@@ -24,6 +26,7 @@ import type {
   SearchHit,
   SetProviderKeyInput,
   SetProviderModelInput,
+  SuggestFieldValuesInput,
   TodayView,
   TravelAdviceSnapshot,
   Trip,
@@ -128,6 +131,12 @@ export function createTauriGateway(
       call<AssistActivityEntry[]>("list_assist_activity", { tripId }),
 
     listPacks: () => call<PackInfo[]>("list_packs", {}),
+
+    suggestPacks: (tripId: string) =>
+      call<PackSuggestion[]>("suggest_packs", { tripId }),
+
+    suggestFieldValues: (input: SuggestFieldValuesInput) =>
+      call<FieldSuggestion[]>("suggest_field_values", input),
 
     downloadPack: (tripId: string, packId: string) =>
       call<DownloadedPack>("download_pack", { tripId, packId }),
