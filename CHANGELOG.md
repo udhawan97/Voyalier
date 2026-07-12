@@ -6,6 +6,10 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+Nothing pending.
+
+## [0.4.1] - 2026-07-12 — Flow-gap fixes
+
 ### Fixed
 
 - More user-flow dead-ends: the **Import** and **Add flight or stay** primary
