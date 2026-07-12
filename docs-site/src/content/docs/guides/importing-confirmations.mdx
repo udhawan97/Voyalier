@@ -8,12 +8,19 @@ Voyalier extracts.
 
 ## Import
 
-Paste the confirmation as text, or paste the page's HTML. The document is stored
-locally with the trip. Voyalier then runs a deterministic parser over it:
+Paste the confirmation as text, paste the page's HTML, or paste a whole raw
+confirmation email (headers and all — choose **Email** as the format). The
+document is stored locally with the trip. Voyalier then runs a deterministic
+parser over it:
 
 - **HTML** confirmations are read for structured `schema.org` reservation data
   when present.
 - **Pasted text** is scanned for recognizable flight and lodging details.
+- **Email** is not itself a stored format: Voyalier reads the raw message,
+  prefers the HTML part if the email has one (so the same structured-data
+  parser can run), decodes quoted-printable and base64 encoding, and stores
+  just the extracted body — never the headers or any attachment. The email's
+  subject becomes the document's label by default.
 
 ## Review candidates
 

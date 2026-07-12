@@ -15,9 +15,9 @@ Create trip → deterministic Blueprint → add/import reservation → readiness
 
 Consent-gated official advice (FCDO) and weather (Open-Meteo) with freshness labels; deterministic trip search; offline city packs (Overture + Wikivoyage, per-layer licenses, CI-built, downloaded per trip with consent); and BYOK AI assist — on-device Ollama plus OpenAI/Anthropic — with a redaction preview, an activity log, and keys kept only in the OS keychain.
 
-## Phase 3 — public beta — next
+## Phase 3 — public beta — in progress
 
-Encrypted vault and backup, maps and an offline Today view, signed desktop installers (DMG/MSI) with notarization and an updater, plus destination recommendations over downloaded packs.
+Shipped: an encrypted vault (keychain default, optional passphrase) with pre-update backups, a consent-gated map, an offline Today view, persona-weighted recommendations over downloaded packs, email/`.eml` confirmation import alongside paste and HTML, a fully localized UI (message-catalog `t()`, locale-aware pluralization), and an in-app updater — Rust-wrapped, minisign-verified, with checksums and build provenance. Remaining: OS-signed and notarized desktop installers (DMG/MSI), blocked on paid code-signing certificates and independent of the updater above.
 
 ## Later
 

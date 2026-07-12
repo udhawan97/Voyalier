@@ -39,7 +39,7 @@
 </p>
 
 > [!NOTE]
-> Voyalier is a **source-only beta**, built in the open. The working app already covers trip creation, deterministic planning, confirmation review, conflicts, readiness, official advice, weather, offline city packs, persona recommendations, Today, maps, encrypted local storage, redacted sharing, and optional Ollama/OpenAI/Anthropic assistance. Signed and notarized installers are still waiting for the traditional travel document of software distribution: paid certificates.
+> Voyalier is a **source-only beta**, built in the open. The working app already covers trip creation, deterministic planning, confirmation review (paste, HTML, or email), conflicts, readiness, official advice, weather, offline city packs, persona recommendations, Today, maps, encrypted local storage, redacted sharing, a fully localized UI, an in-app updater, and optional Ollama/OpenAI/Anthropic assistance. Signed and notarized installers are still waiting for the traditional travel document of software distribution: paid certificates.
 
 ## The route
 
@@ -66,43 +66,43 @@ meteorologist, doctor, or booking clerk.
 
 The useful parts work without a paid AI key. The connected parts ask first.
 
-|     | Do this                                                                                          | Get this                                                                                                   |
-| :-: | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| 🧭  | **Frame the trip** — add origin, destination, and dates                                          | A deterministic Blueprint instead of a blank canvas asking you to “start dreaming”                         |
-| 📥  | **Bring the confirmations** — paste reservation text or structured HTML                          | Candidate flights and stays with source excerpts, warnings, and zero silent promotion                      |
-| ✅  | **Review the facts** — confirm, correct, reject, or undo                                         | A trusted itinerary whose mistakes can be traced back to the source instead of blamed on “the algorithm”   |
-| 🧩  | **Pressure-test the plan** — check overlaps, lodging gaps, and pending review                    | Readiness that explains what is missing without pretending it knows whether a government will admit you    |
-| 🌦️  | **Fetch live context** — request official advice or destination weather                          | Dated, attributed snapshots with honest stale, partial, and unavailable states                             |
-| 🗺️  | **Discover locally** — download an open-data city pack, choose persona weights, and show the map | Ranked places with source, license, score, and “because” reasons — not a mystery listicle in a trench coat |
-| 🔍  | **Find anything** — search the trip’s saved documents and confirmed facts                        | Local results with provenance and transparent occurrence-based ranking                                     |
-| 🕰️  | **Travel with Today** — open the trip before or during the journey                               | A stable offline “now / next” view derived from confirmed facts and the current date                       |
-| ✨  | **Ask carefully** — preview an Ollama, OpenAI, or Anthropic request                              | Optional assistance with the exact outbound payload, withheld fields, token estimate, and activity record  |
-| 🔐  | **Lock it down** — use the OS keychain or add a passphrase                                       | Sensitive trip evidence sealed at rest, with no recovery theatre if the passphrase is forgotten            |
-| 🧾  | **Share deliberately** — preview the traveler brief and print or save it as PDF                  | A useful handoff that excludes names and confirmation codes by construction                                |
+|     | Do this                                                                                            | Get this                                                                                                   |
+| :-: | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| 🧭  | **Frame the trip** — add origin, destination, and dates                                            | A deterministic Blueprint instead of a blank canvas asking you to “start dreaming”                         |
+| 📥  | **Bring the confirmations** — paste reservation text, structured HTML, or a raw confirmation email | Candidate flights and stays with source excerpts, warnings, and zero silent promotion                      |
+| ✅  | **Review the facts** — confirm, correct, reject, or undo                                           | A trusted itinerary whose mistakes can be traced back to the source instead of blamed on “the algorithm”   |
+| 🧩  | **Pressure-test the plan** — check overlaps, lodging gaps, and pending review                      | Readiness that explains what is missing without pretending it knows whether a government will admit you    |
+| 🌦️  | **Fetch live context** — request official advice or destination weather                            | Dated, attributed snapshots with honest stale, partial, and unavailable states                             |
+| 🗺️  | **Discover locally** — download an open-data city pack, choose persona weights, and show the map   | Ranked places with source, license, score, and “because” reasons — not a mystery listicle in a trench coat |
+| 🔍  | **Find anything** — search the trip’s saved documents and confirmed facts                          | Local results with provenance and transparent occurrence-based ranking                                     |
+| 🕰️  | **Travel with Today** — open the trip before or during the journey                                 | A stable offline “now / next” view derived from confirmed facts and the current date                       |
+| ✨  | **Ask carefully** — preview an Ollama, OpenAI, or Anthropic request                                | Optional assistance with the exact outbound payload, withheld fields, token estimate, and activity record  |
+| 🔐  | **Lock it down** — use the OS keychain or add a passphrase                                         | Sensitive trip evidence sealed at rest, with no recovery theatre if the passphrase is forgotten            |
+| 🧾  | **Share deliberately** — preview the traveler brief and print or save it as PDF                    | A useful handoff that excludes names and confirmation codes by construction                                |
 
 <details>
 <summary>&nbsp;📋&nbsp; The full capability list, without the brochure voice</summary>
 
 <br>
 
-| Area                | What Voyalier does                                                                                                                                |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Trips**           | Create, update, archive, delete, and persist trips with a deterministic Blueprint                                                                 |
-| **Confirmations**   | Import pasted text or HTML; detect JSON-LD and plain-text flight/lodging facts; retain parser runs, field spans, excerpts, and warnings           |
-| **Review**          | Keep extracted candidates pending until the traveler confirms or corrects them; reject candidates or undo confirmed facts back to review          |
-| **Itinerary**       | Order confirmed flights and stays; flag flight overlaps, lodging overlaps, and uncovered-night gaps without blocking the traveler                 |
-| **Readiness**       | Roll up logistics checks and surface link-only official entry/health resources without making authoritative claims                                |
-| **Official advice** | Fetch a consented, dated GOV.UK FCDO snapshot with attribution, source URL, update metadata, and staleness handling                               |
-| **Weather**         | Fetch a consented Open-Meteo outlook with resolved place, trip-window coverage, retrieval time, and honest forecast-horizon limits                |
-| **Offline packs**   | Browse a validated catalog and download per-trip Overture + Wikivoyage packs from GitHub Releases with separate layer licenses                    |
-| **Recommendations** | Rank downloaded places with transparent persona weights, scores, reasons, provenance, and a cross-dimension wildcard                              |
-| **Map**             | Lazy-load a consent-gated MapLibre/OpenFreeMap view; request no tiles before the traveler selects **Show map**                                    |
-| **Search**          | Scan stored source documents and confirmed facts locally, returning snippets and provenance with deterministic ranking                            |
-| **Today**           | Build an offline upcoming/active/completed view with today’s anchors and the next known event                                                     |
-| **AI assist**       | Detect local Ollama; configure BYOK OpenAI/Anthropic; preview the exact redacted request; run only after consent; record metadata-only activity   |
-| **Vault**           | Seal source text, pending evidence, and sensitive fact payloads with an OS-keychain data key; optionally wrap it with a local Argon2id passphrase |
-| **Share**           | Generate a redaction-first printable brief from confirmed facts; names and confirmation codes never enter the output model                        |
-| **Accessibility**   | Support keyboard flows, focus containment, reduced motion, semantic labeling, contrast review, and automated axe-core gates                       |
+| Area                | What Voyalier does                                                                                                                                                          |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Trips**           | Create, update, archive, delete, and persist trips with a deterministic Blueprint                                                                                           |
+| **Confirmations**   | Import pasted text, HTML, or a raw confirmation email (`.eml`); detect JSON-LD and plain-text flight/lodging facts; retain parser runs, field spans, excerpts, and warnings |
+| **Review**          | Keep extracted candidates pending until the traveler confirms or corrects them; reject candidates or undo confirmed facts back to review                                    |
+| **Itinerary**       | Order confirmed flights and stays; flag flight overlaps, lodging overlaps, and uncovered-night gaps without blocking the traveler                                           |
+| **Readiness**       | Roll up logistics checks and surface link-only official entry/health resources without making authoritative claims                                                          |
+| **Official advice** | Fetch a consented, dated GOV.UK FCDO snapshot with attribution, source URL, update metadata, and staleness handling                                                         |
+| **Weather**         | Fetch a consented Open-Meteo outlook with resolved place, trip-window coverage, retrieval time, and honest forecast-horizon limits                                          |
+| **Offline packs**   | Browse a validated catalog and download per-trip Overture + Wikivoyage packs from GitHub Releases with separate layer licenses                                              |
+| **Recommendations** | Rank downloaded places with transparent persona weights, scores, reasons, provenance, and a cross-dimension wildcard                                                        |
+| **Map**             | Lazy-load a consent-gated MapLibre/OpenFreeMap view; request no tiles before the traveler selects **Show map**                                                              |
+| **Search**          | Scan stored source documents and confirmed facts locally, returning snippets and provenance with deterministic ranking                                                      |
+| **Today**           | Build an offline upcoming/active/completed view with today’s anchors and the next known event                                                                               |
+| **AI assist**       | Detect local Ollama; configure BYOK OpenAI/Anthropic; preview the exact redacted request; run only after consent; record metadata-only activity                             |
+| **Vault**           | Seal source text, pending evidence, and sensitive fact payloads with an OS-keychain data key; optionally wrap it with a local Argon2id passphrase                           |
+| **Share**           | Generate a redaction-first printable brief from confirmed facts; names and confirmation codes never enter the output model                                                  |
+| **Accessibility**   | Support keyboard flows, focus containment, reduced motion, semantic labeling, contrast review, and automated axe-core gates                                                 |
 
 </details>
 
@@ -266,10 +266,10 @@ offline → share. Grounded intelligence and the first public-beta surfaces have
 landed. The remaining work is less “invent the product” and more “make it safe
 to hand to someone who has a flight tomorrow.”
 
-- **Signed installers** — notarized macOS and signed Windows packages, checksums, and updater provenance
+- **OS-signed installers** — notarized macOS and signed Windows packages, blocked on paid certificates. (The free in-app updater — minisign verification, checksums, and build provenance — has already shipped and is independent of this.)
 - **Offline map completion** — per-pack PMTiles so the map joins the rest of the trip when the Wi-Fi leaves first
 - **More sourced readiness** — only where licensing, retrieval, and authority boundaries stay honest
-- **Localization readiness** — product copy, dates, units, and accessibility across more travelers
+- **More locales** — the message-catalog/`t()` localization infrastructure has shipped; adding translations beyond English remains data-only future work
 - **Performance and support hardening** — larger trips, slower machines, clearer recovery paths, fewer reasons to open an issue from an airport floor
 
 Live booking, payment, authoritative visa determinations, price prediction,

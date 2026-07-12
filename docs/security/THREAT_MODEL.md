@@ -8,15 +8,16 @@
 
 ## Primary threats
 
-| Threat                                        | Foundation control                          | Required before beta                                               |
-| --------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------ |
-| Local API accessed by another process or page | Loopback-only bind and origin allowlist     | Random port, per-launch token, strict CSP and origin validation    |
-| API key exposure                              | No keys in frontend or repository           | OS credential vault, redacted logs, rotation and deletion          |
-| Prompt injection in documents or pages        | Content treated as data, not instructions   | Tool isolation, schema validation, adversarial fixtures            |
-| Sensitive cloud disclosure                    | Exact redacted preview before each BYOK run | Provider retention copy, field-level policy, deletion verification |
-| Unsafe sharing                                | Redaction-first printable brief and preview | Audience profiles, expiring/encrypted bundle formats               |
-| Malicious update or dependency                | Lockfiles and CI                            | Signing, checksums, SBOM, provenance, updater signature validation |
-| Stale or incorrect travel facts               | Explicit unknown states in contracts        | Source priority, freshness TTLs, citations, conflict handling      |
+| Threat                                                       | Foundation control                                                  | Required before beta                                               |
+| ------------------------------------------------------------ | ------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Local API accessed by another process or page                | Loopback-only bind and origin allowlist                             | Random port, per-launch token, strict CSP and origin validation    |
+| API key exposure                                             | No keys in frontend or repository                                   | OS credential vault, redacted logs, rotation and deletion          |
+| Prompt injection in documents or pages                       | Content treated as data, not instructions                           | Tool isolation, schema validation, adversarial fixtures            |
+| Sensitive cloud disclosure                                   | Exact redacted preview before each BYOK run                         | Provider retention copy, field-level policy, deletion verification |
+| Unsafe sharing                                               | Redaction-first printable brief and preview                         | Audience profiles, expiring/encrypted bundle formats               |
+| Malicious update or dependency                               | Lockfiles and CI                                                    | Signing, checksums, SBOM, provenance, updater signature validation |
+| Resource exhaustion from untrusted import input (email/HTML) | Depth-capped, dependency-light parsing; a 1M-character document cap | Fuzz coverage, per-parser time/size budgets                        |
+| Stale or incorrect travel facts                              | Explicit unknown states in contracts                                | Source priority, freshness TTLs, citations, conflict handling      |
 
 ## Update integrity (status)
 

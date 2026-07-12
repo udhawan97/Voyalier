@@ -66,8 +66,9 @@ dependency.
 
 ### Imported confirmations
 
-1. Voyalier validates and hashes pasted text or HTML, then stores the raw body
-   only in local SQLite.
+1. Voyalier validates and hashes pasted text, HTML, or a raw confirmation
+   email (`.eml`) — email is extracted to its best body first and never
+   itself stored — then stores the raw body only in local SQLite.
 2. Deterministic parsers create candidate facts with a parser run, method,
    source spans, excerpts, and warnings.
 3. The traveler confirms/corrects, rejects, or leaves each candidate pending.
@@ -140,6 +141,9 @@ Every current remote edge is explicit and attributable:
 
 - GOV.UK FCDO advice and Open-Meteo weather through the replaceable Rust fetcher.
 - GitHub Release downloads for traveler-selected city packs.
+- The in-app updater, after opt-in: a once-a-day release-metadata check plus the
+  signed update download over `github.com` and `objects.githubusercontent.com`,
+  run entirely in the Rust core.
 - OpenFreeMap tiles after the traveler selects **Show map**.
 - Localhost Ollama, or consented BYOK OpenAI/Anthropic inference after preview.
 
