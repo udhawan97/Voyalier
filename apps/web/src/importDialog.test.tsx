@@ -47,6 +47,46 @@ describe("ImportDialog — email format", () => {
     );
   });
 
+  it("keeps Import disabled until there is something to import", async () => {
+    const gateway = createMockGateway();
+    const trip = await gateway.createTrip({
+      origin: "Chicago",
+      destination: "Kyoto",
+      startDate: "2027-04-01",
+      endDate: "2027-04-10",
+    });
+
+    render(
+      <GatewayContext.Provider value={gateway}>
+        <ImportDialog
+          tripId={trip.id}
+          onClose={() => {}}
+          onImported={() => {}}
+          onReview={() => {}}
+        />
+      </GatewayContext.Provider>,
+    );
+
+    const importButton = screen.getByRole("button", { name: "Import" });
+    // Empty form: the button is disabled, so it can't look clickable-but-dead.
+    expect(importButton).toBeDisabled();
+    // A file picker is offered alongside pasting.
+    expect(
+      screen.getByRole("button", { name: "Choose a file" }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Content"), {
+      target: { value: "Confirmation content." },
+    });
+    expect(importButton).toBeEnabled();
+
+    // Whitespace-only content does not count.
+    fireEvent.change(screen.getByLabelText("Content"), {
+      target: { value: "   " },
+    });
+    expect(importButton).toBeDisabled();
+  });
+
   it("loads a chosen file on-device, inferring the format from its extension", async () => {
     const gateway = createMockGateway();
     const trip = await gateway.createTrip({

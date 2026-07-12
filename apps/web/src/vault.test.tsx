@@ -98,6 +98,13 @@ describe("encrypted vault — optional passphrase", () => {
     await screen.findByRole("heading", { name: "Your vault is locked" });
     expect(screen.queryByRole("heading", { name: "Trips" })).toBeNull();
 
+    // The screen is not a dead end: a "Forgot your passphrase?" disclosure
+    // explains the honest no-recovery reality.
+    fireEvent.click(
+      screen.getByText("Forgot your passphrase?", { selector: "summary" }),
+    );
+    expect(screen.getByText(/no recovery, by design/)).toBeInTheDocument();
+
     // Wrong passphrase surfaces an error and stays locked.
     fireEvent.change(screen.getByLabelText("Passphrase"), {
       target: { value: "wrong-guess" },

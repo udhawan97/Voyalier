@@ -52,6 +52,9 @@ const en = {
   "vault.unlock.passphrase": "Passphrase",
   "vault.unlock.action": "Unlock",
   "vault.unlock.error": "That passphrase didn't work.",
+  "vault.unlock.forgot": "Forgot your passphrase?",
+  "vault.unlock.forgot.body":
+    "There's no recovery, by design — the passphrase is never stored or sent, so Voyalier can't reset it. If you backed up your local data directory before turning the passphrase on, restoring that backup returns you to an unprotected copy. Otherwise the encrypted trip data can't be opened.",
 
   "error.transport.title": "Voyalier can't reach its engine",
   "error.transport.body":
