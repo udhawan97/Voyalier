@@ -605,6 +605,8 @@ export interface AppGateway {
   ): Promise<TravelAdviceSnapshot>;
   fetchWeather(tripId: string): Promise<WeatherSnapshot>;
   searchTrip(tripId: string, query: string): Promise<SearchHit[]>;
+  /** Typeahead term suggestions for the query's last word, from the trip corpus. */
+  suggestSearchTerms(tripId: string, query: string): Promise<string[]>;
   deleteTrip(tripId: string): Promise<void>;
   importDocument(input: ImportDocumentInput): Promise<ImportResult>;
   listCandidates(

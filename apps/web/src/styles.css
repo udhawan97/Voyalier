@@ -2761,6 +2761,64 @@ h3 {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.voy-search__hint {
+  margin: -0.4rem 0 1rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  max-width: 42rem;
+}
+
+.voy-search__suggestions {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.7rem;
+}
+
+.voy-search__suggestions-label {
+  color: var(--voy-ink-muted);
+  font-size: 0.85rem;
+}
+
+.voy-search__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.voy-search__chip {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--voy-line-strong);
+  background: var(--voy-paper-sunken);
+  color: var(--voy-ink);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.voy-search__chip:hover {
+  border-color: color-mix(in srgb, var(--voy-indigo) 40%, transparent);
+  background: var(--voy-tint-indigo);
+}
+
+.voy-search__chip:focus-visible {
+  outline: 2px solid var(--voy-focus);
+  outline-offset: 1px;
+}
+
+.voy-search__hit .voy-btn {
+  flex-shrink: 0;
+  align-self: center;
 }
 
 .voy-search__hit-label {

@@ -61,7 +61,8 @@ pub use provider::{
 pub use readiness::assess_readiness;
 pub use recommend::{PersonaWeights, Recommendation, recommend_places};
 pub use search::{
-    SearchHit, SearchHitSource, SearchableDocument, search_trip_corpus, validate_search_query,
+    SEARCH_SUGGESTION_LIMIT, SearchHit, SearchHitSource, SearchableDocument, search_trip_corpus,
+    suggest_search_terms, validate_search_query,
 };
 pub use suggest::{
     FIELD_SUGGESTION_LIMIT, FieldSuggestion, SuggestionSource, rank_field_suggestions,

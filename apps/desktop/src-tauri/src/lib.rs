@@ -178,6 +178,14 @@ fn search_trip(
 }
 
 #[tauri::command]
+fn suggest_search_terms(
+    input: SearchTripInput,
+    service: State<'_, AppService>,
+) -> Result<Vec<String>, AppError> {
+    service.suggest_search_terms(&input.trip_id, &input.query)
+}
+
+#[tauri::command]
 fn preview_assist(
     input: PreviewAssistInput,
     service: State<'_, AppService>,
@@ -723,6 +731,7 @@ fn builder<R: tauri::Runtime>(
             unlock_vault,
             remove_vault_passphrase,
             search_trip,
+            suggest_search_terms,
             preview_assist,
             run_assist,
             preview_assist_draft,
@@ -918,6 +927,18 @@ mod tests {
         .expect("search trip");
         assert!(!hits.as_array().expect("hits").is_empty());
 
+        // Relaxed typeahead suggestions come back for a partial word.
+        let terms = invoke(
+            &webview,
+            "suggest_search_terms",
+            json!({ "tripId": trip_id, "query": "SF" }),
+        )
+        .expect("suggest search terms");
+        assert!(terms.as_array().expect("terms").iter().any(|term| {
+            term.as_str()
+                .is_some_and(|value| value.eq_ignore_ascii_case("SFO"))
+        }));
+
         // Assist preview is deterministic and keychain-free — safe to round-trip.
         let preview = invoke(
             &webview,
@@ -1067,6 +1088,7 @@ mod tests {
             "unlock_vault",
             "remove_vault_passphrase",
             "search_trip",
+            "suggest_search_terms",
             "preview_assist",
             "run_assist",
             "preview_assist_draft",

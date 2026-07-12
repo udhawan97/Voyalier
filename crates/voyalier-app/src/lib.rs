@@ -22,21 +22,21 @@ use voyalier_core::{
     KeyValidationStatus, LocalAiStatus, LocalModelPullResult, LodgingDateProposal,
     NormalizedDocument, OLLAMA_CHAT_URL, OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OPENAI_CHAT_URL,
     PROVIDERS, PackContent, PackInfo, PackSuggestion, ParsedCandidate, PersonaWeights,
-    PlaintextParser, ProviderConfig, ProviderId, Recommendation, RedactionPolicy, SearchHit,
-    SearchableDocument, SourceDocument, SuggestionSource, TodayView, TravelAdviceSnapshot, Trip,
-    TripBrief, TripDetail, TripStatus, TripSummary, UpdateTripInput, WarningCode, WeatherSnapshot,
-    assess_readiness, build_anthropic_messages_body, build_assist_preview,
-    build_lodging_dates_user_content, build_ollama_chat_body, build_openai_chat_body,
-    build_pull_body, build_today_view, build_trip_brief, changed_payload_fields,
-    detect_itinerary_conflicts, extract_email_body, interpret_key_validation,
-    interpret_pull_response, new_id, now_rfc3339, pack_catalog, pack_download_url,
-    parse_anthropic_reply, parse_fcdo_content, parse_forecast_response, parse_geocoding_response,
-    parse_lodging_dates_reply, parse_ollama_chat_reply, parse_openai_chat_reply,
-    parse_pack_content, provider_info, provider_validation_endpoint, provider_validation_headers,
-    rank_field_suggestions, recommend_places, search_trip_corpus, suggest_packs, validate_api_key,
-    validate_country_slug, validate_create_trip, validate_document_content, validate_fact_payload,
-    validate_model_name, validate_pack_id, validate_provider_id, validate_search_query,
-    validate_update_trip,
+    PlaintextParser, ProviderConfig, ProviderId, Recommendation, RedactionPolicy,
+    SEARCH_SUGGESTION_LIMIT, SearchHit, SearchableDocument, SourceDocument, SuggestionSource,
+    TodayView, TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripStatus, TripSummary,
+    UpdateTripInput, WarningCode, WeatherSnapshot, assess_readiness, build_anthropic_messages_body,
+    build_assist_preview, build_lodging_dates_user_content, build_ollama_chat_body,
+    build_openai_chat_body, build_pull_body, build_today_view, build_trip_brief,
+    changed_payload_fields, detect_itinerary_conflicts, extract_email_body,
+    interpret_key_validation, interpret_pull_response, new_id, now_rfc3339, pack_catalog,
+    pack_download_url, parse_anthropic_reply, parse_fcdo_content, parse_forecast_response,
+    parse_geocoding_response, parse_lodging_dates_reply, parse_ollama_chat_reply,
+    parse_openai_chat_reply, parse_pack_content, provider_info, provider_validation_endpoint,
+    provider_validation_headers, rank_field_suggestions, recommend_places, search_trip_corpus,
+    suggest_packs, suggest_search_terms, validate_api_key, validate_country_slug,
+    validate_create_trip, validate_document_content, validate_fact_payload, validate_model_name,
+    validate_pack_id, validate_provider_id, validate_search_query, validate_update_trip,
 };
 use voyalier_core::{
     VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, VaultStatus, derive_key as vault_derive_key,
@@ -1407,33 +1407,40 @@ impl AppService {
         let query = validate_search_query(query)?;
         let connection = self.connection()?;
         fetch_trip(&connection, trip_id)?;
-
-        let mut statement = connection
-            .prepare(
-                "SELECT id, label, raw_content FROM source_documents
-                 WHERE trip_id = ?1 ORDER BY imported_at ASC, id ASC",
-            )
-            .map_err(storage_error)?;
-        let rows = statement
-            .query_map(params![trip_id], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    // Decrypt the sealed raw content (locked → vault/locked).
-                    self.vault
-                        .open_field(&row.get::<_, String>(2)?)
-                        .map_err(app_to_rusqlite)?,
-                ))
-            })
-            .map_err(storage_error)?;
-        let documents: Vec<(String, String, String)> = collect_rows(rows)?;
+        let documents = fetch_trip_document_texts(&connection, &self.vault, trip_id)?;
         let searchable: Vec<SearchableDocument<'_>> = documents
             .iter()
             .map(|(id, label, content)| SearchableDocument { id, label, content })
             .collect();
         let facts = fetch_confirmed_facts(&connection, trip_id, &self.vault)?;
-
         Ok(search_trip_corpus(&query, &searchable, &facts))
+    }
+
+    /// Typeahead term suggestions for a search query, from this trip's corpus.
+    /// Local only. An empty or over-long query yields no suggestions (never an
+    /// error — this drives as-you-type autocomplete).
+    pub fn suggest_search_terms(
+        &self,
+        trip_id: &str,
+        query: &str,
+    ) -> Result<Vec<String>, AppError> {
+        let Ok(query) = validate_search_query(query) else {
+            return Ok(Vec::new());
+        };
+        let connection = self.connection()?;
+        fetch_trip(&connection, trip_id)?;
+        let documents = fetch_trip_document_texts(&connection, &self.vault, trip_id)?;
+        let searchable: Vec<SearchableDocument<'_>> = documents
+            .iter()
+            .map(|(id, label, content)| SearchableDocument { id, label, content })
+            .collect();
+        let facts = fetch_confirmed_facts(&connection, trip_id, &self.vault)?;
+        Ok(suggest_search_terms(
+            &query,
+            &searchable,
+            &facts,
+            SEARCH_SUGGESTION_LIMIT,
+        ))
     }
 
     /// Fetch and store a dated weather outlook for the trip's destination.

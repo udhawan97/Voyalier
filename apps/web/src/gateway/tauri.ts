@@ -187,6 +187,9 @@ export function createTauriGateway(
     searchTrip: (tripId: string, query: string) =>
       call<SearchHit[]>("search_trip", { tripId, query }),
 
+    suggestSearchTerms: (tripId: string, query: string) =>
+      call<string[]>("suggest_search_terms", { tripId, query }),
+
     deleteTrip: (tripId: string) => call<void>("delete_trip", { tripId }),
 
     importDocument: (input: ImportDocumentInput) =>
