@@ -114,7 +114,7 @@ describe("full trip loop", () => {
       .getByText("Flight NS204")
       .closest("article") as HTMLElement;
     fireEvent.click(
-      within(ns204Fact).getByRole("button", { name: "Unconfirm" }),
+      within(ns204Fact).getByRole("button", { name: "Back to review" }),
     );
 
     await waitFor(() =>

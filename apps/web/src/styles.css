@@ -867,7 +867,13 @@ h3 {
 .voy-detail__blueprint-title {
   font-size: 1.4rem;
   font-family: var(--voy-font-display);
-  margin-bottom: 1.2rem;
+  margin-bottom: 0.4rem;
+}
+
+.voy-detail__blueprint-sub {
+  margin: 0 0 1.2rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.92rem;
 }
 
 /* ===== Readiness ======================================================= */

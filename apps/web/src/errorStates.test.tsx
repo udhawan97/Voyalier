@@ -228,7 +228,7 @@ describe("AppError rendered states", () => {
       }),
     );
     expect(
-      await screen.findByText("Local core unreachable"),
+      await screen.findByText("Voyalier can't reach its engine"),
     ).toBeInTheDocument();
   });
 

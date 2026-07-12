@@ -58,7 +58,7 @@ describe("AI request preview", () => {
 
     // Citation of the grounding and a token estimate for cost awareness.
     expect(
-      within(region).getByText(/Grounded in .*flight.*~\d+ tokens/),
+      within(region).getByText(/Based on .*flight.*~\d+ tokens/),
     ).toBeInTheDocument();
   });
 

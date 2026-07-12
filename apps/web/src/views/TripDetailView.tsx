@@ -522,6 +522,11 @@ export function TripDetailView({
 
       <div className="voy-detail__blueprint">
         <h2 className="voy-detail__blueprint-title">{t("detail.blueprint")}</h2>
+        {confirmedFacts.length > 0 ? (
+          <p className="voy-detail__blueprint-sub">
+            {t("detail.blueprint.sub")}
+          </p>
+        ) : null}
         {confirmedFacts.length === 0 ? (
           <Empty
             title={t("detail.empty.title")}

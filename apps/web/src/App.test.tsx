@@ -68,6 +68,6 @@ describe("App shell", () => {
     expect(
       await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
     ).toBeInTheDocument();
-    expect(await screen.findByText("Local core ready")).toBeInTheDocument();
+    expect(await screen.findByText("Ready")).toBeInTheDocument();
   });
 });
