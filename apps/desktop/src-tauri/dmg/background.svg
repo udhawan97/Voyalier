@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 660 400" width="660" height="400" role="img" aria-label="Voyalier installer background">
+  <!--
+    Voyalier DMG installer background.
+    Source of truth for the committed background.png (rendered at 2x via rsvg-convert).
+    Palette pulled from packages/ui/src/tokens.css + packages/brand app-icon tile.
+    Layout is coordinated with tauri.conf.json bundle.macOS.dmg:
+      windowSize 660x400 · appPosition (165,180) · applicationFolderPosition (495,180)
+    The drag arrow lives in the empty gap between the two 128px icon slots.
+  -->
+  <defs>
+    <!-- Deep indigo brand tile, echoing the app icon -->
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3f4a63"/>
+      <stop offset=".55" stop-color="#2a3145"/>
+      <stop offset="1" stop-color="#191d27"/>
+    </linearGradient>
+    <!-- Cool light bloom, top-right -->
+    <radialGradient id="glow" cx=".82" cy=".12" r=".85">
+      <stop offset="0" stop-color="#aeb9d4" stop-opacity=".34"/>
+      <stop offset="1" stop-color="#aeb9d4" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Warm vermilion sun, top-right -->
+    <radialGradient id="sun" cx=".86" cy=".08" r=".5">
+      <stop offset="0" stop-color="#e8825f" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#c34e33" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Faint seat under each icon slot -->
+    <radialGradient id="seat" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".08"/>
+      <stop offset=".7" stop-color="#ffffff" stop-opacity=".03"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="topGloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".10"/>
+      <stop offset=".18" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Backdrop -->
+  <rect width="660" height="400" fill="url(#tile)"/>
+  <rect width="660" height="400" fill="url(#glow)"/>
+  <rect width="660" height="400" fill="url(#sun)"/>
+  <rect width="660" height="400" fill="url(#topGloss)"/>
+
+  <!-- Oversized folded-route motif, bleeding off the bottom-left, barely-there -->
+  <g transform="translate(-36 150) scale(4.7)" opacity=".05">
+    <polygon fill="#ffffff" points="22,18 38,18 58,80 42,80"/>
+    <polygon fill="#ffffff" points="42,80 58,80 73.5,32 57.5,32"/>
+  </g>
+  <!-- Mirror hint, bottom-right, even fainter -->
+  <g transform="translate(690 250) scale(-3.6 3.6)" opacity=".035">
+    <polygon fill="#ffffff" points="22,18 38,18 58,80 42,80"/>
+    <polygon fill="#ffffff" points="42,80 58,80 73.5,32 57.5,32"/>
+  </g>
+
+  <!-- Header -->
+  <text x="330" y="60" text-anchor="middle"
+        font-family="Georgia, 'Iowan Old Style', 'Palatino Linotype', serif"
+        font-size="30" fill="#f2ede1" letter-spacing="1.5">Voyalier</text>
+  <text x="330" y="86" text-anchor="middle"
+        font-family="'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="13" fill="#b4bccb" letter-spacing=".3">Drag the app onto your Applications folder to install</text>
+
+  <!-- Faint seats under the two icon slots (icon centers at y=180) -->
+  <circle cx="165" cy="180" r="82" fill="url(#seat)"/>
+  <circle cx="495" cy="180" r="82" fill="url(#seat)"/>
+
+  <!-- Drag route: sits entirely in the empty gap between the icon slots (x 229..431) -->
+  <g stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <!-- dashed trail -->
+    <path d="M250 180 H400" stroke="#d97a5f" stroke-width="3"
+          stroke-dasharray="1 13" opacity=".9"/>
+    <!-- arrowhead pointing at Applications -->
+    <path d="M400 180 L389 172 M400 180 L389 188" stroke="#d97a5f" stroke-width="3.2"/>
+  </g>
+  <!-- vermilion waypoint at the start of the route -->
+  <circle cx="250" cy="180" r="4.5" fill="#d97a5f"/>
+  <circle cx="250" cy="180" r="9" fill="none" stroke="#d97a5f" stroke-width="1.2" opacity=".5"/>
+
+  <!-- Finder draws the real icon labels ("Voyalier", "Applications") under the
+       slots, so no captions here — that band (y ~250-275) is left clear on purpose. -->
+
+  <!-- Hairline base for grounding -->
+  <rect x="0" y="398" width="660" height="2" fill="#c34e33" opacity=".5"/>
+</svg>
