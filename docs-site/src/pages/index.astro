@@ -76,13 +76,11 @@ const capabilities = [
             <span><i></i> Runs locally</span><span><i></i> Open source</span><span><i></i> AI is optional</span>
           </div>
         </div>
-        <figure class="hero-product reveal">
-          <div class="product-window">
-            <div class="window-bar"><span></span><span></span><span></span><strong>Kyoto · ready on this device</strong></div>
-            <img src={`${base}/assets/screenshots/voyalier-trip-workspace.jpg`} width="1440" height="900" alt="Voyalier trip workspace showing a Kyoto journey, Today summary, pending evidence review, and the deterministic Blueprint." decoding="async" fetchpriority="high" />
-          </div>
-          <figcaption><span><strong>2</strong> confirmed facts</span><span><strong>3</strong> suggestions to review</span><span><strong>0</strong> silent uploads</span></figcaption>
-        </figure>
+        <div class="fold-stage" aria-hidden="true">
+          <span class="orbit orbit-one"></span><span class="orbit orbit-two"></span>
+          <span class="mark-medallion"></span>
+          <svg viewBox="0 0 96 96"><polygon class="ink" points="22,18 38,18 58,80 42,80"></polygon><polygon class="fold" points="42,80 58,80 73.5,32 57.5,32"></polygon><circle class="dot" cx="69" cy="21" r="5"></circle></svg>
+        </div>
         <a class="scroll-hint" href="#product"><span>See the product</span><i aria-hidden="true"></i></a>
       </section>
 
