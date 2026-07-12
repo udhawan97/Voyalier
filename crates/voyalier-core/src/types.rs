@@ -384,8 +384,12 @@ pub enum ErrorCode {
     DocumentEmpty,
     #[serde(rename = "advice/fetch_failed")]
     AdviceFetchFailed,
+    #[serde(rename = "weather/fetch_failed")]
+    WeatherFetchFailed,
     #[serde(rename = "assist/failed")]
     AssistFailed,
+    #[serde(rename = "assist/unreachable")]
+    AssistUnreachable,
     #[serde(rename = "pack/download_failed")]
     PackDownloadFailed,
     #[serde(rename = "vault/locked")]
@@ -413,7 +417,9 @@ impl ErrorCode {
             Self::DocumentDuplicate => "document/duplicate",
             Self::DocumentEmpty => "document/empty",
             Self::AdviceFetchFailed => "advice/fetch_failed",
+            Self::WeatherFetchFailed => "weather/fetch_failed",
             Self::AssistFailed => "assist/failed",
+            Self::AssistUnreachable => "assist/unreachable",
             Self::PackDownloadFailed => "pack/download_failed",
             Self::VaultLocked => "vault/locked",
             Self::VaultPassphraseIncorrect => "vault/passphrase_incorrect",

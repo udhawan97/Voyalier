@@ -23,14 +23,16 @@ function TripCard({
   trip,
   onOpen,
   onArchive,
+  onUnarchive,
   onDelete,
-  archiving,
+  busy,
 }: {
   trip: TripSummary;
   onOpen: (id: string) => void;
   onArchive: (trip: TripSummary) => void;
+  onUnarchive: (trip: TripSummary) => void;
   onDelete: (trip: TripSummary) => void;
-  archiving: boolean;
+  busy: boolean;
 }) {
   return (
     <article
@@ -71,16 +73,20 @@ function TripCard({
         ) : null}
       </div>
       <div className="voy-tripcard__actions">
-        {trip.status !== "archived" ? (
+        {trip.status === "archived" ? (
+          <Button variant="ghost" onClick={() => onUnarchive(trip)} busy={busy}>
+            {t("tripcard.unarchive")}
+          </Button>
+        ) : (
           <Button
             variant="ghost"
             onClick={() => onArchive(trip)}
-            busy={archiving}
+            busy={busy}
             icon={<ArchiveIcon />}
           >
             {t("tripcard.archive")}
           </Button>
-        ) : null}
+        )}
         <Button variant="ghost" onClick={() => onDelete(trip)}>
           {t("tripcard.delete")}
         </Button>
@@ -104,11 +110,12 @@ export function TripListView({
   );
   const [showCreate, setShowCreate] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TripSummary | null>(null);
-  const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const createBtnRef = useRef<HTMLButtonElement>(null);
 
   async function archive(trip: TripSummary) {
-    setArchivingId(trip.id);
+    setBusyId(trip.id);
     try {
       await gateway.archiveTrip(trip.id);
       announce(t("triplist.announce.archived", { title: trip.title }));
@@ -116,11 +123,27 @@ export function TripListView({
     } catch (caught) {
       announce(describeError(caught as AppError).title);
     } finally {
-      setArchivingId(null);
+      setBusyId(null);
+    }
+  }
+
+  async function unarchive(trip: TripSummary) {
+    setBusyId(trip.id);
+    try {
+      await gateway.unarchiveTrip(trip.id);
+      announce(t("triplist.announce.unarchived", { title: trip.title }));
+      reload();
+    } catch (caught) {
+      announce(describeError(caught as AppError).title);
+    } finally {
+      setBusyId(null);
     }
   }
 
   const trips = data ?? [];
+  // Archived trips are hidden by default so they don't clutter the workspace.
+  const activeTrips = trips.filter((trip) => trip.status !== "archived");
+  const archivedTrips = trips.filter((trip) => trip.status === "archived");
 
   return (
     <section className="voy-triplist" aria-labelledby="triplist-heading">
@@ -188,18 +211,50 @@ export function TripListView({
         </Empty>
       ) : null}
 
-      {trips.length > 0 ? (
+      {activeTrips.length > 0 ? (
         <div className="voy-triplist__grid">
-          {trips.map((trip) => (
+          {activeTrips.map((trip) => (
             <TripCard
               key={trip.id}
               trip={trip}
               onOpen={onOpenTrip}
               onArchive={archive}
+              onUnarchive={unarchive}
               onDelete={setDeleteTarget}
-              archiving={archivingId === trip.id}
+              busy={busyId === trip.id}
             />
           ))}
+        </div>
+      ) : archivedTrips.length > 0 ? (
+        <p className="voy-triplist__allarchived">{t("triplist.allArchived")}</p>
+      ) : null}
+
+      {archivedTrips.length > 0 ? (
+        <div className="voy-triplist__archived">
+          <Button
+            variant="ghost"
+            onClick={() => setShowArchived((shown) => !shown)}
+            aria-expanded={showArchived}
+          >
+            {showArchived
+              ? t("triplist.hideArchived")
+              : plural("triplist.showArchived", archivedTrips.length)}
+          </Button>
+          {showArchived ? (
+            <div className="voy-triplist__grid">
+              {archivedTrips.map((trip) => (
+                <TripCard
+                  key={trip.id}
+                  trip={trip}
+                  onOpen={onOpenTrip}
+                  onArchive={archive}
+                  onUnarchive={unarchive}
+                  onDelete={setDeleteTarget}
+                  busy={busyId === trip.id}
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
 

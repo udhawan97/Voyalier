@@ -117,6 +117,9 @@ export function createHttpGateway(
     archiveTrip: (tripId: string) =>
       request<Trip>("POST", `/api/v1/trips/${enc(tripId)}/archive`),
 
+    unarchiveTrip: (tripId: string) =>
+      request<Trip>("POST", `/api/v1/trips/${enc(tripId)}/unarchive`),
+
     getTripBrief: (tripId: string) =>
       request<TripBrief>("GET", `/api/v1/trips/${enc(tripId)}/brief`),
 

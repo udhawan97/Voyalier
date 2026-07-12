@@ -113,6 +113,11 @@ fn archive_trip(input: TripIdInput, service: State<'_, AppService>) -> Result<Tr
 }
 
 #[tauri::command]
+fn unarchive_trip(input: TripIdInput, service: State<'_, AppService>) -> Result<Trip, AppError> {
+    service.unarchive_trip(&input.trip_id)
+}
+
+#[tauri::command]
 fn get_trip_brief(
     input: TripIdInput,
     service: State<'_, AppService>,
@@ -687,6 +692,7 @@ fn builder<R: tauri::Runtime>(
             get_trip,
             update_trip,
             archive_trip,
+            unarchive_trip,
             get_trip_brief,
             get_today,
             get_vault_status,
@@ -1028,6 +1034,7 @@ mod tests {
             "get_trip",
             "update_trip",
             "archive_trip",
+            "unarchive_trip",
             "get_trip_brief",
             "get_today",
             "get_vault_status",

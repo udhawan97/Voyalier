@@ -646,6 +646,20 @@ h3 {
   gap: 1.1rem;
 }
 
+.voy-triplist__allarchived {
+  margin: 0 0 1.1rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.92rem;
+}
+
+.voy-triplist__archived {
+  margin-top: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  align-items: flex-start;
+}
+
 .voy-tripcard {
   position: relative;
   display: flex;

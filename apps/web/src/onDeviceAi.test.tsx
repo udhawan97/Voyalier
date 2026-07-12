@@ -63,7 +63,7 @@ describe("on-device AI detection", () => {
     expect(within(region).getByText("llama3.2:latest")).toBeInTheDocument();
     expect(within(region).getByText("qwen2.5:7b")).toBeInTheDocument();
     expect(
-      within(region).getByText(/Assist that uses these models is a later/),
+      within(region).getByText(/always on this device, always opt-in/),
     ).toBeInTheDocument();
   });
 

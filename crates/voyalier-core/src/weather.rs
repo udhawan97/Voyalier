@@ -71,7 +71,7 @@ pub struct GeocodedPlace {
 
 fn unreadable_source() -> AppError {
     AppError::new(
-        ErrorCode::AdviceFetchFailed,
+        ErrorCode::WeatherFetchFailed,
         "the weather source returned something Voyalier could not read",
     )
 }
@@ -86,7 +86,7 @@ pub fn parse_geocoding_response(json: &str) -> Result<GeocodedPlace, AppError> {
         .and_then(|results| results.first())
     else {
         return Err(AppError::new(
-            ErrorCode::AdviceFetchFailed,
+            ErrorCode::WeatherFetchFailed,
             "the weather source could not find that destination on the map",
         ));
     };
@@ -327,7 +327,7 @@ mod tests {
     fn empty_geocoding_results_are_an_actionable_error() {
         let error =
             parse_geocoding_response(r#"{ "generationtime_ms": 0.5 }"#).expect_err("no results");
-        assert_eq!(error.code, ErrorCode::AdviceFetchFailed);
+        assert_eq!(error.code, ErrorCode::WeatherFetchFailed);
         assert!(error.message.contains("find that destination"));
     }
 
@@ -419,11 +419,11 @@ mod tests {
             parse_forecast_response(&place, "<html>", "2026-11-03", "2026-11-04", "now")
                 .expect_err("bad json")
                 .code,
-            ErrorCode::AdviceFetchFailed
+            ErrorCode::WeatherFetchFailed
         );
         assert_eq!(
             parse_geocoding_response("nope").expect_err("bad json").code,
-            ErrorCode::AdviceFetchFailed
+            ErrorCode::WeatherFetchFailed
         );
     }
 

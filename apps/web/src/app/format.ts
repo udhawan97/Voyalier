@@ -326,8 +326,17 @@ export function describeError(error: AppError): ErrorCopy {
         title: t("error.adviceFetch.title"),
         body: t("error.adviceFetch.body"),
       };
+    case "weather/fetch_failed":
+      // The body is the backend's specific, actionable message (e.g. "couldn't
+      // find that destination" vs "couldn't reach the weather service").
+      return { title: t("error.weatherFetch.title"), body: error.message };
     case "assist/failed":
       return { title: t("error.assist.title"), body: t("error.assist.body") };
+    case "assist/unreachable":
+      return {
+        title: t("error.assistUnreachable.title"),
+        body: t("error.assistUnreachable.body"),
+      };
     case "pack/download_failed":
       return {
         title: t("error.packDownload.title"),

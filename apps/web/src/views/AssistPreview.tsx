@@ -84,11 +84,14 @@ export function AssistPreview({ tripId }: { tripId: string }) {
     } catch (caught) {
       setReply(null);
       const appError = caught as AppError;
-      // Validation errors (e.g. "add an API key first") carry a useful message.
+      // Validation errors (e.g. "add an API key first") carry a useful message;
+      // an unreachable AI gets the "is Ollama running?" guidance.
       setRunError(
         appError.code === "validation/invalid_input"
           ? appError.message
-          : describeError(appError).title,
+          : appError.code === "assist/unreachable"
+            ? describeError(appError).body
+            : describeError(appError).title,
       );
     } finally {
       setRunning(false);
@@ -101,6 +104,7 @@ export function AssistPreview({ tripId }: { tripId: string }) {
         {t("assist.title")}
       </h2>
       <p className="voy-assist__intro">{t("assist.intro")}</p>
+      <p className="voy-assist__note">{t("assist.readonly")}</p>
 
       <div className="voy-assist__controls">
         <label className="voy-sr-only" htmlFor={selectId}>

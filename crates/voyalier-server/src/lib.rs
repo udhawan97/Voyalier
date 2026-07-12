@@ -123,6 +123,7 @@ pub fn app(service: AppService) -> Router {
             get(get_trip).patch(update_trip).delete(delete_trip),
         )
         .route("/api/v1/trips/{trip_id}/archive", post(archive_trip))
+        .route("/api/v1/trips/{trip_id}/unarchive", post(unarchive_trip))
         .route("/api/v1/advice/countries", get(list_advice_countries))
         .route("/api/v1/packs", get(list_packs))
         .route(
@@ -241,6 +242,13 @@ async fn archive_trip(
     Path(trip_id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(service.archive_trip(&trip_id)?))
+}
+
+async fn unarchive_trip(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.unarchive_trip(&trip_id)?))
 }
 
 async fn get_trip_brief(
@@ -586,9 +594,11 @@ fn status_for_error(code: ErrorCode) -> StatusCode {
         }
         ErrorCode::CandidateAlreadyResolved | ErrorCode::DocumentDuplicate => StatusCode::CONFLICT,
         ErrorCode::DocumentTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
-        ErrorCode::AdviceFetchFailed | ErrorCode::AssistFailed | ErrorCode::PackDownloadFailed => {
-            StatusCode::BAD_GATEWAY
-        }
+        ErrorCode::AdviceFetchFailed
+        | ErrorCode::WeatherFetchFailed
+        | ErrorCode::AssistFailed
+        | ErrorCode::AssistUnreachable
+        | ErrorCode::PackDownloadFailed => StatusCode::BAD_GATEWAY,
         ErrorCode::VaultLocked => StatusCode::LOCKED,
         ErrorCode::VaultPassphraseIncorrect => StatusCode::UNAUTHORIZED,
         _ => StatusCode::INTERNAL_SERVER_ERROR,

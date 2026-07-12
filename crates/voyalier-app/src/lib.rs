@@ -111,9 +111,20 @@ impl AdviceFetcher for UreqFetcher {
 }
 
 fn assist_transport_failure(cause: ureq::Error) -> AppError {
+    // A reachability failure, distinct from a run that completed with bad output —
+    // so the UI can say "is your AI running?" instead of a generic "didn't finish".
     AppError::new(
-        ErrorCode::AssistFailed,
+        ErrorCode::AssistUnreachable,
         format!("could not reach the AI provider: {cause}"),
+    )
+}
+
+/// Re-flavor a fetch failure as a weather error so the weather panel never wears
+/// travel-advice wording.
+fn weather_network_failure(_cause: AppError) -> AppError {
+    AppError::new(
+        ErrorCode::WeatherFetchFailed,
+        "Voyalier couldn't reach the weather service. Check your connection and try again.",
     )
 }
 
@@ -1316,7 +1327,12 @@ impl AppService {
             "https://geocoding-api.open-meteo.com/v1/search?name={}&count=1&language=en&format=json",
             percent_encode(&trip.destination)
         );
-        let place = parse_geocoding_response(&self.fetcher.fetch_text(&geocode_url)?)?;
+        let place = parse_geocoding_response(
+            &self
+                .fetcher
+                .fetch_text(&geocode_url)
+                .map_err(weather_network_failure)?,
+        )?;
 
         let forecast_url = format!(
             "https://api.open-meteo.com/v1/forecast?latitude={:.5}&longitude={:.5}\
@@ -1326,7 +1342,10 @@ impl AppService {
         );
         let snapshot = parse_forecast_response(
             &place,
-            &self.fetcher.fetch_text(&forecast_url)?,
+            &self
+                .fetcher
+                .fetch_text(&forecast_url)
+                .map_err(weather_network_failure)?,
             &trip.start_date,
             &trip.end_date,
             &now_rfc3339(),
@@ -1807,6 +1826,12 @@ impl AppService {
 
     pub fn archive_trip(&self, trip_id: &str) -> Result<Trip, AppError> {
         self.set_trip_status(trip_id, TripStatus::Archived)
+    }
+
+    /// Bring an archived trip back into the active workspace. Restores it to
+    /// draft (the state a trip starts in), the reverse of [`Self::archive_trip`].
+    pub fn unarchive_trip(&self, trip_id: &str) -> Result<Trip, AppError> {
+        self.set_trip_status(trip_id, TripStatus::Draft)
     }
 
     pub fn delete_trip(&self, trip_id: &str) -> Result<(), AppError> {
@@ -5036,6 +5061,47 @@ mod tests {
         assert!(preview.withheld.is_empty());
         assert!(preview.user_content.contains("River Paper Inn"));
         assert!(preview.grounded_in.iter().any(|g| g.contains("imported")));
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn unarchive_restores_an_archived_trip_to_draft() {
+        let database = temp_database("unarchive");
+        let service = open_test_service(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        assert_eq!(
+            service.archive_trip(&trip.id).expect("archive").status,
+            TripStatus::Archived
+        );
+        assert_eq!(
+            service.unarchive_trip(&trip.id).expect("unarchive").status,
+            TripStatus::Draft
+        );
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn a_weather_network_failure_is_a_weather_error_not_an_advice_one() {
+        struct DeadNet;
+        impl AdviceFetcher for DeadNet {
+            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+                // Mimic the shared fetcher's advice-flavored network failure.
+                Err(AppError::new(ErrorCode::AdviceFetchFailed, "boom"))
+            }
+        }
+        let database = temp_database("weather-neterr");
+        let service =
+            open_test_service_with_fetcher(&database, Arc::new(DeadNet)).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        // fetch_weather re-flavors the fetch failure so the panel never wears
+        // travel-advice wording.
+        assert_eq!(
+            service
+                .fetch_weather(&trip.id)
+                .expect_err("weather fails")
+                .code,
+            ErrorCode::WeatherFetchFailed
+        );
         cleanup_database(database);
     }
 }

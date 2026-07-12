@@ -1375,6 +1375,18 @@ export function createMockGateway(options?: {
         return clone(archived);
       }),
 
+    unarchiveTrip: (tripId: string) =>
+      execute("unarchiveTrip", () => {
+        const trip = requireTrip(tripId);
+        const restored: Trip = {
+          ...trip,
+          status: "draft",
+          updatedAt: timestamp(),
+        };
+        trips.set(tripId, restored);
+        return clone(restored);
+      }),
+
     searchTrip: (tripId: string, query: string) =>
       execute("searchTrip", () => {
         requireTrip(tripId);
