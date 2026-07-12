@@ -153,6 +153,12 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   See `docs/architecture/UPDATES.md`. Turning it on is the owner's key +
   `v0.3.0` publish (the first install-once base); the free updater signing is
   independent of the paid OS code-signing below.
+- ✓ Email confirmation import: the import dialog accepts a raw confirmation
+  email (`.eml` or pasted) alongside plain text and HTML. A dependency-light
+  Rust extractor prefers the `text/html` MIME part so the existing JSON-LD
+  parser still fires, decodes quoted-printable/base64, and is depth-capped
+  against a crafted deeply-nested-multipart denial-of-service. Explicit,
+  user-initiated import only — silent inbox scanning stays a `Later` item.
 - Signed installers: DMG and EXE/MSI OS code-signing + notarization.
   _(Blocked on paid Apple ($99/yr) and Windows code-signing certificates. First
   launch of the unsigned build uses the documented Gatekeeper / SmartScreen
@@ -179,4 +185,4 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
 
 ## Later
 
-Licensed live inventory, encrypted sync, group collaboration, monitoring, email ingestion, and mobile experiences.
+Licensed live inventory, encrypted sync, group collaboration, monitoring, silent/automatic email ingestion (inbox scanning, as opposed to the shipped explicit paste-or-.eml import), and mobile experiences.

@@ -6,11 +6,33 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
-Phase 3 (public beta) work, landing incrementally. Signed installers remain
-blocked on paid code-signing certificates.
+Phase 3 (public beta) work, landing incrementally. OS code-signing (Apple
+notarization / Windows Authenticode) remains blocked on paid certificates; the
+in-app updater's own signing is separate and free, and ships in this release.
 
 ### Added
 
+- **In-app updater.** `tauri-plugin-updater` driven entirely through Rust
+  command wrappers — the webview is never granted the updater capability, so
+  there is no path for a compromised page to redirect an update. Updates are
+  minisign-verified on-device, releases carry per-platform checksums and SLSA
+  build provenance, and the pipeline fails closed if the signing key was never
+  configured. A one-time, reversible "check automatically?" consent; a topbar
+  pill and an Updates panel that both work before the vault is unlocked; a
+  per-platform install flow (macOS/Linux stage the swap and prompt a restart;
+  Windows confirms before download, then closes/updates/reopens); a pre-update
+  database backup with an in-app "clear backups" affordance; and a "just
+  updated" toast. v0.3.0 is the install-once base — the self-update loop
+  proves itself starting on v0.3.1.
+- **Complete UI localization.** Every panel, dialog, shell, and label now
+  renders through a type-safe message catalog (`t()`), with locale-aware
+  pluralization (`Intl.PluralRules`) and date/number formatting. English is
+  the byte-identical source of truth; added locales are data-only.
+- **Email confirmation import.** The import dialog accepts a raw confirmation
+  email (`.eml` or pasted) alongside plain text and HTML. The Rust extractor
+  prefers the HTML MIME part so the existing structured-data parser still
+  fires, decodes quoted-printable and base64 transfer encodings, and is
+  depth-capped against a crafted deeply-nested-multipart denial-of-service.
 - **Persona-weighted recommendations.** `getRecommendations` ranks a trip's
   downloaded-pack places by per-trip persona weights (food, culture, nature,
   nightlife, shopping) with a deterministic keyword-to-dimension rule — per-pick
@@ -35,6 +57,11 @@ blocked on paid code-signing certificates.
 
 ### Changed
 
+- Release pipeline hardened for signed updates: every CI action is pinned to a
+  commit SHA, the signing key is scoped to a single step and only reachable
+  from a protected environment on a real tag (never a manual dry run), build
+  provenance is attested, and city-pack releases are enforced pre-release so
+  they can never shadow `releases/latest` and break the updater.
 - New `vault/locked` and `vault/passphrase_incorrect` error codes; the gateway
   gained additive `getVaultStatus`/`setVaultPassphrase`/`unlockVault`/
   `removeVaultPassphrase`, `getRecommendations`, and `getToday` methods (plus a
