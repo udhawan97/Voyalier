@@ -2,6 +2,8 @@ import type {
   AddManualFactInput,
   AppGateway,
   AssistActivityEntry,
+  AssistDraftKind,
+  AssistDraftResult,
   AssistReply,
   AssistRequestPreview,
   CandidateFact,
@@ -166,6 +168,19 @@ export function createHttpGateway(
       request<AssistReply>("POST", `/api/v1/trips/${enc(tripId)}/assist`, {
         provider,
       }),
+
+    previewAssistDraft: (tripId: string, kind: AssistDraftKind) =>
+      request<AssistRequestPreview>(
+        "GET",
+        `/api/v1/trips/${enc(tripId)}/assist-draft-preview?kind=${enc(kind)}`,
+      ),
+
+    runAssistDraft: (tripId: string, kind: AssistDraftKind) =>
+      request<AssistDraftResult>(
+        "POST",
+        `/api/v1/trips/${enc(tripId)}/assist-draft`,
+        { kind },
+      ),
 
     listAssistActivity: (tripId: string) =>
       request<AssistActivityEntry[]>(

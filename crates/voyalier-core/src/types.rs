@@ -245,6 +245,9 @@ pub enum ExtractionMethod {
     Structured,
     Inferred,
     Manual,
+    /// Drafted by an on-device model from the trip's own imported text, then
+    /// reviewed by the user. Never authoritative on its own — always a candidate.
+    Assisted,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

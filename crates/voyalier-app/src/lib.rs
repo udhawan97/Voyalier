@@ -11,23 +11,26 @@ use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use voyalier_core::{
-    ANTHROPIC_MESSAGES_URL, ANTHROPIC_VERSION, AddManualFactInput, AppError, AssistActivityEntry,
-    AssistReply, AssistRequestPreview, CandidateFact, CandidateStatus, ConfirmCandidateInput,
-    ConfirmationParser, ConfirmedFact, CreateTripInput, DEFAULT_ANTHROPIC_MODEL,
-    DEFAULT_OLLAMA_MODEL, DEFAULT_OPENAI_MODEL, DocumentKind, DownloadedPack, ErrorCode,
-    ExtractionMethod, FCDO_COUNTRIES, FcdoCountry, FieldSuggestion, HealthResponse,
+    ANTHROPIC_MESSAGES_URL, ANTHROPIC_VERSION, ASSIST_DRAFT_LODGING_DATES, AddManualFactInput,
+    AppError, AssistActivityEntry, AssistDraftResult, AssistReply, AssistRequestPreview,
+    CandidateFact, CandidateStatus, ConfirmCandidateInput, ConfirmationParser, ConfirmedFact,
+    CreateTripInput, DEFAULT_ANTHROPIC_MODEL, DEFAULT_OLLAMA_MODEL, DEFAULT_OPENAI_MODEL,
+    DRAFT_LODGING_DATES_SYSTEM_PROMPT, DocumentKind, DownloadedPack, ErrorCode, ExtractionMethod,
+    FCDO_COUNTRIES, FactPayload, FactType, FcdoCountry, FieldSuggestion, HealthResponse,
     ImportDocumentInput, ImportResult, IntelligenceMode, JsonLdParser, LocalAiStatus,
-    NormalizedDocument, OLLAMA_CHAT_URL, OLLAMA_TAGS_URL, OPENAI_CHAT_URL, PROVIDERS, PackContent,
-    PackInfo, PackSuggestion, ParsedCandidate, PersonaWeights, PlaintextParser, ProviderConfig,
-    ProviderId, Recommendation, RedactionPolicy, SearchHit, SearchableDocument, SourceDocument,
-    SuggestionSource, TodayView, TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripStatus,
-    TripSummary, UpdateTripInput, WeatherSnapshot, assess_readiness, build_anthropic_messages_body,
-    build_assist_preview, build_ollama_chat_body, build_openai_chat_body, build_today_view,
-    build_trip_brief, changed_payload_fields, detect_itinerary_conflicts, extract_email_body,
-    new_id, now_rfc3339, pack_catalog, pack_download_url, parse_anthropic_reply,
-    parse_fcdo_content, parse_forecast_response, parse_geocoding_response, parse_ollama_chat_reply,
-    parse_openai_chat_reply, parse_pack_content, provider_info, rank_field_suggestions,
-    recommend_places, search_trip_corpus, suggest_packs, validate_api_key, validate_country_slug,
+    LodgingDateProposal, NormalizedDocument, OLLAMA_CHAT_URL, OLLAMA_TAGS_URL, OPENAI_CHAT_URL,
+    PROVIDERS, PackContent, PackInfo, PackSuggestion, ParsedCandidate, PersonaWeights,
+    PlaintextParser, ProviderConfig, ProviderId, Recommendation, RedactionPolicy, SearchHit,
+    SearchableDocument, SourceDocument, SuggestionSource, TodayView, TravelAdviceSnapshot, Trip,
+    TripBrief, TripDetail, TripStatus, TripSummary, UpdateTripInput, WarningCode, WeatherSnapshot,
+    assess_readiness, build_anthropic_messages_body, build_assist_preview,
+    build_lodging_dates_user_content, build_ollama_chat_body, build_openai_chat_body,
+    build_today_view, build_trip_brief, changed_payload_fields, detect_itinerary_conflicts,
+    extract_email_body, new_id, now_rfc3339, pack_catalog, pack_download_url,
+    parse_anthropic_reply, parse_fcdo_content, parse_forecast_response, parse_geocoding_response,
+    parse_lodging_dates_reply, parse_ollama_chat_reply, parse_openai_chat_reply,
+    parse_pack_content, provider_info, rank_field_suggestions, recommend_places,
+    search_trip_corpus, suggest_packs, validate_api_key, validate_country_slug,
     validate_create_trip, validate_document_content, validate_fact_payload, validate_model_name,
     validate_pack_id, validate_provider_id, validate_search_query, validate_update_trip,
 };
@@ -37,6 +40,9 @@ use voyalier_core::{
 };
 
 const DATABASE_FILE: &str = "voyalier.sqlite3";
+
+/// One imported document as `(id, label, decrypted text)`.
+type DocumentText = (String, String, String);
 
 /// Fetches a URL's body as text. The only network seam in the application
 /// layer — injectable so every test runs without touching the network.
@@ -831,17 +837,16 @@ impl AppService {
 
         let mut candidates: Vec<FieldSuggestion> = Vec::new();
 
-        // Previously confirmed lodging values (this trip first). Reading needs
-        // the vault; a locked vault simply omits this source.
+        // Values the user already confirmed on THIS trip. Scoped to the current
+        // trip so a past trip's address never surfaces while entering a new one.
+        // Reading needs the vault; a locked vault simply omits this source.
         match confirmed_lodging_values(&connection, &self.vault, field, trip_id) {
             Ok(values) => {
-                for (value, same_trip) in values {
-                    let (source, detail) = if same_trip {
-                        (SuggestionSource::ConfirmedFact, "from this trip")
-                    } else {
-                        (SuggestionSource::TripHistory, "from a previous stay")
-                    };
-                    candidates.push(FieldSuggestion::new(value, source).with_detail(detail));
+                for value in values {
+                    candidates.push(
+                        FieldSuggestion::new(value, SuggestionSource::ConfirmedFact)
+                            .with_detail("from this trip"),
+                    );
                 }
             }
             Err(error) if error.code == ErrorCode::VaultLocked => {}
@@ -1442,6 +1447,134 @@ impl AppService {
             text,
             generated_at,
         })
+    }
+
+    /// Gather the inputs a lodging-dates draft needs: the trip, its imported
+    /// document texts (decrypted; a locked vault surfaces as `vault/locked`), and
+    /// the user's chosen on-device model, if any. Rejects an unknown draft kind.
+    fn draft_inputs(
+        &self,
+        trip_id: &str,
+        kind: &str,
+    ) -> Result<(Trip, Vec<DocumentText>, Option<String>), AppError> {
+        if kind != ASSIST_DRAFT_LODGING_DATES {
+            return Err(AppError::with_detail(
+                ErrorCode::ValidationInvalidInput,
+                "unknown draft kind",
+                "field",
+                "kind",
+            ));
+        }
+        let connection = self.connection()?;
+        let trip = fetch_trip(&connection, trip_id)?;
+        let documents = fetch_trip_document_texts(&connection, &self.vault, trip_id)?;
+        let model = connection
+            .query_row(
+                "SELECT model FROM provider_settings WHERE provider = ?1",
+                params![ProviderId::Ollama.as_str()],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(storage_error)?;
+        Ok((trip, documents, model))
+    }
+
+    /// Build the exact on-device request a lodging-dates draft would send — the
+    /// consent step. On-device (Ollama) only, so nothing leaves the device; it is
+    /// grounded in the trip's own imported text and dates. Previewing sends
+    /// nothing.
+    pub fn preview_assist_draft(
+        &self,
+        trip_id: &str,
+        kind: &str,
+    ) -> Result<AssistRequestPreview, AppError> {
+        let (trip, documents, model) = self.draft_inputs(trip_id, kind)?;
+        let doc_pairs: Vec<(String, String)> = documents
+            .into_iter()
+            .map(|(_, label, text)| (label, text))
+            .collect();
+        Ok(build_draft_preview(&trip, &doc_pairs, model.as_deref()))
+    }
+
+    /// Run a lodging-dates draft: send the previewed request to the on-device
+    /// model, strictly validate the reply, and turn each surviving proposal into
+    /// a *pending* candidate for review — never a confirmed fact. Ollama-only;
+    /// nothing leaves the device. With no imported documents there is nothing to
+    /// read, so it returns no candidates without calling the model.
+    pub fn run_assist_draft(
+        &self,
+        trip_id: &str,
+        kind: &str,
+    ) -> Result<AssistDraftResult, AppError> {
+        let (trip, documents, model) = self.draft_inputs(trip_id, kind)?;
+        if documents.is_empty() {
+            return Ok(AssistDraftResult {
+                candidates: Vec::new(),
+            });
+        }
+        let document_id = documents[0].0.clone();
+        let doc_pairs: Vec<(String, String)> = documents
+            .iter()
+            .map(|(_, label, text)| (label.clone(), text.clone()))
+            .collect();
+        let user_content =
+            build_lodging_dates_user_content(&trip.start_date, &trip.end_date, &doc_pairs);
+        let model = model.unwrap_or_else(|| DEFAULT_OLLAMA_MODEL.to_owned());
+        let body = build_ollama_chat_body(&model, DRAFT_LODGING_DATES_SYSTEM_PROMPT, &user_content);
+        let response = self.fetcher.post_json(OLLAMA_CHAT_URL, &body, &[])?;
+        let text = parse_ollama_chat_reply(&response)?;
+        let proposals = parse_lodging_dates_reply(&text)?;
+        if proposals.is_empty() {
+            return Ok(AssistDraftResult {
+                candidates: Vec::new(),
+            });
+        }
+
+        let connection = self.connection()?;
+        let now = now_rfc3339();
+        // Record the draft as its own parser run so candidates satisfy the
+        // parser_runs foreign key and the run is traceable, like an import.
+        let parser_run_id = new_id("assist");
+        connection
+            .execute(
+                "INSERT INTO parser_runs (id, trip_id, document_id, parser_id, parser_version, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![
+                    parser_run_id,
+                    trip.id,
+                    document_id,
+                    "assist_draft_lodging_dates",
+                    "v1",
+                    now
+                ],
+            )
+            .map_err(storage_error)?;
+        let mut candidates = Vec::new();
+        for proposal in proposals {
+            let warnings = draft_window_warnings(&trip, &proposal);
+            let candidate = CandidateFact {
+                id: new_id("cand"),
+                trip_id: trip.id.clone(),
+                document_id: document_id.clone(),
+                parser_run_id: parser_run_id.clone(),
+                fact_type: FactType::LodgingStay,
+                payload: FactPayload {
+                    property_name: proposal.property_name,
+                    checkin_date: proposal.checkin_date,
+                    checkout_date: proposal.checkout_date,
+                    ..FactPayload::default()
+                },
+                method: ExtractionMethod::Assisted,
+                field_spans: Vec::new(),
+                warnings,
+                status: CandidateStatus::Pending,
+                created_at: now.clone(),
+                resolved_at: None,
+            };
+            insert_candidate(&connection, &candidate, &self.vault)?;
+            candidates.push(candidate);
+        }
+        Ok(AssistDraftResult { candidates })
     }
 
     /// Send a previewed request to `id`'s runtime and return `(model, reply)`.
@@ -2084,7 +2217,7 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
                 parser_run_id TEXT NOT NULL REFERENCES parser_runs(id) ON DELETE CASCADE,
                 fact_type TEXT NOT NULL CHECK (fact_type IN ('flight_segment', 'lodging_stay')),
                 payload TEXT NOT NULL,
-                method TEXT NOT NULL CHECK (method IN ('structured', 'inferred', 'manual')),
+                method TEXT NOT NULL CHECK (method IN ('structured', 'inferred', 'manual', 'assisted')),
                 field_spans TEXT NOT NULL,
                 warnings TEXT NOT NULL,
                 status TEXT NOT NULL CHECK (status IN ('pending', 'confirmed', 'rejected')),
@@ -2126,7 +2259,7 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
                 trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
                 fact_type TEXT NOT NULL CHECK (fact_type IN ('flight_segment', 'lodging_stay')),
                 payload TEXT NOT NULL,
-                method TEXT NOT NULL CHECK (method IN ('structured', 'inferred', 'manual')),
+                method TEXT NOT NULL CHECK (method IN ('structured', 'inferred', 'manual', 'assisted')),
                 candidate_id TEXT REFERENCES candidate_facts(id) ON DELETE SET NULL,
                 corrected_fields TEXT NOT NULL,
                 confirmed_at TEXT NOT NULL
@@ -2175,7 +2308,77 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
             PRAGMA user_version = 1;
             ",
         )
-        .map_err(storage_error)
+        .map_err(storage_error)?;
+    migrate_method_check(connection)
+}
+
+/// Widen the `method` CHECK on the fact tables to allow 'assisted', for databases
+/// created before on-device drafts existed.
+///
+/// Idempotent: it inspects each table's stored SQL and rebuilds only when the
+/// constraint predates the new value (a fresh install already includes it, so
+/// this is a no-op). The rebuild is a plain row copy — no re-encryption — done
+/// with foreign keys disabled so the `confirmed_facts → candidate_facts`
+/// reference survives the drop-and-rename, then re-enabled.
+fn migrate_method_check(connection: &Connection) -> Result<(), AppError> {
+    let is_stale = |table: &str| -> Result<bool, AppError> {
+        let sql: Option<String> = connection
+            .query_row(
+                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?1",
+                params![table],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(storage_error)?;
+        Ok(sql.is_some_and(|sql| !sql.contains("'assisted'")))
+    };
+    if !is_stale("candidate_facts")? && !is_stale("confirmed_facts")? {
+        return Ok(());
+    }
+
+    // FK enforcement cannot change inside a transaction, so toggle it around one.
+    connection
+        .execute_batch("PRAGMA foreign_keys = OFF;")
+        .map_err(storage_error)?;
+    let rebuilt = connection
+        .execute_batch(
+            "BEGIN;
+             CREATE TABLE candidate_facts_migrated (
+                id TEXT PRIMARY KEY,
+                trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                document_id TEXT NOT NULL REFERENCES source_documents(id) ON DELETE CASCADE,
+                parser_run_id TEXT NOT NULL REFERENCES parser_runs(id) ON DELETE CASCADE,
+                fact_type TEXT NOT NULL CHECK (fact_type IN ('flight_segment', 'lodging_stay')),
+                payload TEXT NOT NULL,
+                method TEXT NOT NULL CHECK (method IN ('structured', 'inferred', 'manual', 'assisted')),
+                field_spans TEXT NOT NULL,
+                warnings TEXT NOT NULL,
+                status TEXT NOT NULL CHECK (status IN ('pending', 'confirmed', 'rejected')),
+                created_at TEXT NOT NULL,
+                resolved_at TEXT
+             );
+             INSERT INTO candidate_facts_migrated SELECT * FROM candidate_facts;
+             DROP TABLE candidate_facts;
+             ALTER TABLE candidate_facts_migrated RENAME TO candidate_facts;
+             CREATE TABLE confirmed_facts_migrated (
+                id TEXT PRIMARY KEY,
+                trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                fact_type TEXT NOT NULL CHECK (fact_type IN ('flight_segment', 'lodging_stay')),
+                payload TEXT NOT NULL,
+                method TEXT NOT NULL CHECK (method IN ('structured', 'inferred', 'manual', 'assisted')),
+                candidate_id TEXT REFERENCES candidate_facts(id) ON DELETE SET NULL,
+                corrected_fields TEXT NOT NULL,
+                confirmed_at TEXT NOT NULL
+             );
+             INSERT INTO confirmed_facts_migrated SELECT * FROM confirmed_facts;
+             DROP TABLE confirmed_facts;
+             ALTER TABLE confirmed_facts_migrated RENAME TO confirmed_facts;
+             COMMIT;",
+        )
+        .map_err(storage_error);
+    // Restore FK enforcement whether or not the rebuild succeeded.
+    let _ = connection.execute_batch("PRAGMA foreign_keys = ON;");
+    rebuilt
 }
 
 fn parse_document(
@@ -2328,45 +2531,125 @@ fn fetch_confirmed_facts(
     collect_rows(rows)
 }
 
-/// Read one string field from every confirmed lodging fact, across all trips,
-/// as `(value, is_current_trip)` with the current trip's values first. The
-/// sealed payload is opened through the vault, so a locked vault surfaces as
+/// Read one string field from the trip's confirmed lodging facts, newest first.
+/// Scoped to a single trip so suggestions never cross trip boundaries. The sealed
+/// payload is opened through the vault, so a locked vault surfaces as
 /// [`ErrorCode::VaultLocked`] for the caller to treat as "no confirmed source".
 fn confirmed_lodging_values(
     connection: &Connection,
     vault: &Vault,
     field: &str,
-    current_trip_id: &str,
-) -> Result<Vec<(String, bool)>, AppError> {
+    trip_id: &str,
+) -> Result<Vec<String>, AppError> {
     let mut statement = connection
         .prepare(
-            "SELECT trip_id, payload FROM confirmed_facts
-             WHERE fact_type = 'lodging_stay'
+            "SELECT payload FROM confirmed_facts
+             WHERE fact_type = 'lodging_stay' AND trip_id = ?1
              ORDER BY confirmed_at DESC, id ASC",
         )
         .map_err(storage_error)?;
     let rows = statement
-        .query_map([], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-        })
+        .query_map(params![trip_id], |row| row.get::<_, String>(0))
         .map_err(storage_error)?;
 
-    let mut values: Vec<(String, bool)> = Vec::new();
+    let mut values: Vec<String> = Vec::new();
     for row in rows {
-        let (row_trip_id, sealed_payload) = row.map_err(storage_error)?;
+        let sealed_payload = row.map_err(storage_error)?;
         let payload_json = vault.open_field(&sealed_payload)?;
         let payload: serde_json::Value = serde_json::from_str(&payload_json)
             .map_err(|_| AppError::new(ErrorCode::StorageFailure, "unreadable stored payload"))?;
         if let Some(text) = payload.get(field).and_then(serde_json::Value::as_str) {
             let text = text.trim();
             if !text.is_empty() {
-                values.push((text.to_owned(), row_trip_id == current_trip_id));
+                values.push(text.to_owned());
             }
         }
     }
-    // Current-trip values first; the query already orders newest-first within each.
-    values.sort_by_key(|(_, is_current)| u8::from(!is_current));
     Ok(values)
+}
+
+/// Read a trip's imported documents as `(id, label, decrypted_text)`, oldest
+/// first. The raw content is vault-sealed, so a locked vault surfaces as
+/// [`ErrorCode::VaultLocked`] — the draft needs the text, so that is a real error.
+fn fetch_trip_document_texts(
+    connection: &Connection,
+    vault: &Vault,
+    trip_id: &str,
+) -> Result<Vec<DocumentText>, AppError> {
+    let mut statement = connection
+        .prepare(
+            "SELECT id, label, raw_content FROM source_documents
+             WHERE trip_id = ?1
+             ORDER BY imported_at ASC, id ASC",
+        )
+        .map_err(storage_error)?;
+    let rows = statement
+        .query_map(params![trip_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                vault
+                    .open_field(&row.get::<_, String>(2)?)
+                    .map_err(app_to_rusqlite)?,
+            ))
+        })
+        .map_err(storage_error)?;
+    collect_rows(rows)
+}
+
+/// Build the on-device draft request preview from a trip and its document texts.
+/// Ollama-only, so it never leaves the device and withholds nothing (the text is
+/// the traveler's own imported content).
+fn build_draft_preview(
+    trip: &Trip,
+    documents: &[(String, String)],
+    model: Option<&str>,
+) -> AssistRequestPreview {
+    let system_prompt = DRAFT_LODGING_DATES_SYSTEM_PROMPT.to_owned();
+    let user_content =
+        build_lodging_dates_user_content(&trip.start_date, &trip.end_date, documents);
+    let estimated_tokens =
+        ((system_prompt.chars().count() + user_content.chars().count()) / 4 + 1) as u32;
+    let grounded_in = if documents.is_empty() {
+        vec!["no imported documents yet".to_owned()]
+    } else {
+        let noun = if documents.len() == 1 {
+            "document"
+        } else {
+            "documents"
+        };
+        vec![
+            format!("{} imported {noun}", documents.len()),
+            "trip dates".to_owned(),
+        ]
+    };
+    AssistRequestPreview {
+        provider: ProviderId::Ollama,
+        provider_label: provider_info(ProviderId::Ollama).label.to_owned(),
+        model: model.map(str::to_owned),
+        endpoint: OLLAMA_CHAT_URL.to_owned(),
+        leaves_device: false,
+        system_prompt,
+        user_content,
+        withheld: Vec::new(),
+        grounded_in,
+        estimated_tokens,
+    }
+}
+
+/// Flag a proposed stay whose dates fall outside the trip window, so review
+/// surfaces it. Deterministic ISO-date string comparison; other checks (e.g.
+/// past dates) are left to the reviewer.
+fn draft_window_warnings(trip: &Trip, proposal: &LodgingDateProposal) -> Vec<WarningCode> {
+    let outside = |date: &Option<String>| {
+        date.as_deref()
+            .is_some_and(|d| d < trip.start_date.as_str() || d > trip.end_date.as_str())
+    };
+    if outside(&proposal.checkin_date) || outside(&proposal.checkout_date) {
+        vec![WarningCode::OutsideTripWindow]
+    } else {
+        Vec::new()
+    }
 }
 
 /// Place names from a trip's downloaded packs, newest pack first. Pack contents
@@ -4280,6 +4563,257 @@ mod tests {
             .suggest_field_values(&trip.id, "address", "")
             .expect("suggestions must not error when locked");
         assert!(address.is_empty());
+        cleanup_database(database);
+    }
+
+    /// An Ollama stub that returns a fixed chat reply and records the posted body.
+    struct DraftOllamaStub {
+        reply: String,
+        last_body: std::sync::Mutex<String>,
+    }
+    impl AdviceFetcher for DraftOllamaStub {
+        fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+            panic!("draft must POST, not GET");
+        }
+        fn post_json(
+            &self,
+            url: &str,
+            body: &str,
+            _headers: &[(&str, &str)],
+        ) -> Result<String, AppError> {
+            assert_eq!(url, "http://localhost:11434/api/chat");
+            *self.last_body.lock().expect("lock") = body.to_owned();
+            Ok(serde_json::json!({
+                "message": { "role": "assistant", "content": self.reply }
+            })
+            .to_string())
+        }
+    }
+
+    fn import_stay_text(service: &AppService, trip_id: &str) -> String {
+        service
+            .import_document(ImportDocumentInput {
+                trip_id: trip_id.to_owned(),
+                kind: DocumentKind::PastedText,
+                label: Some("Hotel email".to_owned()),
+                content: "River Paper Inn — check in 2027-04-02, check out 2027-04-08.".to_owned(),
+            })
+            .expect("import")
+            .document
+            .id
+    }
+
+    #[test]
+    fn run_assist_draft_turns_a_valid_reply_into_pending_assisted_candidates() {
+        let reply = r#"{"stays":[
+            {"propertyName":"River Paper Inn","checkinDate":"2027-04-02","checkoutDate":"2027-04-08"},
+            {"propertyName":"Late Inn","checkinDate":"2027-05-01","checkoutDate":"2027-05-03"}
+        ]}"#;
+        let database = temp_database("draft-run");
+        let stub = Arc::new(DraftOllamaStub {
+            reply: reply.to_owned(),
+            last_body: std::sync::Mutex::new(String::new()),
+        });
+        let service = open_test_service_with_fetcher(&database, stub.clone()).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        let document_id = import_stay_text(&service, &trip.id);
+
+        let result = service
+            .run_assist_draft(&trip.id, "lodging_dates")
+            .expect("draft");
+        assert_eq!(result.candidates.len(), 2);
+
+        let in_window = &result.candidates[0];
+        assert_eq!(in_window.method, ExtractionMethod::Assisted);
+        assert_eq!(in_window.status, CandidateStatus::Pending);
+        assert_eq!(in_window.fact_type, FactType::LodgingStay);
+        assert_eq!(in_window.document_id, document_id);
+        assert_eq!(
+            in_window.payload.checkin_date.as_deref(),
+            Some("2027-04-02")
+        );
+        assert!(in_window.warnings.is_empty());
+        // The out-of-window stay is flagged for the reviewer, not dropped.
+        assert!(
+            result.candidates[1]
+                .warnings
+                .contains(&WarningCode::OutsideTripWindow)
+        );
+
+        // The proposals are now reviewable pending candidates.
+        let pending = service
+            .list_candidates(&trip.id, Some(CandidateStatus::Pending))
+            .expect("pending");
+        assert_eq!(pending.len(), 2);
+
+        // The posted request carried the imported text and the trip dates.
+        let body = stub.last_body.lock().expect("lock").clone();
+        assert!(body.contains("River Paper Inn"));
+        assert!(body.contains("2027-04-01 to 2027-04-10"));
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn run_assist_draft_rejects_a_malformed_reply_and_saves_nothing() {
+        let database = temp_database("draft-bad");
+        let stub = Arc::new(DraftOllamaStub {
+            reply: "I couldn't find any dates in there.".to_owned(),
+            last_body: std::sync::Mutex::new(String::new()),
+        });
+        let service = open_test_service_with_fetcher(&database, stub).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        import_stay_text(&service, &trip.id);
+
+        assert_eq!(
+            service
+                .run_assist_draft(&trip.id, "lodging_dates")
+                .expect_err("malformed")
+                .code,
+            ErrorCode::AssistFailed
+        );
+        // Nothing was persisted from the bad reply.
+        assert!(
+            service
+                .list_candidates(&trip.id, Some(CandidateStatus::Pending))
+                .expect("pending")
+                .is_empty()
+        );
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn run_assist_draft_without_documents_calls_no_model() {
+        // A stub that panics if the model is ever contacted.
+        struct NoCall;
+        impl AdviceFetcher for NoCall {
+            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+                panic!("no network");
+            }
+            fn post_json(
+                &self,
+                _url: &str,
+                _body: &str,
+                _headers: &[(&str, &str)],
+            ) -> Result<String, AppError> {
+                panic!("must not contact the model with no documents to read");
+            }
+        }
+        let database = temp_database("draft-empty");
+        let service = open_test_service_with_fetcher(&database, Arc::new(NoCall)).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        let result = service
+            .run_assist_draft(&trip.id, "lodging_dates")
+            .expect("draft");
+        assert!(result.candidates.is_empty());
+
+        // An unknown draft kind is a validation error.
+        assert_eq!(
+            service
+                .run_assist_draft(&trip.id, "made_up_kind")
+                .expect_err("unknown kind")
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn migrate_method_check_widens_an_old_constraint_and_keeps_rows() {
+        // A pre-drafts database: the fact tables reject 'assisted'.
+        let connection = Connection::open_in_memory().expect("db");
+        connection
+            .execute_batch(
+                "PRAGMA foreign_keys = ON;
+                 CREATE TABLE trips (id TEXT PRIMARY KEY);
+                 CREATE TABLE source_documents (id TEXT PRIMARY KEY,
+                     trip_id TEXT REFERENCES trips(id) ON DELETE CASCADE);
+                 CREATE TABLE parser_runs (id TEXT PRIMARY KEY,
+                     document_id TEXT REFERENCES source_documents(id) ON DELETE CASCADE);
+                 CREATE TABLE candidate_facts (
+                     id TEXT PRIMARY KEY,
+                     trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                     document_id TEXT NOT NULL REFERENCES source_documents(id) ON DELETE CASCADE,
+                     parser_run_id TEXT NOT NULL REFERENCES parser_runs(id) ON DELETE CASCADE,
+                     fact_type TEXT NOT NULL,
+                     payload TEXT NOT NULL,
+                     method TEXT NOT NULL CHECK (method IN ('structured', 'inferred', 'manual')),
+                     field_spans TEXT NOT NULL,
+                     warnings TEXT NOT NULL,
+                     status TEXT NOT NULL,
+                     created_at TEXT NOT NULL,
+                     resolved_at TEXT
+                 );
+                 CREATE TABLE confirmed_facts (
+                     id TEXT PRIMARY KEY,
+                     trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                     fact_type TEXT NOT NULL,
+                     payload TEXT NOT NULL,
+                     method TEXT NOT NULL CHECK (method IN ('structured', 'inferred', 'manual')),
+                     candidate_id TEXT REFERENCES candidate_facts(id) ON DELETE SET NULL,
+                     corrected_fields TEXT NOT NULL,
+                     confirmed_at TEXT NOT NULL
+                 );
+                 INSERT INTO trips (id) VALUES ('t1');
+                 INSERT INTO source_documents (id, trip_id) VALUES ('d1', 't1');
+                 INSERT INTO parser_runs (id, document_id) VALUES ('r1', 'd1');
+                 INSERT INTO candidate_facts VALUES
+                     ('c1','t1','d1','r1','lodging_stay','{}','manual','[]','[]','pending','now',NULL);",
+            )
+            .expect("old schema");
+
+        // Before the migration, an assisted method is rejected.
+        assert!(
+            connection
+                .execute(
+                    "INSERT INTO candidate_facts VALUES
+                     ('c2','t1','d1','r1','lodging_stay','{}','assisted','[]','[]','pending','now',NULL)",
+                    [],
+                )
+                .is_err()
+        );
+
+        migrate_method_check(&connection).expect("migrate");
+
+        // The pre-existing row survived...
+        let kept: i64 = connection
+            .query_row("SELECT count(*) FROM candidate_facts", [], |row| row.get(0))
+            .expect("count");
+        assert_eq!(kept, 1);
+        // ...and an assisted row now inserts into both fact tables.
+        connection
+            .execute(
+                "INSERT INTO candidate_facts VALUES
+                 ('c2','t1','d1','r1','lodging_stay','{}','assisted','[]','[]','pending','now',NULL)",
+                [],
+            )
+            .expect("assisted candidate now allowed");
+        connection
+            .execute(
+                "INSERT INTO confirmed_facts VALUES
+                 ('cf1','t1','lodging_stay','{}','assisted','c2','[]','now')",
+                [],
+            )
+            .expect("assisted confirmed fact now allowed");
+        // Re-running is a no-op (the constraint already allows 'assisted').
+        migrate_method_check(&connection).expect("idempotent");
+    }
+
+    #[test]
+    fn preview_assist_draft_stays_on_device_and_shows_the_text() {
+        let database = temp_database("draft-preview");
+        let service = open_test_service(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        import_stay_text(&service, &trip.id);
+
+        let preview = service
+            .preview_assist_draft(&trip.id, "lodging_dates")
+            .expect("preview");
+        assert!(!preview.leaves_device);
+        assert_eq!(preview.endpoint, "http://localhost:11434/api/chat");
+        assert!(preview.withheld.is_empty());
+        assert!(preview.user_content.contains("River Paper Inn"));
+        assert!(preview.grounded_in.iter().any(|g| g.contains("imported")));
         cleanup_database(database);
     }
 }

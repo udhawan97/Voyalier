@@ -85,7 +85,13 @@ export interface LodgingStayPayload {
   guestName?: string;
 }
 export type FactPayload = FlightSegmentPayload | LodgingStayPayload;
-export type ExtractionMethod = "structured" | "inferred" | "manual";
+export type ExtractionMethod =
+  | "structured"
+  | "inferred"
+  | "manual"
+  // Drafted by an on-device model from the trip's own imported text, then
+  // reviewed by the user. Never authoritative on its own.
+  | "assisted";
 export type CandidateStatus = "pending" | "confirmed" | "rejected";
 export type WarningCode =
   | "missing_dates"
@@ -196,6 +202,12 @@ export interface WeatherSnapshot {
   sourceUrl: string;
   /** When this device retrieved the snapshot (RFC 3339). */
   retrievedAt: string;
+}
+/** The kinds of on-device AI draft Voyalier can produce. */
+export type AssistDraftKind = "lodging_dates";
+/** The candidates an on-device draft produced, for review (pending, never confirmed). */
+export interface AssistDraftResult {
+  candidates: CandidateFact[];
 }
 export type ProviderId = "openai" | "anthropic" | "ollama";
 /**
@@ -526,6 +538,14 @@ export interface AppGateway {
     provider: ProviderId,
   ): Promise<AssistRequestPreview>;
   runAssist(tripId: string, provider: ProviderId): Promise<AssistReply>;
+  previewAssistDraft(
+    tripId: string,
+    kind: AssistDraftKind,
+  ): Promise<AssistRequestPreview>;
+  runAssistDraft(
+    tripId: string,
+    kind: AssistDraftKind,
+  ): Promise<AssistDraftResult>;
   listAssistActivity(tripId: string): Promise<AssistActivityEntry[]>;
   listPacks(): Promise<PackInfo[]>;
   suggestPacks(tripId: string): Promise<PackSuggestion[]>;

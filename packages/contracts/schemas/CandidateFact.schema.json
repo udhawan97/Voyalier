@@ -25,7 +25,7 @@
     "parserRunId": { "type": "string" },
     "factType": { "enum": ["flight_segment", "lodging_stay"] },
     "payload": { "$ref": "#/$defs/factPayload" },
-    "method": { "enum": ["structured", "inferred", "manual"] },
+    "method": { "enum": ["structured", "inferred", "manual", "assisted"] },
     "fieldSpans": {
       "type": "array",
       "items": { "$ref": "#/$defs/fieldSpan" }
