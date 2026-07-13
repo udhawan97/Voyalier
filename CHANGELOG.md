@@ -8,6 +8,16 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 Nothing pending.
 
+## [0.4.2] - 2026-07-12 — First self-updating build
+
+### Changed
+
+- First release to ship the signed desktop bundles and the updater's
+  `latest.json` manifest, so the in-app **Updates** check resolves instead of
+  failing. The updater's own minisign signing is independent of OS code-signing
+  (Apple notarization / Windows Authenticode), which remains blocked on paid
+  certificates — first-open still shows an "unidentified developer" warning.
+
 ## [0.4.1] - 2026-07-12 — Flow-gap fixes
 
 ### Fixed
