@@ -8,7 +8,7 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 Nothing pending.
 
-## [0.4.2] - 2026-07-12 — First self-updating build
+## [0.4.3] - 2026-07-13 — First self-updating build
 
 ### Changed
 
@@ -17,6 +17,9 @@ Nothing pending.
   failing. The updater's own minisign signing is independent of OS code-signing
   (Apple notarization / Windows Authenticode), which remains blocked on paid
   certificates — first-open still shows an "unidentified developer" warning.
+
+  (0.4.2 was tagged but never released — its bump omitted the `Cargo.lock`
+  refresh, so the protected tag was abandoned rather than force-moved.)
 
 ## [0.4.1] - 2026-07-12 — Flow-gap fixes
 
