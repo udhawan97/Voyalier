@@ -10,6 +10,7 @@ const promises = [
   ['Useful without AI', 'Rules, review, readiness, offline packs, and sharing work without a model or paid key.'],
 ]
 
+// A set, not a sequence — these carry no numbers.
 const capabilities = [
   ['Plan', 'A deterministic Blueprint turns dates and places into a useful starting route.'],
   ['Import', 'Paste, pick, or drop confirmation text, HTML, email, and .eml files.'],
@@ -20,6 +21,8 @@ const capabilities = [
   ['Protect', 'Seal sensitive evidence with the OS keychain and an optional local passphrase.'],
   ['Assist', 'Invite Ollama, OpenAI, or Anthropic only after an exact redacted-payload preview.'],
 ]
+
+const mark = `<polygon class="ink" points="22,18 38,18 58,80 42,80"></polygon><polygon class="fold" points="42,80 58,80 73.5,32 57.5,32"></polygon><circle class="dot" cx="69" cy="21" r="5"></circle>`
 ---
 
 <!doctype html>
@@ -48,7 +51,7 @@ const capabilities = [
     <header class="nav-shell">
       <nav class="nav" aria-label="Primary navigation">
         <a class="brand" href={`${base}/`} aria-label="Voyalier home">
-          <svg viewBox="0 0 96 96" aria-hidden="true"><polygon class="ink" points="22,18 38,18 58,80 42,80"></polygon><polygon class="fold" points="42,80 58,80 73.5,32 57.5,32"></polygon><circle class="dot" cx="69" cy="21" r="5"></circle></svg>
+          <svg viewBox="0 0 96 96" aria-hidden="true" set:html={mark}></svg>
           <span>Voyalier</span>
         </a>
         <div class="nav-links">
@@ -63,139 +66,127 @@ const capabilities = [
     </header>
 
     <main>
-      <section class="hero snap" aria-labelledby="hero-title">
-        <div class="hero-glow" aria-hidden="true"></div>
+      <section class="hero" aria-labelledby="hero-title">
         <div class="hero-inner">
-          <p class="eyebrow hero-kicker">The local-first trip workspace</p>
-          <h1 id="hero-title">One trip.<br /><em>Folded into focus.</em></h1>
+          <p class="kicker">The local-first trip workspace</p>
+          {/* The headline is the mark: ink strip, indigo fold, vermilion waypoint. */}
+          <h1 id="hero-title">One trip.<br /><em>Folded into focus</em><span class="waypoint">.</span></h1>
           <p class="hero-lede">Voyalier turns confirmations, research, readiness, and the inevitable “where did I put that?” into one calm, evidence-backed journey.</p>
           <div class="actions">
             <a class="button primary" href={`${base}/download/`}>Download for Mac or Windows <span aria-hidden="true">↗</span></a>
             <a class="button secondary" href={`${base}/getting-started/`}>Start from source</a>
           </div>
           <div class="hero-proof" aria-label="Product principles">
-            <span><i></i> Runs locally</span><span><i></i> Open source</span><span><i></i> AI is optional</span>
+            <span>Runs locally</span><span>Open source</span><span>AI is optional</span>
           </div>
         </div>
         <div class="fold-stage" aria-hidden="true">
-          <span class="orbit orbit-one"></span><span class="orbit orbit-two"></span>
-          <span class="mark-medallion"></span>
-          <svg viewBox="0 0 96 96"><polygon class="ink" points="22,18 38,18 58,80 42,80"></polygon><polygon class="fold" points="42,80 58,80 73.5,32 57.5,32"></polygon><circle class="dot" cx="69" cy="21" r="5"></circle></svg>
+          <svg viewBox="0 0 96 96" set:html={mark}></svg>
         </div>
-        <a class="scroll-hint" href="#product"><span>See the product</span><i aria-hidden="true"></i></a>
       </section>
 
-      <section class="promise snap" aria-labelledby="promise-title">
-        <div class="section-intro reveal">
-          <p class="eyebrow">Less tab archaeology</p>
+      <section class="promise" aria-labelledby="promise-title">
+        <div class="section-intro">
           <h2 id="promise-title">A trip should feel like a journey.<br />Planning it should too.</h2>
           <p>Voyalier separates what a source suggested from what you actually approved. It remembers the boring details so you can remember the good ones.</p>
         </div>
         <div class="promise-grid">
-          {promises.map(([title, body], index) => (
-            <article class="principle reveal" style={`--delay:${index}`}>
-              <span class="number">0{index + 1}</span><h3>{title}</h3><p>{body}</p>
+          {promises.map(([title, body]) => (
+            <article class="principle">
+              <h3>{title}</h3><p>{body}</p>
             </article>
           ))}
         </div>
       </section>
 
-      <section class="product snap" id="product" aria-labelledby="product-title">
-        <div class="section-intro reveal">
-          <p class="eyebrow">The working product</p>
+      <section class="product" id="product" aria-labelledby="product-title">
+        <div class="section-intro">
           <h2 id="product-title">The whole trip loop.<br />Visible in one scan.</h2>
           <p>For a traveler, Voyalier is a calmer place to keep the trip. For a developer, every feature below crosses the same versioned contract and keeps its trust boundary explicit.</p>
         </div>
         <div class="capability-grid">
-          {capabilities.map(([title, body], index) => (
-            <article class="capability reveal" style={`--delay:${index % 4}`}>
-              <span>0{index + 1}</span><h3>{title}</h3><p>{body}</p>
+          {capabilities.map(([title, body]) => (
+            <article class="capability">
+              <h3>{title}</h3><p>{body}</p>
             </article>
           ))}
         </div>
         <div class="product-gallery">
-          <figure class="product-shot product-shot-wide reveal">
-            <div class="frame-bar"><span>Your trips</span><span>Local workspace</span></div>
+          <figure class="product-shot product-shot-wide">
             <img src={`${base}/assets/screenshots/voyalier-trips.jpg`} width="1440" height="900" loading="lazy" decoding="async" alt="Voyalier trip list with active, draft, and archived journeys plus local update and encryption controls." />
             <figcaption>Trips stay simple at the surface: status, dates, confirmed facts, and anything still waiting for you.</figcaption>
           </figure>
-          <figure class="product-shot reveal">
-            <div class="frame-bar"><span>Evidence review</span><span>Nothing saved yet</span></div>
+          <figure class="product-shot">
             <img src={`${base}/assets/screenshots/voyalier-evidence-review.jpg`} width="1440" height="900" loading="lazy" decoding="async" alt="Voyalier review dialog comparing a suggested flight with a quoted source excerpt before confirm, edit, or dismissal." />
             <figcaption>The important interaction is not extraction. It is the review gate between a suggestion and a fact.</figcaption>
           </figure>
         </div>
       </section>
 
-      <section class="story story-dark snap" id="journey" aria-labelledby="journey-title">
-        <div class="story-copy reveal">
-          <p class="eyebrow">For travelers · the whole route</p>
+      <section class="story story-dark" id="journey" aria-labelledby="journey-title">
+        <div class="story-copy">
           <h2 id="journey-title">From “we should go”<br />to “we are ready.”</h2>
           <p>Frame the trip, review what was found, pressure-test the gaps, prepare offline, travel with Today, then share only what belongs in the brief.</p>
           <ul class="plain-list"><li>Six human-sized steps</li><li>No model in the critical path</li><li>Connected help stays an explicit side branch</li></ul>
         </div>
-        <figure class="diagram-frame diagram-dark reveal">
-          <div class="frame-bar"><span>Product flow</span><span class="live-dot">Built for real travel</span></div>
+        <figure class="diagram-frame diagram-dark">
           <img src={`${base}/assets/voyalier-trip-workspace-flow.svg`} width="1440" height="1040" loading="lazy" decoding="async" alt="Six-stage Voyalier workflow: frame the trip, review evidence, pressure-test readiness, prepare offline, travel with Today, and share a redacted brief. Optional AI remains a consent-gated side branch." />
-          <figcaption><strong>Casual view:</strong> six steps, one calm route. <strong>Developer view:</strong> deterministic rules remain authoritative from input to redacted output.</figcaption>
+          <figcaption>
+            <p><strong>Casual view:</strong> six steps, one calm route.</p>
+            <p><strong>Developer view:</strong> deterministic rules remain authoritative from input to redacted output.</p>
+          </figcaption>
         </figure>
       </section>
 
-      <section class="story story-light snap" id="trust" aria-labelledby="trust-title">
-        <div class="story-copy reveal">
-          <p class="eyebrow">For humans · a visible trust boundary</p>
+      <section class="story story-light" id="trust" aria-labelledby="trust-title">
+        <div class="story-copy">
           <h2 id="trust-title">Nothing becomes a fact<br />behind your back.</h2>
           <p>Documents and sources produce candidates—not truth by decree. Voyalier shows the evidence, asks for a decision, and records what changed.</p>
           <div class="trust-legend"><span><i class="local"></i> Local typed flow</span><span><i class="network"></i> Network only after a click</span></div>
         </div>
-        <figure class="diagram-frame reveal">
-          <div class="frame-bar"><span>Evidence lifecycle</span><span>Candidate → decision → fact</span></div>
+        <figure class="diagram-frame">
           <img src={`${base}/assets/voyalier-evidence-pipeline.svg`} width="1440" height="1020" loading="lazy" decoding="async" alt="Voyalier evidence pipeline showing untrusted inputs becoming candidate facts, human review, confirmed trip facts, deterministic planning, and optional consent-gated connected advice." />
-          <figcaption><strong>Plain English:</strong> show your work. <strong>Technical contract:</strong> provenance, freshness, confidence, and license travel with every claim.</figcaption>
+          <figcaption>
+            <p><strong>Plain English:</strong> show your work.</p>
+            <p><strong>Technical contract:</strong> provenance, freshness, confidence, and license travel with every claim.</p>
+          </figcaption>
         </figure>
       </section>
 
-      <section class="story story-architecture snap" id="architecture" aria-labelledby="architecture-title">
-        <div class="story-copy reveal">
-          <p class="eyebrow">For builders · one product contract</p>
+      <section class="story story-architecture" id="architecture" aria-labelledby="architecture-title">
+        <div class="story-copy">
           <h2 id="architecture-title">Two runtimes.<br />One local core.</h2>
           <p>The browser development path and native desktop path enter the same application services. Product rules do not quietly migrate into UI code—or the cloud.</p>
           <div class="code-pills"><code>React + TypeScript</code><code>Rust + Tauri</code><code>SQLite + keychain</code></div>
         </div>
-        <figure class="diagram-frame reveal">
-          <div class="frame-bar"><span>System map</span><span>No mystery arrows</span></div>
+        <figure class="diagram-frame">
           <img src={`${base}/assets/voyalier-system-architecture.svg`} width="1440" height="950" loading="lazy" decoding="async" alt="Voyalier system architecture showing the shared workspace, guarded browser development path, direct desktop IPC path, shared application services, deterministic core, local state, and explicit connected sources." />
-          <figcaption><strong>Traveler promise:</strong> the same trip everywhere. <strong>Developer promise:</strong> transport changes; product rules do not.</figcaption>
+          <figcaption>
+            <p><strong>Traveler promise:</strong> the same trip everywhere.</p>
+            <p><strong>Developer promise:</strong> transport changes; product rules do not.</p>
+          </figcaption>
         </figure>
       </section>
 
-      <section class="closing snap" aria-labelledby="close-title">
-        <img src={iconUrl} width="512" height="512" alt="Voyalier app icon" class="app-icon reveal" loading="lazy" />
-        <p class="eyebrow reveal">Ready when the trip is</p>
-        <h2 id="close-title" class="reveal">Plan with evidence.<br /><em>Travel with less noise.</em></h2>
-        <p class="reveal">Open source. Local first. Refreshingly uninterested in pretending a chatbot is a border official.</p>
-        <div class="actions reveal"><a class="button primary" href={`${base}/introduction/`}>Enter the docs</a><a class="button secondary" href="https://github.com/udhawan97/Voyalier">View the repository</a></div>
+      <section class="closing" aria-labelledby="close-title">
+        <img src={iconUrl} width="512" height="512" alt="Voyalier app icon" class="app-icon" loading="lazy" />
+        <h2 id="close-title">Plan with evidence.<br /><em>Travel with less noise</em><span class="waypoint">.</span></h2>
+        <p>Open source. Local first. Refreshingly uninterested in pretending a chatbot is a border official.</p>
+        <div class="actions"><a class="button primary" href={`${base}/introduction/`}>Enter the docs</a><a class="button secondary" href="https://github.com/udhawan97/Voyalier">View the repository</a></div>
       </section>
     </main>
 
     <footer>
-      <a class="brand footer-brand" href={`${base}/`}><svg viewBox="0 0 96 96" aria-hidden="true"><polygon class="ink" points="22,18 38,18 58,80 42,80"></polygon><polygon class="fold" points="42,80 58,80 73.5,32 57.5,32"></polygon><circle class="dot" cx="69" cy="21" r="5"></circle></svg><span>Voyalier</span></a>
+      <a class="brand footer-brand" href={`${base}/`}><svg viewBox="0 0 96 96" aria-hidden="true" set:html={mark}></svg><span>Voyalier</span></a>
       <p>Local-first travel intelligence, folded carefully.</p>
       <div><a href={`${base}/privacy/`}>Privacy</a><a href={`${base}/architecture/`}>Architecture</a><a href={`${base}/roadmap/`}>Roadmap</a><a href="https://github.com/udhawan97/Voyalier">GitHub</a></div>
     </footer>
 
     <script>
+      // The page's only script: a scroll position readout. The entrance
+      // animation is CSS-only and runs once, so there is no observer here
+      // re-animating content the reader has already settled into.
       const root = document.documentElement
-      const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
-      const reveals = document.querySelectorAll('.reveal')
-      if (!reduced && 'IntersectionObserver' in window) {
-        root.classList.add('motion-ready')
-        const observer = new IntersectionObserver((entries) => entries.forEach((entry) => {
-          if (entry.isIntersecting) { entry.target.classList.add('is-visible'); observer.unobserve(entry.target) }
-        }), { threshold: 0.12, rootMargin: '0px 0px -5% 0px' })
-        reveals.forEach((item) => observer.observe(item))
-      }
-
       const progress = document.querySelector<HTMLElement>('.progress span')
       let ticking = false
       const updateProgress = () => {
