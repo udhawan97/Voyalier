@@ -1,0 +1,149 @@
+---
+title: Download and install
+description: Get Voyalier for macOS or Windows, or run it in a browser from source.
+---
+
+There are three ways to run Voyalier, and none of them is a lesser version of the
+others. Pick the one that matches your machine.
+
+| Way         | What you get                        | Who it's for                            |
+| ----------- | ----------------------------------- | --------------------------------------- |
+| **macOS**   | A `.dmg` disk image (Apple Silicon) | Macs with an M-series chip              |
+| **Windows** | An `.exe` installer or an `.msi`    | 64-bit Windows                          |
+| **Browser** | The same app, built from source     | Any OS — including Intel Macs and Linux |
+
+[**Go to the latest release →**](https://github.com/udhawan97/Voyalier/releases/latest)
+
+Every download lives on that page. It always points at the newest build, so this
+page never has to name a version and then quietly go out of date.
+
+There is no Intel Mac build and no Linux build. Rather than leave you with
+nothing to click, the browser path below is the real answer for both — it's the
+same interface, running locally.
+
+## Install on macOS
+
+Voyalier is built for Apple Silicon. Download the `.dmg`, open it, and **drag
+Voyalier into your Applications folder**.
+
+That drag matters more than tidiness suggests: the in-app updater replaces the
+app in place, and it can't reliably do that to a copy running from Downloads or
+from the mounted disk image. Install it properly once and updates take care of
+themselves afterwards.
+
+The first launch will be interrupted. macOS will refuse to open Voyalier because
+it can't identify the developer — see
+[why the warning appears](#why-the-warning-appears) below. To open it anyway:
+
+1. **Double-click Voyalier** and let macOS block it. Click **Done**. This step
+   isn't pointless: it's what tells macOS you tried, which is what makes the next
+   step appear.
+2. Open **System Settings** → **Privacy & Security** and scroll down to the
+   message saying Voyalier was blocked.
+3. Click **Open Anyway**, authenticate with Touch ID or your password, and
+   confirm.
+
+That's once, not every time — macOS remembers, and later launches are normal.
+
+If you're on macOS 14 (Sonoma) or earlier, there's a shortcut: right-click the
+app and choose **Open**, then **Open** again. Apple removed that route in macOS
+15 (Sequoia), so on current systems the Privacy & Security path above is the only
+one that works.
+
+## Install on Windows
+
+Download the `.exe` installer and run it. Windows x64 only.
+
+SmartScreen will step in and say "Windows protected your PC" — again, see
+[why the warning appears](#why-the-warning-appears). To continue:
+
+1. Click **More info**.
+2. Click **Run anyway**.
+
+The installer then behaves normally, and Voyalier appears in the Start menu.
+
+An `.msi` is published alongside the `.exe` for anyone deploying through group
+policy or a package tool. For a single machine, the `.exe` is the one you want.
+
+## Run it in a browser
+
+If you're on an Intel Mac or Linux — or you'd simply rather read the source than
+trust a binary — build it and open it in your browser. It's the same React
+interface the desktop app uses, and your data still stays on your machine.
+
+See [Getting started](/Voyalier/getting-started/) for the full walkthrough. It's
+three commands and it ends at `127.0.0.1:5173`.
+
+One difference worth knowing: a build run from source has no in-app updater. You
+update it the way you built it, with `git pull`.
+
+## Why the warning appears
+
+Both warnings mean the same thing, and it isn't "this app is dangerous."
+
+Apple and Microsoft let developers pay to certify their software — roughly $99 a
+year for Apple, plus a separate Windows code-signing certificate. Voyalier hasn't
+bought either yet. Without them, macOS can't identify the developer and Windows
+hasn't seen the file often enough to vouch for it, so both do the responsible
+thing and warn you.
+
+What the warning tells you: nobody has paid to vouch for this download. What it
+doesn't tell you: anything about what the app does. That's a fair distinction for
+your operating system to draw, and it's worth keeping — this page is asking you
+to click past one specific expected warning, not to start ignoring them.
+
+Signed and notarized installers are on the [roadmap](/Voyalier/roadmap/). When
+they land, these steps disappear.
+
+## Check your download (optional)
+
+Every release publishes SHA-256 checksums, so you can confirm the file you got is
+the file that was built:
+
+- [SHA256SUMS-macos.txt](https://github.com/udhawan97/Voyalier/releases/latest/download/SHA256SUMS-macos.txt)
+- [SHA256SUMS-windows.txt](https://github.com/udhawan97/Voyalier/releases/latest/download/SHA256SUMS-windows.txt)
+
+Save the checksum file next to your download, then let your machine do the
+comparison — hashes are exactly the kind of thing humans skim and computers don't.
+
+On macOS:
+
+```bash
+cd ~/Downloads
+grep -qF "$(shasum -a 256 Voyalier_*_aarch64.dmg | cut -d' ' -f1)" SHA256SUMS-macos.txt \
+  && echo "Match — this is the file that was built." \
+  || echo "No match. Do not open it; download it again."
+```
+
+On Windows (PowerShell):
+
+```powershell
+cd ~\Downloads
+$hash = (Get-FileHash Voyalier_*_x64-setup.exe -Algorithm SHA256).Hash
+if (Select-String -Path SHA256SUMS-windows.txt -Pattern $hash -SimpleMatch -Quiet) {
+  "Match — this is the file that was built."
+} else {
+  "No match. Do not run it; download it again."
+}
+```
+
+Each command searches the checksum file for your download's hash rather than
+comparing line by line, which keeps it working regardless of how the paths inside
+that file are written.
+
+This step is optional, and deliberately so. Once Voyalier is installed, every
+update it downloads is verified against a cryptographic signature on your device
+before it's allowed to install, and release artifacts carry build provenance
+attesting to which workflow produced them. The manual check is here for the one
+download those protections can't cover: this first one.
+
+## After you install
+
+The [Guides](/Voyalier/guides/trips-and-blueprint/) walk through each workflow —
+trips and the Blueprint, importing confirmations, readiness and official advice,
+offline packs and maps, AI assist, and the encrypted vault.
+
+From here on, [the updater](/Voyalier/guides/updates/) takes over: Voyalier asks
+once whether it may check for updates, and never checks unless you say yes. If a
+first launch goes wrong, [Troubleshooting](/Voyalier/troubleshooting/) has the
+fixes.

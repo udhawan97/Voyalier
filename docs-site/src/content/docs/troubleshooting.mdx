@@ -17,6 +17,21 @@ symptom → likely cause → what to do.
   retry.
 - Run `make check` to surface build, lint, and type errors.
 
+## Voyalier won't open on first launch
+
+**Likely cause:** the installers aren't code-signed yet, so your OS warns you
+once.
+
+- **macOS, "unidentified developer":** double-click Voyalier and let macOS block
+  it, then go to **System Settings** → **Privacy & Security**, scroll to the
+  message about Voyalier, and click **Open Anyway**. (Right-click → **Open** also
+  works on macOS 14 and earlier; Apple removed it in macOS 15.)
+- **Windows, "Windows protected your PC":** click **More info**, then **Run
+  anyway**.
+- Either way, the decision sticks — later launches are normal. See
+  [Download and install](/Voyalier/download/#why-the-warning-appears) for what the
+  warning does and doesn't mean.
+
 ## AI assist fails
 
 **Likely cause:** no key, no local model, or a provider-side error.

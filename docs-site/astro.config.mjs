@@ -23,6 +23,7 @@ export default defineConfig({
       },
       sidebar: [
         { label: "Introduction", link: "/introduction/" },
+        { label: "Download and install", link: "/download/" },
         { label: "Getting started", link: "/getting-started/" },
         {
           label: "Guides",
