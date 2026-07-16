@@ -10,16 +10,20 @@ on:
 permissions:
   contents: read
   checks: write
+  # rustsec/audit-check opens or refreshes a deduplicated tracking issue when
+  # the advisory database reports informational warnings. Keep this workflow's
+  # only repository write permission scoped to issues.
+  issues: write
 
 jobs:
   dependencies-and-secrets:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
           version: 11.7.0
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
           cache: pnpm
@@ -34,9 +38,9 @@ jobs:
             echo "Credential-shaped string found in tracked content." >&2
             exit 1
           fi
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
       - name: Verify the committed Rust lockfile
         run: cargo metadata --locked --no-deps --format-version 1 > /dev/null
-      - uses: rustsec/audit-check@v2.0.0
+      - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}

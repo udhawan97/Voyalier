@@ -34,9 +34,10 @@ updater (see [`docs/architecture/UPDATES.md`](../architecture/UPDATES.md)):
   Every action in the release and pack-publish workflows is SHA-pinned and the
   signing key is step-scoped to an approved, protected environment; `packs-v1`
   releases are pre-release so they cannot hijack the updater's
-  `releases/latest` endpoint. (The build/lint/security-scan CI workflows are
-  not yet SHA-pinned — lower risk since they hold no signing key and run with
-  read-only permissions, but tightening them is worth doing.)
+  `releases/latest` endpoint. The security-hygiene workflow is also SHA-pinned;
+  it has read-only contents access plus checks write and issue write solely so
+  RustSec can maintain advisory-tracking issues. The remaining build/lint CI
+  actions are not yet SHA-pinned, but they hold no signing key.
 - **OS code-signing — pending.** Bundles are not yet Apple Developer ID /
   Windows Authenticode signed (paid); first launch uses the documented
   Gatekeeper / SmartScreen "open anyway" path. This is independent of the (free)
