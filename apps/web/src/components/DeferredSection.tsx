@@ -51,5 +51,9 @@ export function DeferredSection({
   }, [shown]);
 
   if (shown) return <div id={id}>{children}</div>;
-  return <div id={id} ref={ref} style={{ minHeight }} aria-hidden="true" />;
+  // Deliberately NOT aria-hidden. This element is the section nav's jump target,
+  // and hiding it from assistive tech would make those chips silently fail for
+  // screen-reader users while appearing to work for everyone else. It is an
+  // empty box either way, so hiding it buys nothing.
+  return <div id={id} ref={ref} style={{ minHeight }} />;
 }

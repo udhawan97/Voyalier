@@ -64,6 +64,21 @@ describe("DeferredSection", () => {
     expect(container.querySelector("#section-test")).not.toBeNull();
   });
 
+  it("leaves the placeholder visible to assistive tech", () => {
+    // The placeholder is the section nav's jump target. Hiding it with
+    // aria-hidden would make those chips silently fail for screen-reader users
+    // while still appearing to work for everyone else.
+    controllable();
+    const { container } = render(
+      <DeferredSection id="section-test">
+        <p>Expensive content</p>
+      </DeferredSection>,
+    );
+    expect(
+      container.querySelector("#section-test")?.getAttribute("aria-hidden"),
+    ).toBeNull();
+  });
+
   it("reserves height so the page does not jolt when it mounts", () => {
     controllable();
     const { container } = render(
