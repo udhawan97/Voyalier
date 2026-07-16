@@ -3617,6 +3617,109 @@ body::before {
   }
 }
 
+/* ---- Settings ---------------------------------------------------------- */
+
+.voy-settings__title {
+  margin: 0 0 0.4rem;
+  font-family: var(--voy-font-display);
+  font-size: var(--voy-text-2xl);
+}
+
+.voy-settings__intro {
+  margin: 0 0 2.2rem;
+  color: var(--voy-ink-muted);
+}
+
+.voy-settings__section {
+  margin-bottom: 2.4rem;
+}
+
+.voy-settings__hint {
+  margin: 0 0 0.8rem;
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-base);
+}
+
+.voy-topbar__gear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--voy-line);
+  border-radius: 999px;
+  color: var(--voy-ink-muted);
+  cursor: pointer;
+  transition:
+    color var(--voy-motion-fast) var(--voy-ease),
+    border-color var(--voy-motion-fast) var(--voy-ease);
+}
+
+.voy-topbar__gear:hover {
+  color: var(--voy-ink);
+  border-color: var(--voy-line-strong);
+}
+
+/* ---- Trip section nav -------------------------------------------------- */
+
+.voy-tripnav {
+  position: sticky;
+  top: 0;
+  z-index: var(--voy-z-sticky);
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.4rem;
+  padding: 0.6rem 0;
+  background: var(--voy-paper);
+  border-bottom: 1px solid var(--voy-line);
+  overflow-x: auto;
+}
+
+.voy-tripnav__chip {
+  flex: none;
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--voy-line);
+  border-radius: 999px;
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    color var(--voy-motion-fast) var(--voy-ease),
+    border-color var(--voy-motion-fast) var(--voy-ease);
+}
+
+.voy-tripnav__chip:hover {
+  color: var(--voy-ink);
+  border-color: var(--voy-line-strong);
+}
+
+/* Keep a jumped-to heading clear of the sticky nav above it. */
+#blueprint-title,
+#advice-title,
+#packs-title,
+#assist-title {
+  scroll-margin-top: 4rem;
+}
+
+.voy-assist__setup {
+  margin: 0.6rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+}
+
+.voy-linkbtn {
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--voy-indigo);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 /* Native disclosures animate their height where the engine supports it
    (progressive enhancement; ignored gracefully elsewhere). */
 @supports (interpolate-size: allow-keywords) {

@@ -64,6 +64,7 @@
   --voy-text-2xl: clamp(2rem, 5vw, 2.8rem);
 
   /* Stacking order — one place, so overlays never guess. */
+  --voy-z-sticky: 30;
   --voy-z-popover: 40;
   --voy-z-overlay: 50;
   --voy-z-toast: 60;

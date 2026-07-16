@@ -645,6 +645,23 @@ const en = {
   "theme.system": "System",
   "theme.dark": "Dark",
 
+  "settings.title": "Settings",
+  "settings.intro":
+    "Everything here applies to Voyalier as a whole, not to one trip.",
+  "settings.appearance": "Appearance",
+  "settings.appearance.hint":
+    "System follows whatever your computer is set to.",
+  "settings.back": "Back",
+  "topbar.settings": "Settings",
+  "assist.needsSetup": "Set up AI in Settings to use this.",
+  "assist.needsSetup.link": "Open Settings",
+
+  "tripnav.label": "Jump to a section",
+  "tripnav.plan": "Plan",
+  "tripnav.prepare": "Prepare",
+  "tripnav.discover": "Discover",
+  "tripnav.ai": "AI",
+
   "dialog.close": "Close dialog",
 
   "updates.title": "Updates",

@@ -1,7 +1,7 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
 
-import { findA11yViolations, renderApp } from "./test/helpers";
+import { findA11yViolations, renderApp, renderSettings } from "./test/helpers";
 
 /**
  * Automated accessibility gate. Renders the key surfaces and asserts axe-core
@@ -13,7 +13,15 @@ describe("accessibility", () => {
   it("the trip list (home) has no violations", async () => {
     renderApp(createMockGateway());
     await screen.findByRole("heading", { name: "Trips", level: 1 });
-    // The lazy vault panel loads its status asynchronously; wait for it.
+
+    const violations = await findA11yViolations();
+    expect(violations, violations.join("\n\n")).toEqual([]);
+  });
+
+  it("the settings view has no violations", async () => {
+    await renderSettings(createMockGateway());
+    // The lazy vault panel loads its status asynchronously; wait for it, so the
+    // scan covers the panel rather than its placeholder.
     await screen.findByRole("region", { name: "Encryption" });
 
     const violations = await findA11yViolations();

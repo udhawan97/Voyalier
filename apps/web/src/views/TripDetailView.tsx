@@ -46,8 +46,6 @@ import {
 import { AddFactDialog } from "./AddFactDialog";
 import { BriefDialog } from "./BriefDialog";
 import { CandidateReviewDialog } from "./CandidateReviewDialog";
-import { AiProviders } from "./AiProviders";
-import { AiPromptSettings } from "./AiPromptSettings";
 import { TodayPanel } from "./TodayPanel";
 import { AssistPreview } from "./AssistPreview";
 import { AssistDraft } from "./AssistDraft";
@@ -57,7 +55,6 @@ import { Recommendations } from "./Recommendations";
 import { DeleteTripDialog } from "./DeleteTripDialog";
 import { EditTripDialog } from "./EditTripDialog";
 import { ImportDialog } from "./ImportDialog";
-import { OnDeviceAi } from "./OnDeviceAi";
 import { TravelAdvice } from "./TravelAdvice";
 import { TripSearch } from "./TripSearch";
 import { WeatherOutlook } from "./WeatherOutlook";
@@ -177,6 +174,35 @@ function FactGroup({
         ))}
       </div>
     </section>
+  );
+}
+
+/**
+ * A sticky row of jump links for the long trip page. Every target below renders
+ * unconditionally, so no chip can ever point at nothing; `scroll-margin-top` in
+ * CSS keeps the landing heading clear of the sticky topbar. Plain anchors — no
+ * router, so refresh and back behave exactly as they did.
+ */
+const TRIP_NAV: { label: MessageKey; target: string }[] = [
+  { label: "tripnav.plan", target: "blueprint-title" },
+  { label: "tripnav.prepare", target: "advice-title" },
+  { label: "tripnav.discover", target: "packs-title" },
+  { label: "tripnav.ai", target: "assist-title" },
+];
+
+function TripSectionNav() {
+  return (
+    <nav className="voy-tripnav" aria-label={t("tripnav.label")}>
+      {TRIP_NAV.map((item) => (
+        <a
+          key={item.target}
+          className="voy-tripnav__chip"
+          href={`#${item.target}`}
+        >
+          {t(item.label)}
+        </a>
+      ))}
+    </nav>
   );
 }
 
@@ -309,11 +335,13 @@ export function TripDetailView({
   tripId,
   onBack,
   onDeleted,
+  onOpenSettings,
   reloadKey,
 }: {
   tripId: string;
   onBack: () => void;
   onDeleted: () => void;
+  onOpenSettings?: () => void;
   reloadKey: number;
 }) {
   const gateway = useGateway();
@@ -506,6 +534,8 @@ export function TripDetailView({
         </div>
       </header>
 
+      <TripSectionNav />
+
       <TodayPanel tripId={tripId} />
 
       {pendingCount > 0 ? (
@@ -529,7 +559,9 @@ export function TripDetailView({
       )}
 
       <div className="voy-detail__blueprint">
-        <h2 className="voy-detail__blueprint-title">{t("detail.blueprint")}</h2>
+        <h2 id="blueprint-title" className="voy-detail__blueprint-title">
+          {t("detail.blueprint")}
+        </h2>
         {confirmedFacts.length > 0 ? (
           <p className="voy-detail__blueprint-sub">
             {t("detail.blueprint.sub")}
@@ -601,22 +633,6 @@ export function TripDetailView({
 
       <TripSearch tripId={tripId} />
 
-      <OnDeviceAi />
-
-      <AiProviders />
-
-      <AiPromptSettings />
-
-      <AssistPreview tripId={tripId} />
-
-      <AssistDraft
-        tripId={tripId}
-        onDrafted={(candidates) => {
-          setReviewCandidates(candidates);
-          reload();
-        }}
-      />
-
       <CityPacks tripId={tripId} destination={trip.destination} />
 
       <Recommendations tripId={tripId} />
@@ -632,6 +648,17 @@ export function TripDetailView({
               }
             : undefined
         }
+      />
+
+      {/* AI sits last on purpose: everything above works without it. */}
+      <AssistPreview tripId={tripId} onOpenSettings={onOpenSettings} />
+
+      <AssistDraft
+        tripId={tripId}
+        onDrafted={(candidates) => {
+          setReviewCandidates(candidates);
+          reload();
+        }}
       />
 
       {showImport ? (

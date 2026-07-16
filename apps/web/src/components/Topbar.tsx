@@ -3,6 +3,7 @@ import markUrl from "@voyalier/brand/voyalier-mark.svg?url";
 import { t, type MessageKey } from "../app/i18n";
 import { ThemeToggle } from "./ThemeToggle";
 import { UpdatePill } from "./UpdatePill";
+import { GearIcon } from "./icons";
 
 export type HealthState = "checking" | "online" | "offline";
 
@@ -14,9 +15,11 @@ const HEALTH: Record<HealthState, { key: MessageKey; cls: string }> = {
 
 export function Topbar({
   onHome,
+  onSettings,
   health,
 }: {
   onHome: () => void;
+  onSettings?: () => void;
   health: HealthState;
 }) {
   const pill = HEALTH[health];
@@ -32,7 +35,7 @@ export function Topbar({
         <span className="voy-brand__word">Voyalier</span>
       </button>
       <div className="voy-topbar__right">
-        <UpdatePill />
+        <UpdatePill onOpenSettings={onSettings} />
         <span
           className={`voy-health voy-health--${pill.cls}`}
           role="status"
@@ -42,6 +45,16 @@ export function Topbar({
           {t(pill.key)}
         </span>
         <ThemeToggle />
+        {onSettings ? (
+          <button
+            type="button"
+            className="voy-topbar__gear"
+            onClick={onSettings}
+            aria-label={t("topbar.settings")}
+          >
+            <GearIcon aria-hidden="true" />
+          </button>
+        ) : null}
       </div>
     </header>
   );

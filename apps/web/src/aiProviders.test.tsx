@@ -1,16 +1,9 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
 
-import { renderApp } from "./test/helpers";
+import { renderSettings } from "./test/helpers";
 
 async function openProviders() {
-  fireEvent.click(
-    await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
-  );
-  await screen.findByRole("heading", {
-    name: "Kyoto autumn journey",
-    level: 1,
-  });
   const region = await screen.findByRole("region", { name: "AI providers" });
   fireEvent.click(
     within(region).getByRole("button", { name: "Manage AI providers" }),
@@ -33,12 +26,10 @@ describe("AI providers (BYOK)", () => {
         return base.listProviders();
       },
     };
-    renderApp(gateway);
+    await renderSettings(gateway);
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
-    );
     const region = await screen.findByRole("region", { name: "AI providers" });
+    // Opening Settings must not touch the keychain.
     expect(calls).toBe(0);
 
     fireEvent.click(
@@ -49,7 +40,7 @@ describe("AI providers (BYOK)", () => {
   });
 
   it("validates then stores a key without echoing the value", async () => {
-    renderApp(createMockGateway());
+    await renderSettings(createMockGateway());
     const region = await openProviders();
 
     await within(region).findByText("OpenAI");
@@ -72,7 +63,7 @@ describe("AI providers (BYOK)", () => {
   });
 
   it("does not store a key the provider rejects, and shows why", async () => {
-    renderApp(createMockGateway());
+    await renderSettings(createMockGateway());
     const region = await openProviders();
 
     await within(region).findByText("OpenAI");
@@ -96,7 +87,7 @@ describe("AI providers (BYOK)", () => {
   });
 
   it("guides the user to where they can get an API key", async () => {
-    renderApp(createMockGateway());
+    await renderSettings(createMockGateway());
     const region = await openProviders();
 
     const openaiRow = (await within(region).findByText("OpenAI")).closest(
@@ -110,7 +101,7 @@ describe("AI providers (BYOK)", () => {
   });
 
   it("does not offer a key field for the on-device provider", async () => {
-    renderApp(createMockGateway());
+    await renderSettings(createMockGateway());
     const region = await openProviders();
 
     const ollamaRow = (

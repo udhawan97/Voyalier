@@ -28,7 +28,13 @@ const PROVIDER_OPTIONS: { id: ProviderId; labelKey: MessageKey }[] = [
  * never reach a provider. Previewing sends nothing; running sends the shown
  * request (on-device for Ollama, to the provider for cloud) and logs it.
  */
-export function AssistPreview({ tripId }: { tripId: string }) {
+export function AssistPreview({
+  tripId,
+  onOpenSettings,
+}: {
+  tripId: string;
+  onOpenSettings?: () => void;
+}) {
   const gateway = useGateway();
   const announce = useAnnounce();
   const selectId = useId();
@@ -128,6 +134,21 @@ export function AssistPreview({ tripId }: { tripId: string }) {
           {t("assist.preview")}
         </Button>
       </div>
+
+      {/* The AI panels used to sit on this page; they now live in Settings, so
+          the trip page has to say where they went. */}
+      {onOpenSettings ? (
+        <p className="voy-assist__setup">
+          {t("assist.needsSetup")}{" "}
+          <button
+            type="button"
+            className="voy-linkbtn"
+            onClick={onOpenSettings}
+          >
+            {t("assist.needsSetup.link")}
+          </button>
+        </p>
+      ) : null}
 
       {error ? (
         <p className="voy-assist__error" role="alert">
