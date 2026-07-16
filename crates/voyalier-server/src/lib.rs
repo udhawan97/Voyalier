@@ -217,6 +217,10 @@ pub fn app(service: AppService) -> Router {
             post(get_recommendations),
         )
         .route(
+            "/api/v1/trips/{trip_id}/notes",
+            get(get_trip_notes).post(set_trip_notes),
+        )
+        .route(
             "/api/v1/trips/{trip_id}/documents",
             post(import_document).get(list_documents),
         )
@@ -551,6 +555,27 @@ async fn import_document(
 ) -> Result<impl IntoResponse, ApiError> {
     ensure_path_trip_matches(&trip_id, &input.trip_id)?;
     Ok((StatusCode::CREATED, Json(service.import_document(input)?)))
+}
+
+async fn get_trip_notes(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.get_trip_notes(&trip_id)?))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NotesBody {
+    body: String,
+}
+
+async fn set_trip_notes(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+    Json(input): Json<NotesBody>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.set_trip_notes(&trip_id, &input.body)?))
 }
 
 async fn list_documents(

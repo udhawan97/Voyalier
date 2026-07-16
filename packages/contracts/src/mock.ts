@@ -1,3 +1,5 @@
+import { MAX_NOTES_CHARS } from "./index";
+
 import type {
   AddManualFactInput,
   AiPrompt,
@@ -19,6 +21,7 @@ import type {
   FactPayload,
   DocumentContent,
   DocumentSummary,
+  TripNotes,
   FcdoCountry,
   FetchTravelAdviceInput,
   FlightSegmentPayload,
@@ -1269,6 +1272,7 @@ export function createMockGateway(options?: {
   const facts = new Map(
     fixtureConfirmedFacts.map((fact) => [fact.id, clone(fact)]),
   );
+  const notes = new Map<string, TripNotes>();
   const documents = new Map<string, StoredDocument>(
     fixtureDocuments.map((stored) => [stored.document.id, clone(stored)]),
   );
@@ -2329,6 +2333,36 @@ export function createMockGateway(options?: {
           parserRunId: nextId("parser_run"),
           candidates: [],
         } satisfies ImportResult;
+      }),
+
+    getTripNotes: (tripId: string) =>
+      execute("getTripNotes", () => {
+        requireTrip(tripId);
+        return (
+          clone(notes.get(tripId)) ?? {
+            tripId,
+            body: "",
+            updatedAt: null,
+          }
+        );
+      }),
+
+    setTripNotes: (tripId: string, body: string) =>
+      execute("setTripNotes", () => {
+        requireTrip(tripId);
+        if ([...body].length > MAX_NOTES_CHARS) {
+          throw appError(
+            "validation/invalid_input",
+            "Those notes are too long to store",
+          );
+        }
+        if (body === "") {
+          notes.delete(tripId);
+          return { tripId, body: "", updatedAt: null };
+        }
+        const saved: TripNotes = { tripId, body, updatedAt: timestamp() };
+        notes.set(tripId, saved);
+        return clone(saved);
       }),
 
     listDocuments: (tripId: string) =>

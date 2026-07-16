@@ -346,6 +346,25 @@ pub struct ImportResult {
     pub candidates: Vec<CandidateFact>,
 }
 
+/// The most a trip's notes may hold. Generous for prose, bounded so a paste
+/// cannot grow the database without limit.
+pub const MAX_NOTES_CHARS: usize = 100_000;
+
+/// A trip's free-text notes.
+///
+/// Sealed at rest like any other traveler-authored text. Excluded from the brief
+/// and from AI requests **by construction**, not by filtering: both are built
+/// from `(trip, confirmed facts)` and notes are neither, so there is no path for
+/// them to leak into a shared brief or an outbound provider call.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TripNotes {
+    pub trip_id: String,
+    pub body: String,
+    /// None until the traveler first saves something.
+    pub updated_at: Option<String>,
+}
+
 /// A stored document plus what it produced, for the documents manager. The
 /// counts are what make deletion an informed choice: what is about to be
 /// discarded (pending) versus what will outlive the document (confirmed).

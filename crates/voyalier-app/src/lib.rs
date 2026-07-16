@@ -21,25 +21,25 @@ use voyalier_core::{
     DownloadedPack, ErrorCode, ExtractionMethod, FCDO_COUNTRIES, FactPayload, FactType,
     FcdoCountry, FieldSuggestion, HealthResponse, ImportDocumentInput, ImportResult,
     IntelligenceMode, JsonLdParser, KeyValidation, KeyValidationStatus, LocalAiStatus,
-    LocalModelPullResult, LodgingDateProposal, MAX_OFFLINE_MAP_BYTES, NormalizedDocument,
-    OLLAMA_CHAT_URL, OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OPENAI_CHAT_URL, OfflineMapArchive,
-    OfflineMapChunk, OfflineMapDescriptor, PROVIDERS, PackContent, PackInfo, PackSuggestion,
-    ParsedCandidate, PersonaWeights, PlaintextParser, ProviderConfig, ProviderId, Recommendation,
-    RedactionPolicy, SEARCH_SUGGESTION_LIMIT, SearchHit, SearchableDocument, SourceDocument,
-    SuggestionSource, TodayView, TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripStatus,
-    TripSummary, UpdateTripInput, WarningCode, WeatherSnapshot, assess_readiness,
-    build_anthropic_messages_body, build_assist_preview, build_lodging_dates_user_content,
-    build_ollama_chat_body, build_openai_chat_body, build_pull_body, build_today_view,
-    build_trip_brief, changed_payload_fields, detect_itinerary_conflicts, extract_email_body,
-    interpret_key_validation, interpret_pull_response, new_id, now_rfc3339,
-    offline_map_download_url, pack_catalog, pack_download_url, parse_anthropic_reply,
-    parse_fcdo_content, parse_forecast_response, parse_geocoding_response,
-    parse_lodging_dates_reply, parse_ollama_chat_reply, parse_openai_chat_reply,
-    parse_pack_content, provider_info, provider_validation_endpoint, provider_validation_headers,
-    rank_field_suggestions, recommend_places, search_trip_corpus, suggest_packs,
-    suggest_search_terms, validate_api_key, validate_country_slug, validate_create_trip,
-    validate_document_content, validate_fact_payload, validate_model_name, validate_pack_id,
-    validate_provider_id, validate_search_query, validate_update_trip,
+    LocalModelPullResult, LodgingDateProposal, MAX_NOTES_CHARS, MAX_OFFLINE_MAP_BYTES,
+    NormalizedDocument, OLLAMA_CHAT_URL, OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OPENAI_CHAT_URL,
+    OfflineMapArchive, OfflineMapChunk, OfflineMapDescriptor, PROVIDERS, PackContent, PackInfo,
+    PackSuggestion, ParsedCandidate, PersonaWeights, PlaintextParser, ProviderConfig, ProviderId,
+    Recommendation, RedactionPolicy, SEARCH_SUGGESTION_LIMIT, SearchHit, SearchableDocument,
+    SourceDocument, SuggestionSource, TodayView, TravelAdviceSnapshot, Trip, TripBrief, TripDetail,
+    TripNotes, TripStatus, TripSummary, UpdateTripInput, WarningCode, WeatherSnapshot,
+    assess_readiness, build_anthropic_messages_body, build_assist_preview,
+    build_lodging_dates_user_content, build_ollama_chat_body, build_openai_chat_body,
+    build_pull_body, build_today_view, build_trip_brief, changed_payload_fields,
+    detect_itinerary_conflicts, extract_email_body, interpret_key_validation,
+    interpret_pull_response, new_id, now_rfc3339, offline_map_download_url, pack_catalog,
+    pack_download_url, parse_anthropic_reply, parse_fcdo_content, parse_forecast_response,
+    parse_geocoding_response, parse_lodging_dates_reply, parse_ollama_chat_reply,
+    parse_openai_chat_reply, parse_pack_content, provider_info, provider_validation_endpoint,
+    provider_validation_headers, rank_field_suggestions, recommend_places, search_trip_corpus,
+    suggest_packs, suggest_search_terms, validate_api_key, validate_country_slug,
+    validate_create_trip, validate_document_content, validate_fact_payload, validate_model_name,
+    validate_pack_id, validate_provider_id, validate_search_query, validate_update_trip,
 };
 use voyalier_core::{
     VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, VaultStatus, derive_key as vault_derive_key,
@@ -574,6 +574,9 @@ const SEALED_COLUMNS: &[(&str, &str)] = &[
     // carry verbatim excerpts of the source text (often the code itself).
     ("candidate_facts", "payload"),
     ("candidate_facts", "field_spans"),
+    // Notes are whatever the traveler chose to write down — treat them as
+    // sensitive as the confirmations they sit beside.
+    ("trip_notes", "body"),
 ];
 
 /// Seal any legacy plaintext values in the vault's sensitive columns once the
@@ -2348,6 +2351,74 @@ impl AppService {
         }
     }
 
+    /// A trip's notes. Absent notes are an empty body, not an error — "nothing
+    /// written yet" is the normal first state, not a failure.
+    pub fn get_trip_notes(&self, trip_id: &str) -> Result<TripNotes, AppError> {
+        let connection = self.connection()?;
+        fetch_trip(&connection, trip_id)?;
+        let stored: Option<(String, String)> = connection
+            .query_row(
+                "SELECT body, updated_at FROM trip_notes WHERE trip_id = ?1",
+                params![trip_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()
+            .map_err(storage_error)?;
+        match stored {
+            Some((sealed, updated_at)) => Ok(TripNotes {
+                trip_id: trip_id.to_owned(),
+                body: self.vault.open_field(&sealed)?,
+                updated_at: Some(updated_at),
+            }),
+            None => Ok(TripNotes {
+                trip_id: trip_id.to_owned(),
+                body: String::new(),
+                updated_at: None,
+            }),
+        }
+    }
+
+    /// Replace a trip's notes. Clearing them removes the row rather than storing
+    /// an empty string, so "no notes" is one state and not two.
+    pub fn set_trip_notes(&self, trip_id: &str, body: &str) -> Result<TripNotes, AppError> {
+        if body.chars().count() > MAX_NOTES_CHARS {
+            return Err(AppError::new(
+                ErrorCode::ValidationInvalidInput,
+                "those notes are too long to store",
+            ));
+        }
+        let connection = self.connection()?;
+        fetch_trip(&connection, trip_id)?;
+        if body.is_empty() {
+            connection
+                .execute(
+                    "DELETE FROM trip_notes WHERE trip_id = ?1",
+                    params![trip_id],
+                )
+                .map_err(storage_error)?;
+            return Ok(TripNotes {
+                trip_id: trip_id.to_owned(),
+                body: String::new(),
+                updated_at: None,
+            });
+        }
+        let updated_at = now_rfc3339();
+        let sealed = self.vault.seal_field(body)?;
+        connection
+            .execute(
+                "INSERT INTO trip_notes (id, trip_id, body, updated_at)
+                 VALUES (?1, ?2, ?3, ?4)
+                 ON CONFLICT(trip_id) DO UPDATE SET body = ?3, updated_at = ?4",
+                params![new_id("notes"), trip_id, sealed, updated_at],
+            )
+            .map_err(storage_error)?;
+        Ok(TripNotes {
+            trip_id: trip_id.to_owned(),
+            body: body.to_owned(),
+            updated_at: Some(updated_at),
+        })
+    }
+
     /// Every document imported into a trip, newest first, each with the counts
     /// that make deleting it an informed choice. Bodies are never read here —
     /// this list must stay cheap, and an unsealed body has no business in a
@@ -2797,6 +2868,17 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
                 end_date TEXT NOT NULL,
                 status TEXT NOT NULL CHECK (status IN ('draft', 'active', 'archived')),
                 created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            -- Free text the traveler wrote about a trip. Sealed at rest (see
+            -- SEALED_COLUMNS). It carries an `id` so the seal-on-activation
+            -- migration, which keys on `id`, covers it like every other
+            -- sensitive column. One row per trip, enforced by the UNIQUE.
+            CREATE TABLE IF NOT EXISTS trip_notes (
+                id TEXT PRIMARY KEY,
+                trip_id TEXT NOT NULL UNIQUE REFERENCES trips(id) ON DELETE CASCADE,
+                body TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
 
@@ -5888,6 +5970,87 @@ mod tests {
         assert!(preview.withheld.is_empty());
         assert!(preview.user_content.contains("River Paper Inn"));
         assert!(preview.grounded_in.iter().any(|g| g.contains("imported")));
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn trip_notes_round_trip_and_are_sealed_at_rest() {
+        let database = temp_database("notes-seal");
+        let service = open_test_service(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        // Never written is an empty body, not an error.
+        let empty = service.get_trip_notes(&trip.id).expect("get");
+        assert_eq!(empty.body, "");
+        assert!(empty.updated_at.is_none());
+
+        let saved = service
+            .set_trip_notes(&trip.id, "Ask about the tea house")
+            .expect("set");
+        assert_eq!(saved.body, "Ask about the tea house");
+        assert!(saved.updated_at.is_some());
+        assert_eq!(
+            service.get_trip_notes(&trip.id).expect("get").body,
+            "Ask about the tea house"
+        );
+
+        // The row on disk must not hold the plaintext.
+        let connection = Connection::open(&database).expect("open db");
+        let stored: String = connection
+            .query_row("SELECT body FROM trip_notes", [], |row| row.get(0))
+            .expect("stored row");
+        assert!(
+            !stored.contains("tea house"),
+            "notes must be sealed at rest"
+        );
+        drop(connection);
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn clearing_trip_notes_removes_them_rather_than_storing_blank() {
+        let database = temp_database("notes-clear");
+        let service = open_test_service(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        service.set_trip_notes(&trip.id, "Temporary").expect("set");
+
+        let cleared = service.set_trip_notes(&trip.id, "").expect("clear");
+        assert_eq!(cleared.body, "");
+        // Cleared and never-written are one state, not two.
+        assert!(cleared.updated_at.is_none());
+        assert!(
+            service
+                .get_trip_notes(&trip.id)
+                .expect("get")
+                .updated_at
+                .is_none()
+        );
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn trip_notes_are_bounded_and_never_reach_a_brief() {
+        let database = temp_database("notes-bounds");
+        let service = open_test_service(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        let too_long = "x".repeat(MAX_NOTES_CHARS + 1);
+        assert_eq!(
+            service
+                .set_trip_notes(&trip.id, &too_long)
+                .unwrap_err()
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
+
+        // The brief is built from the trip and its facts, so notes have no path
+        // into it. Assert the property rather than trusting the shape.
+        service
+            .set_trip_notes(&trip.id, "SECRET-NOTE-TEXT")
+            .expect("set");
+        let brief = service.get_trip_brief(&trip.id).expect("brief");
+        let rendered = serde_json::to_string(&brief).expect("json");
+        assert!(!rendered.contains("SECRET-NOTE-TEXT"));
         cleanup_database(database);
     }
 

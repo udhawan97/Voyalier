@@ -8,8 +8,8 @@ use voyalier_core::{
     FcdoCountry, FieldSuggestion, HealthResponse, ImportDocumentInput, ImportResult, KeyValidation,
     LocalAiStatus, LocalModelPullResult, OfflineMapArchive, OfflineMapChunk, PackInfo,
     PackSuggestion, PersonaWeights, ProviderConfig, Recommendation, SearchHit, TodayView,
-    TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripSummary, UpdateTripInput, VaultStatus,
-    WeatherSnapshot,
+    TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripNotes, TripSummary, UpdateTripInput,
+    VaultStatus, WeatherSnapshot,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -497,6 +497,29 @@ fn import_document(
     service.import_document(input)
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SetTripNotesInput {
+    trip_id: String,
+    body: String,
+}
+
+#[tauri::command]
+fn get_trip_notes(
+    input: TripIdInput,
+    service: State<'_, AppService>,
+) -> Result<TripNotes, AppError> {
+    service.get_trip_notes(&input.trip_id)
+}
+
+#[tauri::command]
+fn set_trip_notes(
+    input: SetTripNotesInput,
+    service: State<'_, AppService>,
+) -> Result<TripNotes, AppError> {
+    service.set_trip_notes(&input.trip_id, &input.body)
+}
+
 #[tauri::command]
 fn list_documents(
     input: TripIdInput,
@@ -813,6 +836,8 @@ fn builder<R: tauri::Runtime>(
             fetch_weather,
             delete_trip,
             import_document,
+            get_trip_notes,
+            set_trip_notes,
             list_documents,
             get_document,
             delete_document,

@@ -175,6 +175,22 @@ export interface DocumentContent {
   document: SourceDocument;
   content: string;
 }
+/**
+ * A trip's free-text notes.
+ *
+ * Sealed at rest like any other traveler-authored text, and excluded from the
+ * brief and from AI requests **by construction**: both are built from the trip
+ * plus its confirmed facts, and notes are neither, so no filter has to remember
+ * to leave them out.
+ */
+export interface TripNotes {
+  tripId: string;
+  body: string;
+  /** null until the traveler first saves something. */
+  updatedAt: string | null;
+}
+/** The most a trip's notes may hold; mirrors MAX_NOTES_CHARS in the core. */
+export const MAX_NOTES_CHARS = 100_000;
 /** One fetchable FCDO country page (curated list; slugs are never free text). */
 export interface FcdoCountry {
   slug: string;
@@ -666,6 +682,10 @@ export interface AppGateway {
   suggestSearchTerms(tripId: string, query: string): Promise<string[]>;
   deleteTrip(tripId: string): Promise<void>;
   importDocument(input: ImportDocumentInput): Promise<ImportResult>;
+  /** A trip's notes. Never written yet is an empty body, not an error. */
+  getTripNotes(tripId: string): Promise<TripNotes>;
+  /** Replace a trip's notes; an empty body clears them. */
+  setTripNotes(tripId: string, body: string): Promise<TripNotes>;
   /** Every document imported into a trip, newest first, with its candidate counts. */
   listDocuments(tripId: string): Promise<DocumentSummary[]>;
   /** One document's original text, unsealed on demand — never listed in bulk. */

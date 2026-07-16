@@ -656,6 +656,21 @@ const en = {
   "assist.needsSetup": "Set up AI in Settings to use this.",
   "assist.needsSetup.link": "Open Settings",
 
+  "notes.title": "Notes",
+  "notes.intro":
+    "Anything you want to remember: half-made plans, a restaurant someone mentioned, what to book next.",
+  // Stated because it is a real guarantee, not a nicety: the brief and every AI
+  // request are built from the trip and its confirmed facts, and notes are
+  // neither, so they cannot reach either one.
+  "notes.excluded":
+    "Kept on this device and encrypted. Never included in a shared brief or sent to an AI provider.",
+  "notes.label": "Trip notes",
+  "notes.placeholder": "Start typing…",
+  "notes.saving": "Saving…",
+  "notes.saved": "Saved",
+  "notes.error": "Couldn't save your notes — they're still here, untouched.",
+  "notes.tooLong": "That's longer than Voyalier can store. Nothing was saved.",
+
   "ics.export": "Export calendar",
   "ics.exporting": "Preparing…",
   "ics.error": "Couldn't build the calendar file.",

@@ -48,6 +48,7 @@ import { AddFactDialog } from "./AddFactDialog";
 import { BriefDialog } from "./BriefDialog";
 import { CandidateReviewDialog } from "./CandidateReviewDialog";
 import { DocumentsPanel } from "./DocumentsPanel";
+import { TripNotes } from "./TripNotes";
 import { TodayPanel } from "./TodayPanel";
 import { AssistPreview } from "./AssistPreview";
 import { AssistDraft } from "./AssistDraft";
@@ -681,6 +682,8 @@ export function TripDetailView({
         snapshot={data.detail.weather}
         onFetched={() => reload()}
       />
+
+      <TripNotes tripId={tripId} />
 
       <DocumentsPanel
         tripId={tripId}

@@ -3662,6 +3662,54 @@ body::before {
   border-color: var(--voy-line-strong);
 }
 
+/* ---- Trip notes -------------------------------------------------------- */
+
+.voy-notes__intro {
+  margin: 0 0 0.9rem;
+  color: var(--voy-ink-muted);
+}
+
+.voy-notes__field {
+  width: 100%;
+  padding: 0.9rem;
+  background: var(--voy-paper-raised);
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-md);
+  color: var(--voy-ink);
+  font: inherit;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.voy-notes__foot {
+  display: flex;
+  gap: 1rem;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+}
+
+.voy-notes__excluded {
+  margin: 0;
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+}
+
+/* Reserve the line so a "Saved" whisper appearing never nudges the layout. */
+.voy-notes__state {
+  flex: none;
+  min-height: 1.2em;
+  margin: 0;
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+}
+
+.voy-notes__error {
+  margin: 0.5rem 0 0;
+  color: var(--voy-danger);
+  font-size: var(--voy-text-sm);
+}
+
 /* ---- Imported documents ------------------------------------------------ */
 
 .voy-docs__intro {
