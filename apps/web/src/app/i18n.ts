@@ -436,6 +436,8 @@ const en = {
   "packs.layers.aria": "{name} data layers",
   "packs.remove": "Remove",
   "packs.download": "Download for this trip",
+  "packs.includesOfflineMap":
+    "Includes a verified offline map download (about 16 MB).",
   "packs.scope":
     "Packs are stored on this device for this trip. Downloading pulls data in from GitHub; nothing about your trip is sent.",
   "packs.announce.downloaded": "{name} pack downloaded.",
@@ -576,6 +578,7 @@ const en = {
   "packs.notes.one": "{count} note",
   "packs.notes.other": "{count} notes",
   "packs.offline": "offline",
+  "packs.offlineMap": "offline map ready",
   "recs.announce.count.one": "{count} recommendation.",
   "recs.announce.count.other": "{count} recommendations.",
 
@@ -624,10 +627,12 @@ const en = {
 
   "map.title": "Map",
   "map.intro":
-    "See your destination and recommended places on a map. Showing it fetches map tiles from OpenFreeMap — an explicit, one-time network request, like the weather outlook. Nothing about your trip is sent.",
+    "See your destination and recommended places on a map. A downloaded offline basemap stays on this device; otherwise showing the map fetches tiles from OpenFreeMap. Nothing about your trip is sent.",
   "map.show": "Show map",
   "map.aria": "Trip map",
   "map.scope": "Basemap © OpenFreeMap · map data © OpenStreetMap contributors.",
+  "map.scope.offline":
+    "Offline basemap from {source} · map data © OpenStreetMap contributors. No tile request left this device.",
   "map.scope.empty":
     " Download a city pack and get recommendations to see places here.",
   "map.error.load":

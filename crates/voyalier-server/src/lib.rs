@@ -95,6 +95,14 @@ struct PassphraseBody {
     passphrase: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OfflineMapRangeBody {
+    pack_id: String,
+    offset: u64,
+    length: u32,
+}
+
 #[derive(Debug)]
 struct ApiError(AppError);
 
@@ -143,6 +151,11 @@ pub fn app(service: AppService) -> Router {
         .route(
             "/api/v1/trips/{trip_id}/packs/{pack_id}",
             post(download_pack).delete(delete_downloaded_pack),
+        )
+        .route("/api/v1/trips/{trip_id}/offline-map", get(get_offline_map))
+        .route(
+            "/api/v1/trips/{trip_id}/offline-map/range",
+            post(read_offline_map_range),
         )
         .route("/api/v1/local-ai", get(detect_local_ai))
         .route("/api/v1/local-ai/pull", post(pull_local_model))
@@ -431,6 +444,26 @@ async fn delete_downloaded_pack(
 ) -> Result<impl IntoResponse, ApiError> {
     service.delete_downloaded_pack(&trip_id, &pack_id)?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+async fn get_offline_map(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.get_offline_map(&trip_id)?))
+}
+
+async fn read_offline_map_range(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+    Json(body): Json<OfflineMapRangeBody>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.read_offline_map_range(
+        &trip_id,
+        &body.pack_id,
+        body.offset,
+        body.length,
+    )?))
 }
 
 async fn detect_local_ai(State(service): State<AppService>) -> Result<impl IntoResponse, ApiError> {
@@ -1401,6 +1434,16 @@ mod tests {
         )
         .await;
         assert_eq!(listed.json.as_array().expect("arr").len(), 1);
+
+        let offline_map = request(
+            router.clone(),
+            Method::GET,
+            &format!("/api/v1/trips/{trip_id}/offline-map"),
+            None,
+        )
+        .await;
+        assert_eq!(offline_map.status, StatusCode::OK);
+        assert!(offline_map.json.is_null());
 
         let removed = request(
             router,

@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import type { Map as MaplibreMap } from "maplibre-gl";
-import type { PersonaWeights, Recommendation } from "@voyalier/contracts";
+import type { Map as MaplibreMap, StyleSpecification } from "maplibre-gl";
+import type { Source as PmtilesSource } from "pmtiles";
+import type {
+  AppGateway,
+  OfflineMapArchive,
+  PersonaWeights,
+  Recommendation,
+} from "@voyalier/contracts";
 
 import { useGateway } from "../app/context";
 import { t } from "../app/i18n";
@@ -12,10 +18,135 @@ import { Button } from "../components/Button";
 // consent-gated, so the library (and its CSS) is loaded on demand the first time
 // a user clicks "Show map", keeping it out of the initial bundle entirely.
 type Maplibre = typeof import("maplibre-gl");
+type Pmtiles = typeof import("pmtiles");
 
 // OpenFreeMap Liberty: a free, no-API-key vector basemap (OpenStreetMap data).
 // The offline path is a per-pack PMTiles extract read via the pmtiles protocol.
 const STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
+
+class GatewayPmtilesSource implements PmtilesSource {
+  constructor(
+    private readonly gateway: AppGateway,
+    private readonly tripId: string,
+    private readonly archive: OfflineMapArchive,
+  ) {}
+
+  getKey(): string {
+    return `voyalier-${this.archive.packId}-${this.archive.sha256}`;
+  }
+
+  async getBytes(
+    offset: number,
+    length: number,
+    signal?: AbortSignal,
+  ): Promise<{ data: ArrayBuffer; etag: string }> {
+    signal?.throwIfAborted();
+    const chunk = await this.gateway.readOfflineMapRange(
+      this.tripId,
+      this.archive.packId,
+      offset,
+      length,
+    );
+    signal?.throwIfAborted();
+    const binary = atob(chunk.dataBase64);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    return { data: bytes.buffer, etag: chunk.etag };
+  }
+}
+
+function cssColor(name: string, fallback: string): string {
+  return (
+    getComputedStyle(document.documentElement).getPropertyValue(name).trim() ||
+    fallback
+  );
+}
+
+/** A label-free local style: no glyph, sprite, or tile request can leave the app. */
+function offlineStyle(
+  sourceKey: string,
+  attribution: string,
+): StyleSpecification {
+  const paper = cssColor("--voy-paper", "#f3efe4");
+  const elevated = cssColor("--voy-paper-raised", "#fbf8ef");
+  const ink = cssColor("--voy-ink", "#1a1917");
+  const muted = cssColor("--voy-ink-muted", "#6f6a61");
+  const accent = cssColor("--voy-vermilion", "#c34e33");
+  return {
+    version: 8,
+    name: "Voyalier offline basemap",
+    sources: {
+      protomaps: {
+        type: "vector",
+        url: `pmtiles://${sourceKey}`,
+        attribution,
+      },
+    },
+    layers: [
+      {
+        id: "background",
+        type: "background",
+        paint: { "background-color": paper },
+      },
+      {
+        id: "earth",
+        type: "fill",
+        source: "protomaps",
+        "source-layer": "earth",
+        paint: { "fill-color": paper },
+      },
+      {
+        id: "landcover",
+        type: "fill",
+        source: "protomaps",
+        "source-layer": "landcover",
+        paint: { "fill-color": elevated, "fill-opacity": 0.75 },
+      },
+      {
+        id: "landuse",
+        type: "fill",
+        source: "protomaps",
+        "source-layer": "landuse",
+        paint: { "fill-color": elevated, "fill-opacity": 0.45 },
+      },
+      {
+        id: "water",
+        type: "fill",
+        source: "protomaps",
+        "source-layer": "water",
+        paint: { "fill-color": cssColor("--voy-ai-soft", "#d7e1e8") },
+      },
+      {
+        id: "buildings",
+        type: "fill",
+        source: "protomaps",
+        "source-layer": "buildings",
+        minzoom: 11,
+        paint: { "fill-color": muted, "fill-opacity": 0.22 },
+      },
+      {
+        id: "roads",
+        type: "line",
+        source: "protomaps",
+        "source-layer": "roads",
+        paint: {
+          "line-color": ink,
+          "line-opacity": 0.42,
+          "line-width": ["interpolate", ["linear"], ["zoom"], 5, 0.35, 15, 2.4],
+        },
+      },
+      {
+        id: "boundaries",
+        type: "line",
+        source: "protomaps",
+        "source-layer": "boundaries",
+        paint: { "line-color": accent, "line-opacity": 0.35, "line-width": 1 },
+      },
+    ],
+  };
+}
 
 const BALANCED: PersonaWeights = {
   food: 0.5,
@@ -59,6 +190,8 @@ export function MapPanel({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
   const [ml, setMl] = useState<Maplibre | null>(null);
+  const [pm, setPm] = useState<Pmtiles | null>(null);
+  const [offlineMap, setOfflineMap] = useState<OfflineMapArchive | null>(null);
   const [shown, setShown] = useState(false);
   const [places, setPlaces] = useState<Recommendation[]>([]);
   // A visible reason the canvas is empty: "load" (library failed to import) or
@@ -78,14 +211,18 @@ export function MapPanel({
     const placesPromise = gateway
       .getRecommendations(tripId, BALANCED)
       .catch(() => [] as Recommendation[]); // markers are a bonus
+    const offlineMapPromise = gateway.getOfflineMap(tripId).catch(() => null);
     try {
-      const [mod] = await Promise.all([
+      const [mod, , archive] = await Promise.all([
         import("maplibre-gl"),
         import("maplibre-gl/dist/maplibre-gl.css"),
+        offlineMapPromise,
       ]);
       // The bundler's CJS interop puts the namespace under `default`; fall back
       // to the module itself if a future ESM build exposes it at the top level.
       const lib = ((mod as { default?: Maplibre }).default ?? mod) as Maplibre;
+      setOfflineMap(archive);
+      setPm(archive ? await import("pmtiles") : null);
       setMl(() => lib);
     } catch {
       // The map library failed to load — tell the user rather than leaving a
@@ -99,17 +236,35 @@ export function MapPanel({
   useEffect(() => {
     if (!shown || !ml || !containerRef.current || mapRef.current) return;
     let map: MaplibreMap;
+    let protocolRegistered = false;
     try {
+      let style: string | StyleSpecification = STYLE_URL;
+      if (offlineMap && pm) {
+        const source = new GatewayPmtilesSource(gateway, tripId, offlineMap);
+        const archive = new pm.PMTiles(source);
+        const protocol = new pm.Protocol();
+        protocol.add(archive);
+        ml.addProtocol("pmtiles", protocol.tile);
+        protocolRegistered = true;
+        style = offlineStyle(source.getKey(), offlineMap.attribution);
+      }
       map = new ml.Map({
         container: containerRef.current,
-        style: STYLE_URL,
-        center: center ? [center.lon, center.lat] : [10, 30],
-        zoom: center ? 10 : 1.4,
+        style,
+        center: center
+          ? [center.lon, center.lat]
+          : offlineMap
+            ? [
+                (offlineMap.bbox.west + offlineMap.bbox.east) / 2,
+                (offlineMap.bbox.south + offlineMap.bbox.north) / 2,
+              ]
+            : [10, 30],
+        zoom: center || offlineMap ? 10 : 1.4,
       });
     } catch {
-      // Map construction still failed despite the WebGL pre-check — leave the
-      // frame empty rather than crashing; the rest of the trip view is fine.
-      return;
+      if (protocolRegistered) ml.removeProtocol("pmtiles");
+      const failureFrame = requestAnimationFrame(() => setFailure("load"));
+      return () => cancelAnimationFrame(failureFrame);
     }
     map.addControl(new ml.NavigationControl({}), "top-right");
     if (center) {
@@ -126,9 +281,10 @@ export function MapPanel({
     return () => {
       cancelAnimationFrame(frame);
       map.remove();
+      if (protocolRegistered) ml.removeProtocol("pmtiles");
       mapRef.current = null;
     };
-  }, [shown, ml, center]);
+  }, [shown, ml, pm, offlineMap, center, gateway, tripId]);
 
   // Plot recommended places and fit to them when they load.
   useEffect(() => {
@@ -192,7 +348,9 @@ export function MapPanel({
             aria-label={t("map.aria")}
           />
           <p className="voy-map__scope">
-            {t("map.scope")}
+            {offlineMap
+              ? t("map.scope.offline", { source: offlineMap.sourceName })
+              : t("map.scope")}
             {places.length === 0 ? t("map.scope.empty") : ""}
           </p>
         </>

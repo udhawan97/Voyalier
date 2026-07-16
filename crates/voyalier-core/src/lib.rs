@@ -44,9 +44,10 @@ pub use local_ai::{
     build_pull_body, interpret_pull_response, parse_ollama_models,
 };
 pub use packs::{
-    BoundingBox, DownloadedPack, PACK_RELEASE_TAG, PackArticle, PackContent, PackInfo,
-    PackLayerLicense, PackMatchKind, PackPlace, PackSuggestion, normalize_place, pack_catalog,
-    pack_download_url, parse_pack_content, suggest_packs, validate_pack_id,
+    BoundingBox, DownloadedPack, MAX_OFFLINE_MAP_BYTES, OfflineMapArchive, OfflineMapChunk,
+    OfflineMapDescriptor, PACK_RELEASE_TAG, PackArticle, PackContent, PackInfo, PackLayerLicense,
+    PackMatchKind, PackPlace, PackSuggestion, normalize_place, offline_map_download_url,
+    pack_catalog, pack_download_url, parse_pack_content, suggest_packs, validate_pack_id,
 };
 pub use parser::{
     ConfirmationParser, JsonLdParser, NormalizedDocument, ParsedCandidate, ParserDiagnostic,

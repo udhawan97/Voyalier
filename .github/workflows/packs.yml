@@ -19,6 +19,14 @@ on:
         description: Overture Maps release to query
         default: "2025-01-22.0"
         type: string
+      protomaps_build:
+        description: Exact Protomaps planet build date (YYYYMMDD)
+        default: "20260715"
+        type: string
+      offline_map_pack_id:
+        description: One catalog pack to receive an offline PMTiles basemap
+        default: us-nashville
+        type: string
 
 permissions:
   contents: write # create/update the release and upload assets
@@ -55,11 +63,25 @@ jobs:
           OVERTURE_RELEASE: ${{ inputs.overture_release }}
         run: node scripts/build-packs.mjs catalog.json
 
-      # TODO(maps): also build a per-pack PMTiles basemap extract clipped to each
-      # pack's bbox (tippecanoe + pmtiles, from a Protomaps/OSM extract) and
-      # upload it here, so a downloaded pack has an offline map. See
-      # docs/architecture/MAPS.md. Until then the app uses the OpenFreeMap
-      # basemap online.
+      - name: Install pinned PMTiles CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/go-pmtiles.tar.gz"
+          curl -fsSL \
+            https://github.com/protomaps/go-pmtiles/releases/download/v1.30.0/go-pmtiles_1.30.0_Linux_x86_64.tar.gz \
+            -o "$archive"
+          echo "429dfa99b6f76fa116b2299a9466bb3811d59aaf1c36c216a41829a2696bee3b  $archive" \
+            | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/pmtiles"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/pmtiles"
+          echo "$RUNNER_TEMP/pmtiles" >> "$GITHUB_PATH"
+
+      - name: Build and verify one offline basemap slice
+        env:
+          OFFLINE_MAP_PACK_ID: ${{ inputs.offline_map_pack_id }}
+          PROTOMAPS_BUILD: ${{ inputs.protomaps_build }}
+        run: node scripts/build-offline-map.mjs catalog.json
 
       - name: Publish pack assets to the release
         env:
@@ -77,7 +99,7 @@ jobs:
           # to a pack release and 404s the in-app updater's latest.json. Enforced
           # even for a pre-existing release so it can't regress.
           gh release edit "$RELEASE_TAG" --prerelease
-          gh release upload "$RELEASE_TAG" dist/packs/*.json --clobber
+          gh release upload "$RELEASE_TAG" dist/packs/*.json dist/packs/*.pmtiles --clobber
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

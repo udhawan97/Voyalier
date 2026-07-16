@@ -69,6 +69,10 @@ pub struct PackInfo {
     pub bbox: BoundingBox,
     /// The Wikivoyage article the prose layer is built from.
     pub wikivoyage_article: String,
+    /// True when the published pack is expected to include a local PMTiles
+    /// archive. This lets the download UI disclose the extra payload up front.
+    #[serde(default)]
+    pub offline_map_available: bool,
     /// Per-layer licenses (always a permissive places layer + a share-alike
     /// articles layer).
     pub layers: Vec<PackLayerLicense>,
@@ -99,6 +103,7 @@ fn pack(id: &str, name: &str, region: &str, article: &str, bbox: BoundingBox) ->
         region: region.to_owned(),
         bbox,
         wikivoyage_article: article.to_owned(),
+        offline_map_available: id == "us-nashville",
         layers: vec![places_layer(), articles_layer()],
     }
 }
@@ -244,11 +249,23 @@ pub fn validate_pack_id(id: &str) -> Result<PackInfo, AppError> {
 /// The GitHub Release tag pack contents are published under.
 pub const PACK_RELEASE_TAG: &str = "packs-v1";
 
+/// Hard ceiling for one offline city basemap. The app verifies this before
+/// storing bytes so a compromised release cannot exhaust local disk or memory.
+pub const MAX_OFFLINE_MAP_BYTES: u64 = 128 * 1024 * 1024;
+
 /// The download URL for a pack's contents (a single JSON asset on a GitHub
 /// Release). Downloading it pulls data *in*; nothing about the trip is sent.
 pub fn pack_download_url(pack_id: &str) -> String {
     format!(
         "https://github.com/udhawan97/Voyalier/releases/download/{PACK_RELEASE_TAG}/{pack_id}.json"
+    )
+}
+
+/// The immutable release-asset URL for a validated offline-map descriptor.
+/// Downloading pulls public map data in; no trip data is sent.
+pub fn offline_map_download_url(asset_name: &str) -> String {
+    format!(
+        "https://github.com/udhawan97/Voyalier/releases/download/{PACK_RELEASE_TAG}/{asset_name}"
     )
 }
 
@@ -271,6 +288,24 @@ pub struct PackArticle {
     pub text: String,
 }
 
+/// Provenance and integrity metadata for an optional per-pack PMTiles archive.
+/// This is published inside the signed/hashed pack JSON and validated before
+/// the application downloads the binary asset.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OfflineMapDescriptor {
+    pub asset_name: String,
+    pub byte_length: u64,
+    pub sha256: String,
+    pub source_name: String,
+    pub source_url: String,
+    pub license: String,
+    pub attribution: String,
+    pub fetched_at: String,
+    pub min_zoom: u8,
+    pub max_zoom: u8,
+}
+
 /// The contents of a downloaded pack, as published by CI.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -280,6 +315,8 @@ pub struct PackContent {
     pub places: Vec<PackPlace>,
     #[serde(default)]
     pub articles: Vec<PackArticle>,
+    #[serde(default)]
+    pub offline_map: Option<OfflineMapDescriptor>,
 }
 
 /// A stored record that a pack was downloaded for a trip. Summary metadata; the
@@ -293,6 +330,35 @@ pub struct DownloadedPack {
     pub place_count: u32,
     pub article_count: u32,
     pub downloaded_at: String,
+    #[serde(default)]
+    pub offline_map_ready: bool,
+}
+
+/// A locally stored offline basemap that can be read in bounded byte ranges.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OfflineMapArchive {
+    pub pack_id: String,
+    pub name: String,
+    pub bbox: BoundingBox,
+    pub byte_length: u64,
+    pub sha256: String,
+    pub source_name: String,
+    pub source_url: String,
+    pub license: String,
+    pub attribution: String,
+    pub fetched_at: String,
+    pub min_zoom: u8,
+    pub max_zoom: u8,
+}
+
+/// One base64-encoded slice of a local PMTiles archive. The archive hash is the
+/// stable ETag used by the PMTiles range cache.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OfflineMapChunk {
+    pub data_base64: String,
+    pub etag: String,
 }
 
 /// How strongly a trip destination matched a catalog pack.
@@ -486,6 +552,31 @@ pub fn parse_pack_content(expected_id: &str, body: &str) -> Result<PackContent, 
             "the downloaded city pack did not match the requested pack",
         ));
     }
+    if let Some(map) = &content.offline_map {
+        let expected_asset = format!("{expected_id}.pmtiles");
+        let valid_hash =
+            map.sha256.len() == 64 && map.sha256.bytes().all(|byte| byte.is_ascii_hexdigit());
+        let valid_source = map.source_url.starts_with("https://build.protomaps.com/")
+            && map.source_url.ends_with(".pmtiles");
+        let valid_fetched_at = map.fetched_at.parse::<jiff::Timestamp>().is_ok();
+        if map.asset_name != expected_asset
+            || map.byte_length == 0
+            || map.byte_length > MAX_OFFLINE_MAP_BYTES
+            || !valid_hash
+            || map.source_name.trim().is_empty()
+            || !valid_source
+            || map.license != "ODbL-1.0"
+            || map.attribution.trim().is_empty()
+            || !valid_fetched_at
+            || map.min_zoom > map.max_zoom
+            || map.max_zoom > 22
+        {
+            return Err(AppError::new(
+                ErrorCode::PackDownloadFailed,
+                "the downloaded city pack had invalid offline-map metadata",
+            ));
+        }
+    }
     Ok(content)
 }
 
@@ -515,6 +606,14 @@ mod tests {
                 .filter(|info| info.region == "Hawaii, USA")
                 .count(),
             4
+        );
+        assert_eq!(
+            catalog
+                .iter()
+                .filter(|info| info.offline_map_available)
+                .map(|info| info.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["us-nashville"]
         );
     }
 
@@ -667,6 +766,7 @@ mod tests {
         let content = parse_pack_content("us-nashville", body).expect("content");
         assert_eq!(content.places.len(), 1);
         assert_eq!(content.articles.len(), 1);
+        assert!(content.offline_map.is_none());
         assert_eq!(content.places[0].name, "Ryman Auditorium");
 
         // A body for a different pack is refused.
@@ -680,6 +780,29 @@ mod tests {
         assert_eq!(
             parse_pack_content("us-nashville", "not json")
                 .expect_err("garbage")
+                .code,
+            ErrorCode::PackDownloadFailed
+        );
+
+        let mapped = r#"{
+            "packId":"us-nashville","places":[],"articles":[],
+            "offlineMap":{
+              "assetName":"us-nashville.pmtiles","byteLength":16777216,
+              "sha256":"d288f572a668f3e542c8e16e38127db8fa20c0fd2d2fe9029385b9c5c1cd5889",
+              "sourceName":"Protomaps Basemap","sourceUrl":"https://build.protomaps.com/20260715.pmtiles",
+              "license":"ODbL-1.0","attribution":"© OpenStreetMap contributors",
+              "fetchedAt":"2026-07-16T00:27:07Z","minZoom":0,"maxZoom":15
+            }
+        }"#;
+        assert!(
+            parse_pack_content("us-nashville", mapped)
+                .expect("mapped pack")
+                .offline_map
+                .is_some()
+        );
+        assert_eq!(
+            parse_pack_content("us-nashville", &mapped.replace("d288", "nope"))
+                .expect_err("invalid hash")
                 .code,
             ErrorCode::PackDownloadFailed
         );

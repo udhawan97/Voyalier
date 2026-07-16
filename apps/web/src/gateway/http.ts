@@ -23,6 +23,8 @@ import type {
   KeyValidation,
   LocalAiStatus,
   LocalModelPullResult,
+  OfflineMapArchive,
+  OfflineMapChunk,
   PackInfo,
   PackSuggestion,
   PersonaWeights,
@@ -239,6 +241,24 @@ export function createHttpGateway(
       request<void>(
         "DELETE",
         `/api/v1/trips/${enc(tripId)}/packs/${enc(packId)}`,
+      ),
+
+    getOfflineMap: (tripId: string) =>
+      request<OfflineMapArchive | null>(
+        "GET",
+        `/api/v1/trips/${enc(tripId)}/offline-map`,
+      ),
+
+    readOfflineMapRange: (
+      tripId: string,
+      packId: string,
+      offset: number,
+      length: number,
+    ) =>
+      request<OfflineMapChunk>(
+        "POST",
+        `/api/v1/trips/${enc(tripId)}/offline-map/range`,
+        { packId, offset, length },
       ),
 
     getRecommendations: (tripId: string, weights: PersonaWeights) =>

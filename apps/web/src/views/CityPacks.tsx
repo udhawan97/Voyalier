@@ -131,6 +131,7 @@ export function CityPacks({
             {plural("packs.notes", mine.articleCount)}
             {" · "}
             {t("packs.offline")}
+            {mine.offlineMapReady ? ` · ${t("packs.offlineMap")}` : ""}
           </span>
           <ConfirmButton
             label={t("packs.remove")}
@@ -181,6 +182,11 @@ export function CityPacks({
                 <p className="voy-packs__reason">
                   {t(MATCH_REASON[suggestion.matchKind])}
                 </p>
+                {suggestion.pack.offlineMapAvailable ? (
+                  <p className="voy-packs__reason">
+                    {t("packs.includesOfflineMap")}
+                  </p>
+                ) : null}
                 {packControl(
                   suggestion.pack,
                   t("packs.suggested.download", {
@@ -225,6 +231,11 @@ export function CityPacks({
                   </li>
                 ))}
               </ul>
+              {pack.offlineMapAvailable ? (
+                <p className="voy-packs__reason">
+                  {t("packs.includesOfflineMap")}
+                </p>
+              ) : null}
               {packControl(pack, t("packs.download"))}
             </li>
           ))}

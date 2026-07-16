@@ -69,6 +69,9 @@ describe("City packs", () => {
     const nashville = (await within(region).findByText("Nashville")).closest(
       "li",
     )!;
+    expect(
+      within(nashville).getByText(/offline map download \(about 16 MB\)/),
+    ).toBeInTheDocument();
     fireEvent.click(
       within(nashville).getByRole("button", { name: "Download for this trip" }),
     );

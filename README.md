@@ -287,7 +287,7 @@ landed. The remaining work is less “invent the product” and more “make it 
 to hand to someone who has a flight tomorrow.”
 
 - **OS-signed installers** — notarized macOS and signed Windows packages, blocked on paid certificates. (The free in-app updater — minisign verification, checksums, and build provenance — has already shipped and is independent of this.)
-- **Offline map completion** — per-pack PMTiles so the map joins the rest of the trip when the Wi-Fi leaves first
+- **Offline map expansion** — Nashville now has a verified local PMTiles path; extend the same bounded, provenance-preserving pipeline to more city packs
 - **More sourced readiness** — only where licensing, retrieval, and authority boundaries stay honest
 - **More locales** — the message-catalog/`t()` localization infrastructure has shipped; adding translations beyond English remains data-only future work
 - **Performance and support hardening** — larger trips, slower machines, clearer recovery paths, fewer reasons to open an issue from an airport floor
