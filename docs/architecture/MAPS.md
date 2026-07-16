@@ -13,17 +13,21 @@ and nothing about the trip is ever sent to the tile server.
    served under CC-BY. It is fully self-hostable, which keeps the door open to
    dropping in our own hosted tiles without changing the app.
 
-2. **Offline / per-pack — PMTiles.** The intended offline path (and the
-   original product thesis) is [PMTiles](https://protomaps.com/): a single-file
-   tile archive read by MapLibre via the `pmtiles://` protocol using HTTP range
-   requests — so a whole basemap can be served from one static file without a
-   tile server, and a downloaded pack's map works fully offline. The
-   `Build city packs` workflow (`.github/workflows/packs.yml`) is where each
-   pack's PMTiles extract (clipped to its bounding box, built from a Protomaps
-   planet build or an OSM extract via `tippecanoe` + `pmtiles`) is produced and
-   published to the `packs-v1` release, alongside the pack's place data. When a
-   pack is present, the map prefers its local PMTiles; otherwise it falls back
-   to the OpenFreeMap basemap.
+2. **Offline / per-pack — PMTiles.** Nashville is the first complete vertical
+   slice. The `Build city packs` workflow pins and verifies the PMTiles CLI,
+   extracts `us-nashville.pmtiles` from an exact dated Protomaps build, verifies
+   the archive, and publishes it beside pack JSON containing byte length,
+   SHA-256, source URL, fetched time, zoom range, license, and attribution. The
+   core refuses unknown sources, bad metadata, oversized archives, or bytes that
+   do not match the descriptor before storing the file atomically.
+
+   The webview receives neither a filesystem path nor a broad asset-protocol
+   capability. A custom PMTiles source asks the existing app gateway for bounded
+   byte ranges (maximum 4 MiB), and the Rust side seeks and reads those ranges
+   from the verified archive. The local style contains no remote glyph, sprite,
+   or tile URLs. When a compatible local archive is present, the map prefers it;
+   otherwise the explicit Show map action uses OpenFreeMap. Other city packs
+   continue to use that online fallback until their own extracts are enabled.
 
 ## What the map shows
 
@@ -33,13 +37,14 @@ and nothing about the trip is ever sent to the tile server.
 
 ## Attribution
 
-The basemap credits OpenFreeMap and OpenStreetMap contributors, surfaced by
-MapLibre's attribution control and a scope line under the map. Overture and
-Wikivoyage layers in packs keep their own per-layer licenses (see the pack
-manifest).
+The online basemap credits OpenFreeMap and OpenStreetMap contributors. The
+offline Nashville archive records Protomaps as the source, ODbL-1.0 as its
+database license, and OpenStreetMap contributor attribution in both pack JSON
+and the manifest. Overture and Wikivoyage layers keep their own per-layer
+licenses (see the pack manifest).
 
 ## Privacy
 
-Tiles are fetched only on the explicit "Show map" click. Requests carry only
-the map viewport (never trip data). There is no telemetry. A fully offline map
-becomes possible once a pack's PMTiles are downloaded.
+The map initializes only on the explicit "Show map" click. With a verified
+Nashville archive, tile reads stay on-device. Without one, OpenFreeMap requests
+carry only the map viewport (never trip data). There is no telemetry.

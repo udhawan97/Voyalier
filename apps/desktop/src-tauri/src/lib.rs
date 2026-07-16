@@ -6,9 +6,9 @@ use voyalier_core::{
     AssistReply, AssistRequestPreview, CandidateFact, CandidateStatus, ConfirmCandidateInput,
     ConfirmedFact, CreateTripInput, DownloadedPack, ErrorCode, FcdoCountry, FieldSuggestion,
     HealthResponse, ImportDocumentInput, ImportResult, KeyValidation, LocalAiStatus,
-    LocalModelPullResult, PackInfo, PackSuggestion, PersonaWeights, ProviderConfig, Recommendation,
-    SearchHit, TodayView, TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripSummary,
-    UpdateTripInput, VaultStatus, WeatherSnapshot,
+    LocalModelPullResult, OfflineMapArchive, OfflineMapChunk, PackInfo, PackSuggestion,
+    PersonaWeights, ProviderConfig, Recommendation, SearchHit, TodayView, TravelAdviceSnapshot,
+    Trip, TripBrief, TripDetail, TripSummary, UpdateTripInput, VaultStatus, WeatherSnapshot,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -335,6 +335,31 @@ fn delete_downloaded_pack(
     service: State<'_, AppService>,
 ) -> Result<(), AppError> {
     service.delete_downloaded_pack(&input.trip_id, &input.pack_id)
+}
+
+#[tauri::command]
+fn get_offline_map(
+    input: TripIdInput,
+    service: State<'_, AppService>,
+) -> Result<Option<OfflineMapArchive>, AppError> {
+    service.get_offline_map(&input.trip_id)
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OfflineMapRangeInput {
+    trip_id: String,
+    pack_id: String,
+    offset: u64,
+    length: u32,
+}
+
+#[tauri::command]
+fn read_offline_map_range(
+    input: OfflineMapRangeInput,
+    service: State<'_, AppService>,
+) -> Result<OfflineMapChunk, AppError> {
+    service.read_offline_map_range(&input.trip_id, &input.pack_id, input.offset, input.length)
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -746,6 +771,8 @@ fn builder<R: tauri::Runtime>(
             download_pack,
             list_downloaded_packs,
             delete_downloaded_pack,
+            get_offline_map,
+            read_offline_map_range,
             get_recommendations,
             detect_local_ai,
             pull_local_model,
@@ -1103,6 +1130,8 @@ mod tests {
             "download_pack",
             "list_downloaded_packs",
             "delete_downloaded_pack",
+            "get_offline_map",
+            "read_offline_map_range",
             "get_recommendations",
             "detect_local_ai",
             "pull_local_model",

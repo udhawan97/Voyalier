@@ -346,6 +346,7 @@ export interface PackInfo {
   region: string;
   bbox: BoundingBox;
   wikivoyageArticle: string;
+  offlineMapAvailable?: boolean;
   layers: PackLayerLicense[];
 }
 /** A pack downloaded and stored locally for a trip. Summary metadata. */
@@ -356,6 +357,27 @@ export interface DownloadedPack {
   placeCount: number;
   articleCount: number;
   downloadedAt: string;
+  offlineMapReady: boolean;
+}
+/** Metadata for a verified PMTiles archive stored locally for a trip. */
+export interface OfflineMapArchive {
+  packId: string;
+  name: string;
+  bbox: BoundingBox;
+  byteLength: number;
+  sha256: string;
+  sourceName: string;
+  sourceUrl: string;
+  license: string;
+  attribution: string;
+  fetchedAt: string;
+  minZoom: number;
+  maxZoom: number;
+}
+/** A bounded base64-encoded range from a local PMTiles archive. */
+export interface OfflineMapChunk {
+  dataBase64: string;
+  etag: string;
 }
 /** How strongly a trip destination matched a catalog pack. */
 export type PackMatchKind = "exact" | "alias" | "partial";
@@ -595,6 +617,13 @@ export interface AppGateway {
   downloadPack(tripId: string, packId: string): Promise<DownloadedPack>;
   listDownloadedPacks(tripId: string): Promise<DownloadedPack[]>;
   deleteDownloadedPack(tripId: string, packId: string): Promise<void>;
+  getOfflineMap(tripId: string): Promise<OfflineMapArchive | null>;
+  readOfflineMapRange(
+    tripId: string,
+    packId: string,
+    offset: number,
+    length: number,
+  ): Promise<OfflineMapChunk>;
   getRecommendations(
     tripId: string,
     weights: PersonaWeights,

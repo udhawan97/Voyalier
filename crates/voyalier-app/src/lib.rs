@@ -1,5 +1,6 @@
 use std::{
     env, fs,
+    io::{Read, Seek, SeekFrom},
     path::{Path, PathBuf},
     sync::{Arc, Mutex, MutexGuard},
 };
@@ -20,23 +21,25 @@ use voyalier_core::{
     FCDO_COUNTRIES, FactPayload, FactType, FcdoCountry, FieldSuggestion, HealthResponse,
     ImportDocumentInput, ImportResult, IntelligenceMode, JsonLdParser, KeyValidation,
     KeyValidationStatus, LocalAiStatus, LocalModelPullResult, LodgingDateProposal,
-    NormalizedDocument, OLLAMA_CHAT_URL, OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OPENAI_CHAT_URL,
-    PROVIDERS, PackContent, PackInfo, PackSuggestion, ParsedCandidate, PersonaWeights,
-    PlaintextParser, ProviderConfig, ProviderId, Recommendation, RedactionPolicy,
-    SEARCH_SUGGESTION_LIMIT, SearchHit, SearchableDocument, SourceDocument, SuggestionSource,
-    TodayView, TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripStatus, TripSummary,
-    UpdateTripInput, WarningCode, WeatherSnapshot, assess_readiness, build_anthropic_messages_body,
+    MAX_OFFLINE_MAP_BYTES, NormalizedDocument, OLLAMA_CHAT_URL, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,
+    OPENAI_CHAT_URL, OfflineMapArchive, OfflineMapChunk, OfflineMapDescriptor, PROVIDERS,
+    PackContent, PackInfo, PackSuggestion, ParsedCandidate, PersonaWeights, PlaintextParser,
+    ProviderConfig, ProviderId, Recommendation, RedactionPolicy, SEARCH_SUGGESTION_LIMIT,
+    SearchHit, SearchableDocument, SourceDocument, SuggestionSource, TodayView,
+    TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripStatus, TripSummary, UpdateTripInput,
+    WarningCode, WeatherSnapshot, assess_readiness, build_anthropic_messages_body,
     build_assist_preview, build_lodging_dates_user_content, build_ollama_chat_body,
     build_openai_chat_body, build_pull_body, build_today_view, build_trip_brief,
     changed_payload_fields, detect_itinerary_conflicts, extract_email_body,
-    interpret_key_validation, interpret_pull_response, new_id, now_rfc3339, pack_catalog,
-    pack_download_url, parse_anthropic_reply, parse_fcdo_content, parse_forecast_response,
-    parse_geocoding_response, parse_lodging_dates_reply, parse_ollama_chat_reply,
-    parse_openai_chat_reply, parse_pack_content, provider_info, provider_validation_endpoint,
-    provider_validation_headers, rank_field_suggestions, recommend_places, search_trip_corpus,
-    suggest_packs, suggest_search_terms, validate_api_key, validate_country_slug,
-    validate_create_trip, validate_document_content, validate_fact_payload, validate_model_name,
-    validate_pack_id, validate_provider_id, validate_search_query, validate_update_trip,
+    interpret_key_validation, interpret_pull_response, new_id, now_rfc3339,
+    offline_map_download_url, pack_catalog, pack_download_url, parse_anthropic_reply,
+    parse_fcdo_content, parse_forecast_response, parse_geocoding_response,
+    parse_lodging_dates_reply, parse_ollama_chat_reply, parse_openai_chat_reply,
+    parse_pack_content, provider_info, provider_validation_endpoint, provider_validation_headers,
+    rank_field_suggestions, recommend_places, search_trip_corpus, suggest_packs,
+    suggest_search_terms, validate_api_key, validate_country_slug, validate_create_trip,
+    validate_document_content, validate_fact_payload, validate_model_name, validate_pack_id,
+    validate_provider_id, validate_search_query, validate_update_trip,
 };
 use voyalier_core::{
     VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, VaultStatus, derive_key as vault_derive_key,
@@ -44,6 +47,7 @@ use voyalier_core::{
 };
 
 const DATABASE_FILE: &str = "voyalier.sqlite3";
+const MAX_OFFLINE_MAP_RANGE: u32 = 4 * 1024 * 1024;
 
 /// One imported document as `(id, label, decrypted text)`.
 type DocumentText = (String, String, String);
@@ -52,6 +56,16 @@ type DocumentText = (String, String, String);
 /// layer — injectable so every test runs without touching the network.
 pub trait AdviceFetcher: Send + Sync {
     fn fetch_text(&self, url: &str) -> Result<String, AppError>;
+
+    /// Fetch a bounded binary response. Offline basemaps use this only after an
+    /// explicit pack-download click. The default keeps text-only test fetchers
+    /// source-compatible and fails closed if binary fetching was not provided.
+    fn fetch_bytes(&self, _url: &str, _limit: usize) -> Result<Vec<u8>, AppError> {
+        Err(AppError::new(
+            ErrorCode::PackDownloadFailed,
+            "this fetcher does not support binary pack assets",
+        ))
+    }
 
     /// POST a JSON body (with any extra request headers, e.g. an auth header)
     /// and return the response text. Defaults to an error so only fetchers that
@@ -103,6 +117,21 @@ impl AdviceFetcher for UreqFetcher {
         let agent: ureq::Agent = config.into();
         let mut response = agent.get(url).call().map_err(fetch_failure)?;
         response.body_mut().read_to_string().map_err(fetch_failure)
+    }
+
+    fn fetch_bytes(&self, url: &str, limit: usize) -> Result<Vec<u8>, AppError> {
+        let config = ureq::Agent::config_builder()
+            .timeout_global(Some(std::time::Duration::from_secs(120)))
+            .user_agent("Voyalier/0.1 (+https://github.com/udhawan97/Voyalier)")
+            .build();
+        let agent: ureq::Agent = config.into();
+        let mut response = agent.get(url).call().map_err(pack_fetch_failure)?;
+        response
+            .body_mut()
+            .with_config()
+            .limit(limit as u64)
+            .read_to_vec()
+            .map_err(pack_fetch_failure)
     }
 
     fn post_json(
@@ -192,6 +221,13 @@ fn fetch_failure(cause: ureq::Error) -> AppError {
     AppError::new(
         ErrorCode::AdviceFetchFailed,
         format!("could not reach the official source: {cause}"),
+    )
+}
+
+fn pack_fetch_failure(cause: ureq::Error) -> AppError {
+    AppError::new(
+        ErrorCode::PackDownloadFailed,
+        format!("could not download the city pack asset: {cause}"),
     )
 }
 
@@ -958,6 +994,18 @@ impl AppService {
         let content = parse_pack_content(pack_id, &body)?;
         let place_count = content.places.len() as u32;
         let article_count = content.articles.len() as u32;
+        let offline_map_ready = if let Some(descriptor) = &content.offline_map {
+            if !offline_map_is_ready(&self.database_path, pack_id, descriptor) {
+                let url = offline_map_download_url(&descriptor.asset_name);
+                let bytes = self
+                    .fetcher
+                    .fetch_bytes(&url, MAX_OFFLINE_MAP_BYTES as usize)?;
+                store_offline_map(&self.database_path, pack_id, descriptor, &bytes)?;
+            }
+            true
+        } else {
+            false
+        };
         // Store the re-serialized parsed content, not the raw body — so only
         // known fields are kept and the stored size can't diverge from what we
         // counted.
@@ -1002,6 +1050,7 @@ impl AppService {
             place_count,
             article_count,
             downloaded_at,
+            offline_map_ready,
         })
     }
 
@@ -1011,7 +1060,7 @@ impl AppService {
         fetch_trip(&connection, trip_id)?;
         let mut statement = connection
             .prepare(
-                "SELECT pack_id, name, region, place_count, article_count, downloaded_at
+                "SELECT pack_id, name, region, place_count, article_count, downloaded_at, content
                  FROM downloaded_packs
                  WHERE trip_id = ?1
                  ORDER BY downloaded_at DESC, pack_id ASC",
@@ -1019,13 +1068,22 @@ impl AppService {
             .map_err(storage_error)?;
         let rows = statement
             .query_map(params![trip_id], |row| {
+                let pack_id: String = row.get(0)?;
+                let content: String = row.get(6)?;
+                let offline_map_ready = serde_json::from_str::<PackContent>(&content)
+                    .ok()
+                    .and_then(|content| content.offline_map)
+                    .is_some_and(|descriptor| {
+                        offline_map_is_ready(&self.database_path, &pack_id, &descriptor)
+                    });
                 Ok(DownloadedPack {
-                    pack_id: row.get(0)?,
+                    pack_id,
                     name: row.get(1)?,
                     region: row.get(2)?,
                     place_count: row.get(3)?,
                     article_count: row.get(4)?,
                     downloaded_at: row.get(5)?,
+                    offline_map_ready,
                 })
             })
             .map_err(storage_error)?;
@@ -1035,13 +1093,151 @@ impl AppService {
     /// Remove a downloaded pack from a trip.
     pub fn delete_downloaded_pack(&self, trip_id: &str, pack_id: &str) -> Result<(), AppError> {
         let connection = self.connection()?;
+        let descriptor = connection
+            .query_row(
+                "SELECT content FROM downloaded_packs WHERE trip_id = ?1 AND pack_id = ?2",
+                params![trip_id, pack_id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(storage_error)?
+            .and_then(|content| serde_json::from_str::<PackContent>(&content).ok())
+            .and_then(|content| content.offline_map);
         connection
             .execute(
                 "DELETE FROM downloaded_packs WHERE trip_id = ?1 AND pack_id = ?2",
                 params![trip_id, pack_id],
             )
             .map_err(storage_error)?;
+        if let Some(descriptor) = descriptor {
+            let remaining: u32 = connection
+                .query_row(
+                    "SELECT COUNT(*) FROM downloaded_packs WHERE pack_id = ?1",
+                    params![pack_id],
+                    |row| row.get(0),
+                )
+                .map_err(storage_error)?;
+            if remaining == 0 {
+                let _ =
+                    fs::remove_file(offline_map_path(&self.database_path, pack_id, &descriptor)?);
+            }
+        }
         Ok(())
+    }
+
+    /// The newest downloaded pack for this trip that has a verified local
+    /// PMTiles archive. Reading this metadata is local-only and does not imply a
+    /// tile request or any network consent.
+    pub fn get_offline_map(&self, trip_id: &str) -> Result<Option<OfflineMapArchive>, AppError> {
+        let connection = self.connection()?;
+        fetch_trip(&connection, trip_id)?;
+        let mut statement = connection
+            .prepare(
+                "SELECT pack_id, name, content FROM downloaded_packs
+                 WHERE trip_id = ?1 ORDER BY downloaded_at DESC, pack_id ASC",
+            )
+            .map_err(storage_error)?;
+        let rows = statement
+            .query_map(params![trip_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })
+            .map_err(storage_error)?;
+        for row in rows {
+            let (pack_id, name, content) = row.map_err(storage_error)?;
+            let Some(descriptor) = serde_json::from_str::<PackContent>(&content)
+                .ok()
+                .and_then(|content| content.offline_map)
+            else {
+                continue;
+            };
+            if offline_map_is_ready(&self.database_path, &pack_id, &descriptor) {
+                let bbox = validate_pack_id(&pack_id)?.bbox;
+                return Ok(Some(OfflineMapArchive {
+                    pack_id,
+                    name,
+                    bbox,
+                    byte_length: descriptor.byte_length,
+                    sha256: descriptor.sha256,
+                    source_name: descriptor.source_name,
+                    source_url: descriptor.source_url,
+                    license: descriptor.license,
+                    attribution: descriptor.attribution,
+                    fetched_at: descriptor.fetched_at,
+                    min_zoom: descriptor.min_zoom,
+                    max_zoom: descriptor.max_zoom,
+                }));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Read one bounded range from a trip-authorized local PMTiles archive.
+    /// This narrow seam avoids exposing arbitrary filesystem paths or granting
+    /// the webview general filesystem capability.
+    pub fn read_offline_map_range(
+        &self,
+        trip_id: &str,
+        pack_id: &str,
+        offset: u64,
+        length: u32,
+    ) -> Result<OfflineMapChunk, AppError> {
+        validate_pack_id(pack_id)?;
+        if length == 0 || length > MAX_OFFLINE_MAP_RANGE {
+            return Err(AppError::with_detail(
+                ErrorCode::ValidationInvalidInput,
+                "offline map range length is invalid",
+                "field",
+                "length",
+            ));
+        }
+        let connection = self.connection()?;
+        fetch_trip(&connection, trip_id)?;
+        let content = connection
+            .query_row(
+                "SELECT content FROM downloaded_packs WHERE trip_id = ?1 AND pack_id = ?2",
+                params![trip_id, pack_id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(storage_error)?
+            .ok_or_else(|| {
+                AppError::new(
+                    ErrorCode::PackDownloadFailed,
+                    "the offline map is not downloaded for this trip",
+                )
+            })?;
+        drop(connection);
+        let descriptor = serde_json::from_str::<PackContent>(&content)
+            .ok()
+            .and_then(|content| content.offline_map)
+            .ok_or_else(|| {
+                AppError::new(
+                    ErrorCode::PackDownloadFailed,
+                    "the downloaded pack has no offline map",
+                )
+            })?;
+        if offset >= descriptor.byte_length {
+            return Err(AppError::with_detail(
+                ErrorCode::ValidationInvalidInput,
+                "offline map range starts beyond the archive",
+                "field",
+                "offset",
+            ));
+        }
+        let actual_length = u64::from(length).min(descriptor.byte_length - offset) as usize;
+        let path = offline_map_path(&self.database_path, pack_id, &descriptor)?;
+        let mut file = fs::File::open(path).map_err(storage_error)?;
+        file.seek(SeekFrom::Start(offset)).map_err(storage_error)?;
+        let mut bytes = vec![0; actual_length];
+        file.read_exact(&mut bytes).map_err(storage_error)?;
+        Ok(OfflineMapChunk {
+            data_base64: BASE64.encode(bytes),
+            etag: descriptor.sha256,
+        })
     }
 
     /// Rank the places in this trip's downloaded packs against the persona
@@ -2399,6 +2595,75 @@ fn default_database_path() -> Result<PathBuf, AppError> {
         )
     })?;
     Ok(project_dirs.data_dir().join(DATABASE_FILE))
+}
+
+fn offline_map_path(
+    database_path: &Path,
+    pack_id: &str,
+    descriptor: &OfflineMapDescriptor,
+) -> Result<PathBuf, AppError> {
+    let data_dir = database_path.parent().ok_or_else(|| {
+        AppError::new(
+            ErrorCode::StorageFailure,
+            "database has no parent directory for offline maps",
+        )
+    })?;
+    Ok(data_dir
+        .join("packs")
+        .join(format!("{pack_id}-{}.pmtiles", descriptor.sha256)))
+}
+
+fn offline_map_is_ready(
+    database_path: &Path,
+    pack_id: &str,
+    descriptor: &OfflineMapDescriptor,
+) -> bool {
+    let Ok(path) = offline_map_path(database_path, pack_id, descriptor) else {
+        return false;
+    };
+    let Ok(metadata) = fs::metadata(&path) else {
+        return false;
+    };
+    if !metadata.is_file() || metadata.len() != descriptor.byte_length {
+        return false;
+    }
+    fs::read(path)
+        .ok()
+        .is_some_and(|bytes| format!("{:x}", Sha256::digest(bytes)) == descriptor.sha256)
+}
+
+fn store_offline_map(
+    database_path: &Path,
+    pack_id: &str,
+    descriptor: &OfflineMapDescriptor,
+    bytes: &[u8],
+) -> Result<(), AppError> {
+    if bytes.len() as u64 != descriptor.byte_length
+        || format!("{:x}", Sha256::digest(bytes)) != descriptor.sha256
+    {
+        return Err(AppError::new(
+            ErrorCode::PackDownloadFailed,
+            "the offline map failed its size or checksum verification",
+        ));
+    }
+    let destination = offline_map_path(database_path, pack_id, descriptor)?;
+    let directory = destination.parent().ok_or_else(|| {
+        AppError::new(
+            ErrorCode::StorageFailure,
+            "offline map has no parent directory",
+        )
+    })?;
+    fs::create_dir_all(directory).map_err(storage_error)?;
+    let temporary = directory.join(format!(".{pack_id}-{}.part", new_id("map")));
+    fs::write(&temporary, bytes).map_err(storage_error)?;
+    if destination.exists() {
+        fs::remove_file(&destination).map_err(storage_error)?;
+    }
+    if let Err(error) = fs::rename(&temporary, &destination) {
+        let _ = fs::remove_file(&temporary);
+        return Err(storage_error(error));
+    }
+    Ok(())
 }
 
 fn init_connection(connection: &Connection) -> Result<(), AppError> {
@@ -4726,6 +4991,7 @@ mod tests {
         assert_eq!(pack.name, "Nashville");
         assert_eq!(pack.place_count, 2);
         assert_eq!(pack.article_count, 1);
+        assert!(!pack.offline_map_ready);
         assert_eq!(
             fetcher.calls.lock().expect("lock").as_slice(),
             ["https://github.com/udhawan97/Voyalier/releases/download/packs-v1/us-nashville.json"]
@@ -4734,6 +5000,7 @@ mod tests {
         let downloaded = service.list_downloaded_packs(&trip.id).expect("list");
         assert_eq!(downloaded.len(), 1);
         assert_eq!(downloaded[0].pack_id, "us-nashville");
+        assert!(!downloaded[0].offline_map_ready);
 
         service
             .delete_downloaded_pack(&trip.id, "us-nashville")
@@ -4744,6 +5011,103 @@ mod tests {
                 .expect("list")
                 .is_empty()
         );
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn offline_map_download_is_verified_stored_ranged_and_removed() {
+        struct OfflinePackFetcher {
+            bytes: Vec<u8>,
+            sha256: String,
+        }
+        impl AdviceFetcher for OfflinePackFetcher {
+            fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+                assert!(url.ends_with("/us-nashville.json"));
+                Ok(format!(
+                    r#"{{
+                      "packId":"us-nashville","places":[],"articles":[],
+                      "offlineMap":{{
+                        "assetName":"us-nashville.pmtiles","byteLength":{},
+                        "sha256":"{}","sourceName":"Protomaps Basemap",
+                        "sourceUrl":"https://build.protomaps.com/20260715.pmtiles",
+                        "license":"ODbL-1.0","attribution":"© OpenStreetMap contributors",
+                        "fetchedAt":"2026-07-16T00:27:07Z","minZoom":0,"maxZoom":15
+                      }}
+                    }}"#,
+                    self.bytes.len(),
+                    self.sha256
+                ))
+            }
+
+            fn fetch_bytes(&self, url: &str, limit: usize) -> Result<Vec<u8>, AppError> {
+                assert!(url.ends_with("/us-nashville.pmtiles"));
+                assert_eq!(limit, MAX_OFFLINE_MAP_BYTES as usize);
+                Ok(self.bytes.clone())
+            }
+        }
+
+        let bytes = b"PMTiles fixture bytes".to_vec();
+        let sha256 = format!("{:x}", Sha256::digest(&bytes));
+        let database = temp_database("offline-map");
+        let service = open_test_service_with_fetcher(
+            &database,
+            Arc::new(OfflinePackFetcher {
+                bytes: bytes.clone(),
+                sha256: sha256.clone(),
+            }),
+        )
+        .expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        let downloaded = service
+            .download_pack(&trip.id, "us-nashville")
+            .expect("download");
+        assert!(downloaded.offline_map_ready);
+        let archive = service
+            .get_offline_map(&trip.id)
+            .expect("offline map")
+            .expect("archive");
+        assert_eq!(archive.pack_id, "us-nashville");
+        assert_eq!(archive.sha256, sha256);
+        assert_eq!(archive.byte_length, bytes.len() as u64);
+        assert_eq!(archive.bbox.west, -87.06);
+
+        let chunk = service
+            .read_offline_map_range(&trip.id, "us-nashville", 2, 7)
+            .expect("range");
+        assert_eq!(
+            BASE64.decode(chunk.data_base64).expect("base64"),
+            bytes[2..9]
+        );
+        assert_eq!(chunk.etag, archive.sha256);
+        assert_eq!(
+            service
+                .read_offline_map_range(&trip.id, "us-nashville", 0, MAX_OFFLINE_MAP_RANGE + 1,)
+                .expect_err("oversize range")
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
+
+        let descriptor = service
+            .connection()
+            .expect("connection")
+            .query_row(
+                "SELECT content FROM downloaded_packs WHERE trip_id = ?1 AND pack_id = ?2",
+                params![trip.id, "us-nashville"],
+                |row| row.get::<_, String>(0),
+            )
+            .ok()
+            .and_then(|content| serde_json::from_str::<PackContent>(&content).ok())
+            .and_then(|content| content.offline_map)
+            .expect("descriptor");
+        let path = offline_map_path(&database, "us-nashville", &descriptor).expect("map path");
+        fs::write(path, b"tampered map archive").expect("tamper fixture");
+        assert!(service.get_offline_map(&trip.id).expect("map").is_none());
+
+        service
+            .delete_downloaded_pack(&trip.id, "us-nashville")
+            .expect("delete");
+        assert!(service.get_offline_map(&trip.id).expect("map").is_none());
         cleanup_database(database);
     }
 

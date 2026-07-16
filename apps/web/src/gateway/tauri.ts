@@ -23,6 +23,8 @@ import type {
   KeyValidation,
   LocalAiStatus,
   LocalModelPullResult,
+  OfflineMapArchive,
+  OfflineMapChunk,
   PackInfo,
   PackSuggestion,
   PersonaWeights,
@@ -171,6 +173,22 @@ export function createTauriGateway(
 
     deleteDownloadedPack: (tripId: string, packId: string) =>
       call<void>("delete_downloaded_pack", { tripId, packId }),
+
+    getOfflineMap: (tripId: string) =>
+      call<OfflineMapArchive | null>("get_offline_map", { tripId }),
+
+    readOfflineMapRange: (
+      tripId: string,
+      packId: string,
+      offset: number,
+      length: number,
+    ) =>
+      call<OfflineMapChunk>("read_offline_map_range", {
+        tripId,
+        packId,
+        offset,
+        length,
+      }),
 
     getRecommendations: (tripId: string, weights: PersonaWeights) =>
       call<Recommendation[]>("get_recommendations", { tripId, weights }),

@@ -701,6 +701,7 @@ const MOCK_PACKS: PackInfo[] = [
     region: "Tennessee, USA",
     bbox: { west: -87.06, south: 36.03, east: -86.62, north: 36.41 },
     wikivoyageArticle: "Nashville",
+    offlineMapAvailable: true,
     layers: packLayers(),
   },
   {
@@ -2062,6 +2063,7 @@ export function createMockGateway(options?: {
           placeCount: 12,
           articleCount: 1,
           downloadedAt: timestamp(),
+          offlineMapReady: false,
         };
         const existing = downloadedPacks.findIndex(
           (pack) => pack.tripId === tripId && pack.packId === packId,
@@ -2075,6 +2077,7 @@ export function createMockGateway(options?: {
           placeCount: entry.placeCount,
           articleCount: entry.articleCount,
           downloadedAt: entry.downloadedAt,
+          offlineMapReady: entry.offlineMapReady,
         };
       }),
 
@@ -2090,6 +2093,7 @@ export function createMockGateway(options?: {
             placeCount: pack.placeCount,
             articleCount: pack.articleCount,
             downloadedAt: pack.downloadedAt,
+            offlineMapReady: pack.offlineMapReady,
           }))
           .reverse();
       }),
@@ -2101,6 +2105,21 @@ export function createMockGateway(options?: {
         );
         if (index >= 0) downloadedPacks.splice(index, 1);
         return undefined;
+      }),
+
+    getOfflineMap: (tripId: string) =>
+      execute("getOfflineMap", () => {
+        requireTrip(tripId);
+        return null;
+      }),
+
+    readOfflineMapRange: (tripId: string) =>
+      execute("readOfflineMapRange", () => {
+        requireTrip(tripId);
+        throw appError(
+          "pack/download_failed",
+          "the mock gateway has no offline map archive",
+        );
       }),
 
     getRecommendations: (tripId: string, weights: PersonaWeights) =>
