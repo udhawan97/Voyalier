@@ -4,7 +4,12 @@ import { createMockGateway } from "@voyalier/contracts";
 
 import { failingGateway, renderApp } from "./test/helpers";
 
-async function openNotes(gateway?: AppGateway) {
+/**
+ * Notes sit in a deferred section, so they mount a beat after the trip page and
+ * then load. Callers want a usable field, so wait for one rather than for the
+ * section shell that appears first.
+ */
+async function openNotes(gateway?: AppGateway, awaitField = true) {
   renderApp(gateway ?? createMockGateway());
   fireEvent.click(
     await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
@@ -13,7 +18,9 @@ async function openNotes(gateway?: AppGateway) {
     name: "Kyoto autumn journey",
     level: 1,
   });
-  return screen.findByRole("region", { name: "Notes" });
+  const region = await screen.findByRole("region", { name: "Notes" });
+  if (awaitField) await within(region).findByLabelText("Trip notes");
+  return region;
 }
 
 /**
@@ -52,7 +59,7 @@ describe("trip notes", () => {
       ...createMockGateway(),
       getTripNotes: () => new Promise(() => {}), // never settles
     };
-    const region = await openNotes(gateway);
+    const region = await openNotes(gateway, false);
     expect(within(region).queryByLabelText("Trip notes")).toBeNull();
   });
 

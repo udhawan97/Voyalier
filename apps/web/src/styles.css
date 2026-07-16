@@ -3844,11 +3844,12 @@ body::before {
   border-color: var(--voy-line-strong);
 }
 
-/* Keep a jumped-to heading clear of the sticky nav above it. */
-#blueprint-title,
-#advice-title,
-#packs-title,
-#assist-title {
+/* Keep a jumped-to section clear of the sticky nav above it. These are the
+   section wrappers, which exist whether or not the section has mounted. */
+#section-plan,
+#section-prepare,
+#section-discover,
+#section-ai {
   scroll-margin-top: 4rem;
 }
 

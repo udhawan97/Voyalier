@@ -25,6 +25,7 @@ import { useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 import { ConfirmButton } from "../components/ConfirmButton";
+import { DeferredSection } from "../components/DeferredSection";
 import {
   AlertIcon,
   ArchiveIcon,
@@ -188,16 +189,20 @@ function FactGroup({
 }
 
 /**
- * A sticky row of jump links for the long trip page. Every target below renders
- * unconditionally, so no chip can ever point at nothing; `scroll-margin-top` in
- * CSS keeps the landing heading clear of the sticky topbar. Plain anchors — no
- * router, so refresh and back behave exactly as they did.
+ * A sticky row of jump links for the long trip page.
+ *
+ * The targets are the section *wrappers*, not the headings inside them: those
+ * sections are deferred, so their headings do not exist until the section
+ * mounts, and a chip pointing at one would do nothing. A wrapper is always
+ * there, and jumping to it is what brings the section in. `scroll-margin-top` in
+ * CSS keeps the landing spot clear of the sticky nav. Plain anchors — no router,
+ * so refresh and back behave exactly as they did.
  */
 const TRIP_NAV: { label: MessageKey; target: string }[] = [
-  { label: "tripnav.plan", target: "blueprint-title" },
-  { label: "tripnav.prepare", target: "advice-title" },
-  { label: "tripnav.discover", target: "packs-title" },
-  { label: "tripnav.ai", target: "assist-title" },
+  { label: "tripnav.plan", target: "section-plan" },
+  { label: "tripnav.prepare", target: "section-prepare" },
+  { label: "tripnav.discover", target: "section-discover" },
+  { label: "tripnav.ai", target: "section-ai" },
 ];
 
 function TripSectionNav() {
@@ -610,7 +615,7 @@ export function TripDetailView({
         <p className="voy-detail__nopending">{t("detail.nopending")}</p>
       )}
 
-      <div className="voy-detail__blueprint">
+      <div className="voy-detail__blueprint" id="section-plan">
         <h2 id="blueprint-title" className="voy-detail__blueprint-title">
           {t("detail.blueprint")}
         </h2>
@@ -670,56 +675,64 @@ export function TripDetailView({
         <ScheduleCheck conflicts={itineraryConflicts} />
       ) : null}
 
-      <TravelAdvice
-        tripId={tripId}
-        snapshot={data.detail.travelAdvice}
-        onFetched={() => reload()}
-      />
+      {/* Everything from here down is below the fold and several of these fetch
+          on mount, so they wait until they are nearly on screen. */}
+      <DeferredSection id="section-prepare">
+        <TravelAdvice
+          tripId={tripId}
+          snapshot={data.detail.travelAdvice}
+          onFetched={() => reload()}
+        />
 
-      <WeatherOutlook
-        tripId={tripId}
-        destination={trip.destination}
-        snapshot={data.detail.weather}
-        onFetched={() => reload()}
-      />
+        <WeatherOutlook
+          tripId={tripId}
+          destination={trip.destination}
+          snapshot={data.detail.weather}
+          onFetched={() => reload()}
+        />
 
-      <TripNotes tripId={tripId} />
+        <TripNotes tripId={tripId} />
 
-      <DocumentsPanel
-        tripId={tripId}
-        reloadKey={reloadKey}
-        onChanged={() => reload()}
-      />
+        <DocumentsPanel
+          tripId={tripId}
+          reloadKey={reloadKey}
+          onChanged={() => reload()}
+        />
 
-      <TripSearch tripId={tripId} />
+        <TripSearch tripId={tripId} />
+      </DeferredSection>
 
-      <CityPacks tripId={tripId} destination={trip.destination} />
+      <DeferredSection id="section-discover">
+        <CityPacks tripId={tripId} destination={trip.destination} />
 
-      <Recommendations tripId={tripId} />
+        <Recommendations tripId={tripId} />
 
-      <MapPanel
-        tripId={tripId}
-        center={
-          data.detail.weather
-            ? {
-                lat: data.detail.weather.latitude,
-                lon: data.detail.weather.longitude,
-                name: data.detail.weather.placeName,
-              }
-            : undefined
-        }
-      />
+        <MapPanel
+          tripId={tripId}
+          center={
+            data.detail.weather
+              ? {
+                  lat: data.detail.weather.latitude,
+                  lon: data.detail.weather.longitude,
+                  name: data.detail.weather.placeName,
+                }
+              : undefined
+          }
+        />
+      </DeferredSection>
 
       {/* AI sits last on purpose: everything above works without it. */}
-      <AssistPreview tripId={tripId} onOpenSettings={onOpenSettings} />
+      <DeferredSection id="section-ai">
+        <AssistPreview tripId={tripId} onOpenSettings={onOpenSettings} />
 
-      <AssistDraft
-        tripId={tripId}
-        onDrafted={(candidates) => {
-          setReviewCandidates(candidates);
-          reload();
-        }}
-      />
+        <AssistDraft
+          tripId={tripId}
+          onDrafted={(candidates) => {
+            setReviewCandidates(candidates);
+            reload();
+          }}
+        />
+      </DeferredSection>
 
       {showImport ? (
         <ImportDialog
