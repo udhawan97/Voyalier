@@ -122,10 +122,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cd target/release/bundle
-          # `shasum -a 256` (Perl) is stock on the macOS runner AND git-bash on
-          # Windows; GNU `sha256sum` is not present on macOS.
-          find . -type f \
-            \( -name '*.dmg' -o -name '*.app.tar.gz' -o -name '*-setup.exe' -o -name '*.msi' -o -name '*.sig' \) \
-            -print0 | sort -z | xargs -0 shasum -a 256 > "SHA256SUMS-${{ matrix.artifact }}.txt"
-          gh release upload "${{ github.ref_name }}" "SHA256SUMS-${{ matrix.artifact }}.txt" --clobber
+          checksum="target/release/bundle/SHA256SUMS-${{ matrix.artifact }}.txt"
+          # Node is already installed and behaves identically on macOS and
+          # Windows. Git Bash on the Windows runner does not provide `shasum`.
+          node scripts/write-release-checksums.mjs target/release/bundle "$checksum"
+          gh release upload "${{ github.ref_name }}" "$checksum" --clobber
