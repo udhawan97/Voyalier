@@ -157,7 +157,9 @@ aggregation, background scraping, or silent document upload.
   port remain defense-in-depth work if browser mode becomes distributable.
 - OS-signed and notarized installers still depend on paid platform certificates.
   The separate minisign-verified updater, checksums, and build provenance have
-  shipped, but the current source-only release has no packaged assets yet.
+  shipped, and releases carry packaged macOS and Windows assets — but until those
+  certificates land, a packaged build trips a one-time Gatekeeper or SmartScreen
+  warning on first launch.
 - The interactive map currently uses consent-gated OpenFreeMap tiles; PMTiles
   remain the planned offline map path.
 - Voyalier shows sources and uncertainty but does not claim legal, medical,

@@ -31,17 +31,24 @@ app in place, and it can't reliably do that to a copy running from Downloads or
 from the mounted disk image. Install it properly once and updates take care of
 themselves afterwards.
 
-The first launch will be interrupted. macOS will say Voyalier "cannot be opened
-because it is from an unidentified developer" — see
+The first launch will be interrupted. macOS will refuse to open Voyalier because
+it can't identify the developer — see
 [why the warning appears](#why-the-warning-appears) below. To open it anyway:
 
-1. **Right-click** (or Control-click) the Voyalier icon in Applications and
-   choose **Open**. The same warning returns, but now with an **Open** button.
-2. Click **Open**. macOS remembers the decision; every later launch is normal.
+1. **Double-click Voyalier** and let macOS block it. Click **Done**. This step
+   isn't pointless: it's what tells macOS you tried, which is what makes the next
+   step appear.
+2. Open **System Settings** → **Privacy & Security** and scroll down to the
+   message saying Voyalier was blocked.
+3. Click **Open Anyway**, authenticate with Touch ID or your password, and
+   confirm.
 
-If the right-click route doesn't offer **Open**, go to **System Settings** →
-**Privacy & Security**, scroll to the message about Voyalier being blocked, and
-click **Open Anyway**.
+That's once, not every time — macOS remembers, and later launches are normal.
+
+If you're on macOS 14 (Sonoma) or earlier, there's a shortcut: right-click the
+app and choose **Open**, then **Open** again. Apple removed that route in macOS
+15 (Sequoia), so on current systems the Privacy & Security path above is the only
+one that works.
 
 ## Install on Windows
 

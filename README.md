@@ -133,8 +133,9 @@ The useful parts work without a paid AI key. The connected parts ask first.
 **Download the app** from the
 [latest release](https://github.com/udhawan97/Voyalier/releases/latest) — a
 `.dmg` for Apple Silicon macOS, an `.exe` or `.msi` for Windows x64. Neither is
-code-signed yet, so the first launch needs a right-click → **Open** on macOS or
-**More info** → **Run anyway** on Windows. The
+code-signed yet, so the first launch needs one trip through **System Settings** →
+**Privacy & Security** → **Open Anyway** on macOS, or **More info** → **Run
+anyway** on Windows. The
 [install page](https://udhawan97.github.io/Voyalier/download/) walks through both,
 and explains what that warning does and doesn't mean.
 
