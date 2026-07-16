@@ -103,7 +103,7 @@ rot this design removes.
 
 Frame verification as optional and secondary: updates are already
 minisign-verified on-device and the artifacts carry SLSA build provenance. The
-hash check is for someone verifying a *first* manual download, which signatures
+hash check is for someone verifying a _first_ manual download, which signatures
 do not cover.
 
 ### 2. Link policy — always-newest

@@ -23,8 +23,9 @@
   <img src="https://img.shields.io/badge/desktop-Tauri_2-46536b?style=flat-square&logo=tauri&logoColor=white" alt="Tauri 2 desktop">
   <img src="https://img.shields.io/badge/privacy-local--first-6f7a64?style=flat-square" alt="Local-first privacy">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-46536b?style=flat-square" alt="Apache 2.0 license"></a>
-  <a href="https://github.com/udhawan97/Voyalier/releases/tag/v0.4.1"><img src="https://img.shields.io/badge/release-v0.4.1-c34e33?style=flat-square" alt="Latest release v0.4.1"></a>
-  <img src="https://img.shields.io/badge/status-source--only_beta-c34e33?style=flat-square" alt="Source-only beta">
+  <a href="https://github.com/udhawan97/Voyalier/releases/latest"><img src="https://img.shields.io/github/v/release/udhawan97/Voyalier?style=flat-square&label=release&color=c34e33" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/status-public_beta-c34e33?style=flat-square" alt="Public beta">
+  <img src="https://img.shields.io/badge/installers-unsigned-6f7a64?style=flat-square" alt="Installers are not yet code-signed">
 </p>
 
 <p align="center">
@@ -33,6 +34,7 @@
 
 <p align="center">
   <a href="#what-it-does"><kbd>&nbsp;✨&nbsp;Features&nbsp;</kbd></a>&nbsp;
+  <a href="https://github.com/udhawan97/Voyalier/releases/latest"><kbd>&nbsp;⬇️&nbsp;Download&nbsp;</kbd></a>&nbsp;
   <a href="#run-it"><kbd>&nbsp;🚀&nbsp;Run&nbsp;it&nbsp;</kbd></a>&nbsp;
   <a href="#privacy"><kbd>&nbsp;🔒&nbsp;Privacy&nbsp;</kbd></a>&nbsp;
   <a href="#under-the-hood"><kbd>&nbsp;⚙️&nbsp;Under&nbsp;the&nbsp;hood&nbsp;</kbd></a>&nbsp;
@@ -40,7 +42,7 @@
 </p>
 
 > [!NOTE]
-> Voyalier is a **source-only beta**, built in the open. The working app already covers trip creation and editing, deterministic planning, confirmation review (paste, HTML, an `.eml` file, or drag-and-drop), conflicts, readiness, official advice, weather, offline city packs, persona recommendations, in-trip search, Today, maps, encrypted local storage, redacted sharing, a fully localized UI (with its own self-hosted type identity, no web-font CDN), an in-app updater, and optional Ollama/OpenAI/Anthropic assistance with a guided on-device setup, validated cloud keys, and editable instructions. Signed and notarized installers are still waiting for the traditional travel document of software distribution: paid certificates.
+> Voyalier is a **public beta**, built in the open. [Download it](https://github.com/udhawan97/Voyalier/releases/latest) for Apple Silicon macOS or Windows x64, or [run it in a browser from source](#run-it) on any OS. The working app already covers trip creation and editing, deterministic planning, confirmation review (paste, HTML, an `.eml` file, or drag-and-drop), conflicts, readiness, official advice, weather, offline city packs, persona recommendations, in-trip search, Today, maps, encrypted local storage, redacted sharing, a fully localized UI (with its own self-hosted type identity, no web-font CDN), an in-app updater, and optional Ollama/OpenAI/Anthropic assistance with a guided on-device setup, validated cloud keys, and editable instructions. Signed and notarized installers are still waiting for the traditional travel document of software distribution: paid certificates.
 
 <p align="center">
   <img src="docs-site/public/assets/screenshots/voyalier-trip-workspace.jpg" alt="Voyalier trip workspace showing the Kyoto journey, Today summary, pending evidence review, and deterministic Blueprint" width="1100">
@@ -128,8 +130,17 @@ The useful parts work without a paid AI key. The connected parts ask first.
 
 ## Run it
 
-There is no polished installer yet. For now, Voyalier is a carry-on you assemble
-yourself — fortunately, it has fewer pieces than an airport lounge chair.
+**Download the app** from the
+[latest release](https://github.com/udhawan97/Voyalier/releases/latest) — a
+`.dmg` for Apple Silicon macOS, an `.exe` or `.msi` for Windows x64. Neither is
+code-signed yet, so the first launch needs a right-click → **Open** on macOS or
+**More info** → **Run anyway** on Windows. The
+[install page](https://udhawan97.github.io/Voyalier/download/) walks through both,
+and explains what that warning does and doesn't mean.
+
+**Or build it yourself** and run it in a browser. This works on any OS, which
+makes it the route for Intel Macs and Linux — and it is a carry-on you assemble
+yourself, though it has fewer pieces than an airport lounge chair.
 
 Requirements:
 

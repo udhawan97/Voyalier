@@ -8,11 +8,27 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Added
 
+- A **Download and install** page in the documentation, now that a release
+  carries real artifacts. It presents the three ways to run Voyalier as equals —
+  Apple Silicon macOS, Windows x64, or in a browser from source on any OS
+  (including Intel Macs and Linux) — walks through the Gatekeeper and SmartScreen
+  first-launch warnings and explains what they do and don't mean, and documents
+  the optional SHA-256 check. Links point at `releases/latest` rather than any
+  version, so the docs cannot go stale behind a release.
 - A complete Nashville offline-map vertical slice: pack CI extracts and verifies
   a bounded Protomaps PMTiles archive, the local core verifies its size and
   SHA-256 before storing it, and MapLibre reads only bounded byte ranges through
   the existing app gateway. The online OpenFreeMap style remains the explicit
   fallback when a compatible local archive is not present.
+
+### Changed
+
+- The README and website lead with the download rather than `git clone`: the
+  homepage's primary action is now **Download for Mac or Windows**, the
+  `source-only beta` badge is replaced by `public beta` plus a separate
+  `installers unsigned` badge (deletable on its own when certificates land), and
+  the release badge reads its version from GitHub instead of being hardcoded.
+  **Getting started** is reframed as the from-source path it always was.
 
 ### Fixed
 
