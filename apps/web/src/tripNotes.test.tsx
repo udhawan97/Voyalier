@@ -31,10 +31,11 @@ describe("trip notes", () => {
     // Leaving the field commits without waiting out the debounce.
     fireEvent.blur(field);
 
-    // The trip page mounts a lot before this settles, so allow more than the
-    // 1s default rather than race it.
+    // The trip page mounts a lot before this settles. The 1s default raced it,
+    // and 3s still flaked when the full gate ran lint and builds alongside — so
+    // this is generous on purpose. It asserts an eventual state, not a latency.
     expect(
-      await screen.findByText("Saved", undefined, { timeout: 3000 }),
+      await screen.findByText("Saved", undefined, { timeout: 8000 }),
     ).toBeInTheDocument();
     const stored = await gateway.getTripNotes("trip_kyoto");
     expect(stored.body).toBe("Book the tea house");

@@ -5973,6 +5973,61 @@ mod tests {
         cleanup_database(database);
     }
 
+    /// The exact confirmation the web app's "Explore a sample trip" imports.
+    /// Included from the shared fixture rather than copied, so this test fails
+    /// if the shipped sample ever stops parsing.
+    const SAMPLE_CONFIRMATION: &str =
+        include_str!("../../../packages/contracts/fixtures/sample-confirmation.html");
+
+    #[test]
+    fn the_sample_confirmation_parses_into_a_flight_and_a_stay() {
+        // The sample is a newcomer's first impression: if its JSON-LD is wrong,
+        // "Explore a sample trip" lands them on an empty trip with nothing to
+        // review — the exact opposite of the point — and no UI test would notice,
+        // because parsing happens here, not in the web layer.
+        let database = temp_database("sample-parse");
+        let service = open_test_service(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        let imported = service
+            .import_document(ImportDocumentInput {
+                trip_id: trip.id.clone(),
+                kind: DocumentKind::Html,
+                label: Some("Sample confirmation email".to_owned()),
+                content: SAMPLE_CONFIRMATION.to_owned(),
+            })
+            .expect("import sample");
+
+        let flights = imported
+            .candidates
+            .iter()
+            .filter(|c| c.fact_type == FactType::FlightSegment)
+            .count();
+        let stays = imported
+            .candidates
+            .iter()
+            .filter(|c| c.fact_type == FactType::LodgingStay)
+            .count();
+        assert_eq!(flights, 1, "sample must yield exactly one flight");
+        assert_eq!(stays, 1, "sample must yield exactly one stay");
+        // Left pending on purpose: the demo IS the review.
+        assert!(
+            imported
+                .candidates
+                .iter()
+                .all(|c| c.status == CandidateStatus::Pending)
+        );
+        // Structured, not guessed — proving it took the JSON-LD path a real
+        // airline email takes.
+        assert!(
+            imported
+                .candidates
+                .iter()
+                .all(|c| c.method == ExtractionMethod::Structured)
+        );
+        cleanup_database(database);
+    }
+
     #[test]
     fn trip_notes_round_trip_and_are_sealed_at_rest() {
         let database = temp_database("notes-seal");

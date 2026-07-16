@@ -4,6 +4,7 @@ import type { AppError, TripSummary } from "@voyalier/contracts";
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError, formatDateRange, tripRoute } from "../app/format";
 import { plural, t } from "../app/i18n";
+import { createSampleTrip } from "../app/sampleTrip";
 import { useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
@@ -110,7 +111,26 @@ export function TripListView({
   const [deleteTarget, setDeleteTarget] = useState<TripSummary | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [sampling, setSampling] = useState(false);
   const createBtnRef = useRef<HTMLButtonElement>(null);
+
+  /**
+   * Build the demo trip and open it, so the newcomer lands where the product
+   * actually happens — a trip with suggestions waiting to be reviewed — instead
+   * of on an empty list that explains nothing.
+   */
+  async function buildSample() {
+    setSampling(true);
+    try {
+      const trip = await createSampleTrip(gateway);
+      announce(t("triplist.announce.created", { title: trip.title }));
+      onOpenTrip(trip.id);
+    } catch (caught) {
+      announce(describeError(caught as AppError).title || t("sample.error"));
+    } finally {
+      setSampling(false);
+    }
+  }
 
   async function archive(trip: TripSummary) {
     setBusyId(trip.id);
@@ -196,16 +216,24 @@ export function TripListView({
         <Empty
           title={t("triplist.empty.title")}
           action={
-            <Button
-              variant="primary"
-              icon={<PlusIcon />}
-              onClick={() => setShowCreate(true)}
-            >
-              {t("triplist.create")}
-            </Button>
+            <div className="voy-empty__actions">
+              <Button
+                variant="primary"
+                icon={<PlusIcon />}
+                onClick={() => setShowCreate(true)}
+              >
+                {t("triplist.create")}
+              </Button>
+              {/* An empty workspace is a bad place to learn what Voyalier does.
+                  The sample lands mid-review, which is the actual idea. */}
+              <Button variant="secondary" onClick={buildSample} busy={sampling}>
+                {sampling ? t("sample.building") : t("sample.explore")}
+              </Button>
+            </div>
           }
         >
           {t("triplist.empty.body")}
+          <span className="voy-empty__hint">{t("sample.hint")}</span>
         </Empty>
       ) : null}
 

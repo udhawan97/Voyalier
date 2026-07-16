@@ -656,6 +656,16 @@ const en = {
   "assist.needsSetup": "Set up AI in Settings to use this.",
   "assist.needsSetup.link": "Open Settings",
 
+  "sample.explore": "Explore a sample trip",
+  "sample.hint": "Made-up data you can delete. Nothing is sent anywhere.",
+  "sample.building": "Building it…",
+  "sample.error": "Couldn't build the sample trip.",
+  // "Sample:" stays in the title so it is never mistaken for a real booking.
+  "sample.title": "Sample: Kyoto long weekend",
+  "sample.origin": "San Francisco",
+  "sample.destination": "Kyoto",
+  "sample.document": "Sample confirmation email",
+
   "notes.title": "Notes",
   "notes.intro":
     "Anything you want to remember: half-made plans, a restaurant someone mentioned, what to book next.",

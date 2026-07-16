@@ -3662,6 +3662,22 @@ body::before {
   border-color: var(--voy-line-strong);
 }
 
+/* ---- Empty-state actions ----------------------------------------------- */
+
+.voy-empty__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: center;
+}
+
+.voy-empty__hint {
+  display: block;
+  margin-top: 0.4rem;
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+}
+
 /* ---- Trip notes -------------------------------------------------------- */
 
 .voy-notes__intro {
