@@ -8,6 +8,22 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Added
 
+- **Imported documents manager.** Voyalier reads confirmation emails full of
+  codes and traveler names, and until now kept them with no way to see or remove
+  them — the loudest gap in a privacy-first product. Each trip now lists what was
+  imported, with the counts that make deleting it an informed choice, shows the
+  original text on request (unsealed from the vault only when asked, never in a
+  listing), and removes it behind a two-step confirm. Deleting takes its
+  still-pending suggestions with it; facts already confirmed from it stay — the
+  traveler approved those — and are marked as having lost their source rather
+  than passing as hand-typed. Adds `listDocuments`/`getDocument`/`deleteDocument`
+  across every transport.
+- **A real Settings screen.** Updates and Encryption used to sit at the bottom of
+  the home list while the three AI panels re-mounted inside every trip, so with
+  zero trips there was no way to configure AI at all. A topbar gear now opens
+  Settings from anywhere; the trip page keeps only trip-scoped surfaces and gains
+  a sticky Plan/Prepare/Discover/AI jump nav.
+
 - A **Download and install** page in the documentation, now that a release
   carries real artifacts. It presents the three ways to run Voyalier as equals —
   Apple Silicon macOS, Windows x64, or in a browser from source on any OS

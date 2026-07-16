@@ -255,6 +255,7 @@ fn rust_examples_validate_against_contract_schemas() {
         candidate_id: Some(candidate.id.clone()),
         corrected_fields: vec!["payload.flightNumber".to_owned()],
         confirmed_at: "2026-07-10T00:00:00Z".to_owned(),
+        source_removed: false,
     };
 
     let import_result = ImportResult {

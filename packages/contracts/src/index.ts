@@ -129,6 +129,16 @@ export interface ConfirmedFact {
   candidateId: string | null;
   correctedFields: string[];
   confirmedAt: string;
+  /**
+   * True when this fact came from an imported document the user has since
+   * deleted. The fact itself survives — the user approved it — but its evidence
+   * is gone, so the UI must stop offering to show it.
+   *
+   * This is why deleting a document cannot simply null out `candidateId`: a null
+   * candidate already means "added by hand", and a fact whose source was removed
+   * is not the same thing.
+   */
+  sourceRemoved: boolean;
 }
 // "email" is input-only for imports: the Rust core extracts the confirmation
 // body and stores it as "html" or "pasted_text", so a stored document's kind is
@@ -147,6 +157,23 @@ export interface ImportResult {
   document: SourceDocument;
   parserRunId: string;
   candidates: CandidateFact[];
+}
+/**
+ * A stored document plus what it produced, for the documents manager. The counts
+ * are what make deletion an informed choice: they say what is about to be
+ * discarded (pending) and what will outlive the document (confirmed).
+ */
+export interface DocumentSummary {
+  document: SourceDocument;
+  /** Candidates from this import still awaiting review. Deleted with it. */
+  pendingCount: number;
+  /** Candidates from this import already confirmed. These facts survive. */
+  confirmedCount: number;
+}
+/** One document's original text, unsealed from the vault for display. */
+export interface DocumentContent {
+  document: SourceDocument;
+  content: string;
 }
 /** One fetchable FCDO country page (curated list; slugs are never free text). */
 export interface FcdoCountry {
@@ -520,6 +547,7 @@ export type ErrorCode =
   | "candidate/not_found"
   | "candidate/already_resolved"
   | "fact/not_found"
+  | "document/not_found"
   | "document/too_large"
   | "document/duplicate"
   | "document/empty"
@@ -638,6 +666,16 @@ export interface AppGateway {
   suggestSearchTerms(tripId: string, query: string): Promise<string[]>;
   deleteTrip(tripId: string): Promise<void>;
   importDocument(input: ImportDocumentInput): Promise<ImportResult>;
+  /** Every document imported into a trip, newest first, with its candidate counts. */
+  listDocuments(tripId: string): Promise<DocumentSummary[]>;
+  /** One document's original text, unsealed on demand — never listed in bulk. */
+  getDocument(documentId: string): Promise<DocumentContent>;
+  /**
+   * Delete an imported document and its still-pending candidates. Facts already
+   * confirmed from it survive, flagged `sourceRemoved` — the user approved those,
+   * so they are theirs to keep.
+   */
+  deleteDocument(documentId: string): Promise<void>;
   listCandidates(
     tripId: string,
     status?: CandidateStatus,

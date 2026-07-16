@@ -1,4 +1,6 @@
 import type {
+  DocumentContent,
+  DocumentSummary,
   AddManualFactInput,
   AiPromptKind,
   AiPromptSettings,
@@ -302,6 +304,18 @@ export function createHttpGateway(
         `/api/v1/trips/${enc(input.tripId)}/documents`,
         input,
       ),
+
+    listDocuments: (tripId: string) =>
+      request<DocumentSummary[]>(
+        "GET",
+        `/api/v1/trips/${enc(tripId)}/documents`,
+      ),
+
+    getDocument: (documentId: string) =>
+      request<DocumentContent>("GET", `/api/v1/documents/${enc(documentId)}`),
+
+    deleteDocument: (documentId: string) =>
+      request<void>("DELETE", `/api/v1/documents/${enc(documentId)}`),
 
     listCandidates: (tripId: string, status?: CandidateStatus) =>
       request<CandidateFact[]>(

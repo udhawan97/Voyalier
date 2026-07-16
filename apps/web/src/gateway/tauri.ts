@@ -1,4 +1,6 @@
 import type {
+  DocumentContent,
+  DocumentSummary,
   AddManualFactInput,
   AiPromptKind,
   AiPromptSettings,
@@ -211,6 +213,15 @@ export function createTauriGateway(
 
     importDocument: (input: ImportDocumentInput) =>
       call<ImportResult>("import_document", input),
+
+    listDocuments: (tripId: string) =>
+      call<DocumentSummary[]>("list_documents", { tripId }),
+
+    getDocument: (documentId: string) =>
+      call<DocumentContent>("get_document", { documentId }),
+
+    deleteDocument: (documentId: string) =>
+      call<void>("delete_document", { documentId }),
 
     listCandidates: (tripId: string, status?: CandidateStatus) =>
       call<CandidateFact[]>(

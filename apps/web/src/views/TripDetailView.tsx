@@ -46,6 +46,7 @@ import {
 import { AddFactDialog } from "./AddFactDialog";
 import { BriefDialog } from "./BriefDialog";
 import { CandidateReviewDialog } from "./CandidateReviewDialog";
+import { DocumentsPanel } from "./DocumentsPanel";
 import { TodayPanel } from "./TodayPanel";
 import { AssistPreview } from "./AssistPreview";
 import { AssistDraft } from "./AssistDraft";
@@ -116,10 +117,17 @@ function FactCard({
           })}
         </p>
       ) : null}
+      {/* The traveler deleted the document this came from. Say so, rather than
+          let it pass as something they typed in by hand. */}
+      {fact.sourceRemoved ? (
+        <p className="voy-fact__sourceless">{t("documents.sourceRemoved")}</p>
+      ) : null}
       <div className="voy-fact__actions">
-        {/* A manual fact has no candidate to return to review, so unconfirming
-            it destroys it — guard that behind a two-step confirm. Returning an
-            imported fact to review is reversible, so it stays a plain click. */}
+        {/* No candidate means there is nothing to return the fact to, so
+            unconfirming destroys it — guard that behind a two-step confirm. That
+            covers both a hand-typed fact and one whose source document was
+            deleted. Returning an imported fact to review is reversible, so it
+            stays a plain click. */}
         {fact.candidateId === null ? (
           <ConfirmButton
             label={t("detail.remove")}
@@ -629,6 +637,12 @@ export function TripDetailView({
         destination={trip.destination}
         snapshot={data.detail.weather}
         onFetched={() => reload()}
+      />
+
+      <DocumentsPanel
+        tripId={tripId}
+        reloadKey={reloadKey}
+        onChanged={() => reload()}
       />
 
       <TripSearch tripId={tripId} />

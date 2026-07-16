@@ -4,11 +4,12 @@ use voyalier_app::{AppService, BackupInfo};
 use voyalier_core::{
     AddManualFactInput, AiPromptSettings, AppError, AssistActivityEntry, AssistDraftResult,
     AssistReply, AssistRequestPreview, CandidateFact, CandidateStatus, ConfirmCandidateInput,
-    ConfirmedFact, CreateTripInput, DownloadedPack, ErrorCode, FcdoCountry, FieldSuggestion,
-    HealthResponse, ImportDocumentInput, ImportResult, KeyValidation, LocalAiStatus,
-    LocalModelPullResult, OfflineMapArchive, OfflineMapChunk, PackInfo, PackSuggestion,
-    PersonaWeights, ProviderConfig, Recommendation, SearchHit, TodayView, TravelAdviceSnapshot,
-    Trip, TripBrief, TripDetail, TripSummary, UpdateTripInput, VaultStatus, WeatherSnapshot,
+    ConfirmedFact, CreateTripInput, DocumentContent, DocumentSummary, DownloadedPack, ErrorCode,
+    FcdoCountry, FieldSuggestion, HealthResponse, ImportDocumentInput, ImportResult, KeyValidation,
+    LocalAiStatus, LocalModelPullResult, OfflineMapArchive, OfflineMapChunk, PackInfo,
+    PackSuggestion, PersonaWeights, ProviderConfig, Recommendation, SearchHit, TodayView,
+    TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripSummary, UpdateTripInput, VaultStatus,
+    WeatherSnapshot,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -39,6 +40,12 @@ struct ListCandidatesInput {
 #[serde(rename_all = "camelCase")]
 struct CandidateIdInput {
     candidate_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DocumentIdInput {
+    document_id: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -491,6 +498,27 @@ fn import_document(
 }
 
 #[tauri::command]
+fn list_documents(
+    input: TripIdInput,
+    service: State<'_, AppService>,
+) -> Result<Vec<DocumentSummary>, AppError> {
+    service.list_documents(&input.trip_id)
+}
+
+#[tauri::command]
+fn get_document(
+    input: DocumentIdInput,
+    service: State<'_, AppService>,
+) -> Result<DocumentContent, AppError> {
+    service.get_document(&input.document_id)
+}
+
+#[tauri::command]
+fn delete_document(input: DocumentIdInput, service: State<'_, AppService>) -> Result<(), AppError> {
+    service.delete_document(&input.document_id)
+}
+
+#[tauri::command]
 fn list_candidates(
     input: ListCandidatesInput,
     service: State<'_, AppService>,
@@ -785,6 +813,9 @@ fn builder<R: tauri::Runtime>(
             fetch_weather,
             delete_trip,
             import_document,
+            list_documents,
+            get_document,
+            delete_document,
             list_candidates,
             confirm_candidate,
             reject_candidate,
@@ -906,6 +937,29 @@ mod tests {
             .expect("candidate array")
             .len(),
             1
+        );
+
+        // The documents manager over real IPC: list, read the body back, delete.
+        let documents = invoke(&webview, "list_documents", json!({ "tripId": trip_id }))
+            .expect("list documents");
+        assert_eq!(documents.as_array().expect("documents").len(), 1);
+        assert_eq!(documents[0]["document"]["label"], "Flight memo");
+        assert_eq!(documents[0]["pendingCount"], 1);
+        assert_eq!(documents[0]["confirmedCount"], 0);
+        let document_id = documents[0]["document"]["id"]
+            .as_str()
+            .expect("document id")
+            .to_owned();
+        assert!(
+            invoke(
+                &webview,
+                "get_document",
+                json!({ "documentId": document_id }),
+            )
+            .expect("get document")["content"]
+                .as_str()
+                .expect("content")
+                .contains("HOLD9")
         );
 
         let confirmed = invoke(

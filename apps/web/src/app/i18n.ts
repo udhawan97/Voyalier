@@ -656,6 +656,39 @@ const en = {
   "assist.needsSetup": "Set up AI in Settings to use this.",
   "assist.needsSetup.link": "Open Settings",
 
+  "documents.title": "Imported documents",
+  "documents.intro":
+    "The confirmations you brought in. Voyalier keeps the original text so you can check what it read — and remove it whenever you like.",
+  "documents.empty": "Nothing imported yet.",
+  "documents.empty.hint":
+    "Import a confirmation and the original will be kept here.",
+  "documents.error": "Couldn't load your documents.",
+  "documents.imported": "Imported {date}",
+  "documents.size.one": "{count} character",
+  "documents.size.other": "{count} characters",
+  "documents.counts.pending.one": "{count} awaiting review",
+  "documents.counts.pending.other": "{count} awaiting review",
+  "documents.counts.confirmed.one": "{count} confirmed",
+  "documents.counts.confirmed.other": "{count} confirmed",
+  "documents.view": "Show original",
+  "documents.hide": "Hide original",
+  "documents.viewError": "Couldn't open that document.",
+  "documents.remove": "Remove",
+  "documents.removeError": "Couldn't remove that document.",
+  "documents.removed": "Removed {label}.",
+  // Said before deleting, because the consequences differ per candidate state
+  // and the user should not have to guess which of their facts survive.
+  "documents.removeWarning.pending.one":
+    "Its suggestion still awaiting review goes too.",
+  "documents.removeWarning.pending.other":
+    "Its {count} suggestions still awaiting review go too.",
+  "documents.removeWarning.confirmed":
+    "Facts you already confirmed from it stay on your trip, but lose their evidence.",
+  "documents.sourceRemoved": "Source document removed",
+  "documents.kind.pasted_text": "Pasted text",
+  "documents.kind.html": "HTML",
+  "documents.kind.email": "Email",
+
   "tripnav.label": "Jump to a section",
   "tripnav.plan": "Plan",
   "tripnav.prepare": "Prepare",
