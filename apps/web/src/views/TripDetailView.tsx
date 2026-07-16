@@ -19,6 +19,7 @@ import {
   formatFieldValue,
   tripRoute,
 } from "../app/format";
+import { buildIcs, icsFilename } from "../app/ics";
 import { plural, t, type MessageKey } from "../app/i18n";
 import { useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
@@ -362,6 +363,7 @@ export function TripDetailView({
     return { detail, pending };
   }, `trip:${tripId}:${reloadKey}`);
 
+  const [exporting, setExporting] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showAddFact, setShowAddFact] = useState(false);
   // Holds the exact candidates to review (from the pending list or a fresh
@@ -375,6 +377,41 @@ export function TripDetailView({
   const [archiving, setArchiving] = useState(false);
   const [unarchiving, setUnarchiving] = useState(false);
   const [unconfirmingId, setUnconfirmingId] = useState<string | null>(null);
+
+  /**
+   * Save the trip as an .ics file. Everything happens on this device: the brief
+   * is built by the local core, turned into calendar text here, and handed to
+   * the browser as a blob. Nothing is uploaded, and no calendar is contacted.
+   *
+   * It exports the *brief*, not the raw facts, so the Rust core's
+   * generation-time exclusion of confirmation codes and traveler names carries
+   * into the file — a .ics usually ends up in a synced cloud calendar.
+   */
+  async function exportCalendar() {
+    setExporting(true);
+    try {
+      const brief = await gateway.getTripBrief(tripId);
+      const ics = buildIcs(brief, {
+        flightSummary: (flight) => t("ics.summary.flight", { flight }),
+        staySummary: (property) => t("ics.summary.stay", { property }),
+        description: t("ics.description"),
+      });
+      const url = URL.createObjectURL(
+        new Blob([ics], { type: "text/calendar;charset=utf-8" }),
+      );
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = icsFilename(brief.title);
+      anchor.click();
+      // Release the blob once the click has been handled.
+      URL.revokeObjectURL(url);
+      announce(t("ics.done"));
+    } catch (caught) {
+      announce(describeError(caught as AppError).title || t("ics.error"));
+    } finally {
+      setExporting(false);
+    }
+  }
 
   async function archive() {
     setArchiving(true);
@@ -520,6 +557,12 @@ export function TripDetailView({
           {confirmedFacts.length > 0 ? (
             <Button variant="ghost" onClick={() => setShowBrief(true)}>
               {t("detail.shareBrief")}
+            </Button>
+          ) : null}
+          {/* Same gate as the brief: nothing confirmed, nothing to export. */}
+          {confirmedFacts.length > 0 ? (
+            <Button variant="ghost" onClick={exportCalendar} busy={exporting}>
+              {exporting ? t("ics.exporting") : t("ics.export")}
             </Button>
           ) : null}
           {isArchived ? (

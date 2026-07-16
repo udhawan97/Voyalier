@@ -656,6 +656,17 @@ const en = {
   "assist.needsSetup": "Set up AI in Settings to use this.",
   "assist.needsSetup.link": "Open Settings",
 
+  "ics.export": "Export calendar",
+  "ics.exporting": "Preparing…",
+  "ics.error": "Couldn't build the calendar file.",
+  "ics.done": "Calendar file saved.",
+  "ics.summary.flight": "Flight {flight}",
+  "ics.summary.stay": "Stay — {property}",
+  // Said inside every exported event, because the file outlives this screen and
+  // the caveat has to travel with it.
+  "ics.description":
+    "Exported from Voyalier. Times are as printed on your confirmation, with no timezone — Voyalier doesn't guess one, so your calendar shows them in its own local time. Confirmation codes and traveler names are not included.",
+
   "documents.title": "Imported documents",
   "documents.intro":
     "The confirmations you brought in. Voyalier keeps the original text so you can check what it read — and remove it whenever you like.",
