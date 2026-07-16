@@ -129,6 +129,16 @@ export interface ConfirmedFact {
   candidateId: string | null;
   correctedFields: string[];
   confirmedAt: string;
+  /**
+   * True when this fact came from an imported document the user has since
+   * deleted. The fact itself survives — the user approved it — but its evidence
+   * is gone, so the UI must stop offering to show it.
+   *
+   * This is why deleting a document cannot simply null out `candidateId`: a null
+   * candidate already means "added by hand", and a fact whose source was removed
+   * is not the same thing.
+   */
+  sourceRemoved: boolean;
 }
 // "email" is input-only for imports: the Rust core extracts the confirmation
 // body and stores it as "html" or "pasted_text", so a stored document's kind is
@@ -148,6 +158,39 @@ export interface ImportResult {
   parserRunId: string;
   candidates: CandidateFact[];
 }
+/**
+ * A stored document plus what it produced, for the documents manager. The counts
+ * are what make deletion an informed choice: they say what is about to be
+ * discarded (pending) and what will outlive the document (confirmed).
+ */
+export interface DocumentSummary {
+  document: SourceDocument;
+  /** Candidates from this import still awaiting review. Deleted with it. */
+  pendingCount: number;
+  /** Candidates from this import already confirmed. These facts survive. */
+  confirmedCount: number;
+}
+/** One document's original text, unsealed from the vault for display. */
+export interface DocumentContent {
+  document: SourceDocument;
+  content: string;
+}
+/**
+ * A trip's free-text notes.
+ *
+ * Sealed at rest like any other traveler-authored text, and excluded from the
+ * brief and from AI requests **by construction**: both are built from the trip
+ * plus its confirmed facts, and notes are neither, so no filter has to remember
+ * to leave them out.
+ */
+export interface TripNotes {
+  tripId: string;
+  body: string;
+  /** null until the traveler first saves something. */
+  updatedAt: string | null;
+}
+/** The most a trip's notes may hold; mirrors MAX_NOTES_CHARS in the core. */
+export const MAX_NOTES_CHARS = 100_000;
 /** One fetchable FCDO country page (curated list; slugs are never free text). */
 export interface FcdoCountry {
   slug: string;
@@ -520,6 +563,7 @@ export type ErrorCode =
   | "candidate/not_found"
   | "candidate/already_resolved"
   | "fact/not_found"
+  | "document/not_found"
   | "document/too_large"
   | "document/duplicate"
   | "document/empty"
@@ -638,6 +682,20 @@ export interface AppGateway {
   suggestSearchTerms(tripId: string, query: string): Promise<string[]>;
   deleteTrip(tripId: string): Promise<void>;
   importDocument(input: ImportDocumentInput): Promise<ImportResult>;
+  /** A trip's notes. Never written yet is an empty body, not an error. */
+  getTripNotes(tripId: string): Promise<TripNotes>;
+  /** Replace a trip's notes; an empty body clears them. */
+  setTripNotes(tripId: string, body: string): Promise<TripNotes>;
+  /** Every document imported into a trip, newest first, with its candidate counts. */
+  listDocuments(tripId: string): Promise<DocumentSummary[]>;
+  /** One document's original text, unsealed on demand — never listed in bulk. */
+  getDocument(documentId: string): Promise<DocumentContent>;
+  /**
+   * Delete an imported document and its still-pending candidates. Facts already
+   * confirmed from it survive, flagged `sourceRemoved` — the user approved those,
+   * so they are theirs to keep.
+   */
+  deleteDocument(documentId: string): Promise<void>;
   listCandidates(
     tripId: string,
     status?: CandidateStatus,

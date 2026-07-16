@@ -645,6 +645,92 @@ const en = {
   "theme.system": "System",
   "theme.dark": "Dark",
 
+  "settings.title": "Settings",
+  "settings.intro":
+    "Everything here applies to Voyalier as a whole, not to one trip.",
+  "settings.appearance": "Appearance",
+  "settings.appearance.hint":
+    "System follows whatever your computer is set to.",
+  "settings.back": "Back",
+  "topbar.settings": "Settings",
+  "assist.needsSetup": "Set up AI in Settings to use this.",
+  "assist.needsSetup.link": "Open Settings",
+
+  "sample.explore": "Explore a sample trip",
+  "sample.hint": "Made-up data you can delete. Nothing is sent anywhere.",
+  "sample.building": "Building it…",
+  "sample.error": "Couldn't build the sample trip.",
+  // "Sample:" stays in the title so it is never mistaken for a real booking.
+  "sample.title": "Sample: Kyoto long weekend",
+  "sample.origin": "San Francisco",
+  "sample.destination": "Kyoto",
+  "sample.document": "Sample confirmation email",
+
+  "notes.title": "Notes",
+  "notes.intro":
+    "Anything you want to remember: half-made plans, a restaurant someone mentioned, what to book next.",
+  // Stated because it is a real guarantee, not a nicety: the brief and every AI
+  // request are built from the trip and its confirmed facts, and notes are
+  // neither, so they cannot reach either one.
+  "notes.excluded":
+    "Kept on this device and encrypted. Never included in a shared brief or sent to an AI provider.",
+  "notes.label": "Trip notes",
+  "notes.placeholder": "Start typing…",
+  "notes.saving": "Saving…",
+  "notes.saved": "Saved",
+  "notes.error": "Couldn't save your notes — they're still here, untouched.",
+  "notes.tooLong": "That's longer than Voyalier can store. Nothing was saved.",
+
+  "ics.export": "Export calendar",
+  "ics.exporting": "Preparing…",
+  "ics.error": "Couldn't build the calendar file.",
+  "ics.done": "Calendar file saved.",
+  "ics.summary.flight": "Flight {flight}",
+  "ics.summary.stay": "Stay — {property}",
+  // Said inside every exported event, because the file outlives this screen and
+  // the caveat has to travel with it.
+  "ics.description":
+    "Exported from Voyalier. Times are as printed on your confirmation, with no timezone — Voyalier doesn't guess one, so your calendar shows them in its own local time. Confirmation codes and traveler names are not included.",
+
+  "documents.title": "Imported documents",
+  "documents.intro":
+    "The confirmations you brought in. Voyalier keeps the original text so you can check what it read — and remove it whenever you like.",
+  "documents.empty": "Nothing imported yet.",
+  "documents.empty.hint":
+    "Import a confirmation and the original will be kept here.",
+  "documents.error": "Couldn't load your documents.",
+  "documents.imported": "Imported {date}",
+  "documents.size.one": "{count} character",
+  "documents.size.other": "{count} characters",
+  "documents.counts.pending.one": "{count} awaiting review",
+  "documents.counts.pending.other": "{count} awaiting review",
+  "documents.counts.confirmed.one": "{count} confirmed",
+  "documents.counts.confirmed.other": "{count} confirmed",
+  "documents.view": "Show original",
+  "documents.hide": "Hide original",
+  "documents.viewError": "Couldn't open that document.",
+  "documents.remove": "Remove",
+  "documents.removeError": "Couldn't remove that document.",
+  "documents.removed": "Removed {label}.",
+  // Said before deleting, because the consequences differ per candidate state
+  // and the user should not have to guess which of their facts survive.
+  "documents.removeWarning.pending.one":
+    "Its suggestion still awaiting review goes too.",
+  "documents.removeWarning.pending.other":
+    "Its {count} suggestions still awaiting review go too.",
+  "documents.removeWarning.confirmed":
+    "Facts you already confirmed from it stay on your trip, but lose their evidence.",
+  "documents.sourceRemoved": "Source document removed",
+  "documents.kind.pasted_text": "Pasted text",
+  "documents.kind.html": "HTML",
+  "documents.kind.email": "Email",
+
+  "tripnav.label": "Jump to a section",
+  "tripnav.plan": "Plan",
+  "tripnav.prepare": "Prepare",
+  "tripnav.discover": "Discover",
+  "tripnav.ai": "AI",
+
   "dialog.close": "Close dialog",
 
   "updates.title": "Updates",

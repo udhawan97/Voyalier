@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import axe from "axe-core";
 import type { AppError, AppGateway, CandidateFact } from "@voyalier/contracts";
 import { createMockGateway } from "@voyalier/contracts";
@@ -27,6 +27,20 @@ export async function findA11yViolations(): Promise<string[]> {
 /** Render the whole app against a gateway (a fresh mock by default). */
 export function renderApp(gateway: AppGateway = createMockGateway()) {
   return render(<App gateway={gateway} />);
+}
+
+/**
+ * Render the app and land on Settings, which is where every workspace-wide panel
+ * lives (Appearance, the three AI panels, Updates, Encryption). Reaching them via
+ * the topbar gear is the only route a user has, so tests take it too.
+ */
+export async function renderSettings(
+  gateway: AppGateway = createMockGateway(),
+) {
+  const view = renderApp(gateway);
+  fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
+  await screen.findByRole("heading", { name: "Settings", level: 1 });
+  return view;
 }
 
 /** A mock gateway with specific operations overridden to reject. */

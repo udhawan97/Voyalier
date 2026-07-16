@@ -12,7 +12,8 @@
     "method",
     "candidateId",
     "correctedFields",
-    "confirmedAt"
+    "confirmedAt",
+    "sourceRemoved"
   ],
   "properties": {
     "id": { "type": "string" },
@@ -27,7 +28,8 @@
       "type": "array",
       "items": { "type": "string" }
     },
-    "confirmedAt": { "type": "string", "format": "date-time" }
+    "confirmedAt": { "type": "string", "format": "date-time" },
+    "sourceRemoved": { "type": "boolean" }
   },
   "$defs": {
     "factPayload": {

@@ -8,12 +8,14 @@ import { selectUpdater, type UpdaterGateway } from "./updater";
 import { useUpdater } from "./updater/useUpdater";
 import { OfflineBanner } from "./components/OfflineBanner";
 import { Topbar, type HealthState } from "./components/Topbar";
+import { SettingsView } from "./views/SettingsView";
 import { TripDetailView } from "./views/TripDetailView";
 import { TripListView } from "./views/TripListView";
 import { UpdatesPanel } from "./views/UpdatesPanel";
 import { VaultUnlock } from "./views/VaultUnlock";
 
-type View = { name: "list" } | { name: "trip"; tripId: string };
+type View =
+  { name: "list" } | { name: "trip"; tripId: string } | { name: "settings" };
 
 export function App({
   gateway: injected,
@@ -27,6 +29,8 @@ export function App({
   );
   const updaterController = useUpdater(updater);
   const [view, setView] = useState<View>({ name: "list" });
+  // Where "Back" from Settings returns to (the view Settings was opened from).
+  const [returnView, setReturnView] = useState<View>({ name: "list" });
   const [health, setHealth] = useState<HealthState>("checking");
   const [healthError, setHealthError] = useState<AppError | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -74,6 +78,18 @@ export function App({
     [],
   );
   const openList = useCallback(() => setView({ name: "list" }), []);
+  // Settings is a detour, not a destination: remember where the user was so
+  // "Back" returns them there instead of dumping them on the home list. Opening
+  // Settings from Settings must not make Back a no-op loop.
+  const openSettings = useCallback(
+    () =>
+      setView((current) => {
+        if (current.name !== "settings") setReturnView(current);
+        return { name: "settings" };
+      }),
+    [],
+  );
+  const leaveSettings = useCallback(() => setView(returnView), [returnView]);
 
   const retry = useCallback(() => {
     setHealth("checking");
@@ -90,7 +106,11 @@ export function App({
             <a className="voy-skip" href="#main">
               {t("a11y.skipToContent")}
             </a>
-            <Topbar onHome={openList} health={health} />
+            <Topbar
+              onHome={openList}
+              onSettings={openSettings}
+              health={health}
+            />
             <main className="voy-main" id="main">
               {health === "offline" && healthError ? (
                 <OfflineBanner error={healthError} onRetry={retry} />
@@ -102,6 +122,8 @@ export function App({
                       trip data, so the panel renders pre-unlock too. */}
                   <UpdatesPanel />
                 </>
+              ) : view.name === "settings" ? (
+                <SettingsView onBack={leaveSettings} />
               ) : view.name === "list" ? (
                 <TripListView onOpenTrip={openTrip} reloadKey={reloadKey} />
               ) : (
@@ -111,6 +133,7 @@ export function App({
                   reloadKey={reloadKey}
                   onBack={openList}
                   onDeleted={openList}
+                  onOpenSettings={openSettings}
                 />
               )}
             </main>

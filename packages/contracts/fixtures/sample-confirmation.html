@@ -1,0 +1,38 @@
+<!doctype html>
+<html>
+  <body>
+    <p>Your Kyoto trip is confirmed. Fictional booking, for demonstration only.</p>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FlightReservation",
+        "reservationNumber": "SAMPLE7",
+        "underName": { "@type": "Person", "name": "Sample Traveler" },
+        "reservationFor": {
+          "@type": "Flight",
+          "flightNumber": "FS142",
+          "airline": { "@type": "Airline", "name": "Fictional Skyways", "iataCode": "FS" },
+          "departureAirport": { "@type": "Airport", "iataCode": "SFO" },
+          "arrivalAirport": { "@type": "Airport", "iataCode": "KIX" },
+          "departureTime": "2027-04-02T10:45",
+          "arrivalTime": "2027-04-03T14:30"
+        }
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "LodgingReservation",
+        "reservationNumber": "SAMPLE9",
+        "underName": { "@type": "Person", "name": "Sample Traveler" },
+        "reservationFor": {
+          "@type": "LodgingBusiness",
+          "name": "Fictional Paper Lantern Inn",
+          "address": "4 Invented Lane, Kyoto"
+        },
+        "checkinDate": "2027-04-03",
+        "checkoutDate": "2027-04-06"
+      }
+    </script>
+  </body>
+</html>

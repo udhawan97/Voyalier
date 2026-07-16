@@ -1,5 +1,20 @@
 # Voyalier app audit & polish plan — 2026-07-12
 
+> **Status: complete (2026-07-16).** Lanes 0/1/3/4/5/6b/6c shipped in v0.4.0.
+> The lanes deferred at the time — 2 (Settings), 6a (documents manager), 6d
+> (notes), 6e (.ics export), 6f (sample trip), 7 (performance) — all landed on
+> 2026-07-16 and are described below as they were planned, not as they were
+> built; the CHANGELOG and the commits are the record of what shipped.
+>
+> Two deviations worth knowing: the trip page orders **Discover before AI**
+> (everything above AI works without it), and the section-nav chips target
+> section **wrappers** rather than headings, because Lane 7 defers those sections
+> and a heading inside an unmounted section is not a jump target.
+>
+> Still open from Lane 6: `6g` (documented backup story) and the explicitly
+> deferred list (workspace export/restore, more fact types, multi-traveler,
+> budgets, packing lists, cross-trip search, URL routing).
+
 **Status:** plan only — nothing here is implemented. Produced by a full audit
 (four parallel deep passes: user flows, design system, bug hunt, docs drift,
 each claim then re-verified against the code at the cited line).

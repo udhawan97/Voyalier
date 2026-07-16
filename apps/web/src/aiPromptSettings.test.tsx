@@ -1,16 +1,9 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
 
-import { renderApp } from "./test/helpers";
+import { renderSettings } from "./test/helpers";
 
 async function openPromptSettings() {
-  fireEvent.click(
-    await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
-  );
-  await screen.findByRole("heading", {
-    name: "Kyoto autumn journey",
-    level: 1,
-  });
   return screen.findByRole("region", { name: "Customize AI instructions" });
 }
 
@@ -20,7 +13,7 @@ async function openPromptSettings() {
  */
 describe("Editable AI instructions", () => {
   it("overrides an instruction and resets it to default", async () => {
-    renderApp(createMockGateway());
+    await renderSettings(createMockGateway());
     const region = await openPromptSettings();
 
     const assist = await within(region).findByLabelText(
@@ -51,7 +44,7 @@ describe("Editable AI instructions", () => {
       label: "Hotel booking",
       content: "River Paper Inn stay.",
     });
-    renderApp(gateway);
+    await renderSettings(gateway);
     const region = await openPromptSettings();
 
     const draft = await within(region).findByLabelText(
@@ -65,6 +58,13 @@ describe("Editable AI instructions", () => {
       within(row).getByRole("button", { name: "Save instruction" }),
     );
     await within(row).findByText("Customized");
+
+    // The instruction is saved in Settings but spent on a trip, so walk the
+    // route a user walks: back out of Settings, then open the trip.
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    );
 
     // The draft preview now shows the custom instruction.
     const draftRegion = await screen.findByRole("region", {

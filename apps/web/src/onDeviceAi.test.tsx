@@ -2,16 +2,11 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import type { AppGateway, LocalAiStatus } from "@voyalier/contracts";
 import { createMockGateway } from "@voyalier/contracts";
 
-import { failingGateway, renderApp } from "./test/helpers";
+import { failingGateway, renderSettings } from "./test/helpers";
 
-async function openKyotoLocalAi() {
-  fireEvent.click(
-    await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
-  );
-  await screen.findByRole("heading", {
-    name: "Kyoto autumn journey",
-    level: 1,
-  });
+/** On-device AI is workspace-wide config, so it lives in Settings, not a trip. */
+async function openLocalAi(gateway?: AppGateway) {
+  await renderSettings(gateway);
   return screen.findByRole("region", { name: "On-device AI" });
 }
 
@@ -34,10 +29,9 @@ describe("on-device AI detection", () => {
         } satisfies LocalAiStatus);
       },
     };
-    renderApp(gateway);
-    const region = await openKyotoLocalAi();
+    const region = await openLocalAi(gateway);
 
-    // Mounting the trip detail must not trigger a probe.
+    // Opening Settings must not trigger a probe.
     expect(calls).toBe(0);
     expect(within(region).queryByText("Available")).toBeNull();
 
@@ -49,8 +43,7 @@ describe("on-device AI detection", () => {
   });
 
   it("shows detected models after checking", async () => {
-    renderApp(createMockGateway());
-    const region = await openKyotoLocalAi();
+    const region = await openLocalAi(createMockGateway());
 
     fireEvent.click(
       within(region).getByRole("button", { name: "Check for on-device AI" }),
@@ -77,8 +70,7 @@ describe("on-device AI detection", () => {
           models: [],
         } satisfies LocalAiStatus),
     };
-    renderApp(gateway);
-    const region = await openKyotoLocalAi();
+    const region = await openLocalAi(gateway);
 
     fireEvent.click(
       within(region).getByRole("button", { name: "Check for on-device AI" }),
@@ -89,13 +81,12 @@ describe("on-device AI detection", () => {
   });
 
   it("treats a detection failure as not-detected, not a crash", async () => {
-    renderApp(
+    const region = await openLocalAi(
       failingGateway({
         detectLocalAi: () =>
           Promise.reject({ code: "transport/failure", message: "down" }),
       }),
     );
-    const region = await openKyotoLocalAi();
 
     fireEvent.click(
       within(region).getByRole("button", { name: "Check for on-device AI" }),
@@ -113,8 +104,7 @@ describe("on-device AI detection", () => {
           models: [],
         } satisfies LocalAiStatus),
     };
-    renderApp(gateway);
-    const region = await openKyotoLocalAi();
+    const region = await openLocalAi(gateway);
 
     fireEvent.click(
       within(region).getByRole("button", { name: "Check for on-device AI" }),
@@ -154,8 +144,7 @@ describe("on-device AI detection", () => {
         });
       },
     };
-    renderApp(gateway);
-    const region = await openKyotoLocalAi();
+    const region = await openLocalAi(gateway);
 
     fireEvent.click(
       within(region).getByRole("button", { name: "Check for on-device AI" }),

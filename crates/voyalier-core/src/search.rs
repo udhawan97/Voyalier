@@ -348,6 +348,7 @@ mod tests {
             candidate_id: None,
             corrected_fields: Vec::new(),
             confirmed_at: "2026-01-01T00:00:00Z".to_owned(),
+            source_removed: false,
         }
     }
 

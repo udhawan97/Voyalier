@@ -19,11 +19,13 @@ import {
   formatFieldValue,
   tripRoute,
 } from "../app/format";
+import { buildIcs, icsFilename } from "../app/ics";
 import { plural, t, type MessageKey } from "../app/i18n";
 import { useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 import { ConfirmButton } from "../components/ConfirmButton";
+import { DeferredSection } from "../components/DeferredSection";
 import {
   AlertIcon,
   ArchiveIcon,
@@ -46,8 +48,8 @@ import {
 import { AddFactDialog } from "./AddFactDialog";
 import { BriefDialog } from "./BriefDialog";
 import { CandidateReviewDialog } from "./CandidateReviewDialog";
-import { AiProviders } from "./AiProviders";
-import { AiPromptSettings } from "./AiPromptSettings";
+import { DocumentsPanel } from "./DocumentsPanel";
+import { TripNotes } from "./TripNotes";
 import { TodayPanel } from "./TodayPanel";
 import { AssistPreview } from "./AssistPreview";
 import { AssistDraft } from "./AssistDraft";
@@ -57,7 +59,6 @@ import { Recommendations } from "./Recommendations";
 import { DeleteTripDialog } from "./DeleteTripDialog";
 import { EditTripDialog } from "./EditTripDialog";
 import { ImportDialog } from "./ImportDialog";
-import { OnDeviceAi } from "./OnDeviceAi";
 import { TravelAdvice } from "./TravelAdvice";
 import { TripSearch } from "./TripSearch";
 import { WeatherOutlook } from "./WeatherOutlook";
@@ -119,10 +120,17 @@ function FactCard({
           })}
         </p>
       ) : null}
+      {/* The traveler deleted the document this came from. Say so, rather than
+          let it pass as something they typed in by hand. */}
+      {fact.sourceRemoved ? (
+        <p className="voy-fact__sourceless">{t("documents.sourceRemoved")}</p>
+      ) : null}
       <div className="voy-fact__actions">
-        {/* A manual fact has no candidate to return to review, so unconfirming
-            it destroys it — guard that behind a two-step confirm. Returning an
-            imported fact to review is reversible, so it stays a plain click. */}
+        {/* No candidate means there is nothing to return the fact to, so
+            unconfirming destroys it — guard that behind a two-step confirm. That
+            covers both a hand-typed fact and one whose source document was
+            deleted. Returning an imported fact to review is reversible, so it
+            stays a plain click. */}
         {fact.candidateId === null ? (
           <ConfirmButton
             label={t("detail.remove")}
@@ -177,6 +185,39 @@ function FactGroup({
         ))}
       </div>
     </section>
+  );
+}
+
+/**
+ * A sticky row of jump links for the long trip page.
+ *
+ * The targets are the section *wrappers*, not the headings inside them: those
+ * sections are deferred, so their headings do not exist until the section
+ * mounts, and a chip pointing at one would do nothing. A wrapper is always
+ * there, and jumping to it is what brings the section in. `scroll-margin-top` in
+ * CSS keeps the landing spot clear of the sticky nav. Plain anchors — no router,
+ * so refresh and back behave exactly as they did.
+ */
+const TRIP_NAV: { label: MessageKey; target: string }[] = [
+  { label: "tripnav.plan", target: "section-plan" },
+  { label: "tripnav.prepare", target: "section-prepare" },
+  { label: "tripnav.discover", target: "section-discover" },
+  { label: "tripnav.ai", target: "section-ai" },
+];
+
+function TripSectionNav() {
+  return (
+    <nav className="voy-tripnav" aria-label={t("tripnav.label")}>
+      {TRIP_NAV.map((item) => (
+        <a
+          key={item.target}
+          className="voy-tripnav__chip"
+          href={`#${item.target}`}
+        >
+          {t(item.label)}
+        </a>
+      ))}
+    </nav>
   );
 }
 
@@ -309,11 +350,13 @@ export function TripDetailView({
   tripId,
   onBack,
   onDeleted,
+  onOpenSettings,
   reloadKey,
 }: {
   tripId: string;
   onBack: () => void;
   onDeleted: () => void;
+  onOpenSettings?: () => void;
   reloadKey: number;
 }) {
   const gateway = useGateway();
@@ -326,6 +369,7 @@ export function TripDetailView({
     return { detail, pending };
   }, `trip:${tripId}:${reloadKey}`);
 
+  const [exporting, setExporting] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showAddFact, setShowAddFact] = useState(false);
   // Holds the exact candidates to review (from the pending list or a fresh
@@ -339,6 +383,41 @@ export function TripDetailView({
   const [archiving, setArchiving] = useState(false);
   const [unarchiving, setUnarchiving] = useState(false);
   const [unconfirmingId, setUnconfirmingId] = useState<string | null>(null);
+
+  /**
+   * Save the trip as an .ics file. Everything happens on this device: the brief
+   * is built by the local core, turned into calendar text here, and handed to
+   * the browser as a blob. Nothing is uploaded, and no calendar is contacted.
+   *
+   * It exports the *brief*, not the raw facts, so the Rust core's
+   * generation-time exclusion of confirmation codes and traveler names carries
+   * into the file — a .ics usually ends up in a synced cloud calendar.
+   */
+  async function exportCalendar() {
+    setExporting(true);
+    try {
+      const brief = await gateway.getTripBrief(tripId);
+      const ics = buildIcs(brief, {
+        flightSummary: (flight) => t("ics.summary.flight", { flight }),
+        staySummary: (property) => t("ics.summary.stay", { property }),
+        description: t("ics.description"),
+      });
+      const url = URL.createObjectURL(
+        new Blob([ics], { type: "text/calendar;charset=utf-8" }),
+      );
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = icsFilename(brief.title);
+      anchor.click();
+      // Release the blob once the click has been handled.
+      URL.revokeObjectURL(url);
+      announce(t("ics.done"));
+    } catch (caught) {
+      announce(describeError(caught as AppError).title || t("ics.error"));
+    } finally {
+      setExporting(false);
+    }
+  }
 
   async function archive() {
     setArchiving(true);
@@ -486,6 +565,12 @@ export function TripDetailView({
               {t("detail.shareBrief")}
             </Button>
           ) : null}
+          {/* Same gate as the brief: nothing confirmed, nothing to export. */}
+          {confirmedFacts.length > 0 ? (
+            <Button variant="ghost" onClick={exportCalendar} busy={exporting}>
+              {exporting ? t("ics.exporting") : t("ics.export")}
+            </Button>
+          ) : null}
           {isArchived ? (
             <Button variant="ghost" onClick={unarchive} busy={unarchiving}>
               {t("detail.unarchive")}
@@ -505,6 +590,8 @@ export function TripDetailView({
           </Button>
         </div>
       </header>
+
+      <TripSectionNav />
 
       <TodayPanel tripId={tripId} />
 
@@ -528,8 +615,10 @@ export function TripDetailView({
         <p className="voy-detail__nopending">{t("detail.nopending")}</p>
       )}
 
-      <div className="voy-detail__blueprint">
-        <h2 className="voy-detail__blueprint-title">{t("detail.blueprint")}</h2>
+      <div className="voy-detail__blueprint" id="section-plan">
+        <h2 id="blueprint-title" className="voy-detail__blueprint-title">
+          {t("detail.blueprint")}
+        </h2>
         {confirmedFacts.length > 0 ? (
           <p className="voy-detail__blueprint-sub">
             {t("detail.blueprint.sub")}
@@ -586,53 +675,64 @@ export function TripDetailView({
         <ScheduleCheck conflicts={itineraryConflicts} />
       ) : null}
 
-      <TravelAdvice
-        tripId={tripId}
-        snapshot={data.detail.travelAdvice}
-        onFetched={() => reload()}
-      />
+      {/* Everything from here down is below the fold and several of these fetch
+          on mount, so they wait until they are nearly on screen. */}
+      <DeferredSection id="section-prepare">
+        <TravelAdvice
+          tripId={tripId}
+          snapshot={data.detail.travelAdvice}
+          onFetched={() => reload()}
+        />
 
-      <WeatherOutlook
-        tripId={tripId}
-        destination={trip.destination}
-        snapshot={data.detail.weather}
-        onFetched={() => reload()}
-      />
+        <WeatherOutlook
+          tripId={tripId}
+          destination={trip.destination}
+          snapshot={data.detail.weather}
+          onFetched={() => reload()}
+        />
 
-      <TripSearch tripId={tripId} />
+        <TripNotes tripId={tripId} />
 
-      <OnDeviceAi />
+        <DocumentsPanel
+          tripId={tripId}
+          reloadKey={reloadKey}
+          onChanged={() => reload()}
+        />
 
-      <AiProviders />
+        <TripSearch tripId={tripId} />
+      </DeferredSection>
 
-      <AiPromptSettings />
+      <DeferredSection id="section-discover">
+        <CityPacks tripId={tripId} destination={trip.destination} />
 
-      <AssistPreview tripId={tripId} />
+        <Recommendations tripId={tripId} />
 
-      <AssistDraft
-        tripId={tripId}
-        onDrafted={(candidates) => {
-          setReviewCandidates(candidates);
-          reload();
-        }}
-      />
+        <MapPanel
+          tripId={tripId}
+          center={
+            data.detail.weather
+              ? {
+                  lat: data.detail.weather.latitude,
+                  lon: data.detail.weather.longitude,
+                  name: data.detail.weather.placeName,
+                }
+              : undefined
+          }
+        />
+      </DeferredSection>
 
-      <CityPacks tripId={tripId} destination={trip.destination} />
+      {/* AI sits last on purpose: everything above works without it. */}
+      <DeferredSection id="section-ai">
+        <AssistPreview tripId={tripId} onOpenSettings={onOpenSettings} />
 
-      <Recommendations tripId={tripId} />
-
-      <MapPanel
-        tripId={tripId}
-        center={
-          data.detail.weather
-            ? {
-                lat: data.detail.weather.latitude,
-                lon: data.detail.weather.longitude,
-                name: data.detail.weather.placeName,
-              }
-            : undefined
-        }
-      />
+        <AssistDraft
+          tripId={tripId}
+          onDrafted={(candidates) => {
+            setReviewCandidates(candidates);
+            reload();
+          }}
+        />
+      </DeferredSection>
 
       {showImport ? (
         <ImportDialog

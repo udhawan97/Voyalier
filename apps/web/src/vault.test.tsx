@@ -2,7 +2,7 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import type { AppGateway, VaultStatus } from "@voyalier/contracts";
 import { createMockGateway } from "@voyalier/contracts";
 
-import { renderApp } from "./test/helpers";
+import { renderApp, renderSettings } from "./test/helpers";
 
 /**
  * The optional passphrase: the panel on the home view sets/removes it, and a
@@ -10,7 +10,7 @@ import { renderApp } from "./test/helpers";
  */
 describe("encrypted vault — optional passphrase", () => {
   it("adds a passphrase and reflects that protection is on", async () => {
-    renderApp(createMockGateway());
+    await renderSettings(createMockGateway());
     const region = await screen.findByRole("region", { name: "Encryption" });
 
     expect(
@@ -48,7 +48,7 @@ describe("encrypted vault — optional passphrase", () => {
         return base.setVaultPassphrase(p);
       },
     };
-    renderApp(gateway);
+    await renderSettings(gateway);
     const region = await screen.findByRole("region", { name: "Encryption" });
 
     fireEvent.click(

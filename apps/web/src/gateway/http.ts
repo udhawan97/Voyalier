@@ -1,4 +1,6 @@
 import type {
+  DocumentContent,
+  DocumentSummary,
   AddManualFactInput,
   AiPromptKind,
   AiPromptSettings,
@@ -40,6 +42,7 @@ import type {
   Trip,
   TripBrief,
   TripDetail,
+  TripNotes,
   TripSummary,
   UpdateTripInput,
   VaultStatus,
@@ -302,6 +305,26 @@ export function createHttpGateway(
         `/api/v1/trips/${enc(input.tripId)}/documents`,
         input,
       ),
+
+    getTripNotes: (tripId: string) =>
+      request<TripNotes>("GET", `/api/v1/trips/${enc(tripId)}/notes`),
+
+    setTripNotes: (tripId: string, body: string) =>
+      request<TripNotes>("POST", `/api/v1/trips/${enc(tripId)}/notes`, {
+        body,
+      }),
+
+    listDocuments: (tripId: string) =>
+      request<DocumentSummary[]>(
+        "GET",
+        `/api/v1/trips/${enc(tripId)}/documents`,
+      ),
+
+    getDocument: (documentId: string) =>
+      request<DocumentContent>("GET", `/api/v1/documents/${enc(documentId)}`),
+
+    deleteDocument: (documentId: string) =>
+      request<void>("DELETE", `/api/v1/documents/${enc(documentId)}`),
 
     listCandidates: (tripId: string, status?: CandidateStatus) =>
       request<CandidateFact[]>(

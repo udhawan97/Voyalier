@@ -306,6 +306,14 @@ pub struct ConfirmedFact {
     pub candidate_id: Option<String>,
     pub corrected_fields: Vec<String>,
     pub confirmed_at: String,
+    /// True when the imported document this fact came from has since been
+    /// deleted. The fact survives — the traveler approved it — but its evidence
+    /// is gone.
+    ///
+    /// This cannot be inferred from `candidate_id: None`, which already means
+    /// "added by hand". A fact whose source was removed is a different thing,
+    /// and conflating the two would offer to show evidence that no longer exists.
+    pub source_removed: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -336,6 +344,44 @@ pub struct ImportResult {
     pub document: SourceDocument,
     pub parser_run_id: String,
     pub candidates: Vec<CandidateFact>,
+}
+
+/// The most a trip's notes may hold. Generous for prose, bounded so a paste
+/// cannot grow the database without limit.
+pub const MAX_NOTES_CHARS: usize = 100_000;
+
+/// A trip's free-text notes.
+///
+/// Sealed at rest like any other traveler-authored text. Excluded from the brief
+/// and from AI requests **by construction**, not by filtering: both are built
+/// from `(trip, confirmed facts)` and notes are neither, so there is no path for
+/// them to leak into a shared brief or an outbound provider call.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TripNotes {
+    pub trip_id: String,
+    pub body: String,
+    /// None until the traveler first saves something.
+    pub updated_at: Option<String>,
+}
+
+/// A stored document plus what it produced, for the documents manager. The
+/// counts are what make deletion an informed choice: what is about to be
+/// discarded (pending) versus what will outlive the document (confirmed).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentSummary {
+    pub document: SourceDocument,
+    pub pending_count: u32,
+    pub confirmed_count: u32,
+}
+
+/// One document's original text, unsealed from the vault for display.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentContent {
+    pub document: SourceDocument,
+    pub content: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -376,6 +422,8 @@ pub enum ErrorCode {
     CandidateAlreadyResolved,
     #[serde(rename = "fact/not_found")]
     FactNotFound,
+    #[serde(rename = "document/not_found")]
+    DocumentNotFound,
     #[serde(rename = "document/too_large")]
     DocumentTooLarge,
     #[serde(rename = "document/duplicate")]
@@ -413,6 +461,7 @@ impl ErrorCode {
             Self::CandidateNotFound => "candidate/not_found",
             Self::CandidateAlreadyResolved => "candidate/already_resolved",
             Self::FactNotFound => "fact/not_found",
+            Self::DocumentNotFound => "document/not_found",
             Self::DocumentTooLarge => "document/too_large",
             Self::DocumentDuplicate => "document/duplicate",
             Self::DocumentEmpty => "document/empty",

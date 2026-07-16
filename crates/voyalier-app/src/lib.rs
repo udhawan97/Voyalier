@@ -17,29 +17,29 @@ use voyalier_core::{
     AssistDraftResult, AssistReply, AssistRequestPreview, CandidateFact, CandidateStatus,
     ConfirmCandidateInput, ConfirmationParser, ConfirmedFact, CreateTripInput,
     DEFAULT_ANTHROPIC_MODEL, DEFAULT_OLLAMA_MODEL, DEFAULT_OPENAI_MODEL,
-    DRAFT_LODGING_DATES_SYSTEM_PROMPT, DocumentKind, DownloadedPack, ErrorCode, ExtractionMethod,
-    FCDO_COUNTRIES, FactPayload, FactType, FcdoCountry, FieldSuggestion, HealthResponse,
-    ImportDocumentInput, ImportResult, IntelligenceMode, JsonLdParser, KeyValidation,
-    KeyValidationStatus, LocalAiStatus, LocalModelPullResult, LodgingDateProposal,
-    MAX_OFFLINE_MAP_BYTES, NormalizedDocument, OLLAMA_CHAT_URL, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,
-    OPENAI_CHAT_URL, OfflineMapArchive, OfflineMapChunk, OfflineMapDescriptor, PROVIDERS,
-    PackContent, PackInfo, PackSuggestion, ParsedCandidate, PersonaWeights, PlaintextParser,
-    ProviderConfig, ProviderId, Recommendation, RedactionPolicy, SEARCH_SUGGESTION_LIMIT,
-    SearchHit, SearchableDocument, SourceDocument, SuggestionSource, TodayView,
-    TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripStatus, TripSummary, UpdateTripInput,
-    WarningCode, WeatherSnapshot, assess_readiness, build_anthropic_messages_body,
-    build_assist_preview, build_lodging_dates_user_content, build_ollama_chat_body,
-    build_openai_chat_body, build_pull_body, build_today_view, build_trip_brief,
-    changed_payload_fields, detect_itinerary_conflicts, extract_email_body,
-    interpret_key_validation, interpret_pull_response, new_id, now_rfc3339,
-    offline_map_download_url, pack_catalog, pack_download_url, parse_anthropic_reply,
-    parse_fcdo_content, parse_forecast_response, parse_geocoding_response,
-    parse_lodging_dates_reply, parse_ollama_chat_reply, parse_openai_chat_reply,
-    parse_pack_content, provider_info, provider_validation_endpoint, provider_validation_headers,
-    rank_field_suggestions, recommend_places, search_trip_corpus, suggest_packs,
-    suggest_search_terms, validate_api_key, validate_country_slug, validate_create_trip,
-    validate_document_content, validate_fact_payload, validate_model_name, validate_pack_id,
-    validate_provider_id, validate_search_query, validate_update_trip,
+    DRAFT_LODGING_DATES_SYSTEM_PROMPT, DocumentContent, DocumentKind, DocumentSummary,
+    DownloadedPack, ErrorCode, ExtractionMethod, FCDO_COUNTRIES, FactPayload, FactType,
+    FcdoCountry, FieldSuggestion, HealthResponse, ImportDocumentInput, ImportResult,
+    IntelligenceMode, JsonLdParser, KeyValidation, KeyValidationStatus, LocalAiStatus,
+    LocalModelPullResult, LodgingDateProposal, MAX_NOTES_CHARS, MAX_OFFLINE_MAP_BYTES,
+    NormalizedDocument, OLLAMA_CHAT_URL, OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OPENAI_CHAT_URL,
+    OfflineMapArchive, OfflineMapChunk, OfflineMapDescriptor, PROVIDERS, PackContent, PackInfo,
+    PackSuggestion, ParsedCandidate, PersonaWeights, PlaintextParser, ProviderConfig, ProviderId,
+    Recommendation, RedactionPolicy, SEARCH_SUGGESTION_LIMIT, SearchHit, SearchableDocument,
+    SourceDocument, SuggestionSource, TodayView, TravelAdviceSnapshot, Trip, TripBrief, TripDetail,
+    TripNotes, TripStatus, TripSummary, UpdateTripInput, WarningCode, WeatherSnapshot,
+    assess_readiness, build_anthropic_messages_body, build_assist_preview,
+    build_lodging_dates_user_content, build_ollama_chat_body, build_openai_chat_body,
+    build_pull_body, build_today_view, build_trip_brief, changed_payload_fields,
+    detect_itinerary_conflicts, extract_email_body, interpret_key_validation,
+    interpret_pull_response, new_id, now_rfc3339, offline_map_download_url, pack_catalog,
+    pack_download_url, parse_anthropic_reply, parse_fcdo_content, parse_forecast_response,
+    parse_geocoding_response, parse_lodging_dates_reply, parse_ollama_chat_reply,
+    parse_openai_chat_reply, parse_pack_content, provider_info, provider_validation_endpoint,
+    provider_validation_headers, rank_field_suggestions, recommend_places, search_trip_corpus,
+    suggest_packs, suggest_search_terms, validate_api_key, validate_country_slug,
+    validate_create_trip, validate_document_content, validate_fact_payload, validate_model_name,
+    validate_pack_id, validate_provider_id, validate_search_query, validate_update_trip,
 };
 use voyalier_core::{
     VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, VaultStatus, derive_key as vault_derive_key,
@@ -574,6 +574,9 @@ const SEALED_COLUMNS: &[(&str, &str)] = &[
     // carry verbatim excerpts of the source text (often the code itself).
     ("candidate_facts", "payload"),
     ("candidate_facts", "field_spans"),
+    // Notes are whatever the traveler chose to write down — treat them as
+    // sensitive as the confirmations they sit beside.
+    ("trip_notes", "body"),
 ];
 
 /// Seal any legacy plaintext values in the vault's sensitive columns once the
@@ -2348,6 +2351,186 @@ impl AppService {
         }
     }
 
+    /// A trip's notes. Absent notes are an empty body, not an error — "nothing
+    /// written yet" is the normal first state, not a failure.
+    pub fn get_trip_notes(&self, trip_id: &str) -> Result<TripNotes, AppError> {
+        let connection = self.connection()?;
+        fetch_trip(&connection, trip_id)?;
+        let stored: Option<(String, String)> = connection
+            .query_row(
+                "SELECT body, updated_at FROM trip_notes WHERE trip_id = ?1",
+                params![trip_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()
+            .map_err(storage_error)?;
+        match stored {
+            Some((sealed, updated_at)) => Ok(TripNotes {
+                trip_id: trip_id.to_owned(),
+                body: self.vault.open_field(&sealed)?,
+                updated_at: Some(updated_at),
+            }),
+            None => Ok(TripNotes {
+                trip_id: trip_id.to_owned(),
+                body: String::new(),
+                updated_at: None,
+            }),
+        }
+    }
+
+    /// Replace a trip's notes. Clearing them removes the row rather than storing
+    /// an empty string, so "no notes" is one state and not two.
+    pub fn set_trip_notes(&self, trip_id: &str, body: &str) -> Result<TripNotes, AppError> {
+        if body.chars().count() > MAX_NOTES_CHARS {
+            return Err(AppError::new(
+                ErrorCode::ValidationInvalidInput,
+                "those notes are too long to store",
+            ));
+        }
+        let connection = self.connection()?;
+        fetch_trip(&connection, trip_id)?;
+        if body.is_empty() {
+            connection
+                .execute(
+                    "DELETE FROM trip_notes WHERE trip_id = ?1",
+                    params![trip_id],
+                )
+                .map_err(storage_error)?;
+            return Ok(TripNotes {
+                trip_id: trip_id.to_owned(),
+                body: String::new(),
+                updated_at: None,
+            });
+        }
+        let updated_at = now_rfc3339();
+        let sealed = self.vault.seal_field(body)?;
+        connection
+            .execute(
+                "INSERT INTO trip_notes (id, trip_id, body, updated_at)
+                 VALUES (?1, ?2, ?3, ?4)
+                 ON CONFLICT(trip_id) DO UPDATE SET body = ?3, updated_at = ?4",
+                params![new_id("notes"), trip_id, sealed, updated_at],
+            )
+            .map_err(storage_error)?;
+        Ok(TripNotes {
+            trip_id: trip_id.to_owned(),
+            body: body.to_owned(),
+            updated_at: Some(updated_at),
+        })
+    }
+
+    /// Every document imported into a trip, newest first, each with the counts
+    /// that make deleting it an informed choice. Bodies are never read here —
+    /// this list must stay cheap, and an unsealed body has no business in a
+    /// listing.
+    pub fn list_documents(&self, trip_id: &str) -> Result<Vec<DocumentSummary>, AppError> {
+        let connection = self.connection()?;
+        fetch_trip(&connection, trip_id)?;
+        let mut statement = connection
+            .prepare(
+                "SELECT d.id, d.trip_id, d.kind, d.label, d.content_hash, d.char_count, d.imported_at,
+                        (SELECT COUNT(*) FROM candidate_facts c
+                          WHERE c.document_id = d.id AND c.status = 'pending'),
+                        (SELECT COUNT(*) FROM candidate_facts c
+                          WHERE c.document_id = d.id AND c.status = 'confirmed')
+                 FROM source_documents d
+                 WHERE d.trip_id = ?1
+                 ORDER BY d.imported_at DESC, d.id DESC",
+            )
+            .map_err(storage_error)?;
+        let rows = statement
+            .query_map(params![trip_id], |row| {
+                Ok(DocumentSummary {
+                    document: SourceDocument {
+                        id: row.get(0)?,
+                        trip_id: row.get(1)?,
+                        kind: sql_to_enum(row.get::<_, String>(2)?)?,
+                        label: row.get(3)?,
+                        content_hash: row.get(4)?,
+                        char_count: row.get(5)?,
+                        imported_at: row.get(6)?,
+                    },
+                    pending_count: row.get(7)?,
+                    confirmed_count: row.get(8)?,
+                })
+            })
+            .map_err(storage_error)?;
+        collect_rows(rows)
+    }
+
+    /// One document's original text, unsealed on demand. This is the only path
+    /// that returns an imported body, and it exists so a traveler can see what
+    /// they handed over — the same bytes the parser read.
+    pub fn get_document(&self, document_id: &str) -> Result<DocumentContent, AppError> {
+        let connection = self.connection()?;
+        let (document, sealed) = connection
+            .query_row(
+                "SELECT id, trip_id, kind, label, content_hash, char_count, imported_at, raw_content
+                 FROM source_documents WHERE id = ?1",
+                params![document_id],
+                |row| {
+                    Ok((
+                        SourceDocument {
+                            id: row.get(0)?,
+                            trip_id: row.get(1)?,
+                            kind: sql_to_enum(row.get::<_, String>(2)?)?,
+                            label: row.get(3)?,
+                            content_hash: row.get(4)?,
+                            char_count: row.get(5)?,
+                            imported_at: row.get(6)?,
+                        },
+                        row.get::<_, String>(7)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(storage_error)?
+            .ok_or_else(|| {
+                AppError::new(ErrorCode::DocumentNotFound, "that document no longer exists")
+            })?;
+        let content = self.vault.open_field(&sealed)?;
+        Ok(DocumentContent { document, content })
+    }
+
+    /// Delete an imported document.
+    ///
+    /// Cascade rules, chosen deliberately (see the audit plan's 6a):
+    /// - Still-pending candidates go too — they are unreviewed derivatives of a
+    ///   body the traveler just discarded, and reviewing evidence that no longer
+    ///   exists is not a flow worth keeping.
+    /// - Facts already confirmed from it STAY. The traveler approved those; they
+    ///   are part of the itinerary now. They are flagged `source_removed` so the
+    ///   UI stops offering evidence it cannot show. The FK does the nulling of
+    ///   `candidate_id`; the flag is what keeps that from reading as "manual".
+    pub fn delete_document(&self, document_id: &str) -> Result<(), AppError> {
+        let mut connection = self.connection()?;
+        let transaction = connection.transaction().map_err(storage_error)?;
+        // Flag surviving facts BEFORE the delete: once the candidate rows are
+        // gone the join that identifies them is gone too.
+        transaction
+            .execute(
+                "UPDATE confirmed_facts SET source_removed = 1
+                 WHERE candidate_id IN
+                   (SELECT id FROM candidate_facts WHERE document_id = ?1)",
+                params![document_id],
+            )
+            .map_err(storage_error)?;
+        let deleted = transaction
+            .execute(
+                "DELETE FROM source_documents WHERE id = ?1",
+                params![document_id],
+            )
+            .map_err(storage_error)?;
+        if deleted == 0 {
+            return Err(AppError::new(
+                ErrorCode::DocumentNotFound,
+                "that document no longer exists",
+            ));
+        }
+        transaction.commit().map_err(storage_error)?;
+        Ok(())
+    }
+
     pub fn confirm_candidate(
         &self,
         input: ConfirmCandidateInput,
@@ -2371,6 +2554,7 @@ impl AppService {
             candidate_id: Some(candidate.id.clone()),
             corrected_fields,
             confirmed_at: now_rfc3339(),
+            source_removed: false,
         };
         insert_confirmed_fact(&transaction, &confirmed, &self.vault)?;
 
@@ -2406,6 +2590,7 @@ impl AppService {
             candidate_id: None,
             corrected_fields: Vec::new(),
             confirmed_at: now_rfc3339(),
+            source_removed: false,
         };
         insert_confirmed_fact(&connection, &confirmed, &self.vault)?;
         Ok(confirmed)
@@ -2686,6 +2871,17 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
                 updated_at TEXT NOT NULL
             );
 
+            -- Free text the traveler wrote about a trip. Sealed at rest (see
+            -- SEALED_COLUMNS). It carries an `id` so the seal-on-activation
+            -- migration, which keys on `id`, covers it like every other
+            -- sensitive column. One row per trip, enforced by the UNIQUE.
+            CREATE TABLE IF NOT EXISTS trip_notes (
+                id TEXT PRIMARY KEY,
+                trip_id TEXT NOT NULL UNIQUE REFERENCES trips(id) ON DELETE CASCADE,
+                body TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS source_documents (
                 id TEXT PRIMARY KEY,
                 trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
@@ -2759,7 +2955,10 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
                 method TEXT NOT NULL CHECK (method IN ('structured', 'inferred', 'manual', 'assisted')),
                 candidate_id TEXT REFERENCES candidate_facts(id) ON DELETE SET NULL,
                 corrected_fields TEXT NOT NULL,
-                confirmed_at TEXT NOT NULL
+                confirmed_at TEXT NOT NULL,
+                -- Set when the document this fact came from is deleted. The fact
+                -- stays (the traveler approved it); only its evidence is gone.
+                source_removed INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE TABLE IF NOT EXISTS assist_activity (
@@ -2806,7 +3005,40 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
             ",
         )
         .map_err(storage_error)?;
-    migrate_method_check(connection)
+    migrate_method_check(connection)?;
+    migrate_source_removed(connection)
+}
+
+/// Add `source_removed` to `confirmed_facts` for databases created before the
+/// documents manager existed. Idempotent: it inspects the table's columns and
+/// adds the column only when absent, so a fresh install is a no-op.
+///
+/// Order matters — this MUST run after [`migrate_method_check`], which rebuilds
+/// `confirmed_facts` via `INSERT INTO confirmed_facts_migrated SELECT *`. Adding
+/// the column first would make that copy push nine columns into the eight-column
+/// table it builds, and the migration would fail on exactly the old databases it
+/// exists to rescue.
+fn migrate_source_removed(connection: &Connection) -> Result<(), AppError> {
+    let present = {
+        let mut statement = connection
+            .prepare("PRAGMA table_info(confirmed_facts)")
+            .map_err(storage_error)?;
+        let columns = statement
+            .query_map([], |row| row.get::<_, String>(1))
+            .map_err(storage_error)?
+            .collect::<rusqlite::Result<Vec<String>>>()
+            .map_err(storage_error)?;
+        columns.iter().any(|name| name == "source_removed")
+    };
+    if present {
+        return Ok(());
+    }
+    connection
+        .execute_batch(
+            "ALTER TABLE confirmed_facts
+             ADD COLUMN source_removed INTEGER NOT NULL DEFAULT 0;",
+        )
+        .map_err(storage_error)
 }
 
 /// Widen the `method` CHECK on the fact tables to allow 'assisted', for databases
@@ -3016,7 +3248,7 @@ fn fetch_confirmed_facts(
 ) -> Result<Vec<ConfirmedFact>, AppError> {
     let mut statement = connection
         .prepare(
-            "SELECT id, trip_id, fact_type, payload, method, candidate_id, corrected_fields, confirmed_at
+            "SELECT id, trip_id, fact_type, payload, method, candidate_id, corrected_fields, confirmed_at, source_removed
              FROM confirmed_facts
              WHERE trip_id = ?1
              ORDER BY confirmed_at ASC, id ASC",
@@ -3278,8 +3510,8 @@ fn insert_confirmed_fact(
     connection
         .execute(
             "INSERT INTO confirmed_facts
-             (id, trip_id, fact_type, payload, method, candidate_id, corrected_fields, confirmed_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+             (id, trip_id, fact_type, payload, method, candidate_id, corrected_fields, confirmed_at, source_removed)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![
                 confirmed.id,
                 confirmed.trip_id,
@@ -3288,7 +3520,8 @@ fn insert_confirmed_fact(
                 enum_to_sql(confirmed.method)?,
                 confirmed.candidate_id,
                 json_to_sql(&confirmed.corrected_fields)?,
-                confirmed.confirmed_at
+                confirmed.confirmed_at,
+                i64::from(confirmed.source_removed)
             ],
         )
         .map_err(storage_error)?;
@@ -3385,6 +3618,7 @@ fn row_to_confirmed_fact(
         candidate_id: row.get(5)?,
         corrected_fields: sql_to_json(row.get::<_, String>(6)?)?,
         confirmed_at: row.get(7)?,
+        source_removed: row.get::<_, i64>(8)? != 0,
     })
 }
 
@@ -5390,6 +5624,29 @@ mod tests {
         }
     }
 
+    /// Import a flight memo that the plaintext parser actually extracts from,
+    /// and return (document id, its candidate ids). `import_stay_text` is
+    /// deliberately unparseable — it exists for the gap-filling draft tests — so
+    /// it is useless anywhere the candidates themselves matter.
+    fn import_flight_memo(service: &AppService, trip_id: &str) -> (String, Vec<String>) {
+        let imported = service
+            .import_document(ImportDocumentInput {
+                trip_id: trip_id.to_owned(),
+                kind: DocumentKind::PastedText,
+                label: Some("Flight memo".to_owned()),
+                content: "Confirmation HOLD9\nRoute SFO-NRT\n2027-04-02T10:00".to_owned(),
+            })
+            .expect("import");
+        assert!(
+            !imported.candidates.is_empty(),
+            "fixture must produce candidates"
+        );
+        (
+            imported.document.id,
+            imported.candidates.iter().map(|c| c.id.clone()).collect(),
+        )
+    }
+
     fn import_stay_text(service: &AppService, trip_id: &str) -> String {
         service
             .import_document(ImportDocumentInput {
@@ -5597,6 +5854,23 @@ mod tests {
             .expect("assisted confirmed fact now allowed");
         // Re-running is a no-op (the constraint already allows 'assisted').
         migrate_method_check(&connection).expect("idempotent");
+
+        // The two migrations run in this order for real, and the order is load
+        // bearing: migrate_method_check rebuilds confirmed_facts with
+        // `INSERT ... SELECT *`, so source_removed must arrive after it or the
+        // copy would push nine columns into an eight-column table.
+        migrate_source_removed(&connection).expect("add source_removed");
+        let flag: i64 = connection
+            .query_row(
+                "SELECT source_removed FROM confirmed_facts WHERE id = 'cf1'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("column exists");
+        // A fact that predates the documents manager still has its source.
+        assert_eq!(flag, 0);
+        // Adding the column twice must not fail.
+        migrate_source_removed(&connection).expect("idempotent");
     }
 
     #[test]
@@ -5696,6 +5970,274 @@ mod tests {
         assert!(preview.withheld.is_empty());
         assert!(preview.user_content.contains("River Paper Inn"));
         assert!(preview.grounded_in.iter().any(|g| g.contains("imported")));
+        cleanup_database(database);
+    }
+
+    /// The exact confirmation the web app's "Explore a sample trip" imports.
+    /// Included from the shared fixture rather than copied, so this test fails
+    /// if the shipped sample ever stops parsing.
+    const SAMPLE_CONFIRMATION: &str =
+        include_str!("../../../packages/contracts/fixtures/sample-confirmation.html");
+
+    #[test]
+    fn the_sample_confirmation_parses_into_a_flight_and_a_stay() {
+        // The sample is a newcomer's first impression: if its JSON-LD is wrong,
+        // "Explore a sample trip" lands them on an empty trip with nothing to
+        // review — the exact opposite of the point — and no UI test would notice,
+        // because parsing happens here, not in the web layer.
+        let database = temp_database("sample-parse");
+        let service = open_test_service(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        let imported = service
+            .import_document(ImportDocumentInput {
+                trip_id: trip.id.clone(),
+                kind: DocumentKind::Html,
+                label: Some("Sample confirmation email".to_owned()),
+                content: SAMPLE_CONFIRMATION.to_owned(),
+            })
+            .expect("import sample");
+
+        let flights = imported
+            .candidates
+            .iter()
+            .filter(|c| c.fact_type == FactType::FlightSegment)
+            .count();
+        let stays = imported
+            .candidates
+            .iter()
+            .filter(|c| c.fact_type == FactType::LodgingStay)
+            .count();
+        assert_eq!(flights, 1, "sample must yield exactly one flight");
+        assert_eq!(stays, 1, "sample must yield exactly one stay");
+        // Left pending on purpose: the demo IS the review.
+        assert!(
+            imported
+                .candidates
+                .iter()
+                .all(|c| c.status == CandidateStatus::Pending)
+        );
+        // Structured, not guessed — proving it took the JSON-LD path a real
+        // airline email takes.
+        assert!(
+            imported
+                .candidates
+                .iter()
+                .all(|c| c.method == ExtractionMethod::Structured)
+        );
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn trip_notes_round_trip_and_are_sealed_at_rest() {
+        let database = temp_database("notes-seal");
+        let service = open_test_service(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        // Never written is an empty body, not an error.
+        let empty = service.get_trip_notes(&trip.id).expect("get");
+        assert_eq!(empty.body, "");
+        assert!(empty.updated_at.is_none());
+
+        let saved = service
+            .set_trip_notes(&trip.id, "Ask about the tea house")
+            .expect("set");
+        assert_eq!(saved.body, "Ask about the tea house");
+        assert!(saved.updated_at.is_some());
+        assert_eq!(
+            service.get_trip_notes(&trip.id).expect("get").body,
+            "Ask about the tea house"
+        );
+
+        // The row on disk must not hold the plaintext.
+        let connection = Connection::open(&database).expect("open db");
+        let stored: String = connection
+            .query_row("SELECT body FROM trip_notes", [], |row| row.get(0))
+            .expect("stored row");
+        assert!(
+            !stored.contains("tea house"),
+            "notes must be sealed at rest"
+        );
+        drop(connection);
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn clearing_trip_notes_removes_them_rather_than_storing_blank() {
+        let database = temp_database("notes-clear");
+        let service = open_test_service(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        service.set_trip_notes(&trip.id, "Temporary").expect("set");
+
+        let cleared = service.set_trip_notes(&trip.id, "").expect("clear");
+        assert_eq!(cleared.body, "");
+        // Cleared and never-written are one state, not two.
+        assert!(cleared.updated_at.is_none());
+        assert!(
+            service
+                .get_trip_notes(&trip.id)
+                .expect("get")
+                .updated_at
+                .is_none()
+        );
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn trip_notes_are_bounded_and_never_reach_a_brief() {
+        let database = temp_database("notes-bounds");
+        let service = open_test_service(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        let too_long = "x".repeat(MAX_NOTES_CHARS + 1);
+        assert_eq!(
+            service
+                .set_trip_notes(&trip.id, &too_long)
+                .unwrap_err()
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
+
+        // The brief is built from the trip and its facts, so notes have no path
+        // into it. Assert the property rather than trusting the shape.
+        service
+            .set_trip_notes(&trip.id, "SECRET-NOTE-TEXT")
+            .expect("set");
+        let brief = service.get_trip_brief(&trip.id).expect("brief");
+        let rendered = serde_json::to_string(&brief).expect("json");
+        assert!(!rendered.contains("SECRET-NOTE-TEXT"));
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn documents_are_listed_newest_first_with_their_candidate_counts() {
+        let database = temp_database("documents-list");
+        let service = open_test_service(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        let (document_id, _) = import_flight_memo(&service, &trip.id);
+
+        let documents = service.list_documents(&trip.id).expect("list");
+        assert_eq!(documents.len(), 1);
+        assert_eq!(documents[0].document.id, document_id);
+        assert_eq!(documents[0].document.label, "Flight memo");
+        // The import produced candidates, none reviewed yet.
+        assert!(documents[0].pending_count > 0);
+        assert_eq!(documents[0].confirmed_count, 0);
+
+        // Confirming one moves it across the two counters.
+        let pending = service
+            .list_candidates(&trip.id, Some(CandidateStatus::Pending))
+            .expect("candidates");
+        let before = documents[0].pending_count;
+        service
+            .confirm_candidate(ConfirmCandidateInput {
+                candidate_id: pending[0].id.clone(),
+                edited_payload: None,
+            })
+            .expect("confirm");
+        let documents = service.list_documents(&trip.id).expect("list");
+        assert_eq!(documents[0].pending_count, before - 1);
+        assert_eq!(documents[0].confirmed_count, 1);
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn a_document_body_is_readable_back_and_gone_after_deletion() {
+        let database = temp_database("documents-read");
+        let service = open_test_service(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        let document_id = import_stay_text(&service, &trip.id);
+
+        // The body is sealed at rest but must come back intact — this is the
+        // whole point of the manager: seeing what you handed over.
+        let stored = service.get_document(&document_id).expect("get");
+        assert!(stored.content.contains("River Paper Inn"));
+        assert_eq!(stored.document.id, document_id);
+
+        service.delete_document(&document_id).expect("delete");
+        assert_eq!(
+            service.get_document(&document_id).unwrap_err().code,
+            ErrorCode::DocumentNotFound
+        );
+        assert!(service.list_documents(&trip.id).expect("list").is_empty());
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn deleting_a_document_drops_pending_candidates_but_keeps_confirmed_facts() {
+        let database = temp_database("documents-cascade");
+        let service = open_test_service(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        let (document_id, candidates) = import_flight_memo(&service, &trip.id);
+
+        // Confirm one candidate; anything else stays pending.
+        service
+            .confirm_candidate(ConfirmCandidateInput {
+                candidate_id: candidates[0].clone(),
+                edited_payload: None,
+            })
+            .expect("confirm");
+
+        service.delete_document(&document_id).expect("delete");
+
+        // Pending candidates were unreviewed derivatives of a discarded body.
+        assert!(
+            service
+                .list_candidates(&trip.id, Some(CandidateStatus::Pending))
+                .expect("candidates")
+                .is_empty()
+        );
+        // The confirmed fact survives — the traveler approved it — but it is
+        // flagged, so the UI stops offering evidence that no longer exists.
+        let detail = service.get_trip(&trip.id).expect("detail");
+        assert_eq!(detail.confirmed_facts.len(), 1);
+        assert!(detail.confirmed_facts[0].source_removed);
+        // And it must not be mistaken for a fact the traveler typed by hand.
+        assert_ne!(detail.confirmed_facts[0].method, ExtractionMethod::Manual);
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn a_manual_fact_is_never_flagged_as_source_removed() {
+        let database = temp_database("documents-manual");
+        let service = open_test_service(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        let (document_id, _) = import_flight_memo(&service, &trip.id);
+        let manual = service
+            .add_manual_fact(AddManualFactInput {
+                trip_id: trip.id.clone(),
+                fact_type: FactType::LodgingStay,
+                payload: FactPayload {
+                    property_name: Some("Hand typed".to_owned()),
+                    checkin_date: Some("2027-04-02".to_owned()),
+                    checkout_date: Some("2027-04-08".to_owned()),
+                    ..FactPayload::default()
+                },
+            })
+            .expect("manual");
+
+        // Deleting an unrelated document must not touch a hand-typed fact: it
+        // has no candidate, so nothing links it to the document.
+        service.delete_document(&document_id).expect("delete");
+        let detail = service.get_trip(&trip.id).expect("detail");
+        let stored = detail
+            .confirmed_facts
+            .iter()
+            .find(|fact| fact.id == manual.id)
+            .expect("manual fact survives");
+        assert!(!stored.source_removed);
+        assert!(stored.candidate_id.is_none());
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn deleting_a_document_that_does_not_exist_is_an_error_not_a_silent_success() {
+        let database = temp_database("documents-missing");
+        let service = open_test_service(&database).expect("service");
+        assert_eq!(
+            service.delete_document("document_nope").unwrap_err().code,
+            ErrorCode::DocumentNotFound
+        );
         cleanup_database(database);
     }
 

@@ -1,10 +1,10 @@
-import { render, screen } from "@testing-library/react";
-import type { CandidateFact } from "@voyalier/contracts";
+import { fireEvent, render, screen } from "@testing-library/react";
+import type { AppGateway, CandidateFact } from "@voyalier/contracts";
 import { createMockGateway } from "@voyalier/contracts";
 
 import { AnnounceContext, GatewayContext } from "./app/context";
 import { CandidateReviewDialog } from "./views/CandidateReviewDialog";
-import { makeCandidate } from "./test/helpers";
+import { makeCandidate, renderApp } from "./test/helpers";
 
 function renderReview(candidates: CandidateFact[]) {
   const gateway = createMockGateway();
@@ -38,6 +38,84 @@ function bestRenderMs(count: number, runs = 5): number {
   view.unmount();
   return best;
 }
+
+/**
+ * A budget, not a benchmark.
+ *
+ * Opening a trip used to fire ~8 gateway calls before the traveler did anything,
+ * because every below-fold panel fetched on mount — advice countries, pack
+ * suggestions, downloaded packs, notes, documents — for sections most people
+ * never scroll to. Deferring them is only worth anything if it stays deferred,
+ * so the count is asserted rather than trusted.
+ */
+describe("trip open budget", () => {
+  /** Count every gateway method a render reaches for. */
+  function countingGateway(calls: string[]): AppGateway {
+    const base = createMockGateway();
+    return new Proxy(base, {
+      get(target, prop: string, receiver) {
+        const value = Reflect.get(target, prop, receiver);
+        if (typeof value !== "function") return value;
+        return (...args: unknown[]) => {
+          calls.push(prop);
+          return (value as (...a: unknown[]) => unknown).apply(target, args);
+        };
+      },
+    }) as AppGateway;
+  }
+
+  it("fetches no more than five times before the traveler acts", async () => {
+    // Unlike the rest of the suite, this test wants the real deferred behaviour:
+    // an observer that never reports anything on screen, so below-fold sections
+    // stay as placeholders exactly as they do on a freshly opened trip.
+    class NeverIntersects {
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+    vi.stubGlobal("IntersectionObserver", NeverIntersects);
+
+    const calls: string[] = [];
+    renderApp(countingGateway(calls));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    );
+    await screen.findByRole("heading", {
+      name: "Kyoto autumn journey",
+      level: 1,
+    });
+    // Let any fetch a mounted panel would fire actually land.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // App-level calls happen once for the whole session, not per trip open.
+    const perTrip = calls.filter(
+      (call) => !["listTrips", "getVaultStatus", "health"].includes(call),
+    );
+    expect(
+      perTrip.length,
+      `too many calls on trip open: ${perTrip.join(", ")}`,
+    ).toBeLessThanOrEqual(5);
+  });
+
+  it("still mounts the deferred sections once they are reached", async () => {
+    // The saving must not come from dropping the sections. With the suite's
+    // default observer (reports on screen immediately), they are all there.
+    const calls: string[] = [];
+    renderApp(countingGateway(calls));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    );
+    expect(
+      await screen.findByRole("region", { name: "Imported documents" }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole("region", { name: "Offline city data" }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole("region", { name: "Preview an AI request" }),
+    ).toBeInTheDocument();
+  });
+});
 
 describe("review performance", () => {
   it("mounts all 50 candidates", () => {

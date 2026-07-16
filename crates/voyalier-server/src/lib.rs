@@ -216,7 +216,18 @@ pub fn app(service: AppService) -> Router {
             "/api/v1/trips/{trip_id}/recommendations",
             post(get_recommendations),
         )
-        .route("/api/v1/trips/{trip_id}/documents", post(import_document))
+        .route(
+            "/api/v1/trips/{trip_id}/notes",
+            get(get_trip_notes).post(set_trip_notes),
+        )
+        .route(
+            "/api/v1/trips/{trip_id}/documents",
+            post(import_document).get(list_documents),
+        )
+        .route(
+            "/api/v1/documents/{document_id}",
+            get(get_document).delete(delete_document),
+        )
         .route("/api/v1/trips/{trip_id}/candidates", get(list_candidates))
         .route(
             "/api/v1/candidates/{candidate_id}/confirm",
@@ -546,6 +557,49 @@ async fn import_document(
     Ok((StatusCode::CREATED, Json(service.import_document(input)?)))
 }
 
+async fn get_trip_notes(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.get_trip_notes(&trip_id)?))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NotesBody {
+    body: String,
+}
+
+async fn set_trip_notes(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+    Json(input): Json<NotesBody>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.set_trip_notes(&trip_id, &input.body)?))
+}
+
+async fn list_documents(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.list_documents(&trip_id)?))
+}
+
+async fn get_document(
+    State(service): State<AppService>,
+    Path(document_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.get_document(&document_id)?))
+}
+
+async fn delete_document(
+    State(service): State<AppService>,
+    Path(document_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    service.delete_document(&document_id)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 async fn list_candidates(
     State(service): State<AppService>,
     Path(trip_id): Path<String>,
@@ -664,9 +718,10 @@ fn status_for_error(code: ErrorCode) -> StatusCode {
         ErrorCode::ValidationInvalidInput | ErrorCode::ValidationInvalidDateRange => {
             StatusCode::BAD_REQUEST
         }
-        ErrorCode::TripNotFound | ErrorCode::CandidateNotFound | ErrorCode::FactNotFound => {
-            StatusCode::NOT_FOUND
-        }
+        ErrorCode::TripNotFound
+        | ErrorCode::CandidateNotFound
+        | ErrorCode::FactNotFound
+        | ErrorCode::DocumentNotFound => StatusCode::NOT_FOUND,
         ErrorCode::CandidateAlreadyResolved | ErrorCode::DocumentDuplicate => StatusCode::CONFLICT,
         ErrorCode::DocumentTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
         ErrorCode::AdviceFetchFailed
@@ -758,6 +813,69 @@ mod tests {
         assert_eq!(imported.status, StatusCode::CREATED);
         assert!(imported.json.get("document").is_some());
         assert!(imported.json["document"].get("content").is_none());
+
+        // The documents manager over HTTP: list, read one back, then delete.
+        let documents = request(
+            router.clone(),
+            Method::GET,
+            &format!("/api/v1/trips/{trip_id}/documents"),
+            None,
+        )
+        .await;
+        assert_eq!(documents.status, StatusCode::OK);
+        assert_eq!(documents.json.as_array().expect("documents").len(), 1);
+        let document_id = documents.json[0]["document"]["id"]
+            .as_str()
+            .expect("document id")
+            .to_owned();
+
+        let body = request(
+            router.clone(),
+            Method::GET,
+            &format!("/api/v1/documents/{document_id}"),
+            None,
+        )
+        .await;
+        assert_eq!(body.status, StatusCode::OK);
+        assert!(
+            body.json["content"]
+                .as_str()
+                .expect("content")
+                .contains("HOLD9")
+        );
+
+        let removed = request(
+            router.clone(),
+            Method::DELETE,
+            &format!("/api/v1/documents/{document_id}"),
+            None,
+        )
+        .await;
+        assert_eq!(removed.status, StatusCode::NO_CONTENT);
+        // A second delete is a 404, not a silent success.
+        let again = request(
+            router.clone(),
+            Method::DELETE,
+            &format!("/api/v1/documents/{document_id}"),
+            None,
+        )
+        .await;
+        assert_eq!(again.status, StatusCode::NOT_FOUND);
+
+        // Re-import so the rest of the walkthrough still has its candidates.
+        let imported = request(
+            router.clone(),
+            Method::POST,
+            &format!("/api/v1/trips/{trip_id}/documents"),
+            Some(json!({
+                "tripId": trip_id,
+                "kind": "pasted_text",
+                "label": "Flight memo",
+                "content": "Confirmation HOLD9\nRoute SFO-NRT\nDeparture 2027-04-02T10:00"
+            })),
+        )
+        .await;
+        assert_eq!(imported.status, StatusCode::CREATED);
         let candidate_id = imported.json["candidates"][0]["id"]
             .as_str()
             .expect("candidate id")

@@ -3617,6 +3617,258 @@ body::before {
   }
 }
 
+/* ---- Settings ---------------------------------------------------------- */
+
+.voy-settings__title {
+  margin: 0 0 0.4rem;
+  font-family: var(--voy-font-display);
+  font-size: var(--voy-text-2xl);
+}
+
+.voy-settings__intro {
+  margin: 0 0 2.2rem;
+  color: var(--voy-ink-muted);
+}
+
+.voy-settings__section {
+  margin-bottom: 2.4rem;
+}
+
+.voy-settings__hint {
+  margin: 0 0 0.8rem;
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-base);
+}
+
+.voy-topbar__gear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--voy-line);
+  border-radius: 999px;
+  color: var(--voy-ink-muted);
+  cursor: pointer;
+  transition:
+    color var(--voy-motion-fast) var(--voy-ease),
+    border-color var(--voy-motion-fast) var(--voy-ease);
+}
+
+.voy-topbar__gear:hover {
+  color: var(--voy-ink);
+  border-color: var(--voy-line-strong);
+}
+
+/* ---- Empty-state actions ----------------------------------------------- */
+
+.voy-empty__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: center;
+}
+
+.voy-empty__hint {
+  display: block;
+  margin-top: 0.4rem;
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+}
+
+/* ---- Trip notes -------------------------------------------------------- */
+
+.voy-notes__intro {
+  margin: 0 0 0.9rem;
+  color: var(--voy-ink-muted);
+}
+
+.voy-notes__field {
+  width: 100%;
+  padding: 0.9rem;
+  background: var(--voy-paper-raised);
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-md);
+  color: var(--voy-ink);
+  font: inherit;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.voy-notes__foot {
+  display: flex;
+  gap: 1rem;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+}
+
+.voy-notes__excluded {
+  margin: 0;
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+}
+
+/* Reserve the line so a "Saved" whisper appearing never nudges the layout. */
+.voy-notes__state {
+  flex: none;
+  min-height: 1.2em;
+  margin: 0;
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+}
+
+.voy-notes__error {
+  margin: 0.5rem 0 0;
+  color: var(--voy-danger);
+  font-size: var(--voy-text-sm);
+}
+
+/* ---- Imported documents ------------------------------------------------ */
+
+.voy-docs__intro {
+  margin: 0 0 1.2rem;
+  color: var(--voy-ink-muted);
+}
+
+.voy-docs__list {
+  display: grid;
+  gap: 0.8rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.voy-doc {
+  padding: 1rem 1.1rem;
+  background: var(--voy-paper-raised);
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-md);
+}
+
+.voy-doc__head {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+}
+
+.voy-doc__icon {
+  flex: none;
+  color: var(--voy-ink-muted);
+}
+
+.voy-doc__label {
+  margin: 0;
+  font-weight: var(--voy-w-medium);
+}
+
+.voy-doc__meta,
+.voy-doc__counts {
+  margin: 0.2rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+}
+
+.voy-doc__warn {
+  margin: 0.7rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+}
+
+.voy-doc__error {
+  margin: 0.7rem 0 0;
+  color: var(--voy-danger);
+  font-size: var(--voy-text-sm);
+}
+
+.voy-doc__actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+
+/* The original text, shown verbatim — it is evidence, so it is never reflowed
+   or interpreted, and it must not stretch the card on a long line. */
+.voy-doc__body {
+  margin: 0.8rem 0 0;
+  padding: 0.8rem;
+  max-height: 22rem;
+  overflow: auto;
+  background: var(--voy-paper-sunken);
+  border-radius: var(--voy-radius-sm);
+  font-family: var(--voy-font-mono);
+  font-size: var(--voy-text-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.voy-fact__sourceless {
+  margin: 0.4rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+}
+
+/* ---- Trip section nav -------------------------------------------------- */
+
+.voy-tripnav {
+  position: sticky;
+  top: 0;
+  z-index: var(--voy-z-sticky);
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.4rem;
+  padding: 0.6rem 0;
+  background: var(--voy-paper);
+  border-bottom: 1px solid var(--voy-line);
+  overflow-x: auto;
+}
+
+.voy-tripnav__chip {
+  flex: none;
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--voy-line);
+  border-radius: 999px;
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    color var(--voy-motion-fast) var(--voy-ease),
+    border-color var(--voy-motion-fast) var(--voy-ease);
+}
+
+.voy-tripnav__chip:hover {
+  color: var(--voy-ink);
+  border-color: var(--voy-line-strong);
+}
+
+/* Keep a jumped-to section clear of the sticky nav above it. These are the
+   section wrappers, which exist whether or not the section has mounted. */
+#section-plan,
+#section-prepare,
+#section-discover,
+#section-ai {
+  scroll-margin-top: 4rem;
+}
+
+.voy-assist__setup {
+  margin: 0.6rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+}
+
+.voy-linkbtn {
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--voy-indigo);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 /* Native disclosures animate their height where the engine supports it
    (progressive enhancement; ignored gracefully elsewhere). */
 @supports (interpolate-size: allow-keywords) {
