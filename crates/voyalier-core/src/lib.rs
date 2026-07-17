@@ -8,6 +8,7 @@ mod advisories;
 mod assist;
 mod assist_draft;
 mod brief;
+mod climate;
 mod email;
 mod itinerary;
 mod local_ai;
@@ -50,6 +51,9 @@ pub use assist_draft::{
     LodgingDateProposal, build_draft_preview, parse_lodging_dates_reply,
 };
 pub use brief::{RedactionPolicy, TripBrief, build_trip_brief};
+pub use climate::{
+    AirQualityDay, ClimateNormals, archive_window, parse_air_quality, parse_climate_normals,
+};
 // `extract_email_body` is deliberately not re-exported: it must only be reached
 // through `parse_import`, which bounds the raw input before the extractor walks
 // an untrusted MIME tree.
