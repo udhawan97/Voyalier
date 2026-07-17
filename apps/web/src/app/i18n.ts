@@ -566,6 +566,15 @@ const en = {
   "holidays.none": "No public holidays fall in {country} during your trip.",
   "holidays.consent":
     "Fetching sends your destination name (“{destination}”) to open-meteo.com to place it in a country, then asks Nager.Date for that country’s public holidays. Nothing else about your trip leaves it.",
+  // About this place: Wikipedia prose, shown under CC BY-SA with attribution.
+  "about.title": "About this place",
+  "about.fetch": "Fetch a summary",
+  "about.fetchAgain": "Fetch again",
+  "about.retrieved": "Retrieved {stamp}",
+  "about.attribution": "Summary from Wikipedia, licensed CC BY-SA.",
+  "about.readMore": "Read more about {title} →",
+  "about.consent":
+    "Fetching asks Wikipedia (en.wikipedia.org) for a short summary of “{destination}”. Nothing else about your trip leaves it.",
   "moon.new_moon": "New moon",
   "moon.waxing_crescent": "Waxing crescent",
   "moon.first_quarter": "First quarter",

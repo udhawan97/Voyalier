@@ -8,6 +8,10 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Added
 
+- **"About this place" — a short summary of your destination.** One click
+  fetches a plain-language summary of where you're going from Wikipedia, shown
+  with attribution and a link to read more. The words stay Wikipedia's (licensed
+  CC BY-SA), never rewritten as Voyalier's own or treated as a safety claim.
 - **World Heritage sites near your destination.** The destination-facts card now
   lists the UNESCO World Heritage sites closest to where you're going — with the
   year each was inscribed and how far away it is — worked out on your device from
