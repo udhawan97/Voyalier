@@ -81,6 +81,9 @@ pub struct GeocodedPlace {
     pub region: String,
     pub latitude: f64,
     pub longitude: f64,
+    /// ISO-3166-1 alpha-2, verbatim from the geocoder. This is what decides
+    /// whether a US-only source like the NWS applies — no second lookup.
+    pub country_code: String,
 }
 
 fn unreadable_source() -> AppError {
@@ -141,6 +144,11 @@ pub fn parse_geocoding_response(json: &str) -> Result<GeocodedPlace, AppError> {
         region,
         latitude,
         longitude,
+        country_code: first
+            .get("country_code")
+            .and_then(|field| field.as_str())
+            .unwrap_or_default()
+            .to_owned(),
     })
 }
 
