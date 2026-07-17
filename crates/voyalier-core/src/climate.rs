@@ -383,4 +383,20 @@ mod tests {
         assert!(parse_air_quality("<html>", "2026-11-03", "2026-11-04").is_err());
         assert!(parse_air_quality("{}", "2026-11-03", "2026-11-04").is_err());
     }
+
+    #[test]
+    fn air_quality_day_field_names_match_the_typescript_contract() {
+        // `pm2_5_max` is the one field whose camelCase is not obvious, and a
+        // silent rename here would break the wire without failing a type check.
+        let json = serde_json::to_string(&AirQualityDay {
+            date: "2026-11-03".into(),
+            uv_index_max: Some(7.0),
+            us_aqi_max: Some(42),
+            pm2_5_max: Some(8.1),
+        })
+        .expect("serialize");
+        assert!(json.contains("\"uvIndexMax\""), "{json}");
+        assert!(json.contains("\"usAqiMax\""), "{json}");
+        assert!(json.contains("\"pm25Max\""), "{json}");
+    }
 }
