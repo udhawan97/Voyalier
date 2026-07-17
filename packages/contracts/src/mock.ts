@@ -68,6 +68,7 @@ import type {
   AstroDay,
   CountryFacts,
   DestinationFactsSnapshot,
+  NearbyAirport,
   PackingSuggestion,
   Trip,
   TripBrief,
@@ -924,6 +925,29 @@ function mockAstro(snapshot: DestinationFactsSnapshot, trip: Trip): AstroDay[] {
   return days;
 }
 
+/**
+ * The mock's nearest airports for the Kyoto fixture — the same shape and the
+ * same three codes the core returns for those coordinates, so the mock never
+ * teaches the UI a different answer than the service would.
+ */
+function mockNearestAirports(): NearbyAirport[] {
+  return [
+    {
+      iata: "ITM",
+      name: "Osaka Itami International Airport",
+      distanceKm: 39.4,
+      size: "large",
+    },
+    { iata: "UKB", name: "Kobe Airport", distanceKm: 65.1, size: "medium" },
+    {
+      iata: "KIX",
+      name: "Kansai International Airport",
+      distanceKm: 80.7,
+      size: "large",
+    },
+  ];
+}
+
 function mockPackingList(
   weather: WeatherSnapshot | undefined,
   facts: ConfirmedFact[],
@@ -1542,6 +1566,7 @@ export function createMockGateway(options?: {
           ? mockCountryFacts(destFacts.countryCode)
           : undefined;
         const astro = destFacts ? mockAstro(destFacts, trip) : [];
+        const nearestAirports = destFacts ? mockNearestAirports() : [];
         return {
           trip: clone(trip),
           confirmedFacts,
@@ -1558,6 +1583,7 @@ export function createMockGateway(options?: {
           ...(destFacts ? { destinationFacts: clone(destFacts) } : {}),
           ...(countryFacts ? { countryFacts: clone(countryFacts) } : {}),
           astro,
+          nearestAirports,
         } satisfies TripDetail;
       }),
 
