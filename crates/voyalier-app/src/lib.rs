@@ -37,7 +37,7 @@ use voyalier_core::{
     parse_ecb_rates, parse_fcdo_content, parse_forecast_response, parse_geocoding_response,
     parse_import, parse_lodging_dates_reply, parse_nws_alerts, parse_pack_content, parse_us_state,
     provider_info, rank_field_suggestions, recommend_places, search_cities, search_trip_corpus,
-    suggest_packs, suggest_search_terms, validate_api_key, validate_country_slug,
+    suggest_packs, suggest_search_terms, time_difference, validate_api_key, validate_country_slug,
     validate_create_trip, validate_fact_payload, validate_model_name, validate_pack_id,
     validate_provider_id, validate_search_query, validate_update_trip,
 };
@@ -869,6 +869,15 @@ impl AppService {
             .as_ref()
             .map(|snapshot| nearest_airports(snapshot.latitude, snapshot.longitude, 4))
             .unwrap_or_default();
+        // Derived on read from the snapshot's two stored offsets: present only
+        // once the origin was geocoded on the last fetch.
+        let time_difference = destination_facts.as_ref().and_then(|snapshot| {
+            Some(time_difference(
+                snapshot.origin_place.as_deref()?,
+                snapshot.origin_utc_offset_minutes?,
+                snapshot.utc_offset_minutes,
+            ))
+        });
         Ok(TripDetail {
             trip,
             confirmed_facts,
@@ -882,6 +891,7 @@ impl AppService {
             country_facts,
             astro,
             nearest_airports,
+            time_difference,
         })
     }
 
@@ -1893,6 +1903,31 @@ impl AppService {
             Err(_) => (String::new(), Vec::new()),
         };
 
+        // Best-effort: geocode the origin too, only to learn its timezone for
+        // the destination-vs-home time difference. A blank or unrecognised
+        // origin (or a network hiccup) simply leaves the difference unshown —
+        // it never fails the fetch the way a missing destination would.
+        let (origin_place, origin_utc_offset_minutes) = if trip.origin.trim().is_empty() {
+            (None, None)
+        } else {
+            let origin_url = format!(
+                "https://geocoding-api.open-meteo.com/v1/search?name={}&count=1&language=en&format=json",
+                percent_encode(&trip.origin)
+            );
+            match self
+                .fetcher
+                .fetch_text(&origin_url)
+                .ok()
+                .and_then(|body| parse_geocoding_response(&body).ok())
+            {
+                Some(origin) => (
+                    Some(origin.name),
+                    Some(offset_minutes_for(&origin.timezone, &trip.start_date)),
+                ),
+                None => (None, None),
+            }
+        };
+
         let snapshot = DestinationFactsSnapshot {
             place_name: place.name.clone(),
             place_region: place.region.clone(),
@@ -1903,6 +1938,8 @@ impl AppService {
             rate_date,
             currency_rates,
             retrieved_at: now_rfc3339(),
+            origin_place,
+            origin_utc_offset_minutes,
         };
 
         let connection = self.connection()?;
@@ -1910,8 +1947,9 @@ impl AppService {
             .execute(
                 "INSERT INTO destination_facts_snapshots
                  (trip_id, place_name, place_region, latitude, longitude, utc_offset_minutes,
-                  country_code, rate_date, currency_rates, retrieved_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+                  country_code, rate_date, currency_rates, retrieved_at,
+                  origin_place, origin_utc_offset_minutes)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
                  ON CONFLICT(trip_id) DO UPDATE SET
                    place_name = excluded.place_name,
                    place_region = excluded.place_region,
@@ -1921,7 +1959,9 @@ impl AppService {
                    country_code = excluded.country_code,
                    rate_date = excluded.rate_date,
                    currency_rates = excluded.currency_rates,
-                   retrieved_at = excluded.retrieved_at",
+                   retrieved_at = excluded.retrieved_at,
+                   origin_place = excluded.origin_place,
+                   origin_utc_offset_minutes = excluded.origin_utc_offset_minutes",
                 params![
                     trip_id,
                     snapshot.place_name,
@@ -1933,6 +1973,8 @@ impl AppService {
                     snapshot.rate_date,
                     json_to_sql(&snapshot.currency_rates)?,
                     snapshot.retrieved_at,
+                    snapshot.origin_place,
+                    snapshot.origin_utc_offset_minutes,
                 ],
             )
             .map_err(storage_error)?;
@@ -2329,6 +2371,7 @@ impl AppService {
         let current = self.records(&connection).trip(trip_id)?;
         let input = validate_update_trip(&current, input)?;
         let destination_changed = current.destination != input.destination;
+        let origin_changed = current.origin != input.origin;
         let invalidates_weather = destination_changed
             || current.start_date != input.start_date
             || current.end_date != input.end_date;
@@ -2373,8 +2416,11 @@ impl AppService {
                     params![trip_id],
                 )
                 .map_err(storage_error)?;
-            // The facts snapshot (place, timezone, country, rates) is likewise
-            // about the old destination.
+        }
+        if destination_changed || origin_changed {
+            // The facts snapshot is about the old destination (place, timezone,
+            // country, rates) and measures its time difference from the old
+            // origin — either endpoint changing makes the whole snapshot stale.
             transaction
                 .execute(
                     "DELETE FROM destination_facts_snapshots WHERE trip_id = ?1",
@@ -3116,7 +3162,9 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
                 country_code TEXT NOT NULL,
                 rate_date TEXT NOT NULL,
                 currency_rates TEXT NOT NULL DEFAULT '[]',
-                retrieved_at TEXT NOT NULL
+                retrieved_at TEXT NOT NULL,
+                origin_place TEXT,
+                origin_utc_offset_minutes INTEGER
             );
 
             CREATE TABLE IF NOT EXISTS confirmed_facts (
@@ -3230,6 +3278,11 @@ const MIGRATIONS: &[Migration] = &[
         to: 6,
         name: "destination_facts",
         run: migrate_destination_facts,
+    },
+    Migration {
+        to: 7,
+        name: "facts_origin",
+        run: migrate_facts_origin,
     },
 ];
 
@@ -3450,6 +3503,35 @@ fn migrate_destination_facts(connection: &Connection) -> Result<(), AppError> {
                 currency_rates TEXT NOT NULL DEFAULT '[]',
                 retrieved_at TEXT NOT NULL
             );",
+        )
+        .map_err(storage_error)
+}
+
+/// Add the origin place and offset columns to `destination_facts_snapshots`, so
+/// a stored snapshot can carry the destination-vs-home time difference.
+///
+/// Self-detecting: a fresh database runs the base schema (which already carries
+/// these columns) and then every migration from zero, so this step must find
+/// the columns present and do nothing rather than fail on a duplicate `ADD`.
+fn migrate_facts_origin(connection: &Connection) -> Result<(), AppError> {
+    let present = {
+        let mut statement = connection
+            .prepare("PRAGMA table_info(destination_facts_snapshots)")
+            .map_err(storage_error)?;
+        let columns = statement
+            .query_map([], |row| row.get::<_, String>(1))
+            .map_err(storage_error)?
+            .collect::<rusqlite::Result<Vec<String>>>()
+            .map_err(storage_error)?;
+        columns.iter().any(|name| name == "origin_place")
+    };
+    if present {
+        return Ok(());
+    }
+    connection
+        .execute_batch(
+            "ALTER TABLE destination_facts_snapshots ADD COLUMN origin_place TEXT;
+             ALTER TABLE destination_facts_snapshots ADD COLUMN origin_utc_offset_minutes INTEGER;",
         )
         .map_err(storage_error)
 }
@@ -3815,7 +3897,8 @@ fn load_destination_facts_snapshot(
     connection
         .query_row(
             "SELECT place_name, place_region, latitude, longitude, utc_offset_minutes,
-                    country_code, rate_date, currency_rates, retrieved_at
+                    country_code, rate_date, currency_rates, retrieved_at,
+                    origin_place, origin_utc_offset_minutes
              FROM destination_facts_snapshots WHERE trip_id = ?1",
             params![trip_id],
             |row| {
@@ -3829,6 +3912,8 @@ fn load_destination_facts_snapshot(
                     rate_date: row.get(6)?,
                     currency_rates: sql_to_json(row.get::<_, String>(7)?)?,
                     retrieved_at: row.get(8)?,
+                    origin_place: row.get(9)?,
+                    origin_utc_offset_minutes: row.get(10)?,
                 })
             },
         )
@@ -5043,6 +5128,35 @@ mod tests {
         )
     }
 
+    /// A geocoding body for the trip origin "Chicago" (America/Chicago).
+    fn chicago_geocode_body() -> String {
+        r#"{ "results": [ { "name": "Chicago", "latitude": 41.85,
+            "longitude": -87.65, "country": "United States", "admin1": "Illinois",
+            "country_code": "US", "timezone": "America/Chicago" } ] }"#
+            .to_owned()
+    }
+
+    /// Routes the destination geocode (name=Kyoto) to Japan and every other
+    /// geocode (the origin) to Chicago, plus the ECB feed.
+    struct RoutedFactsFetcher;
+    impl AdviceFetcher for RoutedFactsFetcher {
+        fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+            if url.contains("geocoding-api.open-meteo.com") {
+                if url.contains("name=Kyoto") {
+                    return Ok(facts_geocode_body("JP", "Asia/Tokyo"));
+                }
+                return Ok(chicago_geocode_body());
+            }
+            if url.contains("ecb.europa.eu") {
+                return Ok(ECB_BODY.to_owned());
+            }
+            Err(AppError::new(
+                ErrorCode::WeatherFetchFailed,
+                "unexpected url",
+            ))
+        }
+    }
+
     const ECB_BODY: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <gesmes:Envelope xmlns:gesmes="http://www.gesmes.org/xml/2002-08-01"
  xmlns="http://www.ecb.int/vocabulary/2002-08-01/eurofxref">
@@ -5202,6 +5316,144 @@ mod tests {
                 .expect("load")
                 .is_none()
         );
+    }
+
+    #[test]
+    fn fetch_destination_facts_resolves_origin_for_a_time_difference() {
+        let database = temp_database("facts_timediff");
+        let service = open_test_service_with_fetcher(&database, Arc::new(RoutedFactsFetcher))
+            .expect("service");
+        // valid_trip_input: origin Chicago, destination Kyoto, start 2027-04-01.
+        // Chicago is CDT (−300) that day, Tokyo +540 → 840 min ahead.
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        let snapshot = service.fetch_destination_facts(&trip.id).expect("snapshot");
+        assert_eq!(snapshot.origin_place.as_deref(), Some("Chicago"));
+        assert_eq!(snapshot.origin_utc_offset_minutes, Some(-300));
+
+        let detail = service.get_trip(&trip.id).expect("detail");
+        let diff = detail.time_difference.expect("time difference derived");
+        assert_eq!(diff.origin_place, "Chicago");
+        assert_eq!(diff.offset_minutes, 840);
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn an_unresolvable_origin_yields_no_time_difference() {
+        struct EmptyOriginFetcher;
+        impl AdviceFetcher for EmptyOriginFetcher {
+            fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+                if url.contains("geocoding-api.open-meteo.com") {
+                    if url.contains("name=Kyoto") {
+                        return Ok(facts_geocode_body("JP", "Asia/Tokyo"));
+                    }
+                    // The origin matches nothing on the map.
+                    return Ok(r#"{ "results": [] }"#.to_owned());
+                }
+                if url.contains("ecb.europa.eu") {
+                    return Ok(ECB_BODY.to_owned());
+                }
+                Err(AppError::new(
+                    ErrorCode::WeatherFetchFailed,
+                    "unexpected url",
+                ))
+            }
+        }
+
+        let database = temp_database("facts_no_origin");
+        let service = open_test_service_with_fetcher(&database, Arc::new(EmptyOriginFetcher))
+            .expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        let snapshot = service.fetch_destination_facts(&trip.id).expect("snapshot");
+        // The destination still resolves; only the time difference is absent.
+        assert_eq!(snapshot.place_name, "Kyoto");
+        assert_eq!(snapshot.origin_place, None);
+        assert_eq!(snapshot.origin_utc_offset_minutes, None);
+        assert!(
+            service
+                .get_trip(&trip.id)
+                .expect("detail")
+                .time_difference
+                .is_none()
+        );
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn editing_the_origin_invalidates_the_facts_snapshot() {
+        let database = temp_database("facts_origin_edit");
+        let service = open_test_service_with_fetcher(&database, Arc::new(RoutedFactsFetcher))
+            .expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        service.fetch_destination_facts(&trip.id).expect("snapshot");
+        assert!(
+            service
+                .get_trip(&trip.id)
+                .expect("detail")
+                .time_difference
+                .is_some()
+        );
+
+        service
+            .update_trip(
+                &trip.id,
+                UpdateTripInput {
+                    title: None,
+                    origin: Some("Denver".to_owned()),
+                    destination: None,
+                    start_date: None,
+                    end_date: None,
+                },
+            )
+            .expect("origin edit");
+
+        let after = service.get_trip(&trip.id).expect("detail after edit");
+        // The snapshot's time difference was measured from the old home, so the
+        // whole facts snapshot is invalidated on an origin change.
+        assert!(after.destination_facts.is_none());
+        assert!(after.time_difference.is_none());
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn migration_v7_adds_origin_columns_to_the_facts_table() {
+        let connection = Connection::open_in_memory().expect("memory db");
+        connection
+            .execute_batch(
+                r#"CREATE TABLE trips (id TEXT PRIMARY KEY);
+                   CREATE TABLE destination_facts_snapshots (
+                     trip_id TEXT PRIMARY KEY,
+                     place_name TEXT NOT NULL,
+                     place_region TEXT NOT NULL,
+                     latitude REAL NOT NULL,
+                     longitude REAL NOT NULL,
+                     utc_offset_minutes INTEGER NOT NULL,
+                     country_code TEXT NOT NULL,
+                     rate_date TEXT NOT NULL,
+                     currency_rates TEXT NOT NULL DEFAULT '[]',
+                     retrieved_at TEXT NOT NULL);
+                   PRAGMA user_version = 6;"#,
+            )
+            .expect("pre-v7 shape");
+
+        migrate(&connection).expect("migrate to v7");
+        assert_eq!(
+            user_version(&connection).expect("version"),
+            target_schema_version()
+        );
+        let columns: Vec<String> = {
+            let mut statement = connection
+                .prepare("PRAGMA table_info(destination_facts_snapshots)")
+                .expect("table_info");
+            statement
+                .query_map([], |row| row.get::<_, String>(1))
+                .expect("columns")
+                .collect::<rusqlite::Result<Vec<String>>>()
+                .expect("collect")
+        };
+        assert!(columns.iter().any(|c| c == "origin_place"));
+        assert!(columns.iter().any(|c| c == "origin_utc_offset_minutes"));
     }
 
     #[test]

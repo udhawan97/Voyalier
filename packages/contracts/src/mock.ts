@@ -1575,6 +1575,16 @@ export function createMockGateway(options?: {
           : undefined;
         const astro = destFacts ? mockAstro(destFacts, trip) : [];
         const nearestAirports = destFacts ? mockNearestAirports() : [];
+        // Derived on read from the snapshot's two offsets, mirroring the Rust
+        // side — present only once the origin has been geocoded.
+        const timeDifference =
+          destFacts && destFacts.originUtcOffsetMinutes != null
+            ? {
+                originPlace: destFacts.originPlace ?? "",
+                offsetMinutes:
+                  destFacts.utcOffsetMinutes - destFacts.originUtcOffsetMinutes,
+              }
+            : undefined;
         return {
           trip: clone(trip),
           confirmedFacts,
@@ -1592,6 +1602,7 @@ export function createMockGateway(options?: {
           ...(countryFacts ? { countryFacts: clone(countryFacts) } : {}),
           astro,
           nearestAirports,
+          ...(timeDifference ? { timeDifference } : {}),
         } satisfies TripDetail;
       }),
 
@@ -2538,6 +2549,11 @@ export function createMockGateway(options?: {
             { code: "GBP", perEur: 0.85098 },
           ],
           retrievedAt: timestamp(),
+          // The origin resolves too (Chicago-like, −300): +540 destination is
+          // then 840 min (14h) ahead, so the card shows a real time difference.
+          ...(trip.origin.trim()
+            ? { originPlace: trip.origin, originUtcOffsetMinutes: -300 }
+            : {}),
         };
         destinationFactsSnapshots.set(tripId, snapshot);
         return clone(snapshot);

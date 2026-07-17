@@ -78,6 +78,43 @@ pub struct DestinationFactsSnapshot {
     /// source could not be reached.
     pub currency_rates: Vec<CurrencyRate>,
     pub retrieved_at: String,
+    /// The trip origin's geocoded name, when it resolved. Absent for a blank or
+    /// unrecognised origin — the time difference simply is not shown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin_place: Option<String>,
+    /// The origin's minutes east of UTC on the trip's dates, paired with
+    /// [`Self::utc_offset_minutes`] to derive the destination-vs-home gap.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin_utc_offset_minutes: Option<i32>,
+}
+
+/// How far the destination clock runs ahead of (or behind) the trip's origin,
+/// on the trip's dates. Derived on read from two stored UTC offsets — a static
+/// fact, not a ticking clock.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimeDifference {
+    /// The origin place the gap is measured from (the geocoded name).
+    pub origin_place: String,
+    /// Signed minutes: destination offset minus origin offset. Positive means
+    /// the destination is ahead (its clock reads later); negative means behind;
+    /// zero means the same wall clock. Minutes, not hours, so sub-hour zones
+    /// (India +330, Nepal +345) stay exact.
+    pub offset_minutes: i32,
+}
+
+/// The destination-vs-origin wall-clock gap from their two UTC offsets. Zero is
+/// a real answer (same time as home), so this never returns `None` — the caller
+/// decides whether it has both offsets to call this at all.
+pub fn time_difference(
+    origin_place: &str,
+    origin_utc_offset_minutes: i32,
+    destination_utc_offset_minutes: i32,
+) -> TimeDifference {
+    TimeDifference {
+        origin_place: origin_place.to_owned(),
+        offset_minutes: destination_utc_offset_minutes - origin_utc_offset_minutes,
+    }
 }
 
 fn unreadable_source() -> AppError {
@@ -692,5 +729,19 @@ mod tests {
                 country.iso2
             );
         }
+    }
+
+    #[test]
+    fn time_difference_is_signed_destination_minus_origin() {
+        // Tokyo (+540) seen from Chicago (−300, CDT) is 840 min = 14h ahead.
+        let ahead = time_difference("Chicago", -300, 540);
+        assert_eq!(ahead.origin_place, "Chicago");
+        assert_eq!(ahead.offset_minutes, 840);
+        // Westward is negative (behind): Chicago seen from Tokyo.
+        assert_eq!(time_difference("Tokyo", 540, -300).offset_minutes, -840);
+        // Same clock is zero, still reported (worth a "same time" line).
+        assert_eq!(time_difference("Paris", 120, 120).offset_minutes, 0);
+        // Sub-hour zones survive: Kathmandu (+345) from Chicago (−300) = 645 = 10h45m.
+        assert_eq!(time_difference("Chicago", -300, 345).offset_minutes, 645);
     }
 }

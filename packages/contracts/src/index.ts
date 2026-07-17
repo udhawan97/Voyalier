@@ -49,6 +49,23 @@ export interface TripDetail {
    * snapshot's coordinates. Bundled and offline; empty without a snapshot.
    */
   nearestAirports: NearbyAirport[];
+  /**
+   * How far the destination clock runs ahead of (or behind) the trip's origin,
+   * derived on read from the snapshot's two offsets. Present only once the
+   * origin has been geocoded.
+   */
+  timeDifference?: TimeDifference;
+}
+/** The destination-vs-origin wall-clock gap on the trip's dates. */
+export interface TimeDifference {
+  /** The origin place the gap is measured from (the geocoded name). */
+  originPlace: string;
+  /**
+   * Signed minutes: destination offset minus origin offset. Positive means the
+   * destination is ahead; negative behind; zero the same time. Minutes, not
+   * hours, so sub-hour zones stay exact.
+   */
+  offsetMinutes: number;
 }
 /** How large an airport is, as OurAirports classifies it. */
 export type AirportSize = "large" | "medium";
@@ -127,6 +144,10 @@ export interface DestinationFactsSnapshot {
   /** EUR-based rates (EUR = 1.0); empty when the rate source was unreachable. */
   currencyRates: CurrencyRate[];
   retrievedAt: string;
+  /** The trip origin's geocoded name, when it resolved (else the gap is unshown). */
+  originPlace?: string;
+  /** The origin's minutes east of UTC on the trip's dates, paired with utcOffsetMinutes. */
+  originUtcOffsetMinutes?: number;
 }
 export type ReadinessCheck =
   | "schedule_conflicts"

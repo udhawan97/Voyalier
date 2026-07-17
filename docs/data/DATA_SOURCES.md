@@ -62,7 +62,7 @@ model.
 | Provider              | Endpoint                                                | Licence / attribution                         | Notes                                                                        |
 | --------------------- | ------------------------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------- |
 | European Central Bank | `www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml` | Exchange rates from the European Central Bank | ~29 EUR-based reference rates; shown **indicative**, not a card/ATM rate     |
-| Open-Meteo geocoding  | `geocoding-api.open-meteo.com/v1/search`                | Weather data by Open-Meteo.com (CC BY 4.0)    | Reused from weather — resolves the destination to coordinates + country + tz |
+| Open-Meteo geocoding  | `geocoding-api.open-meteo.com/v1/search`                | Weather data by Open-Meteo.com (CC BY 4.0)    | Reused from weather — resolves the destination to coordinates + country + tz, and (best-effort) the trip origin's tz for the offline time difference |
 
 ## Bundled and computed data
 

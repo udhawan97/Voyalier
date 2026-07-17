@@ -4,6 +4,7 @@ import type {
   CurrencyRate,
   DestinationFactsSnapshot,
   NearbyAirport,
+  TimeDifference,
 } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
@@ -37,6 +38,43 @@ function crossRate(
   const b = perEur(to);
   if (a === null || b === null) return null;
   return b / a;
+}
+
+/**
+ * The clock block: how far the destination runs ahead of (or behind) home, from
+ * the two stored UTC offsets. Sub-hour zones keep their minutes; a zero gap is
+ * shown plainly as "same time" rather than hidden.
+ */
+function Clock({
+  destination,
+  diff,
+}: {
+  destination: string;
+  diff: TimeDifference;
+}) {
+  const abs = Math.abs(diff.offsetMinutes);
+  const hours = Math.floor(abs / 60);
+  const minutes = abs % 60;
+  const duration =
+    minutes === 0
+      ? t("facts.clock.hours", { hours })
+      : t("facts.clock.hoursMinutes", { hours, minutes });
+  const sentence =
+    diff.offsetMinutes === 0
+      ? t("facts.clock.same", { destination, origin: diff.originPlace })
+      : t(diff.offsetMinutes > 0 ? "facts.clock.ahead" : "facts.clock.behind", {
+          destination,
+          duration,
+          origin: diff.originPlace,
+        });
+  return (
+    <section className="voy-facts__block" aria-labelledby="facts-clock-title">
+      <h3 id="facts-clock-title" className="voy-facts__block-title">
+        {t("facts.clock.title")}
+      </h3>
+      <p className="voy-facts__clock">{sentence}</p>
+    </section>
+  );
 }
 
 /**
@@ -214,6 +252,7 @@ export function DestinationFacts({
   countryFacts,
   astro,
   nearestAirports,
+  timeDifference,
   onFetched,
 }: {
   tripId: string;
@@ -222,6 +261,7 @@ export function DestinationFacts({
   countryFacts: CountryFacts | undefined;
   astro: AstroDay[];
   nearestAirports: NearbyAirport[];
+  timeDifference: TimeDifference | undefined;
   onFetched: () => void;
 }) {
   const gateway = useGateway();
@@ -245,6 +285,9 @@ export function DestinationFacts({
 
       {snapshot ? (
         <div className="voy-facts__grid">
+          {timeDifference ? (
+            <Clock destination={snapshot.placeName} diff={timeDifference} />
+          ) : null}
           {astro.length > 0 ? <Sky days={astro} /> : null}
           <Money
             snapshot={snapshot}
