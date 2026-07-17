@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./schemas/*": "./schemas/*",
-    "./fixtures/*": "./fixtures/*"
+    "./fixtures/*": "./fixtures/*",
+    "./parity/*": "./parity/*"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

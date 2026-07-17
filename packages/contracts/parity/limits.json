@@ -1,0 +1,8 @@
+{
+  "$comment": "Validation limits both languages must agree on. voyalier-core's parity_limits_match_the_contract holds the Rust constants to this file; @voyalier/contracts' parity.test.ts holds the TypeScript ones. Change a limit and both fail until both sides follow. Every value counts characters (Unicode scalar values), never UTF-16 code units — count with [...text].length in TypeScript, not text.length.",
+  "maxLocationLen": 120,
+  "maxDocumentChars": 1000000,
+  "maxNotesChars": 100000,
+  "maxQueryLen": 200,
+  "maxAiPromptLen": 6000
+}

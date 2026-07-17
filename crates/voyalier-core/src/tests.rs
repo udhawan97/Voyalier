@@ -201,6 +201,255 @@ fn injection_fixture_stays_inert() {
     );
 }
 
+/// The limits both languages enforce live in one file, and this holds Rust to
+/// it. `packages/contracts/parity.test.ts` holds TypeScript to the same file.
+///
+/// Before this, each limit was a Rust `pub const` and an unrelated magic number
+/// in `mock.ts` — and the mock counted UTF-16 code units where the core counts
+/// characters, so it rejected input the real service accepts.
+#[test]
+fn parity_limits_match_the_contract() {
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/contracts/parity/limits.json");
+    let raw = fs::read_to_string(&path).expect("parity/limits.json");
+    let limits: Value = serde_json::from_str(&raw).expect("valid json");
+
+    let expected = [
+        ("maxLocationLen", crate::types::MAX_LOCATION_LEN),
+        ("maxDocumentChars", crate::types::MAX_DOCUMENT_CHARS),
+        ("maxNotesChars", crate::types::MAX_NOTES_CHARS),
+        ("maxQueryLen", crate::search::MAX_QUERY_LEN),
+        ("maxAiPromptLen", crate::MAX_AI_PROMPT_LEN),
+    ];
+    for (key, value) in expected {
+        assert_eq!(
+            limits.get(key).and_then(Value::as_u64),
+            Some(value as u64),
+            "{key} disagrees with the core"
+        );
+    }
+
+    // Nothing in the file goes unchecked, so an entry cannot be added here and
+    // silently enforced nowhere.
+    let declared: Vec<&String> = limits
+        .as_object()
+        .expect("object")
+        .keys()
+        .filter(|key| !key.starts_with('$'))
+        .collect();
+    assert_eq!(
+        declared.len(),
+        expected.len(),
+        "every limit in parity/limits.json must be checked here; saw {declared:?}"
+    );
+}
+
+/// Place folding is implemented twice — here and in the mock gateway — and a
+/// destination is user-typed free text, so a disagreement means a pack matches
+/// in one and not the other. Both sides answer to this file.
+///
+/// Both had bugs, in opposite directions: the core sent accented capitals to a
+/// word separator ("REYKJAVÍK" -> "reykjav k"), and the mock dropped ø and ß
+/// ("Tromsø" -> "troms").
+#[test]
+fn parity_normalize_place_matches_the_contract() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../packages/contracts/parity/normalize-place.json");
+    let raw = fs::read_to_string(&path).expect("parity/normalize-place.json");
+    let golden: Value = serde_json::from_str(&raw).expect("valid json");
+
+    let cases = golden["cases"].as_array().expect("cases array");
+    let mut checked = 0;
+    for case in cases {
+        let (Some(input), Some(expected)) = (
+            case.get("input").and_then(Value::as_str),
+            case.get("expected").and_then(Value::as_str),
+        ) else {
+            continue; // a "$why" annotation
+        };
+        assert_eq!(
+            crate::packs::normalize_place(input),
+            expected,
+            "normalize_place({input:?})"
+        );
+        checked += 1;
+    }
+    assert!(checked >= 20, "expected the golden corpus, saw {checked}");
+}
+
+/// Every `ErrorCode` appears in the contract's AppError schema.
+///
+/// `rust_examples_validate_against_contract_schemas` validates one hardcoded
+/// error, so it stayed green while the schema went eight codes stale between
+/// Phase 0 and Phase 3 — including `document/not_found`, added by the very
+/// commit whose message says it updated the schema. Enumerating every variant is
+/// what makes the check mean something.
+#[test]
+fn every_error_code_is_in_the_contract_schema() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../packages/contracts/schemas/AppError.schema.json");
+    let raw = fs::read_to_string(&path).expect("AppError.schema.json");
+    let schema: Value = serde_json::from_str(&raw).expect("valid json");
+    let declared: BTreeSet<String> = schema["properties"]["code"]["enum"]
+        .as_array()
+        .expect("code enum")
+        .iter()
+        .filter_map(|value| value.as_str().map(str::to_owned))
+        .collect();
+
+    let all = [
+        ErrorCode::ValidationInvalidInput,
+        ErrorCode::ValidationInvalidDateRange,
+        ErrorCode::TripNotFound,
+        ErrorCode::CandidateNotFound,
+        ErrorCode::CandidateAlreadyResolved,
+        ErrorCode::FactNotFound,
+        ErrorCode::DocumentNotFound,
+        ErrorCode::DocumentTooLarge,
+        ErrorCode::DocumentDuplicate,
+        ErrorCode::DocumentEmpty,
+        ErrorCode::AdviceFetchFailed,
+        ErrorCode::WeatherFetchFailed,
+        ErrorCode::AssistFailed,
+        ErrorCode::AssistUnreachable,
+        ErrorCode::PackDownloadFailed,
+        ErrorCode::VaultLocked,
+        ErrorCode::VaultPassphraseIncorrect,
+        ErrorCode::StorageFailure,
+        ErrorCode::TransportFailure,
+        ErrorCode::InternalUnexpected,
+    ];
+
+    // A list is only as good as its completeness, and a list is exactly what
+    // went stale. Adding a variant makes this match non-exhaustive, so the
+    // compiler stops here and points at `all` above — which is the one thing the
+    // old single-code test could never do.
+    fn _every_variant_is_listed_above(code: ErrorCode) {
+        match code {
+            ErrorCode::ValidationInvalidInput
+            | ErrorCode::ValidationInvalidDateRange
+            | ErrorCode::TripNotFound
+            | ErrorCode::CandidateNotFound
+            | ErrorCode::CandidateAlreadyResolved
+            | ErrorCode::FactNotFound
+            | ErrorCode::DocumentNotFound
+            | ErrorCode::DocumentTooLarge
+            | ErrorCode::DocumentDuplicate
+            | ErrorCode::DocumentEmpty
+            | ErrorCode::AdviceFetchFailed
+            | ErrorCode::WeatherFetchFailed
+            | ErrorCode::AssistFailed
+            | ErrorCode::AssistUnreachable
+            | ErrorCode::PackDownloadFailed
+            | ErrorCode::VaultLocked
+            | ErrorCode::VaultPassphraseIncorrect
+            | ErrorCode::StorageFailure
+            | ErrorCode::TransportFailure
+            | ErrorCode::InternalUnexpected => {}
+        }
+    }
+
+    let actual: BTreeSet<String> = all
+        .iter()
+        .map(|code| {
+            serde_json::to_value(code)
+                .expect("serializable")
+                .as_str()
+                .expect("string")
+                .to_owned()
+        })
+        .collect();
+
+    assert_eq!(
+        actual, declared,
+        "AppError.schema.json disagrees with ErrorCode"
+    );
+}
+
+/// The default AI instructions are shown to the traveler as editable
+/// `defaultText`, so the mock paraphrasing them means the settings UI shows a
+/// materially different instruction in mock mode than the one production sends.
+/// The draft prompt's mock copy dropped the JSON shape and the whole prohibition
+/// on prices, codes, guest names, and visa/health/safety content.
+#[test]
+fn parity_prompts_match_the_contract() {
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/contracts/parity/prompts.json");
+    let raw = fs::read_to_string(&path).expect("parity/prompts.json");
+    let golden: Value = serde_json::from_str(&raw).expect("valid json");
+
+    assert_eq!(
+        golden["assist"].as_str(),
+        Some(crate::ASSIST_SYSTEM_PROMPT),
+        "assist prompt"
+    );
+    assert_eq!(
+        golden["draftLodgingDates"].as_str(),
+        Some(crate::DRAFT_LODGING_DATES_SYSTEM_PROMPT),
+        "draft prompt"
+    );
+}
+
+/// The curated official-source links are the product's whole claim on entry and
+/// health: it never asserts those rules, it points at the source. They were
+/// hand-maintained in Rust and TypeScript with nothing holding them together,
+/// and the only Rust test on them checked that each URL starts with "https".
+#[test]
+fn parity_readiness_links_match_the_contract() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../packages/contracts/parity/readiness-links.json");
+    let raw = fs::read_to_string(&path).expect("parity/readiness-links.json");
+    let golden: Value = serde_json::from_str(&raw).expect("valid json");
+
+    let summary = crate::assess_trip(
+        &Trip {
+            id: "trip_links".to_owned(),
+            title: "T".to_owned(),
+            origin: "Chicago".to_owned(),
+            destination: "Kyoto".to_owned(),
+            start_date: "2027-04-01".to_owned(),
+            end_date: "2027-04-05".to_owned(),
+            status: TripStatus::Active,
+            created_at: "2026-01-01T00:00:00Z".to_owned(),
+            updated_at: "2026-01-01T00:00:00Z".to_owned(),
+        },
+        &[],
+        0,
+    )
+    .readiness;
+
+    for (key, check) in [
+        (
+            "entry_requirements",
+            crate::ReadinessCheck::EntryRequirements,
+        ),
+        ("health_notices", crate::ReadinessCheck::HealthNotices),
+    ] {
+        let item = summary
+            .items
+            .iter()
+            .find(|item| item.id == check)
+            .expect("item present");
+        let expected: Vec<(String, String)> = golden[key]
+            .as_array()
+            .expect("array")
+            .iter()
+            .map(|link| {
+                (
+                    link["label"].as_str().expect("label").to_owned(),
+                    link["url"].as_str().expect("url").to_owned(),
+                )
+            })
+            .collect();
+        let actual: Vec<(String, String)> = item
+            .links
+            .iter()
+            .map(|link| (link.label.clone(), link.url.clone()))
+            .collect();
+        assert_eq!(actual, expected, "{key} links");
+    }
+}
+
 #[test]
 fn rust_examples_validate_against_contract_schemas() {
     let schema_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/contracts/schemas");

@@ -421,9 +421,13 @@ enum Fold {
 }
 
 fn fold_char(c: char) -> Fold {
+    // Case-fold first, so an accented capital (Í, Ö, Ø) takes the same path as
+    // its lowercase form. Matching only 'A'..='Z' sent every other uppercase
+    // letter to Fold::Sep, so "REYKJAVÍK" normalized to "reykjav k" and matched
+    // nothing. Destinations are user-typed free text, so this is reachable.
+    let c = c.to_lowercase().next().unwrap_or(c);
     match c {
         'a'..='z' | '0'..='9' => Fold::Keep(c),
-        'A'..='Z' => Fold::Keep(c.to_ascii_lowercase()),
         // Apostrophe-like marks are removed without splitting the word, so
         // "Oʻahu" folds to "oahu" (matching the "Oahu" article title).
         '\'' | '`' | '\u{2018}' | '\u{2019}' | '\u{02BB}' | '\u{00B4}' => Fold::Drop,

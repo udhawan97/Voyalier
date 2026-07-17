@@ -31,6 +31,12 @@ pub const DEFAULT_ANTHROPIC_MODEL: &str = "claude-3-5-haiku-latest";
 /// Cap on reply length for providers that require an explicit token budget.
 pub const ASSIST_MAX_TOKENS: u32 = 1024;
 
+/// Longest custom AI instruction accepted (well under the app_settings cap).
+///
+/// Counted in characters (Unicode scalar values), not UTF-16 code units — see
+/// `packages/contracts/parity/limits.json`, which holds both languages to this.
+pub const MAX_AI_PROMPT_LEN: usize = 6000;
+
 /// The instruction sent with every assist request. Fixed and deterministic so a
 /// user can review it once; it forbids inventing high-stakes facts, which
 /// Voyalier only ever surfaces from cited sources.

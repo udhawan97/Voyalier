@@ -30,7 +30,8 @@ pub use advice::{
 // `build_assist_request` + `parse_assist_reply` are the way in.
 pub use assist::{
     ASSIST_SYSTEM_PROMPT, AssistActivityEntry, AssistReply, AssistRequest, AssistRequestPreview,
-    build_assist_preview, build_assist_request, estimate_tokens, parse_assist_reply,
+    MAX_AI_PROMPT_LEN, build_assist_preview, build_assist_request, estimate_tokens,
+    parse_assist_reply,
 };
 // `build_lodging_dates_user_content` stays internal: it is reached through
 // `build_draft_preview`, so the previewed user content and the sent user content

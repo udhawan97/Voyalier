@@ -19,14 +19,14 @@ use voyalier_core::{
     DocumentParse, DocumentSummary, DownloadedPack, ErrorCode, ExtractionMethod, FCDO_COUNTRIES,
     FactPayload, FactType, FcdoCountry, FieldSuggestion, HealthResponse, ImportDocumentInput,
     ImportResult, IntelligenceMode, KeyValidation, LocalAiStatus, LocalModelPullResult,
-    LodgingDateProposal, MAX_NOTES_CHARS, MAX_OFFLINE_MAP_BYTES, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,
-    OfflineMapArchive, OfflineMapChunk, OfflineMapDescriptor, PROVIDERS, PackContent, PackInfo,
-    PackSuggestion, PersonaWeights, ProviderConfig, ProviderId, Recommendation, RedactionPolicy,
-    SEARCH_SUGGESTION_LIMIT, SearchHit, SearchableDocument, SourceDocument, SuggestionSource,
-    TodayView, TravelAdviceSnapshot, Trip, TripAssessment, TripBrief, TripDetail, TripNotes,
-    TripStatus, TripSummary, UpdateTripInput, WarningCode, WeatherSnapshot, assess_trip,
-    build_assist_preview, build_assist_request, build_draft_preview, build_pull_body,
-    build_today_view, build_trip_brief, changed_payload_fields, estimate_tokens,
+    LodgingDateProposal, MAX_AI_PROMPT_LEN, MAX_NOTES_CHARS, MAX_OFFLINE_MAP_BYTES,
+    OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OfflineMapArchive, OfflineMapChunk, OfflineMapDescriptor,
+    PROVIDERS, PackContent, PackInfo, PackSuggestion, PersonaWeights, ProviderConfig, ProviderId,
+    Recommendation, RedactionPolicy, SEARCH_SUGGESTION_LIMIT, SearchHit, SearchableDocument,
+    SourceDocument, SuggestionSource, TodayView, TravelAdviceSnapshot, Trip, TripAssessment,
+    TripBrief, TripDetail, TripNotes, TripStatus, TripSummary, UpdateTripInput, WarningCode,
+    WeatherSnapshot, assess_trip, build_assist_preview, build_assist_request, build_draft_preview,
+    build_pull_body, build_today_view, build_trip_brief, changed_payload_fields, estimate_tokens,
     interpret_key_validation, interpret_pull_response, new_id, now_rfc3339,
     offline_map_download_url, pack_catalog, pack_download_url, parse_assist_reply,
     parse_fcdo_content, parse_forecast_response, parse_geocoding_response, parse_import,
@@ -3196,9 +3196,6 @@ fn draft_window_warnings(trip: &Trip, proposal: &LodgingDateProposal) -> Vec<War
         Vec::new()
     }
 }
-
-/// Longest custom AI instruction accepted (well under the app_settings cap).
-const MAX_AI_PROMPT_LEN: usize = 6000;
 
 /// The app_settings key that holds a user override for one AI instruction.
 fn ai_prompt_key(kind: AiPromptKind) -> &'static str {

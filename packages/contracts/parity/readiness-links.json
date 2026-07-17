@@ -1,0 +1,27 @@
+{
+  "$comment": "The curated official-source links for the link-only readiness items. Voyalier's stated posture is that it never asserts entry/health rules and only points at official sources — so these URLs are the product guarantee, and they were maintained by hand in two languages (voyalier-core::readiness and mock.ts) with nothing tying them together. The core's only test on them checked that they start with https. voyalier-core's parity_readiness_links_match_the_contract holds Rust to this file; mock.ts imports it.",
+  "entry_requirements": [
+    {
+      "label": "UK FCDO travel advice — entry requirements by country",
+      "url": "https://www.gov.uk/foreign-travel-advice"
+    },
+    {
+      "label": "US State Dept — travel advisories by country",
+      "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
+    },
+    {
+      "label": "US State Dept — international travel",
+      "url": "https://travel.state.gov/content/travel/en/international-travel.html"
+    }
+  ],
+  "health_notices": [
+    {
+      "label": "US CDC — Travelers' Health, destination notices",
+      "url": "https://wwwnc.cdc.gov/travel/destinations/list"
+    },
+    {
+      "label": "WHO — International travel and health",
+      "url": "https://www.who.int/travel-advice"
+    }
+  ]
+}
