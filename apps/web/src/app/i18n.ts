@@ -511,7 +511,7 @@ const en = {
   "facts.fetch": "Fetch destination facts",
   "facts.fetchAgain": "Fetch again",
   "facts.consent":
-    "Fetching sends your destination name (“{destination}”) to open-meteo.com to place it on the map, and asks the European Central Bank for today’s reference rates. The sun, moon and country facts are worked out on this device. Nothing else about your trip leaves it.",
+    "Fetching sends your destination name (“{destination}”) to open-meteo.com to place it on the map, and asks the European Central Bank for today’s reference rates. The sun, moon, country facts and nearest airports are worked out on this device. Nothing else about your trip leaves it.",
   "facts.retrieved": "Retrieved {stamp}",
   // Sky: computed offline, so it carries no source and cannot be stale.
   "facts.sky.title": "Sky",
@@ -538,6 +538,11 @@ const en = {
     "Police {police} · Ambulance {ambulance} · Fire {fire}",
   "facts.practical.none":
     "Voyalier does not carry practical facts for this destination yet.",
+  // Nearest airports: bundled + computed offline. Distance is a fact; Voyalier
+  // does not say which airport is "best".
+  "facts.airports.title": "Nearest airports",
+  "facts.airports.row": "{iata} · {name}",
+  "facts.airports.distance": "{km} km",
   "moon.new_moon": "New moon",
   "moon.waxing_crescent": "Waxing crescent",
   "moon.first_quarter": "First quarter",
