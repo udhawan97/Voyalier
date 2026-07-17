@@ -4,6 +4,18 @@
 
 **Goal:** Build the remaining *codeable-and-verifiable-in-repo* candidates from `docs/roadmap/OPEN_DATA_FEATURE_CANDIDATES.md`. The pack-pipeline items (#7/#10/#17/#18) stay owner-infra (they need external pack regeneration + GitHub-Releases hosting) and are out of scope.
 
+**Status (2026-07-17): 4 of 5 shipped and merged to `main`; 1 deferred.**
+- ✅ **#11 Public holidays** — shipped (migration v8, Nager.Date).
+- ✅ **#8 World-Heritage** — shipped (942 sites from Wikidata, derived on read).
+- ✅ **#14 About-this-place** — shipped (migration v9, Wikimedia REST, CC BY-SA).
+- ✅ **#20 Tipping** — shipped (bundled curated table, rough-guide-framed).
+- ⛔ **#6 Trip CO₂** — **deferred**: the mechanism is fine (flight segments carry
+  IATA, airports are bundled) but the DESNZ/DEFRA per-passenger-km factors are
+  version/class-dependent, disagree across secondary sources, and live only in a
+  gov `.xlsx` that could not be extracted cleanly. Bundling approximate numbers
+  labelled as official DESNZ factors would fabricate provenance, so this waits on
+  the exact factor table + a yearly re-sync commitment (an owner data task).
+
 **The five features, in build order (confidence × value × cleanliness):**
 
 1. **#11 Public holidays during the trip** — consent-gated Nager.Date fetch (keyless, 187 countries, verified live), stored as a dated snapshot, filtered to the trip window on read. Its own seam, mirroring advisories.
