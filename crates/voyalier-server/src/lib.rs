@@ -202,10 +202,7 @@ pub fn app(service: AppService) -> Router {
             "/api/v1/trips/{trip_id}/assist-activity",
             get(list_assist_activity),
         )
-        .route(
-            "/api/v1/trips/{trip_id}/travel-advice",
-            post(fetch_travel_advice),
-        )
+        .route("/api/v1/trips/{trip_id}/advisories", post(fetch_advisories))
         .route("/api/v1/trips/{trip_id}/weather", post(fetch_weather))
         .route("/api/v1/trips/{trip_id}/search", get(search_trip))
         .route(
@@ -523,13 +520,13 @@ async fn set_provider_model(
     Ok(Json(service.set_provider_model(&provider, &body.model)?))
 }
 
-async fn fetch_travel_advice(
+async fn fetch_advisories(
     State(service): State<AppService>,
     Path(trip_id): Path<String>,
     Json(body): Json<FetchAdviceBody>,
 ) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(
-        service.fetch_travel_advice(&trip_id, &body.country_slug)?,
+        service.fetch_advisories(&trip_id, &body.country_slug)?,
     ))
 }
 
@@ -1097,6 +1094,36 @@ mod tests {
                     } }"#
                         .to_owned());
                 }
+                if url.contains("cadataapi.state.gov") {
+                    return Ok(
+                        r#"[{ "Title": "Japan - Level 1: Exercise Normal Precautions",
+                        "Link": "https://travel.state.gov/japan", "Category": ["JA"],
+                        "Summary": "<p>Exercise normal precautions.</p>",
+                        "Updated": "2025-05-14T20:00:00-04:00" }]"#
+                            .to_owned(),
+                    );
+                }
+                if url.contains("data.international.gc.ca") {
+                    return Ok(r#"{ "data": { "JP": { "country-iso": "JP",
+                        "advisory-state": 0, "date-published": { "asp": "2026-07-16T12:53:48.9-04:00" },
+                        "eng": { "url-slug": "japan",
+                                 "advisory-text": "Exercise normal security precautions" } } } }"#
+                        .to_owned());
+                }
+                if url.contains("auswaertiges-amt.de") {
+                    return Ok(r#"{ "response": { "lastModified": 1757063288,
+                        "213032": { "title": "Japan: Reise- und Sicherheitshinweise",
+                        "countryCode": "JP", "countryName": "Japan", "warning": false,
+                        "partialWarning": false, "situationWarning": false,
+                        "situationPartWarning": false } } }"#
+                        .to_owned());
+                }
+                if url.contains("wwwnc.cdc.gov") {
+                    return Ok(
+                        r#"<rss version="2.0"><channel><title>CDC</title></channel></rss>"#
+                            .to_owned(),
+                    );
+                }
                 Ok(
                     r#"{ "description": "FCDO travel advice for Japan.", "details": {} }"#
                         .to_owned(),
@@ -1138,15 +1165,26 @@ mod tests {
         let fetched = request(
             router.clone(),
             Method::POST,
-            &format!("/api/v1/trips/{trip_id}/travel-advice"),
+            &format!("/api/v1/trips/{trip_id}/advisories"),
             Some(json!({ "countrySlug": "japan" })),
         )
         .await;
         assert_eq!(fetched.status, StatusCode::OK);
         assert_eq!(fetched.json["countryName"], "Japan");
         assert!(fetched.json.get("retrievedAt").is_some());
+        // Every government reaches the wire on one click, each in its own card.
+        let sources = fetched.json["entries"]
+            .as_array()
+            .expect("entries")
+            .iter()
+            .map(|entry| entry["source"].as_str().expect("source").to_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(sources, ["uk-fcdo", "us-state", "ca-gac", "de-aa"]);
+        assert_eq!(fetched.json["entries"][1]["levelRank"], 1);
+        // The German card carries its own language tag, untranslated.
+        assert_eq!(fetched.json["entries"][3]["language"], "de");
 
-        // The snapshot rides on the trip detail afterwards.
+        // The panel rides on the trip detail afterwards.
         let detail = request(
             router.clone(),
             Method::GET,
@@ -1154,12 +1192,12 @@ mod tests {
             None,
         )
         .await;
-        assert_eq!(detail.json["travelAdvice"]["countrySlug"], "japan");
+        assert_eq!(detail.json["advisoryPanel"]["countrySlug"], "japan");
 
         let bad_slug = request(
             router.clone(),
             Method::POST,
-            &format!("/api/v1/trips/{trip_id}/travel-advice"),
+            &format!("/api/v1/trips/{trip_id}/advisories"),
             Some(json!({ "countrySlug": "atlantis" })),
         )
         .await;

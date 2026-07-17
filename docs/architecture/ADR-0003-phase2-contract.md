@@ -150,3 +150,40 @@ The same treatment is still owed to `ItineraryConflict.message`,
 `AssistRequestPreview.groundedIn`, and `KeyValidation.message` — all still
 English built in the core, and the last two grew during this work rather than
 shrinking.
+
+## Addendum (2026-07-17): US advisories are a fetched source, not a link
+
+This ADR recorded an owner decision that the US State Department stays
+**link-only** because no machine-readable feed exists. That premise is false as
+of 2026-07-17: the Consular Affairs Data API at
+`https://cadataapi.state.gov/api/TravelAdvisories` serves the entire advisory
+list as keyless, public-domain JSON. The ADR itself said to revisit if the US
+shipped a real API, so this is that revisit, not a reversal on taste.
+
+**Owner decision (2026-07-17): overturned.** US advisories become a fetched,
+dated snapshot beside the UK FCDO one, together with Canada
+(`data.international.gc.ca`, Open Government Licence – Canada) and Germany
+(Auswärtiges Amt OpenData, Datenlizenz Deutschland – Namensnennung – 2.0). US
+CDC travel-health notices (public domain) join as an informational list.
+
+Constraints this does not relax:
+
+- **Source class stays `official`** for all four governments. CDC notices are
+  informational chips and never clear a readiness item.
+- **Levels are never compared or merged across governments.** Each card renders
+  its own government's wording verbatim; `levelRank` exists only to tone that
+  card's own badge. A US "Level 2" and a Canadian "advisory-state 2" are not the
+  same claim, and Voyalier never implies they are.
+- **The German card stays in German.** Translating a government's safety wording
+  would be Voyalier asserting a meaning the source did not publish.
+- **One click, one named set of fetches.** The consent model is unchanged.
+
+One operational note worth recording: the US endpoint returns an empty array to
+default or anonymous User-Agents. `UreqFetcher`'s identifying User-Agent is what
+makes this source work at all — it is load-bearing, not politeness.
+
+This is a **replacing** change to the advice surface: `fetchTravelAdvice` and
+`TravelAdviceSnapshot` become `fetchAdvisories` and `AdvisoryPanel`. Keeping the
+single-source shape additively would mean modelling four governments as one,
+which is the thing that was wrong. Schema migration v4 carries existing stored
+UK snapshots forward as `uk-fcdo` entries.

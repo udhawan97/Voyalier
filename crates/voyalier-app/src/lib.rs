@@ -12,29 +12,31 @@ use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use voyalier_core::{
-    ASSIST_DRAFT_LODGING_DATES, ASSIST_SYSTEM_PROMPT, AddManualFactInput, AiPrompt, AiPromptKind,
-    AiPromptSettings, AppError, AssistActivityEntry, AssistDraftResult, AssistReply,
-    AssistRequestPreview, CandidateFact, CandidateStatus, ConfirmCandidateInput, ConfirmedFact,
-    CreateTripInput, DRAFT_LODGING_DATES_SYSTEM_PROMPT, DocumentContent, DocumentKind,
-    DocumentParse, DocumentSummary, DownloadedPack, ErrorCode, ExtractionMethod, FCDO_COUNTRIES,
-    FactPayload, FactType, FcdoCountry, FieldSuggestion, HealthResponse, ImportDocumentInput,
+    ASSIST_DRAFT_LODGING_DATES, ASSIST_SYSTEM_PROMPT, AddManualFactInput, AdvisoryEntry,
+    AdvisoryPanel, AdvisorySource, AiPrompt, AiPromptKind, AiPromptSettings, AppError,
+    AssistActivityEntry, AssistDraftResult, AssistReply, AssistRequestPreview, CandidateFact,
+    CandidateStatus, ConfirmCandidateInput, ConfirmedFact, CreateTripInput,
+    DRAFT_LODGING_DATES_SYSTEM_PROMPT, DocumentContent, DocumentKind, DocumentParse,
+    DocumentSummary, DownloadedPack, ErrorCode, ExtractionMethod, FCDO_COUNTRIES, FactPayload,
+    FactType, FcdoCountry, FieldSuggestion, HealthNotice, HealthResponse, ImportDocumentInput,
     ImportResult, IntelligenceMode, KeyValidation, LocalAiStatus, LocalModelPullResult,
     LodgingDateProposal, MAX_AI_PROMPT_LEN, MAX_NOTES_CHARS, MAX_OFFLINE_MAP_BYTES,
     OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OfflineMapArchive, OfflineMapChunk, OfflineMapDescriptor,
     PROVIDERS, PackContent, PackInfo, PackSuggestion, PersonaWeights, ProviderConfig, ProviderId,
     Recommendation, RedactionPolicy, SEARCH_SUGGESTION_LIMIT, SearchHit, SearchableDocument,
-    SourceDocument, SuggestionSource, TodayView, TravelAdviceSnapshot, Trip, TripAssessment,
+    SourceDocument, SourceState, SourceStatus, SuggestionSource, TodayView, Trip, TripAssessment,
     TripBrief, TripDetail, TripNotes, TripStatus, TripSummary, UpdateTripInput, WarningCode,
-    WeatherSnapshot, assess_trip, build_assist_preview, build_assist_request, build_draft_preview,
-    build_key_validation_request, build_pull_body, build_today_view, build_trip_brief,
-    changed_payload_fields, estimate_tokens, interpret_key_validation, interpret_pull_response,
-    new_id, now_rfc3339, offline_map_download_url, pack_catalog, pack_download_url,
-    parse_assist_reply, parse_fcdo_content, parse_forecast_response, parse_geocoding_response,
-    parse_import, parse_lodging_dates_reply, parse_pack_content, provider_info,
-    rank_field_suggestions, recommend_places, search_trip_corpus, suggest_packs,
-    suggest_search_terms, validate_api_key, validate_country_slug, validate_create_trip,
-    validate_fact_payload, validate_model_name, validate_pack_id, validate_provider_id,
-    validate_search_query, validate_update_trip,
+    WeatherSnapshot, advisory_country, assess_trip, build_assist_preview, build_assist_request,
+    build_draft_preview, build_key_validation_request, build_pull_body, build_today_view,
+    build_trip_brief, changed_payload_fields, entry_from_fcdo, estimate_tokens,
+    interpret_key_validation, interpret_pull_response, new_id, notices_for_country, now_rfc3339,
+    offline_map_download_url, pack_catalog, pack_download_url, parse_assist_reply, parse_ca_gac,
+    parse_cdc_notices, parse_de_aa, parse_fcdo_content, parse_forecast_response,
+    parse_geocoding_response, parse_import, parse_lodging_dates_reply, parse_pack_content,
+    parse_us_state, provider_info, rank_field_suggestions, recommend_places, search_trip_corpus,
+    suggest_packs, suggest_search_terms, validate_api_key, validate_country_slug,
+    validate_create_trip, validate_fact_payload, validate_model_name, validate_pack_id,
+    validate_provider_id, validate_search_query, validate_update_trip,
 };
 use voyalier_core::{
     VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, VaultStatus, derive_key as vault_derive_key,
@@ -842,7 +844,7 @@ impl AppService {
             conflicts: itinerary_conflicts,
             readiness,
         } = assess_trip(&trip, &confirmed_facts, pending_candidate_count);
-        let travel_advice = fetch_travel_advice_snapshot(&connection, trip_id)?;
+        let advisory_panel = load_advisory_panel(&connection, trip_id)?;
         let weather = fetch_weather_snapshot(&connection, trip_id)?;
         Ok(TripDetail {
             trip,
@@ -850,7 +852,7 @@ impl AppService {
             pending_candidate_count,
             itinerary_conflicts,
             readiness,
-            travel_advice,
+            advisory_panel,
             weather,
         })
     }
@@ -1496,59 +1498,127 @@ impl AppService {
         }
     }
 
-    /// Fetch and store a dated snapshot of official FCDO travel advice for a
-    /// curated country. Called only from an explicit user action — the click
-    /// is the consent for this single, named, keyless fetch. The snapshot is
-    /// stored verbatim with its retrieval time and replaces the trip's
-    /// previous snapshot.
-    pub fn fetch_travel_advice(
+    /// Fetch every government's advice for one curated country on one click.
+    ///
+    /// Called only from an explicit user action — the click is the consent for
+    /// this named set of keyless fetches. Each source is stored verbatim with
+    /// its own retrieval time; a source that fails never destroys what it
+    /// stored before, and never blocks the sources that succeeded.
+    pub fn fetch_advisories(
         &self,
         trip_id: &str,
         country_slug: &str,
-    ) -> Result<TravelAdviceSnapshot, AppError> {
-        let country = validate_country_slug(country_slug)?;
+    ) -> Result<AdvisoryPanel, AppError> {
+        let country = advisory_country(country_slug)?;
+        let fcdo = validate_country_slug(country_slug)?;
         // Validate the trip before any network call.
         {
             let connection = self.connection()?;
             self.records(&connection).trip(trip_id)?;
         }
-        let url = format!(
-            "https://www.gov.uk/api/content/foreign-travel-advice/{}",
-            country.slug
-        );
-        let body = self.fetcher.fetch_text(&url)?;
-        let snapshot = parse_fcdo_content(country, &body, &now_rfc3339())?;
+        let retrieved_at = now_rfc3339();
+
+        // Fetch and parse each government independently — no `?` on a fetch, or
+        // one government being down would hide the other three. `Ok(None)`
+        // means that government publishes nothing for this country; `Err` means
+        // we could not read it this time and fall back to what is stored.
+        let uk = self
+            .fetcher
+            .fetch_text(&format!(
+                "https://www.gov.uk/api/content/foreign-travel-advice/{}",
+                fcdo.slug
+            ))
+            .and_then(|body| parse_fcdo_content(fcdo, &body, &retrieved_at))
+            .map(|snapshot| Some(entry_from_fcdo(&snapshot)));
+        let us = self
+            .fetcher
+            .fetch_text("https://cadataapi.state.gov/api/TravelAdvisories")
+            .and_then(|body| parse_us_state(country, fcdo.name, &body, &retrieved_at));
+        let ca = self
+            .fetcher
+            .fetch_text("https://data.international.gc.ca/travel-voyage/index-alpha-eng.json")
+            .and_then(|body| parse_ca_gac(country, fcdo.name, &body, &retrieved_at));
+        let de = self
+            .fetcher
+            .fetch_text("https://www.auswaertiges-amt.de/opendata/travelwarning")
+            .and_then(|body| parse_de_aa(country, fcdo.name, &body, &retrieved_at));
+        let notices = self
+            .fetcher
+            .fetch_text("https://wwwnc.cdc.gov/travel/rss/notices.xml")
+            .and_then(|body| parse_cdc_notices(&body))
+            .map(|all| notices_for_country(&all, fcdo.name));
 
         let connection = self.connection()?;
-        connection
-            .execute(
-                "INSERT INTO travel_advice_snapshots
-                 (trip_id, country_slug, country_name, source_url, summary, alert_status,
-                  source_updated_at, change_description, retrieved_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
-                 ON CONFLICT(trip_id) DO UPDATE SET
-                   country_slug = excluded.country_slug,
-                   country_name = excluded.country_name,
-                   source_url = excluded.source_url,
-                   summary = excluded.summary,
-                   alert_status = excluded.alert_status,
-                   source_updated_at = excluded.source_updated_at,
-                   change_description = excluded.change_description,
-                   retrieved_at = excluded.retrieved_at",
-                params![
-                    trip_id,
-                    snapshot.country_slug,
-                    snapshot.country_name,
-                    snapshot.source_url,
-                    snapshot.summary,
-                    json_to_sql(&snapshot.alert_status)?,
-                    snapshot.source_updated_at,
-                    snapshot.change_description,
-                    snapshot.retrieved_at
-                ],
+        let previous = load_advisory_panel(&connection, trip_id)?;
+        let stored_before = |source| {
+            previous
+                .as_ref()
+                .is_some_and(|panel| panel.entries.iter().any(|entry| entry.source == source))
+        };
+
+        // Resolve every source before storing anything: a total failure must
+        // leave the database exactly as it was.
+        let resolved = [
+            (AdvisorySource::UkFcdo, uk),
+            (AdvisorySource::UsState, us),
+            (AdvisorySource::CaGac, ca),
+            (AdvisorySource::DeAa, de),
+        ];
+        if resolved
+            .iter()
+            .all(|(source, result)| result.is_err() && !stored_before(*source))
+        {
+            // Nothing fetched and nothing stored. An empty panel would read as
+            // "no government has anything to say about this destination", which
+            // is a different and false claim.
+            return Err(AppError::new(
+                ErrorCode::AdviceFetchFailed,
+                "no official source could be reached",
+            ));
+        }
+
+        let mut source_status = Vec::with_capacity(resolved.len());
+        for (source, result) in resolved {
+            let state = match result {
+                Ok(Some(entry)) => {
+                    store_advisory_entry(&connection, trip_id, &entry)?;
+                    SourceState::Fresh
+                }
+                Ok(None) => {
+                    delete_advisory_entry(&connection, trip_id, source)?;
+                    SourceState::NotPublished
+                }
+                Err(_) if stored_before(source) => SourceState::Kept,
+                Err(_) => SourceState::Unavailable,
+            };
+            source_status.push(SourceStatus { source, state });
+        }
+
+        // A CDC failure leaves the last good notices in place.
+        let health_notices = notices.unwrap_or_else(|_| {
+            previous
+                .as_ref()
+                .map(|panel| panel.health_notices.clone())
+                .unwrap_or_default()
+        });
+
+        store_advisory_panel_meta(
+            &connection,
+            trip_id,
+            country.slug,
+            fcdo.name,
+            &health_notices,
+            &source_status,
+            &retrieved_at,
+        )?;
+
+        // Return what a reload shows, not a hand-assembled value.
+        load_advisory_panel(&connection, trip_id)?.ok_or_else(|| {
+            AppError::new(
+                ErrorCode::AdviceFetchFailed,
+                "no official source could be reached",
             )
-            .map_err(storage_error)?;
-        Ok(snapshot)
+        })
     }
 
     /// Deterministic search over this trip's stored documents and confirmed
@@ -2083,9 +2153,17 @@ impl AppService {
                 .map_err(storage_error)?;
         }
         if destination_changed {
+            // Advice is about a destination: once that changes, every stored
+            // government card is about somewhere the traveller is not going.
             transaction
                 .execute(
-                    "DELETE FROM travel_advice_snapshots WHERE trip_id = ?1",
+                    "DELETE FROM advisory_snapshots WHERE trip_id = ?1",
+                    params![trip_id],
+                )
+                .map_err(storage_error)?;
+            transaction
+                .execute(
+                    "DELETE FROM advisory_panels WHERE trip_id = ?1",
                     params![trip_id],
                 )
                 .map_err(storage_error)?;
@@ -2768,15 +2846,29 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
                 resolved_at TEXT
             );
 
-            CREATE TABLE IF NOT EXISTS travel_advice_snapshots (
+            CREATE TABLE IF NOT EXISTS advisory_snapshots (
+                trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                source TEXT NOT NULL CHECK (source IN ('uk-fcdo', 'us-state', 'ca-gac', 'de-aa')),
+                source_name TEXT NOT NULL,
+                country_name TEXT NOT NULL,
+                level_label TEXT,
+                level_rank INTEGER,
+                summary TEXT NOT NULL,
+                source_url TEXT NOT NULL,
+                source_updated_at TEXT,
+                change_description TEXT,
+                language TEXT NOT NULL,
+                attribution TEXT NOT NULL,
+                retrieved_at TEXT NOT NULL,
+                PRIMARY KEY (trip_id, source)
+            );
+
+            CREATE TABLE IF NOT EXISTS advisory_panels (
                 trip_id TEXT PRIMARY KEY REFERENCES trips(id) ON DELETE CASCADE,
                 country_slug TEXT NOT NULL,
                 country_name TEXT NOT NULL,
-                source_url TEXT NOT NULL,
-                summary TEXT NOT NULL,
-                alert_status TEXT NOT NULL,
-                source_updated_at TEXT,
-                change_description TEXT,
+                health_notices TEXT NOT NULL,
+                source_status TEXT NOT NULL,
                 retrieved_at TEXT NOT NULL
             );
 
@@ -2891,6 +2983,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "add_source_removed",
         run: migrate_source_removed,
     },
+    Migration {
+        to: 4,
+        name: "advisory_panel_tables",
+        run: migrate_advisory_panel,
+    },
 ];
 
 /// The version a fully migrated database carries.
@@ -2957,6 +3054,139 @@ fn migrate_source_removed(connection: &Connection) -> Result<(), AppError> {
             "ALTER TABLE confirmed_facts
              ADD COLUMN source_removed INTEGER NOT NULL DEFAULT 0;",
         )
+        .map_err(storage_error)
+}
+
+/// Replace the single-row `travel_advice_snapshots` table with the per-source
+/// `advisory_snapshots` + `advisory_panels` pair, carrying any stored UK
+/// snapshot forward as a `uk-fcdo` entry.
+///
+/// The migrated panel records **no** `source_status`. A status describes the
+/// outcome of the last fetch attempt under the new model, and a migrated row is
+/// not the result of any such attempt: claiming `fresh` would assert the copy
+/// was just fetched, and `kept` would assert a fetch failed. Neither happened.
+/// The entry's own `retrieved_at` carries the honesty until the next fetch.
+fn migrate_advisory_panel(connection: &Connection) -> Result<(), AppError> {
+    connection
+        .execute_batch(
+            "CREATE TABLE IF NOT EXISTS advisory_snapshots (
+                trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                source TEXT NOT NULL CHECK (source IN ('uk-fcdo', 'us-state', 'ca-gac', 'de-aa')),
+                source_name TEXT NOT NULL,
+                country_name TEXT NOT NULL,
+                level_label TEXT,
+                level_rank INTEGER,
+                summary TEXT NOT NULL,
+                source_url TEXT NOT NULL,
+                source_updated_at TEXT,
+                change_description TEXT,
+                language TEXT NOT NULL,
+                attribution TEXT NOT NULL,
+                retrieved_at TEXT NOT NULL,
+                PRIMARY KEY (trip_id, source)
+            );
+
+            CREATE TABLE IF NOT EXISTS advisory_panels (
+                trip_id TEXT PRIMARY KEY REFERENCES trips(id) ON DELETE CASCADE,
+                country_slug TEXT NOT NULL,
+                country_name TEXT NOT NULL,
+                health_notices TEXT NOT NULL,
+                source_status TEXT NOT NULL,
+                retrieved_at TEXT NOT NULL
+            );",
+        )
+        .map_err(storage_error)?;
+
+    let legacy_present: i64 = connection
+        .query_row(
+            "SELECT count(*) FROM sqlite_master
+             WHERE type = 'table' AND name = 'travel_advice_snapshots'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(storage_error)?;
+    if legacy_present == 0 {
+        return Ok(());
+    }
+
+    struct LegacyRow {
+        trip_id: String,
+        country_slug: String,
+        country_name: String,
+        source_url: String,
+        summary: String,
+        alert_status: Vec<String>,
+        source_updated_at: Option<String>,
+        change_description: Option<String>,
+        retrieved_at: String,
+    }
+
+    let rows = {
+        let mut statement = connection
+            .prepare(
+                "SELECT trip_id, country_slug, country_name, source_url, summary,
+                        alert_status, source_updated_at, change_description, retrieved_at
+                 FROM travel_advice_snapshots",
+            )
+            .map_err(storage_error)?;
+        statement
+            .query_map([], |row| {
+                Ok(LegacyRow {
+                    trip_id: row.get(0)?,
+                    country_slug: row.get(1)?,
+                    country_name: row.get(2)?,
+                    source_url: row.get(3)?,
+                    summary: row.get(4)?,
+                    alert_status: sql_to_json(row.get::<_, String>(5)?)?,
+                    source_updated_at: row.get(6)?,
+                    change_description: row.get(7)?,
+                    retrieved_at: row.get(8)?,
+                })
+            })
+            .map_err(storage_error)?
+            .collect::<rusqlite::Result<Vec<LegacyRow>>>()
+            .map_err(storage_error)?
+    };
+
+    for row in rows {
+        connection
+            .execute(
+                "INSERT OR REPLACE INTO advisory_snapshots
+                 (trip_id, source, source_name, country_name, level_label, level_rank,
+                  summary, source_url, source_updated_at, change_description, language,
+                  attribution, retrieved_at)
+                 VALUES (?1, 'uk-fcdo', ?2, ?3, ?4, NULL, ?5, ?6, ?7, ?8, 'en', ?9, ?10)",
+                params![
+                    row.trip_id,
+                    "UK Foreign, Commonwealth & Development Office",
+                    row.country_name,
+                    (!row.alert_status.is_empty()).then(|| row.alert_status.join(", ")),
+                    row.summary,
+                    row.source_url,
+                    row.source_updated_at,
+                    row.change_description,
+                    "Open Government Licence v3.0",
+                    row.retrieved_at,
+                ],
+            )
+            .map_err(storage_error)?;
+        connection
+            .execute(
+                "INSERT OR REPLACE INTO advisory_panels
+                 (trip_id, country_slug, country_name, health_notices, source_status, retrieved_at)
+                 VALUES (?1, ?2, ?3, '[]', '[]', ?4)",
+                params![
+                    row.trip_id,
+                    row.country_slug,
+                    row.country_name,
+                    row.retrieved_at
+                ],
+            )
+            .map_err(storage_error)?;
+    }
+
+    connection
+        .execute_batch("DROP TABLE travel_advice_snapshots;")
         .map_err(storage_error)
 }
 
@@ -3030,31 +3260,198 @@ fn migrate_method_check(connection: &Connection) -> Result<(), AppError> {
     rebuilt
 }
 
-fn fetch_travel_advice_snapshot(
+/// The wire/storage tag for one government. Kept next to the CHECK constraint
+/// that mirrors it so the two cannot drift apart silently.
+fn advisory_source_tag(source: AdvisorySource) -> &'static str {
+    match source {
+        AdvisorySource::UkFcdo => "uk-fcdo",
+        AdvisorySource::UsState => "us-state",
+        AdvisorySource::CaGac => "ca-gac",
+        AdvisorySource::DeAa => "de-aa",
+    }
+}
+
+fn advisory_source_from_tag(tag: &str) -> Option<AdvisorySource> {
+    match tag {
+        "uk-fcdo" => Some(AdvisorySource::UkFcdo),
+        "us-state" => Some(AdvisorySource::UsState),
+        "ca-gac" => Some(AdvisorySource::CaGac),
+        "de-aa" => Some(AdvisorySource::DeAa),
+        _ => None,
+    }
+}
+
+/// Upsert one government's entry. Storing the same source twice replaces it:
+/// a trip carries one current copy per government, not a history.
+fn store_advisory_entry(
     connection: &Connection,
     trip_id: &str,
-) -> Result<Option<TravelAdviceSnapshot>, AppError> {
+    entry: &AdvisoryEntry,
+) -> Result<(), AppError> {
     connection
+        .execute(
+            "INSERT INTO advisory_snapshots
+             (trip_id, source, source_name, country_name, level_label, level_rank,
+              summary, source_url, source_updated_at, change_description, language,
+              attribution, retrieved_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+             ON CONFLICT(trip_id, source) DO UPDATE SET
+               source_name = excluded.source_name,
+               country_name = excluded.country_name,
+               level_label = excluded.level_label,
+               level_rank = excluded.level_rank,
+               summary = excluded.summary,
+               source_url = excluded.source_url,
+               source_updated_at = excluded.source_updated_at,
+               change_description = excluded.change_description,
+               language = excluded.language,
+               attribution = excluded.attribution,
+               retrieved_at = excluded.retrieved_at",
+            params![
+                trip_id,
+                advisory_source_tag(entry.source),
+                entry.source_name,
+                entry.country_name,
+                entry.level_label,
+                entry.level_rank,
+                entry.summary,
+                entry.source_url,
+                entry.source_updated_at,
+                entry.change_description,
+                entry.language,
+                entry.attribution,
+                entry.retrieved_at,
+            ],
+        )
+        .map(|_| ())
+        .map_err(storage_error)
+}
+
+/// Drop one government's stored entry — used when that government withdraws
+/// its advisory, so a stale card cannot linger.
+fn delete_advisory_entry(
+    connection: &Connection,
+    trip_id: &str,
+    source: AdvisorySource,
+) -> Result<(), AppError> {
+    connection
+        .execute(
+            "DELETE FROM advisory_snapshots WHERE trip_id = ?1 AND source = ?2",
+            params![trip_id, advisory_source_tag(source)],
+        )
+        .map(|_| ())
+        .map_err(storage_error)
+}
+
+/// Write the panel-level row: which country it is about, the health notices,
+/// and what happened to each source on the last attempt.
+fn store_advisory_panel_meta(
+    connection: &Connection,
+    trip_id: &str,
+    country_slug: &str,
+    country_name: &str,
+    health_notices: &[HealthNotice],
+    source_status: &[SourceStatus],
+    retrieved_at: &str,
+) -> Result<(), AppError> {
+    connection
+        .execute(
+            "INSERT INTO advisory_panels
+             (trip_id, country_slug, country_name, health_notices, source_status, retrieved_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+             ON CONFLICT(trip_id) DO UPDATE SET
+               country_slug = excluded.country_slug,
+               country_name = excluded.country_name,
+               health_notices = excluded.health_notices,
+               source_status = excluded.source_status,
+               retrieved_at = excluded.retrieved_at",
+            params![
+                trip_id,
+                country_slug,
+                country_name,
+                json_to_sql(&health_notices.to_vec())?,
+                json_to_sql(&source_status.to_vec())?,
+                retrieved_at,
+            ],
+        )
+        .map(|_| ())
+        .map_err(storage_error)
+}
+
+/// Assemble the stored panel. `None` when this trip has never fetched one.
+fn load_advisory_panel(
+    connection: &Connection,
+    trip_id: &str,
+) -> Result<Option<AdvisoryPanel>, AppError> {
+    let meta = connection
         .query_row(
-            "SELECT country_slug, country_name, source_url, summary, alert_status,
-                    source_updated_at, change_description, retrieved_at
-             FROM travel_advice_snapshots WHERE trip_id = ?1",
+            "SELECT country_slug, country_name, health_notices, source_status, retrieved_at
+             FROM advisory_panels WHERE trip_id = ?1",
             params![trip_id],
             |row| {
-                Ok(TravelAdviceSnapshot {
-                    country_slug: row.get(0)?,
-                    country_name: row.get(1)?,
-                    source_url: row.get(2)?,
-                    summary: row.get(3)?,
-                    alert_status: sql_to_json(row.get::<_, String>(4)?)?,
-                    source_updated_at: row.get(5)?,
-                    change_description: row.get(6)?,
-                    retrieved_at: row.get(7)?,
-                })
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    sql_to_json::<Vec<HealthNotice>>(row.get::<_, String>(2)?)?,
+                    sql_to_json::<Vec<SourceStatus>>(row.get::<_, String>(3)?)?,
+                    row.get::<_, String>(4)?,
+                ))
             },
         )
         .optional()
-        .map_err(storage_error)
+        .map_err(storage_error)?;
+    let Some((country_slug, country_name, health_notices, source_status, retrieved_at)) = meta
+    else {
+        return Ok(None);
+    };
+
+    let mut statement = connection
+        .prepare(
+            "SELECT source, source_name, country_name, level_label, level_rank, summary,
+                    source_url, source_updated_at, change_description, language,
+                    attribution, retrieved_at
+             FROM advisory_snapshots WHERE trip_id = ?1
+             ORDER BY CASE source
+                        WHEN 'uk-fcdo' THEN 0
+                        WHEN 'us-state' THEN 1
+                        WHEN 'ca-gac' THEN 2
+                        ELSE 3
+                      END",
+        )
+        .map_err(storage_error)?;
+    let entries = statement
+        .query_map(params![trip_id], |row| {
+            let tag: String = row.get(0)?;
+            Ok(advisory_source_from_tag(&tag).map(|source| AdvisoryEntry {
+                source,
+                source_name: row.get(1).unwrap_or_default(),
+                country_name: row.get(2).unwrap_or_default(),
+                level_label: row.get(3).unwrap_or_default(),
+                level_rank: row.get(4).unwrap_or_default(),
+                summary: row.get(5).unwrap_or_default(),
+                source_url: row.get(6).unwrap_or_default(),
+                source_updated_at: row.get(7).unwrap_or_default(),
+                change_description: row.get(8).unwrap_or_default(),
+                language: row.get(9).unwrap_or_default(),
+                attribution: row.get(10).unwrap_or_default(),
+                retrieved_at: row.get(11).unwrap_or_default(),
+            }))
+        })
+        .map_err(storage_error)?
+        .collect::<rusqlite::Result<Vec<Option<AdvisoryEntry>>>>()
+        .map_err(storage_error)?
+        .into_iter()
+        .flatten()
+        .collect();
+
+    Ok(Some(AdvisoryPanel {
+        country_slug,
+        country_name,
+        entries,
+        health_notices,
+        source_status,
+        retrieved_at,
+    }))
 }
 
 fn fetch_weather_snapshot(
@@ -3544,59 +3941,328 @@ mod tests {
     }
 
     #[test]
-    fn fetch_travel_advice_stores_a_dated_snapshot_without_network_in_tests() {
-        struct StubFetcher {
+    fn migration_v4_carries_a_legacy_uk_snapshot_into_the_advisory_panel() {
+        let connection = Connection::open_in_memory().expect("memory db");
+        connection
+            .execute_batch(
+                r#"CREATE TABLE trips (id TEXT PRIMARY KEY);
+                   INSERT INTO trips (id) VALUES ('trip-1');
+                   CREATE TABLE travel_advice_snapshots (
+                       trip_id TEXT PRIMARY KEY REFERENCES trips(id) ON DELETE CASCADE,
+                       country_slug TEXT NOT NULL,
+                       country_name TEXT NOT NULL,
+                       source_url TEXT NOT NULL,
+                       summary TEXT NOT NULL,
+                       alert_status TEXT NOT NULL,
+                       source_updated_at TEXT,
+                       change_description TEXT,
+                       retrieved_at TEXT NOT NULL
+                   );
+                   INSERT INTO travel_advice_snapshots VALUES (
+                       'trip-1', 'japan', 'Japan',
+                       'https://www.gov.uk/foreign-travel-advice/japan',
+                       'FCDO travel advice for Japan.',
+                       '["avoid_all_travel_to_parts"]',
+                       '2026-06-30T11:02:00.000+01:00',
+                       'Latest update: typhoon season.',
+                       '2026-07-10T12:00:00Z'
+                   );
+                   PRAGMA user_version = 3;"#,
+            )
+            .expect("legacy shape");
+
+        migrate(&connection).expect("migrate to v4");
+        assert_eq!(user_version(&connection).expect("version"), 4);
+
+        let legacy_tables: i64 = connection
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type = 'table'
+                 AND name = 'travel_advice_snapshots'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("count");
+        assert_eq!(legacy_tables, 0, "the legacy table is dropped once copied");
+
+        let panel = load_advisory_panel(&connection, "trip-1")
+            .expect("load")
+            .expect("the migrated panel exists");
+        assert_eq!(panel.country_slug, "japan");
+        assert_eq!(panel.country_name, "Japan");
+        assert_eq!(panel.entries.len(), 1);
+        let uk = &panel.entries[0];
+        assert_eq!(uk.source, AdvisorySource::UkFcdo);
+        assert_eq!(uk.summary, "FCDO travel advice for Japan.");
+        assert_eq!(uk.level_label.as_deref(), Some("avoid_all_travel_to_parts"));
+        assert_eq!(
+            uk.change_description.as_deref(),
+            Some("Latest update: typhoon season.")
+        );
+        assert_eq!(uk.attribution, "Open Government Licence v3.0");
+        assert_eq!(uk.language, "en");
+        assert_eq!(uk.retrieved_at, "2026-07-10T12:00:00Z");
+        assert!(panel.health_notices.is_empty());
+        // A migrated row is not the result of any fetch attempt, so it claims
+        // no per-source state: the entry's own retrieved_at carries the truth.
+        assert!(panel.source_status.is_empty());
+        assert_eq!(panel.retrieved_at, "2026-07-10T12:00:00Z");
+    }
+
+    #[test]
+    fn advisory_panel_roundtrips_every_source_verbatim() {
+        let connection = Connection::open_in_memory().expect("memory db");
+        connection
+            .execute_batch(
+                "CREATE TABLE trips (id TEXT PRIMARY KEY);
+                 INSERT INTO trips VALUES ('trip-1');
+                 PRAGMA user_version = 3;",
+            )
+            .expect("trips");
+        migrate(&connection).expect("migrate");
+
+        let entry = |source, name: &str, rank| AdvisoryEntry {
+            source,
+            source_name: name.to_owned(),
+            country_name: "Japan".to_owned(),
+            level_label: Some("Level".to_owned()),
+            level_rank: rank,
+            summary: "Summary.".to_owned(),
+            source_url: "https://example.invalid/japan".to_owned(),
+            source_updated_at: Some("2026-07-16T00:00:00Z".to_owned()),
+            change_description: None,
+            language: "en".to_owned(),
+            attribution: "Attribution".to_owned(),
+            retrieved_at: "2026-07-17T12:00:00Z".to_owned(),
+        };
+        for (source, name, rank) in [
+            (
+                AdvisorySource::UkFcdo,
+                "UK Foreign, Commonwealth & Development Office",
+                None,
+            ),
+            (AdvisorySource::UsState, "U.S. Department of State", Some(1)),
+            (
+                AdvisorySource::CaGac,
+                "Government of Canada — Global Affairs Canada",
+                Some(0),
+            ),
+            (AdvisorySource::DeAa, "Auswärtiges Amt (Germany)", Some(2)),
+        ] {
+            store_advisory_entry(&connection, "trip-1", &entry(source, name, rank)).expect("store");
+        }
+        let notices = vec![HealthNotice {
+            title: "Level 1 - Measles in Japan".to_owned(),
+            url: "https://wwwnc.cdc.gov/travel/notices/level1/measles-japan".to_owned(),
+            level_label: Some("Level 1".to_owned()),
+            published_at: Some("Thu, 25 Jun 2026 04:00:00 GMT".to_owned()),
+            summary: "There is an outbreak of measles.".to_owned(),
+        }];
+        let statuses = vec![
+            SourceStatus {
+                source: AdvisorySource::UkFcdo,
+                state: SourceState::Fresh,
+            },
+            SourceStatus {
+                source: AdvisorySource::CaGac,
+                state: SourceState::Kept,
+            },
+        ];
+        store_advisory_panel_meta(
+            &connection,
+            "trip-1",
+            "japan",
+            "Japan",
+            &notices,
+            &statuses,
+            "2026-07-17T12:00:00Z",
+        )
+        .expect("store panel");
+
+        let panel = load_advisory_panel(&connection, "trip-1")
+            .expect("load")
+            .expect("panel");
+        // Entries come back in fixed source order, never feed order.
+        assert_eq!(
+            panel.entries.iter().map(|e| e.source).collect::<Vec<_>>(),
+            vec![
+                AdvisorySource::UkFcdo,
+                AdvisorySource::UsState,
+                AdvisorySource::CaGac,
+                AdvisorySource::DeAa,
+            ]
+        );
+        assert_eq!(panel.health_notices, notices);
+        assert_eq!(panel.source_status, statuses);
+        assert_eq!(panel.entries[1].level_rank, Some(1));
+
+        // Storing the same source twice replaces rather than duplicates.
+        store_advisory_entry(
+            &connection,
+            "trip-1",
+            &entry(AdvisorySource::UkFcdo, "UK", None),
+        )
+        .expect("replace");
+        let panel = load_advisory_panel(&connection, "trip-1")
+            .expect("load")
+            .expect("panel");
+        assert_eq!(panel.entries.len(), 4);
+        assert_eq!(panel.entries[0].source_name, "UK");
+
+        delete_advisory_entry(&connection, "trip-1", AdvisorySource::DeAa).expect("delete");
+        let panel = load_advisory_panel(&connection, "trip-1")
+            .expect("load")
+            .expect("panel");
+        assert_eq!(panel.entries.len(), 3);
+
+        assert!(
+            load_advisory_panel(&connection, "trip-missing")
+                .expect("load")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn fetch_advisories_stores_each_source_and_keeps_the_last_good_copy() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        struct RoutedFetcher {
+            fail_canada: AtomicBool,
             calls: std::sync::Mutex<Vec<String>>,
         }
-        impl AdviceFetcher for StubFetcher {
+        impl AdviceFetcher for RoutedFetcher {
             fn fetch_text(&self, url: &str) -> Result<String, AppError> {
                 self.calls.lock().expect("lock").push(url.to_owned());
-                Ok(r#"{
-                    "description": "FCDO travel advice for Japan.",
-                    "public_updated_at": "2026-06-30T11:02:00.000+01:00",
-                    "details": { "alert_status": [], "change_description": "Latest update: typhoon season." }
-                }"#
-                .to_owned())
+                if url.contains("gov.uk") {
+                    return Ok(r#"{"description": "FCDO travel advice for Japan.",
+                        "public_updated_at": "2026-06-30T11:02:00.000+01:00",
+                        "details": {"alert_status": [], "change_description": "Latest update: typhoon season."}}"#.to_owned());
+                }
+                if url.contains("cadataapi.state.gov") {
+                    return Ok(r#"[{"Title": "Japan - Level 1: Exercise Normal Precautions",
+                        "Link": "https://travel.state.gov/japan", "Category": ["JA"],
+                        "Summary": "<p>Exercise normal precautions in <b>Japan</b>.</p>",
+                        "Published": "2025-05-14T20:00:00-04:00", "Updated": "2025-05-14T20:00:00-04:00"}]"#.to_owned());
+                }
+                if url.contains("data.international.gc.ca") {
+                    if self.fail_canada.load(Ordering::SeqCst) {
+                        return Err(AppError::new(ErrorCode::AdviceFetchFailed, "network down"));
+                    }
+                    return Ok(r#"{"data": {"JP": {"country-iso": "JP", "country-eng": "Japan",
+                        "advisory-state": 0, "date-published": {"asp": "2026-07-16T12:53:48.9-04:00"},
+                        "eng": {"name": "Japan", "url-slug": "japan",
+                                "advisory-text": "Exercise normal security precautions"}}}}"#.to_owned());
+                }
+                if url.contains("auswaertiges-amt.de") {
+                    return Ok(r#"{"response": {"lastModified": 1757063288,
+                        "213032": {"lastModified": 1783430993, "effective": 1783431000,
+                        "title": "Japan: Reise- und Sicherheitshinweise", "countryCode": "JP",
+                        "iso3CountryCode": "JPN", "countryName": "Japan", "warning": false,
+                        "partialWarning": true, "situationWarning": false,
+                        "situationPartWarning": false}}}"#
+                        .to_owned());
+                }
+                if url.contains("wwwnc.cdc.gov") {
+                    return Ok(r#"<rss version="2.0"><channel><title>CDC</title><item>
+                        <title>Level 1 - Measles in Japan</title>
+                        <description><![CDATA[There is an outbreak of measles in Japan.]]></description>
+                        <link>https://wwwnc.cdc.gov/travel/notices/level1/measles-japan</link>
+                        <pubDate>Thu, 25 Jun 2026 04:00:00 GMT</pubDate></item></channel></rss>"#
+                        .to_owned());
+                }
+                Err(AppError::new(
+                    ErrorCode::AdviceFetchFailed,
+                    "unexpected url",
+                ))
             }
         }
 
-        let database = temp_database("advice");
-        let fetcher = Arc::new(StubFetcher {
+        let database = temp_database("advisories");
+        let fetcher = Arc::new(RoutedFetcher {
+            fail_canada: AtomicBool::new(false),
             calls: std::sync::Mutex::new(Vec::new()),
         });
         let service = open_test_service_with_fetcher(&database, fetcher.clone()).expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
 
-        // Unknown slug is rejected before any fetch happens.
+        // An unknown slug is rejected before any fetch happens.
         assert_eq!(
             service
-                .fetch_travel_advice(&trip.id, "atlantis")
+                .fetch_advisories(&trip.id, "atlantis")
                 .expect_err("unknown slug")
                 .code,
             ErrorCode::ValidationInvalidInput
         );
         assert!(fetcher.calls.lock().expect("lock").is_empty());
 
-        let snapshot = service
-            .fetch_travel_advice(&trip.id, "japan")
-            .expect("snapshot");
-        assert_eq!(snapshot.country_name, "Japan");
-        assert!(!snapshot.retrieved_at.is_empty());
+        let panel = service.fetch_advisories(&trip.id, "japan").expect("panel");
+        assert_eq!(panel.country_name, "Japan");
         assert_eq!(
-            fetcher.calls.lock().expect("lock").as_slice(),
-            ["https://www.gov.uk/api/content/foreign-travel-advice/japan"]
+            panel.entries.iter().map(|e| e.source).collect::<Vec<_>>(),
+            vec![
+                AdvisorySource::UkFcdo,
+                AdvisorySource::UsState,
+                AdvisorySource::CaGac,
+                AdvisorySource::DeAa
+            ]
         );
+        assert!(
+            panel
+                .source_status
+                .iter()
+                .all(|s| s.state == SourceState::Fresh)
+        );
+        assert_eq!(panel.health_notices.len(), 1);
+        assert_eq!(
+            panel.health_notices[0].level_label.as_deref(),
+            Some("Level 1")
+        );
+        // The German card keeps its own language and its own words.
+        let german = panel
+            .entries
+            .iter()
+            .find(|e| e.source == AdvisorySource::DeAa)
+            .expect("de");
+        assert_eq!(german.language, "de");
+        assert_eq!(german.level_label.as_deref(), Some("Teilreisewarnung"));
 
-        // The snapshot persists and surfaces on the trip detail.
+        // The panel persists and surfaces on the trip detail.
         let detail = service.get_trip(&trip.id).expect("detail");
-        let stored = detail.travel_advice.expect("stored snapshot");
-        assert_eq!(stored.country_slug, "japan");
-        assert_eq!(stored.summary, "FCDO travel advice for Japan.");
         assert_eq!(
-            stored.change_description.as_deref(),
-            Some("Latest update: typhoon season.")
+            detail.advisory_panel.expect("stored panel").entries.len(),
+            4
         );
 
+        // Canada now fails: its last good copy is kept and labelled as kept.
+        fetcher.fail_canada.store(true, Ordering::SeqCst);
+        let panel = service
+            .fetch_advisories(&trip.id, "japan")
+            .expect("panel despite CA failure");
+        assert_eq!(
+            panel.entries.len(),
+            4,
+            "the kept Canadian entry is still shown"
+        );
+        let canada = panel
+            .entries
+            .iter()
+            .find(|e| e.source == AdvisorySource::CaGac)
+            .expect("ca");
+        assert_eq!(
+            canada.level_label.as_deref(),
+            Some("Exercise normal security precautions")
+        );
+        let state = |source| {
+            panel
+                .source_status
+                .iter()
+                .find(|s| s.source == source)
+                .expect("status")
+                .state
+        };
+        assert_eq!(state(AdvisorySource::CaGac), SourceState::Kept);
+        assert_eq!(state(AdvisorySource::UkFcdo), SourceState::Fresh);
+
+        // A destination edit still invalidates the whole panel.
         service
             .update_trip(
                 &trip.id,
@@ -3613,11 +4279,11 @@ mod tests {
             service
                 .get_trip(&trip.id)
                 .expect("detail after destination edit")
-                .travel_advice
+                .advisory_panel
                 .is_none()
         );
 
-        // The curated country list is exposed for the picker.
+        // The curated country list still backs the picker.
         assert!(
             service
                 .list_advice_countries()
@@ -3625,6 +4291,89 @@ mod tests {
                 .any(|country| country.slug == "japan")
         );
         cleanup_database(database);
+    }
+
+    #[test]
+    fn fetch_advisories_reports_a_government_that_does_not_publish_and_a_total_failure() {
+        struct SilentFetcher {
+            fail_everything: std::sync::atomic::AtomicBool,
+        }
+        impl AdviceFetcher for SilentFetcher {
+            fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+                if self
+                    .fail_everything
+                    .load(std::sync::atomic::Ordering::SeqCst)
+                {
+                    return Err(AppError::new(ErrorCode::AdviceFetchFailed, "offline"));
+                }
+                if url.contains("gov.uk") {
+                    return Ok(r#"{"description": "FCDO travel advice for the USA."}"#.to_owned());
+                }
+                // Every other government publishes nothing about the USA.
+                if url.contains("cadataapi.state.gov") {
+                    return Ok("[]".to_owned());
+                }
+                if url.contains("data.international.gc.ca") {
+                    return Ok(r#"{"data": {}}"#.to_owned());
+                }
+                if url.contains("auswaertiges-amt.de") {
+                    return Ok(r#"{"response": {"lastModified": 1757063288}}"#.to_owned());
+                }
+                Ok(r#"<rss version="2.0"><channel><title>CDC</title></channel></rss>"#.to_owned())
+            }
+        }
+
+        let database = temp_database("advisories_absent");
+        let fetcher = Arc::new(SilentFetcher {
+            fail_everything: std::sync::atomic::AtomicBool::new(false),
+        });
+        let service = open_test_service_with_fetcher(&database, fetcher).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        let panel = service.fetch_advisories(&trip.id, "usa").expect("panel");
+        assert_eq!(
+            panel.entries.len(),
+            1,
+            "only the UK publishes advice about the USA"
+        );
+        assert_eq!(panel.entries[0].source, AdvisorySource::UkFcdo);
+        let state = |source| {
+            panel
+                .source_status
+                .iter()
+                .find(|s| s.source == source)
+                .expect("status")
+                .state
+        };
+        assert_eq!(state(AdvisorySource::UsState), SourceState::NotPublished);
+        assert_eq!(state(AdvisorySource::CaGac), SourceState::NotPublished);
+        assert_eq!(state(AdvisorySource::DeAa), SourceState::NotPublished);
+
+        // Everything failing with nothing stored is an honest error, not an
+        // empty panel that reads as "no government has anything to say".
+        let database2 = temp_database("advisories_offline");
+        let fetcher2 = Arc::new(SilentFetcher {
+            fail_everything: std::sync::atomic::AtomicBool::new(true),
+        });
+        let service2 = open_test_service_with_fetcher(&database2, fetcher2).expect("service");
+        let trip2 = service2.create_trip(valid_trip_input()).expect("trip");
+        assert_eq!(
+            service2
+                .fetch_advisories(&trip2.id, "japan")
+                .expect_err("all sources down")
+                .code,
+            ErrorCode::AdviceFetchFailed
+        );
+        assert!(
+            service2
+                .get_trip(&trip2.id)
+                .expect("detail")
+                .advisory_panel
+                .is_none(),
+            "a total failure leaves the database untouched"
+        );
+        cleanup_database(database);
+        cleanup_database(database2);
     }
 
     #[test]
@@ -5487,7 +6236,10 @@ mod tests {
         let connection = legacy_database();
         migrate(&connection).expect("migrate");
 
-        assert_eq!(user_version(&connection).expect("version"), 3);
+        assert_eq!(
+            user_version(&connection).expect("version"),
+            target_schema_version()
+        );
         // add_source_removed ran after widen_method_check rebuilt the table, so
         // the column is present rather than dropped by the rebuild's copy.
         assert!(columns_of(&connection, "confirmed_facts").contains(&"source_removed".to_owned()));
@@ -5520,7 +6272,10 @@ mod tests {
         migrate(&connection).expect("second");
 
         // The steps did not run again: the row and its new column value stand.
-        assert_eq!(user_version(&connection).expect("version"), 3);
+        assert_eq!(
+            user_version(&connection).expect("version"),
+            target_schema_version()
+        );
         let removed: i64 = connection
             .query_row(
                 "SELECT source_removed FROM confirmed_facts WHERE id = 'f1'",

@@ -17,7 +17,7 @@ import type {
   CreateTripInput,
   DownloadedPack,
   FcdoCountry,
-  FetchTravelAdviceInput,
+  FetchAdvisoriesInput,
   FieldSuggestion,
   HealthResponse,
   ImportDocumentInput,
@@ -38,7 +38,7 @@ import type {
   SetProviderModelInput,
   SuggestFieldValuesInput,
   TodayView,
-  TravelAdviceSnapshot,
+  AdvisoryPanel,
   Trip,
   TripBrief,
   TripDetail,
@@ -198,8 +198,8 @@ export function createTauriGateway(
 
     listAdviceCountries: () => call<FcdoCountry[]>("list_advice_countries", {}),
 
-    fetchTravelAdvice: (input: FetchTravelAdviceInput) =>
-      call<TravelAdviceSnapshot>("fetch_travel_advice", input),
+    fetchAdvisories: (input: FetchAdvisoriesInput) =>
+      call<AdvisoryPanel>("fetch_advisories", input),
 
     fetchWeather: (tripId: string) =>
       call<WeatherSnapshot>("fetch_weather", { tripId }),

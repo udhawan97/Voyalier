@@ -2,13 +2,13 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 use voyalier_app::{AppService, BackupInfo};
 use voyalier_core::{
-    AddManualFactInput, AiPromptSettings, AppError, AssistActivityEntry, AssistDraftResult,
-    AssistReply, AssistRequestPreview, CandidateFact, CandidateStatus, ConfirmCandidateInput,
-    ConfirmedFact, CreateTripInput, DocumentContent, DocumentSummary, DownloadedPack, ErrorCode,
-    FcdoCountry, FieldSuggestion, HealthResponse, ImportDocumentInput, ImportResult, KeyValidation,
-    LocalAiStatus, LocalModelPullResult, OfflineMapArchive, OfflineMapChunk, PackInfo,
-    PackSuggestion, PersonaWeights, ProviderConfig, Recommendation, SearchHit, TodayView,
-    TravelAdviceSnapshot, Trip, TripBrief, TripDetail, TripNotes, TripSummary, UpdateTripInput,
+    AddManualFactInput, AdvisoryPanel, AiPromptSettings, AppError, AssistActivityEntry,
+    AssistDraftResult, AssistReply, AssistRequestPreview, CandidateFact, CandidateStatus,
+    ConfirmCandidateInput, ConfirmedFact, CreateTripInput, DocumentContent, DocumentSummary,
+    DownloadedPack, ErrorCode, FcdoCountry, FieldSuggestion, HealthResponse, ImportDocumentInput,
+    ImportResult, KeyValidation, LocalAiStatus, LocalModelPullResult, OfflineMapArchive,
+    OfflineMapChunk, PackInfo, PackSuggestion, PersonaWeights, ProviderConfig, Recommendation,
+    SearchHit, TodayView, Trip, TripBrief, TripDetail, TripNotes, TripSummary, UpdateTripInput,
     VaultStatus, WeatherSnapshot,
 };
 
@@ -469,11 +469,11 @@ fn set_provider_model(
 }
 
 #[tauri::command]
-fn fetch_travel_advice(
+fn fetch_advisories(
     input: FetchAdviceInput,
     service: State<'_, AppService>,
-) -> Result<TravelAdviceSnapshot, AppError> {
-    service.fetch_travel_advice(&input.trip_id, &input.country_slug)
+) -> Result<AdvisoryPanel, AppError> {
+    service.fetch_advisories(&input.trip_id, &input.country_slug)
 }
 
 #[tauri::command]
@@ -832,7 +832,7 @@ fn builder<R: tauri::Runtime>(
             validate_provider_key,
             clear_provider_key,
             set_provider_model,
-            fetch_travel_advice,
+            fetch_advisories,
             fetch_weather,
             delete_trip,
             import_document,
@@ -1219,7 +1219,7 @@ mod tests {
             "validate_provider_key",
             "clear_provider_key",
             "set_provider_model",
-            "fetch_travel_advice",
+            "fetch_advisories",
             "fetch_weather",
             "delete_trip",
             "import_document",

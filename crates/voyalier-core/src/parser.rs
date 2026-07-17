@@ -591,7 +591,7 @@ fn excerpt(raw: &str, start: usize, end: usize) -> String {
     strip_tags_and_collapse(&snippet)
 }
 
-fn strip_tags_and_collapse(value: &str) -> String {
+pub(crate) fn strip_tags_and_collapse(value: &str) -> String {
     let mut output = String::new();
     let mut in_tag = false;
     let mut previous_space = false;

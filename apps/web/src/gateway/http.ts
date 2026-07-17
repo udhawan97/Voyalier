@@ -17,7 +17,7 @@ import type {
   CreateTripInput,
   DownloadedPack,
   FcdoCountry,
-  FetchTravelAdviceInput,
+  FetchAdvisoriesInput,
   FieldSuggestion,
   HealthResponse,
   ImportDocumentInput,
@@ -38,7 +38,7 @@ import type {
   SetProviderModelInput,
   SuggestFieldValuesInput,
   TodayView,
-  TravelAdviceSnapshot,
+  AdvisoryPanel,
   Trip,
   TripBrief,
   TripDetail,
@@ -274,10 +274,10 @@ export function createHttpGateway(
     listAdviceCountries: () =>
       request<FcdoCountry[]>("GET", "/api/v1/advice/countries"),
 
-    fetchTravelAdvice: (input: FetchTravelAdviceInput) =>
-      request<TravelAdviceSnapshot>(
+    fetchAdvisories: (input: FetchAdvisoriesInput) =>
+      request<AdvisoryPanel>(
         "POST",
-        `/api/v1/trips/${enc(input.tripId)}/travel-advice`,
+        `/api/v1/trips/${enc(input.tripId)}/advisories`,
         { countrySlug: input.countrySlug },
       ),
 

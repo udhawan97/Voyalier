@@ -8,6 +8,18 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Added
 
+- **Four governments' travel advice, side by side.** Official advice used to mean
+  the UK FCDO alone, because when that shipped the US had no machine-readable
+  feed. It does now, so the panel adds the **US State Department**, **Global
+  Affairs Canada**, and the **Auswärtiges Amt**, plus **US CDC health notices** —
+  every one an official, keyless source, still fetched only on your click and
+  still stored as a dated local copy. Each government gets its own card in its
+  own words: levels are never merged or compared across them (a US "Level 2" and
+  a Canadian advisory-state 2 are different claims), and the German source is
+  shown in German rather than machine-translated into a safety judgement it never
+  made. A source that cannot be reached says so and keeps its last saved copy
+  instead of vanishing. Replaces `fetchTravelAdvice` with `fetchAdvisories`
+  across every transport; existing saved UK advice migrates in place.
 - **Imported documents manager.** Voyalier reads confirmation emails full of
   codes and traveler names, and until now kept them with no way to see or remove
   them — the loudest gap in a privacy-first product. Each trip now lists what was

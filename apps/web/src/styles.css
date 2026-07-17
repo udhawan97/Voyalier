@@ -1084,23 +1084,77 @@ h3 {
   font-weight: var(--voy-w-medium);
 }
 
-.voy-advice__alerts {
-  list-style: none;
-  margin: 0.7rem 0 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
+.voy-advice__cross-source {
+  margin: 0 0 1rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
 }
 
-.voy-advice__alerts li {
+/* One badge per card. Tone comes from that government's own scale and is
+   never comparable to another card's — see AdvisoryCard. */
+.voy-advice__badge {
+  display: inline-block;
+  margin: 0.7rem 0 0;
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--voy-vermilion) 42%, transparent);
-  background: var(--voy-tint-vermilion);
-  color: var(--voy-vermilion);
+  border: 1px solid var(--voy-line-strong);
+  background: var(--voy-paper);
+  color: var(--voy-ink-muted);
   font-size: 0.78rem;
   font-weight: var(--voy-w-strong);
+}
+
+.voy-advice__badge--elevated {
+  border-color: color-mix(in srgb, var(--voy-amber) 42%, transparent);
+  background: var(--voy-tint-amber);
+  color: var(--voy-amber);
+}
+
+.voy-advice__badge--severe {
+  border-color: color-mix(in srgb, var(--voy-vermilion) 42%, transparent);
+  background: var(--voy-tint-vermilion);
+  color: var(--voy-vermilion);
+}
+
+.voy-advice__statuses {
+  list-style: none;
+  margin: 0 0 1.1rem;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.voy-advice__notices {
+  padding: 1.1rem 1.25rem;
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper);
+  margin-bottom: 1.1rem;
+}
+
+.voy-advice__notices-title {
+  font-size: 1rem;
+  font-family: var(--voy-font-display);
+  margin: 0 0 0.6rem;
+}
+
+.voy-advice__notices-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.voy-advice__notices-list p {
+  margin: 0.2rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
 }
 
 .voy-advice__summary {

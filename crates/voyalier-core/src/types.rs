@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::advice::TravelAdviceSnapshot;
+use crate::advisories::AdvisoryPanel;
 use crate::weather::WeatherSnapshot;
 
 pub const MAX_LOCATION_LEN: usize = 120;
@@ -75,10 +75,10 @@ pub struct TripDetail {
     pub itinerary_conflicts: Vec<ItineraryConflict>,
     /// Deterministic plan-completeness rollup (logistics only, no sourced/entry data).
     pub readiness: ReadinessSummary,
-    /// The latest user-fetched official travel-advice snapshot, when one exists.
+    /// The latest user-fetched official advisory panel, when one exists.
     /// Additive; omitted on the wire when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub travel_advice: Option<TravelAdviceSnapshot>,
+    pub advisory_panel: Option<AdvisoryPanel>,
     /// The latest user-fetched destination weather outlook, when one exists.
     /// Additive; omitted on the wire when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
