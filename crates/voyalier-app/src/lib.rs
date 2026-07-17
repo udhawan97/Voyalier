@@ -2979,23 +2979,92 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
                 updated_at TEXT NOT NULL
             );
 
-            PRAGMA user_version = 1;
             ",
         )
         .map_err(storage_error)?;
-    migrate_method_check(connection)?;
-    migrate_source_removed(connection)
+    migrate(connection)
+}
+
+/// One schema step. `to` is the `PRAGMA user_version` the database carries once
+/// `run` succeeds.
+struct Migration {
+    to: i64,
+    /// Named for the failure message; the version is what actually identifies it.
+    name: &'static str,
+    run: fn(&Connection) -> Result<(), AppError>,
+}
+
+/// The schema steps, in the order they must run. **Append only** — a step's `to`
+/// is recorded in every database that has run it, so renumbering or reordering
+/// rewrites history that already shipped.
+///
+/// Order is the array, not a comment: `add_source_removed` has to follow
+/// `widen_method_check`, which rebuilds `confirmed_facts` with a `SELECT *` copy
+/// into an eight-column table. Adding the column first would push nine columns
+/// into it and fail on exactly the old databases it exists to rescue.
+///
+/// Both steps below detect their own applicability because they predate this
+/// ledger: every build since the first stamped `user_version = 1` on open no
+/// matter what shape the database was in, so version 1 means "some legacy shape"
+/// rather than a known one. Steps added from here on can trust the version and
+/// need no detection.
+const MIGRATIONS: &[Migration] = &[
+    Migration {
+        to: 2,
+        name: "widen_method_check",
+        run: migrate_method_check,
+    },
+    Migration {
+        to: 3,
+        name: "add_source_removed",
+        run: migrate_source_removed,
+    },
+];
+
+/// The version a fully migrated database carries.
+#[cfg(test)]
+fn target_schema_version() -> i64 {
+    MIGRATIONS.last().map_or(0, |migration| migration.to)
+}
+
+fn user_version(connection: &Connection) -> Result<i64, AppError> {
+    connection
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .map_err(storage_error)
+}
+
+/// Bring the database up to [`target_schema_version`], running each pending step
+/// once and recording it before the next begins.
+///
+/// A step that fails leaves the version at the last one that succeeded, so the
+/// next open retries from there rather than skipping ahead.
+fn migrate(connection: &Connection) -> Result<(), AppError> {
+    let mut version = user_version(connection)?;
+    for migration in MIGRATIONS {
+        if version >= migration.to {
+            continue;
+        }
+        (migration.run)(connection).map_err(|error| {
+            AppError::with_detail(
+                error.code,
+                error.message,
+                "migration",
+                format!("{} (to v{})", migration.name, migration.to),
+            )
+        })?;
+        // PRAGMA values cannot be bound; `to` is a compile-time constant.
+        connection
+            .execute_batch(&format!("PRAGMA user_version = {};", migration.to))
+            .map_err(storage_error)?;
+        version = migration.to;
+    }
+    Ok(())
 }
 
 /// Add `source_removed` to `confirmed_facts` for databases created before the
-/// documents manager existed. Idempotent: it inspects the table's columns and
-/// adds the column only when absent, so a fresh install is a no-op.
-///
-/// Order matters — this MUST run after [`migrate_method_check`], which rebuilds
-/// `confirmed_facts` via `INSERT INTO confirmed_facts_migrated SELECT *`. Adding
-/// the column first would make that copy push nine columns into the eight-column
-/// table it builds, and the migration would fail on exactly the old databases it
-/// exists to rescue.
+/// documents manager existed. Detects its own applicability: it inspects the
+/// table's columns and adds the column only when absent, so a fresh install is a
+/// no-op. See [`MIGRATIONS`] for why this one still detects.
 fn migrate_source_removed(connection: &Connection) -> Result<(), AppError> {
     let present = {
         let mut statement = connection
@@ -3022,9 +3091,10 @@ fn migrate_source_removed(connection: &Connection) -> Result<(), AppError> {
 /// Widen the `method` CHECK on the fact tables to allow 'assisted', for databases
 /// created before on-device drafts existed.
 ///
-/// Idempotent: it inspects each table's stored SQL and rebuilds only when the
-/// constraint predates the new value (a fresh install already includes it, so
-/// this is a no-op). The rebuild is a plain row copy — no re-encryption — done
+/// Detects its own applicability: it inspects each table's stored SQL and
+/// rebuilds only when the constraint predates the new value (a fresh install
+/// already includes it, so this is a no-op). See [`MIGRATIONS`] for why this one
+/// still detects. The rebuild is a plain row copy — no re-encryption — done
 /// with foreign keys disabled so the `confirmed_facts → candidate_facts`
 /// reference survives the drop-and-rename, then re-enabled.
 fn migrate_method_check(connection: &Connection) -> Result<(), AppError> {
@@ -5685,6 +5755,146 @@ mod tests {
             ErrorCode::ValidationInvalidInput
         );
         cleanup_database(database);
+    }
+
+    /// A database in the shape shipped before this ledger existed: the fact
+    /// tables reject 'assisted', confirmed_facts has no source_removed, and
+    /// user_version is 1 because every build stamped it on open regardless.
+    fn legacy_database() -> Connection {
+        let connection = Connection::open_in_memory().expect("db");
+        connection
+            .execute_batch(
+                "PRAGMA foreign_keys = ON;
+                 CREATE TABLE trips (id TEXT PRIMARY KEY);
+                 CREATE TABLE source_documents (id TEXT PRIMARY KEY,
+                     trip_id TEXT REFERENCES trips(id) ON DELETE CASCADE);
+                 CREATE TABLE parser_runs (id TEXT PRIMARY KEY,
+                     document_id TEXT REFERENCES source_documents(id) ON DELETE CASCADE);
+                 CREATE TABLE candidate_facts (
+                     id TEXT PRIMARY KEY,
+                     trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                     document_id TEXT NOT NULL REFERENCES source_documents(id) ON DELETE CASCADE,
+                     parser_run_id TEXT NOT NULL REFERENCES parser_runs(id) ON DELETE CASCADE,
+                     fact_type TEXT NOT NULL,
+                     payload TEXT NOT NULL,
+                     method TEXT NOT NULL CHECK (method IN ('structured', 'inferred', 'manual')),
+                     field_spans TEXT NOT NULL,
+                     warnings TEXT NOT NULL,
+                     status TEXT NOT NULL,
+                     created_at TEXT NOT NULL,
+                     resolved_at TEXT
+                 );
+                 CREATE TABLE confirmed_facts (
+                     id TEXT PRIMARY KEY,
+                     trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                     fact_type TEXT NOT NULL,
+                     payload TEXT NOT NULL,
+                     method TEXT NOT NULL CHECK (method IN ('structured', 'inferred', 'manual')),
+                     candidate_id TEXT REFERENCES candidate_facts(id) ON DELETE SET NULL,
+                     corrected_fields TEXT NOT NULL,
+                     confirmed_at TEXT NOT NULL
+                 );
+                 INSERT INTO trips (id) VALUES ('t1');
+                 INSERT INTO source_documents (id, trip_id) VALUES ('d1', 't1');
+                 INSERT INTO parser_runs (id, document_id) VALUES ('r1', 'd1');
+                 INSERT INTO candidate_facts VALUES
+                     ('c1','t1','d1','r1','lodging_stay','{}','manual','[]','[]','pending','now',NULL);
+                 INSERT INTO confirmed_facts VALUES
+                     ('f1','t1','lodging_stay','{}','manual',NULL,'[]','now');
+                 PRAGMA user_version = 1;",
+            )
+            .expect("legacy schema");
+        connection
+    }
+
+    fn columns_of(connection: &Connection, table: &str) -> Vec<String> {
+        let mut statement = connection
+            .prepare(&format!("PRAGMA table_info({table})"))
+            .expect("table_info");
+        statement
+            .query_map([], |row| row.get::<_, String>(1))
+            .expect("columns")
+            .collect::<rusqlite::Result<Vec<String>>>()
+            .expect("columns")
+    }
+
+    #[test]
+    fn a_legacy_database_migrates_in_order_and_keeps_its_rows() {
+        let connection = legacy_database();
+        migrate(&connection).expect("migrate");
+
+        assert_eq!(user_version(&connection).expect("version"), 3);
+        // add_source_removed ran after widen_method_check rebuilt the table, so
+        // the column is present rather than dropped by the rebuild's copy.
+        assert!(columns_of(&connection, "confirmed_facts").contains(&"source_removed".to_owned()));
+        // Both pre-existing rows survived the rebuild.
+        let kept: i64 = connection
+            .query_row("SELECT count(*) FROM confirmed_facts", [], |row| row.get(0))
+            .expect("count");
+        assert_eq!(kept, 1);
+        // The widened constraint took effect.
+        connection
+            .execute(
+                "INSERT INTO candidate_facts VALUES
+                 ('c2','t1','d1','r1','lodging_stay','{}','assisted','[]','[]','pending','now',NULL)",
+                [],
+            )
+            .expect("assisted now allowed");
+    }
+
+    #[test]
+    fn migrating_twice_is_a_no_op() {
+        let connection = legacy_database();
+        migrate(&connection).expect("first");
+        connection
+            .execute(
+                "UPDATE confirmed_facts SET source_removed = 1 WHERE id = 'f1'",
+                [],
+            )
+            .expect("mark");
+
+        migrate(&connection).expect("second");
+
+        // The steps did not run again: the row and its new column value stand.
+        assert_eq!(user_version(&connection).expect("version"), 3);
+        let removed: i64 = connection
+            .query_row(
+                "SELECT source_removed FROM confirmed_facts WHERE id = 'f1'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("value");
+        assert_eq!(removed, 1);
+    }
+
+    #[test]
+    fn a_fresh_database_is_stamped_at_the_target_version() {
+        let path = temp_database("migrate-fresh");
+        let service = open_test_service(&path).expect("service");
+        {
+            let connection = service.connection().expect("connection");
+            assert_eq!(
+                user_version(&connection).expect("version"),
+                target_schema_version()
+            );
+            assert!(
+                columns_of(&connection, "confirmed_facts").contains(&"source_removed".to_owned())
+            );
+        }
+        drop(service);
+        cleanup_database(path);
+    }
+
+    #[test]
+    fn migration_versions_are_ordered_and_unique() {
+        // The list is the ordering, so a bad edit must fail here rather than in
+        // a user's database.
+        let versions: Vec<i64> = MIGRATIONS.iter().map(|migration| migration.to).collect();
+        let mut sorted = versions.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(versions, sorted, "migration versions ascend and are unique");
+        assert!(versions.first().is_some_and(|first| *first > 1));
     }
 
     #[test]
