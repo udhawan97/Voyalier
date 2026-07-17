@@ -378,7 +378,11 @@ function collapseRuns(dates: string[]): Array<[string, string]> {
  * aligned with the Rust rule so UI development and tests see the same shape the
  * live gateway returns.
  */
-function detectItineraryConflicts(
+/**
+ * Exported only for `apps/web/src/parity.test.ts`, which holds this and the Rust
+ * core to `parity/assess-trip.json`. Not part of the gateway surface.
+ */
+export function detectItineraryConflicts(
   trip: Trip,
   facts: ConfirmedFact[],
 ): ItineraryConflict[] {
@@ -493,7 +497,11 @@ const READINESS_SEVERITY: Record<ReadinessStatus, number> = {
  * Deterministic mirror of voyalier-core's readiness rollup. Logistics only;
  * sourced (entry/health/safety) readiness is a later milestone.
  */
-function assessReadiness(
+/**
+ * Exported only for `apps/web/src/parity.test.ts`. See
+ * {@link detectItineraryConflicts}.
+ */
+export function assessReadiness(
   facts: ConfirmedFact[],
   pendingCandidateCount: number,
   conflicts: ItineraryConflict[],

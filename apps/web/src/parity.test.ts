@@ -1,5 +1,7 @@
 import limits from "@voyalier/contracts/parity/limits.json";
 import normalizePlaceGolden from "@voyalier/contracts/parity/normalize-place.json";
+import assessTripGolden from "@voyalier/contracts/parity/assess-trip.json";
+import type { ConfirmedFact, Trip } from "@voyalier/contracts";
 import {
   MAX_AI_PROMPT_LEN,
   MAX_DOCUMENT_CHARS,
@@ -7,6 +9,8 @@ import {
   MAX_NOTES_CHARS,
   MAX_QUERY_LEN,
   countChars,
+  mockAssessReadiness,
+  mockDetectItineraryConflicts,
   mockNormalizePlace,
 } from "@voyalier/contracts";
 
@@ -81,4 +85,40 @@ describe("parity: normalizePlace", () => {
   it.each(cases)("folds $input to $expected", ({ input, expected }) => {
     expect(mockNormalizePlace(input)).toBe(expected);
   });
+});
+
+/**
+ * The trip assessment — itinerary conflicts and the readiness rollup they drove
+ * — is implemented twice: the Rust core, and the mock gateway every component
+ * test runs against. Nothing compared them, so 28 test files asserted against a
+ * mirror that could quietly say something else.
+ *
+ * `parity/assess-trip.json` is the one answer key; `voyalier-core`'s
+ * `parity_assess_trip_matches_the_contract` checks the same cases. This pins
+ * rule *output*, not just constants — the limits and folding goldens would not
+ * have caught a mirror that computed a different verdict.
+ */
+describe("parity: assessTrip", () => {
+  const cases = assessTripGolden.cases;
+
+  it("covers every golden case", () => {
+    expect(cases).toHaveLength(12);
+  });
+
+  it.each(cases)(
+    "agrees with the core for: $name",
+    ({ trip, facts, pendingCandidateCount, expected }) => {
+      // The mock composes these the way its getTrip does.
+      const conflicts = mockDetectItineraryConflicts(
+        trip as Trip,
+        facts as ConfirmedFact[],
+      );
+      const readiness = mockAssessReadiness(
+        facts as ConfirmedFact[],
+        pendingCandidateCount,
+        conflicts,
+      );
+      expect({ conflicts, readiness }).toEqual(expected);
+    },
+  );
 });

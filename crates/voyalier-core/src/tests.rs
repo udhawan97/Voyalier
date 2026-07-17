@@ -452,6 +452,41 @@ fn parity_readiness_links_match_the_contract() {
     }
 }
 
+/// Itinerary conflicts and the readiness rollup are implemented twice — here and
+/// in the mock gateway that every component test runs against. This holds the
+/// core to the golden; `apps/web/src/parity.test.ts` holds the mock to the same
+/// one, so the two cannot disagree about what a trip's plan says.
+///
+/// This one pins rule *output*, not just constants: the earlier goldens would
+/// not have caught a mirror that computed a different verdict.
+#[test]
+fn parity_assess_trip_matches_the_contract() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../packages/contracts/parity/assess-trip.json");
+    let raw = fs::read_to_string(&path).expect("parity/assess-trip.json");
+    let golden: Value = serde_json::from_str(&raw).expect("valid json");
+    let cases = golden["cases"].as_array().expect("cases array");
+
+    for case in cases {
+        let name = case["name"].as_str().expect("name");
+        let trip: Trip = serde_json::from_value(case["trip"].clone()).expect("trip");
+        let facts: Vec<ConfirmedFact> =
+            serde_json::from_value(case["facts"].clone()).expect("facts");
+        let pending = case["pendingCandidateCount"].as_u64().expect("count") as u32;
+
+        let assessment = crate::assess_trip(&trip, &facts, pending);
+        let actual = serde_json::json!({
+            "conflicts": assessment.conflicts,
+            "readiness": assessment.readiness,
+        });
+        assert_eq!(
+            actual, case["expected"],
+            "assess_trip disagrees for {name:?}"
+        );
+    }
+    assert_eq!(cases.len(), 12, "every golden case must be checked");
+}
+
 #[test]
 fn rust_examples_validate_against_contract_schemas() {
     let schema_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/contracts/schemas");

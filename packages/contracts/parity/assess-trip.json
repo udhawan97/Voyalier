@@ -1,0 +1,1364 @@
+{
+  "$comment": "Golden output for assess_trip \u2014 itinerary conflicts plus the readiness rollup they drove. voyalier-core computes it (itinerary.rs + readiness.rs); mock.ts reimplements the same rules in TypeScript for the component tests, and nothing compared the two. Inputs are hand-designed to cover the boundaries; expected output is generated from the core, which is the reference implementation \u2014 core's own unit tests judge whether it is right, and this judges whether the mock agrees. voyalier-core's parity_assess_trip_matches_the_contract and apps/web's parity.test.ts both assert against this. Regenerate deliberately, never to make a red test green.",
+  "$knownQuirk": "'flight with no times, stay with no dates' reports lodging_clear: coverage is driven by gaps, and a stay with no dates yields no gap to find. Both languages do this. Pinned as-is \u2014 the golden records current behavior, it does not bless it.",
+  "cases": [
+    {
+      "expected": {
+        "conflicts": [],
+        "readiness": {
+          "items": [
+            {
+              "finding": {
+                "code": "no_facts_yet"
+              },
+              "id": "schedule_conflicts",
+              "status": "not_checked"
+            },
+            {
+              "finding": {
+                "code": "no_lodging_yet"
+              },
+              "id": "lodging_coverage",
+              "status": "not_checked"
+            },
+            {
+              "finding": {
+                "code": "nothing_pending"
+              },
+              "id": "pending_review",
+              "status": "clear"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "entry_requirements",
+              "links": [
+                {
+                  "label": "UK FCDO travel advice \u2014 entry requirements by country",
+                  "url": "https://www.gov.uk/foreign-travel-advice"
+                },
+                {
+                  "label": "US State Dept \u2014 travel advisories by country",
+                  "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
+                },
+                {
+                  "label": "US State Dept \u2014 international travel",
+                  "url": "https://travel.state.gov/content/travel/en/international-travel.html"
+                }
+              ],
+              "status": "not_checked"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "health_notices",
+              "links": [
+                {
+                  "label": "US CDC \u2014 Travelers' Health, destination notices",
+                  "url": "https://wwwnc.cdc.gov/travel/destinations/list"
+                },
+                {
+                  "label": "WHO \u2014 International travel and health",
+                  "url": "https://www.who.int/travel-advice"
+                }
+              ],
+              "status": "not_checked"
+            }
+          ],
+          "status": "not_checked"
+        }
+      },
+      "facts": [],
+      "name": "empty plan",
+      "pendingCandidateCount": 0,
+      "trip": {
+        "createdAt": "2027-01-01T00:00:00Z",
+        "destination": "Kyoto",
+        "endDate": "2027-04-05",
+        "id": "trip_parity",
+        "origin": "Chicago",
+        "startDate": "2027-04-01",
+        "status": "active",
+        "title": "Chicago -> Kyoto",
+        "updatedAt": "2027-01-01T00:00:00Z"
+      }
+    },
+    {
+      "expected": {
+        "conflicts": [],
+        "readiness": {
+          "items": [
+            {
+              "finding": {
+                "code": "no_facts_yet"
+              },
+              "id": "schedule_conflicts",
+              "status": "not_checked"
+            },
+            {
+              "finding": {
+                "code": "no_lodging_yet"
+              },
+              "id": "lodging_coverage",
+              "status": "not_checked"
+            },
+            {
+              "finding": {
+                "code": "pending_review",
+                "count": 3
+              },
+              "id": "pending_review",
+              "status": "monitor"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "entry_requirements",
+              "links": [
+                {
+                  "label": "UK FCDO travel advice \u2014 entry requirements by country",
+                  "url": "https://www.gov.uk/foreign-travel-advice"
+                },
+                {
+                  "label": "US State Dept \u2014 travel advisories by country",
+                  "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
+                },
+                {
+                  "label": "US State Dept \u2014 international travel",
+                  "url": "https://travel.state.gov/content/travel/en/international-travel.html"
+                }
+              ],
+              "status": "not_checked"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "health_notices",
+              "links": [
+                {
+                  "label": "US CDC \u2014 Travelers' Health, destination notices",
+                  "url": "https://wwwnc.cdc.gov/travel/destinations/list"
+                },
+                {
+                  "label": "WHO \u2014 International travel and health",
+                  "url": "https://www.who.int/travel-advice"
+                }
+              ],
+              "status": "not_checked"
+            }
+          ],
+          "status": "monitor"
+        }
+      },
+      "facts": [],
+      "name": "pending suggestions only",
+      "pendingCandidateCount": 3,
+      "trip": {
+        "createdAt": "2027-01-01T00:00:00Z",
+        "destination": "Kyoto",
+        "endDate": "2027-04-05",
+        "id": "trip_parity",
+        "origin": "Chicago",
+        "startDate": "2027-04-01",
+        "status": "active",
+        "title": "Chicago -> Kyoto",
+        "updatedAt": "2027-01-01T00:00:00Z"
+      }
+    },
+    {
+      "expected": {
+        "conflicts": [],
+        "readiness": {
+          "items": [
+            {
+              "finding": {
+                "code": "no_facts_yet"
+              },
+              "id": "schedule_conflicts",
+              "status": "not_checked"
+            },
+            {
+              "finding": {
+                "code": "no_lodging_yet"
+              },
+              "id": "lodging_coverage",
+              "status": "not_checked"
+            },
+            {
+              "finding": {
+                "code": "pending_review",
+                "count": 1
+              },
+              "id": "pending_review",
+              "status": "monitor"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "entry_requirements",
+              "links": [
+                {
+                  "label": "UK FCDO travel advice \u2014 entry requirements by country",
+                  "url": "https://www.gov.uk/foreign-travel-advice"
+                },
+                {
+                  "label": "US State Dept \u2014 travel advisories by country",
+                  "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
+                },
+                {
+                  "label": "US State Dept \u2014 international travel",
+                  "url": "https://travel.state.gov/content/travel/en/international-travel.html"
+                }
+              ],
+              "status": "not_checked"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "health_notices",
+              "links": [
+                {
+                  "label": "US CDC \u2014 Travelers' Health, destination notices",
+                  "url": "https://wwwnc.cdc.gov/travel/destinations/list"
+                },
+                {
+                  "label": "WHO \u2014 International travel and health",
+                  "url": "https://www.who.int/travel-advice"
+                }
+              ],
+              "status": "not_checked"
+            }
+          ],
+          "status": "monitor"
+        }
+      },
+      "facts": [],
+      "name": "one pending suggestion (singular count)",
+      "pendingCandidateCount": 1,
+      "trip": {
+        "createdAt": "2027-01-01T00:00:00Z",
+        "destination": "Kyoto",
+        "endDate": "2027-04-05",
+        "id": "trip_parity",
+        "origin": "Chicago",
+        "startDate": "2027-04-01",
+        "status": "active",
+        "title": "Chicago -> Kyoto",
+        "updatedAt": "2027-01-01T00:00:00Z"
+      }
+    },
+    {
+      "expected": {
+        "conflicts": [
+          {
+            "factIds": ["f1", "f2"],
+            "kind": "flight_overlap",
+            "message": "Flight F1 and Flight F2 overlap in time \u2014 a traveler can only be on one flight at once.",
+            "severity": "warning"
+          }
+        ],
+        "readiness": {
+          "items": [
+            {
+              "finding": {
+                "code": "schedule_conflicts",
+                "count": 1
+              },
+              "id": "schedule_conflicts",
+              "status": "action_needed"
+            },
+            {
+              "finding": {
+                "code": "no_lodging_yet"
+              },
+              "id": "lodging_coverage",
+              "status": "not_checked"
+            },
+            {
+              "finding": {
+                "code": "nothing_pending"
+              },
+              "id": "pending_review",
+              "status": "clear"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "entry_requirements",
+              "links": [
+                {
+                  "label": "UK FCDO travel advice \u2014 entry requirements by country",
+                  "url": "https://www.gov.uk/foreign-travel-advice"
+                },
+                {
+                  "label": "US State Dept \u2014 travel advisories by country",
+                  "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
+                },
+                {
+                  "label": "US State Dept \u2014 international travel",
+                  "url": "https://travel.state.gov/content/travel/en/international-travel.html"
+                }
+              ],
+              "status": "not_checked"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "health_notices",
+              "links": [
+                {
+                  "label": "US CDC \u2014 Travelers' Health, destination notices",
+                  "url": "https://wwwnc.cdc.gov/travel/destinations/list"
+                },
+                {
+                  "label": "WHO \u2014 International travel and health",
+                  "url": "https://www.who.int/travel-advice"
+                }
+              ],
+              "status": "not_checked"
+            }
+          ],
+          "status": "action_needed"
+        }
+      },
+      "facts": [
+        {
+          "candidateId": null,
+          "confirmedAt": "2027-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "flight_segment",
+          "id": "f1",
+          "method": "manual",
+          "payload": {
+            "arrivalLocal": "2027-04-01T13:00",
+            "departureLocal": "2027-04-01T09:00",
+            "flightNumber": "F1"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_parity"
+        },
+        {
+          "candidateId": null,
+          "confirmedAt": "2027-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "flight_segment",
+          "id": "f2",
+          "method": "manual",
+          "payload": {
+            "arrivalLocal": "2027-04-01T15:00",
+            "departureLocal": "2027-04-01T12:00",
+            "flightNumber": "F2"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_parity"
+        }
+      ],
+      "name": "two flights overlapping in time",
+      "pendingCandidateCount": 0,
+      "trip": {
+        "createdAt": "2027-01-01T00:00:00Z",
+        "destination": "Kyoto",
+        "endDate": "2027-04-05",
+        "id": "trip_parity",
+        "origin": "Chicago",
+        "startDate": "2027-04-01",
+        "status": "active",
+        "title": "Chicago -> Kyoto",
+        "updatedAt": "2027-01-01T00:00:00Z"
+      }
+    },
+    {
+      "expected": {
+        "conflicts": [
+          {
+            "factIds": ["f1", "f2"],
+            "kind": "flight_overlap",
+            "message": "Flight F1 and Flight F2 overlap in time \u2014 a traveler can only be on one flight at once.",
+            "severity": "warning"
+          },
+          {
+            "factIds": ["f2", "f3"],
+            "kind": "flight_overlap",
+            "message": "Flight F2 and Flight F3 overlap in time \u2014 a traveler can only be on one flight at once.",
+            "severity": "warning"
+          }
+        ],
+        "readiness": {
+          "items": [
+            {
+              "finding": {
+                "code": "schedule_conflicts",
+                "count": 2
+              },
+              "id": "schedule_conflicts",
+              "status": "action_needed"
+            },
+            {
+              "finding": {
+                "code": "no_lodging_yet"
+              },
+              "id": "lodging_coverage",
+              "status": "not_checked"
+            },
+            {
+              "finding": {
+                "code": "nothing_pending"
+              },
+              "id": "pending_review",
+              "status": "clear"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "entry_requirements",
+              "links": [
+                {
+                  "label": "UK FCDO travel advice \u2014 entry requirements by country",
+                  "url": "https://www.gov.uk/foreign-travel-advice"
+                },
+                {
+                  "label": "US State Dept \u2014 travel advisories by country",
+                  "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
+                },
+                {
+                  "label": "US State Dept \u2014 international travel",
+                  "url": "https://travel.state.gov/content/travel/en/international-travel.html"
+                }
+              ],
+              "status": "not_checked"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "health_notices",
+              "links": [
+                {
+                  "label": "US CDC \u2014 Travelers' Health, destination notices",
+                  "url": "https://wwwnc.cdc.gov/travel/destinations/list"
+                },
+                {
+                  "label": "WHO \u2014 International travel and health",
+                  "url": "https://www.who.int/travel-advice"
+                }
+              ],
+              "status": "not_checked"
+            }
+          ],
+          "status": "action_needed"
+        }
+      },
+      "facts": [
+        {
+          "candidateId": null,
+          "confirmedAt": "2027-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "flight_segment",
+          "id": "f1",
+          "method": "manual",
+          "payload": {
+            "arrivalLocal": "2027-04-01T13:00",
+            "departureLocal": "2027-04-01T09:00",
+            "flightNumber": "F1"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_parity"
+        },
+        {
+          "candidateId": null,
+          "confirmedAt": "2027-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "flight_segment",
+          "id": "f2",
+          "method": "manual",
+          "payload": {
+            "arrivalLocal": "2027-04-01T15:00",
+            "departureLocal": "2027-04-01T12:00",
+            "flightNumber": "F2"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_parity"
+        },
+        {
+          "candidateId": null,
+          "confirmedAt": "2027-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "flight_segment",
+          "id": "f3",
+          "method": "manual",
+          "payload": {
+            "arrivalLocal": "2027-04-01T18:00",
+            "departureLocal": "2027-04-01T14:00",
+            "flightNumber": "F3"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_parity"
+        }
+      ],
+      "name": "three flights, two overlaps (plural count)",
+      "pendingCandidateCount": 0,
+      "trip": {
+        "createdAt": "2027-01-01T00:00:00Z",
+        "destination": "Kyoto",
+        "endDate": "2027-04-05",
+        "id": "trip_parity",
+        "origin": "Chicago",
+        "startDate": "2027-04-01",
+        "status": "active",
+        "title": "Chicago -> Kyoto",
+        "updatedAt": "2027-01-01T00:00:00Z"
+      }
+    },
+    {
+      "expected": {
+        "conflicts": [],
+        "readiness": {
+          "items": [
+            {
+              "finding": {
+                "code": "schedule_clear"
+              },
+              "id": "schedule_conflicts",
+              "status": "clear"
+            },
+            {
+              "finding": {
+                "code": "no_lodging_yet"
+              },
+              "id": "lodging_coverage",
+              "status": "not_checked"
+            },
+            {
+              "finding": {
+                "code": "nothing_pending"
+              },
+              "id": "pending_review",
+              "status": "clear"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "entry_requirements",
+              "links": [
+                {
+                  "label": "UK FCDO travel advice \u2014 entry requirements by country",
+                  "url": "https://www.gov.uk/foreign-travel-advice"
+                },
+                {
+                  "label": "US State Dept \u2014 travel advisories by country",
+                  "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
+                },
+                {
+                  "label": "US State Dept \u2014 international travel",
+                  "url": "https://travel.state.gov/content/travel/en/international-travel.html"
+                }
+              ],
+              "status": "not_checked"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "health_notices",
+              "links": [
+                {
+                  "label": "US CDC \u2014 Travelers' Health, destination notices",
+                  "url": "https://wwwnc.cdc.gov/travel/destinations/list"
+                },
+                {
+                  "label": "WHO \u2014 International travel and health",
+                  "url": "https://www.who.int/travel-advice"
+                }
+              ],
+              "status": "not_checked"
+            }
+          ],
+          "status": "clear"
+        }
+      },
+      "facts": [
+        {
+          "candidateId": null,
+          "confirmedAt": "2027-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "flight_segment",
+          "id": "f1",
+          "method": "manual",
+          "payload": {
+            "arrivalLocal": "2027-04-01T12:00",
+            "departureLocal": "2027-04-01T09:00",
+            "flightNumber": "F1"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_parity"
+        },
+        {
+          "candidateId": null,
+          "confirmedAt": "2027-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "flight_segment",
+          "id": "f2",
+          "method": "manual",
+          "payload": {
+            "arrivalLocal": "2027-04-01T15:00",
+            "departureLocal": "2027-04-01T12:00",
+            "flightNumber": "F2"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_parity"
+        }
+      ],
+      "name": "flights back to back, no overlap",
+      "pendingCandidateCount": 0,
+      "trip": {
+        "createdAt": "2027-01-01T00:00:00Z",
+        "destination": "Kyoto",
+        "endDate": "2027-04-05",
+        "id": "trip_parity",
+        "origin": "Chicago",
+        "startDate": "2027-04-01",
+        "status": "active",
+        "title": "Chicago -> Kyoto",
+        "updatedAt": "2027-01-01T00:00:00Z"
+      }
+    },
+    {
+      "expected": {
+        "conflicts": [],
+        "readiness": {
+          "items": [
+            {
+              "finding": {
+                "code": "schedule_clear"
+              },
+              "id": "schedule_conflicts",
+              "status": "clear"
+            },
+            {
+              "finding": {
+                "code": "lodging_clear"
+              },
+              "id": "lodging_coverage",
+              "status": "clear"
+            },
+            {
+              "finding": {
+                "code": "nothing_pending"
+              },
+              "id": "pending_review",
+              "status": "clear"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "entry_requirements",
+              "links": [
+                {
+                  "label": "UK FCDO travel advice \u2014 entry requirements by country",
+                  "url": "https://www.gov.uk/foreign-travel-advice"
+                },
+                {
+                  "label": "US State Dept \u2014 travel advisories by country",
+                  "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
+                },
+                {
+                  "label": "US State Dept \u2014 international travel",
+                  "url": "https://travel.state.gov/content/travel/en/international-travel.html"
+                }
+              ],
+              "status": "not_checked"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "health_notices",
+              "links": [
+                {
+                  "label": "US CDC \u2014 Travelers' Health, destination notices",
+                  "url": "https://wwwnc.cdc.gov/travel/destinations/list"
+                },
+                {
+                  "label": "WHO \u2014 International travel and health",
+                  "url": "https://www.who.int/travel-advice"
+                }
+              ],
+              "status": "not_checked"
+            }
+          ],
+          "status": "clear"
+        }
+      },
+      "facts": [
+        {
+          "candidateId": null,
+          "confirmedAt": "2027-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "flight_segment",
+          "id": "f1",
+          "method": "manual",
+          "payload": {
+            "arrivalLocal": "2027-04-01T12:00",
+            "departureLocal": "2027-04-01T09:00",
+            "flightNumber": "F1"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_parity"
+        },
+        {
+          "candidateId": null,
+          "confirmedAt": "2027-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "lodging_stay",
+          "id": "l1",
+          "method": "manual",
+          "payload": {
+            "checkinDate": "2027-04-01",
+            "checkoutDate": "2027-04-05",
+            "propertyName": "Stay l1"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_parity"
+        }
+      ],
+      "name": "lodging covering every night",
+      "pendingCandidateCount": 0,
+      "trip": {
+        "createdAt": "2027-01-01T00:00:00Z",
+        "destination": "Kyoto",
+        "endDate": "2027-04-05",
+        "id": "trip_parity",
+        "origin": "Chicago",
+        "startDate": "2027-04-01",
+        "status": "active",
+        "title": "Chicago -> Kyoto",
+        "updatedAt": "2027-01-01T00:00:00Z"
+      }
+    },
+    {
+      "expected": {
+        "conflicts": [
+          {
+            "endDate": "2027-04-02",
+            "factIds": [],
+            "kind": "lodging_gap",
+            "message": "No lodging is booked for the nights of 2027-04-01 through 2027-04-02.",
+            "severity": "notice",
+            "startDate": "2027-04-01"
+          }
+        ],
+        "readiness": {
+          "items": [
+            {
+              "finding": {
+                "code": "schedule_notices",
+                "count": 1
+              },
+              "id": "schedule_conflicts",
+              "status": "monitor"
+            },
+            {
+              "finding": {
+                "code": "lodging_gaps",
+                "count": 1
+              },
+              "id": "lodging_coverage",
+              "status": "monitor"
+            },
+            {
+              "finding": {
+                "code": "nothing_pending"
+              },
+              "id": "pending_review",
+              "status": "clear"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "entry_requirements",
+              "links": [
+                {
+                  "label": "UK FCDO travel advice \u2014 entry requirements by country",
+                  "url": "https://www.gov.uk/foreign-travel-advice"
+                },
+                {
+                  "label": "US State Dept \u2014 travel advisories by country",
+                  "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
+                },
+                {
+                  "label": "US State Dept \u2014 international travel",
+                  "url": "https://travel.state.gov/content/travel/en/international-travel.html"
+                }
+              ],
+              "status": "not_checked"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "health_notices",
+              "links": [
+                {
+                  "label": "US CDC \u2014 Travelers' Health, destination notices",
+                  "url": "https://wwwnc.cdc.gov/travel/destinations/list"
+                },
+                {
+                  "label": "WHO \u2014 International travel and health",
+                  "url": "https://www.who.int/travel-advice"
+                }
+              ],
+              "status": "not_checked"
+            }
+          ],
+          "status": "monitor"
+        }
+      },
+      "facts": [
+        {
+          "candidateId": null,
+          "confirmedAt": "2027-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "lodging_stay",
+          "id": "l1",
+          "method": "manual",
+          "payload": {
+            "checkinDate": "2027-04-03",
+            "checkoutDate": "2027-04-05",
+            "propertyName": "Stay l1"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_parity"
+        }
+      ],
+      "name": "lodging gap at the start of the trip",
+      "pendingCandidateCount": 0,
+      "trip": {
+        "createdAt": "2027-01-01T00:00:00Z",
+        "destination": "Kyoto",
+        "endDate": "2027-04-05",
+        "id": "trip_parity",
+        "origin": "Chicago",
+        "startDate": "2027-04-01",
+        "status": "active",
+        "title": "Chicago -> Kyoto",
+        "updatedAt": "2027-01-01T00:00:00Z"
+      }
+    },
+    {
+      "expected": {
+        "conflicts": [
+          {
+            "endDate": "2027-04-03",
+            "factIds": [],
+            "kind": "lodging_gap",
+            "message": "No lodging is booked for the nights of 2027-04-02 through 2027-04-03.",
+            "severity": "notice",
+            "startDate": "2027-04-02"
+          }
+        ],
+        "readiness": {
+          "items": [
+            {
+              "finding": {
+                "code": "schedule_notices",
+                "count": 1
+              },
+              "id": "schedule_conflicts",
+              "status": "monitor"
+            },
+            {
+              "finding": {
+                "code": "lodging_gaps",
+                "count": 1
+              },
+              "id": "lodging_coverage",
+              "status": "monitor"
+            },
+            {
+              "finding": {
+                "code": "nothing_pending"
+              },
+              "id": "pending_review",
+              "status": "clear"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "entry_requirements",
+              "links": [
+                {
+                  "label": "UK FCDO travel advice \u2014 entry requirements by country",
+                  "url": "https://www.gov.uk/foreign-travel-advice"
+                },
+                {
+                  "label": "US State Dept \u2014 travel advisories by country",
+                  "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
+                },
+                {
+                  "label": "US State Dept \u2014 international travel",
+                  "url": "https://travel.state.gov/content/travel/en/international-travel.html"
+                }
+              ],
+              "status": "not_checked"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "health_notices",
+              "links": [
+                {
+                  "label": "US CDC \u2014 Travelers' Health, destination notices",
+                  "url": "https://wwwnc.cdc.gov/travel/destinations/list"
+                },
+                {
+                  "label": "WHO \u2014 International travel and health",
+                  "url": "https://www.who.int/travel-advice"
+                }
+              ],
+              "status": "not_checked"
+            }
+          ],
+          "status": "monitor"
+        }
+      },
+      "facts": [
+        {
+          "candidateId": null,
+          "confirmedAt": "2027-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "lodging_stay",
+          "id": "l1",
+          "method": "manual",
+          "payload": {
+            "checkinDate": "2027-04-01",
+            "checkoutDate": "2027-04-02",
+            "propertyName": "Stay l1"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_parity"
+        },
+        {
+          "candidateId": null,
+          "confirmedAt": "2027-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "lodging_stay",
+          "id": "l2",
+          "method": "manual",
+          "payload": {
+            "checkinDate": "2027-04-04",
+            "checkoutDate": "2027-04-06",
+            "propertyName": "Stay l2"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_parity"
+        }
+      ],
+      "name": "lodging gap in the middle",
+      "pendingCandidateCount": 0,
+      "trip": {
+        "createdAt": "2027-01-01T00:00:00Z",
+        "destination": "Kyoto",
+        "endDate": "2027-04-06",
+        "id": "trip_parity",
+        "origin": "Chicago",
+        "startDate": "2027-04-01",
+        "status": "active",
+        "title": "Chicago -> Kyoto",
+        "updatedAt": "2027-01-01T00:00:00Z"
+      }
+    },
+    {
+      "expected": {
+        "conflicts": [
+          {
+            "factIds": ["l1", "l2"],
+            "kind": "lodging_overlap",
+            "message": "Stay l1 and Stay l2 overlap \u2014 two stays cover the same night.",
+            "severity": "warning"
+          }
+        ],
+        "readiness": {
+          "items": [
+            {
+              "finding": {
+                "code": "schedule_conflicts",
+                "count": 1
+              },
+              "id": "schedule_conflicts",
+              "status": "action_needed"
+            },
+            {
+              "finding": {
+                "code": "lodging_clear"
+              },
+              "id": "lodging_coverage",
+              "status": "clear"
+            },
+            {
+              "finding": {
+                "code": "nothing_pending"
+              },
+              "id": "pending_review",
+              "status": "clear"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "entry_requirements",
+              "links": [
+                {
+                  "label": "UK FCDO travel advice \u2014 entry requirements by country",
+                  "url": "https://www.gov.uk/foreign-travel-advice"
+                },
+                {
+                  "label": "US State Dept \u2014 travel advisories by country",
+                  "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
+                },
+                {
+                  "label": "US State Dept \u2014 international travel",
+                  "url": "https://travel.state.gov/content/travel/en/international-travel.html"
+                }
+              ],
+              "status": "not_checked"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "health_notices",
+              "links": [
+                {
+                  "label": "US CDC \u2014 Travelers' Health, destination notices",
+                  "url": "https://wwwnc.cdc.gov/travel/destinations/list"
+                },
+                {
+                  "label": "WHO \u2014 International travel and health",
+                  "url": "https://www.who.int/travel-advice"
+                }
+              ],
+              "status": "not_checked"
+            }
+          ],
+          "status": "action_needed"
+        }
+      },
+      "facts": [
+        {
+          "candidateId": null,
+          "confirmedAt": "2027-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "lodging_stay",
+          "id": "l1",
+          "method": "manual",
+          "payload": {
+            "checkinDate": "2027-04-01",
+            "checkoutDate": "2027-04-05",
+            "propertyName": "Stay l1"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_parity"
+        },
+        {
+          "candidateId": null,
+          "confirmedAt": "2027-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "lodging_stay",
+          "id": "l2",
+          "method": "manual",
+          "payload": {
+            "checkinDate": "2027-04-02",
+            "checkoutDate": "2027-04-04",
+            "propertyName": "Stay l2"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_parity"
+        }
+      ],
+      "name": "two stays double-booking the same nights",
+      "pendingCandidateCount": 0,
+      "trip": {
+        "createdAt": "2027-01-01T00:00:00Z",
+        "destination": "Kyoto",
+        "endDate": "2027-04-05",
+        "id": "trip_parity",
+        "origin": "Chicago",
+        "startDate": "2027-04-01",
+        "status": "active",
+        "title": "Chicago -> Kyoto",
+        "updatedAt": "2027-01-01T00:00:00Z"
+      }
+    },
+    {
+      "expected": {
+        "conflicts": [
+          {
+            "factIds": ["f1", "f2"],
+            "kind": "flight_overlap",
+            "message": "Flight F1 and Flight F2 overlap in time \u2014 a traveler can only be on one flight at once.",
+            "severity": "warning"
+          },
+          {
+            "endDate": "2027-04-02",
+            "factIds": [],
+            "kind": "lodging_gap",
+            "message": "No lodging is booked for the nights of 2027-04-01 through 2027-04-02.",
+            "severity": "notice",
+            "startDate": "2027-04-01"
+          }
+        ],
+        "readiness": {
+          "items": [
+            {
+              "finding": {
+                "code": "schedule_conflicts",
+                "count": 1
+              },
+              "id": "schedule_conflicts",
+              "status": "action_needed"
+            },
+            {
+              "finding": {
+                "code": "lodging_gaps",
+                "count": 1
+              },
+              "id": "lodging_coverage",
+              "status": "monitor"
+            },
+            {
+              "finding": {
+                "code": "pending_review",
+                "count": 2
+              },
+              "id": "pending_review",
+              "status": "monitor"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "entry_requirements",
+              "links": [
+                {
+                  "label": "UK FCDO travel advice \u2014 entry requirements by country",
+                  "url": "https://www.gov.uk/foreign-travel-advice"
+                },
+                {
+                  "label": "US State Dept \u2014 travel advisories by country",
+                  "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
+                },
+                {
+                  "label": "US State Dept \u2014 international travel",
+                  "url": "https://travel.state.gov/content/travel/en/international-travel.html"
+                }
+              ],
+              "status": "not_checked"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "health_notices",
+              "links": [
+                {
+                  "label": "US CDC \u2014 Travelers' Health, destination notices",
+                  "url": "https://wwwnc.cdc.gov/travel/destinations/list"
+                },
+                {
+                  "label": "WHO \u2014 International travel and health",
+                  "url": "https://www.who.int/travel-advice"
+                }
+              ],
+              "status": "not_checked"
+            }
+          ],
+          "status": "action_needed"
+        }
+      },
+      "facts": [
+        {
+          "candidateId": null,
+          "confirmedAt": "2027-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "flight_segment",
+          "id": "f1",
+          "method": "manual",
+          "payload": {
+            "arrivalLocal": "2027-04-01T13:00",
+            "departureLocal": "2027-04-01T09:00",
+            "flightNumber": "F1"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_parity"
+        },
+        {
+          "candidateId": null,
+          "confirmedAt": "2027-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "flight_segment",
+          "id": "f2",
+          "method": "manual",
+          "payload": {
+            "arrivalLocal": "2027-04-01T15:00",
+            "departureLocal": "2027-04-01T12:00",
+            "flightNumber": "F2"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_parity"
+        },
+        {
+          "candidateId": null,
+          "confirmedAt": "2027-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "lodging_stay",
+          "id": "l1",
+          "method": "manual",
+          "payload": {
+            "checkinDate": "2027-04-03",
+            "checkoutDate": "2027-04-05",
+            "propertyName": "Stay l1"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_parity"
+        }
+      ],
+      "name": "conflicts and pending review together",
+      "pendingCandidateCount": 2,
+      "trip": {
+        "createdAt": "2027-01-01T00:00:00Z",
+        "destination": "Kyoto",
+        "endDate": "2027-04-05",
+        "id": "trip_parity",
+        "origin": "Chicago",
+        "startDate": "2027-04-01",
+        "status": "active",
+        "title": "Chicago -> Kyoto",
+        "updatedAt": "2027-01-01T00:00:00Z"
+      }
+    },
+    {
+      "expected": {
+        "conflicts": [],
+        "readiness": {
+          "items": [
+            {
+              "finding": {
+                "code": "schedule_clear"
+              },
+              "id": "schedule_conflicts",
+              "status": "clear"
+            },
+            {
+              "finding": {
+                "code": "lodging_clear"
+              },
+              "id": "lodging_coverage",
+              "status": "clear"
+            },
+            {
+              "finding": {
+                "code": "nothing_pending"
+              },
+              "id": "pending_review",
+              "status": "clear"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "entry_requirements",
+              "links": [
+                {
+                  "label": "UK FCDO travel advice \u2014 entry requirements by country",
+                  "url": "https://www.gov.uk/foreign-travel-advice"
+                },
+                {
+                  "label": "US State Dept \u2014 travel advisories by country",
+                  "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
+                },
+                {
+                  "label": "US State Dept \u2014 international travel",
+                  "url": "https://travel.state.gov/content/travel/en/international-travel.html"
+                }
+              ],
+              "status": "not_checked"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "health_notices",
+              "links": [
+                {
+                  "label": "US CDC \u2014 Travelers' Health, destination notices",
+                  "url": "https://wwwnc.cdc.gov/travel/destinations/list"
+                },
+                {
+                  "label": "WHO \u2014 International travel and health",
+                  "url": "https://www.who.int/travel-advice"
+                }
+              ],
+              "status": "not_checked"
+            }
+          ],
+          "status": "clear"
+        }
+      },
+      "facts": [
+        {
+          "candidateId": null,
+          "confirmedAt": "2027-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "flight_segment",
+          "id": "f1",
+          "method": "manual",
+          "payload": {
+            "flightNumber": "F1"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_parity"
+        },
+        {
+          "candidateId": null,
+          "confirmedAt": "2027-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "lodging_stay",
+          "id": "l1",
+          "method": "manual",
+          "payload": {
+            "propertyName": "Stay l1"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_parity"
+        }
+      ],
+      "name": "flight with no times, stay with no dates",
+      "pendingCandidateCount": 0,
+      "trip": {
+        "createdAt": "2027-01-01T00:00:00Z",
+        "destination": "Kyoto",
+        "endDate": "2027-04-05",
+        "id": "trip_parity",
+        "origin": "Chicago",
+        "startDate": "2027-04-01",
+        "status": "active",
+        "title": "Chicago -> Kyoto",
+        "updatedAt": "2027-01-01T00:00:00Z"
+      }
+    }
+  ]
+}

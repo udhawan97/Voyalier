@@ -198,7 +198,8 @@ aggregation, background scraping, or silent document upload.
 - Rust and TypeScript contracts stay aligned across both transports.
 - The rules the mock gateway mirrors agree with the core, against shared golden
   files: validation limits (and the units they count in), place folding, the
-  default AI instructions, and the official-source links.
+  default AI instructions, the official-source links, and — as output, over
+  twelve trips — itinerary conflicts and the readiness rollup.
 - Every `ErrorCode` appears in the contract's `AppError` schema. The list is
   hand-kept, but an exhaustive match beside it means adding a variant is a
   compile error at the line that says to extend it.
