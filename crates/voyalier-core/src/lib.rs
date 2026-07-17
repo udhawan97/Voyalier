@@ -8,9 +8,11 @@ mod advisories;
 mod alerts;
 mod assist;
 mod assist_draft;
+mod astro;
 mod brief;
 mod climate;
 mod email;
+mod facts;
 mod itinerary;
 mod local_ai;
 mod packing;
@@ -46,6 +48,7 @@ pub use assist::{
     MAX_AI_PROMPT_LEN, build_assist_preview, build_assist_request, estimate_tokens,
     parse_assist_reply,
 };
+pub use astro::{AstroDay, MoonPhase, MoonPhaseName, PolarState, compute_astro_day, moon_phase};
 // `build_lodging_dates_user_content` stays internal: it is reached through
 // `build_draft_preview`, so the previewed user content and the sent user content
 // cannot be built two different ways.
@@ -60,6 +63,10 @@ pub use climate::{
 // `extract_email_body` is deliberately not re-exported: it must only be reached
 // through `parse_import`, which bounds the raw input before the extractor walks
 // an untrusted MIME tree.
+pub use facts::{
+    CountryFacts, CurrencyRate, DestinationFactsSnapshot, EmergencyNumbers, country_facts,
+    cross_rate, parse_ecb_rates,
+};
 pub use itinerary::detect_itinerary_conflicts;
 pub use local_ai::{
     LocalAiModel, LocalAiStatus, LocalModelPullResult, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,

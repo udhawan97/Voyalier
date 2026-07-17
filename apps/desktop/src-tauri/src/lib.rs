@@ -4,12 +4,12 @@ use voyalier_app::{AppService, BackupInfo};
 use voyalier_core::{
     AddManualFactInput, AdvisoryPanel, AiPromptSettings, AppError, AssistActivityEntry,
     AssistDraftResult, AssistReply, AssistRequestPreview, CandidateFact, CandidateStatus,
-    ConfirmCandidateInput, ConfirmedFact, CreateTripInput, DocumentContent, DocumentSummary,
-    DownloadedPack, ErrorCode, FcdoCountry, FieldSuggestion, HealthResponse, ImportDocumentInput,
-    ImportResult, KeyValidation, LocalAiStatus, LocalModelPullResult, OfflineMapArchive,
-    OfflineMapChunk, PackInfo, PackSuggestion, PersonaWeights, ProviderConfig, Recommendation,
-    SearchHit, TodayView, Trip, TripBrief, TripDetail, TripNotes, TripSummary, UpdateTripInput,
-    VaultStatus, WeatherSnapshot,
+    ConfirmCandidateInput, ConfirmedFact, CreateTripInput, DestinationFactsSnapshot,
+    DocumentContent, DocumentSummary, DownloadedPack, ErrorCode, FcdoCountry, FieldSuggestion,
+    HealthResponse, ImportDocumentInput, ImportResult, KeyValidation, LocalAiStatus,
+    LocalModelPullResult, OfflineMapArchive, OfflineMapChunk, PackInfo, PackSuggestion,
+    PersonaWeights, ProviderConfig, Recommendation, SearchHit, TodayView, Trip, TripBrief,
+    TripDetail, TripNotes, TripSummary, UpdateTripInput, VaultStatus, WeatherSnapshot,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -485,6 +485,14 @@ fn fetch_weather(
 }
 
 #[tauri::command]
+fn fetch_destination_facts(
+    input: TripIdInput,
+    service: State<'_, AppService>,
+) -> Result<DestinationFactsSnapshot, AppError> {
+    service.fetch_destination_facts(&input.trip_id)
+}
+
+#[tauri::command]
 fn delete_trip(input: TripIdInput, service: State<'_, AppService>) -> Result<(), AppError> {
     service.delete_trip(&input.trip_id)
 }
@@ -834,6 +842,7 @@ fn builder<R: tauri::Runtime>(
             set_provider_model,
             fetch_advisories,
             fetch_weather,
+            fetch_destination_facts,
             delete_trip,
             import_document,
             get_trip_notes,
@@ -1221,6 +1230,7 @@ mod tests {
             "set_provider_model",
             "fetch_advisories",
             "fetch_weather",
+            "fetch_destination_facts",
             "delete_trip",
             "import_document",
             "list_candidates",

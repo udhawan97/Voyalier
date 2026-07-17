@@ -64,6 +64,7 @@ import { EditTripDialog } from "./EditTripDialog";
 import { ImportDialog } from "./ImportDialog";
 import { TravelAdvice } from "./TravelAdvice";
 import { TripSearch } from "./TripSearch";
+import { DestinationFacts } from "./DestinationFacts";
 import { WeatherOutlook } from "./WeatherOutlook";
 
 type Values = Record<string, string | undefined>;
@@ -762,6 +763,15 @@ export function TripDetailView({
           destination={trip.destination}
           snapshot={data.detail.weather}
           packingList={data.detail.packingList}
+          onFetched={() => reload()}
+        />
+
+        <DestinationFacts
+          tripId={tripId}
+          destination={trip.destination}
+          snapshot={data.detail.destinationFacts}
+          countryFacts={data.detail.countryFacts}
+          astro={data.detail.astro}
           onFetched={() => reload()}
         />
 

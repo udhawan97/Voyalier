@@ -46,6 +46,7 @@ import type {
   TripSummary,
   UpdateTripInput,
   VaultStatus,
+  DestinationFactsSnapshot,
   WeatherSnapshot,
 } from "@voyalier/contracts";
 
@@ -283,6 +284,12 @@ export function createHttpGateway(
 
     fetchWeather: (tripId: string) =>
       request<WeatherSnapshot>("POST", `/api/v1/trips/${enc(tripId)}/weather`),
+
+    fetchDestinationFacts: (tripId: string) =>
+      request<DestinationFactsSnapshot>(
+        "POST",
+        `/api/v1/trips/${enc(tripId)}/destination-facts`,
+      ),
 
     searchTrip: (tripId: string, query: string) =>
       request<SearchHit[]>(

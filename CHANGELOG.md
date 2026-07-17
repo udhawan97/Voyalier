@@ -8,6 +8,19 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Added
 
+- **A destination-facts card: the sky, the money, and the practical stuff.** One
+  click now answers the small questions every trip raises. **Sky** shows
+  sunrise, sunset and the moon phase for each day, computed on your device from
+  the destination's coordinates — no network, no source to go stale, and polar
+  day or night stated plainly rather than as a sunrise that never comes.
+  **Money** shows the destination's currency against the US dollar, euro and
+  pound using the European Central Bank's daily reference rates, clearly
+  labelled indicative — not the rate your card or an ATM will give — and honest
+  when the ECB doesn't publish a currency. **Practical** carries the plug types,
+  voltage, which side they drive on, the calling code, and the emergency number,
+  for the same countries the advice panel covers. Adds `fetchDestinationFacts`
+  across every transport; the country facts and sun/moon days are worked out
+  fresh on each read, so a corrected fact is never frozen into an old snapshot.
 - **Typical weather, air quality, alerts, and a packing list — on the click you
   already make.** The outlook used to stop at a 16-day forecast, which is silent
   about the trips people actually plan months ahead. Fetching now also asks what
