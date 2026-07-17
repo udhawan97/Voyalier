@@ -78,6 +78,14 @@ pub struct DestinationFactsSnapshot {
     /// source could not be reached.
     pub currency_rates: Vec<CurrencyRate>,
     pub retrieved_at: String,
+    /// The trip origin's geocoded name, when it resolved. Absent for a blank or
+    /// unrecognised origin — the time difference simply is not shown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin_place: Option<String>,
+    /// The origin's minutes east of UTC on the trip's dates, paired with
+    /// [`Self::utc_offset_minutes`] to derive the destination-vs-home gap.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin_utc_offset_minutes: Option<i32>,
 }
 
 /// How far the destination clock runs ahead of (or behind) the trip's origin,

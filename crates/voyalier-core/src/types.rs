@@ -8,7 +8,7 @@ use uuid::Uuid;
 use crate::advisories::AdvisoryPanel;
 use crate::airports::NearbyAirport;
 use crate::astro::AstroDay;
-use crate::facts::{CountryFacts, DestinationFactsSnapshot};
+use crate::facts::{CountryFacts, DestinationFactsSnapshot, TimeDifference};
 use crate::packing::PackingSuggestion;
 use crate::weather::WeatherSnapshot;
 
@@ -110,6 +110,11 @@ pub struct TripDetail {
     /// snapshot's coordinates. Bundled and offline; empty without a snapshot.
     #[serde(default)]
     pub nearest_airports: Vec<NearbyAirport>,
+    /// How far the destination clock runs ahead of (or behind) the trip's
+    /// origin, derived on read from the snapshot's two stored offsets. Present
+    /// only once the origin has been geocoded. Derived, never read back.
+    #[serde(default, skip_deserializing, skip_serializing_if = "Option::is_none")]
+    pub time_difference: Option<TimeDifference>,
 }
 
 /// Which deterministic plan-completeness check a readiness item reports on.
