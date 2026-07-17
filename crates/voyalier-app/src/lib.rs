@@ -26,15 +26,15 @@ use voyalier_core::{
     SourceDocument, SuggestionSource, TodayView, TravelAdviceSnapshot, Trip, TripAssessment,
     TripBrief, TripDetail, TripNotes, TripStatus, TripSummary, UpdateTripInput, WarningCode,
     WeatherSnapshot, assess_trip, build_assist_preview, build_assist_request, build_draft_preview,
-    build_pull_body, build_today_view, build_trip_brief, changed_payload_fields, estimate_tokens,
-    interpret_key_validation, interpret_pull_response, new_id, now_rfc3339,
-    offline_map_download_url, pack_catalog, pack_download_url, parse_assist_reply,
-    parse_fcdo_content, parse_forecast_response, parse_geocoding_response, parse_import,
-    parse_lodging_dates_reply, parse_pack_content, provider_info, provider_validation_endpoint,
-    provider_validation_headers, rank_field_suggestions, recommend_places, search_trip_corpus,
-    suggest_packs, suggest_search_terms, validate_api_key, validate_country_slug,
-    validate_create_trip, validate_fact_payload, validate_model_name, validate_pack_id,
-    validate_provider_id, validate_search_query, validate_update_trip,
+    build_key_validation_request, build_pull_body, build_today_view, build_trip_brief,
+    changed_payload_fields, estimate_tokens, interpret_key_validation, interpret_pull_response,
+    new_id, now_rfc3339, offline_map_download_url, pack_catalog, pack_download_url,
+    parse_assist_reply, parse_fcdo_content, parse_forecast_response, parse_geocoding_response,
+    parse_import, parse_lodging_dates_reply, parse_pack_content, provider_info,
+    rank_field_suggestions, recommend_places, search_trip_corpus, suggest_packs,
+    suggest_search_terms, validate_api_key, validate_country_slug, validate_create_trip,
+    validate_fact_payload, validate_model_name, validate_pack_id, validate_provider_id,
+    validate_search_query, validate_update_trip,
 };
 use voyalier_core::{
     VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, VaultStatus, derive_key as vault_derive_key,
@@ -1279,26 +1279,18 @@ impl AppService {
         provider: &str,
         key: &str,
     ) -> Result<KeyValidation, AppError> {
+        // Which endpoint, which headers, what a keyless provider means, and what
+        // a reply is worth all belong to core. This adds only the fetch.
         let id = validate_provider_id(provider)?;
-        let Some(endpoint) = provider_validation_endpoint(id) else {
-            return Err(AppError::with_detail(
-                ErrorCode::ValidationInvalidInput,
-                "this provider runs locally and has no key to validate",
-                "field",
-                "provider",
-            ));
-        };
-        let key = validate_api_key(key)?;
-        let headers = provider_validation_headers(id, &key);
-        let header_refs: Vec<(&str, &str)> = headers
+        let request = build_key_validation_request(id, key)?;
+        let header_refs: Vec<(&str, &str)> = request
+            .headers
             .iter()
             .map(|(name, value)| (name.as_str(), value.as_str()))
             .collect();
-        // Both the reply and the no-reply case resolve through core's one
-        // verdict table, so an unreachable provider reads the same either way.
         Ok(interpret_key_validation(
             self.fetcher
-                .get_status(endpoint, &header_refs)
+                .get_status(request.url, &header_refs)
                 .map_err(|_| ()),
         ))
     }

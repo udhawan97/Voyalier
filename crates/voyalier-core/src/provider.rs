@@ -171,7 +171,7 @@ pub struct KeyValidation {
 
 /// The cheap, read-only endpoint used to prove a BYOK key works. `None` for
 /// keyless providers (Ollama), which have no key to validate.
-pub fn provider_validation_endpoint(id: ProviderId) -> Option<&'static str> {
+fn provider_validation_endpoint(id: ProviderId) -> Option<&'static str> {
     match id {
         ProviderId::OpenAi => Some("https://api.openai.com/v1/models"),
         ProviderId::Anthropic => Some("https://api.anthropic.com/v1/models"),
@@ -179,9 +179,9 @@ pub fn provider_validation_endpoint(id: ProviderId) -> Option<&'static str> {
     }
 }
 
-/// The auth headers to send when validating `id`'s key. Empty for keyless
-/// providers. The key is placed only in the returned header value.
-pub fn provider_validation_headers(id: ProviderId, key: &str) -> Vec<(String, String)> {
+/// The auth headers to send when validating `id`'s key. The key is placed only
+/// in the returned header value.
+fn provider_validation_headers(id: ProviderId, key: &str) -> Vec<(String, String)> {
     match id {
         ProviderId::OpenAi => vec![("Authorization".to_owned(), format!("Bearer {key}"))],
         ProviderId::Anthropic => vec![
@@ -190,6 +190,44 @@ pub fn provider_validation_headers(id: ProviderId, key: &str) -> Vec<(String, St
         ],
         ProviderId::Ollama => Vec::new(),
     }
+}
+
+/// Everything needed to check one BYOK key against its provider.
+///
+/// The key appears only inside `headers` — never in the url, and never stored
+/// or logged.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeyValidationRequest {
+    pub url: &'static str,
+    pub headers: Vec<(String, String)>,
+}
+
+/// Build the request that proves `id`'s key works: which endpoint, and which
+/// auth headers carry the key.
+///
+/// Which endpoint pairs with which header shape is this module's knowledge.
+/// Assembling it at the call site meant the caller also decided what a keyless
+/// provider means, and validated the key on its own initiative.
+///
+/// Keyless providers (Ollama) have nothing to validate and are rejected as
+/// invalid input rather than silently succeeding.
+pub fn build_key_validation_request(
+    id: ProviderId,
+    key: &str,
+) -> Result<KeyValidationRequest, AppError> {
+    let Some(url) = provider_validation_endpoint(id) else {
+        return Err(AppError::with_detail(
+            ErrorCode::ValidationInvalidInput,
+            "this provider runs locally and has no key to validate",
+            "field",
+            "provider",
+        ));
+    };
+    let key = validate_api_key(key)?;
+    Ok(KeyValidationRequest {
+        url,
+        headers: provider_validation_headers(id, &key),
+    })
 }
 
 /// Interpret a validation attempt into a verdict.
@@ -337,28 +375,61 @@ mod tests {
 
     #[test]
     fn validation_targets_only_cloud_providers() {
-        assert!(provider_validation_endpoint(ProviderId::OpenAi).is_some());
-        assert!(provider_validation_endpoint(ProviderId::Anthropic).is_some());
-        assert!(provider_validation_endpoint(ProviderId::Ollama).is_none());
+        // Ollama is keyless: there is nothing to validate, and building a
+        // request for it is invalid input rather than a silent success.
+        assert!(build_key_validation_request(ProviderId::OpenAi, "sk-abc").is_ok());
+        assert!(build_key_validation_request(ProviderId::Anthropic, "sk-ant").is_ok());
+        assert_eq!(
+            build_key_validation_request(ProviderId::Ollama, "x")
+                .expect_err("keyless")
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
     }
 
     #[test]
-    fn validation_headers_carry_the_key_per_provider() {
-        let openai = provider_validation_headers(ProviderId::OpenAi, "sk-abc");
+    fn validation_request_carries_the_key_only_in_its_headers() {
+        let openai =
+            build_key_validation_request(ProviderId::OpenAi, "sk-abc").expect("request builds");
         assert_eq!(
-            openai,
+            openai.headers,
             vec![("Authorization".to_owned(), "Bearer sk-abc".to_owned())]
         );
+        assert!(!openai.url.contains("sk-abc"));
 
-        let anthropic = provider_validation_headers(ProviderId::Anthropic, "sk-ant");
-        assert!(anthropic.contains(&("x-api-key".to_owned(), "sk-ant".to_owned())));
+        let anthropic =
+            build_key_validation_request(ProviderId::Anthropic, "sk-ant").expect("request builds");
         assert!(
             anthropic
+                .headers
+                .contains(&("x-api-key".to_owned(), "sk-ant".to_owned()))
+        );
+        assert!(
+            anthropic
+                .headers
                 .iter()
                 .any(|(name, value)| name == "anthropic-version" && value == ANTHROPIC_VERSION)
         );
+        assert!(!anthropic.url.contains("sk-ant"));
+    }
 
-        assert!(provider_validation_headers(ProviderId::Ollama, "x").is_empty());
+    #[test]
+    fn a_validation_request_rejects_an_unusable_key() {
+        // The key is validated as part of building the request, so no caller has
+        // to remember to do it first.
+        assert_eq!(
+            build_key_validation_request(ProviderId::OpenAi, "   ")
+                .expect_err("blank key")
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
+        let too_long = "k".repeat(MAX_API_KEY_LEN + 1);
+        assert_eq!(
+            build_key_validation_request(ProviderId::OpenAi, &too_long)
+                .expect_err("over-long key")
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
     }
 
     #[test]
