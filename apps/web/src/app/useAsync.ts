@@ -22,7 +22,10 @@ interface Settled<T> {
 
 /**
  * Load async data and track loading/success/error. `key` must encode every input
- * the loader depends on (e.g. `${tripId}:${reloadKey}`); a change re-runs it.
+ * the loader depends on; a change re-runs it. For anything a mutation can
+ * invalidate, get the key from `useScopeKey` — it encodes the scope's version,
+ * so a `revalidate` of that scope re-runs this loader and nothing else.
+ *
  * Loading is derived (the settled result is stale for the current run), so the
  * effect only ever calls setState from its async callbacks — never synchronously.
  */

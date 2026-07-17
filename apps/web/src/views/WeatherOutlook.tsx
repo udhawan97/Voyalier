@@ -1,9 +1,9 @@
-import { useState } from "react";
-import type { AppError, WeatherSnapshot } from "@voyalier/contracts";
+import type { WeatherSnapshot } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError, formatDate, formatDateTimeLocal } from "../app/format";
 import { t } from "../app/i18n";
+import { useAsyncAction } from "../app/useAsync";
 import { SectionTitle } from "../components/primitives";
 import { CloudSunIcon } from "../components/icons";
 import { Banner } from "../components/Banner";
@@ -44,22 +44,16 @@ export function WeatherOutlook({
 }) {
   const gateway = useGateway();
   const announce = useAnnounce();
-  const [fetching, setFetching] = useState(false);
-  const [error, setError] = useState<AppError | null>(null);
-
-  async function fetchOutlook() {
-    setError(null);
-    setFetching(true);
-    try {
-      const fetched = await gateway.fetchWeather(tripId);
+  const fetchAction = useAsyncAction(
+    () => gateway.fetchWeather(tripId),
+    (fetched) => {
       announce(t("weather.announce.saved", { place: fetched.placeName }));
       onFetched();
-    } catch (caught) {
-      setError(caught as AppError);
-    } finally {
-      setFetching(false);
-    }
-  }
+    },
+  );
+  const fetchOutlook = () => fetchAction.run();
+  const fetching = fetchAction.busy;
+  const error = fetchAction.error;
 
   const staleHours = snapshot ? hoursSince(snapshot.retrievedAt) : null;
   const isStale = staleHours !== null && staleHours > STALE_AFTER_HOURS;

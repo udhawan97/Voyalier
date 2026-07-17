@@ -6,12 +6,11 @@
 //! reads. Forgetting used to return `v1:<base64>` straight to the UI with
 //! nothing objecting; now it fails a test.
 //!
-//! For trips, candidates, and confirmed facts, this module also owns the SQL and
-//! the row mapping, so the sealing happens where the columns are read rather
-//! than being remembered at each `SELECT`. **`source_documents.raw_content` and
-//! `trip_notes.body` are not there yet**: their SQL still lives in `lib.rs` and
-//! calls [`Records::seal`] / [`Records::open`] by hand. The test covers them; the
-//! structure does not.
+//! This module also owns the SQL and the row mapping for every one of them, so
+//! the sealing happens where the columns are read and written rather than being
+//! remembered at each `SELECT`. There is no `seal`/`open` escape hatch: a caller
+//! that could reach one would be remembering to seal, which is the thing this
+//! module exists to stop.
 //!
 //! Two smaller consequences fall out of that:
 //!
@@ -29,7 +28,8 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 use voyalier_core::{
-    AppError, CandidateFact, CandidateStatus, ConfirmedFact, ErrorCode, Trip, TripSummary,
+    AppError, CandidateFact, CandidateStatus, ConfirmedFact, DocumentContent, ErrorCode,
+    SourceDocument, Trip, TripNotes, TripSummary,
 };
 
 use crate::{DocumentText, Vault, storage_error};
@@ -59,6 +59,9 @@ const CANDIDATE_COLUMNS: &str = "id, trip_id, document_id, parser_run_id, fact_t
      method, field_spans, warnings, status, created_at, resolved_at";
 const CONFIRMED_COLUMNS: &str = "id, trip_id, fact_type, payload, method, candidate_id, \
      corrected_fields, confirmed_at, source_removed";
+/// A document's metadata. `raw_content` is deliberately not here: it is sealed,
+/// and only `document_content` returns it.
+const DOCUMENT_COLUMNS: &str = "id, trip_id, kind, label, content_hash, char_count, imported_at";
 
 /// Reads and writes for the sealed records, over a bound connection and vault.
 ///
@@ -349,21 +352,121 @@ impl<'a> Records<'a> {
             .collect()
     }
 
-    // ---- vault-bound helpers ---------------------------------------------
-
-    /// Seal a value for one of [`SEALED_COLUMNS`].
-    ///
-    /// The escape hatch for the two sealed columns whose SQL is still in
-    /// `lib.rs` (`source_documents.raw_content`, `trip_notes.body`) — a caller
-    /// using this is remembering to seal, which is the thing this module exists
-    /// to stop. Move that SQL here and this goes away.
-    pub(crate) fn seal(&self, plaintext: &str) -> Result<String, AppError> {
-        self.vault.seal_field(plaintext)
+    /// Insert an imported document, sealing its body.
+    pub(crate) fn insert_document(
+        &self,
+        document: &SourceDocument,
+        content: &str,
+    ) -> Result<(), AppError> {
+        self.connection
+            .execute(
+                &format!(
+                    "INSERT INTO source_documents ({DOCUMENT_COLUMNS}, raw_content)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
+                ),
+                params![
+                    document.id,
+                    document.trip_id,
+                    to_sql_enum(document.kind)?,
+                    document.label,
+                    document.content_hash,
+                    document.char_count,
+                    document.imported_at,
+                    // raw_content is sealed: see SEALED_COLUMNS.
+                    self.vault.seal_field(content)?
+                ],
+            )
+            .map_err(storage_error)?;
+        Ok(())
     }
 
-    /// Open a value from one of [`SEALED_COLUMNS`]. See [`Records::seal`].
-    pub(crate) fn open(&self, stored: &str) -> Result<String, AppError> {
-        self.vault.open_field(stored)
+    /// Read one document with its body opened, or [`ErrorCode::DocumentNotFound`].
+    ///
+    /// The only path that returns an imported body. `documents` deliberately has
+    /// no counterpart: a listing has no business carrying one.
+    pub(crate) fn document_content(&self, document_id: &str) -> Result<DocumentContent, AppError> {
+        let (document, sealed) = self
+            .connection
+            .query_row(
+                &format!(
+                    "SELECT {DOCUMENT_COLUMNS}, raw_content FROM source_documents WHERE id = ?1"
+                ),
+                params![document_id],
+                |row| Ok((raw_document(row)?, row.get::<_, String>("raw_content")?)),
+            )
+            .optional()
+            .map_err(storage_error)?
+            .ok_or_else(|| {
+                AppError::new(
+                    ErrorCode::DocumentNotFound,
+                    "that document no longer exists",
+                )
+            })?;
+        Ok(DocumentContent {
+            document: open_document(document)?,
+            content: self.vault.open_field(&sealed)?,
+        })
+    }
+
+    // ---- notes -----------------------------------------------------------
+
+    /// A trip's notes, body opened. Absent notes are an empty body, not an
+    /// error — "nothing written yet" is the normal first state.
+    pub(crate) fn trip_notes(&self, trip_id: &str) -> Result<TripNotes, AppError> {
+        let stored: Option<(String, String)> = self
+            .connection
+            .query_row(
+                "SELECT body, updated_at FROM trip_notes WHERE trip_id = ?1",
+                params![trip_id],
+                |row| Ok((row.get("body")?, row.get("updated_at")?)),
+            )
+            .optional()
+            .map_err(storage_error)?;
+        match stored {
+            Some((sealed, updated_at)) => Ok(TripNotes {
+                trip_id: trip_id.to_owned(),
+                body: self.vault.open_field(&sealed)?,
+                updated_at: Some(updated_at),
+            }),
+            None => Ok(TripNotes {
+                trip_id: trip_id.to_owned(),
+                body: String::new(),
+                updated_at: None,
+            }),
+        }
+    }
+
+    /// Store a trip's notes, sealing the body. `updated_at` is the caller's
+    /// clock — this module does not have one.
+    pub(crate) fn upsert_trip_notes(
+        &self,
+        trip_id: &str,
+        body: &str,
+        id: &str,
+        updated_at: &str,
+    ) -> Result<(), AppError> {
+        self.connection
+            .execute(
+                "INSERT INTO trip_notes (id, trip_id, body, updated_at)
+                 VALUES (?1, ?2, ?3, ?4)
+                 ON CONFLICT(trip_id) DO UPDATE SET body = ?3, updated_at = ?4",
+                // body is sealed: see SEALED_COLUMNS.
+                params![id, trip_id, self.vault.seal_field(body)?, updated_at],
+            )
+            .map_err(storage_error)?;
+        Ok(())
+    }
+
+    /// Remove a trip's notes. Clearing drops the row rather than storing an
+    /// empty string, so "no notes" is one state and not two.
+    pub(crate) fn delete_trip_notes(&self, trip_id: &str) -> Result<(), AppError> {
+        self.connection
+            .execute(
+                "DELETE FROM trip_notes WHERE trip_id = ?1",
+                params![trip_id],
+            )
+            .map_err(storage_error)?;
+        Ok(())
     }
 
     fn open_candidate(&self, raw: RawCandidate) -> Result<CandidateFact, AppError> {
@@ -468,6 +571,41 @@ fn raw_confirmed(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawConfirmed> {
         corrected_fields: row.get("corrected_fields")?,
         confirmed_at: row.get("confirmed_at")?,
         source_removed: row.get("source_removed")?,
+    })
+}
+
+struct RawDocument {
+    id: String,
+    trip_id: String,
+    kind: String,
+    label: String,
+    content_hash: String,
+    char_count: u32,
+    imported_at: String,
+}
+
+fn raw_document(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawDocument> {
+    Ok(RawDocument {
+        id: row.get("id")?,
+        trip_id: row.get("trip_id")?,
+        kind: row.get("kind")?,
+        label: row.get("label")?,
+        content_hash: row.get("content_hash")?,
+        char_count: row.get("char_count")?,
+        imported_at: row.get("imported_at")?,
+    })
+}
+
+/// A document row carries no sealed metadata; only its kind needs decoding.
+fn open_document(raw: RawDocument) -> Result<SourceDocument, AppError> {
+    Ok(SourceDocument {
+        id: raw.id,
+        trip_id: raw.trip_id,
+        kind: from_sql_enum(&raw.kind)?,
+        label: raw.label,
+        content_hash: raw.content_hash,
+        char_count: raw.char_count,
+        imported_at: raw.imported_at,
     })
 }
 

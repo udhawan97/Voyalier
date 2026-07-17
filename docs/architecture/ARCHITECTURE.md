@@ -31,6 +31,14 @@ Axum route, Tauri command, gateway implementation, mock, and tests agree.
   recommendations, maps, AI preview, vault state, and the shareable brief.
 - Selects HTTP, Tauri, or mock transport through `AppGateway`.
 - Owns interaction and accessibility, not travel-rule authority.
+- Owns the words. The core reports findings and counts; `app/i18n` turns those
+  into sentences, and pluralizes them through `Intl.PluralRules`.
+- Reads and writes through `app/useAsync`: `useAsyncData` for a load,
+  `useAsyncAction` for a mutation. Errors normalize once, so a view never casts
+  a caught value it did not check.
+- Names what it invalidates. A view subscribes to a scope (`app/revalidate`); a
+  mutation revalidates the scopes it changed, and only views reading those
+  re-fetch.
 - Makes the consent-gated map-tile request only after **Show map** is selected.
 
 ### `apps/desktop/src-tauri` — native shell
@@ -157,9 +165,8 @@ their own applicability. Steps added since can trust the version.
 
 Which columns the vault seals is declared once, and that declaration drives a
 test holding each of them to being ciphertext on disk and plaintext through the
-reads. Trips, candidates, and confirmed facts are read and written through one
-module that seals where it maps the columns; the document body and trip notes
-still seal by hand at their own SQL.
+reads. Every record carrying one is read and written through a single module that
+seals where it maps the columns, so no call site has to remember to.
 
 Raw imported content and sensitive confirmed-fact payloads have three vault
 states:
@@ -199,7 +206,8 @@ aggregation, background scraping, or silent document upload.
 - Rust and TypeScript contracts stay aligned across both transports.
 - The rules the mock gateway mirrors agree with the core, against shared golden
   files: validation limits (and the units they count in), place folding, the
-  default AI instructions, and the official-source links.
+  default AI instructions, the official-source links, and — as output, over
+  twelve trips — itinerary conflicts and the readiness rollup.
 - Every `ErrorCode` appears in the contract's `AppError` schema. The list is
   hand-kept, but an exhaustive match beside it means adding a variant is a
   compile error at the line that says to extend it.

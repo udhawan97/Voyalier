@@ -1,10 +1,16 @@
 import { useState } from "react";
-import type { AppError, DocumentSummary } from "@voyalier/contracts";
+import type { DocumentSummary } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError, formatDate } from "../app/format";
 import { plural, t, type MessageKey } from "../app/i18n";
-import { useAsyncData } from "../app/useAsync";
+import {
+  documentsScope,
+  tripScope,
+  useRevalidate,
+  useScopeKey,
+} from "../app/revalidate";
+import { useAsyncAction, useAsyncData } from "../app/useAsync";
 import { Button } from "../components/Button";
 import { ConfirmButton } from "../components/ConfirmButton";
 import { FileTextIcon } from "../components/icons";
@@ -47,11 +53,22 @@ function DocumentRow({
   const announce = useAnnounce();
   const [content, setContent] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const { document, pendingCount, confirmedCount } = summary;
 
-  async function toggle() {
+  const showAction = useAsyncAction(
+    () => gateway.getDocument(document.id),
+    (stored) => {
+      setContent(stored.content);
+      setOpen(true);
+    },
+  );
+
+  /**
+   * Show the body, hide it, or fetch it once. An unsealed body is only read on
+   * request and then kept, so re-opening costs nothing and a listing never
+   * carries one.
+   */
+  function toggle() {
     if (open) {
       setOpen(false);
       return;
@@ -60,31 +77,19 @@ function DocumentRow({
       setOpen(true);
       return;
     }
-    setBusy(true);
-    setError(null);
-    try {
-      const stored = await gateway.getDocument(document.id);
-      setContent(stored.content);
-      setOpen(true);
-    } catch (caught) {
-      setError(describeError(caught as AppError).title);
-    } finally {
-      setBusy(false);
-    }
+    void showAction.run();
   }
 
-  async function remove() {
-    setBusy(true);
-    setError(null);
-    try {
-      await gateway.deleteDocument(document.id);
+  const removeAction = useAsyncAction(
+    () => gateway.deleteDocument(document.id),
+    () => {
       announce(t("documents.removed", { label: document.label }));
       onRemoved();
-    } catch (caught) {
-      setError(describeError(caught as AppError).title);
-      setBusy(false);
-    }
-  }
+    },
+  );
+
+  const busy = showAction.busy || removeAction.busy;
+  const error = showAction.error ?? removeAction.error;
 
   return (
     <li className="voy-doc">
@@ -129,7 +134,7 @@ function DocumentRow({
 
       {error ? (
         <p className="voy-doc__error" role="alert">
-          {error}
+          {describeError(error).title}
         </p>
       ) : null}
 
@@ -139,7 +144,7 @@ function DocumentRow({
         </Button>
         <ConfirmButton
           label={t("documents.remove")}
-          onConfirm={remove}
+          onConfirm={() => removeAction.run()}
           busy={busy}
         />
       </div>
@@ -161,25 +166,12 @@ function DocumentRow({
  * local-first, privacy-first product that was the loudest missing flow: the
  * promise is that your evidence stays yours, which has to include removing it.
  */
-export function DocumentsPanel({
-  tripId,
-  reloadKey,
-  onChanged,
-}: {
-  tripId: string;
-  reloadKey?: number;
-  /**
-   * Called after a deletion, because removing a document reaches beyond this
-   * panel: facts confirmed from it are flagged `sourceRemoved`, and the cards
-   * showing them live on the trip page. Without this the Blueprint would keep
-   * claiming evidence that is already gone until the next manual refresh.
-   */
-  onChanged?: () => void;
-}) {
+export function DocumentsPanel({ tripId }: { tripId: string }) {
   const gateway = useGateway();
-  const { status, data, error, reload } = useAsyncData(
+  const revalidate = useRevalidate();
+  const { status, data, error } = useAsyncData(
     () => gateway.listDocuments(tripId),
-    `documents:${tripId}:${reloadKey ?? 0}`,
+    useScopeKey(documentsScope(tripId)),
   );
 
   return (
@@ -201,10 +193,14 @@ export function DocumentsPanel({
             <DocumentRow
               key={summary.document.id}
               summary={summary}
-              onRemoved={() => {
-                reload();
-                onChanged?.();
-              }}
+              // Removing a document reaches beyond this panel: facts
+              // confirmed from it are flagged `sourceRemoved`, and the cards
+              // showing them live on the trip page. Naming both scopes is how
+              // this panel says so — it used to need a callback prop from a
+              // parent that then refetched itself entirely.
+              onRemoved={() =>
+                revalidate(documentsScope(tripId), tripScope(tripId))
+              }
             />
           ))}
         </ul>

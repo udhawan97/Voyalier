@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { AppError, AppGateway } from "@voyalier/contracts";
 
 import { AnnounceContext, GatewayContext, UpdaterContext } from "./app/context";
+import { RevalidateProvider, useRevalidateAll } from "./app/revalidate";
 import { t } from "./app/i18n";
 import { selectGateway, toAppError } from "./gateway";
 import { selectUpdater, type UpdaterGateway } from "./updater";
@@ -17,10 +18,25 @@ import { VaultUnlock } from "./views/VaultUnlock";
 type View =
   { name: "list" } | { name: "trip"; tripId: string } | { name: "settings" };
 
-export function App({
+type AppProps = { gateway?: AppGateway; updater?: UpdaterGateway };
+
+/**
+ * Revalidation has to wrap the workspace, because the workspace revalidates:
+ * `retry` refetches everything after the engine goes unreachable. Splitting the
+ * provider out keeps `<App gateway={...}/>` the whole mounting story for tests.
+ */
+export function App(props: AppProps = {}) {
+  return (
+    <RevalidateProvider>
+      <Workspace {...props} />
+    </RevalidateProvider>
+  );
+}
+
+function Workspace({
   gateway: injected,
   updater: injectedUpdater,
-}: { gateway?: AppGateway; updater?: UpdaterGateway } = {}) {
+}: AppProps = {}) {
   const [gateway] = useState<AppGateway>(() => injected ?? selectGateway());
   // A STABLE updater instance (see useUpdater's contract): created once so the
   // App-level state machine doesn't re-fire its mount effect every render.
@@ -28,12 +44,12 @@ export function App({
     () => injectedUpdater ?? selectUpdater(),
   );
   const updaterController = useUpdater(updater);
+  const revalidateAll = useRevalidateAll();
   const [view, setView] = useState<View>({ name: "list" });
   // Where "Back" from Settings returns to (the view Settings was opened from).
   const [returnView, setReturnView] = useState<View>({ name: "list" });
   const [health, setHealth] = useState<HealthState>("checking");
   const [healthError, setHealthError] = useState<AppError | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
   const [message, setMessage] = useState("");
   // Whether the encrypted vault needs a passphrase before the workspace opens.
   // `null` until the first check completes (treated as "not locked").
@@ -94,9 +110,11 @@ export function App({
   const retry = useCallback(() => {
     setHealth("checking");
     setHealthError(null);
-    setReloadKey((key) => key + 1);
+    // The one caller that cannot name what changed: the app just failed to
+    // reach its engine, so nothing on screen is trustworthy.
+    revalidateAll();
     probeHealth();
-  }, [probeHealth]);
+  }, [probeHealth, revalidateAll]);
 
   return (
     <GatewayContext.Provider value={gateway}>
@@ -125,12 +143,11 @@ export function App({
               ) : view.name === "settings" ? (
                 <SettingsView onBack={leaveSettings} />
               ) : view.name === "list" ? (
-                <TripListView onOpenTrip={openTrip} reloadKey={reloadKey} />
+                <TripListView onOpenTrip={openTrip} />
               ) : (
                 <TripDetailView
                   key={view.tripId}
                   tripId={view.tripId}
-                  reloadKey={reloadKey}
                   onBack={openList}
                   onDeleted={openList}
                   onOpenSettings={openSettings}

@@ -59,11 +59,14 @@ pub use packs::{
 // which parser handles which `DocumentKind` is this module's knowledge, not its
 // callers'. `parse_import` is the way in.
 pub use parser::{DocumentParse, ParsedCandidate, parse_import};
+// The validation endpoint and its auth headers stay internal: which pairs with
+// which provider is `provider`'s knowledge. `build_key_validation_request` is
+// the way in.
 pub use provider::{
-    KeyValidation, KeyValidationStatus, MAX_API_KEY_LEN, MAX_MODEL_LEN, PROVIDERS, ProviderConfig,
-    ProviderId, ProviderInfo, interpret_key_validation, provider_info,
-    provider_validation_endpoint, provider_validation_headers, validate_api_key,
-    validate_model_name, validate_provider_id,
+    KeyValidation, KeyValidationRequest, KeyValidationStatus, MAX_API_KEY_LEN, MAX_MODEL_LEN,
+    PROVIDERS, ProviderConfig, ProviderId, ProviderInfo, build_key_validation_request,
+    interpret_key_validation, provider_info, validate_api_key, validate_model_name,
+    validate_provider_id,
 };
 pub use readiness::{TripAssessment, assess_trip};
 pub use recommend::{PersonaWeights, Recommendation, recommend_places};

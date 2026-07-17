@@ -766,4 +766,8 @@ export interface AppGateway {
 export { createMockGateway } from "./mock";
 // Exported for the cross-language parity tests, which hold this and the Rust
 // core to the same golden file. Not part of the gateway surface.
-export { mockNormalizePlace } from "./mock";
+export {
+  assessReadiness as mockAssessReadiness,
+  detectItineraryConflicts as mockDetectItineraryConflicts,
+  mockNormalizePlace,
+} from "./mock";

@@ -43,10 +43,15 @@ Facts both languages must agree on live in `packages/contracts/parity/*.json`.
 A Rust test holds the core to each file; a TypeScript test holds the contract and
 its mock to the same file. Drift on either side fails a test.
 
-Today that covers `limits.json`, `normalize-place.json`, `prompts.json`, and
-`readiness-links.json`. Where a value can simply be _read_ rather than mirrored —
-the prompts and the links — the mock imports the file directly, so there is one
-copy of the text and nothing to keep in sync.
+Today that covers `limits.json`, `normalize-place.json`, `prompts.json`,
+`readiness-links.json`, and `assess-trip.json`. Where a value can simply be
+_read_ rather than mirrored — the prompts and the links — the mock imports the
+file directly, so there is one copy of the text and nothing to keep in sync.
+
+`assess-trip.json` pins rule **output**, not just constants: twelve hand-designed
+trips, each with the itinerary conflicts and readiness rollup they produce. The
+constants goldens would not have caught a mirror that computed a different
+verdict; this one does.
 
 Units are part of the agreement, not an implementation detail: every limit counts
 characters, and `countChars` in the contract gives that a name so `.length` never
@@ -72,15 +77,24 @@ creeps back in.
 
 - Adding a rule to the mock that the core also implements means adding a golden
   file for it. That is the cost, and it is the point.
-- The goldens are hand-written, not generated. A generated file would encode
-  whatever the core does today, including its bugs — two of the five drifts were
-  bugs on the _core's_ side, and writing the cases by hand is what surfaced them.
+- Golden **inputs** are hand-designed; that is where the thought goes, and where
+  boundaries (back-to-back flights, a gap at the trip's edge, a stay with no
+  dates) get chosen deliberately. Two of the five original drifts were bugs on
+  the _core's_ side, which hand-writing `normalize-place.json`'s expectations is
+  what surfaced.
+- Golden **outputs** for `assess-trip.json` are generated from the core and then
+  reviewed, because hand-writing a nested `ReadinessSummary` twelve times would
+  be transcription, not thought. The core is the reference implementation and has
+  its own unit tests judging whether it is _right_; this file judges whether the
+  mock _agrees_. Regenerate deliberately, never to turn a red test green. The
+  file records one known quirk it found rather than hiding it: a stay with no
+  dates reports full lodging coverage, in both languages.
 - A shared limit now has one declaration. Changing it fails both languages' tests
   until both follow, which is the intended friction.
-- `mock.ts` still mirrors rule _logic_ (readiness, itinerary conflicts, Today,
-  search, packs). Those mirrors are unpinned; the goldens cover the constants and
-  the folding. Extending them to rule output — feed fixture inputs to both and
-  compare — is the next step if drift shows up there.
+- Readiness and itinerary conflicts are pinned by output. `buildTodayView`,
+  `mockSuggestPacks`, `mockRankFieldSuggestions`, `scoreHaystack`, and
+  `buildShareBrief` are still unpinned mirrors — the same pattern extends to
+  them, one golden each, when drift there matters enough to pay for it.
 
 Related: [ADR-0001](ADR-0001-system-shape.md),
 [ADR-0003](ADR-0003-phase2-contract.md).
