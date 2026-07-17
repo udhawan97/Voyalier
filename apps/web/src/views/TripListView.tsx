@@ -1,12 +1,12 @@
 import { useRef, useState } from "react";
-import type { AppError, TripSummary } from "@voyalier/contracts";
+import type { TripSummary } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError, formatDateRange, tripRoute } from "../app/format";
 import { plural, t } from "../app/i18n";
 import { createSampleTrip } from "../app/sampleTrip";
-import { tripsScope, useScopeKey } from "../app/revalidate";
-import { useAsyncData } from "../app/useAsync";
+import { tripsScope, useRevalidate, useScopeKey } from "../app/revalidate";
+import { useAsyncAction, useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 import { ArchiveIcon, PlusIcon, RetryIcon } from "../components/icons";
@@ -102,6 +102,7 @@ export function TripListView({
 }) {
   const gateway = useGateway();
   const announce = useAnnounce();
+  const revalidate = useRevalidate();
   const { status, data, error, reload } = useAsyncData(
     () => gateway.listTrips(),
     useScopeKey(tripsScope),
@@ -110,7 +111,6 @@ export function TripListView({
   const [deleteTarget, setDeleteTarget] = useState<TripSummary | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
-  const [sampling, setSampling] = useState(false);
   const createBtnRef = useRef<HTMLButtonElement>(null);
 
   /**
@@ -118,44 +118,48 @@ export function TripListView({
    * actually happens — a trip with suggestions waiting to be reviewed — instead
    * of on an empty list that explains nothing.
    */
-  async function buildSample() {
-    setSampling(true);
-    try {
-      const trip = await createSampleTrip(gateway);
+  const sampleAction = useAsyncAction(
+    () => createSampleTrip(gateway),
+    (trip) => {
       announce(t("triplist.announce.created", { title: trip.title }));
       onOpenTrip(trip.id);
-    } catch (caught) {
-      announce(describeError(caught as AppError).title || t("sample.error"));
-    } finally {
-      setSampling(false);
-    }
-  }
+    },
+  );
 
+  const archiveAction = useAsyncAction(
+    (trip: TripSummary) => gateway.archiveTrip(trip.id),
+    (_result, trip) => {
+      announce(t("triplist.announce.archived", { title: trip.title }));
+      revalidate(tripsScope);
+    },
+  );
+
+  const unarchiveAction = useAsyncAction(
+    (trip: TripSummary) => gateway.unarchiveTrip(trip.id),
+    (_result, trip) => {
+      announce(t("triplist.announce.unarchived", { title: trip.title }));
+      revalidate(tripsScope);
+    },
+  );
+
+  // Both are per-card, so a row needs to know which trip is busy. run() never
+  // rejects, so the id always gets cleared.
   async function archive(trip: TripSummary) {
     setBusyId(trip.id);
-    try {
-      await gateway.archiveTrip(trip.id);
-      announce(t("triplist.announce.archived", { title: trip.title }));
-      reload();
-    } catch (caught) {
-      announce(describeError(caught as AppError).title);
-    } finally {
-      setBusyId(null);
-    }
+    await archiveAction.run(trip);
+    setBusyId(null);
   }
 
   async function unarchive(trip: TripSummary) {
     setBusyId(trip.id);
-    try {
-      await gateway.unarchiveTrip(trip.id);
-      announce(t("triplist.announce.unarchived", { title: trip.title }));
-      reload();
-    } catch (caught) {
-      announce(describeError(caught as AppError).title);
-    } finally {
-      setBusyId(null);
-    }
+    await unarchiveAction.run(trip);
+    setBusyId(null);
   }
+
+  // These three used to only announce their failures, so a sighted user watched
+  // the button stop spinning and saw nothing.
+  const actionError =
+    sampleAction.error ?? archiveAction.error ?? unarchiveAction.error;
 
   const trips = data ?? [];
   // Archived trips are hidden by default so they don't clutter the workspace.
@@ -178,6 +182,16 @@ export function TripListView({
           {t("triplist.create")}
         </Button>
       </header>
+
+      {actionError ? (
+        <Banner
+          tone="error"
+          role="alert"
+          title={describeError(actionError).title}
+        >
+          {describeError(actionError).body}
+        </Banner>
+      ) : null}
 
       {status === "loading" && !data ? (
         <div className="voy-triplist__grid" role="status" aria-busy="true">
@@ -225,8 +239,12 @@ export function TripListView({
               </Button>
               {/* An empty workspace is a bad place to learn what Voyalier does.
                   The sample lands mid-review, which is the actual idea. */}
-              <Button variant="secondary" onClick={buildSample} busy={sampling}>
-                {sampling ? t("sample.building") : t("sample.explore")}
+              <Button
+                variant="secondary"
+                onClick={() => sampleAction.run()}
+                busy={sampleAction.busy}
+              >
+                {sampleAction.busy ? t("sample.building") : t("sample.explore")}
               </Button>
             </div>
           }
@@ -289,7 +307,7 @@ export function TripListView({
           onCreated={(trip) => {
             setShowCreate(false);
             announce(t("triplist.announce.created", { title: trip.title }));
-            reload();
+            revalidate(tripsScope);
           }}
         />
       ) : null}
@@ -302,7 +320,7 @@ export function TripListView({
             const title = deleteTarget.title;
             setDeleteTarget(null);
             announce(t("triplist.announce.deleted", { title }));
-            reload();
+            revalidate(tripsScope);
           }}
         />
       ) : null}

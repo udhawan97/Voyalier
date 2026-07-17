@@ -1,16 +1,12 @@
 import { useId, useState } from "react";
-import type {
-  AppError,
-  FcdoCountry,
-  TravelAdviceSnapshot,
-} from "@voyalier/contracts";
+import type { FcdoCountry, TravelAdviceSnapshot } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError, formatDateTimeLocal } from "../app/format";
 import { t } from "../app/i18n";
 import { SectionTitle } from "../components/primitives";
 import { GlobeIcon } from "../components/icons";
-import { useAsyncData } from "../app/useAsync";
+import { useAsyncAction, useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 
@@ -52,26 +48,19 @@ export function TravelAdvice({
     "advice-countries",
   );
   const [slug, setSlug] = useState("");
-  const [fetching, setFetching] = useState(false);
-  const [error, setError] = useState<AppError | null>(null);
-
-  async function fetchAdvice() {
-    if (!slug) return;
-    setError(null);
-    setFetching(true);
-    try {
-      const fetched = await gateway.fetchTravelAdvice({
-        tripId,
-        countrySlug: slug,
-      });
+  const fetchAction = useAsyncAction(
+    (countrySlug: string) => gateway.fetchTravelAdvice({ tripId, countrySlug }),
+    (fetched) => {
       announce(t("advice.announce.saved", { country: fetched.countryName }));
       onFetched();
-    } catch (caught) {
-      setError(caught as AppError);
-    } finally {
-      setFetching(false);
-    }
-  }
+    },
+  );
+  const fetchAdvice = () => {
+    if (!slug) return;
+    void fetchAction.run(slug);
+  };
+  const fetching = fetchAction.busy;
+  const error = fetchAction.error;
 
   const staleDays = snapshot ? daysSince(snapshot.retrievedAt) : null;
   const isStale = staleDays !== null && staleDays > STALE_AFTER_DAYS;

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { AppError, DocumentSummary } from "@voyalier/contracts";
+import type { DocumentSummary } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError, formatDate } from "../app/format";
@@ -10,7 +10,7 @@ import {
   useRevalidate,
   useScopeKey,
 } from "../app/revalidate";
-import { useAsyncData } from "../app/useAsync";
+import { useAsyncAction, useAsyncData } from "../app/useAsync";
 import { Button } from "../components/Button";
 import { ConfirmButton } from "../components/ConfirmButton";
 import { FileTextIcon } from "../components/icons";
@@ -53,11 +53,22 @@ function DocumentRow({
   const announce = useAnnounce();
   const [content, setContent] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const { document, pendingCount, confirmedCount } = summary;
 
-  async function toggle() {
+  const showAction = useAsyncAction(
+    () => gateway.getDocument(document.id),
+    (stored) => {
+      setContent(stored.content);
+      setOpen(true);
+    },
+  );
+
+  /**
+   * Show the body, hide it, or fetch it once. An unsealed body is only read on
+   * request and then kept, so re-opening costs nothing and a listing never
+   * carries one.
+   */
+  function toggle() {
     if (open) {
       setOpen(false);
       return;
@@ -66,31 +77,19 @@ function DocumentRow({
       setOpen(true);
       return;
     }
-    setBusy(true);
-    setError(null);
-    try {
-      const stored = await gateway.getDocument(document.id);
-      setContent(stored.content);
-      setOpen(true);
-    } catch (caught) {
-      setError(describeError(caught as AppError).title);
-    } finally {
-      setBusy(false);
-    }
+    void showAction.run();
   }
 
-  async function remove() {
-    setBusy(true);
-    setError(null);
-    try {
-      await gateway.deleteDocument(document.id);
+  const removeAction = useAsyncAction(
+    () => gateway.deleteDocument(document.id),
+    () => {
       announce(t("documents.removed", { label: document.label }));
       onRemoved();
-    } catch (caught) {
-      setError(describeError(caught as AppError).title);
-      setBusy(false);
-    }
-  }
+    },
+  );
+
+  const busy = showAction.busy || removeAction.busy;
+  const error = showAction.error ?? removeAction.error;
 
   return (
     <li className="voy-doc">
@@ -135,7 +134,7 @@ function DocumentRow({
 
       {error ? (
         <p className="voy-doc__error" role="alert">
-          {error}
+          {describeError(error).title}
         </p>
       ) : null}
 
@@ -145,7 +144,7 @@ function DocumentRow({
         </Button>
         <ConfirmButton
           label={t("documents.remove")}
-          onConfirm={remove}
+          onConfirm={() => removeAction.run()}
           busy={busy}
         />
       </div>
