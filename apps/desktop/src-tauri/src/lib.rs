@@ -8,9 +8,9 @@ use voyalier_core::{
     DocumentContent, DocumentSummary, DownloadedPack, ErrorCode, FcdoCountry, FieldSuggestion,
     HealthResponse, ImportDocumentInput, ImportResult, KeyValidation, LocalAiStatus,
     LocalModelPullResult, OfflineMapArchive, OfflineMapChunk, PackInfo, PackSuggestion,
-    PersonaWeights, ProviderConfig, PublicHolidaysSnapshot, Recommendation, SearchHit, TodayView,
-    Trip, TripBrief, TripDetail, TripNotes, TripSummary, UpdateTripInput, VaultStatus,
-    WeatherSnapshot,
+    PersonaWeights, PlaceSummary, ProviderConfig, PublicHolidaysSnapshot, Recommendation,
+    SearchHit, TodayView, Trip, TripBrief, TripDetail, TripNotes, TripSummary, UpdateTripInput,
+    VaultStatus, WeatherSnapshot,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -516,6 +516,14 @@ fn fetch_public_holidays(
 }
 
 #[tauri::command]
+fn fetch_place_summary(
+    input: TripIdInput,
+    service: State<'_, AppService>,
+) -> Result<PlaceSummary, AppError> {
+    service.fetch_place_summary(&input.trip_id)
+}
+
+#[tauri::command]
 fn delete_trip(input: TripIdInput, service: State<'_, AppService>) -> Result<(), AppError> {
     service.delete_trip(&input.trip_id)
 }
@@ -868,6 +876,7 @@ fn builder<R: tauri::Runtime>(
             fetch_weather,
             fetch_destination_facts,
             fetch_public_holidays,
+            fetch_place_summary,
             delete_trip,
             import_document,
             get_trip_notes,
@@ -1258,6 +1267,7 @@ mod tests {
             "fetch_weather",
             "fetch_destination_facts",
             "fetch_public_holidays",
+            "fetch_place_summary",
             "delete_trip",
             "import_document",
             "list_candidates",

@@ -67,6 +67,8 @@ export interface TripDetail {
    * snapshot.
    */
   worldHeritage: HeritageSite[];
+  /** The latest user-fetched Wikipedia summary of the destination (CC BY-SA). */
+  placeSummary?: PlaceSummary;
 }
 /** The destination-vs-origin wall-clock gap on the trip's dates. */
 export interface TimeDifference {
@@ -117,6 +119,18 @@ export interface HeritageSite {
   distanceKm: number;
   /** Year the site was inscribed, when known. */
   year?: number;
+}
+/** A dated Wikipedia summary of the destination (CC BY-SA). */
+export interface PlaceSummary {
+  /** The article title (the place name Wikipedia resolved to). */
+  title: string;
+  /** The short one-line description, when present. */
+  description: string;
+  /** The plain-text lead summary. */
+  extract: string;
+  /** The canonical article URL, for attribution and "read more". */
+  url: string;
+  retrievedAt: string;
 }
 /** Whether the sun rises and sets at all on a day. */
 export type PolarState = "normal" | "polarDay" | "polarNight";
@@ -1014,6 +1028,8 @@ export interface AppGateway {
   fetchDestinationFacts(tripId: string): Promise<DestinationFactsSnapshot>;
   /** Fetch the destination country's public holidays (Nager.Date), consent-gated. */
   fetchPublicHolidays(tripId: string): Promise<PublicHolidaysSnapshot>;
+  /** Fetch a Wikipedia summary of the destination (Wikimedia REST), consent-gated. */
+  fetchPlaceSummary(tripId: string): Promise<PlaceSummary>;
   searchTrip(tripId: string, query: string): Promise<SearchHit[]>;
   /** Typeahead term suggestions for the query's last word, from the trip corpus. */
   suggestSearchTerms(tripId: string, query: string): Promise<string[]>;

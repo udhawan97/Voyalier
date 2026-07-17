@@ -68,6 +68,7 @@ import type {
   AstroDay,
   CountryFacts,
   DestinationFactsSnapshot,
+  PlaceSummary,
   PublicHolidaysSnapshot,
   HeritageSite,
   NearbyAirport,
@@ -1413,6 +1414,7 @@ export function createMockGateway(options?: {
   const weatherSnapshots = new Map<string, WeatherSnapshot>();
   const destinationFactsSnapshots = new Map<string, DestinationFactsSnapshot>();
   const publicHolidaysSnapshots = new Map<string, PublicHolidaysSnapshot>();
+  const placeSummaries = new Map<string, PlaceSummary>();
   // Provider config: which providers have a key stored, and their chosen model.
   // The mock never retains the key value itself, mirroring the real gateway.
   const providerKeys = new Set<ProviderId>();
@@ -1637,6 +1639,9 @@ export function createMockGateway(options?: {
           worldHeritage,
           ...(timeDifference ? { timeDifference } : {}),
           ...(publicHolidays ? { publicHolidays } : {}),
+          ...(placeSummaries.has(tripId)
+            ? { placeSummary: clone(placeSummaries.get(tripId)!) }
+            : {}),
         } satisfies TripDetail;
       }),
 
@@ -1675,6 +1680,7 @@ export function createMockGateway(options?: {
         if (destination !== existing.destination) {
           advisoryPanels.delete(tripId);
           destinationFactsSnapshots.delete(tripId);
+          placeSummaries.delete(tripId);
         }
         return clone(updated);
       }),
@@ -2621,6 +2627,20 @@ export function createMockGateway(options?: {
         };
         publicHolidaysSnapshots.set(tripId, snapshot);
         return clone(snapshot);
+      }),
+
+    fetchPlaceSummary: (tripId: string) =>
+      execute("fetchPlaceSummary", () => {
+        const trip = requireTrip(tripId);
+        const summary: PlaceSummary = {
+          title: trip.destination,
+          description: "A fictional fixture place",
+          extract: `${trip.destination} is a well-known destination in the fixture world, celebrated for its temples and cuisine.`,
+          url: `https://en.wikipedia.org/wiki/${encodeURIComponent(trip.destination)}`,
+          retrievedAt: timestamp(),
+        };
+        placeSummaries.set(tripId, summary);
+        return clone(summary);
       }),
 
     deleteTrip: (tripId: string) =>

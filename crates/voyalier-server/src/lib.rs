@@ -213,6 +213,7 @@ pub fn app(service: AppService) -> Router {
             "/api/v1/trips/{trip_id}/holidays",
             post(fetch_public_holidays),
         )
+        .route("/api/v1/trips/{trip_id}/summary", post(fetch_place_summary))
         .route("/api/v1/trips/{trip_id}/search", get(search_trip))
         .route(
             "/api/v1/trips/{trip_id}/search-suggestions",
@@ -565,6 +566,13 @@ async fn fetch_public_holidays(
     Path(trip_id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(service.fetch_public_holidays(&trip_id)?))
+}
+
+async fn fetch_place_summary(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.fetch_place_summary(&trip_id)?))
 }
 
 async fn delete_trip(
