@@ -31,7 +31,7 @@ pub use advice::{
 // FCDO list.
 pub use advisories::{
     AdvisoryCountry, AdvisoryEntry, AdvisoryPanel, AdvisorySource, HealthNotice, SourceState,
-    SourceStatus, advisory_country, entry_from_fcdo, parse_us_state,
+    SourceStatus, advisory_country, entry_from_fcdo, parse_ca_gac, parse_de_aa, parse_us_state,
 };
 // Per-provider endpoints, model defaults, body builders, and reply parsers stay
 // internal: which of each pairs with which provider is `assist`'s knowledge.

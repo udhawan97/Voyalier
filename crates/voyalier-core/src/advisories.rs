@@ -439,9 +439,260 @@ pub fn parse_us_state(
     Ok(None)
 }
 
+/// Parse Global Affairs Canada's full advisory list and pick out one country.
+///
+/// The list endpoint carries no prose — the advisory text *is* the level
+/// wording, and the destination page is the content. `summary` is therefore
+/// empty by construction rather than padded with invented words.
+pub fn parse_ca_gac(
+    country: &AdvisoryCountry,
+    country_name: &str,
+    json: &str,
+    retrieved_at: &str,
+) -> Result<Option<AdvisoryEntry>, AppError> {
+    let value: serde_json::Value = serde_json::from_str(json).map_err(|_| unreadable_source())?;
+    let Some(entry) = value.get("data").and_then(|data| data.get(country.iso2)) else {
+        return Ok(None);
+    };
+    let english = entry.get("eng");
+    let slug = english
+        .and_then(|english| english.get("url-slug"))
+        .and_then(|field| field.as_str())
+        .unwrap_or_default();
+
+    Ok(Some(AdvisoryEntry {
+        source: AdvisorySource::CaGac,
+        source_name: "Government of Canada — Global Affairs Canada".to_owned(),
+        country_name: country_name.to_owned(),
+        level_label: english
+            .and_then(|english| english.get("advisory-text"))
+            .and_then(|field| field.as_str())
+            .map(str::to_owned),
+        level_rank: entry
+            .get("advisory-state")
+            .and_then(serde_json::Value::as_u64)
+            .map(|state| state as u8),
+        summary: String::new(),
+        source_url: format!("https://travel.gc.ca/destinations/{slug}"),
+        source_updated_at: entry
+            .get("date-published")
+            .and_then(|published| published.get("asp"))
+            .and_then(|field| field.as_str())
+            .map(str::to_owned),
+        change_description: None,
+        language: "en".to_owned(),
+        attribution: "Open Government Licence – Canada".to_owned(),
+        retrieved_at: retrieved_at.to_owned(),
+    }))
+}
+
+/// Parse the Auswärtiges Amt's full advisory list and pick out one country.
+///
+/// The feed reports severity as four booleans rather than a level, and
+/// publishes in German. Both are carried as-is: the label stays in the
+/// source's language and the rank only tones this card's own badge.
+pub fn parse_de_aa(
+    country: &AdvisoryCountry,
+    country_name: &str,
+    json: &str,
+    retrieved_at: &str,
+) -> Result<Option<AdvisoryEntry>, AppError> {
+    let value: serde_json::Value = serde_json::from_str(json).map_err(|_| unreadable_source())?;
+    let response = value
+        .get("response")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(unreadable_source)?;
+
+    // `lastModified` sits beside the country objects as a bare number, so
+    // select on shape rather than trusting every value to be an object.
+    let Some(entry) = response
+        .values()
+        .filter_map(serde_json::Value::as_object)
+        .find(|entry| {
+            entry
+                .get("countryCode")
+                .and_then(|field| field.as_str())
+                .is_some_and(|code| code == country.iso2)
+        })
+    else {
+        return Ok(None);
+    };
+
+    let flag = |name: &str| {
+        entry
+            .get(name)
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false)
+    };
+    let (label, rank) = if flag("warning") {
+        ("Reisewarnung", 3)
+    } else if flag("partialWarning") {
+        ("Teilreisewarnung", 2)
+    } else if flag("situationWarning") || flag("situationPartWarning") {
+        ("Sicherheitshinweis (verschärft)", 1)
+    } else {
+        ("Reise- und Sicherheitshinweise", 0)
+    };
+
+    Ok(Some(AdvisoryEntry {
+        source: AdvisorySource::DeAa,
+        source_name: "Auswärtiges Amt (Germany)".to_owned(),
+        country_name: country_name.to_owned(),
+        level_label: Some(label.to_owned()),
+        level_rank: Some(rank),
+        summary: entry
+            .get("title")
+            .and_then(|field| field.as_str())
+            .unwrap_or_default()
+            .to_owned(),
+        // The feed has no per-country page URL, only an overview.
+        source_url:
+            "https://www.auswaertiges-amt.de/de/ReiseUndSicherheit/reise-und-sicherheitshinweise"
+                .to_owned(),
+        // The feed stamps epoch seconds, not RFC 3339. Rather than invent a
+        // format, say nothing: `retrieved_at` still dates the card.
+        source_updated_at: None,
+        change_description: None,
+        language: "de".to_owned(),
+        attribution: "Auswärtiges Amt OpenData (Datenlizenz Deutschland – Namensnennung – 2.0)"
+            .to_owned(),
+        retrieved_at: retrieved_at.to_owned(),
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const CA_FIXTURE: &str = r#"{"data": {
+     "JP": {"country-iso": "JP", "country-eng": "Japan", "advisory-state": 0,
+            "date-published": {"asp": "2026-07-16T12:53:48.9258584-04:00"},
+            "eng": {"name": "Japan", "url-slug": "japan",
+                    "advisory-text": "Exercise normal security precautions"}},
+     "FR": {"country-iso": "FR", "country-eng": "France", "advisory-state": 1,
+            "date-published": {"asp": "2026-07-13T14:53:10.4800879-04:00"},
+            "eng": {"name": "France", "url-slug": "france",
+                    "advisory-text": "Exercise a high degree of caution"}}
+    }}"#;
+
+    const DE_FIXTURE: &str = r#"{"response": {"lastModified": 1757063288,
+     "213032": {"lastModified": 1783430993, "effective": 1783431000,
+       "title": "Japan: Reise- und Sicherheitshinweise", "countryCode": "JP",
+       "iso3CountryCode": "JPN", "countryName": "Japan",
+       "warning": false, "partialWarning": true,
+       "situationWarning": false, "situationPartWarning": false},
+     "209524": {"lastModified": 1783339712, "effective": 1783339200,
+       "title": "Frankreich: Reise- und Sicherheitshinweise", "countryCode": "FR",
+       "iso3CountryCode": "FRA", "countryName": "Frankreich",
+       "warning": false, "partialWarning": false,
+       "situationWarning": false, "situationPartWarning": false}
+    }}"#;
+
+    #[test]
+    fn parses_a_canadian_advisory_by_iso2() {
+        let france = advisory_country("france").expect("france");
+        let entry = parse_ca_gac(france, "France", CA_FIXTURE, "2026-07-17T12:00:00Z")
+            .expect("parsed")
+            .expect("present");
+        assert_eq!(entry.source, AdvisorySource::CaGac);
+        assert_eq!(
+            entry.source_name,
+            "Government of Canada — Global Affairs Canada"
+        );
+        assert_eq!(
+            entry.level_label.as_deref(),
+            Some("Exercise a high degree of caution")
+        );
+        assert_eq!(entry.level_rank, Some(1));
+        assert_eq!(entry.source_url, "https://travel.gc.ca/destinations/france");
+        assert_eq!(
+            entry.source_updated_at.as_deref(),
+            Some("2026-07-13T14:53:10.4800879-04:00")
+        );
+        assert_eq!(entry.language, "en");
+        assert_eq!(entry.attribution, "Open Government Licence – Canada");
+        assert_eq!(entry.retrieved_at, "2026-07-17T12:00:00Z");
+    }
+
+    #[test]
+    fn canada_reports_absence_and_rejects_unreadable_json() {
+        // Canada does not publish an advisory about Canada.
+        let canada = advisory_country("canada").expect("canada");
+        assert!(
+            parse_ca_gac(canada, "Canada", CA_FIXTURE, "2026-07-17T12:00:00Z")
+                .expect("parsed")
+                .is_none()
+        );
+        let japan = advisory_country("japan").expect("japan");
+        assert_eq!(
+            parse_ca_gac(japan, "Japan", "nope", "2026-07-17T12:00:00Z")
+                .expect_err("bad json")
+                .code,
+            ErrorCode::AdviceFetchFailed
+        );
+        assert!(
+            parse_ca_gac(japan, "Japan", r#"{"data": {}}"#, "2026-07-17T12:00:00Z")
+                .expect("empty data parses")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn parses_a_german_advisory_with_warning_flags() {
+        let japan = advisory_country("japan").expect("japan");
+        let entry = parse_de_aa(japan, "Japan", DE_FIXTURE, "2026-07-17T12:00:00Z")
+            .expect("parsed")
+            .expect("present");
+        assert_eq!(entry.source, AdvisorySource::DeAa);
+        assert_eq!(entry.source_name, "Auswärtiges Amt (Germany)");
+        assert_eq!(entry.level_label.as_deref(), Some("Teilreisewarnung"));
+        assert_eq!(entry.level_rank, Some(2));
+        // The source publishes in German and Voyalier does not translate it.
+        assert_eq!(entry.language, "de");
+        assert_eq!(entry.summary, "Japan: Reise- und Sicherheitshinweise");
+        // The feed stamps epoch seconds, not RFC 3339: inventing a format here
+        // would be Voyalier asserting a precision the source did not publish.
+        assert_eq!(entry.source_updated_at, None);
+
+        let france = advisory_country("france").expect("france");
+        let entry = parse_de_aa(france, "France", DE_FIXTURE, "2026-07-17T12:00:00Z")
+            .expect("parsed")
+            .expect("present");
+        assert_eq!(
+            entry.level_label.as_deref(),
+            Some("Reise- und Sicherheitshinweise")
+        );
+        assert_eq!(entry.level_rank, Some(0));
+    }
+
+    #[test]
+    fn germany_reports_absence_and_ignores_the_last_modified_scalar() {
+        // Germany does not publish an advisory about Germany.
+        let germany = advisory_country("germany").expect("germany");
+        assert!(
+            parse_de_aa(germany, "Germany", DE_FIXTURE, "2026-07-17T12:00:00Z")
+                .expect("parsed")
+                .is_none()
+        );
+        // `lastModified` sits beside the country objects as a bare number.
+        let japan = advisory_country("japan").expect("japan");
+        assert!(
+            parse_de_aa(
+                japan,
+                "Japan",
+                r#"{"response": {"lastModified": 1757063288}}"#,
+                "2026-07-17T12:00:00Z"
+            )
+            .expect("a list with no countries parses")
+            .is_none()
+        );
+        assert_eq!(
+            parse_de_aa(japan, "Japan", "<html>", "2026-07-17T12:00:00Z")
+                .expect_err("bad json")
+                .code,
+            ErrorCode::AdviceFetchFailed
+        );
+    }
 
     const US_FIXTURE: &str = r#"[
      {"Title": "Japan - Level 1: Exercise Normal Precautions",
