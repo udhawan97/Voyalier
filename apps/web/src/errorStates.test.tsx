@@ -144,6 +144,21 @@ describe("AppError rendered states", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows a failed archive to the eye, not just the screen reader", async () => {
+    // These header actions used to only announce their failures, so a sighted
+    // user watched the button un-busy itself and saw nothing.
+    renderApp(
+      failingGateway({
+        archiveTrip: rejectWith({ code: "storage/failure", message: "disk" }),
+      }),
+    );
+    await openKyoto();
+    fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Local storage is unavailable");
+  });
+
   it("fact/not_found is announced when unconfirming", async () => {
     renderApp(
       failingGateway({
