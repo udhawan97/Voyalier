@@ -1,3 +1,3 @@
 
-## 12:57 | friendly-helper-claude/app-feature-roadmap-1c037d
-Built & merged seams 1–3 (advisories 4-govt/CDC, weather climate/UV/NWS/packing, facts astro/currency/practical) w/ TDD; 254 Rust + 259 web tests.
+## 14:52 | friendly-helper-claude/app-feature-roadmap-1c037d
+Built GeoNames gazetteer for offline autocomplete: 751KB bundled cities, diacritic-folding search, ranking integration (catalog>history>gazetteer), transports & UI wired, 261 Rust tests + web tests green in isolation; docs & browser verify remain.
