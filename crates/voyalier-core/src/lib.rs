@@ -22,6 +22,7 @@ mod local_ai;
 mod packing;
 mod packs;
 mod parser;
+mod place_summary;
 mod provider;
 mod readiness;
 mod recommend;
@@ -93,6 +94,7 @@ pub use packs::{
 // which parser handles which `DocumentKind` is this module's knowledge, not its
 // callers'. `parse_import` is the way in.
 pub use parser::{DocumentParse, ParsedCandidate, parse_import};
+pub use place_summary::{PlaceSummary, parse_place_summary};
 // The validation endpoint and its auth headers stay internal: which pairs with
 // which provider is `provider`'s knowledge. `build_key_validation_request` is
 // the way in.

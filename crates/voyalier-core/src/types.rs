@@ -12,6 +12,7 @@ use crate::facts::{CountryFacts, DestinationFactsSnapshot, TimeDifference};
 use crate::heritage::HeritageSite;
 use crate::holidays::PublicHolidaysSnapshot;
 use crate::packing::PackingSuggestion;
+use crate::place_summary::PlaceSummary;
 use crate::weather::WeatherSnapshot;
 
 pub const MAX_LOCATION_LEN: usize = 120;
@@ -127,6 +128,10 @@ pub struct TripDetail {
     /// empty without a snapshot.
     #[serde(default)]
     pub world_heritage: Vec<HeritageSite>,
+    /// The latest user-fetched Wikipedia summary of the destination, when one
+    /// exists. Shown under CC BY-SA with attribution.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub place_summary: Option<PlaceSummary>,
 }
 
 /// Which deterministic plan-completeness check a readiness item reports on.

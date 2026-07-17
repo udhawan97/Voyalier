@@ -23,24 +23,25 @@ use voyalier_core::{
     IntelligenceMode, KeyValidation, LocalAiStatus, LocalModelPullResult, LodgingDateProposal,
     MAX_AI_PROMPT_LEN, MAX_NOTES_CHARS, MAX_OFFLINE_MAP_BYTES, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,
     OfflineMapArchive, OfflineMapChunk, OfflineMapDescriptor, PROVIDERS, PackContent, PackInfo,
-    PackSuggestion, PersonaWeights, ProviderConfig, ProviderId, PublicHolidaysSnapshot,
-    Recommendation, RedactionPolicy, SEARCH_SUGGESTION_LIMIT, SearchHit, SearchableDocument,
-    SourceDocument, SourceState, SourceStatus, SuggestionSource, TodayView, Trip, TripAssessment,
-    TripBrief, TripDetail, TripNotes, TripStatus, TripSummary, UpdateTripInput, WarningCode,
-    WeatherAlert, WeatherSnapshot, advisory_country, archive_window, assess_trip,
-    build_assist_preview, build_assist_request, build_draft_preview, build_key_validation_request,
-    build_packing_list, build_pull_body, build_today_view, build_trip_brief,
-    changed_payload_fields, compute_astro_day, country_facts, entry_from_fcdo, estimate_tokens,
-    holidays_within, interpret_key_validation, interpret_pull_response, nearest_airports, new_id,
-    notices_for_country, now_rfc3339, offline_map_download_url, pack_catalog, pack_download_url,
-    parse_air_quality, parse_assist_reply, parse_ca_gac, parse_cdc_notices, parse_climate_normals,
-    parse_de_aa, parse_ecb_rates, parse_fcdo_content, parse_forecast_response,
-    parse_geocoding_response, parse_import, parse_lodging_dates_reply, parse_nager_holidays,
-    parse_nws_alerts, parse_pack_content, parse_us_state, provider_info, rank_field_suggestions,
-    recommend_places, search_cities, search_trip_corpus, suggest_packs, suggest_search_terms,
-    time_difference, validate_api_key, validate_country_slug, validate_create_trip,
-    validate_fact_payload, validate_model_name, validate_pack_id, validate_provider_id,
-    validate_search_query, validate_update_trip, world_heritage_near,
+    PackSuggestion, PersonaWeights, PlaceSummary, ProviderConfig, ProviderId,
+    PublicHolidaysSnapshot, Recommendation, RedactionPolicy, SEARCH_SUGGESTION_LIMIT, SearchHit,
+    SearchableDocument, SourceDocument, SourceState, SourceStatus, SuggestionSource, TodayView,
+    Trip, TripAssessment, TripBrief, TripDetail, TripNotes, TripStatus, TripSummary,
+    UpdateTripInput, WarningCode, WeatherAlert, WeatherSnapshot, advisory_country, archive_window,
+    assess_trip, build_assist_preview, build_assist_request, build_draft_preview,
+    build_key_validation_request, build_packing_list, build_pull_body, build_today_view,
+    build_trip_brief, changed_payload_fields, compute_astro_day, country_facts, entry_from_fcdo,
+    estimate_tokens, holidays_within, interpret_key_validation, interpret_pull_response,
+    nearest_airports, new_id, notices_for_country, now_rfc3339, offline_map_download_url,
+    pack_catalog, pack_download_url, parse_air_quality, parse_assist_reply, parse_ca_gac,
+    parse_cdc_notices, parse_climate_normals, parse_de_aa, parse_ecb_rates, parse_fcdo_content,
+    parse_forecast_response, parse_geocoding_response, parse_import, parse_lodging_dates_reply,
+    parse_nager_holidays, parse_nws_alerts, parse_pack_content, parse_place_summary,
+    parse_us_state, provider_info, rank_field_suggestions, recommend_places, search_cities,
+    search_trip_corpus, suggest_packs, suggest_search_terms, time_difference, validate_api_key,
+    validate_country_slug, validate_create_trip, validate_fact_payload, validate_model_name,
+    validate_pack_id, validate_provider_id, validate_search_query, validate_update_trip,
+    world_heritage_near,
 };
 use voyalier_core::{
     VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, VaultStatus, derive_key as vault_derive_key,
@@ -876,6 +877,7 @@ impl AppService {
             .as_ref()
             .map(|snapshot| world_heritage_near(snapshot.latitude, snapshot.longitude, 150.0, 5))
             .unwrap_or_default();
+        let place_summary = load_place_summary(&connection, trip_id)?;
         // Derived on read from the snapshot's two stored offsets: present only
         // once the origin was geocoded on the last fetch.
         let time_difference = destination_facts.as_ref().and_then(|snapshot| {
@@ -910,6 +912,7 @@ impl AppService {
             time_difference,
             public_holidays,
             world_heritage,
+            place_summary,
         })
     }
 
@@ -2069,6 +2072,50 @@ impl AppService {
         Ok(snapshot)
     }
 
+    /// Fetch a Wikipedia summary of the destination from the Wikimedia REST API
+    /// on an explicit click, stored as a dated snapshot. The text stays
+    /// Wikipedia's, shown under CC BY-SA with attribution; a place with no clear
+    /// article (a miss or a disambiguation page) surfaces as an error.
+    pub fn fetch_place_summary(&self, trip_id: &str) -> Result<PlaceSummary, AppError> {
+        let trip = {
+            let connection = self.connection()?;
+            self.records(&connection).trip(trip_id)?
+        };
+        let url = format!(
+            "https://en.wikipedia.org/api/rest_v1/page/summary/{}",
+            percent_encode(&trip.destination)
+        );
+        let body = self
+            .fetcher
+            .fetch_text(&url)
+            .map_err(weather_network_failure)?;
+        let summary = parse_place_summary(&body, &now_rfc3339())?;
+
+        let connection = self.connection()?;
+        connection
+            .execute(
+                "INSERT INTO place_summaries
+                 (trip_id, title, description, extract, url, retrieved_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                 ON CONFLICT(trip_id) DO UPDATE SET
+                   title = excluded.title,
+                   description = excluded.description,
+                   extract = excluded.extract,
+                   url = excluded.url,
+                   retrieved_at = excluded.retrieved_at",
+                params![
+                    trip_id,
+                    summary.title,
+                    summary.description,
+                    summary.extract,
+                    summary.url,
+                    summary.retrieved_at,
+                ],
+            )
+            .map_err(storage_error)?;
+        Ok(summary)
+    }
+
     /// Build a redacted, shareable brief from the confirmed plan. The brief is
     /// produced by generation-time exclusion in the core, so secrets never
     /// enter the returned structure.
@@ -2509,6 +2556,13 @@ impl AppService {
             transaction
                 .execute(
                     "DELETE FROM advisory_panels WHERE trip_id = ?1",
+                    params![trip_id],
+                )
+                .map_err(storage_error)?;
+            // The place summary is about the old destination too.
+            transaction
+                .execute(
+                    "DELETE FROM place_summaries WHERE trip_id = ?1",
                     params![trip_id],
                 )
                 .map_err(storage_error)?;
@@ -3271,6 +3325,15 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
                 retrieved_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS place_summaries (
+                trip_id TEXT PRIMARY KEY REFERENCES trips(id) ON DELETE CASCADE,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                extract TEXT NOT NULL,
+                url TEXT NOT NULL,
+                retrieved_at TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS confirmed_facts (
                 id TEXT PRIMARY KEY,
                 trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
@@ -3392,6 +3455,11 @@ const MIGRATIONS: &[Migration] = &[
         to: 8,
         name: "public_holidays",
         run: migrate_public_holidays,
+    },
+    Migration {
+        to: 9,
+        name: "place_summaries",
+        run: migrate_place_summaries,
     },
 ];
 
@@ -3655,6 +3723,23 @@ fn migrate_public_holidays(connection: &Connection) -> Result<(), AppError> {
                 country_code TEXT NOT NULL,
                 country_name TEXT NOT NULL,
                 holidays TEXT NOT NULL DEFAULT '[]',
+                retrieved_at TEXT NOT NULL
+            );",
+        )
+        .map_err(storage_error)
+}
+
+/// Create the `place_summaries` table for databases that predate the "about
+/// this place" panel. Purely additive — nothing to backfill.
+fn migrate_place_summaries(connection: &Connection) -> Result<(), AppError> {
+    connection
+        .execute_batch(
+            "CREATE TABLE IF NOT EXISTS place_summaries (
+                trip_id TEXT PRIMARY KEY REFERENCES trips(id) ON DELETE CASCADE,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                extract TEXT NOT NULL,
+                url TEXT NOT NULL,
                 retrieved_at TEXT NOT NULL
             );",
         )
@@ -4072,6 +4157,29 @@ fn load_public_holidays_snapshot(
                     country_name: row.get(1)?,
                     holidays: sql_to_json(row.get::<_, String>(2)?)?,
                     retrieved_at: row.get(3)?,
+                })
+            },
+        )
+        .optional()
+        .map_err(storage_error)
+}
+
+fn load_place_summary(
+    connection: &Connection,
+    trip_id: &str,
+) -> Result<Option<PlaceSummary>, AppError> {
+    connection
+        .query_row(
+            "SELECT title, description, extract, url, retrieved_at
+             FROM place_summaries WHERE trip_id = ?1",
+            params![trip_id],
+            |row| {
+                Ok(PlaceSummary {
+                    title: row.get(0)?,
+                    description: row.get(1)?,
+                    extract: row.get(2)?,
+                    url: row.get(3)?,
+                    retrieved_at: row.get(4)?,
                 })
             },
         )
@@ -5685,6 +5793,81 @@ mod tests {
                 .is_none()
         );
         cleanup_database(database);
+    }
+
+    #[test]
+    fn fetch_place_summary_stores_and_derives_on_detail() {
+        struct SummaryFetcher;
+        impl AdviceFetcher for SummaryFetcher {
+            fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+                if url.contains("en.wikipedia.org/api/rest_v1/page/summary/Kyoto") {
+                    return Ok(
+                        r#"{"type":"standard","title":"Kyoto","description":"City in Japan",
+                        "extract":"Kyoto is the capital city of Kyoto Prefecture.",
+                        "content_urls":{"desktop":{"page":"https://en.wikipedia.org/wiki/Kyoto"}}}"#
+                            .to_owned(),
+                    );
+                }
+                Err(AppError::new(
+                    ErrorCode::AdviceFetchFailed,
+                    "unexpected url",
+                ))
+            }
+        }
+        let database = temp_database("place_summary");
+        let service =
+            open_test_service_with_fetcher(&database, Arc::new(SummaryFetcher)).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        let summary = service.fetch_place_summary(&trip.id).expect("summary");
+        assert_eq!(summary.title, "Kyoto");
+        assert!(summary.extract.contains("capital city"));
+
+        let detail = service.get_trip(&trip.id).expect("detail");
+        assert_eq!(
+            detail.place_summary.expect("stored").url,
+            "https://en.wikipedia.org/wiki/Kyoto"
+        );
+
+        // A destination edit invalidates it — it is about the old place.
+        service
+            .update_trip(
+                &trip.id,
+                UpdateTripInput {
+                    title: None,
+                    origin: None,
+                    destination: Some("Oslo".to_owned()),
+                    start_date: None,
+                    end_date: None,
+                },
+            )
+            .expect("edit");
+        assert!(
+            service
+                .get_trip(&trip.id)
+                .expect("detail")
+                .place_summary
+                .is_none()
+        );
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn migration_v9_adds_the_place_summaries_table() {
+        let connection = Connection::open_in_memory().expect("memory db");
+        connection
+            .execute_batch(r#"CREATE TABLE trips (id TEXT PRIMARY KEY); PRAGMA user_version = 8;"#)
+            .expect("pre-v9 shape");
+        migrate(&connection).expect("migrate to v9");
+        assert_eq!(
+            user_version(&connection).expect("version"),
+            target_schema_version()
+        );
+        assert!(
+            load_place_summary(&connection, "trip-1")
+                .expect("load")
+                .is_none()
+        );
     }
 
     #[test]
