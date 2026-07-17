@@ -8,6 +8,13 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Added
 
+- **The time difference from home, on the destination-facts card.** The card now
+  says how far your destination runs ahead of (or behind) where you're leaving
+  from — "Kyoto is 14h ahead of Chicago" — worked out on your device from both
+  places' time zones on your travel dates. Fetching the card now also asks the
+  map for your origin's time zone; if the origin can't be placed the line is
+  simply left off. Sub-hour zones (India, Nepal) keep their exact minutes, and
+  a matching zone reads "same time" rather than nothing.
 - **Destination autocomplete that knows the world's cities, offline.** Typing a
   place used to suggest only the 16 city packs and your own past trips, so most
   destinations got nothing. Now the origin and destination fields match against

@@ -1322,6 +1322,12 @@ h3 {
   white-space: nowrap;
 }
 
+.voy-facts__clock {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
 /* Reference rates and country facts are convenience, not the last word. */
 .voy-facts__note {
   margin: 0;

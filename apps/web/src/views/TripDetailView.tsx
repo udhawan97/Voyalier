@@ -773,6 +773,7 @@ export function TripDetailView({
           countryFacts={data.detail.countryFacts}
           astro={data.detail.astro}
           nearestAirports={data.detail.nearestAirports}
+          timeDifference={data.detail.timeDifference}
           onFetched={() => reload()}
         />
 

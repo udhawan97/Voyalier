@@ -55,6 +55,16 @@ describe("destination facts", () => {
     expect(within(facts).getByText(/39.*km/)).toBeInTheDocument();
   });
 
+  it("shows the time difference from the trip's origin", async () => {
+    const facts = await fetchFacts();
+    expect(
+      within(facts).getByRole("heading", { name: "Time difference" }),
+    ).toBeInTheDocument();
+    // Kyoto (+540) is 14h ahead of Chicago (−300) on the trip's dates.
+    const clock = within(facts).getByText(/Kyoto is .* ahead of Chicago/);
+    expect(clock).toHaveTextContent(/14h/);
+  });
+
   it("shows the practical country facts", async () => {
     const facts = await fetchFacts();
     expect(
@@ -85,11 +95,15 @@ describe("destination facts", () => {
     expect(after.countryFacts?.currencyCode).toBe("JPY");
     expect(after.astro.length).toBeGreaterThan(0);
     expect(after.astro[0].moon.name).toBe("full_moon");
+    // Kyoto (+540) seen from Chicago (−300) is 840 minutes ahead.
+    expect(after.timeDifference?.originPlace).toBe("Chicago");
+    expect(after.timeDifference?.offsetMinutes).toBe(840);
 
     // A destination edit invalidates the facts, like weather and advice.
     await gateway.updateTrip(trip.id, { destination: "Oslo" });
     const edited = await gateway.getTrip(trip.id);
     expect(edited.destinationFacts).toBeUndefined();
     expect(edited.astro).toEqual([]);
+    expect(edited.timeDifference).toBeUndefined();
   });
 });

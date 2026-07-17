@@ -512,8 +512,15 @@ const en = {
   "facts.fetch": "Fetch destination facts",
   "facts.fetchAgain": "Fetch again",
   "facts.consent":
-    "Fetching sends your destination name (“{destination}”) to open-meteo.com to place it on the map, and asks the European Central Bank for today’s reference rates. The sun, moon, country facts and nearest airports are worked out on this device. Nothing else about your trip leaves it.",
+    "Fetching sends your destination (“{destination}”) and your origin place name to open-meteo.com to place them on the map, and asks the European Central Bank for today’s reference rates. The time difference, sun, moon, country facts and nearest airports are worked out on this device. Nothing else about your trip leaves it.",
   "facts.retrieved": "Retrieved {stamp}",
+  // Clock: the destination-vs-home time gap, computed offline from two offsets.
+  "facts.clock.title": "Time difference",
+  "facts.clock.ahead": "{destination} is {duration} ahead of {origin}",
+  "facts.clock.behind": "{destination} is {duration} behind {origin}",
+  "facts.clock.same": "{destination} keeps the same time as {origin}",
+  "facts.clock.hours": "{hours}h",
+  "facts.clock.hoursMinutes": "{hours}h {minutes}m",
   // Sky: computed offline, so it carries no source and cannot be stale.
   "facts.sky.title": "Sky",
   "facts.sky.sun": "{sunrise} – {sunset}",
