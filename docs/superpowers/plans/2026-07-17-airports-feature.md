@@ -29,6 +29,7 @@
 **Files:** Create `crates/voyalier-core/src/data/airports.csv` (the 162 KB compact CSV), `crates/voyalier-core/src/airports.rs`; modify `lib.rs`.
 
 **Interfaces:**
+
 - Produces: `AirportSize { Large, Medium }`, `NearbyAirport { iata: String, name: String, distance_km: f64, size: AirportSize }`, `nearest_airports(latitude: f64, longitude: f64, limit: usize) -> Vec<NearbyAirport>`.
 
 - [ ] **Step 1: Commit the bundled CSV** (already generated). Header-less `IATA,lat,lon,{L|M},name`, sorted by IATA.

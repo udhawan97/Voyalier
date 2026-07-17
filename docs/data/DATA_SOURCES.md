@@ -70,10 +70,11 @@ No network at all. Astronomy is computed from coordinates and a date; country
 facts are a compiled-in table resolved fresh from a country code on each read
 (so a corrected value never goes stale in a stored snapshot).
 
-| Data          | Origin                                               | Licence / attribution                                              | Notes                                                                |
-| ------------- | ---------------------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------- |
-| Sun & moon    | Standard NOAA sunrise equation + synodic month       | —                                                                  | Computed on-device; polar day/night stated, not faked                |
-| Country facts | OpenStreetMap/Wikidata (CC0/ODbL) and public sources | Compiled from OpenStreetMap/Wikidata (CC0/ODbL) and public sources | Plug/voltage/drive-side/calling-code/emergency for curated countries |
+| Data             | Origin                                               | Licence / attribution                                              | Notes                                                                                |
+| ---------------- | ---------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| Sun & moon       | Standard NOAA sunrise equation + synodic month       | —                                                                  | Computed on-device; polar day/night stated, not faked                                |
+| Country facts    | OpenStreetMap/Wikidata (CC0/ODbL) and public sources | Compiled from OpenStreetMap/Wikidata (CC0/ODbL) and public sources | Plug/voltage/drive-side/calling-code/emergency for curated countries                 |
+| Nearest airports | OurAirports                                          | Public domain (attribution optional)                               | ~3,300 scheduled-service airports (large+medium, IATA) bundled; nearest by haversine |
 
 ## Place entry and geocoding
 
