@@ -32,6 +32,7 @@
 ### Task 1: Policy groundwork (docs only)
 
 **Files:**
+
 - Modify: `docs/architecture/ADR-0003-phase2-contract.md` (append addendum section)
 - Modify: `docs/data/DATA_SOURCES.md` (add four source rows)
 
@@ -69,11 +70,13 @@ git commit -m "Docs: re-decide US advisories, register four official advisory so
 ### Task 2: Core advisory types + curated country table
 
 **Files:**
+
 - Create: `crates/voyalier-core/src/advisories.rs`
 - Modify: `crates/voyalier-core/src/lib.rs` (add `pub mod advisories;`)
 - Modify: `crates/voyalier-core/src/parser.rs:594` (make `strip_tags_and_collapse` `pub(crate)`)
 
 **Interfaces:**
+
 - Consumes: `crate::advice::{FcdoCountry, TravelAdviceSnapshot, FCDO_COUNTRIES}`, `crate::types::{AppError, ErrorCode}`.
 - Produces (used by Tasks 3–8): `AdvisorySource`, `AdvisoryEntry`, `HealthNotice`, `SourceState`, `SourceStatus`, `AdvisoryPanel`, `AdvisoryCountry { slug: &'static str, iso2: &'static str, us_title: Option<&'static str> }`, `advisory_country(slug) -> Result<&'static AdvisoryCountry, AppError>`, `entry_from_fcdo(snapshot: &TravelAdviceSnapshot) -> AdvisoryEntry`.
 
@@ -286,9 +289,11 @@ Add `pub mod advisories;` to `lib.rs` (and re-export the public types from the c
 ### Task 3: Core US State Department parser
 
 **Files:**
+
 - Modify: `crates/voyalier-core/src/advisories.rs`
 
 **Interfaces:**
+
 - Produces: `parse_us_state(country: &AdvisoryCountry, country_name: &str, json: &str, retrieved_at: &str) -> Result<Option<AdvisoryEntry>, AppError>` — `Ok(None)` when the feed has no entry for the country (real case: Brazil today, USA always).
 
 - [ ] **Step 1: Failing tests** (fixtures are trimmed real payloads captured 2026-07-17):
@@ -422,6 +427,7 @@ pub fn parse_us_state(
 **Files:** Modify `crates/voyalier-core/src/advisories.rs`
 
 **Interfaces:**
+
 - Produces: `parse_ca_gac(country: &AdvisoryCountry, country_name: &str, json: &str, retrieved_at: &str) -> Result<Option<AdvisoryEntry>, AppError>`
 
 - [ ] **Step 1: Failing tests:**
@@ -469,6 +475,7 @@ fn parses_a_canadian_advisory_by_iso2() {
 **Files:** Modify `crates/voyalier-core/src/advisories.rs`
 
 **Interfaces:**
+
 - Produces: `parse_de_aa(country: &AdvisoryCountry, country_name: &str, json: &str, retrieved_at: &str) -> Result<Option<AdvisoryEntry>, AppError>`
 
 - [ ] **Step 1: Failing tests:**
@@ -519,11 +526,13 @@ fn parses_a_german_advisory_with_warning_flags() {
 ### Task 6: Core CDC notices parser (quick-xml)
 
 **Files:**
+
 - Modify: root `Cargo.toml` (`[workspace.dependencies]` add `quick-xml = "0.37"`)
 - Modify: `crates/voyalier-core/Cargo.toml` (add `quick-xml.workspace = true`)
 - Modify: `crates/voyalier-core/src/advisories.rs`
 
 **Interfaces:**
+
 - Produces: `parse_cdc_notices(xml: &str, retrieved_at: &str) -> Result<Vec<HealthNotice>, AppError>` (retrieved_at unused per-notice but kept for symmetry — drop the parameter if clippy objects) and `notices_for_country(notices: &[HealthNotice], country_name: &str) -> Vec<HealthNotice>`.
 
 - [ ] **Step 1: Failing tests:**
@@ -594,9 +603,11 @@ fn cdc_parser_distinguishes_an_empty_feed_from_an_unreadable_one() {
 ### Task 7: App storage — migration v4 + snapshot persistence
 
 **Files:**
+
 - Modify: `crates/voyalier-app/src/lib.rs` — base schema (`travel_advice_snapshots` block at ~line 2771), `MIGRATIONS` array (~line 2883), storage helpers (`fetch_travel_advice_snapshot` ~line 3033), trip-detail assembly (~line 845), the trip-scoped `DELETE FROM travel_advice_snapshots` (~line 2088)
 
 **Interfaces:**
+
 - Consumes: `voyalier_core::advisories::{AdvisoryEntry, AdvisorySource, HealthNotice, SourceStatus, AdvisoryPanel}`.
 - Produces: `store_advisory_entry(conn, trip_id, &AdvisoryEntry)`, `delete_advisory_entry(conn, trip_id, source)`, `store_advisory_panel_meta(conn, trip_id, country_slug, country_name, &[HealthNotice], &[SourceStatus], retrieved_at)`, `load_advisory_panel(conn, trip_id) -> Result<Option<AdvisoryPanel>, AppError>`. `TripDetail` gains `advisory_panel` in place of `travel_advice`.
 
@@ -801,9 +812,11 @@ Storage helpers mirror the existing `fetch_travel_advice_snapshot` style (`param
 ### Task 8: App orchestration — `fetch_advisories`
 
 **Files:**
+
 - Modify: `crates/voyalier-app/src/lib.rs` (replace `fetch_travel_advice` at ~line 1504; update its test `fetch_travel_advice_stores_a_dated_snapshot_without_network_in_tests` at ~line 3547)
 
 **Interfaces:**
+
 - Consumes: Task 7 helpers, core parsers from Tasks 2–6, existing `AdviceFetcher::fetch_text`, `now_rfc3339()`.
 - Produces: `pub fn fetch_advisories(&self, trip_id: &str, country_slug: &str) -> Result<AdvisoryPanel, AppError>` — the method the transports call.
 
@@ -1106,19 +1119,19 @@ pub fn fetch_advisories(
 
 Per-source URLs and parsers (as used above):
 
-| Source | URL | Parse |
-|---|---|---|
-| UK | `https://www.gov.uk/api/content/foreign-travel-advice/{slug}` | `parse_fcdo_content(fcdo, &body, &retrieved_at)` → `entry_from_fcdo(&snapshot)` |
-| US | `https://cadataapi.state.gov/api/TravelAdvisories` | `parse_us_state(country, fcdo.name, &body, &retrieved_at)` |
-| CA | `https://data.international.gc.ca/travel-voyage/index-alpha-eng.json` | `parse_ca_gac(country, fcdo.name, &body, &retrieved_at)` |
-| DE | `https://www.auswaertiges-amt.de/opendata/travelwarning` | `parse_de_aa(country, fcdo.name, &body, &retrieved_at)` |
-| CDC | `https://wwwnc.cdc.gov/travel/rss/notices.xml` | `parse_cdc_notices(&body, &retrieved_at)` → `notices_for_country(&all, fcdo.name)` |
+| Source | URL                                                                   | Parse                                                                              |
+| ------ | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| UK     | `https://www.gov.uk/api/content/foreign-travel-advice/{slug}`         | `parse_fcdo_content(fcdo, &body, &retrieved_at)` → `entry_from_fcdo(&snapshot)`    |
+| US     | `https://cadataapi.state.gov/api/TravelAdvisories`                    | `parse_us_state(country, fcdo.name, &body, &retrieved_at)`                         |
+| CA     | `https://data.international.gc.ca/travel-voyage/index-alpha-eng.json` | `parse_ca_gac(country, fcdo.name, &body, &retrieved_at)`                           |
+| DE     | `https://www.auswaertiges-amt.de/opendata/travelwarning`              | `parse_de_aa(country, fcdo.name, &body, &retrieved_at)`                            |
+| CDC    | `https://wwwnc.cdc.gov/travel/rss/notices.xml`                        | `parse_cdc_notices(&body, &retrieved_at)` → `notices_for_country(&all, fcdo.name)` |
 
 Notes on the rules encoded above:
 
 - The UK is the only per-country URL; the other three fetch a full list and select from it. That is one request per source either way, so no batching or caching is needed.
 - `NotPublished` **deletes** any stale row: if a government withdraws an advisory, the old card must not linger.
-- CDC has no `SourceStatus` entry by design — `AdvisorySource` enumerates governments that issue *advisories*, while health notices are a separate informational list. On CDC failure the notices simply stay as they were.
+- CDC has no `SourceStatus` entry by design — `AdvisorySource` enumerates governments that issue _advisories_, while health notices are a separate informational list. On CDC failure the notices simply stay as they were.
 - The total-failure check runs **before** any store, so a fully offline attempt leaves the database untouched (`get_trip().advisory_panel` stays `None`) rather than writing an empty panel row.
 - `SourceState::Unavailable` therefore only ever appears alongside at least one other source that succeeded or was kept.
 
@@ -1130,12 +1143,14 @@ Notes on the rules encoded above:
 ### Task 9: Contract + both transports + mock
 
 **Files:**
+
 - Modify: `packages/contracts/src/index.ts` (~lines 20–30 TripDetail, 249–274 types, 625 error codes untouched, 731 method)
 - Modify: `packages/contracts/src/mock.ts` (~lines 1249, 1424–1436, 1473, 2179–2205, 2258)
 - Modify: `apps/web/src/gateway/http.ts` (~line 277) and `crates/voyalier-server/src/lib.rs` (~lines 206–208, 526–534)
 - Modify: `apps/web/src/gateway/tauri.ts` (~line 201) and `apps/desktop/src-tauri/src/lib.rs` (~lines 472–476, 835, 1222)
 
 **Interfaces:**
+
 - Produces (TS, exact):
 
 ```ts
@@ -1162,7 +1177,10 @@ export interface HealthNotice {
   publishedAt?: string;
   summary: string;
 }
-export interface SourceStatus { source: AdvisorySource; state: SourceState; }
+export interface SourceStatus {
+  source: AdvisorySource;
+  state: SourceState;
+}
 export interface AdvisoryPanel {
   countrySlug: string;
   countryName: string;
@@ -1171,7 +1189,10 @@ export interface AdvisoryPanel {
   sourceStatus: SourceStatus[];
   retrievedAt: string;
 }
-export interface FetchAdvisoriesInput { tripId: string; countrySlug: string; }
+export interface FetchAdvisoriesInput {
+  tripId: string;
+  countrySlug: string;
+}
 ```
 
 `TravelAdviceSnapshot` + `FetchTravelAdviceInput` are deleted; `TripDetail.travelAdvice?: TravelAdviceSnapshot` becomes `advisoryPanel?: AdvisoryPanel`; `AppGateway.fetchTravelAdvice` becomes `fetchAdvisories(input: FetchAdvisoriesInput): Promise<AdvisoryPanel>`; `listAdviceCountries(): Promise<FcdoCountry[]>` is unchanged.
@@ -1188,6 +1209,7 @@ export interface FetchAdvisoriesInput { tripId: string; countrySlug: string; }
 ### Task 10: Web UI panel + i18n + tests + changelog
 
 **Files:**
+
 - Modify: `apps/web/src/views/TravelAdvice.tsx` (161 lines today — extend in place, keep its fetch/announce/staleness scaffolding)
 - Modify: `apps/web/src/views/TripDetailView.tsx:754` (prop now `advisoryPanel`)
 - Modify: `apps/web/src/app/i18n.ts` (advice.* keys, ~line 467)
@@ -1211,6 +1233,7 @@ export interface FetchAdvisoriesInput { tripId: string; countrySlug: string; }
 ```
 
 (Keep every existing `advice.*` key that still has a caller; delete none blindly — search usages first.)
+
 - [ ] **Step 4: Verify pass + a11y.** `pnpm --filter web test -- --run travelAdvice` then the full `pnpm --filter web test -- --run` (axe gates included).
 - [ ] **Step 5: CHANGELOG.** Under `[Unreleased]` → Added: `Official advice panel now shows UK, US, Canadian, and German government advisories side by side, plus US CDC travel health notices — all keyless official feeds, fetched only on your click and saved as dated snapshots.`
 - [ ] **Step 6: Commit** `"Web: four-government advisory panel with CDC health notices"`.

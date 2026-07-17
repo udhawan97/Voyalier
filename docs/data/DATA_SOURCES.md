@@ -39,13 +39,13 @@ stored as a dated snapshot with its attribution. None may be sent to a model.
 Source class for all of them is `official`; CDC notices are informational and
 never clear a readiness item.
 
-| Provider                                  | Endpoint                                                        | Licence / attribution                                            | Notes                                                                     |
-| ----------------------------------------- | --------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| UK Foreign, Commonwealth & Development Office | `www.gov.uk/api/content/foreign-travel-advice/{slug}`        | Open Government Licence v3.0                                     | Per-country page; curated slugs only                                      |
-| U.S. Department of State                  | `cadataapi.state.gov/api/TravelAdvisories`                      | Public domain (U.S. Department of State)                         | Full list, selected locally. **Returns `[]` to anonymous User-Agents**    |
-| Government of Canada — Global Affairs Canada | `data.international.gc.ca/travel-voyage/index-alpha-eng.json` | Open Government Licence – Canada                                 | Full list keyed by ISO-3166-1 alpha-2                                     |
-| Auswärtiges Amt (Germany)                 | `www.auswaertiges-amt.de/opendata/travelwarning`                | Auswärtiges Amt OpenData (Datenlizenz Deutschland – Namensnennung – 2.0) | German-language; shown untranslated                               |
-| U.S. CDC travel health notices            | `wwwnc.cdc.gov/travel/rss/notices.xml`                          | Public domain (U.S. CDC)                                         | Informational chips, matched to the destination by name                   |
+| Provider                                      | Endpoint                                                      | Licence / attribution                                                    | Notes                                                                  |
+| --------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| UK Foreign, Commonwealth & Development Office | `www.gov.uk/api/content/foreign-travel-advice/{slug}`         | Open Government Licence v3.0                                             | Per-country page; curated slugs only                                   |
+| U.S. Department of State                      | `cadataapi.state.gov/api/TravelAdvisories`                    | Public domain (U.S. Department of State)                                 | Full list, selected locally. **Returns `[]` to anonymous User-Agents** |
+| Government of Canada — Global Affairs Canada  | `data.international.gc.ca/travel-voyage/index-alpha-eng.json` | Open Government Licence – Canada                                         | Full list keyed by ISO-3166-1 alpha-2                                  |
+| Auswärtiges Amt (Germany)                     | `www.auswaertiges-amt.de/opendata/travelwarning`              | Auswärtiges Amt OpenData (Datenlizenz Deutschland – Namensnennung – 2.0) | German-language; shown untranslated                                    |
+| U.S. CDC travel health notices                | `wwwnc.cdc.gov/travel/rss/notices.xml`                        | Public domain (U.S. CDC)                                                 | Informational chips, matched to the destination by name                |
 
 Advisory levels are **source-native**. Each government's wording renders on its
 own card, verbatim; levels are never compared, merged, or ranked across

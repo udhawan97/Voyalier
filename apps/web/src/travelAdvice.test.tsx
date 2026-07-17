@@ -59,8 +59,9 @@ describe("official travel advice", () => {
     expect(
       within(advice).getByText("Exercise normal security precautions"),
     ).toBeInTheDocument();
-    expect(within(advice).getByText(/Compare the sources, not the numbers/))
-      .toBeInTheDocument();
+    expect(
+      within(advice).getByText(/Compare the sources, not the numbers/),
+    ).toBeInTheDocument();
 
     // Every card links to its own government, never to a single merged page.
     const sourceLinks = within(advice).getAllByRole("link", {

@@ -46,10 +46,7 @@ function badgeTone(rank: number | undefined): string {
   return "";
 }
 
-function statusMessage(
-  state: SourceState,
-  sourceName: string,
-): string | null {
+function statusMessage(state: SourceState, sourceName: string): string | null {
   switch (state) {
     case "kept":
       return t("advice.status.kept", { source: sourceName });
