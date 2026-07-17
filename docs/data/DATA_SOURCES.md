@@ -79,6 +79,7 @@ facts are a compiled-in table resolved fresh from a country code on each read
 | Nearest airports | OurAirports                                          | Public domain (attribution optional)                               | ~3,300 scheduled-service airports (large+medium, IATA) bundled; nearest by haversine                                                                  |
 | City gazetteer   | GeoNames `cities15000`                               | CC BY 4.0 — attribution "GeoNames"                                 | ~32,000 cities (population ≥ 15,000, districts excluded) bundled; prefix + accent-folded matching, population-ranked; powers destination autocomplete |
 | World Heritage   | Wikidata (`P1435` = `Q9259`) SPARQL extract          | CC0 (Wikidata)                                                     | ~940 UNESCO sites (name, coordinates, inscription year) bundled; nearest within 150 km by haversine, derived on read. Convenience, not a complete registry |
+| Tipping norms    | Compiled from Wikivoyage and Wikipedia tipping guidance | Facts in our own words; sources cited                          | One conservative line per curated country, resolved from the country code. Framed as a rough guide, never a rule; review annually; never clears a readiness item |
 
 ## Place entry and geocoding
 

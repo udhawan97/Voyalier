@@ -132,6 +132,10 @@ pub struct TripDetail {
     /// exists. Shown under CC BY-SA with attribution.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub place_summary: Option<PlaceSummary>,
+    /// A short, conservative tipping guide for the destination country, resolved
+    /// fresh from the facts snapshot's country code. Present only when curated.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tipping: Option<String>,
 }
 
 /// Which deterministic plan-completeness check a readiness item reports on.

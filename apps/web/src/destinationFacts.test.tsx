@@ -65,6 +65,16 @@ describe("destination facts", () => {
     expect(clock).toHaveTextContent(/14h/);
   });
 
+  it("shows a tipping guide for the country, framed as rough", async () => {
+    const facts = await fetchFacts();
+    expect(
+      within(facts).getByRole("heading", { name: "Tipping" }),
+    ).toBeInTheDocument();
+    // Japan: not customary; plus the "rough guide" caveat.
+    expect(within(facts).getByText(/not customary/i)).toBeInTheDocument();
+    expect(within(facts).getByText(/rough guide/i)).toBeInTheDocument();
+  });
+
   it("shows the World Heritage sites nearby", async () => {
     const facts = await fetchFacts();
     expect(
