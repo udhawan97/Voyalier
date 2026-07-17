@@ -65,6 +65,9 @@ import type {
   SourceDocument,
   AdvisoryEntry,
   AdvisoryPanel,
+  AstroDay,
+  CountryFacts,
+  DestinationFactsSnapshot,
   PackingSuggestion,
   Trip,
   TripBrief,
@@ -868,6 +871,59 @@ function mockRankFieldSuggestions(
  * the interface can be built against realistic data, and a mock that suggested
  * different things than the real service would teach the UI a lie.
  */
+/**
+ * The mock's country facts. Only the fixture's Japan is needed; the real
+ * service resolves the full bundled table. Values mirror the core table so the
+ * mock cannot teach the UI a different Japan than the service would.
+ */
+function mockCountryFacts(iso2: string): CountryFacts | undefined {
+  if (iso2 !== "JP") return undefined;
+  return {
+    iso2: "JP",
+    name: "Japan",
+    currencyCode: "JPY",
+    plugTypes: ["A", "B"],
+    voltageV: 100,
+    frequencyHz: 50,
+    drivesOnLeft: true,
+    callingCode: "+81",
+    emergency: { police: "110", ambulance: "119", fire: "119" },
+  };
+}
+
+/**
+ * A fictional sun/moon day list for the trip window. The exact times are
+ * fixture values — the real service computes them from coordinates — but the
+ * shape (per-day sunrise/sunset + a moon phase) matches, so the UI can be built
+ * and tested against it.
+ */
+function mockAstro(snapshot: DestinationFactsSnapshot, trip: Trip): AstroDay[] {
+  const days: AstroDay[] = [];
+  const spring = ["05:20", "05:19", "05:18"];
+  const dusk = ["18:10", "18:11", "18:12"];
+  for (let offset = 0; offset < 3; offset++) {
+    const date =
+      offset === 0 ? trip.startDate : nextDayN(trip.startDate, offset);
+    if (date > trip.endDate) break;
+    days.push({
+      date,
+      sunrise: spring[offset],
+      sunset: dusk[offset],
+      dayLengthMinutes: 770,
+      polar: "normal",
+      moon: {
+        ageDays: 14.6 + offset,
+        illuminationPct: [98, 95, 90][offset] ?? 90,
+        name: "full_moon",
+      },
+    });
+  }
+  // Reference the snapshot so a future change that drops it fails the type
+  // check rather than silently ignoring it.
+  void snapshot.countryCode;
+  return days;
+}
+
 function mockPackingList(
   weather: WeatherSnapshot | undefined,
   facts: ConfirmedFact[],
@@ -1305,6 +1361,7 @@ export function createMockGateway(options?: {
   );
   const advisoryPanels = new Map<string, AdvisoryPanel>();
   const weatherSnapshots = new Map<string, WeatherSnapshot>();
+  const destinationFactsSnapshots = new Map<string, DestinationFactsSnapshot>();
   // Provider config: which providers have a key stored, and their chosen model.
   // The mock never retains the key value itself, mirroring the real gateway.
   const providerKeys = new Set<ProviderId>();
@@ -1480,6 +1537,11 @@ export function createMockGateway(options?: {
         );
         const advisoryPanel = advisoryPanels.get(tripId);
         const weather = weatherSnapshots.get(tripId);
+        const destFacts = destinationFactsSnapshots.get(tripId);
+        const countryFacts = destFacts
+          ? mockCountryFacts(destFacts.countryCode)
+          : undefined;
+        const astro = destFacts ? mockAstro(destFacts, trip) : [];
         return {
           trip: clone(trip),
           confirmedFacts,
@@ -1493,6 +1555,9 @@ export function createMockGateway(options?: {
           ...(advisoryPanel ? { advisoryPanel: clone(advisoryPanel) } : {}),
           ...(weather ? { weather: clone(weather) } : {}),
           packingList: mockPackingList(weather, confirmedFacts, trip),
+          ...(destFacts ? { destinationFacts: clone(destFacts) } : {}),
+          ...(countryFacts ? { countryFacts: clone(countryFacts) } : {}),
+          astro,
         } satisfies TripDetail;
       }),
 
@@ -1529,6 +1594,7 @@ export function createMockGateway(options?: {
         }
         if (destination !== existing.destination) {
           advisoryPanels.delete(tripId);
+          destinationFactsSnapshots.delete(tripId);
         }
         return clone(updated);
       }),
@@ -2385,6 +2451,31 @@ export function createMockGateway(options?: {
           alerts: [],
         };
         weatherSnapshots.set(tripId, snapshot);
+        return clone(snapshot);
+      }),
+
+    fetchDestinationFacts: (tripId: string) =>
+      execute("fetchDestinationFacts", () => {
+        const trip = requireTrip(tripId);
+        // A fictional Japan snapshot: coordinates for astro, a country code for
+        // the bundled facts, and three EUR-based rates so conversion works.
+        const snapshot: DestinationFactsSnapshot = {
+          placeName: trip.destination,
+          placeRegion: "Fictional fixture",
+          latitude: 35.0116,
+          longitude: 135.7681,
+          utcOffsetMinutes: 540,
+          countryCode: "JP",
+          rateDate: "2026-07-17",
+          currencyRates: [
+            { code: "EUR", perEur: 1.0 },
+            { code: "USD", perEur: 1.1435 },
+            { code: "JPY", perEur: 185.65 },
+            { code: "GBP", perEur: 0.85098 },
+          ],
+          retrievedAt: timestamp(),
+        };
+        destinationFactsSnapshots.set(tripId, snapshot);
         return clone(snapshot);
       }),
 

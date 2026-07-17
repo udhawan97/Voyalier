@@ -204,6 +204,10 @@ pub fn app(service: AppService) -> Router {
         )
         .route("/api/v1/trips/{trip_id}/advisories", post(fetch_advisories))
         .route("/api/v1/trips/{trip_id}/weather", post(fetch_weather))
+        .route(
+            "/api/v1/trips/{trip_id}/destination-facts",
+            post(fetch_destination_facts),
+        )
         .route("/api/v1/trips/{trip_id}/search", get(search_trip))
         .route(
             "/api/v1/trips/{trip_id}/search-suggestions",
@@ -535,6 +539,13 @@ async fn fetch_weather(
     Path(trip_id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(service.fetch_weather(&trip_id)?))
+}
+
+async fn fetch_destination_facts(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.fetch_destination_facts(&trip_id)?))
 }
 
 async fn delete_trip(

@@ -35,8 +35,8 @@ pub enum PolarState {
     PolarNight,
 }
 
-/// Sun facts for one local calendar day.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Sun and moon facts for one local calendar day.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AstroDay {
     /// ISO `YYYY-MM-DD`, local to the destination.
@@ -50,6 +50,7 @@ pub struct AstroDay {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub day_length_minutes: Option<u32>,
     pub polar: PolarState,
+    pub moon: MoonPhase,
 }
 
 /// The eight named lunar phases, in order from new to waning crescent.
@@ -113,6 +114,7 @@ pub fn compute_astro_day(
     utc_offset_minutes: i32,
 ) -> Result<AstroDay, AppError> {
     let civil: Date = date.parse().map_err(|_| invalid_date())?;
+    let moon = moon_phase(date)?;
     let jdn = julian_day(civil);
 
     let n = jdn - 2_451_545.0 + 0.0008;
@@ -136,6 +138,7 @@ pub fn compute_astro_day(
             sunset: None,
             day_length_minutes: Some(0),
             polar: PolarState::PolarNight,
+            moon,
         });
     }
     if cos_omega < -1.0 {
@@ -145,6 +148,7 @@ pub fn compute_astro_day(
             sunset: None,
             day_length_minutes: Some(1440),
             polar: PolarState::PolarDay,
+            moon,
         });
     }
 
@@ -160,6 +164,7 @@ pub fn compute_astro_day(
         sunset: Some(to_local_hm(set, utc_offset_minutes)),
         day_length_minutes: Some(day_length),
         polar: PolarState::Normal,
+        moon,
     })
 }
 
@@ -217,6 +222,8 @@ mod tests {
         near(kyoto.sunrise.as_deref(), "06:20");
         near(kyoto.sunset.as_deref(), "17:03");
         assert!((kyoto.day_length_minutes.unwrap() as i32 - 643).abs() <= 3);
+        // Each day carries its own moon, so the interface can show it per day.
+        assert!(kyoto.moon.illumination_pct <= 100);
 
         let london = compute_astro_day(51.5074, -0.1278, "2026-06-21", 60).expect("london");
         near(london.sunrise.as_deref(), "04:44");

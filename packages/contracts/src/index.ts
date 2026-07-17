@@ -32,6 +32,86 @@ export interface TripDetail {
    * fetched, never model-authored.
    */
   packingList: PackingSuggestion[];
+  /** The latest user-fetched destination-facts snapshot, when one exists. */
+  destinationFacts?: DestinationFactsSnapshot;
+  /**
+   * Bundled facts for the destination's country, resolved fresh from the
+   * snapshot's country code. Present only when the country is covered.
+   */
+  countryFacts?: CountryFacts;
+  /**
+   * Sunrise/sunset/day-length per trip day, computed offline from the
+   * snapshot's coordinates. Empty without a destination-facts snapshot.
+   */
+  astro: AstroDay[];
+}
+/** Whether the sun rises and sets at all on a day. */
+export type PolarState = "normal" | "polarDay" | "polarNight";
+/** Sun and moon facts for one local calendar day. Times are local `HH:MM`. */
+export interface AstroDay {
+  date: string;
+  sunrise?: string;
+  sunset?: string;
+  /** Minutes of daylight: 0 on a polar night, 1440 on a polar day. */
+  dayLengthMinutes?: number;
+  polar: PolarState;
+  moon: MoonPhase;
+}
+/** The eight named lunar phases, new to waning crescent. */
+export type MoonPhaseName =
+  | "new_moon"
+  | "waxing_crescent"
+  | "first_quarter"
+  | "waxing_gibbous"
+  | "full_moon"
+  | "waning_gibbous"
+  | "last_quarter"
+  | "waning_crescent";
+export interface MoonPhase {
+  ageDays: number;
+  illuminationPct: number;
+  name: MoonPhaseName;
+}
+/** One currency's value in units per euro (EUR itself is 1.0). */
+export interface CurrencyRate {
+  code: string;
+  perEur: number;
+}
+/** A country's emergency numbers; a general number covers all where present. */
+export interface EmergencyNumbers {
+  general?: string;
+  police?: string;
+  ambulance?: string;
+  fire?: string;
+}
+/** Practical facts for one country (bundled, serialize-only). */
+export interface CountryFacts {
+  iso2: string;
+  name: string;
+  currencyCode: string;
+  /** Plug type letters (A–N). */
+  plugTypes: string[];
+  voltageV: number;
+  frequencyHz: number;
+  drivesOnLeft: boolean;
+  callingCode: string;
+  emergency: EmergencyNumbers;
+}
+/** A dated destination-facts snapshot: place, timezone offset, country, rates. */
+export interface DestinationFactsSnapshot {
+  placeName: string;
+  placeRegion: string;
+  latitude: number;
+  longitude: number;
+  /** Minutes east of UTC at the destination, for local sun times. */
+  utcOffsetMinutes: number;
+  /** ISO-3166-1 alpha-2, the key into the bundled country-facts table. */
+  countryCode: string;
+  /** The ECB reference date the rates carry, verbatim. */
+  rateDate: string;
+  /** EUR-based rates (EUR = 1.0); empty when the rate source was unreachable. */
+  currencyRates: CurrencyRate[];
+  retrievedAt: string;
 }
 export type ReadinessCheck =
   | "schedule_conflicts"
@@ -851,6 +931,7 @@ export interface AppGateway {
   listAdviceCountries(): Promise<FcdoCountry[]>;
   fetchAdvisories(input: FetchAdvisoriesInput): Promise<AdvisoryPanel>;
   fetchWeather(tripId: string): Promise<WeatherSnapshot>;
+  fetchDestinationFacts(tripId: string): Promise<DestinationFactsSnapshot>;
   searchTrip(tripId: string, query: string): Promise<SearchHit[]>;
   /** Typeahead term suggestions for the query's last word, from the trip corpus. */
   suggestSearchTerms(tripId: string, query: string): Promise<string[]>;
