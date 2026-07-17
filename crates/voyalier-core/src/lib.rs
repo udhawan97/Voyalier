@@ -4,6 +4,7 @@
 //! shells. It treats documents as untrusted data and never performs IO.
 
 mod advice;
+mod advisories;
 mod assist;
 mod assist_draft;
 mod brief;
@@ -24,6 +25,13 @@ mod weather;
 
 pub use advice::{
     FCDO_COUNTRIES, FcdoCountry, TravelAdviceSnapshot, parse_fcdo_content, validate_country_slug,
+};
+// The curated `ADVISORY_COUNTRIES` table stays internal: `advisory_country` is
+// the only door to a fetch URL, the same way `validate_country_slug` is for the
+// FCDO list.
+pub use advisories::{
+    AdvisoryCountry, AdvisoryEntry, AdvisoryPanel, AdvisorySource, HealthNotice, SourceState,
+    SourceStatus, advisory_country, entry_from_fcdo,
 };
 // Per-provider endpoints, model defaults, body builders, and reply parsers stay
 // internal: which of each pairs with which provider is `assist`'s knowledge.
