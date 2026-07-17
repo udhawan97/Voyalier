@@ -232,6 +232,12 @@ export function createHttpGateway(
         )}&q=${enc(input.query)}`,
       ),
 
+    suggestPlaces: (query: string) =>
+      request<FieldSuggestion[]>(
+        "GET",
+        `/api/v1/places/suggest?q=${enc(query)}`,
+      ),
+
     downloadPack: (tripId: string, packId: string) =>
       request<DownloadedPack>(
         "POST",

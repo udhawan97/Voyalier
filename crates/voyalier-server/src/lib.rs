@@ -147,6 +147,7 @@ pub fn app(service: AppService) -> Router {
             "/api/v1/trips/{trip_id}/field-suggestions",
             get(suggest_field_values),
         )
+        .route("/api/v1/places/suggest", get(suggest_places))
         .route("/api/v1/trips/{trip_id}/packs", get(list_downloaded_packs))
         .route(
             "/api/v1/trips/{trip_id}/packs/{pack_id}",
@@ -434,6 +435,13 @@ async fn suggest_field_values(
         &query.field,
         &query.q,
     )?))
+}
+
+async fn suggest_places(
+    State(service): State<AppService>,
+    Query(query): Query<SearchQuery>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.suggest_places(&query.q)?))
 }
 
 async fn list_downloaded_packs(

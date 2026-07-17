@@ -169,6 +169,9 @@ export function createTauriGateway(
     suggestFieldValues: (input: SuggestFieldValuesInput) =>
       call<FieldSuggestion[]>("suggest_field_values", input),
 
+    suggestPlaces: (query: string) =>
+      call<FieldSuggestion[]>("suggest_places", { query }),
+
     downloadPack: (tripId: string, packId: string) =>
       call<DownloadedPack>("download_pack", { tripId, packId }),
 

@@ -428,6 +428,7 @@ const en = {
   "suggest.source.trip_history": "from a previous stay",
   "suggest.source.pack_place": "from a city pack",
   "suggest.source.catalog": "city pack",
+  "suggest.source.gazetteer": "city",
 
   "packs.title": "Offline city data",
   "packs.intro":
