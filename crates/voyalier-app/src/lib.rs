@@ -3272,12 +3272,11 @@ fn migrate_weather_layers(connection: &Connection) -> Result<(), AppError> {
         let mut statement = connection
             .prepare("PRAGMA table_info(weather_snapshots)")
             .map_err(storage_error)?;
-        let columns = statement
+        statement
             .query_map([], |row| row.get::<_, String>(1))
             .map_err(storage_error)?
             .collect::<rusqlite::Result<Vec<String>>>()
-            .map_err(storage_error)?;
-        columns
+            .map_err(storage_error)?
     };
     // No table, nothing to widen: the base schema creates it already carrying
     // these columns, so this step only has work to do on databases that predate
