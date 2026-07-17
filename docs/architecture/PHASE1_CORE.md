@@ -9,7 +9,7 @@ GitHub rejected a literal merge-commit merge because merge commits are disabled 
 ## Decisions
 
 - `crates/voyalier-core` owns contract-aligned Rust types, deterministic validation, parser traits, and pure JSON-LD/plaintext parsers. It performs no storage, network, Tauri, or Axum work.
-- `crates/voyalier-app` owns application services and SQLite persistence. It initializes `PRAGMA user_version = 1` idempotently, enables WAL, foreign keys, and a busy timeout, and uses `VOYALIER_DATA_DIR` or `ProjectDirs("com", "voyalier", "Voyalier")`.
+- `crates/voyalier-app` owns application services and SQLite persistence. It enables WAL, foreign keys, and a busy timeout, migrates the schema by `PRAGMA user_version`, and uses `VOYALIER_DATA_DIR` or `ProjectDirs("com", "voyalier", "Voyalier")`.
 - Raw source document content is stored only in SQLite and is never returned by `SourceDocument`, `ImportResult`, HTTP responses, or Tauri command responses.
 - Desktop transport is direct Tauri IPC only. The desktop crate no longer depends on Axum or `voyalier-server`, and it starts no TCP listener.
 - Browser development continues through Axum on `127.0.0.1:8787`, with Vite-only CORS plus Host and Origin validation.

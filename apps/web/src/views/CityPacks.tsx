@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import type {
-  AppError,
   DownloadedPack,
   PackInfo,
   PackMatchKind,
@@ -8,6 +7,7 @@ import type {
 } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
+import { useAsyncAction } from "../app/useAsync";
 import { describeError } from "../app/format";
 import { plural, t, type MessageKey } from "../app/i18n";
 import { SectionTitle } from "../components/primitives";
@@ -44,9 +44,7 @@ export function CityPacks({
   const [downloaded, setDownloaded] = useState<Map<string, DownloadedPack>>(
     new Map(),
   );
-  const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   function indexById(list: DownloadedPack[]) {
     return new Map(list.map((pack) => [pack.packId, pack]));
@@ -74,51 +72,54 @@ export function CityPacks({
     };
   }, [gateway, tripId]);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const [catalog, mine] = await Promise.all([
-        gateway.listPacks(),
-        gateway.listDownloadedPacks(tripId),
-      ]);
+  // Browsing the catalog had a try/finally with no catch, so a failed listPacks
+  // became an unhandled rejection and the user saw the button stop spinning.
+  const loadAction = useAsyncAction(
+    () =>
+      Promise.all([gateway.listPacks(), gateway.listDownloadedPacks(tripId)]),
+    ([catalog, mine]) => {
       setPacks(catalog);
       setDownloaded(indexById(mine));
-    } finally {
-      setLoading(false);
-    }
-  }
+    },
+  );
+  const load = () => loadAction.run();
+  const loading = loadAction.busy;
 
-  async function download(pack: PackInfo) {
-    setError(null);
-    setBusyId(pack.id);
-    try {
-      const result = await gateway.downloadPack(tripId, pack.id);
+  const downloadAction = useAsyncAction(
+    (pack: PackInfo) => gateway.downloadPack(tripId, pack.id),
+    (result, pack) => {
       setDownloaded((prev) => new Map(prev).set(pack.id, result));
       announce(t("packs.announce.downloaded", { name: pack.name }));
-    } catch (caught) {
-      setError(describeError(caught as AppError).title);
-    } finally {
-      setBusyId(null);
-    }
-  }
+    },
+  );
 
-  async function remove(pack: PackInfo) {
-    setError(null);
-    setBusyId(pack.id);
-    try {
-      await gateway.deleteDownloadedPack(tripId, pack.id);
+  const removeAction = useAsyncAction(
+    (pack: PackInfo) => gateway.deleteDownloadedPack(tripId, pack.id),
+    (_result, pack) => {
       setDownloaded((prev) => {
         const next = new Map(prev);
         next.delete(pack.id);
         return next;
       });
       announce(t("packs.announce.removed", { name: pack.name }));
-    } catch (caught) {
-      setError(describeError(caught as AppError).title);
-    } finally {
-      setBusyId(null);
-    }
+    },
+  );
+
+  // Both actions are per-pack, so the row needs to know *which* pack is busy.
+  // run() never rejects, so the id always gets cleared.
+  async function download(pack: PackInfo) {
+    setBusyId(pack.id);
+    await downloadAction.run(pack);
+    setBusyId(null);
   }
+
+  async function remove(pack: PackInfo) {
+    setBusyId(pack.id);
+    await removeAction.run(pack);
+    setBusyId(null);
+  }
+
+  const error = downloadAction.error ?? removeAction.error ?? loadAction.error;
 
   function packControl(pack: PackInfo, downloadLabel: string) {
     const mine = downloaded.get(pack.id);
@@ -244,7 +245,7 @@ export function CityPacks({
 
       {error ? (
         <p className="voy-packs__error" role="alert">
-          {error}
+          {describeError(error).title}
         </p>
       ) : null}
 

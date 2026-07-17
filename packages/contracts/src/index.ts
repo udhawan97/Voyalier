@@ -38,11 +38,35 @@ export interface SourceLink {
   label: string;
   url: string;
 }
+/**
+ * The closed set of readiness findings. Each maps to exactly one sentence in the
+ * interface's message catalog.
+ *
+ * The core reports what it found and how many; the interface owns the words and
+ * their pluralization. Mirrors `voyalier-core::types::ReadinessFindingCode`.
+ */
+export type ReadinessFindingCode =
+  | "no_facts_yet"
+  | "schedule_conflicts"
+  | "schedule_notices"
+  | "schedule_clear"
+  | "no_lodging_yet"
+  | "lodging_gaps"
+  | "lodging_clear"
+  | "pending_review"
+  | "nothing_pending"
+  | "link_only";
+/** What a readiness check found, and the number that describes it. */
+export interface ReadinessFinding {
+  code: ReadinessFindingCode;
+  /** What the finding counts; absent for findings that count nothing. */
+  count?: number;
+}
 export interface ReadinessItem {
   id: ReadinessCheck;
   status: ReadinessStatus;
-  title: string;
-  detail: string;
+  /** What the check found. There is no title: it is derivable from `id`. */
+  finding: ReadinessFinding;
   /** Curated official-source links; omitted when the item has none. */
   links?: SourceLink[];
 }
@@ -189,8 +213,39 @@ export interface TripNotes {
   /** null until the traveler first saves something. */
   updatedAt: string | null;
 }
-/** The most a trip's notes may hold; mirrors MAX_NOTES_CHARS in the core. */
+/**
+ * Validation limits the core and this contract must agree on.
+ *
+ * These are not "mirrors" on the honour system: `parity/limits.json` holds the
+ * values, a Rust test holds the core to it, and `apps/web/src/parity.test.ts`
+ * holds these to it. Change one and both fail.
+ *
+ * Every limit counts **characters** (Unicode scalar values), matching Rust's
+ * `.chars().count()`. Use {@link countChars}, never `text.length` — that counts
+ * UTF-16 code units, so a string of emoji counts double and the check rejects
+ * input the core accepts.
+ */
+/** The most a trip's notes may hold. */
 export const MAX_NOTES_CHARS = 100_000;
+/** The longest origin or destination accepted. */
+export const MAX_LOCATION_LEN = 120;
+/** The most an imported document may hold. */
+export const MAX_DOCUMENT_CHARS = 1_000_000;
+/** The longest in-trip search query accepted. */
+export const MAX_QUERY_LEN = 200;
+/** The longest custom AI instruction accepted. */
+export const MAX_AI_PROMPT_LEN = 6000;
+
+/**
+ * Count characters the way the core does — Unicode scalar values, not UTF-16
+ * code units.
+ *
+ * `"😀".length` is 2; `countChars("😀")` is 1, which is what Rust's
+ * `.chars().count()` reports. Every limit above is expressed in these units.
+ */
+export function countChars(text: string): number {
+  return [...text].length;
+}
 /** One fetchable FCDO country page (curated list; slugs are never free text). */
 export interface FcdoCountry {
   slug: string;
@@ -709,3 +764,6 @@ export interface AppGateway {
 }
 
 export { createMockGateway } from "./mock";
+// Exported for the cross-language parity tests, which hold this and the Rust
+// core to the same golden file. Not part of the gateway surface.
+export { mockNormalizePlace } from "./mock";

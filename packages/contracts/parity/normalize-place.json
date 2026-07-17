@@ -1,0 +1,42 @@
+{
+  "$comment": "Golden cases for place-name folding, which the core and the mock gateway each implement (Rust: voyalier-core::packs::normalize_place; TypeScript: mock.ts mockNormalizePlace). Destinations are user-typed free text, so the two disagreeing means a pack matches in one and not the other. voyalier-core's parity_normalize_place_matches_the_contract and apps/web's parity.test.ts both assert against this list. Add a case here before fixing a folding bug.",
+  "cases": [
+    { "input": "Kyoto", "expected": "kyoto" },
+    { "input": "  Kyoto  ", "expected": "kyoto" },
+    { "input": "New York City", "expected": "new york city" },
+    { "input": "St. Louis", "expected": "st louis" },
+    { "input": "", "expected": "" },
+    { "input": "123", "expected": "123" },
+
+    { "$why": "ʻokina and apostrophes join the word rather than splitting it" },
+    { "input": "Oʻahu", "expected": "oahu" },
+    { "input": "O'ahu", "expected": "oahu" },
+    { "input": "Hawaiʻi", "expected": "hawaii" },
+
+    { "$why": "lowercase accents fold to their base letter" },
+    { "input": "Zürich", "expected": "zurich" },
+    { "input": "São Paulo", "expected": "sao paulo" },
+    { "input": "Málaga", "expected": "malaga" },
+    { "input": "Ōsaka", "expected": "osaka" },
+
+    {
+      "$why": "uppercase accents fold too — the core matched only A-Z, so these became word separators"
+    },
+    { "input": "REYKJAVÍK", "expected": "reykjavik" },
+    { "input": "ZÜRICH", "expected": "zurich" },
+    { "input": "SÃO PAULO", "expected": "sao paulo" },
+    { "input": "MÁLAGA", "expected": "malaga" },
+
+    {
+      "$why": "o-slash and sharp-s do not decompose under NFKD, so the mock dropped them"
+    },
+    { "input": "Tromsø", "expected": "tromso" },
+    { "input": "TROMSØ", "expected": "tromso" },
+    { "input": "Weißenburg", "expected": "weisenburg" },
+    { "input": "Malmö", "expected": "malmo" },
+
+    { "$why": "unfoldable scripts separate words rather than vanishing" },
+    { "input": "東京", "expected": "" },
+    { "input": "Tokyo 東京", "expected": "tokyo" }
+  ]
+}

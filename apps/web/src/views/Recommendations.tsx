@@ -1,11 +1,8 @@
 import { useId, useState } from "react";
-import type {
-  AppError,
-  PersonaWeights,
-  Recommendation,
-} from "@voyalier/contracts";
+import type { PersonaWeights, Recommendation } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
+import { useAsyncAction } from "../app/useAsync";
 import { describeError } from "../app/format";
 import { plural, t, type MessageKey } from "../app/i18n";
 import { SectionTitle } from "../components/primitives";
@@ -67,31 +64,24 @@ export function Recommendations({ tripId }: { tripId: string }) {
   const baseId = useId();
   const [weights, setWeights] = useState<PersonaWeights>(PRESETS[0].weights);
   const [recs, setRecs] = useState<Recommendation[] | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
   function setDimension(key: Dimension, value: number) {
     setWeights((prev) => ({ ...prev, [key]: value }));
   }
 
-  async function load() {
-    setError(null);
-    setLoading(true);
-    try {
-      const result = await gateway.getRecommendations(tripId, weights);
+  const loadAction = useAsyncAction(
+    () => gateway.getRecommendations(tripId, weights),
+    (result) => {
       setRecs(result);
       announce(
         result.length === 0
           ? t("recs.announce.none")
           : plural("recs.announce.count", result.length),
       );
-    } catch (caught) {
-      setRecs(null);
-      setError(describeError(caught as AppError).title);
-    } finally {
-      setLoading(false);
-    }
-  }
+    },
+  );
+  const load = () => loadAction.run();
+  const loading = loadAction.busy;
+  const error = loadAction.error;
 
   return (
     <section className="voy-recs" aria-labelledby="recs-title">
@@ -148,7 +138,7 @@ export function Recommendations({ tripId }: { tripId: string }) {
 
       {error ? (
         <p className="voy-recs__error" role="alert">
-          {error}
+          {describeError(error).title}
         </p>
       ) : null}
 

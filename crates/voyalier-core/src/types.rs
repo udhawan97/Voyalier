@@ -116,12 +116,70 @@ pub struct SourceLink {
 pub struct ReadinessItem {
     pub id: ReadinessCheck,
     pub status: ReadinessStatus,
-    pub title: String,
-    pub detail: String,
+    /// What the check found, without words.
+    ///
+    /// The core reports the finding and its number; the interface turns that
+    /// into a sentence. There is no `title`: it is derivable from `id`, which is
+    /// already on the wire.
+    pub finding: ReadinessFinding,
     /// Curated official-source links, when the item points the traveler outward
     /// instead of asserting anything. Additive; omitted on the wire when empty.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub links: Vec<SourceLink>,
+}
+
+/// What a readiness check found, and the number that describes it.
+///
+/// `count` is whatever the finding is counting — conflicts, notices, gaps,
+/// suggestions — and is `None` for findings that count nothing. The interface
+/// owns the pluralization, which is why the core no longer does
+/// `format!("{singular}s")`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadinessFinding {
+    pub code: ReadinessFindingCode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub count: Option<u32>,
+}
+
+impl ReadinessFinding {
+    pub(crate) fn new(code: ReadinessFindingCode) -> Self {
+        Self { code, count: None }
+    }
+
+    pub(crate) fn counted(code: ReadinessFindingCode, count: usize) -> Self {
+        Self {
+            code,
+            count: Some(count as u32),
+        }
+    }
+}
+
+/// The closed set of readiness findings. Each maps to exactly one sentence in
+/// the interface's message catalog.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReadinessFindingCode {
+    /// Nothing confirmed yet, so there is nothing to check for overlaps.
+    NoFactsYet,
+    /// `count` scheduling conflicts to resolve.
+    ScheduleConflicts,
+    /// `count` scheduling notices to review.
+    ScheduleNotices,
+    /// No overlaps in the confirmed plans.
+    ScheduleClear,
+    /// No lodging added yet.
+    NoLodgingYet,
+    /// Some nights have no lodging booked.
+    LodgingGaps,
+    /// Every night has lodging.
+    LodgingClear,
+    /// `count` imported suggestions waiting for review.
+    PendingReview,
+    /// Nothing waiting for review.
+    NothingPending,
+    /// A link-only reference that asserts nothing — see `links`.
+    LinkOnly,
 }
 
 /// The overall readiness rollup plus the per-check items it was derived from.

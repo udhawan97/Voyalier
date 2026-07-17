@@ -7,6 +7,7 @@
   "required": ["code", "message"],
   "properties": {
     "code": {
+      "$comment": "Every ErrorCode, in declaration order. voyalier-core's every_error_code_is_in_the_contract_schema holds this list to the Rust enum — it went eight codes stale between Phase 0 and Phase 3 because the only test validated a single hardcoded code.",
       "enum": [
         "validation/invalid_input",
         "validation/invalid_date_range",
@@ -14,9 +15,17 @@
         "candidate/not_found",
         "candidate/already_resolved",
         "fact/not_found",
+        "document/not_found",
         "document/too_large",
         "document/duplicate",
         "document/empty",
+        "advice/fetch_failed",
+        "weather/fetch_failed",
+        "assist/failed",
+        "assist/unreachable",
+        "pack/download_failed",
+        "vault/locked",
+        "vault/passphrase_incorrect",
         "storage/failure",
         "transport/failure",
         "internal/unexpected"

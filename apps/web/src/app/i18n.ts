@@ -620,6 +620,44 @@ const en = {
   "readiness.label.monitor": "Check soon",
   "readiness.label.action_needed": "Needs attention",
   "readiness.label.critical": "Critical",
+
+  // Item titles, keyed by ReadinessCheck. The core sends the check id; the words
+  // are ours.
+  "readiness.check.schedule_conflicts": "Schedule conflicts",
+  "readiness.check.lodging_coverage": "Lodging coverage",
+  "readiness.check.pending_review": "Suggestions to review",
+  "readiness.check.entry_requirements": "Entry & travel requirements",
+  "readiness.check.health_notices": "Health notices",
+
+  // Item details, keyed by ReadinessFindingCode. The core sends the finding and
+  // its count; pluralization happens here, through Intl.PluralRules.
+  "readiness.finding.no_facts_yet":
+    "Add flights or stays to check for overlaps.",
+  "readiness.finding.schedule_conflicts.one":
+    "{count} scheduling conflict to resolve.",
+  "readiness.finding.schedule_conflicts.other":
+    "{count} scheduling conflicts to resolve.",
+  "readiness.finding.schedule_notices.one":
+    "{count} scheduling notice to review.",
+  "readiness.finding.schedule_notices.other":
+    "{count} scheduling notices to review.",
+  "readiness.finding.schedule_clear": "No overlaps in your confirmed plans.",
+  "readiness.finding.no_lodging_yet": "No lodging added yet.",
+  "readiness.finding.lodging_gaps":
+    "Some nights in your trip have no lodging booked.",
+  "readiness.finding.lodging_clear": "Every night of your trip has lodging.",
+  "readiness.finding.pending_review.one":
+    "{count} imported suggestion waiting for review.",
+  "readiness.finding.pending_review.other":
+    "{count} imported suggestions waiting for review.",
+  "readiness.finding.nothing_pending": "Nothing is waiting for review.",
+
+  // A link-only item asserts nothing, so its text describes the check rather
+  // than a finding — keyed by ReadinessCheck, not ReadinessFindingCode.
+  "readiness.linkOnly.entry_requirements":
+    "Requirements depend on your nationality and change often. Confirm them at an official government source before you travel — Voyalier links to official sources and never asserts or clears entry rules.",
+  "readiness.linkOnly.health_notices":
+    "Vaccination and health advice depends on your destination and health, and changes often. Check an official source before you travel — Voyalier links to official sources and never gives medical advice.",
   "schedule.title": "Schedule check",
   "schedule.clear": "No schedule conflicts found in your confirmed plans.",
   "schedule.conflict": "Conflict",

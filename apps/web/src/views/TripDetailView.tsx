@@ -1,9 +1,11 @@
 import { useState } from "react";
 import type {
-  AppError,
   CandidateFact,
   ConfirmedFact,
   ItineraryConflict,
+  ReadinessCheck,
+  ReadinessFindingCode,
+  ReadinessItem,
   ReadinessStatus,
   ReadinessSummary,
 } from "@voyalier/contracts";
@@ -20,8 +22,8 @@ import {
   tripRoute,
 } from "../app/format";
 import { buildIcs, icsFilename } from "../app/ics";
-import { plural, t, type MessageKey } from "../app/i18n";
-import { useAsyncData } from "../app/useAsync";
+import { plural, t, type MessageKey, type PluralBase } from "../app/i18n";
+import { useAsyncAction, useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 import { ConfirmButton } from "../components/ConfirmButton";
@@ -229,6 +231,61 @@ const READINESS_LABEL: Record<ReadinessStatus, MessageKey> = {
   critical: "readiness.label.critical",
 };
 
+/** The check's name. The core sends `id`; the words are ours. */
+const READINESS_CHECK_TITLE: Record<ReadinessCheck, MessageKey> = {
+  schedule_conflicts: "readiness.check.schedule_conflicts",
+  lodging_coverage: "readiness.check.lodging_coverage",
+  pending_review: "readiness.check.pending_review",
+  entry_requirements: "readiness.check.entry_requirements",
+  health_notices: "readiness.check.health_notices",
+};
+
+/**
+ * How each finding becomes a sentence: a plain key, a plural base to count
+ * against, or — for a link-only item, which asserts nothing — copy about the
+ * check itself rather than a finding.
+ *
+ * An exhaustive `Record`, so adding a `ReadinessFindingCode` is a type error
+ * here rather than a blank line in the panel.
+ */
+type FindingCopy =
+  { key: MessageKey } | { plural: PluralBase } | { byCheck: true };
+
+const READINESS_FINDING_COPY: Record<ReadinessFindingCode, FindingCopy> = {
+  no_facts_yet: { key: "readiness.finding.no_facts_yet" },
+  schedule_conflicts: { plural: "readiness.finding.schedule_conflicts" },
+  schedule_notices: { plural: "readiness.finding.schedule_notices" },
+  schedule_clear: { key: "readiness.finding.schedule_clear" },
+  no_lodging_yet: { key: "readiness.finding.no_lodging_yet" },
+  lodging_gaps: { key: "readiness.finding.lodging_gaps" },
+  lodging_clear: { key: "readiness.finding.lodging_clear" },
+  pending_review: { plural: "readiness.finding.pending_review" },
+  nothing_pending: { key: "readiness.finding.nothing_pending" },
+  link_only: { byCheck: true },
+};
+
+/** The link-only checks' own copy. Only these two are ever link-only. */
+const READINESS_LINK_ONLY_DETAIL: Partial<Record<ReadinessCheck, MessageKey>> =
+  {
+    entry_requirements: "readiness.linkOnly.entry_requirements",
+    health_notices: "readiness.linkOnly.health_notices",
+  };
+
+/**
+ * Turn a readiness finding into a sentence.
+ *
+ * The core reports what it found and how many; the words and their plural forms
+ * live here, so they can be translated. The core used to build this prose itself
+ * — pluralizing with `format!("{singular}s")` — and it rendered raw.
+ */
+function readinessDetail(item: ReadinessItem): string {
+  const copy = READINESS_FINDING_COPY[item.finding.code];
+  if ("plural" in copy) return plural(copy.plural, item.finding.count ?? 0);
+  if ("key" in copy) return t(copy.key);
+  const key = READINESS_LINK_ONLY_DETAIL[item.id];
+  return key ? t(key) : "";
+}
+
 /**
  * Deterministic plan-completeness rollup plus a link-only entry-requirements
  * reference. Status is always spelled out in words, never conveyed by color
@@ -259,16 +316,17 @@ function ReadinessPanel({ readiness }: { readiness: ReadinessSummary }) {
             </span>
             <span className="voy-readiness__body">
               <span className="voy-readiness__item-title">
-                {item.title}
+                {t(READINESS_CHECK_TITLE[item.id])}
                 <span className="voy-readiness__item-status">
                   {" · "}
-                  {item.id === "entry_requirements" ||
-                  item.id === "health_notices"
+                  {item.finding.code === "link_only"
                     ? t("readiness.checkYourself")
                     : t(READINESS_LABEL[item.status])}
                 </span>
               </span>
-              <span className="voy-readiness__detail">{item.detail}</span>
+              <span className="voy-readiness__detail">
+                {readinessDetail(item)}
+              </span>
               {item.links && item.links.length > 0 ? (
                 <ul className="voy-readiness__links">
                   {item.links.map((link) => (
@@ -369,7 +427,6 @@ export function TripDetailView({
     return { detail, pending };
   }, `trip:${tripId}:${reloadKey}`);
 
-  const [exporting, setExporting] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showAddFact, setShowAddFact] = useState(false);
   // Holds the exact candidates to review (from the pending list or a fresh
@@ -380,8 +437,6 @@ export function TripDetailView({
   const [showDelete, setShowDelete] = useState(false);
   const [showBrief, setShowBrief] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
-  const [archiving, setArchiving] = useState(false);
-  const [unarchiving, setUnarchiving] = useState(false);
   const [unconfirmingId, setUnconfirmingId] = useState<string | null>(null);
 
   /**
@@ -393,9 +448,8 @@ export function TripDetailView({
    * generation-time exclusion of confirmation codes and traveler names carries
    * into the file — a .ics usually ends up in a synced cloud calendar.
    */
-  async function exportCalendar() {
-    setExporting(true);
-    try {
+  const exportAction = useAsyncAction(
+    async () => {
       const brief = await gateway.getTripBrief(tripId);
       const ics = buildIcs(brief, {
         flightSummary: (flight) => t("ics.summary.flight", { flight }),
@@ -411,44 +465,29 @@ export function TripDetailView({
       anchor.click();
       // Release the blob once the click has been handled.
       URL.revokeObjectURL(url);
-      announce(t("ics.done"));
-    } catch (caught) {
-      announce(describeError(caught as AppError).title || t("ics.error"));
-    } finally {
-      setExporting(false);
-    }
-  }
+    },
+    () => announce(t("ics.done")),
+  );
 
-  async function archive() {
-    setArchiving(true);
-    try {
-      await gateway.archiveTrip(tripId);
+  const archiveAction = useAsyncAction(
+    () => gateway.archiveTrip(tripId),
+    () => {
       announce(t("detail.announce.archived"));
       reload();
-    } catch (caught) {
-      announce(describeError(caught as AppError).title);
-    } finally {
-      setArchiving(false);
-    }
-  }
+    },
+  );
 
-  async function unarchive() {
-    setUnarchiving(true);
-    try {
-      await gateway.unarchiveTrip(tripId);
+  const unarchiveAction = useAsyncAction(
+    () => gateway.unarchiveTrip(tripId),
+    () => {
       announce(t("detail.announce.unarchived"));
       reload();
-    } catch (caught) {
-      announce(describeError(caught as AppError).title);
-    } finally {
-      setUnarchiving(false);
-    }
-  }
+    },
+  );
 
-  async function unconfirm(fact: ConfirmedFact) {
-    setUnconfirmingId(fact.id);
-    try {
-      await gateway.unconfirmFact(fact.id);
+  const unconfirmAction = useAsyncAction(
+    (fact: ConfirmedFact) => gateway.unconfirmFact(fact.id),
+    (_result, fact) => {
       const title = factTitle(fact.factType, fact.payload);
       announce(
         fact.candidateId === null
@@ -456,12 +495,24 @@ export function TripDetailView({
           : t("detail.announce.unconfirmed", { fact: title }),
       );
       reload();
-    } catch (caught) {
-      announce(describeError(caught as AppError).title);
-    } finally {
-      setUnconfirmingId(null);
-    }
+    },
+  );
+
+  async function unconfirm(fact: ConfirmedFact) {
+    setUnconfirmingId(fact.id);
+    // run() never rejects, so the per-fact busy id always gets cleared.
+    await unconfirmAction.run(fact);
+    setUnconfirmingId(null);
   }
+
+  // One place for whatever the last action failed with. These used to be
+  // announced to screen readers and never rendered, so a sighted user watched
+  // the button un-busy itself and saw nothing at all.
+  const actionError =
+    exportAction.error ??
+    archiveAction.error ??
+    unarchiveAction.error ??
+    unconfirmAction.error;
 
   const backButton = (
     <button type="button" className="voy-back" onClick={onBack}>
@@ -567,20 +618,28 @@ export function TripDetailView({
           ) : null}
           {/* Same gate as the brief: nothing confirmed, nothing to export. */}
           {confirmedFacts.length > 0 ? (
-            <Button variant="ghost" onClick={exportCalendar} busy={exporting}>
-              {exporting ? t("ics.exporting") : t("ics.export")}
+            <Button
+              variant="ghost"
+              onClick={() => exportAction.run()}
+              busy={exportAction.busy}
+            >
+              {exportAction.busy ? t("ics.exporting") : t("ics.export")}
             </Button>
           ) : null}
           {isArchived ? (
-            <Button variant="ghost" onClick={unarchive} busy={unarchiving}>
+            <Button
+              variant="ghost"
+              onClick={() => unarchiveAction.run()}
+              busy={unarchiveAction.busy}
+            >
               {t("detail.unarchive")}
             </Button>
           ) : (
             <Button
               variant="ghost"
               icon={<ArchiveIcon />}
-              onClick={archive}
-              busy={archiving}
+              onClick={() => archiveAction.run()}
+              busy={archiveAction.busy}
             >
               {t("detail.archive")}
             </Button>
@@ -590,6 +649,18 @@ export function TripDetailView({
           </Button>
         </div>
       </header>
+
+      {/* The four header actions used to only announce their failures, so a
+          sighted user saw the button un-busy itself and nothing else. */}
+      {actionError ? (
+        <Banner
+          tone="error"
+          role="alert"
+          title={describeError(actionError).title}
+        >
+          {describeError(actionError).body}
+        </Banner>
+      ) : null}
 
       <TripSectionNav />
 

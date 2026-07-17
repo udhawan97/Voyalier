@@ -1,4 +1,13 @@
-import { MAX_NOTES_CHARS } from "./index";
+import prompts from "../parity/prompts.json";
+import readinessLinks from "../parity/readiness-links.json";
+
+import {
+  MAX_AI_PROMPT_LEN,
+  MAX_LOCATION_LEN,
+  MAX_NOTES_CHARS,
+  MAX_QUERY_LEN,
+  countChars,
+} from "./index";
 
 import type {
   AddManualFactInput,
@@ -48,6 +57,7 @@ import type {
   TodayView,
   TripPhase,
   ReadinessCheck,
+  ReadinessFindingCode,
   ReadinessItem,
   ReadinessStatus,
   ReadinessSummary,
@@ -294,10 +304,10 @@ function validateLocation(
   field: "origin" | "destination",
 ): string {
   const trimmed = value.trim();
-  if (trimmed.length === 0 || trimmed.length > 120) {
+  if (countChars(trimmed) === 0 || countChars(trimmed) > MAX_LOCATION_LEN) {
     throw appError(
       "validation/invalid_input",
-      `${field} must be between 1 and 120 characters`,
+      `${field} must be between 1 and ${MAX_LOCATION_LEN} characters`,
       { field },
     );
   }
@@ -491,11 +501,13 @@ function assessReadiness(
   const item = (
     id: ReadinessCheck,
     status: ReadinessStatus,
-    title: string,
-    detail: string,
-  ): ReadinessItem => ({ id, status, title, detail });
-  const noun = (count: number, singular: string) =>
-    count === 1 ? singular : `${singular}s`;
+    code: ReadinessFindingCode,
+    count?: number,
+  ): ReadinessItem => ({
+    id,
+    status,
+    finding: count === undefined ? { code } : { code, count },
+  });
 
   const hasFacts = facts.length > 0;
   const hasLodging = facts.some((fact) => fact.factType === "lodging_stay");
@@ -510,71 +522,34 @@ function assessReadiness(
   ).length;
 
   const schedule = !hasFacts
-    ? item(
-        "schedule_conflicts",
-        "not_checked",
-        "Schedule conflicts",
-        "Add flights or stays to check for overlaps.",
-      )
+    ? item("schedule_conflicts", "not_checked", "no_facts_yet")
     : warnings > 0
       ? item(
           "schedule_conflicts",
           "action_needed",
-          "Schedule conflicts",
-          `${warnings} scheduling ${noun(warnings, "conflict")} to resolve.`,
+          "schedule_conflicts",
+          warnings,
         )
       : notices > 0
-        ? item(
-            "schedule_conflicts",
-            "monitor",
-            "Schedule conflicts",
-            `${notices} scheduling ${noun(notices, "notice")} to review.`,
-          )
-        : item(
-            "schedule_conflicts",
-            "clear",
-            "Schedule conflicts",
-            "No overlaps in your confirmed plans.",
-          );
+        ? item("schedule_conflicts", "monitor", "schedule_notices", notices)
+        : item("schedule_conflicts", "clear", "schedule_clear");
 
   const lodging = !hasLodging
-    ? item(
-        "lodging_coverage",
-        "not_checked",
-        "Lodging coverage",
-        "No lodging added yet.",
-      )
+    ? item("lodging_coverage", "not_checked", "no_lodging_yet")
     : gaps > 0
-      ? item(
-          "lodging_coverage",
-          "monitor",
-          "Lodging coverage",
-          "Some nights in your trip have no lodging booked.",
-        )
-      : item(
-          "lodging_coverage",
-          "clear",
-          "Lodging coverage",
-          "Every night of your trip has lodging.",
-        );
+      ? item("lodging_coverage", "monitor", "lodging_gaps", gaps)
+      : item("lodging_coverage", "clear", "lodging_clear");
 
   const pending =
     pendingCandidateCount > 0
       ? item(
           "pending_review",
           "monitor",
-          "Suggestions to review",
-          `${pendingCandidateCount} imported ${noun(pendingCandidateCount, "suggestion")} waiting for review.`,
-        )
-      : item(
           "pending_review",
-          "clear",
-          "Suggestions to review",
-          "Nothing is waiting for review.",
-        );
+          pendingCandidateCount,
+        )
+      : item("pending_review", "clear", "nothing_pending");
 
-  // Logistics items drive the rollup; the link-only entry-requirements item is
-  // appended afterwards and never moves the overall status.
   const logistics = [schedule, lodging, pending];
   let worst: ReadinessStatus = "not_checked";
   for (const entry of logistics) {
@@ -585,48 +560,22 @@ function assessReadiness(
   const status: ReadinessStatus =
     !hasFacts && worst === "clear" ? "not_checked" : worst;
 
+  // Link-only reference items: they assert nothing, so they carry no finding
+  // beyond "link_only" and never move the rollup. The links come from the parity
+  // file the core answers to — they are the product's entire claim on entry and
+  // health, and they used to be hand-copied here.
   const entryRequirements: ReadinessItem = {
     id: "entry_requirements",
     status: "not_checked",
-    title: "Entry & travel requirements",
-    detail:
-      "Requirements depend on your nationality and change often. Confirm them " +
-      "at an official government source before you travel — Voyalier links to " +
-      "official sources and never asserts or clears entry rules.",
-    links: [
-      {
-        label: "UK FCDO travel advice — entry requirements by country",
-        url: "https://www.gov.uk/foreign-travel-advice",
-      },
-      {
-        label: "US State Dept — travel advisories by country",
-        url: "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html",
-      },
-      {
-        label: "US State Dept — international travel",
-        url: "https://travel.state.gov/content/travel/en/international-travel.html",
-      },
-    ],
+    finding: { code: "link_only" },
+    links: readinessLinks.entry_requirements,
   };
 
   const healthNotices: ReadinessItem = {
     id: "health_notices",
     status: "not_checked",
-    title: "Health notices",
-    detail:
-      "Vaccination and health advice depends on your destination and health, " +
-      "and changes often. Check an official source before you travel — " +
-      "Voyalier links to official sources and never gives medical advice.",
-    links: [
-      {
-        label: "US CDC — Travelers' Health, destination notices",
-        url: "https://wwwnc.cdc.gov/travel/destinations/list",
-      },
-      {
-        label: "WHO — International travel and health",
-        url: "https://www.who.int/travel-advice",
-      },
-    ],
+    finding: { code: "link_only" },
+    links: readinessLinks.health_notices,
   };
 
   return { status, items: [...logistics, entryRequirements, healthNotices] };
@@ -642,12 +591,13 @@ const MOCK_PROVIDERS: ReadonlyArray<{
   { id: "ollama", label: "Ollama (on-device)", keyRequired: false },
 ];
 
-// Default AI instructions, mirroring the Rust constants closely enough for the
-// settings UI to render and edit them.
-const MOCK_ASSIST_PROMPT =
-  "You are a careful travel-planning assistant for Voyalier. Use only the trip details provided below. Do not invent flights, prices, visa or entry rules, health requirements, or safety guidance; if the trip details do not answer a question, say so.";
-const MOCK_DRAFT_PROMPT =
-  "You extract lodging check-in and check-out dates from a traveler's own booking text. Reply with ONLY a JSON object of the documented shape and no other keys.";
+// The defaults the settings UI renders and lets the traveler edit. Read from the
+// parity file the Rust core also answers to, rather than retyped here: the draft
+// prompt used to be a paraphrase that dropped the JSON shape and the ban on
+// prices, codes, guest names, and visa/health/safety content, so mock mode
+// showed a "default" the product never sends.
+const MOCK_ASSIST_PROMPT = prompts.assist;
+const MOCK_DRAFT_PROMPT = prompts.draftLodgingDates;
 
 function mockAiPromptDefault(kind: AiPromptKind): string {
   return kind === "assist" ? MOCK_ASSIST_PROMPT : MOCK_DRAFT_PROMPT;
@@ -804,14 +754,26 @@ const MOCK_PACK_ALIASES: Record<string, readonly string[]> = {
 const REGION_STOPWORDS = new Set(["usa", "the", "and", "of"]);
 
 /** JS mirror of voyalier-core::packs::normalize_place. */
-function mockNormalizePlace(input: string): string {
-  return input
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "") // combining diacritics
-    .replace(/['`´‘’ʻ]/g, "") // apostrophe-like + ʻokina
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
+/**
+ * Exported only so `apps/web/src/parity.test.ts` can hold it to
+ * `parity/normalize-place.json`, the same file the core answers to. Not part of
+ * the gateway surface.
+ */
+export function mockNormalizePlace(input: string): string {
+  return (
+    input
+      .toLowerCase()
+      .replace(/ø/g, "o")
+      .replace(/ß/g, "s")
+      // NFKD only decomposes *composed* letters, so ø and ß survive it and would
+      // fall through to the separator strip below — "Tromsø" became "troms".
+      // The core folds them explicitly, so do the same, to the same letters.
+      .normalize("NFKD")
+      .replace(/[̀-ͯ]/g, "") // combining diacritics
+      .replace(/['`´‘’ʻ]/g, "") // apostrophe-like + ʻokina
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim()
+  );
 }
 
 const MATCH_RANK: Record<PackMatchKind, number> = {
@@ -1542,10 +1504,10 @@ export function createMockGateway(options?: {
             },
           );
         }
-        if (trimmed.length > 200) {
+        if (countChars(trimmed) > MAX_QUERY_LEN) {
           throw appError(
             "validation/invalid_input",
-            "search query must be 200 characters or fewer",
+            `search query must be ${MAX_QUERY_LEN} characters or fewer`,
             { field: "query" },
           );
         }
@@ -1627,7 +1589,8 @@ export function createMockGateway(options?: {
       execute("suggestSearchTerms", () => {
         requireTrip(tripId);
         const trimmed = query.trim();
-        if (trimmed.length === 0 || trimmed.length > 200) return [];
+        if (countChars(trimmed) === 0 || countChars(trimmed) > MAX_QUERY_LEN)
+          return [];
         const docs = [...documents.values()]
           .filter((stored) => stored.document.tripId === tripId)
           .map((stored) => stored.content);
@@ -2009,9 +1972,7 @@ export function createMockGateway(options?: {
               { field: "text" },
             );
           }
-          // Mirror the backend's MAX_AI_PROMPT_LEN so the mock rejects the same
-          // over-long input the real service would.
-          if (trimmed.length > 6000) {
+          if (countChars(trimmed) > MAX_AI_PROMPT_LEN) {
             throw appError(
               "validation/invalid_input",
               "the instruction is too long",
@@ -2350,7 +2311,7 @@ export function createMockGateway(options?: {
     setTripNotes: (tripId: string, body: string) =>
       execute("setTripNotes", () => {
         requireTrip(tripId);
-        if ([...body].length > MAX_NOTES_CHARS) {
+        if (countChars(body) > MAX_NOTES_CHARS) {
           throw appError(
             "validation/invalid_input",
             "Those notes are too long to store",

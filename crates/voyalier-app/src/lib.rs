@@ -12,34 +12,29 @@ use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use voyalier_core::{
-    ANTHROPIC_MESSAGES_URL, ANTHROPIC_VERSION, ASSIST_DRAFT_LODGING_DATES, ASSIST_SYSTEM_PROMPT,
-    AddManualFactInput, AiPrompt, AiPromptKind, AiPromptSettings, AppError, AssistActivityEntry,
-    AssistDraftResult, AssistReply, AssistRequestPreview, CandidateFact, CandidateStatus,
-    ConfirmCandidateInput, ConfirmationParser, ConfirmedFact, CreateTripInput,
-    DEFAULT_ANTHROPIC_MODEL, DEFAULT_OLLAMA_MODEL, DEFAULT_OPENAI_MODEL,
-    DRAFT_LODGING_DATES_SYSTEM_PROMPT, DocumentContent, DocumentKind, DocumentSummary,
-    DownloadedPack, ErrorCode, ExtractionMethod, FCDO_COUNTRIES, FactPayload, FactType,
-    FcdoCountry, FieldSuggestion, HealthResponse, ImportDocumentInput, ImportResult,
-    IntelligenceMode, JsonLdParser, KeyValidation, KeyValidationStatus, LocalAiStatus,
-    LocalModelPullResult, LodgingDateProposal, MAX_NOTES_CHARS, MAX_OFFLINE_MAP_BYTES,
-    NormalizedDocument, OLLAMA_CHAT_URL, OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OPENAI_CHAT_URL,
-    OfflineMapArchive, OfflineMapChunk, OfflineMapDescriptor, PROVIDERS, PackContent, PackInfo,
-    PackSuggestion, ParsedCandidate, PersonaWeights, PlaintextParser, ProviderConfig, ProviderId,
+    ASSIST_DRAFT_LODGING_DATES, ASSIST_SYSTEM_PROMPT, AddManualFactInput, AiPrompt, AiPromptKind,
+    AiPromptSettings, AppError, AssistActivityEntry, AssistDraftResult, AssistReply,
+    AssistRequestPreview, CandidateFact, CandidateStatus, ConfirmCandidateInput, ConfirmedFact,
+    CreateTripInput, DRAFT_LODGING_DATES_SYSTEM_PROMPT, DocumentContent, DocumentKind,
+    DocumentParse, DocumentSummary, DownloadedPack, ErrorCode, ExtractionMethod, FCDO_COUNTRIES,
+    FactPayload, FactType, FcdoCountry, FieldSuggestion, HealthResponse, ImportDocumentInput,
+    ImportResult, IntelligenceMode, KeyValidation, LocalAiStatus, LocalModelPullResult,
+    LodgingDateProposal, MAX_AI_PROMPT_LEN, MAX_NOTES_CHARS, MAX_OFFLINE_MAP_BYTES,
+    OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OfflineMapArchive, OfflineMapChunk, OfflineMapDescriptor,
+    PROVIDERS, PackContent, PackInfo, PackSuggestion, PersonaWeights, ProviderConfig, ProviderId,
     Recommendation, RedactionPolicy, SEARCH_SUGGESTION_LIMIT, SearchHit, SearchableDocument,
-    SourceDocument, SuggestionSource, TodayView, TravelAdviceSnapshot, Trip, TripBrief, TripDetail,
-    TripNotes, TripStatus, TripSummary, UpdateTripInput, WarningCode, WeatherSnapshot,
-    assess_readiness, build_anthropic_messages_body, build_assist_preview,
-    build_lodging_dates_user_content, build_ollama_chat_body, build_openai_chat_body,
-    build_pull_body, build_today_view, build_trip_brief, changed_payload_fields,
-    detect_itinerary_conflicts, extract_email_body, interpret_key_validation,
-    interpret_pull_response, new_id, now_rfc3339, offline_map_download_url, pack_catalog,
-    pack_download_url, parse_anthropic_reply, parse_fcdo_content, parse_forecast_response,
-    parse_geocoding_response, parse_lodging_dates_reply, parse_ollama_chat_reply,
-    parse_openai_chat_reply, parse_pack_content, provider_info, provider_validation_endpoint,
+    SourceDocument, SuggestionSource, TodayView, TravelAdviceSnapshot, Trip, TripAssessment,
+    TripBrief, TripDetail, TripNotes, TripStatus, TripSummary, UpdateTripInput, WarningCode,
+    WeatherSnapshot, assess_trip, build_assist_preview, build_assist_request, build_draft_preview,
+    build_pull_body, build_today_view, build_trip_brief, changed_payload_fields, estimate_tokens,
+    interpret_key_validation, interpret_pull_response, new_id, now_rfc3339,
+    offline_map_download_url, pack_catalog, pack_download_url, parse_assist_reply,
+    parse_fcdo_content, parse_forecast_response, parse_geocoding_response, parse_import,
+    parse_lodging_dates_reply, parse_pack_content, provider_info, provider_validation_endpoint,
     provider_validation_headers, rank_field_suggestions, recommend_places, search_trip_corpus,
     suggest_packs, suggest_search_terms, validate_api_key, validate_country_slug,
-    validate_create_trip, validate_document_content, validate_fact_payload, validate_model_name,
-    validate_pack_id, validate_provider_id, validate_search_query, validate_update_trip,
+    validate_create_trip, validate_fact_payload, validate_model_name, validate_pack_id,
+    validate_provider_id, validate_search_query, validate_update_trip,
 };
 use voyalier_core::{
     VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, VaultStatus, derive_key as vault_derive_key,
@@ -50,6 +45,10 @@ const DATABASE_FILE: &str = "voyalier.sqlite3";
 const MAX_OFFLINE_MAP_RANGE: u32 = 4 * 1024 * 1024;
 
 /// One imported document as `(id, label, decrypted text)`.
+mod records;
+
+use records::{Records, SEALED_COLUMNS, ensure_candidate_pending};
+
 type DocumentText = (String, String, String);
 
 /// Fetches a URL's body as text. The only network seam in the application
@@ -560,25 +559,6 @@ fn read_vault_wrap(connection: &Connection) -> Result<Option<VaultWrap>, AppErro
     }))
 }
 
-fn app_to_rusqlite(error: AppError) -> rusqlite::Error {
-    rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, Box::new(error))
-}
-
-/// The sensitive text columns the vault seals: the parsed confirmed-fact payload
-/// AND the original imported document text it was extracted from — both carry
-/// confirmation codes and traveler names, so both must be encrypted at rest.
-const SEALED_COLUMNS: &[(&str, &str)] = &[
-    ("confirmed_facts", "payload"),
-    ("source_documents", "raw_content"),
-    // Pending candidates hold the same parsed secrets, and their field spans
-    // carry verbatim excerpts of the source text (often the code itself).
-    ("candidate_facts", "payload"),
-    ("candidate_facts", "field_spans"),
-    // Notes are whatever the traveler chose to write down — treat them as
-    // sensitive as the confirmations they sit beside.
-    ("trip_notes", "body"),
-];
-
 /// Seal any legacy plaintext values in the vault's sensitive columns once the
 /// vault is active. Idempotent: already-sealed rows (tagged) are skipped. Safe to
 /// re-run (e.g. after unlocking a passphrase vault).
@@ -843,34 +823,13 @@ impl AppService {
 
     pub fn list_trips(&self) -> Result<Vec<TripSummary>, AppError> {
         let connection = self.connection()?;
-        let mut statement = connection
-            .prepare(
-                "SELECT
-                    trips.id,
-                    trips.title,
-                    trips.origin,
-                    trips.destination,
-                    trips.start_date,
-                    trips.end_date,
-                    trips.status,
-                    trips.created_at,
-                    trips.updated_at,
-                    (SELECT COUNT(*) FROM confirmed_facts WHERE confirmed_facts.trip_id = trips.id),
-                    (SELECT COUNT(*) FROM candidate_facts WHERE candidate_facts.trip_id = trips.id AND candidate_facts.status = 'pending')
-                 FROM trips
-                 ORDER BY trips.created_at ASC",
-            )
-            .map_err(storage_error)?;
-        let rows = statement
-            .query_map([], row_to_trip_summary)
-            .map_err(storage_error)?;
-        collect_rows(rows)
+        self.records(&connection).trip_summaries()
     }
 
     pub fn get_trip(&self, trip_id: &str) -> Result<TripDetail, AppError> {
         let connection = self.connection()?;
-        let trip = fetch_trip(&connection, trip_id)?;
-        let confirmed_facts = fetch_confirmed_facts(&connection, trip_id, &self.vault)?;
+        let trip = self.records(&connection).trip(trip_id)?;
+        let confirmed_facts = self.records(&connection).confirmed_facts(trip_id)?;
         let pending_candidate_count: i64 = connection
             .query_row(
                 "SELECT COUNT(*) FROM candidate_facts WHERE trip_id = ?1 AND status = 'pending'",
@@ -879,13 +838,10 @@ impl AppService {
             )
             .map_err(storage_error)?;
         let pending_candidate_count = pending_candidate_count as u32;
-        let itinerary_conflicts = detect_itinerary_conflicts(&trip, &confirmed_facts);
-        let readiness = assess_readiness(
-            &trip,
-            &confirmed_facts,
-            pending_candidate_count,
-            &itinerary_conflicts,
-        );
+        let TripAssessment {
+            conflicts: itinerary_conflicts,
+            readiness,
+        } = assess_trip(&trip, &confirmed_facts, pending_candidate_count);
         let travel_advice = fetch_travel_advice_snapshot(&connection, trip_id)?;
         let weather = fetch_weather_snapshot(&connection, trip_id)?;
         Ok(TripDetail {
@@ -918,7 +874,7 @@ impl AppService {
     /// a suggested pack stays a separate, explicit user action.
     pub fn suggest_packs(&self, trip_id: &str) -> Result<Vec<PackSuggestion>, AppError> {
         let connection = self.connection()?;
-        let trip = fetch_trip(&connection, trip_id)?;
+        let trip = self.records(&connection).trip(trip_id)?;
         Ok(suggest_packs(&trip.destination))
     }
 
@@ -944,14 +900,17 @@ impl AppService {
             ));
         }
         let connection = self.connection()?;
-        fetch_trip(&connection, trip_id)?;
+        self.records(&connection).trip(trip_id)?;
 
         let mut candidates: Vec<FieldSuggestion> = Vec::new();
 
         // Values the user already confirmed on THIS trip. Scoped to the current
         // trip so a past trip's address never surfaces while entering a new one.
         // Reading needs the vault; a locked vault simply omits this source.
-        match confirmed_lodging_values(&connection, &self.vault, field, trip_id) {
+        match self
+            .records(&connection)
+            .confirmed_lodging_values(field, trip_id)
+        {
             Ok(values) => {
                 for value in values {
                     candidates.push(
@@ -987,7 +946,7 @@ impl AppService {
         let info = validate_pack_id(pack_id)?;
         {
             let connection = self.connection()?;
-            fetch_trip(&connection, trip_id)?;
+            self.records(&connection).trip(trip_id)?;
         }
         let url = pack_download_url(pack_id);
         let body = self
@@ -1060,7 +1019,7 @@ impl AppService {
     /// The packs downloaded for a trip, most recent first.
     pub fn list_downloaded_packs(&self, trip_id: &str) -> Result<Vec<DownloadedPack>, AppError> {
         let connection = self.connection()?;
-        fetch_trip(&connection, trip_id)?;
+        self.records(&connection).trip(trip_id)?;
         let mut statement = connection
             .prepare(
                 "SELECT pack_id, name, region, place_count, article_count, downloaded_at, content
@@ -1133,7 +1092,7 @@ impl AppService {
     /// tile request or any network consent.
     pub fn get_offline_map(&self, trip_id: &str) -> Result<Option<OfflineMapArchive>, AppError> {
         let connection = self.connection()?;
-        fetch_trip(&connection, trip_id)?;
+        self.records(&connection).trip(trip_id)?;
         let mut statement = connection
             .prepare(
                 "SELECT pack_id, name, content FROM downloaded_packs
@@ -1198,7 +1157,7 @@ impl AppService {
             ));
         }
         let connection = self.connection()?;
-        fetch_trip(&connection, trip_id)?;
+        self.records(&connection).trip(trip_id)?;
         let content = connection
             .query_row(
                 "SELECT content FROM downloaded_packs WHERE trip_id = ?1 AND pack_id = ?2",
@@ -1253,7 +1212,7 @@ impl AppService {
         weights: PersonaWeights,
     ) -> Result<Vec<Recommendation>, AppError> {
         let connection = self.connection()?;
-        fetch_trip(&connection, trip_id)?;
+        self.records(&connection).trip(trip_id)?;
         let mut statement = connection
             .prepare("SELECT content FROM downloaded_packs WHERE trip_id = ?1")
             .map_err(storage_error)?;
@@ -1335,13 +1294,13 @@ impl AppService {
             .iter()
             .map(|(name, value)| (name.as_str(), value.as_str()))
             .collect();
-        match self.fetcher.get_status(endpoint, &header_refs) {
-            Ok(status) => Ok(interpret_key_validation(status)),
-            Err(_) => Ok(KeyValidation {
-                status: KeyValidationStatus::Unreachable,
-                message: "Could not reach the provider to verify the key.".to_owned(),
-            }),
-        }
+        // Both the reply and the no-reply case resolve through core's one
+        // verdict table, so an unreachable provider reads the same either way.
+        Ok(interpret_key_validation(
+            self.fetcher
+                .get_status(endpoint, &header_refs)
+                .map_err(|_| ()),
+        ))
     }
 
     /// Download (pull) an on-device model into a running Ollama. Best-effort and
@@ -1559,7 +1518,7 @@ impl AppService {
         // Validate the trip before any network call.
         {
             let connection = self.connection()?;
-            fetch_trip(&connection, trip_id)?;
+            self.records(&connection).trip(trip_id)?;
         }
         let url = format!(
             "https://www.gov.uk/api/content/foreign-travel-advice/{}",
@@ -1605,13 +1564,13 @@ impl AppService {
     pub fn search_trip(&self, trip_id: &str, query: &str) -> Result<Vec<SearchHit>, AppError> {
         let query = validate_search_query(query)?;
         let connection = self.connection()?;
-        fetch_trip(&connection, trip_id)?;
-        let documents = fetch_trip_document_texts(&connection, &self.vault, trip_id)?;
+        self.records(&connection).trip(trip_id)?;
+        let documents = self.records(&connection).trip_document_texts(trip_id)?;
         let searchable: Vec<SearchableDocument<'_>> = documents
             .iter()
             .map(|(id, label, content)| SearchableDocument { id, label, content })
             .collect();
-        let facts = fetch_confirmed_facts(&connection, trip_id, &self.vault)?;
+        let facts = self.records(&connection).confirmed_facts(trip_id)?;
         Ok(search_trip_corpus(&query, &searchable, &facts))
     }
 
@@ -1627,13 +1586,13 @@ impl AppService {
             return Ok(Vec::new());
         };
         let connection = self.connection()?;
-        fetch_trip(&connection, trip_id)?;
-        let documents = fetch_trip_document_texts(&connection, &self.vault, trip_id)?;
+        self.records(&connection).trip(trip_id)?;
+        let documents = self.records(&connection).trip_document_texts(trip_id)?;
         let searchable: Vec<SearchableDocument<'_>> = documents
             .iter()
             .map(|(id, label, content)| SearchableDocument { id, label, content })
             .collect();
-        let facts = fetch_confirmed_facts(&connection, trip_id, &self.vault)?;
+        let facts = self.records(&connection).confirmed_facts(trip_id)?;
         Ok(suggest_search_terms(
             &query,
             &searchable,
@@ -1649,7 +1608,7 @@ impl AppService {
     pub fn fetch_weather(&self, trip_id: &str) -> Result<WeatherSnapshot, AppError> {
         let trip = {
             let connection = self.connection()?;
-            fetch_trip(&connection, trip_id)?
+            self.records(&connection).trip(trip_id)?
         };
 
         let geocode_url = format!(
@@ -1717,8 +1676,8 @@ impl AppService {
     /// enter the returned structure.
     pub fn get_trip_brief(&self, trip_id: &str) -> Result<TripBrief, AppError> {
         let connection = self.connection()?;
-        let trip = fetch_trip(&connection, trip_id)?;
-        let confirmed_facts = fetch_confirmed_facts(&connection, trip_id, &self.vault)?;
+        let trip = self.records(&connection).trip(trip_id)?;
+        let confirmed_facts = self.records(&connection).confirmed_facts(trip_id)?;
         Ok(build_trip_brief(
             &trip,
             &confirmed_facts,
@@ -1731,8 +1690,8 @@ impl AppService {
     /// stands, what happens today, and what's next. Deterministic and offline.
     pub fn get_today(&self, trip_id: &str) -> Result<TodayView, AppError> {
         let connection = self.connection()?;
-        let trip = fetch_trip(&connection, trip_id)?;
-        let facts = fetch_confirmed_facts(&connection, trip_id, &self.vault)?;
+        let trip = self.records(&connection).trip(trip_id)?;
+        let facts = self.records(&connection).confirmed_facts(trip_id)?;
         let now = now_rfc3339();
         let today = now.get(..10).unwrap_or(now.as_str());
         Ok(build_today_view(&trip, &facts, today))
@@ -1749,8 +1708,8 @@ impl AppService {
     ) -> Result<AssistRequestPreview, AppError> {
         let id = validate_provider_id(provider)?;
         let connection = self.connection()?;
-        let trip = fetch_trip(&connection, trip_id)?;
-        let confirmed_facts = fetch_confirmed_facts(&connection, trip_id, &self.vault)?;
+        let trip = self.records(&connection).trip(trip_id)?;
+        let confirmed_facts = self.records(&connection).confirmed_facts(trip_id)?;
         let model = connection
             .query_row(
                 "SELECT model FROM provider_settings WHERE provider = ?1",
@@ -1878,8 +1837,8 @@ impl AppService {
             ));
         }
         let connection = self.connection()?;
-        let trip = fetch_trip(&connection, trip_id)?;
-        let documents = fetch_trip_document_texts(&connection, &self.vault, trip_id)?;
+        let trip = self.records(&connection).trip(trip_id)?;
+        let documents = self.records(&connection).trip_document_texts(trip_id)?;
         let model = connection
             .query_row(
                 "SELECT model FROM provider_settings WHERE provider = ?1",
@@ -1936,18 +1895,26 @@ impl AppService {
             .iter()
             .map(|(_, label, text)| (label.clone(), text.clone()))
             .collect();
-        let user_content =
-            build_lodging_dates_user_content(&trip.start_date, &trip.end_date, &doc_pairs);
-        let model = model.unwrap_or_else(|| DEFAULT_OLLAMA_MODEL.to_owned());
         // Read the (possibly customized) instruction in a scoped lock so the
         // storage guard is released before the network call and the later insert.
         let system_prompt = {
             let connection = self.connection()?;
             effective_ai_prompt(&connection, AiPromptKind::DraftLodgingDates)?
         };
-        let body = build_ollama_chat_body(&model, &system_prompt, &user_content);
-        let response = self.fetcher.post_json(OLLAMA_CHAT_URL, &body, &[])?;
-        let text = parse_ollama_chat_reply(&response)?;
+        // Reuse the preview, exactly as run_assist does: the consent step and
+        // the bytes actually sent are then the same object, not two builds that
+        // happen to agree.
+        let preview = build_draft_preview(&trip, &doc_pairs, model.as_deref(), &system_prompt);
+        // On-device only: Ollama is keyless, so nothing leaves this machine.
+        let request = build_assist_request(
+            ProviderId::Ollama,
+            preview.model.as_deref(),
+            &preview.system_prompt,
+            &preview.user_content,
+            None,
+        )?;
+        let response = self.fetcher.post_json(request.url, &request.body, &[])?;
+        let text = parse_assist_reply(ProviderId::Ollama, &response)?;
         let proposals = parse_lodging_dates_reply(&text)?;
         if proposals.is_empty() {
             return Ok(AssistDraftResult {
@@ -1996,7 +1963,7 @@ impl AppService {
                 created_at: now.clone(),
                 resolved_at: None,
             };
-            insert_candidate(&connection, &candidate, &self.vault)?;
+            self.records(&connection).insert_candidate(&candidate)?;
             candidates.push(candidate);
         }
         Ok(AssistDraftResult { candidates })
@@ -2004,56 +1971,38 @@ impl AppService {
 
     /// Send a previewed request to `id`'s runtime and return `(model, reply)`.
     /// The BYOK key, when needed, is read from the keychain and used only here.
+    /// Send the previewed request to its provider and return `(model, reply)`.
+    ///
+    /// The provider protocol — endpoint, model default, body shape, headers, and
+    /// the matching reply parser — belongs to `voyalier_core::assist`. All this
+    /// adds is the two things core cannot do: read the key from the keychain and
+    /// perform the fetch.
     fn dispatch_assist(
         &self,
         id: ProviderId,
         preview: &AssistRequestPreview,
     ) -> Result<(String, String), AppError> {
-        let system = &preview.system_prompt;
-        let user = &preview.user_content;
-        match id {
-            ProviderId::Ollama => {
-                let model = preview
-                    .model
-                    .clone()
-                    .unwrap_or_else(|| DEFAULT_OLLAMA_MODEL.to_owned());
-                let body = build_ollama_chat_body(&model, system, user);
-                let response = self.fetcher.post_json(OLLAMA_CHAT_URL, &body, &[])?;
-                Ok((model.clone(), parse_ollama_chat_reply(&response)?))
-            }
-            ProviderId::OpenAi => {
-                let key = self.require_provider_key(id)?;
-                let model = preview
-                    .model
-                    .clone()
-                    .unwrap_or_else(|| DEFAULT_OPENAI_MODEL.to_owned());
-                let body = build_openai_chat_body(&model, system, user);
-                let auth = format!("Bearer {key}");
-                let response = self.fetcher.post_json(
-                    OPENAI_CHAT_URL,
-                    &body,
-                    &[("Authorization", auth.as_str())],
-                )?;
-                Ok((model.clone(), parse_openai_chat_reply(&response)?))
-            }
-            ProviderId::Anthropic => {
-                let key = self.require_provider_key(id)?;
-                let model = preview
-                    .model
-                    .clone()
-                    .unwrap_or_else(|| DEFAULT_ANTHROPIC_MODEL.to_owned());
-                let body = build_anthropic_messages_body(&model, system, user);
-                let response = self.fetcher.post_json(
-                    ANTHROPIC_MESSAGES_URL,
-                    &body,
-                    &[
-                        ("x-api-key", key.as_str()),
-                        ("anthropic-version", ANTHROPIC_VERSION),
-                    ],
-                )?;
-                Ok((model.clone(), parse_anthropic_reply(&response)?))
-            }
-        }
+        let key = if provider_info(id).key_required {
+            Some(self.require_provider_key(id)?)
+        } else {
+            None
+        };
+        let request = build_assist_request(
+            id,
+            preview.model.as_deref(),
+            &preview.system_prompt,
+            &preview.user_content,
+            key.as_deref(),
+        )?;
+        let header_refs: Vec<(&str, &str)> = request
+            .headers
+            .iter()
+            .map(|(name, value)| (name.as_str(), value.as_str()))
+            .collect();
+        let response = self
+            .fetcher
+            .post_json(request.url, &request.body, &header_refs)?;
+        Ok((request.model, parse_assist_reply(id, &response)?))
     }
 
     /// Read the BYOK key for a cloud provider, or a clear "add a key" error.
@@ -2075,7 +2024,7 @@ impl AppService {
         trip_id: &str,
     ) -> Result<Vec<AssistActivityEntry>, AppError> {
         let connection = self.connection()?;
-        fetch_trip(&connection, trip_id)?;
+        self.records(&connection).trip(trip_id)?;
         let mut statement = connection
             .prepare(
                 "SELECT id, provider, model, created_at
@@ -2109,7 +2058,7 @@ impl AppService {
 
     pub fn update_trip(&self, trip_id: &str, input: UpdateTripInput) -> Result<Trip, AppError> {
         let mut connection = self.connection()?;
-        let current = fetch_trip(&connection, trip_id)?;
+        let current = self.records(&connection).trip(trip_id)?;
         let input = validate_update_trip(&current, input)?;
         let destination_changed = current.destination != input.destination;
         let invalidates_weather = destination_changed
@@ -2150,7 +2099,7 @@ impl AppService {
                 .map_err(storage_error)?;
         }
         transaction.commit().map_err(storage_error)?;
-        fetch_trip(&connection, trip_id)
+        self.records(&connection).trip(trip_id)
     }
 
     pub fn archive_trip(&self, trip_id: &str) -> Result<Trip, AppError> {
@@ -2175,21 +2124,19 @@ impl AppService {
     }
 
     pub fn import_document(&self, input: ImportDocumentInput) -> Result<ImportResult, AppError> {
-        // Email is input-only: extract the confirmation body (preferring the HTML
-        // part so JSON-LD can parse) and import it as a normal html/pasted-text
-        // document. Everything downstream — dedup, sealing, field spans, parser
-        // dispatch — then sees the extracted body, not the raw email.
-        let (kind, content, email_subject) = match input.kind {
-            DocumentKind::Email => {
-                // Bound the RAW email before the extractor walks its (untrusted)
-                // MIME tree — the extracted body is validated again below.
-                validate_document_content(&input.content)?;
-                let extracted = extract_email_body(&input.content);
-                (extracted.kind, extracted.content, extracted.subject)
-            }
-            other => (other, input.content.clone(), None),
-        };
-        let char_count = validate_document_content(&content)?;
+        // Email is input-only. `parse_import` bounds the raw input, extracts the
+        // confirmation body, bounds that, and dispatches to the parser for the
+        // resulting kind — so everything downstream (dedup, sealing, field
+        // spans) sees the extracted body, never the raw email.
+        let DocumentParse {
+            kind,
+            content,
+            label_hint: email_subject,
+            char_count,
+            parser_id,
+            parser_version,
+            candidates: parsed_candidates,
+        } = parse_import(input.kind, &input.content)?;
         let hash = sha256_hex(content.as_bytes());
         let label = input
             .label
@@ -2211,15 +2158,13 @@ impl AppService {
                 }
                 .to_owned()
             });
-        let document = NormalizedDocument::new(kind, content.clone());
-        let (parser_id, parser_version, parsed_candidates) = parse_document(&document);
         let now = now_rfc3339();
         let document_id = new_id("doc");
         let parser_run_id = new_id("run");
 
         let mut connection = self.connection()?;
         let transaction = connection.transaction().map_err(storage_error)?;
-        fetch_trip(&transaction, &input.trip_id)?;
+        self.records(&transaction).trip(&input.trip_id)?;
 
         if let Some(existing_id) = transaction
             .query_row(
@@ -2240,7 +2185,7 @@ impl AppService {
 
         // The imported body carries the same confirmation codes and traveler
         // names as the parsed facts, so it is sealed at rest too.
-        let sealed_content = self.vault.seal_field(&content)?;
+        let sealed_content = self.records(&transaction).seal(&content)?;
         transaction
             .execute(
                 "INSERT INTO source_documents (id, trip_id, kind, label, content_hash, char_count, imported_at, raw_content)
@@ -2288,7 +2233,7 @@ impl AppService {
                 created_at: now.clone(),
                 resolved_at: None,
             };
-            insert_candidate(&transaction, &candidate, &self.vault)?;
+            self.records(&transaction).insert_candidate(&candidate)?;
             candidates.push(candidate);
         }
 
@@ -2317,45 +2262,16 @@ impl AppService {
         status: Option<CandidateStatus>,
     ) -> Result<Vec<CandidateFact>, AppError> {
         let connection = self.connection()?;
-        fetch_trip(&connection, trip_id)?;
-        if let Some(status) = status {
-            let mut statement = connection
-                .prepare(
-                    "SELECT id, trip_id, document_id, parser_run_id, fact_type, payload, method,
-                            field_spans, warnings, status, created_at, resolved_at
-                     FROM candidate_facts
-                     WHERE trip_id = ?1 AND status = ?2
-                     ORDER BY created_at ASC, id ASC",
-                )
-                .map_err(storage_error)?;
-            let rows = statement
-                .query_map(params![trip_id, enum_to_sql(status)?], |row| {
-                    row_to_candidate(row, &self.vault)
-                })
-                .map_err(storage_error)?;
-            collect_rows(rows)
-        } else {
-            let mut statement = connection
-                .prepare(
-                    "SELECT id, trip_id, document_id, parser_run_id, fact_type, payload, method,
-                            field_spans, warnings, status, created_at, resolved_at
-                     FROM candidate_facts
-                     WHERE trip_id = ?1
-                     ORDER BY created_at ASC, id ASC",
-                )
-                .map_err(storage_error)?;
-            let rows = statement
-                .query_map(params![trip_id], |row| row_to_candidate(row, &self.vault))
-                .map_err(storage_error)?;
-            collect_rows(rows)
-        }
+        let records = self.records(&connection);
+        records.trip(trip_id)?;
+        records.candidates(trip_id, status)
     }
 
     /// A trip's notes. Absent notes are an empty body, not an error — "nothing
     /// written yet" is the normal first state, not a failure.
     pub fn get_trip_notes(&self, trip_id: &str) -> Result<TripNotes, AppError> {
         let connection = self.connection()?;
-        fetch_trip(&connection, trip_id)?;
+        self.records(&connection).trip(trip_id)?;
         let stored: Option<(String, String)> = connection
             .query_row(
                 "SELECT body, updated_at FROM trip_notes WHERE trip_id = ?1",
@@ -2367,7 +2283,7 @@ impl AppService {
         match stored {
             Some((sealed, updated_at)) => Ok(TripNotes {
                 trip_id: trip_id.to_owned(),
-                body: self.vault.open_field(&sealed)?,
+                body: self.records(&connection).open(&sealed)?,
                 updated_at: Some(updated_at),
             }),
             None => Ok(TripNotes {
@@ -2388,7 +2304,7 @@ impl AppService {
             ));
         }
         let connection = self.connection()?;
-        fetch_trip(&connection, trip_id)?;
+        self.records(&connection).trip(trip_id)?;
         if body.is_empty() {
             connection
                 .execute(
@@ -2403,7 +2319,7 @@ impl AppService {
             });
         }
         let updated_at = now_rfc3339();
-        let sealed = self.vault.seal_field(body)?;
+        let sealed = self.records(&connection).seal(body)?;
         connection
             .execute(
                 "INSERT INTO trip_notes (id, trip_id, body, updated_at)
@@ -2425,7 +2341,7 @@ impl AppService {
     /// listing.
     pub fn list_documents(&self, trip_id: &str) -> Result<Vec<DocumentSummary>, AppError> {
         let connection = self.connection()?;
-        fetch_trip(&connection, trip_id)?;
+        self.records(&connection).trip(trip_id)?;
         let mut statement = connection
             .prepare(
                 "SELECT d.id, d.trip_id, d.kind, d.label, d.content_hash, d.char_count, d.imported_at,
@@ -2488,7 +2404,7 @@ impl AppService {
             .ok_or_else(|| {
                 AppError::new(ErrorCode::DocumentNotFound, "that document no longer exists")
             })?;
-        let content = self.vault.open_field(&sealed)?;
+        let content = self.records(&connection).open(&sealed)?;
         Ok(DocumentContent { document, content })
     }
 
@@ -2537,7 +2453,7 @@ impl AppService {
     ) -> Result<(CandidateFact, ConfirmedFact), AppError> {
         let mut connection = self.connection()?;
         let transaction = connection.transaction().map_err(storage_error)?;
-        let mut candidate = fetch_candidate(&transaction, &input.candidate_id, &self.vault)?;
+        let mut candidate = self.records(&transaction).candidate(&input.candidate_id)?;
         ensure_candidate_pending(&candidate)?;
 
         let payload = input
@@ -2556,11 +2472,13 @@ impl AppService {
             confirmed_at: now_rfc3339(),
             source_removed: false,
         };
-        insert_confirmed_fact(&transaction, &confirmed, &self.vault)?;
+        self.records(&transaction)
+            .insert_confirmed_fact(&confirmed)?;
 
         candidate.status = CandidateStatus::Confirmed;
         candidate.resolved_at = Some(confirmed.confirmed_at.clone());
-        update_candidate_resolution(&transaction, &candidate)?;
+        self.records(&transaction)
+            .update_candidate_resolution(&candidate)?;
         transaction.commit().map_err(storage_error)?;
         Ok((candidate, confirmed))
     }
@@ -2568,11 +2486,12 @@ impl AppService {
     pub fn reject_candidate(&self, candidate_id: &str) -> Result<CandidateFact, AppError> {
         let mut connection = self.connection()?;
         let transaction = connection.transaction().map_err(storage_error)?;
-        let mut candidate = fetch_candidate(&transaction, candidate_id, &self.vault)?;
+        let mut candidate = self.records(&transaction).candidate(candidate_id)?;
         ensure_candidate_pending(&candidate)?;
         candidate.status = CandidateStatus::Rejected;
         candidate.resolved_at = Some(now_rfc3339());
-        update_candidate_resolution(&transaction, &candidate)?;
+        self.records(&transaction)
+            .update_candidate_resolution(&candidate)?;
         transaction.commit().map_err(storage_error)?;
         Ok(candidate)
     }
@@ -2580,7 +2499,7 @@ impl AppService {
     pub fn add_manual_fact(&self, input: AddManualFactInput) -> Result<ConfirmedFact, AppError> {
         validate_fact_payload(input.fact_type, &input.payload)?;
         let connection = self.connection()?;
-        fetch_trip(&connection, &input.trip_id)?;
+        self.records(&connection).trip(&input.trip_id)?;
         let confirmed = ConfirmedFact {
             id: new_id("fact"),
             trip_id: input.trip_id,
@@ -2592,7 +2511,8 @@ impl AppService {
             confirmed_at: now_rfc3339(),
             source_removed: false,
         };
-        insert_confirmed_fact(&connection, &confirmed, &self.vault)?;
+        self.records(&connection)
+            .insert_confirmed_fact(&confirmed)?;
         Ok(confirmed)
     }
 
@@ -2637,7 +2557,13 @@ impl AppService {
         if changed == 0 {
             return Err(AppError::new(ErrorCode::TripNotFound, "trip not found"));
         }
-        fetch_trip(&connection, trip_id)
+        self.records(&connection).trip(trip_id)
+    }
+
+    /// Reads and writes for the sealed records, over `connection` and this
+    /// service's vault — so no call site threads `&Vault` alongside `&Connection`.
+    fn records<'a>(&'a self, connection: &'a Connection) -> Records<'a> {
+        Records::new(connection, &self.vault)
     }
 
     fn connection(&self) -> Result<MutexGuard<'_, Connection>, AppError> {
@@ -3001,23 +2927,92 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
                 updated_at TEXT NOT NULL
             );
 
-            PRAGMA user_version = 1;
             ",
         )
         .map_err(storage_error)?;
-    migrate_method_check(connection)?;
-    migrate_source_removed(connection)
+    migrate(connection)
+}
+
+/// One schema step. `to` is the `PRAGMA user_version` the database carries once
+/// `run` succeeds.
+struct Migration {
+    to: i64,
+    /// Named for the failure message; the version is what actually identifies it.
+    name: &'static str,
+    run: fn(&Connection) -> Result<(), AppError>,
+}
+
+/// The schema steps, in the order they must run. **Append only** — a step's `to`
+/// is recorded in every database that has run it, so renumbering or reordering
+/// rewrites history that already shipped.
+///
+/// Order is the array, not a comment: `add_source_removed` has to follow
+/// `widen_method_check`, which rebuilds `confirmed_facts` with a `SELECT *` copy
+/// into an eight-column table. Adding the column first would push nine columns
+/// into it and fail on exactly the old databases it exists to rescue.
+///
+/// Both steps below detect their own applicability because they predate this
+/// ledger: every build since the first stamped `user_version = 1` on open no
+/// matter what shape the database was in, so version 1 means "some legacy shape"
+/// rather than a known one. Steps added from here on can trust the version and
+/// need no detection.
+const MIGRATIONS: &[Migration] = &[
+    Migration {
+        to: 2,
+        name: "widen_method_check",
+        run: migrate_method_check,
+    },
+    Migration {
+        to: 3,
+        name: "add_source_removed",
+        run: migrate_source_removed,
+    },
+];
+
+/// The version a fully migrated database carries.
+#[cfg(test)]
+fn target_schema_version() -> i64 {
+    MIGRATIONS.last().map_or(0, |migration| migration.to)
+}
+
+fn user_version(connection: &Connection) -> Result<i64, AppError> {
+    connection
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .map_err(storage_error)
+}
+
+/// Bring the database up to [`target_schema_version`], running each pending step
+/// once and recording it before the next begins.
+///
+/// A step that fails leaves the version at the last one that succeeded, so the
+/// next open retries from there rather than skipping ahead.
+fn migrate(connection: &Connection) -> Result<(), AppError> {
+    let mut version = user_version(connection)?;
+    for migration in MIGRATIONS {
+        if version >= migration.to {
+            continue;
+        }
+        (migration.run)(connection).map_err(|error| {
+            AppError::with_detail(
+                error.code,
+                error.message,
+                "migration",
+                format!("{} (to v{})", migration.name, migration.to),
+            )
+        })?;
+        // PRAGMA values cannot be bound; `to` is a compile-time constant.
+        connection
+            .execute_batch(&format!("PRAGMA user_version = {};", migration.to))
+            .map_err(storage_error)?;
+        version = migration.to;
+    }
+    Ok(())
 }
 
 /// Add `source_removed` to `confirmed_facts` for databases created before the
-/// documents manager existed. Idempotent: it inspects the table's columns and
-/// adds the column only when absent, so a fresh install is a no-op.
-///
-/// Order matters — this MUST run after [`migrate_method_check`], which rebuilds
-/// `confirmed_facts` via `INSERT INTO confirmed_facts_migrated SELECT *`. Adding
-/// the column first would make that copy push nine columns into the eight-column
-/// table it builds, and the migration would fail on exactly the old databases it
-/// exists to rescue.
+/// documents manager existed. Detects its own applicability: it inspects the
+/// table's columns and adds the column only when absent, so a fresh install is a
+/// no-op. See [`MIGRATIONS`] for why this one still detects.
 fn migrate_source_removed(connection: &Connection) -> Result<(), AppError> {
     let present = {
         let mut statement = connection
@@ -3044,9 +3039,10 @@ fn migrate_source_removed(connection: &Connection) -> Result<(), AppError> {
 /// Widen the `method` CHECK on the fact tables to allow 'assisted', for databases
 /// created before on-device drafts existed.
 ///
-/// Idempotent: it inspects each table's stored SQL and rebuilds only when the
-/// constraint predates the new value (a fresh install already includes it, so
-/// this is a no-op). The rebuild is a plain row copy — no re-encryption — done
+/// Detects its own applicability: it inspects each table's stored SQL and
+/// rebuilds only when the constraint predates the new value (a fresh install
+/// already includes it, so this is a no-op). See [`MIGRATIONS`] for why this one
+/// still detects. The rebuild is a plain row copy — no re-encryption — done
 /// with foreign keys disabled so the `confirmed_facts → candidate_facts`
 /// reference survives the drop-and-rename, then re-enabled.
 fn migrate_method_check(connection: &Connection) -> Result<(), AppError> {
@@ -3108,61 +3104,6 @@ fn migrate_method_check(connection: &Connection) -> Result<(), AppError> {
     // Restore FK enforcement whether or not the rebuild succeeded.
     let _ = connection.execute_batch("PRAGMA foreign_keys = ON;");
     rebuilt
-}
-
-fn parse_document(
-    document: &NormalizedDocument,
-) -> (&'static str, &'static str, Vec<ParsedCandidate>) {
-    match document.kind {
-        DocumentKind::Html => {
-            let parser = JsonLdParser;
-            let outcome = parser.parse(document);
-            (parser.id(), parser.version(), outcome.candidates)
-        }
-        DocumentKind::PastedText => {
-            let parser = PlaintextParser;
-            let outcome = parser.parse(document);
-            (parser.id(), parser.version(), outcome.candidates)
-        }
-        DocumentKind::Email => {
-            // Email is normalized to a body kind before import calls this; handle
-            // a direct call defensively by extracting the body and re-dispatching.
-            let extracted = extract_email_body(&document.raw_content);
-            let inner = NormalizedDocument::new(extracted.kind, extracted.content);
-            parse_document(&inner)
-        }
-    }
-}
-
-fn fetch_trip(connection: &Connection, trip_id: &str) -> Result<Trip, AppError> {
-    connection
-        .query_row(
-            "SELECT id, title, origin, destination, start_date, end_date, status, created_at, updated_at
-             FROM trips WHERE id = ?1",
-            params![trip_id],
-            row_to_trip,
-        )
-        .optional()
-        .map_err(storage_error)?
-        .ok_or_else(|| AppError::new(ErrorCode::TripNotFound, "trip not found"))
-}
-
-fn fetch_candidate(
-    connection: &Connection,
-    candidate_id: &str,
-    vault: &Vault,
-) -> Result<CandidateFact, AppError> {
-    connection
-        .query_row(
-            "SELECT id, trip_id, document_id, parser_run_id, fact_type, payload, method,
-                    field_spans, warnings, status, created_at, resolved_at
-             FROM candidate_facts WHERE id = ?1",
-            params![candidate_id],
-            |row| row_to_candidate(row, vault),
-        )
-        .optional()
-        .map_err(storage_error)?
-        .ok_or_else(|| AppError::new(ErrorCode::CandidateNotFound, "candidate not found"))
 }
 
 fn fetch_travel_advice_snapshot(
@@ -3241,133 +3182,6 @@ fn percent_encode(value: &str) -> String {
     encoded
 }
 
-fn fetch_confirmed_facts(
-    connection: &Connection,
-    trip_id: &str,
-    vault: &Vault,
-) -> Result<Vec<ConfirmedFact>, AppError> {
-    let mut statement = connection
-        .prepare(
-            "SELECT id, trip_id, fact_type, payload, method, candidate_id, corrected_fields, confirmed_at, source_removed
-             FROM confirmed_facts
-             WHERE trip_id = ?1
-             ORDER BY confirmed_at ASC, id ASC",
-        )
-        .map_err(storage_error)?;
-    let rows = statement
-        .query_map(params![trip_id], |row| row_to_confirmed_fact(row, vault))
-        .map_err(storage_error)?;
-    collect_rows(rows)
-}
-
-/// Read one string field from the trip's confirmed lodging facts, newest first.
-/// Scoped to a single trip so suggestions never cross trip boundaries. The sealed
-/// payload is opened through the vault, so a locked vault surfaces as
-/// [`ErrorCode::VaultLocked`] for the caller to treat as "no confirmed source".
-fn confirmed_lodging_values(
-    connection: &Connection,
-    vault: &Vault,
-    field: &str,
-    trip_id: &str,
-) -> Result<Vec<String>, AppError> {
-    let mut statement = connection
-        .prepare(
-            "SELECT payload FROM confirmed_facts
-             WHERE fact_type = 'lodging_stay' AND trip_id = ?1
-             ORDER BY confirmed_at DESC, id ASC",
-        )
-        .map_err(storage_error)?;
-    let rows = statement
-        .query_map(params![trip_id], |row| row.get::<_, String>(0))
-        .map_err(storage_error)?;
-
-    let mut values: Vec<String> = Vec::new();
-    for row in rows {
-        let sealed_payload = row.map_err(storage_error)?;
-        let payload_json = vault.open_field(&sealed_payload)?;
-        let payload: serde_json::Value = serde_json::from_str(&payload_json)
-            .map_err(|_| AppError::new(ErrorCode::StorageFailure, "unreadable stored payload"))?;
-        if let Some(text) = payload.get(field).and_then(serde_json::Value::as_str) {
-            let text = text.trim();
-            if !text.is_empty() {
-                values.push(text.to_owned());
-            }
-        }
-    }
-    Ok(values)
-}
-
-/// Read a trip's imported documents as `(id, label, decrypted_text)`, oldest
-/// first. The raw content is vault-sealed, so a locked vault surfaces as
-/// [`ErrorCode::VaultLocked`] — the draft needs the text, so that is a real error.
-fn fetch_trip_document_texts(
-    connection: &Connection,
-    vault: &Vault,
-    trip_id: &str,
-) -> Result<Vec<DocumentText>, AppError> {
-    let mut statement = connection
-        .prepare(
-            "SELECT id, label, raw_content FROM source_documents
-             WHERE trip_id = ?1
-             ORDER BY imported_at ASC, id ASC",
-        )
-        .map_err(storage_error)?;
-    let rows = statement
-        .query_map(params![trip_id], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                vault
-                    .open_field(&row.get::<_, String>(2)?)
-                    .map_err(app_to_rusqlite)?,
-            ))
-        })
-        .map_err(storage_error)?;
-    collect_rows(rows)
-}
-
-/// Build the on-device draft request preview from a trip and its document texts.
-/// Ollama-only, so it never leaves the device and withholds nothing (the text is
-/// the traveler's own imported content). `system_prompt` is the effective
-/// instruction (the default or the user's override).
-fn build_draft_preview(
-    trip: &Trip,
-    documents: &[(String, String)],
-    model: Option<&str>,
-    system_prompt: &str,
-) -> AssistRequestPreview {
-    let system_prompt = system_prompt.to_owned();
-    let user_content =
-        build_lodging_dates_user_content(&trip.start_date, &trip.end_date, documents);
-    let estimated_tokens =
-        ((system_prompt.chars().count() + user_content.chars().count()) / 4 + 1) as u32;
-    let grounded_in = if documents.is_empty() {
-        vec!["no imported documents yet".to_owned()]
-    } else {
-        let noun = if documents.len() == 1 {
-            "document"
-        } else {
-            "documents"
-        };
-        vec![
-            format!("{} imported {noun}", documents.len()),
-            "trip dates".to_owned(),
-        ]
-    };
-    AssistRequestPreview {
-        provider: ProviderId::Ollama,
-        provider_label: provider_info(ProviderId::Ollama).label.to_owned(),
-        model: model.map(str::to_owned),
-        endpoint: OLLAMA_CHAT_URL.to_owned(),
-        leaves_device: false,
-        system_prompt,
-        user_content,
-        withheld: Vec::new(),
-        grounded_in,
-        estimated_tokens,
-    }
-}
-
 /// Flag a proposed stay whose dates fall outside the trip window, so review
 /// surfaces it. Deterministic ISO-date string comparison; other checks (e.g.
 /// past dates) are left to the reviewer.
@@ -3382,9 +3196,6 @@ fn draft_window_warnings(trip: &Trip, proposal: &LodgingDateProposal) -> Vec<War
         Vec::new()
     }
 }
-
-/// Longest custom AI instruction accepted (well under the app_settings cap).
-const MAX_AI_PROMPT_LEN: usize = 6000;
 
 /// The app_settings key that holds a user override for one AI instruction.
 fn ai_prompt_key(kind: AiPromptKind) -> &'static str {
@@ -3439,8 +3250,7 @@ fn apply_prompt_override(preview: &mut AssistRequestPreview, prompt: String) {
     if prompt == preview.system_prompt {
         return;
     }
-    preview.estimated_tokens =
-        ((prompt.chars().count() + preview.user_content.chars().count()) / 4 + 1) as u32;
+    preview.estimated_tokens = estimate_tokens(&prompt, &preview.user_content);
     preview.system_prompt = prompt;
 }
 
@@ -3471,157 +3281,6 @@ fn downloaded_pack_place_names(
     Ok(names)
 }
 
-fn insert_candidate(
-    connection: &Connection,
-    candidate: &CandidateFact,
-    vault: &Vault,
-) -> Result<(), AppError> {
-    connection
-        .execute(
-            "INSERT INTO candidate_facts
-             (id, trip_id, document_id, parser_run_id, fact_type, payload, method, field_spans, warnings, status, created_at, resolved_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
-            params![
-                candidate.id,
-                candidate.trip_id,
-                candidate.document_id,
-                candidate.parser_run_id,
-                enum_to_sql(candidate.fact_type)?,
-                vault.seal_field(&json_to_sql(&candidate.payload)?)?,
-                enum_to_sql(candidate.method)?,
-                vault.seal_field(&json_to_sql(&candidate.field_spans)?)?,
-                json_to_sql(&candidate.warnings)?,
-                enum_to_sql(candidate.status)?,
-                candidate.created_at,
-                candidate.resolved_at
-            ],
-        )
-        .map_err(storage_error)?;
-    Ok(())
-}
-
-fn insert_confirmed_fact(
-    connection: &Connection,
-    confirmed: &ConfirmedFact,
-    vault: &Vault,
-) -> Result<(), AppError> {
-    // The payload carries confirmation codes and traveler names — seal it at rest.
-    let sealed_payload = vault.seal_field(&json_to_sql(&confirmed.payload)?)?;
-    connection
-        .execute(
-            "INSERT INTO confirmed_facts
-             (id, trip_id, fact_type, payload, method, candidate_id, corrected_fields, confirmed_at, source_removed)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-            params![
-                confirmed.id,
-                confirmed.trip_id,
-                enum_to_sql(confirmed.fact_type)?,
-                sealed_payload,
-                enum_to_sql(confirmed.method)?,
-                confirmed.candidate_id,
-                json_to_sql(&confirmed.corrected_fields)?,
-                confirmed.confirmed_at,
-                i64::from(confirmed.source_removed)
-            ],
-        )
-        .map_err(storage_error)?;
-    Ok(())
-}
-
-fn update_candidate_resolution(
-    connection: &Connection,
-    candidate: &CandidateFact,
-) -> Result<(), AppError> {
-    connection
-        .execute(
-            "UPDATE candidate_facts SET status = ?1, resolved_at = ?2 WHERE id = ?3",
-            params![
-                enum_to_sql(candidate.status)?,
-                candidate.resolved_at,
-                candidate.id
-            ],
-        )
-        .map_err(storage_error)?;
-    Ok(())
-}
-
-fn ensure_candidate_pending(candidate: &CandidateFact) -> Result<(), AppError> {
-    if candidate.status != CandidateStatus::Pending {
-        return Err(AppError::new(
-            ErrorCode::CandidateAlreadyResolved,
-            "candidate has already been resolved",
-        ));
-    }
-    Ok(())
-}
-
-fn row_to_trip(row: &rusqlite::Row<'_>) -> rusqlite::Result<Trip> {
-    Ok(Trip {
-        id: row.get(0)?,
-        title: row.get(1)?,
-        origin: row.get(2)?,
-        destination: row.get(3)?,
-        start_date: row.get(4)?,
-        end_date: row.get(5)?,
-        status: sql_to_enum(row.get::<_, String>(6)?)?,
-        created_at: row.get(7)?,
-        updated_at: row.get(8)?,
-    })
-}
-
-fn row_to_trip_summary(row: &rusqlite::Row<'_>) -> rusqlite::Result<TripSummary> {
-    let confirmed_fact_count = row.get::<_, i64>(9)?;
-    let pending_candidate_count = row.get::<_, i64>(10)?;
-    Ok(TripSummary {
-        trip: row_to_trip(row)?,
-        confirmed_fact_count: confirmed_fact_count as u32,
-        pending_candidate_count: pending_candidate_count as u32,
-    })
-}
-
-fn row_to_candidate(row: &rusqlite::Row<'_>, vault: &Vault) -> rusqlite::Result<CandidateFact> {
-    let payload = vault
-        .open_field(&row.get::<_, String>(5)?)
-        .map_err(app_to_rusqlite)?;
-    let field_spans = vault
-        .open_field(&row.get::<_, String>(7)?)
-        .map_err(app_to_rusqlite)?;
-    Ok(CandidateFact {
-        id: row.get(0)?,
-        trip_id: row.get(1)?,
-        document_id: row.get(2)?,
-        parser_run_id: row.get(3)?,
-        fact_type: sql_to_enum(row.get::<_, String>(4)?)?,
-        payload: sql_to_json(payload)?,
-        method: sql_to_enum(row.get::<_, String>(6)?)?,
-        field_spans: sql_to_json(field_spans)?,
-        warnings: sql_to_json(row.get::<_, String>(8)?)?,
-        status: sql_to_enum(row.get::<_, String>(9)?)?,
-        created_at: row.get(10)?,
-        resolved_at: row.get(11)?,
-    })
-}
-
-fn row_to_confirmed_fact(
-    row: &rusqlite::Row<'_>,
-    vault: &Vault,
-) -> rusqlite::Result<ConfirmedFact> {
-    let payload_json = vault
-        .open_field(&row.get::<_, String>(3)?)
-        .map_err(app_to_rusqlite)?;
-    Ok(ConfirmedFact {
-        id: row.get(0)?,
-        trip_id: row.get(1)?,
-        fact_type: sql_to_enum(row.get::<_, String>(2)?)?,
-        payload: sql_to_json(payload_json)?,
-        method: sql_to_enum(row.get::<_, String>(4)?)?,
-        candidate_id: row.get(5)?,
-        corrected_fields: sql_to_json(row.get::<_, String>(6)?)?,
-        confirmed_at: row.get(7)?,
-        source_removed: row.get::<_, i64>(8)? != 0,
-    })
-}
-
 fn collect_rows<T, F>(rows: rusqlite::MappedRows<'_, F>) -> Result<Vec<T>, AppError>
 where
     F: FnMut(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
@@ -3630,15 +3289,12 @@ where
         .map_err(rusqlite_to_app)
 }
 
-/// Convert a rusqlite error to an `AppError`, recovering the original code when a
-/// row mapper wrapped one via [`app_to_rusqlite`] (e.g. a locked-vault read must
-/// surface as `vault/locked`, not a generic `storage/failure`).
+/// Convert a rusqlite error to an `AppError`.
+///
+/// No downcast: sealed columns are opened in [`records`], after rusqlite is done
+/// with the row, so a vault error is returned directly instead of being smuggled
+/// through `rusqlite::Error` and recovered here.
 fn rusqlite_to_app(error: rusqlite::Error) -> AppError {
-    if let rusqlite::Error::FromSqlConversionFailure(_, _, source) = &error {
-        if let Some(app) = source.downcast_ref::<AppError>() {
-            return app.clone();
-        }
-    }
     storage_error(error)
 }
 
@@ -3699,6 +3355,7 @@ mod tests {
     use std::{fs, path::PathBuf};
 
     use super::*;
+    use voyalier_core::KeyValidationStatus;
     use voyalier_core::{CandidateStatus, DocumentKind, FactPayload, FactType};
 
     #[test]
@@ -5773,6 +5430,211 @@ mod tests {
             ErrorCode::ValidationInvalidInput
         );
         cleanup_database(database);
+    }
+
+    /// A database in the shape shipped before this ledger existed: the fact
+    /// tables reject 'assisted', confirmed_facts has no source_removed, and
+    /// user_version is 1 because every build stamped it on open regardless.
+    fn legacy_database() -> Connection {
+        let connection = Connection::open_in_memory().expect("db");
+        connection
+            .execute_batch(
+                "PRAGMA foreign_keys = ON;
+                 CREATE TABLE trips (id TEXT PRIMARY KEY);
+                 CREATE TABLE source_documents (id TEXT PRIMARY KEY,
+                     trip_id TEXT REFERENCES trips(id) ON DELETE CASCADE);
+                 CREATE TABLE parser_runs (id TEXT PRIMARY KEY,
+                     document_id TEXT REFERENCES source_documents(id) ON DELETE CASCADE);
+                 CREATE TABLE candidate_facts (
+                     id TEXT PRIMARY KEY,
+                     trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                     document_id TEXT NOT NULL REFERENCES source_documents(id) ON DELETE CASCADE,
+                     parser_run_id TEXT NOT NULL REFERENCES parser_runs(id) ON DELETE CASCADE,
+                     fact_type TEXT NOT NULL,
+                     payload TEXT NOT NULL,
+                     method TEXT NOT NULL CHECK (method IN ('structured', 'inferred', 'manual')),
+                     field_spans TEXT NOT NULL,
+                     warnings TEXT NOT NULL,
+                     status TEXT NOT NULL,
+                     created_at TEXT NOT NULL,
+                     resolved_at TEXT
+                 );
+                 CREATE TABLE confirmed_facts (
+                     id TEXT PRIMARY KEY,
+                     trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                     fact_type TEXT NOT NULL,
+                     payload TEXT NOT NULL,
+                     method TEXT NOT NULL CHECK (method IN ('structured', 'inferred', 'manual')),
+                     candidate_id TEXT REFERENCES candidate_facts(id) ON DELETE SET NULL,
+                     corrected_fields TEXT NOT NULL,
+                     confirmed_at TEXT NOT NULL
+                 );
+                 INSERT INTO trips (id) VALUES ('t1');
+                 INSERT INTO source_documents (id, trip_id) VALUES ('d1', 't1');
+                 INSERT INTO parser_runs (id, document_id) VALUES ('r1', 'd1');
+                 INSERT INTO candidate_facts VALUES
+                     ('c1','t1','d1','r1','lodging_stay','{}','manual','[]','[]','pending','now',NULL);
+                 INSERT INTO confirmed_facts VALUES
+                     ('f1','t1','lodging_stay','{}','manual',NULL,'[]','now');
+                 PRAGMA user_version = 1;",
+            )
+            .expect("legacy schema");
+        connection
+    }
+
+    fn columns_of(connection: &Connection, table: &str) -> Vec<String> {
+        let mut statement = connection
+            .prepare(&format!("PRAGMA table_info({table})"))
+            .expect("table_info");
+        statement
+            .query_map([], |row| row.get::<_, String>(1))
+            .expect("columns")
+            .collect::<rusqlite::Result<Vec<String>>>()
+            .expect("columns")
+    }
+
+    /// Every column declared in [`SEALED_COLUMNS`] must actually be ciphertext on
+    /// disk and plaintext through the record reads.
+    ///
+    /// Driven by the declaration itself: add a pair there and this fails until
+    /// the read and write paths seal it. That is the whole point of having one
+    /// list — before, the list only drove the legacy migration and each SELECT
+    /// re-decided sealing by hand, so a forgotten open returned "v1:<base64>" to
+    /// the UI with nothing objecting.
+    #[test]
+    fn sealed_columns_round_trip_through_the_vault() {
+        let database = temp_database("sealed-columns");
+        let service = open_test_service(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        // Populate every sealed column: a document, its candidates, a confirmed
+        // fact, and notes.
+        let (_document_id, candidate_ids) = import_flight_memo(&service, &trip.id);
+        service
+            .confirm_candidate(ConfirmCandidateInput {
+                candidate_id: candidate_ids[0].clone(),
+                edited_payload: None,
+            })
+            .expect("confirm");
+        service
+            .set_trip_notes(&trip.id, "Gate code 5150, ask for Rin")
+            .expect("notes");
+
+        let connection = service.connection().expect("connection");
+        for (table, column) in SEALED_COLUMNS {
+            let stored: Vec<String> = {
+                let mut statement = connection
+                    .prepare(&format!("SELECT {column} FROM {table}"))
+                    .expect("prepare");
+                statement
+                    .query_map([], |row| row.get::<_, String>(0))
+                    .expect("query")
+                    .collect::<rusqlite::Result<Vec<_>>>()
+                    .expect("rows")
+            };
+            assert!(
+                !stored.is_empty(),
+                "{table}.{column} has no rows — the fixture must exercise every sealed column"
+            );
+            for value in stored {
+                assert!(
+                    value.starts_with(VAULT_PREFIX),
+                    "{table}.{column} is stored in the clear: {value:.40}"
+                );
+            }
+        }
+        drop(connection);
+
+        // ...and the read paths hand back plaintext, not the stored envelope.
+        let notes = service.get_trip_notes(&trip.id).expect("notes");
+        assert_eq!(notes.body, "Gate code 5150, ask for Rin");
+        assert!(!notes.body.starts_with(VAULT_PREFIX));
+
+        let detail = service.get_trip(&trip.id).expect("detail");
+        let payload = serde_json::to_string(&detail.confirmed_facts[0].payload).expect("json");
+        assert!(!payload.contains(VAULT_PREFIX));
+
+        drop(service);
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn a_legacy_database_migrates_in_order_and_keeps_its_rows() {
+        let connection = legacy_database();
+        migrate(&connection).expect("migrate");
+
+        assert_eq!(user_version(&connection).expect("version"), 3);
+        // add_source_removed ran after widen_method_check rebuilt the table, so
+        // the column is present rather than dropped by the rebuild's copy.
+        assert!(columns_of(&connection, "confirmed_facts").contains(&"source_removed".to_owned()));
+        // Both pre-existing rows survived the rebuild.
+        let kept: i64 = connection
+            .query_row("SELECT count(*) FROM confirmed_facts", [], |row| row.get(0))
+            .expect("count");
+        assert_eq!(kept, 1);
+        // The widened constraint took effect.
+        connection
+            .execute(
+                "INSERT INTO candidate_facts VALUES
+                 ('c2','t1','d1','r1','lodging_stay','{}','assisted','[]','[]','pending','now',NULL)",
+                [],
+            )
+            .expect("assisted now allowed");
+    }
+
+    #[test]
+    fn migrating_twice_is_a_no_op() {
+        let connection = legacy_database();
+        migrate(&connection).expect("first");
+        connection
+            .execute(
+                "UPDATE confirmed_facts SET source_removed = 1 WHERE id = 'f1'",
+                [],
+            )
+            .expect("mark");
+
+        migrate(&connection).expect("second");
+
+        // The steps did not run again: the row and its new column value stand.
+        assert_eq!(user_version(&connection).expect("version"), 3);
+        let removed: i64 = connection
+            .query_row(
+                "SELECT source_removed FROM confirmed_facts WHERE id = 'f1'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("value");
+        assert_eq!(removed, 1);
+    }
+
+    #[test]
+    fn a_fresh_database_is_stamped_at_the_target_version() {
+        let path = temp_database("migrate-fresh");
+        let service = open_test_service(&path).expect("service");
+        {
+            let connection = service.connection().expect("connection");
+            assert_eq!(
+                user_version(&connection).expect("version"),
+                target_schema_version()
+            );
+            assert!(
+                columns_of(&connection, "confirmed_facts").contains(&"source_removed".to_owned())
+            );
+        }
+        drop(service);
+        cleanup_database(path);
+    }
+
+    #[test]
+    fn migration_versions_are_ordered_and_unique() {
+        // The list is the ordering, so a bad edit must fail here rather than in
+        // a user's database.
+        let versions: Vec<i64> = MIGRATIONS.iter().map(|migration| migration.to).collect();
+        let mut sorted = versions.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(versions, sorted, "migration versions ascend and are unique");
+        assert!(versions.first().is_some_and(|first| *first > 1));
     }
 
     #[test]

@@ -78,3 +78,79 @@ export function useAsyncData<T>(
     reload,
   };
 }
+
+export interface AsyncAction<Args extends unknown[]> {
+  /** Run it. Never rejects — a failure lands in `error`. */
+  run: (...args: Args) => Promise<void>;
+  /** True while a run is in flight; feed it to a Button's `busy`. */
+  busy: boolean;
+  /** The last failure, normalized. Undefined once a new run starts. */
+  error: AppError | undefined;
+}
+
+/**
+ * Run a mutation and track busy/error — the write half of [[useAsyncData]].
+ *
+ * Every view needed this and none had it, so 23 of them re-derived the same
+ * `setError(null)` → `setBusy(true)` → try/catch/finally by hand. Three
+ * inconsistent error shapes grew up around those copies, including one that only
+ * announced failures to screen readers, so a sighted user saw a button
+ * un-busy itself and nothing else.
+ *
+ * Failures are normalized through `toAppError`, so callers stop casting
+ * `caught as AppError` over a value that might be a `TypeError` from their own
+ * non-gateway code.
+ *
+ * `onSuccess` receives the result and the original arguments — that is where a
+ * view puts its own state update and its announcement.
+ */
+export function useAsyncAction<Args extends unknown[], T>(
+  action: (...args: Args) => Promise<T>,
+  onSuccess?: (result: T, ...args: Args) => void,
+): AsyncAction<Args> {
+  const actionRef = useRef(action);
+  const successRef = useRef(onSuccess);
+  useEffect(() => {
+    actionRef.current = action;
+    successRef.current = onSuccess;
+  });
+
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<AppError | undefined>(undefined);
+
+  const run = useCallback(async (...args: Args) => {
+    setError(undefined);
+    setBusy(true);
+    try {
+      const result = await actionRef.current(...args);
+      // A view that navigated away mid-run must not be written to, but its
+      // success handler still owns whatever the run produced.
+      if (mounted.current) {
+        successRef.current?.(result, ...args);
+      }
+    } catch (caught) {
+      if (mounted.current) {
+        // Both transports already normalize at their boundary, so a value that
+        // is not an AppError by the time it reaches here came from the view's
+        // own code — a TypeError while building an .ics file is not the local
+        // core being unreachable, which is what the transport default would
+        // have claimed.
+        setError(toAppError(caught, "internal/unexpected"));
+      }
+    } finally {
+      if (mounted.current) {
+        setBusy(false);
+      }
+    }
+  }, []);
+
+  return { run, busy, error };
+}
