@@ -560,9 +560,251 @@ pub fn parse_de_aa(
     }))
 }
 
+/// The most notices Voyalier will lift out of one feed. The list is normally a
+/// few dozen; the cap is a bound on a source that misbehaves, matching the
+/// posture the email parser already takes toward untrusted input.
+const MAX_HEALTH_NOTICES: usize = 50;
+
+/// Parse the CDC's travel-notice RSS into a list.
+///
+/// A feed with nothing to report is `Ok(vec![])`. Input that is not the feed we
+/// asked for — an error page, truncated XML, anything without a `<channel>` —
+/// is an error, so "CDC is down" can never be rendered as "CDC says you are
+/// fine".
+pub fn parse_cdc_notices(xml: &str) -> Result<Vec<HealthNotice>, AppError> {
+    use quick_xml::events::Event;
+
+    let mut reader = quick_xml::Reader::from_str(xml);
+    reader.config_mut().trim_text(true);
+
+    let mut notices = Vec::new();
+    let mut saw_channel = false;
+    let mut in_item = false;
+    let mut field = String::new();
+    let mut title = String::new();
+    let mut description = String::new();
+    let mut link = String::new();
+    let mut published_at = String::new();
+
+    loop {
+        match reader.read_event().map_err(|_| unreadable_source())? {
+            Event::Start(start) => {
+                let name = String::from_utf8_lossy(start.name().as_ref()).into_owned();
+                match name.as_str() {
+                    "channel" => saw_channel = true,
+                    "item" => {
+                        in_item = true;
+                        title.clear();
+                        description.clear();
+                        link.clear();
+                        published_at.clear();
+                    }
+                    _ => {}
+                }
+                field = name;
+            }
+            Event::Text(text) if in_item => {
+                let value = text.unescape().map_err(|_| unreadable_source())?;
+                append_field(
+                    &field,
+                    &value,
+                    &mut title,
+                    &mut description,
+                    &mut link,
+                    &mut published_at,
+                );
+            }
+            Event::CData(data) => {
+                if in_item {
+                    let value = String::from_utf8_lossy(data.as_ref()).into_owned();
+                    append_field(
+                        &field,
+                        &value,
+                        &mut title,
+                        &mut description,
+                        &mut link,
+                        &mut published_at,
+                    );
+                }
+            }
+            Event::End(end) => {
+                if String::from_utf8_lossy(end.name().as_ref()) == "item" {
+                    in_item = false;
+                    if notices.len() < MAX_HEALTH_NOTICES {
+                        notices.push(HealthNotice {
+                            level_label: title
+                                .split_once(" - ")
+                                .map(|(level, _)| level.trim())
+                                .filter(|level| level.starts_with("Level "))
+                                .map(str::to_owned),
+                            title: title.trim().to_owned(),
+                            url: link.trim().to_owned(),
+                            published_at: (!published_at.trim().is_empty())
+                                .then(|| published_at.trim().to_owned()),
+                            summary: description.trim().to_owned(),
+                        });
+                    }
+                }
+                field.clear();
+            }
+            Event::Eof => break,
+            _ => {}
+        }
+    }
+
+    if !saw_channel {
+        return Err(unreadable_source());
+    }
+    Ok(notices)
+}
+
+/// Route one element's text to the field it belongs to. Text can arrive in
+/// several events, so append rather than assign.
+fn append_field(
+    field: &str,
+    value: &str,
+    title: &mut String,
+    description: &mut String,
+    link: &mut String,
+    published_at: &mut String,
+) {
+    match field {
+        "title" => title.push_str(value),
+        "description" => description.push_str(value),
+        "link" => link.push_str(value),
+        "pubDate" => published_at.push_str(value),
+        _ => {}
+    }
+}
+
+/// Select the notices that name a country. Substring matching over the title
+/// and summary: the feed has no country field, so this is the honest best
+/// effort, and a miss shows nothing rather than something wrong.
+pub fn notices_for_country(notices: &[HealthNotice], country_name: &str) -> Vec<HealthNotice> {
+    let needle = country_name.to_lowercase();
+    notices
+        .iter()
+        .filter(|notice| {
+            notice.title.to_lowercase().contains(&needle)
+                || notice.summary.to_lowercase().contains(&needle)
+        })
+        .cloned()
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const CDC_FIXTURE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0"><channel><title>CDC Travel Notices</title>
+    <item>
+      <title>Level 1 - Diphtheria in Haiti</title>
+      <description><![CDATA[There is an outbreak of diphtheria in Haiti.]]></description>
+      <link>https://wwwnc.cdc.gov/travel/notices/level1/diphtheria-haiti</link>
+      <pubDate>Thu, 25 Jun 2026 04:00:00 GMT</pubDate>
+      <guid>https://wwwnc.cdc.gov/travel/notices/level1/diphtheria-haiti</guid>
+    </item>
+    <item>
+      <title>Level 2 - Ebola in Democratic Republic of the Congo and Uganda</title>
+      <description><![CDATA[CDC recommends enhanced precautions.]]></description>
+      <link>https://wwwnc.cdc.gov/travel/notices/level2/ebola-drc</link>
+      <pubDate>Wed, 17 Jun 2026 04:00:00 GMT</pubDate>
+      <guid>https://wwwnc.cdc.gov/travel/notices/level2/ebola-drc</guid>
+    </item>
+    <item>
+      <title>Global Measles</title>
+      <description>Measles is in many countries, including Japan.</description>
+      <link>https://wwwnc.cdc.gov/travel/notices/level1/measles</link>
+      <pubDate>Mon, 01 Jun 2026 04:00:00 GMT</pubDate>
+    </item>
+    </channel></rss>"#;
+
+    #[test]
+    fn parses_cdc_notices_from_the_feed() {
+        let notices = parse_cdc_notices(CDC_FIXTURE).expect("parsed");
+        assert_eq!(notices.len(), 3);
+        assert_eq!(notices[0].title, "Level 1 - Diphtheria in Haiti");
+        assert_eq!(notices[0].level_label.as_deref(), Some("Level 1"));
+        assert_eq!(
+            notices[0].summary,
+            "There is an outbreak of diphtheria in Haiti."
+        );
+        assert_eq!(
+            notices[0].url,
+            "https://wwwnc.cdc.gov/travel/notices/level1/diphtheria-haiti"
+        );
+        assert_eq!(
+            notices[0].published_at.as_deref(),
+            Some("Thu, 25 Jun 2026 04:00:00 GMT")
+        );
+        // A title that carries no "Level N -" prefix claims no level.
+        assert_eq!(notices[2].title, "Global Measles");
+        assert_eq!(notices[2].level_label, None);
+        // Plain-text descriptions parse the same as CDATA ones.
+        assert_eq!(
+            notices[2].summary,
+            "Measles is in many countries, including Japan."
+        );
+    }
+
+    #[test]
+    fn selects_notices_that_name_the_country() {
+        let notices = parse_cdc_notices(CDC_FIXTURE).expect("parsed");
+
+        let uganda = notices_for_country(&notices, "Uganda");
+        assert_eq!(uganda.len(), 1);
+        assert!(uganda[0].title.contains("Ebola"));
+
+        // Matching reaches the summary, not just the title.
+        let japan = notices_for_country(&notices, "Japan");
+        assert_eq!(japan.len(), 1);
+        assert_eq!(japan[0].title, "Global Measles");
+
+        assert!(notices_for_country(&notices, "Norway").is_empty());
+        // Case is not a country's problem.
+        assert_eq!(notices_for_country(&notices, "haiti").len(), 1);
+    }
+
+    #[test]
+    fn cdc_parser_distinguishes_an_empty_feed_from_an_unreadable_one() {
+        let empty = parse_cdc_notices(
+            r#"<?xml version="1.0"?><rss version="2.0"><channel><title>CDC</title></channel></rss>"#,
+        )
+        .expect("an empty channel is a valid feed");
+        assert!(empty.is_empty());
+
+        // Anything without a <channel> is not the feed we asked for. Reporting
+        // that as "no notices" would turn an outage into a clean bill of health.
+        for not_the_feed in [
+            "not xml at all <<<",
+            "<html><body>503 Service Unavailable</body></html>",
+            "",
+        ] {
+            assert_eq!(
+                parse_cdc_notices(not_the_feed)
+                    .expect_err("unreadable input is an error")
+                    .code,
+                ErrorCode::AdviceFetchFailed,
+                "input: {not_the_feed:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn cdc_parser_bounds_a_misbehaving_feed() {
+        let mut xml = String::from(r#"<rss version="2.0"><channel><title>CDC</title>"#);
+        for index in 0..(MAX_HEALTH_NOTICES + 20) {
+            xml.push_str(&format!(
+                "<item><title>Level 1 - Thing {index} in Japan</title>\
+                 <description>Body</description>\
+                 <link>https://wwwnc.cdc.gov/{index}</link></item>"
+            ));
+        }
+        xml.push_str("</channel></rss>");
+        let notices = parse_cdc_notices(&xml).expect("parsed");
+        assert_eq!(notices.len(), MAX_HEALTH_NOTICES);
+    }
 
     const CA_FIXTURE: &str = r#"{"data": {
      "JP": {"country-iso": "JP", "country-eng": "Japan", "advisory-state": 0,
