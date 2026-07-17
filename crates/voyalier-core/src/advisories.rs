@@ -344,9 +344,237 @@ pub fn entry_from_fcdo(snapshot: &TravelAdviceSnapshot) -> AdvisoryEntry {
     }
 }
 
+/// The error every advisory parser reports when a source sends something it
+/// cannot read. Deliberately identical to the FCDO parser's wording: which
+/// government failed is the caller's news to break, not the parser's.
+fn unreadable_source() -> AppError {
+    AppError::new(
+        ErrorCode::AdviceFetchFailed,
+        "the official source returned something Voyalier could not read",
+    )
+}
+
+/// Decode the handful of HTML entities the State Department feed actually
+/// emits. Not a general entity table: an unknown entity is left alone rather
+/// than guessed at.
+fn decode_entities(value: &str) -> String {
+    value
+        .replace("&nbsp;", " ")
+        .replace("&#8217;", "\u{2019}")
+        .replace("&quot;", "\"")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        // Ampersand last: decoding it first would let "&amp;lt;" become "<".
+        .replace("&amp;", "&")
+}
+
+/// Parse the State Department's full advisory list and pick out one country.
+///
+/// `Ok(None)` means this government publishes nothing for the country — either
+/// because it never does (the US does not advise on the US) or because the feed
+/// currently carries no entry for it. That is a different fact from a failed
+/// fetch, and the caller renders it differently.
+pub fn parse_us_state(
+    country: &AdvisoryCountry,
+    country_name: &str,
+    json: &str,
+    retrieved_at: &str,
+) -> Result<Option<AdvisoryEntry>, AppError> {
+    let Some(us_title) = country.us_title else {
+        return Ok(None);
+    };
+    let value: serde_json::Value = serde_json::from_str(json).map_err(|_| unreadable_source())?;
+    let entries = value.as_array().ok_or_else(unreadable_source)?;
+
+    for item in entries {
+        let title = item
+            .get("Title")
+            .and_then(|field| field.as_str())
+            .unwrap_or_default();
+        // The feed pads some titles with stray double spaces.
+        let normalized = title.split_whitespace().collect::<Vec<_>>().join(" ");
+        let Some(rest) = normalized
+            .strip_prefix(&format!("{us_title} - "))
+            // ...and titles others "<name> Travel Advisory - Level N: ...".
+            .or_else(|| normalized.strip_prefix(&format!("{us_title} Travel Advisory - ")))
+        else {
+            continue;
+        };
+
+        let level_label = rest.trim().to_owned();
+        let level_rank = level_label
+            .strip_prefix("Level ")
+            .and_then(|text| text.chars().next())
+            .and_then(|digit| digit.to_digit(10))
+            .map(|digit| digit as u8);
+        let summary_html = item
+            .get("Summary")
+            .and_then(|field| field.as_str())
+            .unwrap_or_default();
+
+        return Ok(Some(AdvisoryEntry {
+            source: AdvisorySource::UsState,
+            source_name: "U.S. Department of State".to_owned(),
+            country_name: country_name.to_owned(),
+            level_label: Some(level_label),
+            level_rank,
+            summary: crate::parser::strip_tags_and_collapse(&decode_entities(summary_html))
+                .trim()
+                .to_owned(),
+            source_url: item
+                .get("Link")
+                .and_then(|field| field.as_str())
+                .unwrap_or_default()
+                .to_owned(),
+            source_updated_at: item
+                .get("Updated")
+                .and_then(|field| field.as_str())
+                .map(str::to_owned),
+            change_description: None,
+            language: "en".to_owned(),
+            attribution: "Public domain (U.S. Department of State)".to_owned(),
+            retrieved_at: retrieved_at.to_owned(),
+        }));
+    }
+    Ok(None)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const US_FIXTURE: &str = r#"[
+     {"Title": "Japan - Level 1: Exercise Normal Precautions",
+      "Link": "https://travel.state.gov/content/tsg_aem/us/en/home/international-travel/travel-advisories/destination.jpn.html",
+      "Category": ["JA"],
+      "Summary": "Exercise normal precaution<p>in <b>Japan.</b></p> <p>U.S. citizens should always exercise caution when traveling abroad.</p>",
+      "Published": "2025-05-14T20:00:00-04:00", "Updated": "2025-05-14T20:00:00-04:00"},
+     {"Title": "Mexico Travel Advisory - Level 2: Exercise Increased Caution",
+      "Link": "https://travel.state.gov/content/tsg_aem/us/en/home/international-travel/travel-advisories/destination.mex.html",
+      "Category": ["MX"],
+      "Summary": "Exercise increased caution<p>in <b>Mexico </b>due to<b> terrorism, crime, </b>and <b>kidnapping.</b></p>",
+      "Published": "2026-05-28T20:00:00-04:00", "Updated": "2026-05-28T20:00:00-04:00"},
+     {"Title": "Switzerland  - Level 1: Exercise Normal Precautions",
+      "Link": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories/switzerland-travel-advisory.html",
+      "Category": ["SZ"],
+      "Summary": "<p>Exercise normal precautions in Switzerland.</p>",
+      "Published": "2026-04-01T20:00:00-04:00", "Updated": "2026-04-01T20:00:00-04:00"},
+     {"Title": "United Arab Emirates - Level 3: Reconsider Travel",
+      "Link": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories/united-arab-emirates-travel-advisory.html",
+      "Category": ["AE"],
+      "Summary": "<p><b>Reconsider travel&nbsp;</b>due to the <b>threat of missile attacks.</b>&nbsp; Visit the CDC&#8217;s page for Travel &amp; COVID.</p>",
+      "Published": "2026-03-02T19:00:00-05:00", "Updated": "2026-03-02T19:00:00-05:00"}
+    ]"#;
+
+    #[test]
+    fn parses_a_us_advisory_with_level_and_plain_text_summary() {
+        let japan = advisory_country("japan").expect("japan");
+        let entry = parse_us_state(japan, "Japan", US_FIXTURE, "2026-07-17T12:00:00Z")
+            .expect("parsed")
+            .expect("present");
+        assert_eq!(entry.source, AdvisorySource::UsState);
+        assert_eq!(entry.source_name, "U.S. Department of State");
+        assert_eq!(
+            entry.level_label.as_deref(),
+            Some("Level 1: Exercise Normal Precautions")
+        );
+        assert_eq!(entry.level_rank, Some(1));
+        assert!(
+            !entry.summary.contains('<'),
+            "summary must be tag-free plain text, got {:?}",
+            entry.summary
+        );
+        assert!(
+            entry
+                .summary
+                .contains("exercise caution when traveling abroad")
+        );
+        assert_eq!(
+            entry.source_updated_at.as_deref(),
+            Some("2025-05-14T20:00:00-04:00")
+        );
+        assert_eq!(entry.language, "en");
+        assert_eq!(
+            entry.attribution,
+            "Public domain (U.S. Department of State)"
+        );
+        assert_eq!(entry.retrieved_at, "2026-07-17T12:00:00Z");
+    }
+
+    #[test]
+    fn us_summary_decodes_html_entities_rather_than_showing_them() {
+        // The real feed is full of &nbsp;, &#8217; and &amp;. Left encoded they
+        // would render as literal garbage in the card.
+        let uae = advisory_country("united-arab-emirates").expect("uae");
+        let entry = parse_us_state(
+            uae,
+            "United Arab Emirates",
+            US_FIXTURE,
+            "2026-07-17T12:00:00Z",
+        )
+        .expect("parsed")
+        .expect("present");
+        assert_eq!(entry.level_rank, Some(3));
+        for entity in ["&nbsp;", "&#8217;", "&amp;", "&quot;"] {
+            assert!(
+                !entry.summary.contains(entity),
+                "{entity} must be decoded, got {:?}",
+                entry.summary
+            );
+        }
+        assert!(entry.summary.contains("CDC\u{2019}s page"));
+        // A decoded ampersand is text, not an entity: it must survive.
+        assert!(entry.summary.contains("Travel & COVID"));
+    }
+
+    #[test]
+    fn matches_us_title_quirks_and_reports_absence() {
+        // The feed titles some countries "<name> Travel Advisory - Level N".
+        let mexico = advisory_country("mexico").expect("mexico");
+        let entry = parse_us_state(mexico, "Mexico", US_FIXTURE, "2026-07-17T12:00:00Z")
+            .expect("parsed")
+            .expect("matched despite the 'Travel Advisory' suffix");
+        assert_eq!(entry.level_rank, Some(2));
+
+        // ...and pads others with a stray double space.
+        let switzerland = advisory_country("switzerland").expect("switzerland");
+        let entry = parse_us_state(
+            switzerland,
+            "Switzerland",
+            US_FIXTURE,
+            "2026-07-17T12:00:00Z",
+        )
+        .expect("parsed")
+        .expect("matched despite the double space");
+        assert_eq!(entry.level_rank, Some(1));
+
+        // A country the feed simply has nothing for is absent, not an error.
+        let brazil = advisory_country("brazil").expect("brazil");
+        assert!(
+            parse_us_state(brazil, "Brazil", US_FIXTURE, "2026-07-17T12:00:00Z")
+                .expect("parsed")
+                .is_none()
+        );
+
+        // The US never publishes about itself, so it short-circuits.
+        let usa = advisory_country("usa").expect("usa");
+        assert!(
+            parse_us_state(usa, "USA", US_FIXTURE, "2026-07-17T12:00:00Z")
+                .expect("parsed")
+                .is_none()
+        );
+
+        let japan = advisory_country("japan").expect("japan");
+        let error = parse_us_state(japan, "Japan", "<html>", "2026-07-17T12:00:00Z")
+            .expect_err("bad json is an error");
+        assert_eq!(error.code, ErrorCode::AdviceFetchFailed);
+        // An empty list is a readable feed with nothing in it.
+        assert!(
+            parse_us_state(japan, "Japan", "[]", "2026-07-17T12:00:00Z")
+                .expect("empty list parses")
+                .is_none()
+        );
+    }
 
     #[test]
     fn advisory_countries_cover_every_fcdo_country_with_unique_iso2() {
