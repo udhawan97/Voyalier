@@ -1228,6 +1228,98 @@ h3 {
   border-top: 1px solid var(--voy-line);
 }
 
+/* ===== Destination facts (sky / money / practical) ==================== */
+
+.voy-facts {
+  margin-top: 2.6rem;
+  padding-top: 1.8rem;
+  border-top: 1px solid var(--voy-line);
+}
+
+.voy-facts__grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  margin-bottom: 1.1rem;
+}
+
+.voy-facts__block {
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-raised);
+}
+
+.voy-facts__block-title {
+  margin: 0 0 0.6rem;
+  font-family: var(--voy-font-display);
+  font-size: 1rem;
+}
+
+.voy-facts__days {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.voy-facts__day {
+  display: grid;
+  gap: 0.15rem;
+  font-size: 0.9rem;
+}
+
+.voy-facts__day-date {
+  font-weight: var(--voy-w-strong);
+}
+
+.voy-facts__day-sun {
+  font-variant-numeric: tabular-nums;
+}
+
+.voy-facts__day-moon {
+  color: var(--voy-ink-muted);
+  font-size: 0.82rem;
+}
+
+.voy-facts__rates {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.voy-facts__practical {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+}
+
+/* Reference rates and country facts are convenience, not the last word. */
+.voy-facts__note {
+  margin: 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.voy-facts__consent {
+  margin: 0.9rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+.voy-facts__fetch {
+  margin-top: 0.4rem;
+}
+
 .voy-weather__title {
   font-size: 1.4rem;
   font-family: var(--voy-font-display);

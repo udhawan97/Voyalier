@@ -507,6 +507,46 @@ const en = {
   "weather.consent":
     "Fetching sends your destination name (“{destination}”) to open-meteo.com to place it on the map, then retrieves the forecast, the history for your dates, and the air quality. For US destinations it also asks the National Weather Service for active alerts. Nothing else about your trip leaves this device.",
 
+  "facts.title": "Destination facts",
+  "facts.fetch": "Fetch destination facts",
+  "facts.fetchAgain": "Fetch again",
+  "facts.consent":
+    "Fetching sends your destination name (“{destination}”) to open-meteo.com to place it on the map, and asks the European Central Bank for today’s reference rates. The sun, moon and country facts are worked out on this device. Nothing else about your trip leaves it.",
+  "facts.retrieved": "Retrieved {stamp}",
+  // Sky: computed offline, so it carries no source and cannot be stale.
+  "facts.sky.title": "Sky",
+  "facts.sky.sun": "{sunrise} – {sunset}",
+  "facts.sky.dayLength": "{hours}h {minutes}m of daylight",
+  "facts.polar.day": "Midnight sun — the sun does not set",
+  "facts.polar.night": "Polar night — the sun does not rise",
+  "facts.sky.moon": "{phase} · {pct}% lit",
+  // Money: a reference rate, never a card or ATM rate.
+  "facts.money.title": "Money",
+  "facts.money.rate": "1 {from} = {value} {to}",
+  "facts.money.indicative":
+    "European Central Bank reference rates for {date} — indicative, not the rate your card or an ATM will give.",
+  "facts.money.noRate":
+    "No published reference rate for {currency}. Check locally before you travel.",
+  // Practical: convenience facts; the card links out rather than asserting.
+  "facts.practical.title": "Practical",
+  "facts.practical.plug": "Plugs {types} · {voltage} V · {frequency} Hz",
+  "facts.practical.driveLeft": "Drives on the left",
+  "facts.practical.driveRight": "Drives on the right",
+  "facts.practical.calling": "Calling code {code}",
+  "facts.practical.emergency": "Emergency {number}",
+  "facts.practical.emergencyServices":
+    "Police {police} · Ambulance {ambulance} · Fire {fire}",
+  "facts.practical.none":
+    "Voyalier does not carry practical facts for this destination yet.",
+  "moon.new_moon": "New moon",
+  "moon.waxing_crescent": "Waxing crescent",
+  "moon.first_quarter": "First quarter",
+  "moon.waxing_gibbous": "Waxing gibbous",
+  "moon.full_moon": "Full moon",
+  "moon.waning_gibbous": "Waning gibbous",
+  "moon.last_quarter": "Last quarter",
+  "moon.waning_crescent": "Waning crescent",
+
   // Normals describe observed history, so the copy says "typically", never
   // "will be", and always shows the sample the claim rests on.
   "weather.normals.title": "Typical for these dates",
