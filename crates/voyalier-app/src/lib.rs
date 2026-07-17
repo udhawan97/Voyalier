@@ -12,33 +12,28 @@ use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use voyalier_core::{
-    ANTHROPIC_MESSAGES_URL, ANTHROPIC_VERSION, ASSIST_DRAFT_LODGING_DATES, ASSIST_SYSTEM_PROMPT,
-    AddManualFactInput, AiPrompt, AiPromptKind, AiPromptSettings, AppError, AssistActivityEntry,
-    AssistDraftResult, AssistReply, AssistRequestPreview, CandidateFact, CandidateStatus,
-    ConfirmCandidateInput, ConfirmationParser, ConfirmedFact, CreateTripInput,
-    DEFAULT_ANTHROPIC_MODEL, DEFAULT_OLLAMA_MODEL, DEFAULT_OPENAI_MODEL,
-    DRAFT_LODGING_DATES_SYSTEM_PROMPT, DocumentContent, DocumentKind, DocumentSummary,
-    DownloadedPack, ErrorCode, ExtractionMethod, FCDO_COUNTRIES, FactPayload, FactType,
-    FcdoCountry, FieldSuggestion, HealthResponse, ImportDocumentInput, ImportResult,
-    IntelligenceMode, JsonLdParser, KeyValidation, KeyValidationStatus, LocalAiStatus,
-    LocalModelPullResult, LodgingDateProposal, MAX_NOTES_CHARS, MAX_OFFLINE_MAP_BYTES,
-    NormalizedDocument, OLLAMA_CHAT_URL, OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OPENAI_CHAT_URL,
+    ASSIST_DRAFT_LODGING_DATES, ASSIST_SYSTEM_PROMPT, AddManualFactInput, AiPrompt, AiPromptKind,
+    AiPromptSettings, AppError, AssistActivityEntry, AssistDraftResult, AssistReply,
+    AssistRequestPreview, CandidateFact, CandidateStatus, ConfirmCandidateInput, ConfirmedFact,
+    CreateTripInput, DRAFT_LODGING_DATES_SYSTEM_PROMPT, DocumentContent, DocumentKind,
+    DocumentParse, DocumentSummary, DownloadedPack, ErrorCode, ExtractionMethod, FCDO_COUNTRIES,
+    FactPayload, FactType, FcdoCountry, FieldSuggestion, HealthResponse, ImportDocumentInput,
+    ImportResult, IntelligenceMode, KeyValidation, LocalAiStatus, LocalModelPullResult,
+    LodgingDateProposal, MAX_NOTES_CHARS, MAX_OFFLINE_MAP_BYTES, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,
     OfflineMapArchive, OfflineMapChunk, OfflineMapDescriptor, PROVIDERS, PackContent, PackInfo,
-    PackSuggestion, ParsedCandidate, PersonaWeights, PlaintextParser, ProviderConfig, ProviderId,
-    Recommendation, RedactionPolicy, SEARCH_SUGGESTION_LIMIT, SearchHit, SearchableDocument,
-    SourceDocument, SuggestionSource, TodayView, TravelAdviceSnapshot, Trip, TripAssessment,
-    TripBrief, TripDetail, TripNotes, TripStatus, TripSummary, UpdateTripInput, WarningCode,
-    WeatherSnapshot, assess_trip, build_anthropic_messages_body, build_assist_preview,
-    build_lodging_dates_user_content, build_ollama_chat_body, build_openai_chat_body,
-    build_pull_body, build_today_view, build_trip_brief, changed_payload_fields,
-    extract_email_body, interpret_key_validation, interpret_pull_response, new_id, now_rfc3339,
-    offline_map_download_url, pack_catalog, pack_download_url, parse_anthropic_reply,
-    parse_fcdo_content, parse_forecast_response, parse_geocoding_response,
-    parse_lodging_dates_reply, parse_ollama_chat_reply, parse_openai_chat_reply,
-    parse_pack_content, provider_info, provider_validation_endpoint, provider_validation_headers,
-    rank_field_suggestions, recommend_places, search_trip_corpus, suggest_packs,
-    suggest_search_terms, validate_api_key, validate_country_slug, validate_create_trip,
-    validate_document_content, validate_fact_payload, validate_model_name, validate_pack_id,
+    PackSuggestion, PersonaWeights, ProviderConfig, ProviderId, Recommendation, RedactionPolicy,
+    SEARCH_SUGGESTION_LIMIT, SearchHit, SearchableDocument, SourceDocument, SuggestionSource,
+    TodayView, TravelAdviceSnapshot, Trip, TripAssessment, TripBrief, TripDetail, TripNotes,
+    TripStatus, TripSummary, UpdateTripInput, WarningCode, WeatherSnapshot, assess_trip,
+    build_assist_preview, build_assist_request, build_draft_preview, build_pull_body,
+    build_today_view, build_trip_brief, changed_payload_fields, estimate_tokens,
+    interpret_key_validation, interpret_pull_response, new_id, now_rfc3339,
+    offline_map_download_url, pack_catalog, pack_download_url, parse_assist_reply,
+    parse_fcdo_content, parse_forecast_response, parse_geocoding_response, parse_import,
+    parse_lodging_dates_reply, parse_pack_content, provider_info, provider_validation_endpoint,
+    provider_validation_headers, rank_field_suggestions, recommend_places, search_trip_corpus,
+    suggest_packs, suggest_search_terms, validate_api_key, validate_country_slug,
+    validate_create_trip, validate_fact_payload, validate_model_name, validate_pack_id,
     validate_provider_id, validate_search_query, validate_update_trip,
 };
 use voyalier_core::{
@@ -1332,13 +1327,13 @@ impl AppService {
             .iter()
             .map(|(name, value)| (name.as_str(), value.as_str()))
             .collect();
-        match self.fetcher.get_status(endpoint, &header_refs) {
-            Ok(status) => Ok(interpret_key_validation(status)),
-            Err(_) => Ok(KeyValidation {
-                status: KeyValidationStatus::Unreachable,
-                message: "Could not reach the provider to verify the key.".to_owned(),
-            }),
-        }
+        // Both the reply and the no-reply case resolve through core's one
+        // verdict table, so an unreachable provider reads the same either way.
+        Ok(interpret_key_validation(
+            self.fetcher
+                .get_status(endpoint, &header_refs)
+                .map_err(|_| ()),
+        ))
     }
 
     /// Download (pull) an on-device model into a running Ollama. Best-effort and
@@ -1933,18 +1928,26 @@ impl AppService {
             .iter()
             .map(|(_, label, text)| (label.clone(), text.clone()))
             .collect();
-        let user_content =
-            build_lodging_dates_user_content(&trip.start_date, &trip.end_date, &doc_pairs);
-        let model = model.unwrap_or_else(|| DEFAULT_OLLAMA_MODEL.to_owned());
         // Read the (possibly customized) instruction in a scoped lock so the
         // storage guard is released before the network call and the later insert.
         let system_prompt = {
             let connection = self.connection()?;
             effective_ai_prompt(&connection, AiPromptKind::DraftLodgingDates)?
         };
-        let body = build_ollama_chat_body(&model, &system_prompt, &user_content);
-        let response = self.fetcher.post_json(OLLAMA_CHAT_URL, &body, &[])?;
-        let text = parse_ollama_chat_reply(&response)?;
+        // Reuse the preview, exactly as run_assist does: the consent step and
+        // the bytes actually sent are then the same object, not two builds that
+        // happen to agree.
+        let preview = build_draft_preview(&trip, &doc_pairs, model.as_deref(), &system_prompt);
+        // On-device only: Ollama is keyless, so nothing leaves this machine.
+        let request = build_assist_request(
+            ProviderId::Ollama,
+            preview.model.as_deref(),
+            &preview.system_prompt,
+            &preview.user_content,
+            None,
+        )?;
+        let response = self.fetcher.post_json(request.url, &request.body, &[])?;
+        let text = parse_assist_reply(ProviderId::Ollama, &response)?;
         let proposals = parse_lodging_dates_reply(&text)?;
         if proposals.is_empty() {
             return Ok(AssistDraftResult {
@@ -2001,56 +2004,38 @@ impl AppService {
 
     /// Send a previewed request to `id`'s runtime and return `(model, reply)`.
     /// The BYOK key, when needed, is read from the keychain and used only here.
+    /// Send the previewed request to its provider and return `(model, reply)`.
+    ///
+    /// The provider protocol — endpoint, model default, body shape, headers, and
+    /// the matching reply parser — belongs to `voyalier_core::assist`. All this
+    /// adds is the two things core cannot do: read the key from the keychain and
+    /// perform the fetch.
     fn dispatch_assist(
         &self,
         id: ProviderId,
         preview: &AssistRequestPreview,
     ) -> Result<(String, String), AppError> {
-        let system = &preview.system_prompt;
-        let user = &preview.user_content;
-        match id {
-            ProviderId::Ollama => {
-                let model = preview
-                    .model
-                    .clone()
-                    .unwrap_or_else(|| DEFAULT_OLLAMA_MODEL.to_owned());
-                let body = build_ollama_chat_body(&model, system, user);
-                let response = self.fetcher.post_json(OLLAMA_CHAT_URL, &body, &[])?;
-                Ok((model.clone(), parse_ollama_chat_reply(&response)?))
-            }
-            ProviderId::OpenAi => {
-                let key = self.require_provider_key(id)?;
-                let model = preview
-                    .model
-                    .clone()
-                    .unwrap_or_else(|| DEFAULT_OPENAI_MODEL.to_owned());
-                let body = build_openai_chat_body(&model, system, user);
-                let auth = format!("Bearer {key}");
-                let response = self.fetcher.post_json(
-                    OPENAI_CHAT_URL,
-                    &body,
-                    &[("Authorization", auth.as_str())],
-                )?;
-                Ok((model.clone(), parse_openai_chat_reply(&response)?))
-            }
-            ProviderId::Anthropic => {
-                let key = self.require_provider_key(id)?;
-                let model = preview
-                    .model
-                    .clone()
-                    .unwrap_or_else(|| DEFAULT_ANTHROPIC_MODEL.to_owned());
-                let body = build_anthropic_messages_body(&model, system, user);
-                let response = self.fetcher.post_json(
-                    ANTHROPIC_MESSAGES_URL,
-                    &body,
-                    &[
-                        ("x-api-key", key.as_str()),
-                        ("anthropic-version", ANTHROPIC_VERSION),
-                    ],
-                )?;
-                Ok((model.clone(), parse_anthropic_reply(&response)?))
-            }
-        }
+        let key = if provider_info(id).key_required {
+            Some(self.require_provider_key(id)?)
+        } else {
+            None
+        };
+        let request = build_assist_request(
+            id,
+            preview.model.as_deref(),
+            &preview.system_prompt,
+            &preview.user_content,
+            key.as_deref(),
+        )?;
+        let header_refs: Vec<(&str, &str)> = request
+            .headers
+            .iter()
+            .map(|(name, value)| (name.as_str(), value.as_str()))
+            .collect();
+        let response = self
+            .fetcher
+            .post_json(request.url, &request.body, &header_refs)?;
+        Ok((request.model, parse_assist_reply(id, &response)?))
     }
 
     /// Read the BYOK key for a cloud provider, or a clear "add a key" error.
@@ -2172,21 +2157,19 @@ impl AppService {
     }
 
     pub fn import_document(&self, input: ImportDocumentInput) -> Result<ImportResult, AppError> {
-        // Email is input-only: extract the confirmation body (preferring the HTML
-        // part so JSON-LD can parse) and import it as a normal html/pasted-text
-        // document. Everything downstream — dedup, sealing, field spans, parser
-        // dispatch — then sees the extracted body, not the raw email.
-        let (kind, content, email_subject) = match input.kind {
-            DocumentKind::Email => {
-                // Bound the RAW email before the extractor walks its (untrusted)
-                // MIME tree — the extracted body is validated again below.
-                validate_document_content(&input.content)?;
-                let extracted = extract_email_body(&input.content);
-                (extracted.kind, extracted.content, extracted.subject)
-            }
-            other => (other, input.content.clone(), None),
-        };
-        let char_count = validate_document_content(&content)?;
+        // Email is input-only. `parse_import` bounds the raw input, extracts the
+        // confirmation body, bounds that, and dispatches to the parser for the
+        // resulting kind — so everything downstream (dedup, sealing, field
+        // spans) sees the extracted body, never the raw email.
+        let DocumentParse {
+            kind,
+            content,
+            label_hint: email_subject,
+            char_count,
+            parser_id,
+            parser_version,
+            candidates: parsed_candidates,
+        } = parse_import(input.kind, &input.content)?;
         let hash = sha256_hex(content.as_bytes());
         let label = input
             .label
@@ -2208,8 +2191,6 @@ impl AppService {
                 }
                 .to_owned()
             });
-        let document = NormalizedDocument::new(kind, content.clone());
-        let (parser_id, parser_version, parsed_candidates) = parse_document(&document);
         let now = now_rfc3339();
         let document_id = new_id("doc");
         let parser_run_id = new_id("run");
@@ -3107,30 +3088,6 @@ fn migrate_method_check(connection: &Connection) -> Result<(), AppError> {
     rebuilt
 }
 
-fn parse_document(
-    document: &NormalizedDocument,
-) -> (&'static str, &'static str, Vec<ParsedCandidate>) {
-    match document.kind {
-        DocumentKind::Html => {
-            let parser = JsonLdParser;
-            let outcome = parser.parse(document);
-            (parser.id(), parser.version(), outcome.candidates)
-        }
-        DocumentKind::PastedText => {
-            let parser = PlaintextParser;
-            let outcome = parser.parse(document);
-            (parser.id(), parser.version(), outcome.candidates)
-        }
-        DocumentKind::Email => {
-            // Email is normalized to a body kind before import calls this; handle
-            // a direct call defensively by extracting the body and re-dispatching.
-            let extracted = extract_email_body(&document.raw_content);
-            let inner = NormalizedDocument::new(extracted.kind, extracted.content);
-            parse_document(&inner)
-        }
-    }
-}
-
 fn fetch_trip(connection: &Connection, trip_id: &str) -> Result<Trip, AppError> {
     connection
         .query_row(
@@ -3323,48 +3280,6 @@ fn fetch_trip_document_texts(
     collect_rows(rows)
 }
 
-/// Build the on-device draft request preview from a trip and its document texts.
-/// Ollama-only, so it never leaves the device and withholds nothing (the text is
-/// the traveler's own imported content). `system_prompt` is the effective
-/// instruction (the default or the user's override).
-fn build_draft_preview(
-    trip: &Trip,
-    documents: &[(String, String)],
-    model: Option<&str>,
-    system_prompt: &str,
-) -> AssistRequestPreview {
-    let system_prompt = system_prompt.to_owned();
-    let user_content =
-        build_lodging_dates_user_content(&trip.start_date, &trip.end_date, documents);
-    let estimated_tokens =
-        ((system_prompt.chars().count() + user_content.chars().count()) / 4 + 1) as u32;
-    let grounded_in = if documents.is_empty() {
-        vec!["no imported documents yet".to_owned()]
-    } else {
-        let noun = if documents.len() == 1 {
-            "document"
-        } else {
-            "documents"
-        };
-        vec![
-            format!("{} imported {noun}", documents.len()),
-            "trip dates".to_owned(),
-        ]
-    };
-    AssistRequestPreview {
-        provider: ProviderId::Ollama,
-        provider_label: provider_info(ProviderId::Ollama).label.to_owned(),
-        model: model.map(str::to_owned),
-        endpoint: OLLAMA_CHAT_URL.to_owned(),
-        leaves_device: false,
-        system_prompt,
-        user_content,
-        withheld: Vec::new(),
-        grounded_in,
-        estimated_tokens,
-    }
-}
-
 /// Flag a proposed stay whose dates fall outside the trip window, so review
 /// surfaces it. Deterministic ISO-date string comparison; other checks (e.g.
 /// past dates) are left to the reviewer.
@@ -3436,8 +3351,7 @@ fn apply_prompt_override(preview: &mut AssistRequestPreview, prompt: String) {
     if prompt == preview.system_prompt {
         return;
     }
-    preview.estimated_tokens =
-        ((prompt.chars().count() + preview.user_content.chars().count()) / 4 + 1) as u32;
+    preview.estimated_tokens = estimate_tokens(&prompt, &preview.user_content);
     preview.system_prompt = prompt;
 }
 
@@ -3696,6 +3610,7 @@ mod tests {
     use std::{fs, path::PathBuf};
 
     use super::*;
+    use voyalier_core::KeyValidationStatus;
     use voyalier_core::{CandidateStatus, DocumentKind, FactPayload, FactType};
 
     #[test]

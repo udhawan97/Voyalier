@@ -11,7 +11,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::types::{AppError, CandidateFact, ErrorCode};
+use crate::assist::{AssistRequestPreview, estimate_tokens};
+use crate::provider::{ProviderId, provider_info};
+use crate::types::{AppError, CandidateFact, ErrorCode, Trip};
 
 /// The only draft kind today: fill missing lodging dates from imported text.
 pub const ASSIST_DRAFT_LODGING_DATES: &str = "lodging_dates";
@@ -95,6 +97,51 @@ pub fn is_iso_date(value: &str) -> bool {
     let month: u32 = value[5..7].parse().unwrap_or(0);
     let day: u32 = value[8..10].parse().unwrap_or(0);
     (1..=12).contains(&month) && (1..=31).contains(&day)
+}
+
+/// Build the on-device draft request preview from a trip and its document texts.
+///
+/// Ollama-only, so it never leaves the device and withholds nothing (the text is
+/// the traveler's own imported content). `system_prompt` is the effective
+/// instruction — the default above or the user's override.
+///
+/// This lives beside the prompt it previews so the consent step and the request
+/// that is actually sent are built from one description of the call.
+pub fn build_draft_preview(
+    trip: &Trip,
+    documents: &[(String, String)],
+    model: Option<&str>,
+    system_prompt: &str,
+) -> AssistRequestPreview {
+    let system_prompt = system_prompt.to_owned();
+    let user_content =
+        build_lodging_dates_user_content(&trip.start_date, &trip.end_date, documents);
+    let estimated_tokens = estimate_tokens(&system_prompt, &user_content);
+    let grounded_in = if documents.is_empty() {
+        vec!["no imported documents yet".to_owned()]
+    } else {
+        let noun = if documents.len() == 1 {
+            "document"
+        } else {
+            "documents"
+        };
+        vec![
+            format!("{} imported {noun}", documents.len()),
+            "trip dates".to_owned(),
+        ]
+    };
+    AssistRequestPreview {
+        provider: ProviderId::Ollama,
+        provider_label: provider_info(ProviderId::Ollama).label.to_owned(),
+        model: model.map(str::to_owned),
+        endpoint: crate::assist::endpoint_for(ProviderId::Ollama).to_owned(),
+        leaves_device: false,
+        system_prompt,
+        user_content,
+        withheld: Vec::new(),
+        grounded_in,
+        estimated_tokens,
+    }
 }
 
 /// Assemble the user message: the trip window plus the imported documents' text,

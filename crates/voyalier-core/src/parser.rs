@@ -1,9 +1,73 @@
 use serde_json::Value;
 
+use crate::email::extract_email_body;
+use crate::types::{AppError, validate_document_content};
 use crate::{
     DocumentKind, ExtractionMethod, FactPayload, FactType, FieldSpan, WarningCode,
     validate_fact_payload,
 };
+
+/// An imported document normalized for storage, plus what its parser found.
+///
+/// `kind` and `content` are the body that should actually be stored: an email is
+/// input-only, so importing one yields the extracted body and its kind here,
+/// never `DocumentKind::Email`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DocumentParse {
+    pub kind: DocumentKind,
+    pub content: String,
+    /// An email's subject, offered as a default label. `None` for other kinds.
+    pub label_hint: Option<String>,
+    pub char_count: u32,
+    pub parser_id: &'static str,
+    pub parser_version: &'static str,
+    pub candidates: Vec<ParsedCandidate>,
+}
+
+/// Normalize and parse an imported document in one pass.
+///
+/// This owns the whole recipe so no caller has to remember it:
+///
+/// 1. Bound the raw input **before** an email's untrusted MIME tree is walked —
+///    with the depth cap in [`crate::email`], that keeps the parse cost linear.
+/// 2. Unwrap an email to its best confirmation body (preferring `text/html` so
+///    JSON-LD can parse).
+/// 3. Bound the extracted body, which may differ in size from the raw input.
+/// 4. Dispatch to the parser that handles the resulting body kind.
+///
+/// Splitting these across a caller is what let a second, unbounded entry into
+/// the email extractor exist.
+pub fn parse_import(kind: DocumentKind, raw: &str) -> Result<DocumentParse, AppError> {
+    let (kind, content, label_hint) = match kind {
+        DocumentKind::Email => {
+            validate_document_content(raw)?;
+            let extracted = extract_email_body(raw);
+            (extracted.kind, extracted.content, extracted.subject)
+        }
+        other => (other, raw.to_owned(), None),
+    };
+    let char_count = validate_document_content(&content)?;
+
+    let document = NormalizedDocument::new(kind, content.clone());
+    let parser: &dyn ConfirmationParser = match kind {
+        DocumentKind::Html => &JsonLdParser,
+        // `extract_email_body` never returns `Email`, so that arm is
+        // unreachable; treating it as text keeps this total without a second
+        // (unbounded) trip through the extractor.
+        DocumentKind::PastedText | DocumentKind::Email => &PlaintextParser,
+    };
+    let outcome = parser.parse(&document);
+
+    Ok(DocumentParse {
+        kind,
+        content,
+        label_hint,
+        char_count,
+        parser_id: parser.id(),
+        parser_version: parser.version(),
+        candidates: outcome.candidates,
+    })
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizedDocument {
@@ -661,4 +725,77 @@ fn is_local_datetime(value: &str) -> bool {
         && bytes[11..13].iter().all(u8::is_ascii_digit)
         && bytes[13] == b':'
         && bytes[14..16].iter().all(u8::is_ascii_digit)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::{ErrorCode, MAX_DOCUMENT_CHARS};
+
+    const FLIGHT_JSONLD: &str = r#"<html><script type="application/ld+json">
+        {"@type":"FlightReservation","reservationNumber":"ABC123","reservationFor":{
+        "flightNumber":"UA1","departureTime":"2027-04-02T10:00","arrivalTime":"2027-04-02T14:00"}}
+        </script></html>"#;
+
+    #[test]
+    fn html_import_dispatches_to_the_jsonld_parser() {
+        let parsed = parse_import(DocumentKind::Html, FLIGHT_JSONLD).expect("parses");
+        assert_eq!(parsed.parser_id, "jsonld");
+        assert_eq!(parsed.kind, DocumentKind::Html);
+        assert_eq!(parsed.label_hint, None);
+        assert_eq!(parsed.candidates.len(), 1);
+        assert_eq!(parsed.candidates[0].fact_type, FactType::FlightSegment);
+    }
+
+    #[test]
+    fn pasted_text_import_dispatches_to_the_plaintext_parser() {
+        let parsed = parse_import(DocumentKind::PastedText, "Confirmation ABC123").expect("parses");
+        assert_eq!(parsed.parser_id, "plaintext");
+        assert_eq!(parsed.kind, DocumentKind::PastedText);
+        assert_eq!(parsed.content, "Confirmation ABC123");
+    }
+
+    #[test]
+    fn email_import_is_normalized_to_its_body_before_parsing() {
+        // The html part carries the JSON-LD, so the email must normalize to an
+        // Html body and reach the jsonld parser — not the plaintext one.
+        let raw = format!(
+            "Subject: Your flight\r\nMIME-Version: 1.0\r\nContent-Type: multipart/alternative; boundary=\"XX\"\r\n\r\n--XX\r\nContent-Type: text/plain\r\n\r\nplain body\r\n--XX\r\nContent-Type: text/html\r\n\r\n{FLIGHT_JSONLD}\r\n--XX--\r\n"
+        );
+        let parsed = parse_import(DocumentKind::Email, &raw).expect("parses");
+
+        // Never stores the input kind: the body kind is what is returned.
+        assert_eq!(parsed.kind, DocumentKind::Html);
+        assert_eq!(parsed.parser_id, "jsonld");
+        assert_eq!(parsed.label_hint.as_deref(), Some("Your flight"));
+        assert_eq!(parsed.candidates.len(), 1);
+        // The stored content is the body, not the raw email.
+        assert!(!parsed.content.contains("Subject:"));
+        assert_eq!(parsed.char_count as usize, parsed.content.chars().count());
+    }
+
+    #[test]
+    fn oversized_email_is_rejected_before_its_mime_tree_is_walked() {
+        let raw = format!(
+            "Subject: big\r\nContent-Type: text/plain\r\n\r\n{}",
+            "a".repeat(MAX_DOCUMENT_CHARS + 1)
+        );
+        let error = parse_import(DocumentKind::Email, &raw).expect_err("rejected");
+        assert_eq!(error.code, ErrorCode::DocumentTooLarge);
+    }
+
+    #[test]
+    fn an_attachment_only_email_has_an_empty_body_and_is_rejected_as_empty() {
+        // extract_email_body returns an empty body rather than storing MIME
+        // headers; the body bound then rejects it as empty.
+        let raw = "To: me@example.com\r\nContent-Type: multipart/mixed; boundary=\"M\"\r\n\r\n--M\r\nContent-Type: application/pdf\r\nContent-Transfer-Encoding: base64\r\n\r\nAAAA\r\n--M--\r\n";
+        let error = parse_import(DocumentKind::Email, raw).expect_err("rejected");
+        assert_eq!(error.code, ErrorCode::DocumentEmpty);
+    }
+
+    #[test]
+    fn empty_document_is_rejected() {
+        let error = parse_import(DocumentKind::PastedText, "").expect_err("rejected");
+        assert_eq!(error.code, ErrorCode::DocumentEmpty);
+    }
 }

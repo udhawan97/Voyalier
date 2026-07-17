@@ -192,10 +192,25 @@ pub fn provider_validation_headers(id: ProviderId, key: &str) -> Vec<(String, St
     }
 }
 
-/// Interpret a validation request's HTTP status into a verdict. A 2xx means the
-/// key works; 401/403 is an authoritative rejection; anything else is treated as
-/// inconclusive so a transient hiccup never looks like a bad key.
-pub fn interpret_key_validation(status: u16) -> KeyValidation {
+/// Interpret a validation attempt into a verdict.
+///
+/// `Ok(status)` is the HTTP status the provider replied with; `Err(())` means it
+/// could not be reached at all. A 2xx means the key works; 401/403 is an
+/// authoritative rejection; everything else — including no reply — is
+/// inconclusive, so a transient hiccup never looks like a bad key.
+///
+/// Both outcomes resolve here so there is one verdict table: the unreachable
+/// case used to be written again at the call site, with different wording.
+pub fn interpret_key_validation(reply: Result<u16, ()>) -> KeyValidation {
+    let status = match reply {
+        Ok(status) => status,
+        Err(()) => {
+            return KeyValidation {
+                status: KeyValidationStatus::Unreachable,
+                message: "Could not reach the provider to verify the key.".to_owned(),
+            };
+        }
+    };
     match status {
         200..=299 => KeyValidation {
             status: KeyValidationStatus::Valid,
@@ -285,30 +300,39 @@ mod tests {
     #[test]
     fn key_validation_maps_status_to_verdict() {
         assert_eq!(
-            interpret_key_validation(200).status,
+            interpret_key_validation(Ok(200)).status,
             KeyValidationStatus::Valid
         );
         assert_eq!(
-            interpret_key_validation(204).status,
+            interpret_key_validation(Ok(204)).status,
             KeyValidationStatus::Valid
         );
         assert_eq!(
-            interpret_key_validation(401).status,
+            interpret_key_validation(Ok(401)).status,
             KeyValidationStatus::Rejected
         );
         assert_eq!(
-            interpret_key_validation(403).status,
+            interpret_key_validation(Ok(403)).status,
             KeyValidationStatus::Rejected
         );
         // A server error is inconclusive, not a rejection.
         assert_eq!(
-            interpret_key_validation(500).status,
+            interpret_key_validation(Ok(500)).status,
             KeyValidationStatus::Unreachable
         );
         assert_eq!(
-            interpret_key_validation(429).status,
+            interpret_key_validation(Ok(429)).status,
             KeyValidationStatus::Unreachable
         );
+    }
+
+    #[test]
+    fn an_unreachable_provider_is_never_reported_as_a_bad_key() {
+        // The no-reply verdict resolves here rather than at the call site, so it
+        // cannot drift from the status-based ones.
+        let verdict = interpret_key_validation(Err(()));
+        assert_eq!(verdict.status, KeyValidationStatus::Unreachable);
+        assert!(!verdict.message.is_empty());
     }
 
     #[test]

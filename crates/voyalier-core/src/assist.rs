@@ -40,7 +40,7 @@ health requirements, or safety guidance; if the trip details do not answer a que
 
 /// Where a provider's request would go — shown for transparency, never guessed
 /// from user data.
-fn endpoint_for(id: ProviderId) -> &'static str {
+pub(crate) fn endpoint_for(id: ProviderId) -> &'static str {
     match id {
         ProviderId::OpenAi => OPENAI_CHAT_URL,
         ProviderId::Anthropic => ANTHROPIC_MESSAGES_URL,
@@ -140,9 +140,100 @@ fn plural(count: usize, word: &str) -> String {
 
 /// A rough token estimate (~4 characters per token) for cost awareness. Not a
 /// billing figure — providers tokenize differently — just an order of magnitude.
-fn estimate_tokens(system: &str, user: &str) -> u32 {
+///
+/// Public because a preview's system prompt can be overridden after it is built,
+/// and the estimate shown to the traveler has to stay honest — recomputing it
+/// with a copy of this formula is how the two drift.
+pub fn estimate_tokens(system: &str, user: &str) -> u32 {
     let characters = system.chars().count() + user.chars().count();
     (characters / 4 + 1) as u32
+}
+
+/// The model a provider uses when the traveler has not chosen one.
+fn default_model(id: ProviderId) -> &'static str {
+    match id {
+        ProviderId::Ollama => DEFAULT_OLLAMA_MODEL,
+        ProviderId::OpenAi => DEFAULT_OPENAI_MODEL,
+        ProviderId::Anthropic => DEFAULT_ANTHROPIC_MODEL,
+    }
+}
+
+/// Everything needed to send one assist call, and nothing more.
+///
+/// The API key appears only inside `headers` — never stored, logged, or echoed
+/// back in any other field.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssistRequest {
+    pub url: &'static str,
+    /// The model actually used, after the provider's default is applied.
+    pub model: String,
+    pub body: String,
+    pub headers: Vec<(String, String)>,
+}
+
+/// Build the assist request for `id`: endpoint, model default, body shape, and
+/// auth headers, together.
+///
+/// Which body builder pairs with which endpoint, default, and header set is this
+/// module's knowledge — assembling it per provider at the call site is how the
+/// endpoint map ended up written twice.
+///
+/// `key` must be present for providers where `provider_info(id).key_required`;
+/// keyless providers (Ollama) ignore it.
+pub fn build_assist_request(
+    id: ProviderId,
+    model: Option<&str>,
+    system_prompt: &str,
+    user_content: &str,
+    key: Option<&str>,
+) -> Result<AssistRequest, AppError> {
+    if provider_info(id).key_required && key.is_none() {
+        return Err(AppError::with_detail(
+            ErrorCode::ValidationInvalidInput,
+            "this provider needs an API key",
+            "field",
+            "provider",
+        ));
+    }
+    let model = model
+        .map(str::to_owned)
+        .unwrap_or_else(|| default_model(id).to_owned());
+    let key = key.unwrap_or_default();
+
+    let (body, headers) = match id {
+        ProviderId::Ollama => (
+            build_ollama_chat_body(&model, system_prompt, user_content),
+            Vec::new(),
+        ),
+        ProviderId::OpenAi => (
+            build_openai_chat_body(&model, system_prompt, user_content),
+            vec![("Authorization".to_owned(), format!("Bearer {key}"))],
+        ),
+        ProviderId::Anthropic => (
+            build_anthropic_messages_body(&model, system_prompt, user_content),
+            vec![
+                ("x-api-key".to_owned(), key.to_owned()),
+                ("anthropic-version".to_owned(), ANTHROPIC_VERSION.to_owned()),
+            ],
+        ),
+    };
+
+    Ok(AssistRequest {
+        url: endpoint_for(id),
+        model,
+        body,
+        headers,
+    })
+}
+
+/// Extract the reply text from `id`'s response body, using the parser that
+/// matches the body builder [`build_assist_request`] used.
+pub fn parse_assist_reply(id: ProviderId, body: &str) -> Result<String, AppError> {
+    match id {
+        ProviderId::Ollama => parse_ollama_chat_reply(body),
+        ProviderId::OpenAi => parse_openai_chat_reply(body),
+        ProviderId::Anthropic => parse_anthropic_reply(body),
+    }
 }
 
 /// Render the redacted brief as the plain-text itinerary the model would receive.
@@ -605,5 +696,104 @@ mod tests {
                 .code,
             ErrorCode::AssistFailed
         );
+    }
+
+    #[test]
+    fn assist_request_pairs_each_provider_with_its_own_endpoint_and_parser() {
+        // The endpoint, body shape, and reply parser for a provider must agree.
+        // Round-tripping a provider-shaped reply through parse_assist_reply is
+        // what proves the pairing, and it is the pairing the call site used to
+        // reassemble by hand.
+        let cases = [
+            (
+                ProviderId::Ollama,
+                OLLAMA_CHAT_URL,
+                r#"{"message":{"content":"hi"}}"#,
+            ),
+            (
+                ProviderId::OpenAi,
+                OPENAI_CHAT_URL,
+                r#"{"choices":[{"message":{"content":"hi"}}]}"#,
+            ),
+            (
+                ProviderId::Anthropic,
+                ANTHROPIC_MESSAGES_URL,
+                r#"{"content":[{"type":"text","text":"hi"}]}"#,
+            ),
+        ];
+        for (id, url, reply) in cases {
+            let request =
+                build_assist_request(id, None, "sys", "user", Some("k")).expect("request builds");
+            assert_eq!(request.url, url, "{id:?} endpoint");
+            assert_eq!(request.model, default_model(id), "{id:?} default model");
+            assert!(
+                request.body.contains(default_model(id)),
+                "{id:?} body model"
+            );
+            assert_eq!(
+                parse_assist_reply(id, reply).expect("parses"),
+                "hi",
+                "{id:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_cloud_assist_request_carries_the_key_only_in_its_headers() {
+        let request = build_assist_request(ProviderId::OpenAi, None, "sys", "user", Some("secret"))
+            .expect("request builds");
+        assert!(
+            request
+                .headers
+                .iter()
+                .any(|(name, value)| name == "Authorization" && value == "Bearer secret")
+        );
+        // The key must never reach the body, the url, or the model.
+        assert!(!request.body.contains("secret"));
+        assert!(!request.url.contains("secret"));
+        assert!(!request.model.contains("secret"));
+    }
+
+    #[test]
+    fn anthropic_assist_request_sends_the_pinned_api_version() {
+        let request =
+            build_assist_request(ProviderId::Anthropic, None, "sys", "user", Some("secret"))
+                .expect("request builds");
+        assert!(
+            request
+                .headers
+                .iter()
+                .any(|(name, value)| name == "anthropic-version" && value == ANTHROPIC_VERSION)
+        );
+        assert!(
+            request
+                .headers
+                .iter()
+                .any(|(name, value)| name == "x-api-key" && value == "secret")
+        );
+    }
+
+    #[test]
+    fn a_keyless_provider_needs_no_key_and_sends_no_auth_headers() {
+        let request =
+            build_assist_request(ProviderId::Ollama, None, "sys", "user", None).expect("builds");
+        assert!(request.headers.is_empty());
+        assert!(request.url.starts_with("http://localhost"));
+    }
+
+    #[test]
+    fn a_cloud_assist_request_without_a_key_is_refused() {
+        for id in [ProviderId::OpenAi, ProviderId::Anthropic] {
+            let error = build_assist_request(id, None, "sys", "user", None).expect_err("refused");
+            assert_eq!(error.code, ErrorCode::ValidationInvalidInput);
+        }
+    }
+
+    #[test]
+    fn a_chosen_model_overrides_the_provider_default() {
+        let request = build_assist_request(ProviderId::Ollama, Some("mistral"), "s", "u", None)
+            .expect("builds");
+        assert_eq!(request.model, "mistral");
+        assert!(request.body.contains("mistral"));
     }
 }

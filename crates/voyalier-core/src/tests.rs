@@ -7,13 +7,16 @@ use std::{
 use serde::Deserialize;
 use serde_json::Value;
 
+// The fixture corpus drives each parser directly by id, so it reaches into the
+// parser module rather than going through `parse_import`.
+use crate::parser::{ConfirmationParser, JsonLdParser, NormalizedDocument, PlaintextParser};
+use crate::types::validate_document_content;
 use crate::{
     AddManualFactInput, AppError, CandidateFact, CandidateStatus, ConfirmCandidateInput,
-    ConfirmationParser, ConfirmedFact, CreateTripInput, DocumentKind, ErrorCode, ExtractionMethod,
-    FactPayload, FactType, FieldSpan, HealthResponse, ImportDocumentInput, ImportResult,
-    IntelligenceMode, JsonLdParser, NormalizedDocument, PlaintextParser, ReadinessStatus,
-    SourceDocument, Trip, TripDraft, TripStatus, WarningCode, changed_payload_fields, new_id,
-    schema_validation::SchemaSet, validate_create_trip, validate_document_content,
+    ConfirmedFact, CreateTripInput, DocumentKind, ErrorCode, ExtractionMethod, FactPayload,
+    FactType, FieldSpan, HealthResponse, ImportDocumentInput, ImportResult, IntelligenceMode,
+    ReadinessStatus, SourceDocument, Trip, TripDraft, TripStatus, WarningCode,
+    changed_payload_fields, new_id, schema_validation::SchemaSet, validate_create_trip,
     validate_fact_payload,
 };
 
@@ -354,7 +357,10 @@ fn read_expectation(case_dir: &Path) -> FixtureExpectation {
     serde_json::from_str(&raw).expect("expected shape")
 }
 
-fn field_scores(expected: &FixtureExpectation, outcome: &crate::ParserOutcome) -> (f64, f64, f64) {
+fn field_scores(
+    expected: &FixtureExpectation,
+    outcome: &crate::parser::ParserOutcome,
+) -> (f64, f64, f64) {
     let expected_fields = expected_field_set(expected);
     let actual_fields = actual_field_set(outcome);
     let true_positive = expected_fields.intersection(&actual_fields).count() as f64;
@@ -379,7 +385,7 @@ fn field_scores(expected: &FixtureExpectation, outcome: &crate::ParserOutcome) -
 fn assert_expected_subset(
     case_dir: &Path,
     expected: &FixtureExpectation,
-    outcome: &crate::ParserOutcome,
+    outcome: &crate::parser::ParserOutcome,
 ) {
     let expected_fields = expected_field_set(expected);
     let actual_fields = actual_field_set(outcome);
@@ -422,7 +428,7 @@ fn expected_field_set(expected: &FixtureExpectation) -> BTreeSet<String> {
         .collect()
 }
 
-fn actual_field_set(outcome: &crate::ParserOutcome) -> BTreeSet<String> {
+fn actual_field_set(outcome: &crate::parser::ParserOutcome) -> BTreeSet<String> {
     outcome
         .candidates
         .iter()

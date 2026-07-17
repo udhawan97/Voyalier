@@ -25,19 +25,24 @@ mod weather;
 pub use advice::{
     FCDO_COUNTRIES, FcdoCountry, TravelAdviceSnapshot, parse_fcdo_content, validate_country_slug,
 };
+// Per-provider endpoints, model defaults, body builders, and reply parsers stay
+// internal: which of each pairs with which provider is `assist`'s knowledge.
+// `build_assist_request` + `parse_assist_reply` are the way in.
 pub use assist::{
-    ANTHROPIC_MESSAGES_URL, ANTHROPIC_VERSION, ASSIST_SYSTEM_PROMPT, AssistActivityEntry,
-    AssistReply, AssistRequestPreview, DEFAULT_ANTHROPIC_MODEL, DEFAULT_OLLAMA_MODEL,
-    DEFAULT_OPENAI_MODEL, OLLAMA_CHAT_URL, OPENAI_CHAT_URL, build_anthropic_messages_body,
-    build_assist_preview, build_ollama_chat_body, build_openai_chat_body, parse_anthropic_reply,
-    parse_ollama_chat_reply, parse_openai_chat_reply,
+    ASSIST_SYSTEM_PROMPT, AssistActivityEntry, AssistReply, AssistRequest, AssistRequestPreview,
+    build_assist_preview, build_assist_request, estimate_tokens, parse_assist_reply,
 };
+// `build_lodging_dates_user_content` stays internal: it is reached through
+// `build_draft_preview`, so the previewed user content and the sent user content
+// cannot be built two different ways.
 pub use assist_draft::{
     ASSIST_DRAFT_LODGING_DATES, AssistDraftResult, DRAFT_LODGING_DATES_SYSTEM_PROMPT,
-    LodgingDateProposal, build_lodging_dates_user_content, parse_lodging_dates_reply,
+    LodgingDateProposal, build_draft_preview, parse_lodging_dates_reply,
 };
 pub use brief::{RedactionPolicy, TripBrief, build_trip_brief};
-pub use email::{EmailBody, extract_email_body};
+// `extract_email_body` is deliberately not re-exported: it must only be reached
+// through `parse_import`, which bounds the raw input before the extractor walks
+// an untrusted MIME tree.
 pub use itinerary::detect_itinerary_conflicts;
 pub use local_ai::{
     LocalAiModel, LocalAiStatus, LocalModelPullResult, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,
@@ -49,10 +54,10 @@ pub use packs::{
     PackMatchKind, PackPlace, PackSuggestion, normalize_place, offline_map_download_url,
     pack_catalog, pack_download_url, parse_pack_content, suggest_packs, validate_pack_id,
 };
-pub use parser::{
-    ConfirmationParser, JsonLdParser, NormalizedDocument, ParsedCandidate, ParserDiagnostic,
-    ParserOutcome, PlaintextParser,
-};
+// The parser trait, its implementations, and `NormalizedDocument` stay internal:
+// which parser handles which `DocumentKind` is this module's knowledge, not its
+// callers'. `parse_import` is the way in.
+pub use parser::{DocumentParse, ParsedCandidate, parse_import};
 pub use provider::{
     KeyValidation, KeyValidationStatus, MAX_API_KEY_LEN, MAX_MODEL_LEN, PROVIDERS, ProviderConfig,
     ProviderId, ProviderInfo, interpret_key_validation, provider_info,
