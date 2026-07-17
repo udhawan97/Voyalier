@@ -8,6 +8,11 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Added
 
+- **Public holidays during your trip.** One click fetches the destination
+  country's public holidays (from Nager.Date) and shows the ones that fall
+  within your travel dates — with their local-language names — so a closed-bank,
+  closed-shops day doesn't catch you out. It's informational and never changes
+  your trip's readiness; a date or destination change refetches.
 - **The time difference from home, on the destination-facts card.** The card now
   says how far your destination runs ahead of (or behind) where you're leaving
   from — "Kyoto is 14h ahead of Chicago" — worked out on your device from both

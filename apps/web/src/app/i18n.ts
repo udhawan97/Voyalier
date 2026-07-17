@@ -551,6 +551,17 @@ const en = {
   "facts.airports.title": "Nearest airports",
   "facts.airports.row": "{iata} · {name}",
   "facts.airports.distance": "{km} km",
+  // Public holidays: fetched from Nager.Date, informational — banks and shops
+  // may close; it never clears a readiness item.
+  "holidays.title": "Public holidays",
+  "holidays.fetch": "Fetch public holidays",
+  "holidays.fetchAgain": "Fetch again",
+  "holidays.retrieved": "Retrieved {stamp}",
+  "holidays.nameLocal": "{name} ({localName})",
+  "holidays.regional": "· regional",
+  "holidays.none": "No public holidays fall in {country} during your trip.",
+  "holidays.consent":
+    "Fetching sends your destination name (“{destination}”) to open-meteo.com to place it in a country, then asks Nager.Date for that country’s public holidays. Nothing else about your trip leaves it.",
   "moon.new_moon": "New moon",
   "moon.waxing_crescent": "Waxing crescent",
   "moon.first_quarter": "First quarter",

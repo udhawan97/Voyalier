@@ -65,6 +65,7 @@ import { ImportDialog } from "./ImportDialog";
 import { TravelAdvice } from "./TravelAdvice";
 import { TripSearch } from "./TripSearch";
 import { DestinationFacts } from "./DestinationFacts";
+import { PublicHolidays } from "./PublicHolidays";
 import { WeatherOutlook } from "./WeatherOutlook";
 
 type Values = Record<string, string | undefined>;
@@ -774,6 +775,13 @@ export function TripDetailView({
           astro={data.detail.astro}
           nearestAirports={data.detail.nearestAirports}
           timeDifference={data.detail.timeDifference}
+          onFetched={() => reload()}
+        />
+
+        <PublicHolidays
+          tripId={tripId}
+          destination={trip.destination}
+          snapshot={data.detail.publicHolidays}
           onFetched={() => reload()}
         />
 
