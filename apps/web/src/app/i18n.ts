@@ -546,6 +546,10 @@ const en = {
     "Police {police} · Ambulance {ambulance} · Fire {fire}",
   "facts.practical.none":
     "Voyalier does not carry practical facts for this destination yet.",
+  // Tipping: a hand-curated rough guide; customs vary, so it never asserts a rule.
+  "facts.tipping.title": "Tipping",
+  "facts.tipping.note":
+    "A rough guide — customs vary and change; when unsure, a little or nothing is rarely wrong.",
   // Nearest airports: bundled + computed offline. Distance is a fact; Voyalier
   // does not say which airport is "best".
   "facts.airports.title": "Nearest airports",

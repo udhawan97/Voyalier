@@ -8,6 +8,10 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Added
 
+- **A tipping guide on the destination-facts card.** The card now shows a short,
+  conservative note on tipping customs for the destination country — worked out
+  on your device from a bundled table. It's framed as a rough guide (customs
+  vary and change), never a rule, and never affects your trip's readiness.
 - **"About this place" — a short summary of your destination.** One click
   fetches a plain-language summary of where you're going from Wikipedia, shown
   with attribution and a link to read more. The words stay Wikipedia's (licensed

@@ -1343,7 +1343,8 @@ h3 {
   white-space: nowrap;
 }
 
-.voy-facts__clock {
+.voy-facts__clock,
+.voy-facts__tipping {
   margin: 0;
   font-size: 0.9rem;
   line-height: 1.5;

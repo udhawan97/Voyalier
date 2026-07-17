@@ -241,6 +241,19 @@ function Airports({ airports }: { airports: NearbyAirport[] }) {
   );
 }
 
+/** A short, conservative tipping guide for the destination country. */
+function Tipping({ guidance }: { guidance: string }) {
+  return (
+    <section className="voy-facts__block" aria-labelledby="facts-tipping-title">
+      <h3 id="facts-tipping-title" className="voy-facts__block-title">
+        {t("facts.tipping.title")}
+      </h3>
+      <p className="voy-facts__tipping">{guidance}</p>
+      <p className="voy-facts__note">{t("facts.tipping.note")}</p>
+    </section>
+  );
+}
+
 /** UNESCO World Heritage sites near the destination, closest first. */
 function Heritage({ sites }: { sites: HeritageSite[] }) {
   return (
@@ -288,6 +301,7 @@ export function DestinationFacts({
   astro,
   nearestAirports,
   worldHeritage,
+  tipping,
   timeDifference,
   onFetched,
 }: {
@@ -298,6 +312,7 @@ export function DestinationFacts({
   astro: AstroDay[];
   nearestAirports: NearbyAirport[];
   worldHeritage: HeritageSite[];
+  tipping: string | undefined;
   timeDifference: TimeDifference | undefined;
   onFetched: () => void;
 }) {
@@ -340,6 +355,7 @@ export function DestinationFacts({
               <p className="voy-facts__note">{t("facts.practical.none")}</p>
             </section>
           )}
+          {tipping ? <Tipping guidance={tipping} /> : null}
           {nearestAirports.length > 0 ? (
             <Airports airports={nearestAirports} />
           ) : null}

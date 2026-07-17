@@ -69,6 +69,11 @@ export interface TripDetail {
   worldHeritage: HeritageSite[];
   /** The latest user-fetched Wikipedia summary of the destination (CC BY-SA). */
   placeSummary?: PlaceSummary;
+  /**
+   * A short, conservative tipping guide for the destination country, resolved
+   * from the snapshot's country code. Present only when curated.
+   */
+  tipping?: string;
 }
 /** The destination-vs-origin wall-clock gap on the trip's dates. */
 export interface TimeDifference {

@@ -1597,6 +1597,10 @@ export function createMockGateway(options?: {
         const astro = destFacts ? mockAstro(destFacts, trip) : [];
         const nearestAirports = destFacts ? mockNearestAirports() : [];
         const worldHeritage = destFacts ? mockWorldHeritage() : [];
+        // Resolved from the country code, mirroring Rust — the fixture is Japan.
+        const tipping = destFacts
+          ? "Not customary and can cause confusion — service is already included."
+          : undefined;
         // Derived on read from the snapshot's two offsets, mirroring the Rust
         // side — present only once the origin has been geocoded.
         const timeDifference =
@@ -1637,6 +1641,7 @@ export function createMockGateway(options?: {
           astro,
           nearestAirports,
           worldHeritage,
+          ...(tipping ? { tipping } : {}),
           ...(timeDifference ? { timeDifference } : {}),
           ...(publicHolidays ? { publicHolidays } : {}),
           ...(placeSummaries.has(tripId)

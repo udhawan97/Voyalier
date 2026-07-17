@@ -38,10 +38,10 @@ use voyalier_core::{
     parse_forecast_response, parse_geocoding_response, parse_import, parse_lodging_dates_reply,
     parse_nager_holidays, parse_nws_alerts, parse_pack_content, parse_place_summary,
     parse_us_state, provider_info, rank_field_suggestions, recommend_places, search_cities,
-    search_trip_corpus, suggest_packs, suggest_search_terms, time_difference, validate_api_key,
-    validate_country_slug, validate_create_trip, validate_fact_payload, validate_model_name,
-    validate_pack_id, validate_provider_id, validate_search_query, validate_update_trip,
-    world_heritage_near,
+    search_trip_corpus, suggest_packs, suggest_search_terms, time_difference, tipping_guidance,
+    validate_api_key, validate_country_slug, validate_create_trip, validate_fact_payload,
+    validate_model_name, validate_pack_id, validate_provider_id, validate_search_query,
+    validate_update_trip, world_heritage_near,
 };
 use voyalier_core::{
     VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, VaultStatus, derive_key as vault_derive_key,
@@ -878,6 +878,12 @@ impl AppService {
             .map(|snapshot| world_heritage_near(snapshot.latitude, snapshot.longitude, 150.0, 5))
             .unwrap_or_default();
         let place_summary = load_place_summary(&connection, trip_id)?;
+        // A tipping note for the destination country — bundled, resolved fresh
+        // from the same country code as the country facts.
+        let tipping = destination_facts
+            .as_ref()
+            .and_then(|snapshot| tipping_guidance(&snapshot.country_code))
+            .map(str::to_owned);
         // Derived on read from the snapshot's two stored offsets: present only
         // once the origin was geocoded on the last fetch.
         let time_difference = destination_facts.as_ref().and_then(|snapshot| {
@@ -913,6 +919,7 @@ impl AppService {
             public_holidays,
             world_heritage,
             place_summary,
+            tipping,
         })
     }
 
@@ -5504,6 +5511,15 @@ mod tests {
         assert_eq!(
             detail.world_heritage[0].name,
             "Historic Monuments of Ancient Kyoto"
+        );
+        // And a tipping note, resolved from the country code (Japan: no tipping).
+        assert!(
+            detail
+                .tipping
+                .as_deref()
+                .expect("tipping")
+                .to_lowercase()
+                .contains("not customary")
         );
 
         // A destination edit invalidates the facts, like weather and advice.
