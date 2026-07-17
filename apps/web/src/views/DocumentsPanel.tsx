@@ -4,6 +4,12 @@ import type { AppError, DocumentSummary } from "@voyalier/contracts";
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError, formatDate } from "../app/format";
 import { plural, t, type MessageKey } from "../app/i18n";
+import {
+  documentsScope,
+  tripScope,
+  useRevalidate,
+  useScopeKey,
+} from "../app/revalidate";
 import { useAsyncData } from "../app/useAsync";
 import { Button } from "../components/Button";
 import { ConfirmButton } from "../components/ConfirmButton";
@@ -161,25 +167,12 @@ function DocumentRow({
  * local-first, privacy-first product that was the loudest missing flow: the
  * promise is that your evidence stays yours, which has to include removing it.
  */
-export function DocumentsPanel({
-  tripId,
-  reloadKey,
-  onChanged,
-}: {
-  tripId: string;
-  reloadKey?: number;
-  /**
-   * Called after a deletion, because removing a document reaches beyond this
-   * panel: facts confirmed from it are flagged `sourceRemoved`, and the cards
-   * showing them live on the trip page. Without this the Blueprint would keep
-   * claiming evidence that is already gone until the next manual refresh.
-   */
-  onChanged?: () => void;
-}) {
+export function DocumentsPanel({ tripId }: { tripId: string }) {
   const gateway = useGateway();
-  const { status, data, error, reload } = useAsyncData(
+  const revalidate = useRevalidate();
+  const { status, data, error } = useAsyncData(
     () => gateway.listDocuments(tripId),
-    `documents:${tripId}:${reloadKey ?? 0}`,
+    useScopeKey(documentsScope(tripId)),
   );
 
   return (
@@ -201,10 +194,14 @@ export function DocumentsPanel({
             <DocumentRow
               key={summary.document.id}
               summary={summary}
-              onRemoved={() => {
-                reload();
-                onChanged?.();
-              }}
+              // Removing a document reaches beyond this panel: facts
+              // confirmed from it are flagged `sourceRemoved`, and the cards
+              // showing them live on the trip page. Naming both scopes is how
+              // this panel says so — it used to need a callback prop from a
+              // parent that then refetched itself entirely.
+              onRemoved={() =>
+                revalidate(documentsScope(tripId), tripScope(tripId))
+              }
             />
           ))}
         </ul>

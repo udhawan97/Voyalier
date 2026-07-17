@@ -5,6 +5,7 @@ import { useAnnounce, useGateway } from "../app/context";
 import { describeError, formatDateRange, tripRoute } from "../app/format";
 import { plural, t } from "../app/i18n";
 import { createSampleTrip } from "../app/sampleTrip";
+import { tripsScope, useScopeKey } from "../app/revalidate";
 import { useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
@@ -96,16 +97,14 @@ function TripCard({
 
 export function TripListView({
   onOpenTrip,
-  reloadKey,
 }: {
   onOpenTrip: (id: string) => void;
-  reloadKey: number;
 }) {
   const gateway = useGateway();
   const announce = useAnnounce();
   const { status, data, error, reload } = useAsyncData(
     () => gateway.listTrips(),
-    `trips:${reloadKey}`,
+    useScopeKey(tripsScope),
   );
   const [showCreate, setShowCreate] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TripSummary | null>(null);

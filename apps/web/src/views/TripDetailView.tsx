@@ -23,6 +23,7 @@ import {
 } from "../app/format";
 import { buildIcs, icsFilename } from "../app/ics";
 import { plural, t, type MessageKey, type PluralBase } from "../app/i18n";
+import { tripScope, useScopeKey } from "../app/revalidate";
 import { useAsyncAction, useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
@@ -409,23 +410,24 @@ export function TripDetailView({
   onBack,
   onDeleted,
   onOpenSettings,
-  reloadKey,
 }: {
   tripId: string;
   onBack: () => void;
   onDeleted: () => void;
   onOpenSettings?: () => void;
-  reloadKey: number;
 }) {
   const gateway = useGateway();
   const announce = useAnnounce();
-  const { status, data, error, reload } = useAsyncData(async () => {
-    const [detail, pending] = await Promise.all([
-      gateway.getTrip(tripId),
-      gateway.listCandidates(tripId, "pending"),
-    ]);
-    return { detail, pending };
-  }, `trip:${tripId}:${reloadKey}`);
+  const { status, data, error, reload } = useAsyncData(
+    async () => {
+      const [detail, pending] = await Promise.all([
+        gateway.getTrip(tripId),
+        gateway.listCandidates(tripId, "pending"),
+      ]);
+      return { detail, pending };
+    },
+    useScopeKey(tripScope(tripId)),
+  );
 
   const [showImport, setShowImport] = useState(false);
   const [showAddFact, setShowAddFact] = useState(false);
@@ -764,11 +766,7 @@ export function TripDetailView({
 
         <TripNotes tripId={tripId} />
 
-        <DocumentsPanel
-          tripId={tripId}
-          reloadKey={reloadKey}
-          onChanged={() => reload()}
-        />
+        <DocumentsPanel tripId={tripId} />
 
         <TripSearch tripId={tripId} />
       </DeferredSection>
