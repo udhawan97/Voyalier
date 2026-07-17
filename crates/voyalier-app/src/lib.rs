@@ -31,14 +31,15 @@ use voyalier_core::{
     build_assist_request, build_draft_preview, build_key_validation_request, build_packing_list,
     build_pull_body, build_today_view, build_trip_brief, changed_payload_fields, compute_astro_day,
     country_facts, entry_from_fcdo, estimate_tokens, interpret_key_validation,
-    interpret_pull_response, new_id, notices_for_country, now_rfc3339, offline_map_download_url,
-    pack_catalog, pack_download_url, parse_air_quality, parse_assist_reply, parse_ca_gac,
-    parse_cdc_notices, parse_climate_normals, parse_de_aa, parse_ecb_rates, parse_fcdo_content,
-    parse_forecast_response, parse_geocoding_response, parse_import, parse_lodging_dates_reply,
-    parse_nws_alerts, parse_pack_content, parse_us_state, provider_info, rank_field_suggestions,
-    recommend_places, search_trip_corpus, suggest_packs, suggest_search_terms, validate_api_key,
-    validate_country_slug, validate_create_trip, validate_fact_payload, validate_model_name,
-    validate_pack_id, validate_provider_id, validate_search_query, validate_update_trip,
+    interpret_pull_response, nearest_airports, new_id, notices_for_country, now_rfc3339,
+    offline_map_download_url, pack_catalog, pack_download_url, parse_air_quality,
+    parse_assist_reply, parse_ca_gac, parse_cdc_notices, parse_climate_normals, parse_de_aa,
+    parse_ecb_rates, parse_fcdo_content, parse_forecast_response, parse_geocoding_response,
+    parse_import, parse_lodging_dates_reply, parse_nws_alerts, parse_pack_content, parse_us_state,
+    provider_info, rank_field_suggestions, recommend_places, search_trip_corpus, suggest_packs,
+    suggest_search_terms, validate_api_key, validate_country_slug, validate_create_trip,
+    validate_fact_payload, validate_model_name, validate_pack_id, validate_provider_id,
+    validate_search_query, validate_update_trip,
 };
 use voyalier_core::{
     VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, VaultStatus, derive_key as vault_derive_key,
@@ -862,6 +863,12 @@ impl AppService {
             .as_ref()
             .map(|snapshot| derive_astro(snapshot, &trip))
             .unwrap_or_default();
+        // The nearest airports fall out of the same stored coordinates — bundled
+        // data, no fetch.
+        let nearest_airports = destination_facts
+            .as_ref()
+            .map(|snapshot| nearest_airports(snapshot.latitude, snapshot.longitude, 4))
+            .unwrap_or_default();
         Ok(TripDetail {
             trip,
             confirmed_facts,
@@ -874,6 +881,7 @@ impl AppService {
             destination_facts,
             country_facts,
             astro,
+            nearest_airports,
         })
     }
 
@@ -5070,6 +5078,9 @@ mod tests {
         let first = &detail.astro[0];
         assert_eq!(first.polar, PolarState::Normal);
         assert!(first.sunrise.is_some());
+        // The nearest airports fall out of the same stored coordinates.
+        assert!(!detail.nearest_airports.is_empty(), "airports derived");
+        assert_eq!(detail.nearest_airports[0].iata, "ITM");
 
         // A destination edit invalidates the facts, like weather and advice.
         service
@@ -5087,6 +5098,7 @@ mod tests {
         let after = service.get_trip(&trip.id).expect("detail after edit");
         assert!(after.destination_facts.is_none());
         assert!(after.astro.is_empty());
+        assert!(after.nearest_airports.is_empty());
         cleanup_database(database);
     }
 

@@ -44,6 +44,21 @@ export interface TripDetail {
    * snapshot's coordinates. Empty without a destination-facts snapshot.
    */
   astro: AstroDay[];
+  /**
+   * The airports nearest the destination, by great-circle distance from the
+   * snapshot's coordinates. Bundled and offline; empty without a snapshot.
+   */
+  nearestAirports: NearbyAirport[];
+}
+/** How large an airport is, as OurAirports classifies it. */
+export type AirportSize = "large" | "medium";
+/** One airport near the destination, with its distance from it. */
+export interface NearbyAirport {
+  iata: string;
+  name: string;
+  /** Great-circle distance from the destination, kilometres. */
+  distanceKm: number;
+  size: AirportSize;
 }
 /** Whether the sun rises and sets at all on a day. */
 export type PolarState = "normal" | "polarDay" | "polarNight";

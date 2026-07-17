@@ -45,6 +45,16 @@ describe("destination facts", () => {
     expect(within(facts).getByText(/Jul 17, 2026/)).toBeInTheDocument();
   });
 
+  it("shows the nearest airports with their distance", async () => {
+    const facts = await fetchFacts();
+    expect(
+      within(facts).getByRole("heading", { name: "Nearest airports" }),
+    ).toBeInTheDocument();
+    // The closest airport, its code, and a distance in km.
+    expect(within(facts).getByText(/ITM/)).toBeInTheDocument();
+    expect(within(facts).getByText(/39.*km/)).toBeInTheDocument();
+  });
+
   it("shows the practical country facts", async () => {
     const facts = await fetchFacts();
     expect(

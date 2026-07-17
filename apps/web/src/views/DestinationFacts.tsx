@@ -3,6 +3,7 @@ import type {
   CountryFacts,
   CurrencyRate,
   DestinationFactsSnapshot,
+  NearbyAirport,
 } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
@@ -170,10 +171,41 @@ function Practical({ facts }: { facts: CountryFacts }) {
   );
 }
 
+/** The airports nearest the destination, closest first, with distance. */
+function Airports({ airports }: { airports: NearbyAirport[] }) {
+  return (
+    <section
+      className="voy-facts__block"
+      aria-labelledby="facts-airports-title"
+    >
+      <h3 id="facts-airports-title" className="voy-facts__block-title">
+        {t("facts.airports.title")}
+      </h3>
+      <ul className="voy-facts__airports">
+        {airports.map((airport) => (
+          <li key={airport.iata}>
+            <span className="voy-facts__airport-name">
+              {t("facts.airports.row", {
+                iata: airport.iata,
+                name: airport.name,
+              })}
+            </span>
+            <span className="voy-facts__airport-distance">
+              {t("facts.airports.distance", {
+                km: Math.round(airport.distanceKm),
+              })}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /**
  * The destination-facts card: the sky (computed offline), the money (indicative
- * ECB reference rates), and the practical country facts — all from one
- * consent-gated fetch. Convenience, never a safety claim.
+ * ECB reference rates), the practical country facts, and the nearest airports —
+ * all from one consent-gated fetch. Convenience, never a safety claim.
  */
 export function DestinationFacts({
   tripId,
@@ -181,6 +213,7 @@ export function DestinationFacts({
   snapshot,
   countryFacts,
   astro,
+  nearestAirports,
   onFetched,
 }: {
   tripId: string;
@@ -188,6 +221,7 @@ export function DestinationFacts({
   snapshot: DestinationFactsSnapshot | undefined;
   countryFacts: CountryFacts | undefined;
   astro: AstroDay[];
+  nearestAirports: NearbyAirport[];
   onFetched: () => void;
 }) {
   const gateway = useGateway();
@@ -226,6 +260,9 @@ export function DestinationFacts({
               <p className="voy-facts__note">{t("facts.practical.none")}</p>
             </section>
           )}
+          {nearestAirports.length > 0 ? (
+            <Airports airports={nearestAirports} />
+          ) : null}
         </div>
       ) : null}
 

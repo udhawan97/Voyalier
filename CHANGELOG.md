@@ -8,6 +8,11 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Added
 
+- **Nearest airports, offline.** The destination-facts card now lists the
+  airports closest to where you're going — code, name, and how far — worked out
+  on your device from a bundled list of the world's scheduled-service airports
+  and the coordinates the card already resolved. No network, and it shows the
+  distance as a plain fact rather than telling you which airport is "best".
 - **A destination-facts card: the sky, the money, and the practical stuff.** One
   click now answers the small questions every trip raises. **Sky** shows
   sunrise, sunset and the moon phase for each day, computed on your device from

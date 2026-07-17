@@ -6,6 +6,7 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::advisories::AdvisoryPanel;
+use crate::airports::NearbyAirport;
 use crate::astro::AstroDay;
 use crate::facts::{CountryFacts, DestinationFactsSnapshot};
 use crate::packing::PackingSuggestion;
@@ -105,6 +106,10 @@ pub struct TripDetail {
     /// snapshot's coordinates. Empty without a destination-facts snapshot.
     #[serde(default)]
     pub astro: Vec<AstroDay>,
+    /// The airports nearest the destination, by great-circle distance from the
+    /// snapshot's coordinates. Bundled and offline; empty without a snapshot.
+    #[serde(default)]
+    pub nearest_airports: Vec<NearbyAirport>,
 }
 
 /// Which deterministic plan-completeness check a readiness item reports on.

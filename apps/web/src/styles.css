@@ -1301,6 +1301,27 @@ h3 {
   font-size: 0.9rem;
 }
 
+.voy-facts__airports {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.voy-facts__airports li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.voy-facts__airport-distance {
+  color: var(--voy-ink-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 /* Reference rates and country facts are convenience, not the last word. */
 .voy-facts__note {
   margin: 0;
