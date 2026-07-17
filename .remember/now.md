@@ -1,3 +1,3 @@
 
-## 01:08 | friendly-helper-claude/app-feature-roadmap-1c037d
-Skeptic pass verified 24 features (overturned ADR-0003 on US advisories API), wrote OPEN_DATA_FEATURE_CANDIDATES.md roadmap, began advisories-seam impl plan.
+## 12:57 | friendly-helper-claude/app-feature-roadmap-1c037d
+Built & merged seams 1–3 (advisories 4-govt/CDC, weather climate/UV/NWS/packing, facts astro/currency/practical) w/ TDD; 254 Rust + 259 web tests.
