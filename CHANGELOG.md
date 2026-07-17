@@ -8,6 +8,19 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Added
 
+- **Typical weather, air quality, alerts, and a packing list — on the click you
+  already make.** The outlook used to stop at a 16-day forecast, which is silent
+  about the trips people actually plan months ahead. Fetching now also asks what
+  these calendar dates have **usually** been like at your destination (ten years
+  of observed history, in one request), the **UV and air quality** per day, and —
+  for US destinations — active **National Weather Service alerts**, shown
+  verbatim and linked. From that same evidence Voyalier works out **what to
+  pack**, and shows the reading behind each suggestion, so "rain shell" comes
+  with "44% of typical days see rain" rather than asking you to take its word.
+  Normals always carry the sample they rest on, and say "typically", never
+  "will be" — history is not a forecast. Each layer is fetched independently, so
+  a slow archive never costs you the forecast, and outside the US no alert
+  block appears at all rather than an empty one that would read as all-clear.
 - **Four governments' travel advice, side by side.** Official advice used to mean
   the UK FCDO alone, because when that shipped the US had no machine-readable
   feed. It does now, so the panel adds the **US State Department**, **Global

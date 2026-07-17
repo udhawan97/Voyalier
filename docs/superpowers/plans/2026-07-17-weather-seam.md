@@ -31,6 +31,7 @@
 **Files:** Create `crates/voyalier-core/src/normals.rs` (or extend `weather.rs` if it stays under ~400 lines — prefer a new module); modify `lib.rs`.
 
 **Interfaces:**
+
 - Produces: `ClimateNormals { years_sampled: u32, sample_days: u32, first_year: i16, last_year: i16, avg_high_c: f64, avg_low_c: f64, wet_day_share_pct: f64, warmest_high_c: f64, coldest_low_c: f64 }`, `archive_window(start: &str, end: &str, years: u32) -> Result<(String, String), AppError>`, `parse_climate_normals(json: &str, trip_start: &str, trip_end: &str) -> Result<Option<ClimateNormals>, AppError>`.
 
 - [ ] **Step 1: Failing tests.**
@@ -112,6 +113,7 @@ fn normals_need_enough_history_to_be_worth_a_claim() {
 **Files:** modify the new module; `lib.rs`.
 
 **Interfaces:**
+
 - Produces: `AirQualityDay { date: String, uv_index_max: Option<f64>, us_aqi_max: Option<u16>, pm2_5_max: Option<f64> }`, `parse_air_quality(json: &str, trip_start: &str, trip_end: &str) -> Result<Vec<AirQualityDay>, AppError>`.
 
 - [ ] **Step 1: Failing test.**
@@ -167,6 +169,7 @@ fn air_quality_degrades_rather_than_failing() {
 ### Task 3: Core NWS alerts
 
 **Interfaces:**
+
 - Produces: `WeatherAlert { event: String, severity: String, headline: String, area: String, onset: Option<String>, ends: Option<String>, sender: String, url: String }`, `parse_nws_alerts(json: &str) -> Result<Vec<WeatherAlert>, AppError>`.
 
 - [ ] **Step 1: Failing test.**
@@ -218,6 +221,7 @@ fn no_alerts_is_a_valid_answer_but_a_non_feed_is_not() {
 **Files:** Create `crates/voyalier-core/src/packing.rs`; `lib.rs`.
 
 **Interfaces:**
+
 - Consumes `ClimateNormals`, `WeatherSnapshot`, `Trip`, `[ConfirmedFact]`.
 - Produces: `PackingSuggestion { code: PackingCode, reason: PackingReason }`, `PackingCode` (closed enum), `PackingReason { code: PackingReasonCode, value?: f64 }`, `build_packing_list(trip, facts, weather) -> Vec<PackingSuggestion>`.
 

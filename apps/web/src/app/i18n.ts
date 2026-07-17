@@ -505,7 +505,39 @@ const en = {
   "weather.fetchAgain": "Fetch again",
   "weather.fetch": "Fetch weather outlook",
   "weather.consent":
-    "Fetching sends your destination name (“{destination}”) to open-meteo.com to place it on the map, then retrieves the forecast. Nothing else about your trip leaves this device.",
+    "Fetching sends your destination name (“{destination}”) to open-meteo.com to place it on the map, then retrieves the forecast, the history for your dates, and the air quality. For US destinations it also asks the National Weather Service for active alerts. Nothing else about your trip leaves this device.",
+
+  // Normals describe observed history, so the copy says "typically", never
+  // "will be", and always shows the sample the claim rests on.
+  "weather.normals.title": "Typical for these dates",
+  "weather.normals.range": "Typically {low}–{high}°C",
+  "weather.normals.sample": "{days} days across {years} years ({from}–{to})",
+  "weather.normals.wet": "{pct}% of days see rain",
+  "weather.normals.extremes": "Recorded range {coldest}°C to {warmest}°C",
+  "weather.uv": "UV {value}",
+  "weather.aqi": "AQI {value}",
+  "weather.alerts.title": "Official alerts",
+  "weather.alerts.attribution":
+    "Public domain (U.S. National Weather Service). Shown verbatim; check the source before you rely on it.",
+  "weather.alerts.area": "Affects {area}",
+
+  "packing.title": "What to pack",
+  "packing.intro":
+    "Worked out from the weather history above and your confirmed plans. Suggestions, not a checklist.",
+  "packing.warm_layers": "Warm layers",
+  "packing.light_clothing": "Light clothing",
+  "packing.rain_shell": "Rain shell",
+  "packing.sun_protection": "Sun protection",
+  "packing.mask": "A mask",
+  "packing.travel_documents": "Travel documents",
+  "packing.laundry": "Laundry kit",
+  "packing.reason.avg_low": "Typical low is {value}°C",
+  "packing.reason.avg_high": "Typical high is {value}°C",
+  "packing.reason.wet_day_share": "{value}% of typical days see rain",
+  "packing.reason.uv_index": "UV reaches {value}",
+  "packing.reason.aqi": "Air quality index reaches {value}",
+  "packing.reason.has_flight": "You have a flight confirmed",
+  "packing.reason.nights": "{value} nights away",
 
   "assist.title": "Preview an AI request",
   "assist.intro":
