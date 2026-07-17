@@ -32,7 +32,7 @@ import type {
   DocumentSummary,
   TripNotes,
   FcdoCountry,
-  FetchTravelAdviceInput,
+  FetchAdvisoriesInput,
   FlightSegmentPayload,
   HealthResponse,
   ImportDocumentInput,
@@ -63,7 +63,8 @@ import type {
   ReadinessSummary,
   SearchHit,
   SourceDocument,
-  TravelAdviceSnapshot,
+  AdvisoryEntry,
+  AdvisoryPanel,
   Trip,
   TripBrief,
   WeatherSnapshot,
@@ -1246,7 +1247,7 @@ export function createMockGateway(options?: {
   const documents = new Map<string, StoredDocument>(
     fixtureDocuments.map((stored) => [stored.document.id, clone(stored)]),
   );
-  const adviceSnapshots = new Map<string, TravelAdviceSnapshot>();
+  const advisoryPanels = new Map<string, AdvisoryPanel>();
   const weatherSnapshots = new Map<string, WeatherSnapshot>();
   // Provider config: which providers have a key stored, and their chosen model.
   // The mock never retains the key value itself, mirroring the real gateway.
@@ -1421,7 +1422,7 @@ export function createMockGateway(options?: {
           trip,
           confirmedFacts,
         );
-        const travelAdvice = adviceSnapshots.get(tripId);
+        const advisoryPanel = advisoryPanels.get(tripId);
         const weather = weatherSnapshots.get(tripId);
         return {
           trip: clone(trip),
@@ -1433,7 +1434,7 @@ export function createMockGateway(options?: {
             pendingCandidateCount,
             itineraryConflicts,
           ),
-          ...(travelAdvice ? { travelAdvice: clone(travelAdvice) } : {}),
+          ...(advisoryPanel ? { advisoryPanel: clone(advisoryPanel) } : {}),
           ...(weather ? { weather: clone(weather) } : {}),
         } satisfies TripDetail;
       }),
@@ -1470,7 +1471,7 @@ export function createMockGateway(options?: {
           weatherSnapshots.delete(tripId);
         }
         if (destination !== existing.destination) {
-          adviceSnapshots.delete(tripId);
+          advisoryPanels.delete(tripId);
         }
         return clone(updated);
       }),
@@ -2179,8 +2180,8 @@ export function createMockGateway(options?: {
     listAdviceCountries: () =>
       execute("listAdviceCountries", () => MOCK_ADVICE_COUNTRIES.map(clone)),
 
-    fetchTravelAdvice: (input: FetchTravelAdviceInput) =>
-      execute("fetchTravelAdvice", () => {
+    fetchAdvisories: (input: FetchAdvisoriesInput) =>
+      execute("fetchAdvisories", () => {
         requireTrip(input.tripId);
         const country = MOCK_ADVICE_COUNTRIES.find(
           (entry) => entry.slug === input.countrySlug,
@@ -2190,20 +2191,87 @@ export function createMockGateway(options?: {
             field: "countrySlug",
           });
         }
-        // Fictional snapshot shaped like a real FCDO content response.
-        const snapshot: TravelAdviceSnapshot = {
+        const retrievedAt = timestamp();
+        // Fictional panel shaped like the real four feeds. Each government
+        // keeps its own wording, rank scale, and language on purpose: the
+        // interface must never render them as one comparable scale.
+        const entries: AdvisoryEntry[] = [
+          {
+            source: "uk-fcdo",
+            sourceName: "UK Foreign, Commonwealth & Development Office",
+            countryName: country.name,
+            summary: `FCDO travel advice for ${country.name}. Includes safety and security, entry requirements, and legal differences. (Fictional fixture.)`,
+            sourceUrl: `https://www.gov.uk/foreign-travel-advice/${country.slug}`,
+            sourceUpdatedAt: "2026-06-30T11:02:00.000+01:00",
+            changeDescription:
+              "Latest update: Fictional fixture update for interface development.",
+            language: "en",
+            attribution: "Open Government Licence v3.0",
+            retrievedAt,
+          },
+          {
+            source: "us-state",
+            sourceName: "U.S. Department of State",
+            countryName: country.name,
+            levelLabel: "Level 1: Exercise Normal Precautions",
+            levelRank: 1,
+            summary: `Exercise normal precautions in ${country.name}. (Fictional fixture.)`,
+            sourceUrl:
+              "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html",
+            sourceUpdatedAt: "2026-05-14T20:00:00-04:00",
+            language: "en",
+            attribution: "Public domain (U.S. Department of State)",
+            retrievedAt,
+          },
+          {
+            source: "ca-gac",
+            sourceName: "Government of Canada — Global Affairs Canada",
+            countryName: country.name,
+            levelLabel: "Exercise normal security precautions",
+            levelRank: 0,
+            summary: "",
+            sourceUrl: `https://travel.gc.ca/destinations/${country.slug}`,
+            sourceUpdatedAt: "2026-07-16T12:53:48.9258584-04:00",
+            language: "en",
+            attribution: "Open Government Licence – Canada",
+            retrievedAt,
+          },
+          {
+            source: "de-aa",
+            sourceName: "Auswärtiges Amt (Germany)",
+            countryName: country.name,
+            levelLabel: "Reise- und Sicherheitshinweise",
+            levelRank: 0,
+            summary: `${country.name}: Reise- und Sicherheitshinweise`,
+            sourceUrl:
+              "https://www.auswaertiges-amt.de/de/ReiseUndSicherheit/reise-und-sicherheitshinweise",
+            language: "de",
+            attribution:
+              "Auswärtiges Amt OpenData (Datenlizenz Deutschland – Namensnennung – 2.0)",
+            retrievedAt,
+          },
+        ];
+        const panel: AdvisoryPanel = {
           countrySlug: country.slug,
           countryName: country.name,
-          sourceUrl: `https://www.gov.uk/foreign-travel-advice/${country.slug}`,
-          summary: `FCDO travel advice for ${country.name}. Includes safety and security, entry requirements, and legal differences. (Fictional fixture.)`,
-          alertStatus: [],
-          sourceUpdatedAt: "2026-06-30T11:02:00.000+01:00",
-          changeDescription:
-            "Latest update: Fictional fixture update for interface development.",
-          retrievedAt: timestamp(),
+          entries,
+          healthNotices: [
+            {
+              title: `Level 1 - Measles in ${country.name}`,
+              url: "https://wwwnc.cdc.gov/travel/notices/level1/measles",
+              levelLabel: "Level 1",
+              publishedAt: "Thu, 25 Jun 2026 04:00:00 GMT",
+              summary: "There is an outbreak of measles. (Fictional fixture.)",
+            },
+          ],
+          sourceStatus: entries.map((entry) => ({
+            source: entry.source,
+            state: "fresh" as const,
+          })),
+          retrievedAt,
         };
-        adviceSnapshots.set(input.tripId, snapshot);
-        return clone(snapshot);
+        advisoryPanels.set(input.tripId, panel);
+        return clone(panel);
       }),
 
     fetchWeather: (tripId: string) =>
@@ -2255,7 +2323,7 @@ export function createMockGateway(options?: {
         for (const [id, stored] of documents) {
           if (stored.document.tripId === tripId) documents.delete(id);
         }
-        adviceSnapshots.delete(tripId);
+        advisoryPanels.delete(tripId);
         weatherSnapshots.delete(tripId);
       }),
 

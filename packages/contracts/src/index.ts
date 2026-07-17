@@ -22,8 +22,8 @@ export interface TripDetail {
   itineraryConflicts: ItineraryConflict[];
   /** Deterministic plan-completeness rollup (logistics only, no sourced/entry data). */
   readiness: ReadinessSummary;
-  /** The latest user-fetched official travel-advice snapshot, when one exists. */
-  travelAdvice?: TravelAdviceSnapshot;
+  /** The latest user-fetched official advisory panel, when one exists. */
+  advisoryPanel?: AdvisoryPanel;
   /** The latest user-fetched destination weather outlook, when one exists. */
   weather?: WeatherSnapshot;
 }
@@ -251,24 +251,62 @@ export interface FcdoCountry {
   slug: string;
   name: string;
 }
-/** A dated, verbatim snapshot of one country's FCDO travel advice (OGL v3.0). */
-export interface TravelAdviceSnapshot {
-  countrySlug: string;
+/** One government whose advisories Voyalier fetches. */
+export type AdvisorySource = "uk-fcdo" | "us-state" | "ca-gac" | "de-aa";
+/** What happened to one source on the last fetch attempt. */
+export type SourceState = "fresh" | "kept" | "unavailable" | "notPublished";
+/**
+ * One government's dated, verbatim advisory for one country.
+ *
+ * Levels are source-native: `levelLabel` is that government's own wording and
+ * `levelRank` tones only that card's own badge. They are never compared,
+ * merged, or ranked across governments — a US "Level 2" and a Canadian
+ * advisory-state 2 are not the same claim.
+ */
+export interface AdvisoryEntry {
+  source: AdvisorySource;
+  sourceName: string;
   countryName: string;
-  /** The human page this snapshot came from. */
-  sourceUrl: string;
-  /** Verbatim GOV.UK description. May be empty. */
+  levelLabel?: string;
+  levelRank?: number;
   summary: string;
-  /** Verbatim alert-status identifiers (often empty). */
-  alertStatus: string[];
-  /** GOV.UK's own public_updated_at, verbatim. */
+  sourceUrl: string;
   sourceUpdatedAt?: string;
-  /** GOV.UK's latest change description, verbatim. */
   changeDescription?: string;
-  /** When this device retrieved the snapshot (RFC 3339). */
+  /** Content language tag ("en", "de"). The source is never translated. */
+  language: string;
+  attribution: string;
+  /** When this device retrieved the entry (RFC 3339). */
   retrievedAt: string;
 }
-export interface FetchTravelAdviceInput {
+/** One CDC travel-health notice. Informational only; never clears readiness. */
+export interface HealthNotice {
+  title: string;
+  url: string;
+  levelLabel?: string;
+  publishedAt?: string;
+  summary: string;
+}
+export interface SourceStatus {
+  source: AdvisorySource;
+  state: SourceState;
+}
+/** Every government's advice for one country, assembled from stored snapshots. */
+export interface AdvisoryPanel {
+  countrySlug: string;
+  countryName: string;
+  entries: AdvisoryEntry[];
+  healthNotices: HealthNotice[];
+  /**
+   * Annotates entries; never gates them. A source with no status here (a
+   * snapshot migrated from before the panel existed) claims nothing about a
+   * fetch that never happened.
+   */
+  sourceStatus: SourceStatus[];
+  /** When the panel-level fetch happened (RFC 3339). */
+  retrievedAt: string;
+}
+export interface FetchAdvisoriesInput {
   tripId: string;
   countrySlug: string;
 }
@@ -728,9 +766,7 @@ export interface AppGateway {
     weights: PersonaWeights,
   ): Promise<Recommendation[]>;
   listAdviceCountries(): Promise<FcdoCountry[]>;
-  fetchTravelAdvice(
-    input: FetchTravelAdviceInput,
-  ): Promise<TravelAdviceSnapshot>;
+  fetchAdvisories(input: FetchAdvisoriesInput): Promise<AdvisoryPanel>;
   fetchWeather(tripId: string): Promise<WeatherSnapshot>;
   searchTrip(tripId: string, query: string): Promise<SearchHit[]>;
   /** Typeahead term suggestions for the query's last word, from the trip corpus. */
