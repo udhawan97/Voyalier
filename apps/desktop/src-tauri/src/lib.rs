@@ -57,6 +57,12 @@ struct SearchTripInput {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct QueryInput {
+    query: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct PreviewAssistInput {
     trip_id: String,
     provider: String,
@@ -326,6 +332,14 @@ fn suggest_field_values(
     service: State<'_, AppService>,
 ) -> Result<Vec<FieldSuggestion>, AppError> {
     service.suggest_field_values(&input.trip_id, &input.field, &input.query)
+}
+
+#[tauri::command]
+fn suggest_places(
+    input: QueryInput,
+    service: State<'_, AppService>,
+) -> Result<Vec<FieldSuggestion>, AppError> {
+    service.suggest_places(&input.query)
 }
 
 #[tauri::command]
@@ -827,6 +841,7 @@ fn builder<R: tauri::Runtime>(
             list_packs,
             suggest_packs,
             suggest_field_values,
+            suggest_places,
             download_pack,
             list_downloaded_packs,
             delete_downloaded_pack,
@@ -1215,6 +1230,7 @@ mod tests {
             "list_packs",
             "suggest_packs",
             "suggest_field_values",
+            "suggest_places",
             "download_pack",
             "list_downloaded_packs",
             "delete_downloaded_pack",

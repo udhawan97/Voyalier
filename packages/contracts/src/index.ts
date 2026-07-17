@@ -708,7 +708,7 @@ export interface PackSuggestion {
 }
 /** Where a field-value suggestion came from, so the UI can label it honestly. */
 export type SuggestionSource =
-  "catalog" | "pack_place" | "confirmed_fact" | "trip_history";
+  "catalog" | "pack_place" | "confirmed_fact" | "trip_history" | "gazetteer";
 /** One suggested value for a form field, from local data only. */
 export interface FieldSuggestion {
   value: string;
@@ -929,6 +929,9 @@ export interface AppGateway {
   suggestFieldValues(
     input: SuggestFieldValuesInput,
   ): Promise<FieldSuggestion[]>;
+  /** Place-name suggestions (origin/destination) from the offline gazetteer,
+   * pack catalog, and the user's trip history. Not trip-scoped. */
+  suggestPlaces(query: string): Promise<FieldSuggestion[]>;
   downloadPack(tripId: string, packId: string): Promise<DownloadedPack>;
   listDownloadedPacks(tripId: string): Promise<DownloadedPack[]>;
   deleteDownloadedPack(tripId: string, packId: string): Promise<void>;

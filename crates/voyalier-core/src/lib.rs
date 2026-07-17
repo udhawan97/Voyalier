@@ -14,6 +14,7 @@ mod brief;
 mod climate;
 mod email;
 mod facts;
+mod gazetteer;
 mod itinerary;
 mod local_ai;
 mod packing;
@@ -69,6 +70,7 @@ pub use facts::{
     CountryFacts, CurrencyRate, DestinationFactsSnapshot, EmergencyNumbers, country_facts,
     cross_rate, parse_ecb_rates,
 };
+pub use gazetteer::{CitySuggestion, search_cities};
 pub use itinerary::detect_itinerary_conflicts;
 pub use local_ai::{
     LocalAiModel, LocalAiStatus, LocalModelPullResult, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,

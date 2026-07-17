@@ -703,6 +703,14 @@ function mockDimensionFor(category: string): keyof PersonaWeights | null {
   return null;
 }
 
+/** A tiny stand-in for the Rust core's 34k-city offline gazetteer. */
+const MOCK_GAZETTEER: { name: string; country: string }[] = [
+  { name: "Osaka", country: "Japan" },
+  { name: "Berlin", country: "Germany" },
+  { name: "Madrid", country: "Spain" },
+  { name: "Munich", country: "Germany" },
+];
+
 /** Mirrors the required seed cities from voyalier-core::packs::pack_catalog. */
 const MOCK_PACKS: PackInfo[] = [
   {
@@ -2211,6 +2219,36 @@ export function createMockGateway(options?: {
         }
 
         return mockRankFieldSuggestions(input.query, candidates);
+      }),
+
+    suggestPlaces: (query: string) =>
+      execute("suggestPlaces", () => {
+        const candidates: FieldSuggestion[] = [];
+        // The user's own trips first, so a familiar place wins the dedup.
+        for (const trip of trips.values()) {
+          for (const place of [trip.origin, trip.destination]) {
+            candidates.push({ value: place, source: "trip_history" });
+          }
+        }
+        // The pack catalog.
+        for (const pack of MOCK_PACKS) {
+          candidates.push({ value: pack.name, source: "catalog" });
+        }
+        // A small stand-in for the offline gazetteer, prefix-filtered (the real
+        // one is 34k cities in the Rust core). Blank query adds nothing here.
+        const needle = query.trim().toLowerCase();
+        if (needle) {
+          for (const city of MOCK_GAZETTEER) {
+            if (city.name.toLowerCase().startsWith(needle)) {
+              candidates.push({
+                value: city.name,
+                source: "gazetteer",
+                detail: city.country,
+              });
+            }
+          }
+        }
+        return mockRankFieldSuggestions(query, candidates);
       }),
 
     downloadPack: (tripId: string, packId: string) =>

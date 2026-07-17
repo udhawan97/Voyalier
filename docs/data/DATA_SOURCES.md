@@ -70,21 +70,23 @@ No network at all. Astronomy is computed from coordinates and a date; country
 facts are a compiled-in table resolved fresh from a country code on each read
 (so a corrected value never goes stale in a stored snapshot).
 
-| Data             | Origin                                               | Licence / attribution                                              | Notes                                                                                |
-| ---------------- | ---------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| Sun & moon       | Standard NOAA sunrise equation + synodic month       | —                                                                  | Computed on-device; polar day/night stated, not faked                                |
-| Country facts    | OpenStreetMap/Wikidata (CC0/ODbL) and public sources | Compiled from OpenStreetMap/Wikidata (CC0/ODbL) and public sources | Plug/voltage/drive-side/calling-code/emergency for curated countries                 |
-| Nearest airports | OurAirports                                          | Public domain (attribution optional)                               | ~3,300 scheduled-service airports (large+medium, IATA) bundled; nearest by haversine |
+| Data             | Origin                                               | Licence / attribution                                              | Notes                                                                                                                                                 |
+| ---------------- | ---------------------------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sun & moon       | Standard NOAA sunrise equation + synodic month       | —                                                                  | Computed on-device; polar day/night stated, not faked                                                                                                 |
+| Country facts    | OpenStreetMap/Wikidata (CC0/ODbL) and public sources | Compiled from OpenStreetMap/Wikidata (CC0/ODbL) and public sources | Plug/voltage/drive-side/calling-code/emergency for curated countries                                                                                  |
+| Nearest airports | OurAirports                                          | Public domain (attribution optional)                               | ~3,300 scheduled-service airports (large+medium, IATA) bundled; nearest by haversine                                                                  |
+| City gazetteer   | GeoNames `cities15000`                               | CC BY 4.0 — attribution "GeoNames"                                 | ~32,000 cities (population ≥ 15,000, districts excluded) bundled; prefix + accent-folded matching, population-ranked; powers destination autocomplete |
 
 ## Place entry and geocoding
 
 Origin, destination, and lodging fields offer type-ahead suggestions, but only
-from **local** data: the offline pack catalog, place names inside packs the user
-has already downloaded, and the user's own previously confirmed facts. There is
-no per-keystroke network geocoding.
+from **local** data: the bundled offline **gazetteer** (the world's cities from
+GeoNames), the offline pack catalog, place names inside packs the user has
+already downloaded, and the user's own previous trips and confirmed facts. There
+is no per-keystroke network geocoding — the gazetteer is the sanctioned offline
+fix.
 
 Public **Nominatim** must not be used for autocomplete — its usage policy forbids
-autocomplete-style querying. If server-backed geocoding is needed later, the
-intended path is a **self-hosted Pelias (or equivalent) instance** under our own
-terms, never a shared public endpoint. Until then, suggestions stay offline and
-pack-backed.
+autocomplete-style querying. If server-backed geocoding is ever needed beyond the
+bundled gazetteer, the intended path is a **self-hosted Pelias (or equivalent)
+instance** under our own terms, never a shared public endpoint.

@@ -8,6 +8,13 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Added
 
+- **Destination autocomplete that knows the world's cities, offline.** Typing a
+  place used to suggest only the 16 city packs and your own past trips, so most
+  destinations got nothing. Now the origin and destination fields match against
+  a bundled gazetteer of ~32,000 cities (GeoNames), ranked by population and
+  matched with or without accents — "zur" and "zue" both find Zürich — entirely
+  on your device, no per-keystroke network lookup. Your own places and the city
+  packs still come first, and free text you type always works.
 - **Nearest airports, offline.** The destination-facts card now lists the
   airports closest to where you're going — code, name, and how far — worked out
   on your device from a bundled list of the world's scheduled-service airports
