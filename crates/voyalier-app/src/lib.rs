@@ -18,12 +18,12 @@ use voyalier_core::{
     CandidateFact, CandidateStatus, ClimateNormals, ConfirmCandidateInput, ConfirmedFact,
     CreateTripInput, DRAFT_LODGING_DATES_SYSTEM_PROMPT, DestinationFactsSnapshot, DocumentContent,
     DocumentKind, DocumentParse, DocumentSummary, DownloadedPack, ErrorCode, ExtractionMethod,
-    FCDO_COUNTRIES, FactPayload, FactType, FcdoCountry, FieldSuggestion, GeocodedPlace,
-    HealthNotice, HealthResponse, ImportDocumentInput, ImportResult, IntelligenceMode,
-    KeyValidation, LocalAiStatus, LocalModelPullResult, LodgingDateProposal, MAX_AI_PROMPT_LEN,
-    MAX_NOTES_CHARS, MAX_OFFLINE_MAP_BYTES, OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OfflineMapArchive,
-    OfflineMapChunk, OfflineMapDescriptor, PROVIDERS, PackContent, PackInfo, PackSuggestion,
-    PersonaWeights, ProviderConfig, ProviderId, Recommendation, RedactionPolicy,
+    FCDO_COUNTRIES, FIELD_SUGGESTION_LIMIT, FactPayload, FactType, FcdoCountry, FieldSuggestion,
+    GeocodedPlace, HealthNotice, HealthResponse, ImportDocumentInput, ImportResult,
+    IntelligenceMode, KeyValidation, LocalAiStatus, LocalModelPullResult, LodgingDateProposal,
+    MAX_AI_PROMPT_LEN, MAX_NOTES_CHARS, MAX_OFFLINE_MAP_BYTES, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,
+    OfflineMapArchive, OfflineMapChunk, OfflineMapDescriptor, PROVIDERS, PackContent, PackInfo,
+    PackSuggestion, PersonaWeights, ProviderConfig, ProviderId, Recommendation, RedactionPolicy,
     SEARCH_SUGGESTION_LIMIT, SearchHit, SearchableDocument, SourceDocument, SourceState,
     SourceStatus, SuggestionSource, TodayView, Trip, TripAssessment, TripBrief, TripDetail,
     TripNotes, TripStatus, TripSummary, UpdateTripInput, WarningCode, WeatherAlert,
@@ -36,10 +36,10 @@ use voyalier_core::{
     parse_assist_reply, parse_ca_gac, parse_cdc_notices, parse_climate_normals, parse_de_aa,
     parse_ecb_rates, parse_fcdo_content, parse_forecast_response, parse_geocoding_response,
     parse_import, parse_lodging_dates_reply, parse_nws_alerts, parse_pack_content, parse_us_state,
-    provider_info, rank_field_suggestions, recommend_places, search_trip_corpus, suggest_packs,
-    suggest_search_terms, validate_api_key, validate_country_slug, validate_create_trip,
-    validate_fact_payload, validate_model_name, validate_pack_id, validate_provider_id,
-    validate_search_query, validate_update_trip,
+    provider_info, rank_field_suggestions, recommend_places, search_cities, search_trip_corpus,
+    suggest_packs, suggest_search_terms, validate_api_key, validate_country_slug,
+    validate_create_trip, validate_fact_payload, validate_model_name, validate_pack_id,
+    validate_provider_id, validate_search_query, validate_update_trip,
 };
 use voyalier_core::{
     VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, VaultStatus, derive_key as vault_derive_key,
@@ -962,6 +962,44 @@ impl AppService {
                         .with_detail("from a downloaded city pack"),
                 );
             }
+        }
+
+        Ok(rank_field_suggestions(query, candidates))
+    }
+
+    /// Suggest place names for the origin/destination fields, from local data
+    /// only: the bundled offline gazetteer, the pack catalog, and the user's own
+    /// past trips. Not trip-scoped — it works in the create-trip dialog before a
+    /// trip exists — and never geocodes over the network.
+    ///
+    /// The user's own places (trip history, then packs) are offered before the
+    /// gazetteer, so when a prefix matches both, `rank_field_suggestions`'
+    /// stable dedup keeps the familiar one.
+    pub fn suggest_places(&self, query: &str) -> Result<Vec<FieldSuggestion>, AppError> {
+        let mut candidates: Vec<FieldSuggestion> = Vec::new();
+
+        // The origins and destinations of the user's existing trips.
+        let connection = self.connection()?;
+        for trip in self.records(&connection).trip_summaries()? {
+            for place in [trip.trip.origin, trip.trip.destination] {
+                candidates.push(
+                    FieldSuggestion::new(place, SuggestionSource::TripHistory)
+                        .with_detail("from a previous trip"),
+                );
+            }
+        }
+
+        // The offline pack catalog (city/region names).
+        for pack in pack_catalog() {
+            candidates.push(FieldSuggestion::new(pack.name, SuggestionSource::Catalog));
+        }
+
+        // The bundled gazetteer — the world's cities, offline.
+        for city in search_cities(query, FIELD_SUGGESTION_LIMIT) {
+            candidates.push(
+                FieldSuggestion::new(city.name, SuggestionSource::Gazetteer)
+                    .with_detail(city.country),
+            );
         }
 
         Ok(rank_field_suggestions(query, candidates))
@@ -6505,6 +6543,55 @@ mod tests {
                 .expect_err("unknown trip")
                 .code,
             ErrorCode::TripNotFound
+        );
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn suggest_places_offers_gazetteer_cities_and_prefers_the_users_own() {
+        let database = temp_database("suggest_places");
+        let service = open_test_service(&database).expect("service");
+
+        // With no trips yet, a prefix surfaces gazetteer cities, labelled by
+        // country — the create-trip dialog works before any trip exists. Osaka
+        // is a gazetteer city with no pack, so its source is the gazetteer.
+        let hits = service.suggest_places("osa").expect("suggest");
+        let osaka = hits
+            .iter()
+            .find(|s| s.value == "Osaka")
+            .expect("Osaka suggested");
+        assert_eq!(osaka.source, voyalier_core::SuggestionSource::Gazetteer);
+        assert_eq!(osaka.detail.as_deref(), Some("Japan"));
+
+        // A blank query (focus) still offers the pack catalog / trip history,
+        // as before — but never dumps the 34k-city gazetteer.
+        let blank = service.suggest_places("   ").expect("blank");
+        assert!(!blank.is_empty(), "focus shows pack destinations");
+        assert!(blank.len() <= FIELD_SUGGESTION_LIMIT);
+        assert!(
+            blank
+                .iter()
+                .all(|s| s.source != voyalier_core::SuggestionSource::Gazetteer),
+            "the gazetteer only fires on a typed prefix"
+        );
+
+        // Once the user has a trip to Kyoto, their own copy wins the dedup:
+        // one "Kyoto", sourced from trip history, not the gazetteer.
+        service
+            .create_trip(CreateTripInput {
+                title: None,
+                origin: "Chicago".to_owned(),
+                destination: "Kyoto".to_owned(),
+                start_date: "2027-04-01".to_owned(),
+                end_date: "2027-04-05".to_owned(),
+            })
+            .expect("trip");
+        let hits = service.suggest_places("kyo").expect("suggest");
+        let kyotos: Vec<_> = hits.iter().filter(|s| s.value == "Kyoto").collect();
+        assert_eq!(kyotos.len(), 1, "deduped to one Kyoto");
+        assert_eq!(
+            kyotos[0].source,
+            voyalier_core::SuggestionSource::TripHistory
         );
         cleanup_database(database);
     }

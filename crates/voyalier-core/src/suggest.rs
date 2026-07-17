@@ -24,6 +24,8 @@ pub enum SuggestionSource {
     ConfirmedFact,
     /// A value reused from another of the user's trips.
     TripHistory,
+    /// A city from the bundled offline gazetteer (GeoNames).
+    Gazetteer,
 }
 
 /// One suggested value for a form field, with its provenance.
