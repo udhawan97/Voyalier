@@ -83,12 +83,17 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 - The records whose columns the vault seals read and write through one module, so
   "this column is sealed" is declared once and checked by a test that walks the
   declaration.
+- Invalidation has a home. A view names the scope it reads; a mutation names the
+  scopes it changed, and only views reading those re-fetch. Deleting a document
+  no longer refetches a whole trip, and the refresh counter that used to be
+  drilled from the app root down through two components is gone.
 
 ### Fixed
 
-- **A failed archive, unarchive, calendar export, or unconfirm now says so.**
-  Those four actions only announced their failure to screen readers, so a sighted
-  user watched the button stop spinning and saw nothing at all.
+- **A failed archive, unarchive, calendar export, unconfirm, or sample-trip build
+  now says so.** Those actions — on both the trip page and the trip list — only
+  announced their failure to screen readers, so a sighted user watched the button
+  stop spinning and saw nothing at all.
 - Browsing city packs no longer swallows a failure: the catalog fetch had no
   error handling, so a failed load became an unhandled rejection.
 - Place names with accented capitals (`REYKJAVÍK`) matched no city pack — the

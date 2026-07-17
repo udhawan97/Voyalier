@@ -31,6 +31,14 @@ Axum route, Tauri command, gateway implementation, mock, and tests agree.
   recommendations, maps, AI preview, vault state, and the shareable brief.
 - Selects HTTP, Tauri, or mock transport through `AppGateway`.
 - Owns interaction and accessibility, not travel-rule authority.
+- Owns the words. The core reports findings and counts; `app/i18n` turns those
+  into sentences, and pluralizes them through `Intl.PluralRules`.
+- Reads and writes through `app/useAsync`: `useAsyncData` for a load,
+  `useAsyncAction` for a mutation. Errors normalize once, so a view never casts
+  a caught value it did not check.
+- Names what it invalidates. A view subscribes to a scope (`app/revalidate`); a
+  mutation revalidates the scopes it changed, and only views reading those
+  re-fetch.
 - Makes the consent-gated map-tile request only after **Show map** is selected.
 
 ### `apps/desktop/src-tauri` — native shell
