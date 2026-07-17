@@ -59,7 +59,7 @@ pub use provider::{
     provider_validation_endpoint, provider_validation_headers, validate_api_key,
     validate_model_name, validate_provider_id,
 };
-pub use readiness::assess_readiness;
+pub use readiness::{TripAssessment, assess_trip};
 pub use recommend::{PersonaWeights, Recommendation, recommend_places};
 pub use search::{
     SEARCH_SUGGESTION_LIMIT, SearchHit, SearchHitSource, SearchableDocument, search_trip_corpus,

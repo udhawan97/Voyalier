@@ -6,15 +6,42 @@
 //! or weather — that sourced readiness is a later milestone and must be quoted
 //! from identified sources, never inferred here or by a model.
 
+use crate::itinerary::detect_itinerary_conflicts;
 use crate::types::{
     ConfirmedFact, ConflictSeverity, FactType, ItineraryConflict, ItineraryConflictKind,
     ReadinessCheck, ReadinessItem, ReadinessStatus, ReadinessSummary, SourceLink, Trip,
 };
 
-/// Roll up plan-completeness readiness from the confirmed facts, pending count,
-/// and the already-computed itinerary conflicts.
-pub fn assess_readiness(
-    _trip: &Trip,
+/// A trip's conflicts and the readiness rollup they drove, from one pass.
+///
+/// These travel together because readiness is only meaningful against the
+/// conflicts it actually saw — returning both makes it impossible for a caller
+/// to pair a rollup with a different (or empty) conflict set.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TripAssessment {
+    pub conflicts: Vec<ItineraryConflict>,
+    pub readiness: ReadinessSummary,
+}
+
+/// Detect itinerary conflicts and roll up plan-completeness readiness together.
+///
+/// Readiness depends on the conflicts, so this owns the ordering rather than
+/// asking every caller to remember it: passing a stale or empty conflict set
+/// used to yield a confident `Clear` on a trip that has overlaps.
+pub fn assess_trip(
+    trip: &Trip,
+    facts: &[ConfirmedFact],
+    pending_candidate_count: u32,
+) -> TripAssessment {
+    let conflicts = detect_itinerary_conflicts(trip, facts);
+    let readiness = assess_readiness(facts, pending_candidate_count, &conflicts);
+    TripAssessment {
+        conflicts,
+        readiness,
+    }
+}
+
+fn assess_readiness(
     facts: &[ConfirmedFact],
     pending_candidate_count: u32,
     conflicts: &[ItineraryConflict],
@@ -306,8 +333,36 @@ mod tests {
     }
 
     fn assess(trip: &Trip, facts: &[ConfirmedFact], pending: u32) -> ReadinessSummary {
-        let conflicts = detect_itinerary_conflicts(trip, facts);
-        assess_readiness(trip, facts, pending, &conflicts)
+        assess_trip(trip, facts, pending).readiness
+    }
+
+    #[test]
+    fn assess_trip_detects_its_own_conflicts() {
+        // The caller cannot get the ordering wrong: readiness reflects overlaps
+        // the caller never computed or passed in.
+        let facts = [
+            flight("f1", "2026-11-03T09:00", "2026-11-03T13:00"),
+            flight("f2", "2026-11-03T12:00", "2026-11-03T15:00"),
+        ];
+        let assessment = assess_trip(&trip("2026-11-03", "2026-11-05"), &facts, 0);
+        assert_eq!(assessment.readiness.status, ReadinessStatus::ActionNeeded);
+        assert!(!assessment.conflicts.is_empty());
+    }
+
+    #[test]
+    fn assess_trip_conflicts_match_the_readiness_they_drove() {
+        // The returned conflicts are the same ones the rollup saw — the caller
+        // gets both from one call, so they cannot disagree.
+        let facts = [
+            flight("f1", "2026-11-03T09:00", "2026-11-03T13:00"),
+            flight("f2", "2026-11-03T12:00", "2026-11-03T15:00"),
+        ];
+        let trip = trip("2026-11-03", "2026-11-05");
+        let assessment = assess_trip(&trip, &facts, 0);
+        assert_eq!(
+            assessment.conflicts,
+            detect_itinerary_conflicts(&trip, &facts)
+        );
     }
 
     #[test]

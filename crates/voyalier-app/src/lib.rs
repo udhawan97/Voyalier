@@ -26,20 +26,20 @@ use voyalier_core::{
     OfflineMapArchive, OfflineMapChunk, OfflineMapDescriptor, PROVIDERS, PackContent, PackInfo,
     PackSuggestion, ParsedCandidate, PersonaWeights, PlaintextParser, ProviderConfig, ProviderId,
     Recommendation, RedactionPolicy, SEARCH_SUGGESTION_LIMIT, SearchHit, SearchableDocument,
-    SourceDocument, SuggestionSource, TodayView, TravelAdviceSnapshot, Trip, TripBrief, TripDetail,
-    TripNotes, TripStatus, TripSummary, UpdateTripInput, WarningCode, WeatherSnapshot,
-    assess_readiness, build_anthropic_messages_body, build_assist_preview,
+    SourceDocument, SuggestionSource, TodayView, TravelAdviceSnapshot, Trip, TripAssessment,
+    TripBrief, TripDetail, TripNotes, TripStatus, TripSummary, UpdateTripInput, WarningCode,
+    WeatherSnapshot, assess_trip, build_anthropic_messages_body, build_assist_preview,
     build_lodging_dates_user_content, build_ollama_chat_body, build_openai_chat_body,
     build_pull_body, build_today_view, build_trip_brief, changed_payload_fields,
-    detect_itinerary_conflicts, extract_email_body, interpret_key_validation,
-    interpret_pull_response, new_id, now_rfc3339, offline_map_download_url, pack_catalog,
-    pack_download_url, parse_anthropic_reply, parse_fcdo_content, parse_forecast_response,
-    parse_geocoding_response, parse_lodging_dates_reply, parse_ollama_chat_reply,
-    parse_openai_chat_reply, parse_pack_content, provider_info, provider_validation_endpoint,
-    provider_validation_headers, rank_field_suggestions, recommend_places, search_trip_corpus,
-    suggest_packs, suggest_search_terms, validate_api_key, validate_country_slug,
-    validate_create_trip, validate_document_content, validate_fact_payload, validate_model_name,
-    validate_pack_id, validate_provider_id, validate_search_query, validate_update_trip,
+    extract_email_body, interpret_key_validation, interpret_pull_response, new_id, now_rfc3339,
+    offline_map_download_url, pack_catalog, pack_download_url, parse_anthropic_reply,
+    parse_fcdo_content, parse_forecast_response, parse_geocoding_response,
+    parse_lodging_dates_reply, parse_ollama_chat_reply, parse_openai_chat_reply,
+    parse_pack_content, provider_info, provider_validation_endpoint, provider_validation_headers,
+    rank_field_suggestions, recommend_places, search_trip_corpus, suggest_packs,
+    suggest_search_terms, validate_api_key, validate_country_slug, validate_create_trip,
+    validate_document_content, validate_fact_payload, validate_model_name, validate_pack_id,
+    validate_provider_id, validate_search_query, validate_update_trip,
 };
 use voyalier_core::{
     VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, VaultStatus, derive_key as vault_derive_key,
@@ -879,13 +879,10 @@ impl AppService {
             )
             .map_err(storage_error)?;
         let pending_candidate_count = pending_candidate_count as u32;
-        let itinerary_conflicts = detect_itinerary_conflicts(&trip, &confirmed_facts);
-        let readiness = assess_readiness(
-            &trip,
-            &confirmed_facts,
-            pending_candidate_count,
-            &itinerary_conflicts,
-        );
+        let TripAssessment {
+            conflicts: itinerary_conflicts,
+            readiness,
+        } = assess_trip(&trip, &confirmed_facts, pending_candidate_count);
         let travel_advice = fetch_travel_advice_snapshot(&connection, trip_id)?;
         let weather = fetch_weather_snapshot(&connection, trip_id)?;
         Ok(TripDetail {
