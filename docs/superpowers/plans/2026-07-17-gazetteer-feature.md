@@ -31,6 +31,7 @@
 **Files:** `crates/voyalier-core/src/data/cities.tsv` + `countries.tsv` (already generated), `crates/voyalier-core/src/gazetteer.rs`; modify `lib.rs`.
 
 **Interfaces:**
+
 - Produces: `CitySuggestion { name: String, country_code: String, country: String }`, `search_cities(query: &str, limit: usize) -> Vec<CitySuggestion>`.
 
 - [ ] **Step 1: Failing tests:**
@@ -79,6 +80,7 @@ fn matches_accents_via_the_ascii_name_and_bounds_the_result() {
 **Files:** `crates/voyalier-core/src/suggest.rs` (enum variant); `crates/voyalier-app/src/lib.rs` (new method); re-exports.
 
 **Interfaces:**
+
 - `SuggestionSource::Gazetteer`.
 - `suggest_places(&self, query: &str) -> Result<Vec<FieldSuggestion>, AppError>`.
 
