@@ -9,6 +9,7 @@ use crate::advisories::AdvisoryPanel;
 use crate::airports::NearbyAirport;
 use crate::astro::AstroDay;
 use crate::facts::{CountryFacts, DestinationFactsSnapshot, TimeDifference};
+use crate::holidays::PublicHolidaysSnapshot;
 use crate::packing::PackingSuggestion;
 use crate::weather::WeatherSnapshot;
 
@@ -115,6 +116,11 @@ pub struct TripDetail {
     /// only once the origin has been geocoded. Derived, never read back.
     #[serde(default, skip_deserializing, skip_serializing_if = "Option::is_none")]
     pub time_difference: Option<TimeDifference>,
+    /// The destination country's public holidays that fall during the trip,
+    /// derived on read from the stored snapshot. Present only once fetched;
+    /// carries an empty `holidays` list when none land in the window.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub public_holidays: Option<PublicHolidaysSnapshot>,
 }
 
 /// Which deterministic plan-completeness check a readiness item reports on.

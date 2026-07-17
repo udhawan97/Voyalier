@@ -25,6 +25,21 @@ pub struct PublicHoliday {
     pub global: bool,
 }
 
+/// A dated snapshot of the destination country's public holidays, as fetched.
+/// Stores every holiday across the trip's years; the trip detail filters to the
+/// travel window on read, so a date edit re-narrows without a re-fetch.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PublicHolidaysSnapshot {
+    /// ISO-3166-1 alpha-2 of the destination country.
+    pub country_code: String,
+    /// The destination country's English name, for labelling.
+    pub country_name: String,
+    /// Public holidays across the trip's years (unfiltered).
+    pub holidays: Vec<PublicHoliday>,
+    pub retrieved_at: String,
+}
+
 /// One raw Nager.Date entry — only the fields kept, plus `types` for the
 /// public-holiday filter.
 #[derive(Deserialize)]
