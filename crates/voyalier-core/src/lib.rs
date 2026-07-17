@@ -13,6 +13,7 @@ mod climate;
 mod email;
 mod itinerary;
 mod local_ai;
+mod packing;
 mod packs;
 mod parser;
 mod provider;
@@ -63,6 +64,9 @@ pub use itinerary::detect_itinerary_conflicts;
 pub use local_ai::{
     LocalAiModel, LocalAiStatus, LocalModelPullResult, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,
     build_pull_body, interpret_pull_response, parse_ollama_models,
+};
+pub use packing::{
+    PackingCode, PackingReason, PackingReasonCode, PackingSuggestion, build_packing_list,
 };
 pub use packs::{
     BoundingBox, DownloadedPack, MAX_OFFLINE_MAP_BYTES, OfflineMapArchive, OfflineMapChunk,
