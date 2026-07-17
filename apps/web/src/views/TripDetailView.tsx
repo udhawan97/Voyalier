@@ -4,6 +4,9 @@ import type {
   CandidateFact,
   ConfirmedFact,
   ItineraryConflict,
+  ReadinessCheck,
+  ReadinessFindingCode,
+  ReadinessItem,
   ReadinessStatus,
   ReadinessSummary,
 } from "@voyalier/contracts";
@@ -20,7 +23,7 @@ import {
   tripRoute,
 } from "../app/format";
 import { buildIcs, icsFilename } from "../app/ics";
-import { plural, t, type MessageKey } from "../app/i18n";
+import { plural, t, type MessageKey, type PluralBase } from "../app/i18n";
 import { useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
@@ -229,6 +232,66 @@ const READINESS_LABEL: Record<ReadinessStatus, MessageKey> = {
   critical: "readiness.label.critical",
 };
 
+/** The check's name. The core sends `id`; the words are ours. */
+const READINESS_CHECK_TITLE: Record<ReadinessCheck, MessageKey> = {
+  schedule_conflicts: "readiness.check.schedule_conflicts",
+  lodging_coverage: "readiness.check.lodging_coverage",
+  pending_review: "readiness.check.pending_review",
+  entry_requirements: "readiness.check.entry_requirements",
+  health_notices: "readiness.check.health_notices",
+};
+
+/**
+ * A link-only item asserts nothing, so its text describes the check rather than
+ * a finding — hence keyed by id. Only these two checks are ever link-only.
+ */
+const READINESS_LINK_ONLY_DETAIL: Partial<Record<ReadinessCheck, MessageKey>> =
+  {
+    entry_requirements: "readiness.linkOnly.entry_requirements",
+    health_notices: "readiness.linkOnly.health_notices",
+  };
+
+/** Findings that carry no count, and so need no plural form. */
+const READINESS_FINDING_DETAIL: Partial<
+  Record<ReadinessFindingCode, MessageKey>
+> = {
+  no_facts_yet: "readiness.finding.no_facts_yet",
+  schedule_clear: "readiness.finding.schedule_clear",
+  no_lodging_yet: "readiness.finding.no_lodging_yet",
+  lodging_gaps: "readiness.finding.lodging_gaps",
+  lodging_clear: "readiness.finding.lodging_clear",
+  nothing_pending: "readiness.finding.nothing_pending",
+};
+
+/** Findings that carry a count, and so pluralize against it. */
+const READINESS_FINDING_PLURAL: Partial<
+  Record<ReadinessFindingCode, PluralBase>
+> = {
+  schedule_conflicts: "readiness.finding.schedule_conflicts",
+  schedule_notices: "readiness.finding.schedule_notices",
+  pending_review: "readiness.finding.pending_review",
+};
+
+/**
+ * Turn a readiness finding into a sentence.
+ *
+ * The core reports what it found and how many; the words and their plural forms
+ * live here, so they can be translated. The core used to build this prose itself
+ * — pluralizing with `format!("{singular}s")` — and it rendered raw.
+ */
+function readinessDetail(item: ReadinessItem): string {
+  if (item.finding.code === "link_only") {
+    const key = READINESS_LINK_ONLY_DETAIL[item.id];
+    return key ? t(key) : "";
+  }
+  const base = READINESS_FINDING_PLURAL[item.finding.code];
+  if (base) {
+    return plural(base, item.finding.count ?? 0);
+  }
+  const key = READINESS_FINDING_DETAIL[item.finding.code];
+  return key ? t(key) : "";
+}
+
 /**
  * Deterministic plan-completeness rollup plus a link-only entry-requirements
  * reference. Status is always spelled out in words, never conveyed by color
@@ -259,16 +322,17 @@ function ReadinessPanel({ readiness }: { readiness: ReadinessSummary }) {
             </span>
             <span className="voy-readiness__body">
               <span className="voy-readiness__item-title">
-                {item.title}
+                {t(READINESS_CHECK_TITLE[item.id])}
                 <span className="voy-readiness__item-status">
                   {" · "}
-                  {item.id === "entry_requirements" ||
-                  item.id === "health_notices"
+                  {item.finding.code === "link_only"
                     ? t("readiness.checkYourself")
                     : t(READINESS_LABEL[item.status])}
                 </span>
               </span>
-              <span className="voy-readiness__detail">{item.detail}</span>
+              <span className="voy-readiness__detail">
+                {readinessDetail(item)}
+              </span>
               {item.links && item.links.length > 0 ? (
                 <ul className="voy-readiness__links">
                   {item.links.map((link) => (

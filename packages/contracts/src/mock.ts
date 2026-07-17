@@ -48,6 +48,7 @@ import type {
   TodayView,
   TripPhase,
   ReadinessCheck,
+  ReadinessFindingCode,
   ReadinessItem,
   ReadinessStatus,
   ReadinessSummary,
@@ -491,11 +492,13 @@ function assessReadiness(
   const item = (
     id: ReadinessCheck,
     status: ReadinessStatus,
-    title: string,
-    detail: string,
-  ): ReadinessItem => ({ id, status, title, detail });
-  const noun = (count: number, singular: string) =>
-    count === 1 ? singular : `${singular}s`;
+    code: ReadinessFindingCode,
+    count?: number,
+  ): ReadinessItem => ({
+    id,
+    status,
+    finding: count === undefined ? { code } : { code, count },
+  });
 
   const hasFacts = facts.length > 0;
   const hasLodging = facts.some((fact) => fact.factType === "lodging_stay");
@@ -510,71 +513,34 @@ function assessReadiness(
   ).length;
 
   const schedule = !hasFacts
-    ? item(
-        "schedule_conflicts",
-        "not_checked",
-        "Schedule conflicts",
-        "Add flights or stays to check for overlaps.",
-      )
+    ? item("schedule_conflicts", "not_checked", "no_facts_yet")
     : warnings > 0
       ? item(
           "schedule_conflicts",
           "action_needed",
-          "Schedule conflicts",
-          `${warnings} scheduling ${noun(warnings, "conflict")} to resolve.`,
+          "schedule_conflicts",
+          warnings,
         )
       : notices > 0
-        ? item(
-            "schedule_conflicts",
-            "monitor",
-            "Schedule conflicts",
-            `${notices} scheduling ${noun(notices, "notice")} to review.`,
-          )
-        : item(
-            "schedule_conflicts",
-            "clear",
-            "Schedule conflicts",
-            "No overlaps in your confirmed plans.",
-          );
+        ? item("schedule_conflicts", "monitor", "schedule_notices", notices)
+        : item("schedule_conflicts", "clear", "schedule_clear");
 
   const lodging = !hasLodging
-    ? item(
-        "lodging_coverage",
-        "not_checked",
-        "Lodging coverage",
-        "No lodging added yet.",
-      )
+    ? item("lodging_coverage", "not_checked", "no_lodging_yet")
     : gaps > 0
-      ? item(
-          "lodging_coverage",
-          "monitor",
-          "Lodging coverage",
-          "Some nights in your trip have no lodging booked.",
-        )
-      : item(
-          "lodging_coverage",
-          "clear",
-          "Lodging coverage",
-          "Every night of your trip has lodging.",
-        );
+      ? item("lodging_coverage", "monitor", "lodging_gaps", gaps)
+      : item("lodging_coverage", "clear", "lodging_clear");
 
   const pending =
     pendingCandidateCount > 0
       ? item(
           "pending_review",
           "monitor",
-          "Suggestions to review",
-          `${pendingCandidateCount} imported ${noun(pendingCandidateCount, "suggestion")} waiting for review.`,
-        )
-      : item(
           "pending_review",
-          "clear",
-          "Suggestions to review",
-          "Nothing is waiting for review.",
-        );
+          pendingCandidateCount,
+        )
+      : item("pending_review", "clear", "nothing_pending");
 
-  // Logistics items drive the rollup; the link-only entry-requirements item is
-  // appended afterwards and never moves the overall status.
   const logistics = [schedule, lodging, pending];
   let worst: ReadinessStatus = "not_checked";
   for (const entry of logistics) {
@@ -585,14 +551,12 @@ function assessReadiness(
   const status: ReadinessStatus =
     !hasFacts && worst === "clear" ? "not_checked" : worst;
 
+  // Link-only reference items: they assert nothing, so they carry no finding
+  // beyond "link_only" and never move the rollup.
   const entryRequirements: ReadinessItem = {
     id: "entry_requirements",
     status: "not_checked",
-    title: "Entry & travel requirements",
-    detail:
-      "Requirements depend on your nationality and change often. Confirm them " +
-      "at an official government source before you travel — Voyalier links to " +
-      "official sources and never asserts or clears entry rules.",
+    finding: { code: "link_only" },
     links: [
       {
         label: "UK FCDO travel advice — entry requirements by country",
@@ -612,11 +576,7 @@ function assessReadiness(
   const healthNotices: ReadinessItem = {
     id: "health_notices",
     status: "not_checked",
-    title: "Health notices",
-    detail:
-      "Vaccination and health advice depends on your destination and health, " +
-      "and changes often. Check an official source before you travel — " +
-      "Voyalier links to official sources and never gives medical advice.",
+    finding: { code: "link_only" },
     links: [
       {
         label: "US CDC — Travelers' Health, destination notices",

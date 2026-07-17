@@ -9,7 +9,8 @@
 use crate::itinerary::detect_itinerary_conflicts;
 use crate::types::{
     ConfirmedFact, ConflictSeverity, FactType, ItineraryConflict, ItineraryConflictKind,
-    ReadinessCheck, ReadinessItem, ReadinessStatus, ReadinessSummary, SourceLink, Trip,
+    ReadinessCheck, ReadinessFinding, ReadinessFindingCode, ReadinessItem, ReadinessStatus,
+    ReadinessSummary, SourceLink, Trip,
 };
 
 /// A trip's conflicts and the readiness rollup they drove, from one pass.
@@ -74,12 +75,7 @@ fn entry_requirements_item() -> ReadinessItem {
     ReadinessItem {
         id: ReadinessCheck::EntryRequirements,
         status: ReadinessStatus::NotChecked,
-        title: "Entry & travel requirements".to_owned(),
-        detail: "Requirements depend on your nationality and change often. \
-                 Confirm them at an official government source before you travel — \
-                 Voyalier links to official sources and never asserts or clears \
-                 entry rules."
-            .to_owned(),
+        finding: ReadinessFinding::new(ReadinessFindingCode::LinkOnly),
         links: official_source_links(),
     }
 }
@@ -90,12 +86,7 @@ fn health_notices_item() -> ReadinessItem {
     ReadinessItem {
         id: ReadinessCheck::HealthNotices,
         status: ReadinessStatus::NotChecked,
-        title: "Health notices".to_owned(),
-        detail: "Vaccination and health advice depends on your destination and \
-                 health, and changes often. Check an official source before you \
-                 travel — Voyalier links to official sources and never gives \
-                 medical advice."
-            .to_owned(),
+        finding: ReadinessFinding::new(ReadinessFindingCode::LinkOnly),
         links: health_source_links(),
     }
 }
@@ -146,39 +137,32 @@ fn schedule_item(has_facts: bool, conflicts: &[ItineraryConflict]) -> ReadinessI
         .filter(|conflict| conflict.severity == ConflictSeverity::Notice)
         .count();
 
-    let (status, detail) = if !has_facts {
+    let (status, finding) = if !has_facts {
         (
             ReadinessStatus::NotChecked,
-            "Add flights or stays to check for overlaps.".to_owned(),
+            ReadinessFinding::new(ReadinessFindingCode::NoFactsYet),
         )
     } else if warnings > 0 {
         (
             ReadinessStatus::ActionNeeded,
-            format!(
-                "{warnings} scheduling {} to resolve.",
-                noun(warnings, "conflict")
-            ),
+            ReadinessFinding::counted(ReadinessFindingCode::ScheduleConflicts, warnings),
         )
     } else if notices > 0 {
         (
             ReadinessStatus::Monitor,
-            format!(
-                "{notices} scheduling {} to review.",
-                noun(notices, "notice")
-            ),
+            ReadinessFinding::counted(ReadinessFindingCode::ScheduleNotices, notices),
         )
     } else {
         (
             ReadinessStatus::Clear,
-            "No overlaps in your confirmed plans.".to_owned(),
+            ReadinessFinding::new(ReadinessFindingCode::ScheduleClear),
         )
     };
 
     ReadinessItem {
         id: ReadinessCheck::ScheduleConflicts,
         status,
-        title: "Schedule conflicts".to_owned(),
-        detail,
+        finding,
         links: Vec::new(),
     }
 }
@@ -189,53 +173,51 @@ fn lodging_item(has_lodging: bool, conflicts: &[ItineraryConflict]) -> Readiness
         .filter(|conflict| conflict.kind == ItineraryConflictKind::LodgingGap)
         .count();
 
-    let (status, detail) = if !has_lodging {
+    let (status, finding) = if !has_lodging {
         (
             ReadinessStatus::NotChecked,
-            "No lodging added yet.".to_owned(),
+            ReadinessFinding::new(ReadinessFindingCode::NoLodgingYet),
         )
     } else if gaps > 0 {
         (
             ReadinessStatus::Monitor,
-            "Some nights in your trip have no lodging booked.".to_owned(),
+            ReadinessFinding::counted(ReadinessFindingCode::LodgingGaps, gaps),
         )
     } else {
         (
             ReadinessStatus::Clear,
-            "Every night of your trip has lodging.".to_owned(),
+            ReadinessFinding::new(ReadinessFindingCode::LodgingClear),
         )
     };
 
     ReadinessItem {
         id: ReadinessCheck::LodgingCoverage,
         status,
-        title: "Lodging coverage".to_owned(),
-        detail,
+        finding,
         links: Vec::new(),
     }
 }
 
 fn pending_item(pending_candidate_count: u32) -> ReadinessItem {
-    let (status, detail) = if pending_candidate_count > 0 {
+    let (status, finding) = if pending_candidate_count > 0 {
         (
             ReadinessStatus::Monitor,
-            format!(
-                "{pending_candidate_count} imported {} waiting for review.",
-                noun(pending_candidate_count as usize, "suggestion")
+            ReadinessFinding::counted(
+                ReadinessFindingCode::PendingReview,
+                pending_candidate_count as usize,
             ),
         )
     } else {
         (
             ReadinessStatus::Clear,
-            "Nothing is waiting for review.".to_owned(),
+            ReadinessFinding::new(ReadinessFindingCode::NothingPending),
         )
     };
 
     ReadinessItem {
         id: ReadinessCheck::PendingReview,
         status,
-        title: "Suggestions to review".to_owned(),
-        detail,
+        finding,
         links: Vec::new(),
     }
 }
@@ -263,14 +245,6 @@ fn severity(status: ReadinessStatus) -> u8 {
         ReadinessStatus::Monitor => 2,
         ReadinessStatus::ActionNeeded => 3,
         ReadinessStatus::Critical => 4,
-    }
-}
-
-fn noun(count: usize, singular: &str) -> String {
-    if count == 1 {
-        singular.to_owned()
-    } else {
-        format!("{singular}s")
     }
 }
 
@@ -427,8 +401,10 @@ mod tests {
                 .iter()
                 .all(|link| link.url.starts_with("https://"))
         );
-        // The item explains that Voyalier never asserts entry rules.
-        assert!(entry.detail.contains("never asserts"));
+        // Link-only is the structural form of "Voyalier never asserts entry
+        // rules": there is no finding for it to assert with, only sources.
+        assert_eq!(entry.finding.code, ReadinessFindingCode::LinkOnly);
+        assert_eq!(entry.finding.count, None);
     }
 
     #[test]
@@ -454,8 +430,59 @@ mod tests {
                 .iter()
                 .all(|link| link.url.starts_with("https://"))
         );
-        // Voyalier links out and never gives medical advice.
-        assert!(health.detail.contains("never gives"));
+        // Link-only: the core has no health finding to state, only sources.
+        assert_eq!(health.finding.code, ReadinessFindingCode::LinkOnly);
+        assert_eq!(health.finding.count, None);
+    }
+
+    #[test]
+    fn findings_carry_the_number_the_interface_pluralizes() {
+        // The core states the count; it no longer decides whether the word ends
+        // in an "s". Two conflicting flights produce one conflict.
+        let facts = [
+            flight("f1", "2026-11-03T09:00", "2026-11-03T13:00"),
+            flight("f2", "2026-11-03T12:00", "2026-11-03T15:00"),
+        ];
+        let summary = assess(&trip("2026-11-03", "2026-11-05"), &facts, 3);
+
+        let schedule = summary
+            .items
+            .iter()
+            .find(|item| item.id == ReadinessCheck::ScheduleConflicts)
+            .expect("schedule item");
+        assert_eq!(
+            schedule.finding.code,
+            ReadinessFindingCode::ScheduleConflicts
+        );
+        assert_eq!(schedule.finding.count, Some(1));
+
+        let pending = summary
+            .items
+            .iter()
+            .find(|item| item.id == ReadinessCheck::PendingReview)
+            .expect("pending item");
+        assert_eq!(pending.finding.code, ReadinessFindingCode::PendingReview);
+        assert_eq!(pending.finding.count, Some(3));
+    }
+
+    #[test]
+    fn findings_that_count_nothing_carry_no_count() {
+        let facts = [
+            flight("f1", "2026-11-03T09:00", "2026-11-03T12:00"),
+            lodging("l1", "2026-11-03", "2026-11-05"),
+        ];
+        let summary = assess(&trip("2026-11-03", "2026-11-05"), &facts, 0);
+        for item in &summary.items {
+            if matches!(
+                item.finding.code,
+                ReadinessFindingCode::ScheduleClear
+                    | ReadinessFindingCode::LodgingClear
+                    | ReadinessFindingCode::NothingPending
+                    | ReadinessFindingCode::LinkOnly
+            ) {
+                assert_eq!(item.finding.count, None, "{:?}", item.finding.code);
+            }
+        }
     }
 
     #[test]

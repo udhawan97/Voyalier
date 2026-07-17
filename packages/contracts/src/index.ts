@@ -38,11 +38,35 @@ export interface SourceLink {
   label: string;
   url: string;
 }
+/**
+ * The closed set of readiness findings. Each maps to exactly one sentence in the
+ * interface's message catalog.
+ *
+ * The core reports what it found and how many; the interface owns the words and
+ * their pluralization. Mirrors `voyalier-core::types::ReadinessFindingCode`.
+ */
+export type ReadinessFindingCode =
+  | "no_facts_yet"
+  | "schedule_conflicts"
+  | "schedule_notices"
+  | "schedule_clear"
+  | "no_lodging_yet"
+  | "lodging_gaps"
+  | "lodging_clear"
+  | "pending_review"
+  | "nothing_pending"
+  | "link_only";
+/** What a readiness check found, and the number that describes it. */
+export interface ReadinessFinding {
+  code: ReadinessFindingCode;
+  /** What the finding counts; absent for findings that count nothing. */
+  count?: number;
+}
 export interface ReadinessItem {
   id: ReadinessCheck;
   status: ReadinessStatus;
-  title: string;
-  detail: string;
+  /** What the check found. There is no title: it is derivable from `id`. */
+  finding: ReadinessFinding;
   /** Curated official-source links; omitted when the item has none. */
   links?: SourceLink[];
 }

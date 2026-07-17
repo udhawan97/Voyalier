@@ -68,6 +68,59 @@ describe("readiness", () => {
     );
   });
 
+  it("pluralizes a finding's count in the interface, not the core", async () => {
+    // The core reports {code, count}; the sentence is built here. The core used
+    // to decide this with format!("{singular}s"), which no locale but English
+    // can follow.
+    const gateway = createMockGateway();
+    const [seeded] = await gateway.listTrips();
+    const pendingCandidates = await gateway.listCandidates(
+      seeded.id,
+      "pending",
+    );
+    expect(pendingCandidates.length).toBeGreaterThan(1);
+
+    renderApp(gateway);
+    fireEvent.click(
+      await screen.findByRole("button", { name: `Open ${seeded.title}` }),
+    );
+    const readiness = await screen.findByRole("region", { name: "Readiness" });
+    expect(
+      within(readiness).getByText(
+        `${pendingCandidates.length} imported suggestions waiting for review.`,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("reads a single pending suggestion in the singular", async () => {
+    const gateway = createMockGateway();
+    const [seeded] = await gateway.listTrips();
+    const pendingCandidates = await gateway.listCandidates(
+      seeded.id,
+      "pending",
+    );
+    // Resolve all but one, so the count crosses into the singular form.
+    for (const candidate of pendingCandidates.slice(1)) {
+      await gateway.rejectCandidate(candidate.id);
+    }
+
+    const detail = await gateway.getTrip(seeded.id);
+    const pending = detail.readiness.items.find(
+      (item) => item.id === "pending_review",
+    );
+    // The core's half of the contract: a finding and a number, no words.
+    expect(pending?.finding).toEqual({ code: "pending_review", count: 1 });
+
+    renderApp(gateway);
+    fireEvent.click(
+      await screen.findByRole("button", { name: `Open ${seeded.title}` }),
+    );
+    const readiness = await screen.findByRole("region", { name: "Readiness" });
+    expect(
+      within(readiness).getByText("1 imported suggestion waiting for review."),
+    ).toBeInTheDocument();
+  });
+
   it("keeps the overall rollup unaffected by the link-only entry item", async () => {
     const gateway = createMockGateway();
     const trip = await gateway.createTrip({
