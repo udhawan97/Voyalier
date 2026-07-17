@@ -86,22 +86,16 @@ export function CityPacks({
   const loading = loadAction.busy;
 
   const downloadAction = useAsyncAction(
-    async (pack: PackInfo) => ({
-      pack,
-      result: await gateway.downloadPack(tripId, pack.id),
-    }),
-    ({ pack, result }) => {
+    (pack: PackInfo) => gateway.downloadPack(tripId, pack.id),
+    (result, pack) => {
       setDownloaded((prev) => new Map(prev).set(pack.id, result));
       announce(t("packs.announce.downloaded", { name: pack.name }));
     },
   );
 
   const removeAction = useAsyncAction(
-    async (pack: PackInfo) => {
-      await gateway.deleteDownloadedPack(tripId, pack.id);
-      return pack;
-    },
-    (pack) => {
+    (pack: PackInfo) => gateway.deleteDownloadedPack(tripId, pack.id),
+    (_result, pack) => {
       setDownloaded((prev) => {
         const next = new Map(prev);
         next.delete(pack.id);

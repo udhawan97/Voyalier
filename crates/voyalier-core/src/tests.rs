@@ -202,7 +202,7 @@ fn injection_fixture_stays_inert() {
 }
 
 /// The limits both languages enforce live in one file, and this holds Rust to
-/// it. `packages/contracts/parity.test.ts` holds TypeScript to the same file.
+/// it. `apps/web/src/parity.test.ts` holds TypeScript to the same file.
 ///
 /// Before this, each limit was a Rust `pub const` and an unrelated magic number
 /// in `mock.ts` — and the mock counted UTF-16 code units where the core counts
@@ -274,7 +274,9 @@ fn parity_normalize_place_matches_the_contract() {
         );
         checked += 1;
     }
-    assert!(checked >= 20, "expected the golden corpus, saw {checked}");
+    // Exact, not a floor: a ">= 20" guard on 23 cases lets three quietly
+    // disappear. Bump this when you add a case.
+    assert_eq!(checked, 23, "every golden case must be checked");
 }
 
 /// Every `ErrorCode` appears in the contract's AppError schema.

@@ -72,8 +72,10 @@ describe("parity: normalizePlace", () => {
       typeof (entry as { input?: unknown }).input === "string",
   );
 
-  it("covers the golden corpus", () => {
-    expect(cases.length).toBeGreaterThanOrEqual(20);
+  it("covers every golden case", () => {
+    // Exact, not a floor: a ">= 20" guard on 23 cases lets three quietly
+    // disappear. Bump this when you add a case.
+    expect(cases).toHaveLength(23);
   });
 
   it.each(cases)("folds $input to $expected", ({ input, expected }) => {

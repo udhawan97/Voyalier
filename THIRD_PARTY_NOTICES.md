@@ -13,10 +13,10 @@ interface renders its intended type identity without any third-party (web
 font CDN) request at runtime. Both are licensed under the **SIL Open Font
 License, Version 1.1** (<https://openfontlicense.org>).
 
-| Font                    | Designer / Foundry             | Weights bundled | Where            |
-| ----------------------- | ------------------------------ | --------------- | ---------------- |
-| **Zen Kaku Gothic New** | Yoshimichi Ohira / Zen Project | 400, 500, 700   | UI text          |
-| **Shippori Mincho**     | FONTDASU                       | 500, 600        | Display headings |
+| Font | Designer / Foundry | Weights bundled | Where |
+| --- | --- | --- | --- |
+| **Zen Kaku Gothic New** | Yoshimichi Ohira / Zen Project | 400, 500, 700 | UI text |
+| **Shippori Mincho** | FONTDASU | 500, 600 | Display headings |
 
 The `.woff2` subset files live in `apps/web/public/fonts/` (product) and, for
 the documentation site, `docs-site/public/fonts/`. Only Latin ranges are

@@ -136,7 +136,7 @@ pub fn build_assist_preview(
     }
 }
 
-fn plural(count: usize, word: &str) -> String {
+pub(crate) fn plural(count: usize, word: &str) -> String {
     if count == 1 {
         word.to_owned()
     } else {

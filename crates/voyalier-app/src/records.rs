@@ -1,11 +1,17 @@
 //! Storage for the records whose sensitive columns are sealed at rest.
 //!
-//! One module owns three things that have to agree: the SQL, the column list,
-//! and which of those columns the vault seals. Everything reading or writing a
-//! sealed column goes through here, so "this column is sealed" is stated once
-//! — in [`SEALED_COLUMNS`] — and enforced by the code that touches it, instead
-//! of being remembered at each `SELECT`. Forgetting used to return `v1:<base64>`
-//! straight to the UI, and nothing objected.
+//! [`SEALED_COLUMNS`] is the one declaration of which columns the vault seals,
+//! and it drives `sealed_columns_round_trip_through_the_vault`, which holds
+//! every entry in it to being ciphertext on disk and plaintext through the
+//! reads. Forgetting used to return `v1:<base64>` straight to the UI with
+//! nothing objecting; now it fails a test.
+//!
+//! For trips, candidates, and confirmed facts, this module also owns the SQL and
+//! the row mapping, so the sealing happens where the columns are read rather
+//! than being remembered at each `SELECT`. **`source_documents.raw_content` and
+//! `trip_notes.body` are not there yet**: their SQL still lives in `lib.rs` and
+//! calls [`Records::seal`] / [`Records::open`] by hand. The test covers them; the
+//! structure does not.
 //!
 //! Two smaller consequences fall out of that:
 //!
@@ -346,11 +352,16 @@ impl<'a> Records<'a> {
     // ---- vault-bound helpers ---------------------------------------------
 
     /// Seal a value for one of [`SEALED_COLUMNS`].
+    ///
+    /// The escape hatch for the two sealed columns whose SQL is still in
+    /// `lib.rs` (`source_documents.raw_content`, `trip_notes.body`) — a caller
+    /// using this is remembering to seal, which is the thing this module exists
+    /// to stop. Move that SQL here and this goes away.
     pub(crate) fn seal(&self, plaintext: &str) -> Result<String, AppError> {
         self.vault.seal_field(plaintext)
     }
 
-    /// Open a value from one of [`SEALED_COLUMNS`].
+    /// Open a value from one of [`SEALED_COLUMNS`]. See [`Records::seal`].
     pub(crate) fn open(&self, stored: &str) -> Result<String, AppError> {
         self.vault.open_field(stored)
     }

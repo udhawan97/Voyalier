@@ -92,20 +92,6 @@ describe("useAsyncAction", () => {
     expect(result.current.error).toBeUndefined();
   });
 
-  it("drops a failure on reset, without running again", async () => {
-    const action = vi.fn(() => Promise.reject(notFound));
-    const { result } = renderHook(() => useAsyncAction(action));
-
-    await act(async () => {
-      await result.current.run();
-    });
-    expect(result.current.error).toEqual(notFound);
-
-    act(() => result.current.reset());
-    expect(result.current.error).toBeUndefined();
-    expect(action).toHaveBeenCalledTimes(1);
-  });
-
   it("does not write state after the view unmounts", async () => {
     let release: (value: string) => void = () => {};
     const onSuccess = vi.fn();

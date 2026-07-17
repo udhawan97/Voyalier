@@ -146,5 +146,7 @@ prose fields, which is the thing that was wrong. Rendered copy is unchanged —
 the web tests assert the strings end-to-end and passed untouched.
 
 The same treatment is still owed to `ItineraryConflict.message`,
-`SearchHit.label`/`snippet`, `Recommendation.reasons`, and `SourceLink.label`,
-all of which are still English built in the core.
+`SearchHit.label`/`snippet`, `Recommendation.reasons`, `SourceLink.label`,
+`AssistRequestPreview.groundedIn`, and `KeyValidation.message` — all still
+English built in the core, and the last two grew during this work rather than
+shrinking.

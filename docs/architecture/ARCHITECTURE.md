@@ -155,9 +155,11 @@ than a known one — every build since the first stamped it on open regardless o
 what the database held — so the two steps that predate the ledger still detect
 their own applicability. Steps added since can trust the version.
 
-The records whose columns the vault seals are read and written through one
-module, so which columns are sealed is declared once and enforced by the code
-that touches them.
+Which columns the vault seals is declared once, and that declaration drives a
+test holding each of them to being ciphertext on disk and plaintext through the
+reads. Trips, candidates, and confirmed facts are read and written through one
+module that seals where it maps the columns; the document body and trip notes
+still seal by hand at their own SQL.
 
 Raw imported content and sensitive confirmed-fact payloads have three vault
 states:
@@ -198,8 +200,9 @@ aggregation, background scraping, or silent document upload.
 - The rules the mock gateway mirrors agree with the core, against shared golden
   files: validation limits (and the units they count in), place folding, the
   default AI instructions, and the official-source links.
-- Every `ErrorCode` appears in the contract's `AppError` schema, enumerated
-  behind a compile-time exhaustive match rather than a hand-kept list.
+- Every `ErrorCode` appears in the contract's `AppError` schema. The list is
+  hand-kept, but an exhaustive match beside it means adding a variant is a
+  compile error at the line that says to extend it.
 - Desktop command names and the single `input` argument shape round-trip.
 - Parser, ranking, readiness, itinerary, redaction, vault, and provider behavior
   use deterministic fixtures.

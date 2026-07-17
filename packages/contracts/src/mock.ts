@@ -755,7 +755,7 @@ const REGION_STOPWORDS = new Set(["usa", "the", "and", "of"]);
 
 /** JS mirror of voyalier-core::packs::normalize_place. */
 /**
- * Exported only so `parity.test.ts` can hold it to
+ * Exported only so `apps/web/src/parity.test.ts` can hold it to
  * `parity/normalize-place.json`, the same file the core answers to. Not part of
  * the gateway surface.
  */

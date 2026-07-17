@@ -241,35 +241,35 @@ const READINESS_CHECK_TITLE: Record<ReadinessCheck, MessageKey> = {
 };
 
 /**
- * A link-only item asserts nothing, so its text describes the check rather than
- * a finding — hence keyed by id. Only these two checks are ever link-only.
+ * How each finding becomes a sentence: a plain key, a plural base to count
+ * against, or — for a link-only item, which asserts nothing — copy about the
+ * check itself rather than a finding.
+ *
+ * An exhaustive `Record`, so adding a `ReadinessFindingCode` is a type error
+ * here rather than a blank line in the panel.
  */
+type FindingCopy =
+  { key: MessageKey } | { plural: PluralBase } | { byCheck: true };
+
+const READINESS_FINDING_COPY: Record<ReadinessFindingCode, FindingCopy> = {
+  no_facts_yet: { key: "readiness.finding.no_facts_yet" },
+  schedule_conflicts: { plural: "readiness.finding.schedule_conflicts" },
+  schedule_notices: { plural: "readiness.finding.schedule_notices" },
+  schedule_clear: { key: "readiness.finding.schedule_clear" },
+  no_lodging_yet: { key: "readiness.finding.no_lodging_yet" },
+  lodging_gaps: { key: "readiness.finding.lodging_gaps" },
+  lodging_clear: { key: "readiness.finding.lodging_clear" },
+  pending_review: { plural: "readiness.finding.pending_review" },
+  nothing_pending: { key: "readiness.finding.nothing_pending" },
+  link_only: { byCheck: true },
+};
+
+/** The link-only checks' own copy. Only these two are ever link-only. */
 const READINESS_LINK_ONLY_DETAIL: Partial<Record<ReadinessCheck, MessageKey>> =
   {
     entry_requirements: "readiness.linkOnly.entry_requirements",
     health_notices: "readiness.linkOnly.health_notices",
   };
-
-/** Findings that carry no count, and so need no plural form. */
-const READINESS_FINDING_DETAIL: Partial<
-  Record<ReadinessFindingCode, MessageKey>
-> = {
-  no_facts_yet: "readiness.finding.no_facts_yet",
-  schedule_clear: "readiness.finding.schedule_clear",
-  no_lodging_yet: "readiness.finding.no_lodging_yet",
-  lodging_gaps: "readiness.finding.lodging_gaps",
-  lodging_clear: "readiness.finding.lodging_clear",
-  nothing_pending: "readiness.finding.nothing_pending",
-};
-
-/** Findings that carry a count, and so pluralize against it. */
-const READINESS_FINDING_PLURAL: Partial<
-  Record<ReadinessFindingCode, PluralBase>
-> = {
-  schedule_conflicts: "readiness.finding.schedule_conflicts",
-  schedule_notices: "readiness.finding.schedule_notices",
-  pending_review: "readiness.finding.pending_review",
-};
 
 /**
  * Turn a readiness finding into a sentence.
@@ -279,15 +279,10 @@ const READINESS_FINDING_PLURAL: Partial<
  * — pluralizing with `format!("{singular}s")` — and it rendered raw.
  */
 function readinessDetail(item: ReadinessItem): string {
-  if (item.finding.code === "link_only") {
-    const key = READINESS_LINK_ONLY_DETAIL[item.id];
-    return key ? t(key) : "";
-  }
-  const base = READINESS_FINDING_PLURAL[item.finding.code];
-  if (base) {
-    return plural(base, item.finding.count ?? 0);
-  }
-  const key = READINESS_FINDING_DETAIL[item.finding.code];
+  const copy = READINESS_FINDING_COPY[item.finding.code];
+  if ("plural" in copy) return plural(copy.plural, item.finding.count ?? 0);
+  if ("key" in copy) return t(copy.key);
+  const key = READINESS_LINK_ONLY_DETAIL[item.id];
   return key ? t(key) : "";
 }
 
@@ -491,11 +486,8 @@ export function TripDetailView({
   );
 
   const unconfirmAction = useAsyncAction(
-    async (fact: ConfirmedFact) => {
-      await gateway.unconfirmFact(fact.id);
-      return fact;
-    },
-    (fact) => {
+    (fact: ConfirmedFact) => gateway.unconfirmFact(fact.id),
+    (_result, fact) => {
       const title = factTitle(fact.factType, fact.payload);
       announce(
         fact.candidateId === null

@@ -217,8 +217,8 @@ export interface TripNotes {
  * Validation limits the core and this contract must agree on.
  *
  * These are not "mirrors" on the honour system: `parity/limits.json` holds the
- * values, a Rust test holds the core to it, and `parity.test.ts` holds these to
- * it. Change one and both fail.
+ * values, a Rust test holds the core to it, and `apps/web/src/parity.test.ts`
+ * holds these to it. Change one and both fail.
  *
  * Every limit counts **characters** (Unicode scalar values), matching Rust's
  * `.chars().count()`. Use {@link countChars}, never `text.length` — that counts

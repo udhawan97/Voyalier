@@ -11,11 +11,11 @@ Include the affected version or commit, reproduction steps, expected impact, and
 Voyalier is a source-only public beta. Security fixes target the latest `main`
 branch and the most recent tagged release.
 
-| Version             | Supported                  |
-| ------------------- | -------------------------- |
-| `main` (unreleased) | ✅                         |
-| 0.4.x               | ✅                         |
-| < 0.4.0             | ❌ (upgrade to the latest) |
+| Version | Supported |
+| ------- | --------- |
+| `main` (unreleased) | ✅ |
+| 0.4.x   | ✅ |
+| < 0.4.0 | ❌ (upgrade to the latest) |
 
 ## Security boundaries
 

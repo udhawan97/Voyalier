@@ -11,7 +11,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::assist::{AssistRequestPreview, estimate_tokens};
+use crate::assist::{AssistRequestPreview, estimate_tokens, plural};
 use crate::provider::{ProviderId, provider_info};
 use crate::types::{AppError, CandidateFact, ErrorCode, Trip};
 
@@ -120,13 +120,12 @@ pub fn build_draft_preview(
     let grounded_in = if documents.is_empty() {
         vec!["no imported documents yet".to_owned()]
     } else {
-        let noun = if documents.len() == 1 {
-            "document"
-        } else {
-            "documents"
-        };
         vec![
-            format!("{} imported {noun}", documents.len()),
+            format!(
+                "{} imported {}",
+                documents.len(),
+                plural(documents.len(), "document")
+            ),
             "trip dates".to_owned(),
         ]
     };

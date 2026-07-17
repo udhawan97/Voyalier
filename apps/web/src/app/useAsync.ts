@@ -86,8 +86,6 @@ export interface AsyncAction<Args extends unknown[]> {
   busy: boolean;
   /** The last failure, normalized. Undefined once a new run starts. */
   error: AppError | undefined;
-  /** Drop a previous failure without running, e.g. when the user edits input. */
-  reset: () => void;
 }
 
 /**
@@ -154,7 +152,5 @@ export function useAsyncAction<Args extends unknown[], T>(
     }
   }, []);
 
-  const reset = useCallback(() => setError(undefined), []);
-
-  return { run, busy, error, reset };
+  return { run, busy, error };
 }
