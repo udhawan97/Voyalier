@@ -65,6 +65,17 @@ describe("destination facts", () => {
     expect(clock).toHaveTextContent(/14h/);
   });
 
+  it("shows the World Heritage sites nearby", async () => {
+    const facts = await fetchFacts();
+    expect(
+      within(facts).getByRole("heading", { name: "World Heritage nearby" }),
+    ).toBeInTheDocument();
+    // A nearby site, with its inscription year and a distance.
+    expect(
+      within(facts).getByText(/Historic Monuments of Ancient Kyoto/),
+    ).toHaveTextContent(/inscribed 1994/);
+  });
+
   it("shows the practical country facts", async () => {
     const facts = await fetchFacts();
     expect(

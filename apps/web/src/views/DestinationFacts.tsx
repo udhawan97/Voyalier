@@ -3,6 +3,7 @@ import type {
   CountryFacts,
   CurrencyRate,
   DestinationFactsSnapshot,
+  HeritageSite,
   NearbyAirport,
   TimeDifference,
 } from "@voyalier/contracts";
@@ -240,10 +241,44 @@ function Airports({ airports }: { airports: NearbyAirport[] }) {
   );
 }
 
+/** UNESCO World Heritage sites near the destination, closest first. */
+function Heritage({ sites }: { sites: HeritageSite[] }) {
+  return (
+    <section
+      className="voy-facts__block"
+      aria-labelledby="facts-heritage-title"
+    >
+      <h3 id="facts-heritage-title" className="voy-facts__block-title">
+        {t("facts.heritage.title")}
+      </h3>
+      <ul className="voy-facts__heritage">
+        {sites.map((site) => (
+          <li key={site.name}>
+            <span className="voy-facts__heritage-name">
+              {site.year
+                ? t("facts.heritage.rowYear", {
+                    name: site.name,
+                    year: site.year,
+                  })
+                : site.name}
+            </span>
+            <span className="voy-facts__heritage-distance">
+              {t("facts.airports.distance", {
+                km: Math.round(site.distanceKm),
+              })}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /**
  * The destination-facts card: the sky (computed offline), the money (indicative
- * ECB reference rates), the practical country facts, and the nearest airports —
- * all from one consent-gated fetch. Convenience, never a safety claim.
+ * ECB reference rates), the practical country facts, the nearest airports, and
+ * the World Heritage sites nearby — all from one consent-gated fetch.
+ * Convenience, never a safety claim.
  */
 export function DestinationFacts({
   tripId,
@@ -252,6 +287,7 @@ export function DestinationFacts({
   countryFacts,
   astro,
   nearestAirports,
+  worldHeritage,
   timeDifference,
   onFetched,
 }: {
@@ -261,6 +297,7 @@ export function DestinationFacts({
   countryFacts: CountryFacts | undefined;
   astro: AstroDay[];
   nearestAirports: NearbyAirport[];
+  worldHeritage: HeritageSite[];
   timeDifference: TimeDifference | undefined;
   onFetched: () => void;
 }) {
@@ -306,6 +343,7 @@ export function DestinationFacts({
           {nearestAirports.length > 0 ? (
             <Airports airports={nearestAirports} />
           ) : null}
+          {worldHeritage.length > 0 ? <Heritage sites={worldHeritage} /> : null}
         </div>
       ) : null}
 

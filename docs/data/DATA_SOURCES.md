@@ -77,6 +77,7 @@ facts are a compiled-in table resolved fresh from a country code on each read
 | Country facts    | OpenStreetMap/Wikidata (CC0/ODbL) and public sources | Compiled from OpenStreetMap/Wikidata (CC0/ODbL) and public sources | Plug/voltage/drive-side/calling-code/emergency for curated countries                                                                                  |
 | Nearest airports | OurAirports                                          | Public domain (attribution optional)                               | ~3,300 scheduled-service airports (large+medium, IATA) bundled; nearest by haversine                                                                  |
 | City gazetteer   | GeoNames `cities15000`                               | CC BY 4.0 — attribution "GeoNames"                                 | ~32,000 cities (population ≥ 15,000, districts excluded) bundled; prefix + accent-folded matching, population-ranked; powers destination autocomplete |
+| World Heritage   | Wikidata (`P1435` = `Q9259`) SPARQL extract          | CC0 (Wikidata)                                                     | ~940 UNESCO sites (name, coordinates, inscription year) bundled; nearest within 150 km by haversine, derived on read. Convenience, not a complete registry |
 
 ## Place entry and geocoding
 

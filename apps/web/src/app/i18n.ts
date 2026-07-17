@@ -551,6 +551,10 @@ const en = {
   "facts.airports.title": "Nearest airports",
   "facts.airports.row": "{iata} · {name}",
   "facts.airports.distance": "{km} km",
+  // World Heritage: bundled from Wikidata, computed offline. A nearby-notable
+  // list, never a claim of completeness.
+  "facts.heritage.title": "World Heritage nearby",
+  "facts.heritage.rowYear": "{name} · inscribed {year}",
   // Public holidays: fetched from Nager.Date, informational — banks and shops
   // may close; it never clears a readiness item.
   "holidays.title": "Public holidays",

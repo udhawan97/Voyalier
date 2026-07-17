@@ -1322,6 +1322,27 @@ h3 {
   white-space: nowrap;
 }
 
+.voy-facts__heritage {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.voy-facts__heritage li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.voy-facts__heritage-distance {
+  color: var(--voy-ink-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .voy-facts__clock {
   margin: 0;
   font-size: 0.9rem;
