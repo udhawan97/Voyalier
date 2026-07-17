@@ -23,23 +23,24 @@ use voyalier_core::{
     IntelligenceMode, KeyValidation, LocalAiStatus, LocalModelPullResult, LodgingDateProposal,
     MAX_AI_PROMPT_LEN, MAX_NOTES_CHARS, MAX_OFFLINE_MAP_BYTES, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,
     OfflineMapArchive, OfflineMapChunk, OfflineMapDescriptor, PROVIDERS, PackContent, PackInfo,
-    PackSuggestion, PersonaWeights, ProviderConfig, ProviderId, Recommendation, RedactionPolicy,
-    SEARCH_SUGGESTION_LIMIT, SearchHit, SearchableDocument, SourceDocument, SourceState,
-    SourceStatus, SuggestionSource, TodayView, Trip, TripAssessment, TripBrief, TripDetail,
-    TripNotes, TripStatus, TripSummary, UpdateTripInput, WarningCode, WeatherAlert,
-    WeatherSnapshot, advisory_country, archive_window, assess_trip, build_assist_preview,
-    build_assist_request, build_draft_preview, build_key_validation_request, build_packing_list,
-    build_pull_body, build_today_view, build_trip_brief, changed_payload_fields, compute_astro_day,
-    country_facts, entry_from_fcdo, estimate_tokens, interpret_key_validation,
-    interpret_pull_response, nearest_airports, new_id, notices_for_country, now_rfc3339,
-    offline_map_download_url, pack_catalog, pack_download_url, parse_air_quality,
-    parse_assist_reply, parse_ca_gac, parse_cdc_notices, parse_climate_normals, parse_de_aa,
-    parse_ecb_rates, parse_fcdo_content, parse_forecast_response, parse_geocoding_response,
-    parse_import, parse_lodging_dates_reply, parse_nws_alerts, parse_pack_content, parse_us_state,
-    provider_info, rank_field_suggestions, recommend_places, search_cities, search_trip_corpus,
-    suggest_packs, suggest_search_terms, time_difference, validate_api_key, validate_country_slug,
-    validate_create_trip, validate_fact_payload, validate_model_name, validate_pack_id,
-    validate_provider_id, validate_search_query, validate_update_trip,
+    PackSuggestion, PersonaWeights, ProviderConfig, ProviderId, PublicHolidaysSnapshot,
+    Recommendation, RedactionPolicy, SEARCH_SUGGESTION_LIMIT, SearchHit, SearchableDocument,
+    SourceDocument, SourceState, SourceStatus, SuggestionSource, TodayView, Trip, TripAssessment,
+    TripBrief, TripDetail, TripNotes, TripStatus, TripSummary, UpdateTripInput, WarningCode,
+    WeatherAlert, WeatherSnapshot, advisory_country, archive_window, assess_trip,
+    build_assist_preview, build_assist_request, build_draft_preview, build_key_validation_request,
+    build_packing_list, build_pull_body, build_today_view, build_trip_brief,
+    changed_payload_fields, compute_astro_day, country_facts, entry_from_fcdo, estimate_tokens,
+    holidays_within, interpret_key_validation, interpret_pull_response, nearest_airports, new_id,
+    notices_for_country, now_rfc3339, offline_map_download_url, pack_catalog, pack_download_url,
+    parse_air_quality, parse_assist_reply, parse_ca_gac, parse_cdc_notices, parse_climate_normals,
+    parse_de_aa, parse_ecb_rates, parse_fcdo_content, parse_forecast_response,
+    parse_geocoding_response, parse_import, parse_lodging_dates_reply, parse_nager_holidays,
+    parse_nws_alerts, parse_pack_content, parse_us_state, provider_info, rank_field_suggestions,
+    recommend_places, search_cities, search_trip_corpus, suggest_packs, suggest_search_terms,
+    time_difference, validate_api_key, validate_country_slug, validate_create_trip,
+    validate_fact_payload, validate_model_name, validate_pack_id, validate_provider_id,
+    validate_search_query, validate_update_trip,
 };
 use voyalier_core::{
     VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, VaultStatus, derive_key as vault_derive_key,
@@ -878,6 +879,15 @@ impl AppService {
                 snapshot.utc_offset_minutes,
             ))
         });
+        // Public holidays, narrowed to the trip window on read — a date edit
+        // re-filters the stored snapshot without a re-fetch.
+        let public_holidays =
+            load_public_holidays_snapshot(&connection, trip_id)?.map(|snapshot| {
+                PublicHolidaysSnapshot {
+                    holidays: holidays_within(&snapshot.holidays, &trip.start_date, &trip.end_date),
+                    ..snapshot
+                }
+            });
         Ok(TripDetail {
             trip,
             confirmed_facts,
@@ -892,6 +902,7 @@ impl AppService {
             astro,
             nearest_airports,
             time_difference,
+            public_holidays,
         })
     }
 
@@ -1981,6 +1992,76 @@ impl AppService {
         Ok(snapshot)
     }
 
+    /// Fetch the destination country's public holidays for the trip's years
+    /// from Nager.Date (keyless), stored as a dated snapshot. The trip detail
+    /// narrows them to the travel window on read, so a date edit re-filters
+    /// without a re-fetch. A year Nager does not cover simply contributes
+    /// nothing rather than failing the whole fetch.
+    pub fn fetch_public_holidays(&self, trip_id: &str) -> Result<PublicHolidaysSnapshot, AppError> {
+        let trip = {
+            let connection = self.connection()?;
+            self.records(&connection).trip(trip_id)?
+        };
+
+        // Geocode the destination to its country — the lookup weather and facts
+        // already use; Nager keys on the ISO-3166-1 alpha-2 code.
+        let geocode_url = format!(
+            "https://geocoding-api.open-meteo.com/v1/search?name={}&count=1&language=en&format=json",
+            percent_encode(&trip.destination)
+        );
+        let place = parse_geocoding_response(
+            &self
+                .fetcher
+                .fetch_text(&geocode_url)
+                .map_err(weather_network_failure)?,
+        )?;
+
+        let mut holidays = Vec::new();
+        for year in trip_years(&trip.start_date, &trip.end_date) {
+            let url = format!(
+                "https://date.nager.at/api/v3/PublicHolidays/{year}/{}",
+                place.country_code
+            );
+            if let Some(parsed) = self
+                .fetcher
+                .fetch_text(&url)
+                .ok()
+                .and_then(|body| parse_nager_holidays(&body).ok())
+            {
+                holidays.extend(parsed);
+            }
+        }
+
+        let snapshot = PublicHolidaysSnapshot {
+            country_code: place.country_code.clone(),
+            country_name: place.country.clone(),
+            holidays,
+            retrieved_at: now_rfc3339(),
+        };
+
+        let connection = self.connection()?;
+        connection
+            .execute(
+                "INSERT INTO public_holidays_snapshots
+                 (trip_id, country_code, country_name, holidays, retrieved_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5)
+                 ON CONFLICT(trip_id) DO UPDATE SET
+                   country_code = excluded.country_code,
+                   country_name = excluded.country_name,
+                   holidays = excluded.holidays,
+                   retrieved_at = excluded.retrieved_at",
+                params![
+                    trip_id,
+                    snapshot.country_code,
+                    snapshot.country_name,
+                    json_to_sql(&snapshot.holidays)?,
+                    snapshot.retrieved_at,
+                ],
+            )
+            .map_err(storage_error)?;
+        Ok(snapshot)
+    }
+
     /// Build a redacted, shareable brief from the confirmed plan. The brief is
     /// produced by generation-time exclusion in the core, so secrets never
     /// enter the returned structure.
@@ -2397,6 +2478,14 @@ impl AppService {
             transaction
                 .execute(
                     "DELETE FROM weather_snapshots WHERE trip_id = ?1",
+                    params![trip_id],
+                )
+                .map_err(storage_error)?;
+            // Public holidays are scoped to the destination country and the
+            // travel window — both are captured by `invalidates_weather`.
+            transaction
+                .execute(
+                    "DELETE FROM public_holidays_snapshots WHERE trip_id = ?1",
                     params![trip_id],
                 )
                 .map_err(storage_error)?;
@@ -3167,6 +3256,14 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
                 origin_utc_offset_minutes INTEGER
             );
 
+            CREATE TABLE IF NOT EXISTS public_holidays_snapshots (
+                trip_id TEXT PRIMARY KEY REFERENCES trips(id) ON DELETE CASCADE,
+                country_code TEXT NOT NULL,
+                country_name TEXT NOT NULL,
+                holidays TEXT NOT NULL DEFAULT '[]',
+                retrieved_at TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS confirmed_facts (
                 id TEXT PRIMARY KEY,
                 trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
@@ -3283,6 +3380,11 @@ const MIGRATIONS: &[Migration] = &[
         to: 7,
         name: "facts_origin",
         run: migrate_facts_origin,
+    },
+    Migration {
+        to: 8,
+        name: "public_holidays",
+        run: migrate_public_holidays,
     },
 ];
 
@@ -3532,6 +3634,22 @@ fn migrate_facts_origin(connection: &Connection) -> Result<(), AppError> {
         .execute_batch(
             "ALTER TABLE destination_facts_snapshots ADD COLUMN origin_place TEXT;
              ALTER TABLE destination_facts_snapshots ADD COLUMN origin_utc_offset_minutes INTEGER;",
+        )
+        .map_err(storage_error)
+}
+
+/// Create the `public_holidays_snapshots` table for databases that predate the
+/// holidays panel. Purely additive — nothing to backfill.
+fn migrate_public_holidays(connection: &Connection) -> Result<(), AppError> {
+    connection
+        .execute_batch(
+            "CREATE TABLE IF NOT EXISTS public_holidays_snapshots (
+                trip_id TEXT PRIMARY KEY REFERENCES trips(id) ON DELETE CASCADE,
+                country_code TEXT NOT NULL,
+                country_name TEXT NOT NULL,
+                holidays TEXT NOT NULL DEFAULT '[]',
+                retrieved_at TEXT NOT NULL
+            );",
         )
         .map_err(storage_error)
 }
@@ -3914,6 +4032,39 @@ fn load_destination_facts_snapshot(
                     retrieved_at: row.get(8)?,
                     origin_place: row.get(9)?,
                     origin_utc_offset_minutes: row.get(10)?,
+                })
+            },
+        )
+        .optional()
+        .map_err(storage_error)
+}
+
+/// The distinct calendar years a trip's date window touches, for per-year
+/// holiday lookups. Malformed dates yield no years rather than a guess.
+fn trip_years(start_date: &str, end_date: &str) -> Vec<i32> {
+    let year = |date: &str| date.get(0..4).and_then(|value| value.parse::<i32>().ok());
+    match (year(start_date), year(end_date)) {
+        (Some(start), Some(end)) if start <= end => (start..=end).collect(),
+        (Some(only), None) | (None, Some(only)) | (Some(only), Some(_)) => vec![only],
+        (None, None) => Vec::new(),
+    }
+}
+
+fn load_public_holidays_snapshot(
+    connection: &Connection,
+    trip_id: &str,
+) -> Result<Option<PublicHolidaysSnapshot>, AppError> {
+    connection
+        .query_row(
+            "SELECT country_code, country_name, holidays, retrieved_at
+             FROM public_holidays_snapshots WHERE trip_id = ?1",
+            params![trip_id],
+            |row| {
+                Ok(PublicHolidaysSnapshot {
+                    country_code: row.get(0)?,
+                    country_name: row.get(1)?,
+                    holidays: sql_to_json(row.get::<_, String>(2)?)?,
+                    retrieved_at: row.get(3)?,
                 })
             },
         )
@@ -5454,6 +5605,90 @@ mod tests {
         };
         assert!(columns.iter().any(|c| c == "origin_place"));
         assert!(columns.iter().any(|c| c == "origin_utc_offset_minutes"));
+    }
+
+    #[test]
+    fn fetch_public_holidays_stores_all_years_and_filters_to_the_window() {
+        struct HolidayFetcher;
+        impl AdviceFetcher for HolidayFetcher {
+            fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+                if url.contains("geocoding-api.open-meteo.com") {
+                    // name "Kyoto", country "Japan", country_code "JP".
+                    return Ok(facts_geocode_body("JP", "Asia/Tokyo"));
+                }
+                if url.contains("date.nager.at") && url.contains("/2027/JP") {
+                    return Ok(r#"[
+                      {"date":"2027-04-05","localName":"テスト祝日","name":"Test Holiday","global":true,"types":["Public"]},
+                      {"date":"2027-04-29","localName":"昭和の日","name":"Shōwa Day","global":true,"types":["Public"]}
+                    ]"#
+                    .to_owned());
+                }
+                Err(AppError::new(
+                    ErrorCode::AdviceFetchFailed,
+                    "unexpected url",
+                ))
+            }
+        }
+
+        let database = temp_database("holidays");
+        let service =
+            open_test_service_with_fetcher(&database, Arc::new(HolidayFetcher)).expect("service");
+        // valid_trip_input: Kyoto, 2027-04-01 .. 2027-04-10.
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        let snapshot = service.fetch_public_holidays(&trip.id).expect("snapshot");
+        assert_eq!(snapshot.country_code, "JP");
+        assert_eq!(snapshot.country_name, "Japan");
+        // Both fetched holidays are stored, unfiltered.
+        assert_eq!(snapshot.holidays.len(), 2);
+
+        let detail = service.get_trip(&trip.id).expect("detail");
+        let panel = detail.public_holidays.expect("holidays panel");
+        // Only 2027-04-05 falls inside the 04-01..04-10 window.
+        assert_eq!(panel.holidays.len(), 1);
+        assert_eq!(panel.holidays[0].date, "2027-04-05");
+        assert_eq!(panel.holidays[0].name, "Test Holiday");
+        assert_eq!(panel.country_name, "Japan");
+
+        // Moving the window off every holiday invalidates the snapshot.
+        service
+            .update_trip(
+                &trip.id,
+                UpdateTripInput {
+                    title: None,
+                    origin: None,
+                    destination: None,
+                    start_date: Some("2027-06-01".to_owned()),
+                    end_date: Some("2027-06-10".to_owned()),
+                },
+            )
+            .expect("date edit");
+        assert!(
+            service
+                .get_trip(&trip.id)
+                .expect("detail")
+                .public_holidays
+                .is_none()
+        );
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn migration_v8_adds_the_public_holidays_table() {
+        let connection = Connection::open_in_memory().expect("memory db");
+        connection
+            .execute_batch(r#"CREATE TABLE trips (id TEXT PRIMARY KEY); PRAGMA user_version = 7;"#)
+            .expect("pre-v8 shape");
+        migrate(&connection).expect("migrate to v8");
+        assert_eq!(
+            user_version(&connection).expect("version"),
+            target_schema_version()
+        );
+        assert!(
+            load_public_holidays_snapshot(&connection, "trip-1")
+                .expect("load")
+                .is_none()
+        );
     }
 
     #[test]

@@ -55,6 +55,12 @@ export interface TripDetail {
    * origin has been geocoded.
    */
   timeDifference?: TimeDifference;
+  /**
+   * The destination country's public holidays that fall during the trip,
+   * narrowed to the travel window on read. Present only once fetched; its
+   * `holidays` list is empty when none land in the window.
+   */
+  publicHolidays?: PublicHolidaysSnapshot;
 }
 /** The destination-vs-origin wall-clock gap on the trip's dates. */
 export interface TimeDifference {
@@ -66,6 +72,27 @@ export interface TimeDifference {
    * hours, so sub-hour zones stay exact.
    */
   offsetMinutes: number;
+}
+/** One public holiday at the destination. */
+export interface PublicHoliday {
+  /** ISO `YYYY-MM-DD`. */
+  date: string;
+  /** English name. */
+  name: string;
+  /** The holiday's name in the country's own language. */
+  localName: string;
+  /** National (`true`) versus regional / subdivision-only (`false`). */
+  global: boolean;
+}
+/** A dated snapshot of the destination country's public holidays. */
+export interface PublicHolidaysSnapshot {
+  /** ISO-3166-1 alpha-2 of the destination country. */
+  countryCode: string;
+  /** The destination country's English name, for labelling. */
+  countryName: string;
+  /** Public holidays (on `TripDetail`, already narrowed to the travel window). */
+  holidays: PublicHoliday[];
+  retrievedAt: string;
 }
 /** How large an airport is, as OurAirports classifies it. */
 export type AirportSize = "large" | "medium";
@@ -971,6 +998,8 @@ export interface AppGateway {
   fetchAdvisories(input: FetchAdvisoriesInput): Promise<AdvisoryPanel>;
   fetchWeather(tripId: string): Promise<WeatherSnapshot>;
   fetchDestinationFacts(tripId: string): Promise<DestinationFactsSnapshot>;
+  /** Fetch the destination country's public holidays (Nager.Date), consent-gated. */
+  fetchPublicHolidays(tripId: string): Promise<PublicHolidaysSnapshot>;
   searchTrip(tripId: string, query: string): Promise<SearchHit[]>;
   /** Typeahead term suggestions for the query's last word, from the trip corpus. */
   suggestSearchTerms(tripId: string, query: string): Promise<string[]>;

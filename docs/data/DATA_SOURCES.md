@@ -63,6 +63,7 @@ model.
 | --------------------- | ------------------------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------- |
 | European Central Bank | `www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml` | Exchange rates from the European Central Bank | ~29 EUR-based reference rates; shown **indicative**, not a card/ATM rate     |
 | Open-Meteo geocoding  | `geocoding-api.open-meteo.com/v1/search`                | Weather data by Open-Meteo.com (CC BY 4.0)    | Reused from weather — resolves the destination to coordinates + country + tz, and (best-effort) the trip origin's tz for the offline time difference |
+| Nager.Date public holidays | `date.nager.at/api/v3/PublicHolidays/{year}/{ISO2}` | Holiday data from Nager.Date (MIT-licensed API) | Keyless; one request per trip year. Only `types` ⊇ `"Public"` kept; narrowed to the travel window on read. Informational — never clears a readiness item |
 
 ## Bundled and computed data
 

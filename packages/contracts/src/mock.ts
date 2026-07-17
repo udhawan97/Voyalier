@@ -68,6 +68,7 @@ import type {
   AstroDay,
   CountryFacts,
   DestinationFactsSnapshot,
+  PublicHolidaysSnapshot,
   NearbyAirport,
   PackingSuggestion,
   Trip,
@@ -1394,6 +1395,7 @@ export function createMockGateway(options?: {
   const advisoryPanels = new Map<string, AdvisoryPanel>();
   const weatherSnapshots = new Map<string, WeatherSnapshot>();
   const destinationFactsSnapshots = new Map<string, DestinationFactsSnapshot>();
+  const publicHolidaysSnapshots = new Map<string, PublicHolidaysSnapshot>();
   // Provider config: which providers have a key stored, and their chosen model.
   // The mock never retains the key value itself, mirroring the real gateway.
   const providerKeys = new Set<ProviderId>();
@@ -1585,6 +1587,18 @@ export function createMockGateway(options?: {
                   destFacts.utcOffsetMinutes - destFacts.originUtcOffsetMinutes,
               }
             : undefined;
+        // Public holidays narrowed to the travel window on read, mirroring Rust.
+        const holidaysSnap = publicHolidaysSnapshots.get(tripId);
+        const publicHolidays = holidaysSnap
+          ? {
+              ...clone(holidaysSnap),
+              holidays: holidaysSnap.holidays.filter(
+                (holiday) =>
+                  holiday.date >= trip.startDate &&
+                  holiday.date <= trip.endDate,
+              ),
+            }
+          : undefined;
         return {
           trip: clone(trip),
           confirmedFacts,
@@ -1603,6 +1617,7 @@ export function createMockGateway(options?: {
           astro,
           nearestAirports,
           ...(timeDifference ? { timeDifference } : {}),
+          ...(publicHolidays ? { publicHolidays } : {}),
         } satisfies TripDetail;
       }),
 
@@ -1636,6 +1651,7 @@ export function createMockGateway(options?: {
           endDate !== existing.endDate
         ) {
           weatherSnapshots.delete(tripId);
+          publicHolidaysSnapshots.delete(tripId);
         }
         if (destination !== existing.destination) {
           advisoryPanels.delete(tripId);
@@ -2556,6 +2572,35 @@ export function createMockGateway(options?: {
             : {}),
         };
         destinationFactsSnapshots.set(tripId, snapshot);
+        return clone(snapshot);
+      }),
+
+    fetchPublicHolidays: (tripId: string) =>
+      execute("fetchPublicHolidays", () => {
+        const trip = requireTrip(tripId);
+        // A fixture: one holiday on the first trip day (always in-window) and
+        // one a year later (out of window), so the read-time filter is exercised.
+        const outside = `${Number(trip.startDate.slice(0, 4)) + 1}-01-01`;
+        const snapshot: PublicHolidaysSnapshot = {
+          countryCode: "JP",
+          countryName: "Japan",
+          holidays: [
+            {
+              date: trip.startDate,
+              name: "Culture Day",
+              localName: "文化の日",
+              global: true,
+            },
+            {
+              date: outside,
+              name: "New Year's Day",
+              localName: "元日",
+              global: true,
+            },
+          ],
+          retrievedAt: timestamp(),
+        };
+        publicHolidaysSnapshots.set(tripId, snapshot);
         return clone(snapshot);
       }),
 

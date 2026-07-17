@@ -1347,6 +1347,39 @@ h3 {
   margin-top: 0.4rem;
 }
 
+.voy-holidays__list {
+  list-style: none;
+  margin: 0 0 0.9rem;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.voy-holidays__item {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.voy-holidays__date {
+  color: var(--voy-ink-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.voy-holidays__empty,
+.voy-holidays__consent {
+  margin: 0.9rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+.voy-holidays__fetch {
+  margin-top: 0.4rem;
+}
+
 .voy-weather__title {
   font-size: 1.4rem;
   font-family: var(--voy-font-display);

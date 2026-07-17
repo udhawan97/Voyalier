@@ -79,6 +79,9 @@ pub struct WeatherSnapshot {
 pub struct GeocodedPlace {
     pub name: String,
     pub region: String,
+    /// The country's English name, verbatim from the geocoder (empty when
+    /// omitted). For labelling; `country_code` is what logic keys on.
+    pub country: String,
     pub latitude: f64,
     pub longitude: f64,
     /// ISO-3166-1 alpha-2, verbatim from the geocoder. This is what decides
@@ -145,6 +148,7 @@ pub fn parse_geocoding_response(json: &str) -> Result<GeocodedPlace, AppError> {
     Ok(GeocodedPlace {
         name,
         region,
+        country: country.to_owned(),
         latitude,
         longitude,
         country_code: first
