@@ -66,6 +66,7 @@ import { TravelAdvice } from "./TravelAdvice";
 import { TripSearch } from "./TripSearch";
 import { DestinationFacts } from "./DestinationFacts";
 import { PublicHolidays } from "./PublicHolidays";
+import { AboutPlace } from "./AboutPlace";
 import { WeatherOutlook } from "./WeatherOutlook";
 
 type Values = Record<string, string | undefined>;
@@ -783,6 +784,13 @@ export function TripDetailView({
           tripId={tripId}
           destination={trip.destination}
           snapshot={data.detail.publicHolidays}
+          onFetched={() => reload()}
+        />
+
+        <AboutPlace
+          tripId={tripId}
+          destination={trip.destination}
+          summary={data.detail.placeSummary}
           onFetched={() => reload()}
         />
 

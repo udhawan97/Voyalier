@@ -1401,6 +1401,30 @@ h3 {
   margin-top: 0.4rem;
 }
 
+.voy-about__desc {
+  margin: 0 0 0.5rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.9rem;
+}
+
+.voy-about__extract {
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.voy-about__attr,
+.voy-about__consent {
+  margin: 0.6rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.voy-about__fetch {
+  margin-top: 0.6rem;
+}
+
 .voy-weather__title {
   font-size: 1.4rem;
   font-family: var(--voy-font-display);
