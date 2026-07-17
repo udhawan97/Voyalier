@@ -157,9 +157,8 @@ their own applicability. Steps added since can trust the version.
 
 Which columns the vault seals is declared once, and that declaration drives a
 test holding each of them to being ciphertext on disk and plaintext through the
-reads. Trips, candidates, and confirmed facts are read and written through one
-module that seals where it maps the columns; the document body and trip notes
-still seal by hand at their own SQL.
+reads. Every record carrying one is read and written through a single module that
+seals where it maps the columns, so no call site has to remember to.
 
 Raw imported content and sensitive confirmed-fact payloads have three vault
 states:

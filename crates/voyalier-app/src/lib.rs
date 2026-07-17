@@ -2184,24 +2184,20 @@ impl AppService {
         }
 
         // The imported body carries the same confirmation codes and traveler
-        // names as the parsed facts, so it is sealed at rest too.
-        let sealed_content = self.records(&transaction).seal(&content)?;
-        transaction
-            .execute(
-                "INSERT INTO source_documents (id, trip_id, kind, label, content_hash, char_count, imported_at, raw_content)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                params![
-                    document_id,
-                    input.trip_id,
-                    enum_to_sql(kind)?,
-                    label,
-                    hash,
-                    char_count,
-                    now,
-                    sealed_content
-                ],
-            )
-            .map_err(storage_error)?;
+        // names as the parsed facts, so records seals it at rest.
+        let document = SourceDocument {
+            id: document_id,
+            trip_id: input.trip_id.clone(),
+            // The normalized body kind that was actually stored (email input
+            // becomes html/pasted_text), not the raw input kind.
+            kind,
+            label,
+            content_hash: hash,
+            char_count,
+            imported_at: now.clone(),
+        };
+        self.records(&transaction)
+            .insert_document(&document, &content)?;
         transaction
             .execute(
                 "INSERT INTO parser_runs (id, trip_id, document_id, parser_id, parser_version, created_at)
@@ -2209,7 +2205,7 @@ impl AppService {
                 params![
                     parser_run_id,
                     input.trip_id,
-                    document_id,
+                    document.id,
                     parser_id,
                     parser_version,
                     now
@@ -2222,7 +2218,7 @@ impl AppService {
             let candidate = CandidateFact {
                 id: new_id("cand"),
                 trip_id: input.trip_id.clone(),
-                document_id: document_id.clone(),
+                document_id: document.id.clone(),
                 parser_run_id: parser_run_id.clone(),
                 fact_type: parsed.fact_type,
                 payload: parsed.payload,
@@ -2239,18 +2235,10 @@ impl AppService {
 
         transaction.commit().map_err(storage_error)?;
 
+        // The same record that was stored, so what is returned cannot describe
+        // something other than what is on disk.
         Ok(ImportResult {
-            document: SourceDocument {
-                id: document_id,
-                trip_id: input.trip_id,
-                // The normalized body kind that was actually stored (email input
-                // becomes html/pasted_text), not the raw input kind.
-                kind,
-                label,
-                content_hash: hash,
-                char_count,
-                imported_at: now,
-            },
+            document,
             parser_run_id,
             candidates,
         })
@@ -2271,27 +2259,9 @@ impl AppService {
     /// written yet" is the normal first state, not a failure.
     pub fn get_trip_notes(&self, trip_id: &str) -> Result<TripNotes, AppError> {
         let connection = self.connection()?;
-        self.records(&connection).trip(trip_id)?;
-        let stored: Option<(String, String)> = connection
-            .query_row(
-                "SELECT body, updated_at FROM trip_notes WHERE trip_id = ?1",
-                params![trip_id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
-            )
-            .optional()
-            .map_err(storage_error)?;
-        match stored {
-            Some((sealed, updated_at)) => Ok(TripNotes {
-                trip_id: trip_id.to_owned(),
-                body: self.records(&connection).open(&sealed)?,
-                updated_at: Some(updated_at),
-            }),
-            None => Ok(TripNotes {
-                trip_id: trip_id.to_owned(),
-                body: String::new(),
-                updated_at: None,
-            }),
-        }
+        let records = self.records(&connection);
+        records.trip(trip_id)?;
+        records.trip_notes(trip_id)
     }
 
     /// Replace a trip's notes. Clearing them removes the row rather than storing
@@ -2304,14 +2274,10 @@ impl AppService {
             ));
         }
         let connection = self.connection()?;
-        self.records(&connection).trip(trip_id)?;
+        let records = self.records(&connection);
+        records.trip(trip_id)?;
         if body.is_empty() {
-            connection
-                .execute(
-                    "DELETE FROM trip_notes WHERE trip_id = ?1",
-                    params![trip_id],
-                )
-                .map_err(storage_error)?;
+            records.delete_trip_notes(trip_id)?;
             return Ok(TripNotes {
                 trip_id: trip_id.to_owned(),
                 body: String::new(),
@@ -2319,15 +2285,7 @@ impl AppService {
             });
         }
         let updated_at = now_rfc3339();
-        let sealed = self.records(&connection).seal(body)?;
-        connection
-            .execute(
-                "INSERT INTO trip_notes (id, trip_id, body, updated_at)
-                 VALUES (?1, ?2, ?3, ?4)
-                 ON CONFLICT(trip_id) DO UPDATE SET body = ?3, updated_at = ?4",
-                params![new_id("notes"), trip_id, sealed, updated_at],
-            )
-            .map_err(storage_error)?;
+        records.upsert_trip_notes(trip_id, body, &new_id("notes"), &updated_at)?;
         Ok(TripNotes {
             trip_id: trip_id.to_owned(),
             body: body.to_owned(),
@@ -2379,33 +2337,7 @@ impl AppService {
     /// they handed over — the same bytes the parser read.
     pub fn get_document(&self, document_id: &str) -> Result<DocumentContent, AppError> {
         let connection = self.connection()?;
-        let (document, sealed) = connection
-            .query_row(
-                "SELECT id, trip_id, kind, label, content_hash, char_count, imported_at, raw_content
-                 FROM source_documents WHERE id = ?1",
-                params![document_id],
-                |row| {
-                    Ok((
-                        SourceDocument {
-                            id: row.get(0)?,
-                            trip_id: row.get(1)?,
-                            kind: sql_to_enum(row.get::<_, String>(2)?)?,
-                            label: row.get(3)?,
-                            content_hash: row.get(4)?,
-                            char_count: row.get(5)?,
-                            imported_at: row.get(6)?,
-                        },
-                        row.get::<_, String>(7)?,
-                    ))
-                },
-            )
-            .optional()
-            .map_err(storage_error)?
-            .ok_or_else(|| {
-                AppError::new(ErrorCode::DocumentNotFound, "that document no longer exists")
-            })?;
-        let content = self.records(&connection).open(&sealed)?;
-        Ok(DocumentContent { document, content })
+        self.records(&connection).document_content(document_id)
     }
 
     /// Delete an imported document.
