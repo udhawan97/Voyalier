@@ -753,7 +753,7 @@ export function TripDetailView({
       <DeferredSection id="section-prepare">
         <TravelAdvice
           tripId={tripId}
-          snapshot={data.detail.travelAdvice}
+          panel={data.detail.advisoryPanel}
           onFetched={() => reload()}
         />
 

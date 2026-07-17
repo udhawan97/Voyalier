@@ -468,17 +468,27 @@ const en = {
   "advice.announce.saved": "Official advice for {country} saved.",
   "advice.stale": "Fetched {days} days ago — fetch again before you rely on it",
   "advice.fresh": "Recently fetched",
-  "advice.readMore": "Read the full advice on GOV.UK",
+  "advice.readMore": "Read the full advice at the source",
   "advice.retrieved": "Retrieved {stamp}",
   "advice.sourceUpdated": "Source updated {stamp}",
-  "advice.licence":
-    "Written for UK passport holders. Contains public sector information licensed under the Open Government Licence v3.0.",
+  // Each government writes for its own citizens and uses its own scale, so the
+  // panel says so once rather than implying the four cards are comparable.
+  "advice.crossSource":
+    "Each government writes for its own citizens and uses its own wording and levels. Compare the sources, not the numbers.",
+  "advice.healthNotices": "Health notices (US CDC)",
+  "advice.healthNotices.licence":
+    "Travel health notices from the U.S. Centers for Disease Control and Prevention (public domain). Informational only.",
+  "advice.status.kept":
+    "{source}: could not be reached — showing the last saved copy",
+  "advice.status.unavailable": "{source}: not available right now",
+  "advice.status.notPublished":
+    "{source} does not publish advice for this destination",
   "advice.selectLabel": "Country to fetch official advice for",
   "advice.chooseCountry": "Choose a country…",
   "advice.fetchAgain": "Fetch again",
   "advice.fetch": "Fetch official advice",
   "advice.consent":
-    "Fetching contacts www.gov.uk once from this device and stores a dated copy locally. Nothing else is sent, and nothing about your trip leaves this device.",
+    "Fetching contacts the UK, US, Canadian, and German government sources and the US CDC once from this device, and stores a dated copy locally. Nothing about your trip leaves this device.",
 
   "weather.title": "Weather outlook",
   "weather.announce.saved": "Weather outlook for {place} saved.",
