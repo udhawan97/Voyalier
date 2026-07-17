@@ -9,6 +9,7 @@ use crate::advisories::AdvisoryPanel;
 use crate::airports::NearbyAirport;
 use crate::astro::AstroDay;
 use crate::facts::{CountryFacts, DestinationFactsSnapshot, TimeDifference};
+use crate::heritage::HeritageSite;
 use crate::holidays::PublicHolidaysSnapshot;
 use crate::packing::PackingSuggestion;
 use crate::weather::WeatherSnapshot;
@@ -121,6 +122,11 @@ pub struct TripDetail {
     /// carries an empty `holidays` list when none land in the window.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub public_holidays: Option<PublicHolidaysSnapshot>,
+    /// UNESCO World Heritage sites near the destination, by great-circle
+    /// distance from the facts snapshot's coordinates. Bundled and offline;
+    /// empty without a snapshot.
+    #[serde(default)]
+    pub world_heritage: Vec<HeritageSite>,
 }
 
 /// Which deterministic plan-completeness check a readiness item reports on.

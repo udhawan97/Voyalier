@@ -69,6 +69,7 @@ import type {
   CountryFacts,
   DestinationFactsSnapshot,
   PublicHolidaysSnapshot,
+  HeritageSite,
   NearbyAirport,
   PackingSuggestion,
   Trip,
@@ -957,6 +958,22 @@ function mockNearestAirports(): NearbyAirport[] {
   ];
 }
 
+function mockWorldHeritage(): HeritageSite[] {
+  return [
+    {
+      name: "Historic Monuments of Ancient Kyoto",
+      distanceKm: 5.6,
+      year: 1994,
+    },
+    {
+      name: "Historic Monuments of Ancient Nara",
+      distanceKm: 37.9,
+      year: 1998,
+    },
+    { name: "Himeji Castle", distanceKm: 99.8, year: 1993 },
+  ];
+}
+
 function mockPackingList(
   weather: WeatherSnapshot | undefined,
   facts: ConfirmedFact[],
@@ -1577,6 +1594,7 @@ export function createMockGateway(options?: {
           : undefined;
         const astro = destFacts ? mockAstro(destFacts, trip) : [];
         const nearestAirports = destFacts ? mockNearestAirports() : [];
+        const worldHeritage = destFacts ? mockWorldHeritage() : [];
         // Derived on read from the snapshot's two offsets, mirroring the Rust
         // side — present only once the origin has been geocoded.
         const timeDifference =
@@ -1616,6 +1634,7 @@ export function createMockGateway(options?: {
           ...(countryFacts ? { countryFacts: clone(countryFacts) } : {}),
           astro,
           nearestAirports,
+          worldHeritage,
           ...(timeDifference ? { timeDifference } : {}),
           ...(publicHolidays ? { publicHolidays } : {}),
         } satisfies TripDetail;

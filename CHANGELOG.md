@@ -8,6 +8,12 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Added
 
+- **World Heritage sites near your destination.** The destination-facts card now
+  lists the UNESCO World Heritage sites closest to where you're going — with the
+  year each was inscribed and how far away it is — worked out on your device from
+  a bundled list of the world's ~940 sites (from Wikidata) and the coordinates
+  the card already resolved. No network; a nearby-notable list, not a claim of
+  completeness.
 - **Public holidays during your trip.** One click fetches the destination
   country's public holidays (from Nager.Date) and shows the ones that fall
   within your travel dates — with their local-language names — so a closed-bank,

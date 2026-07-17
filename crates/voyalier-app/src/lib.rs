@@ -40,7 +40,7 @@ use voyalier_core::{
     recommend_places, search_cities, search_trip_corpus, suggest_packs, suggest_search_terms,
     time_difference, validate_api_key, validate_country_slug, validate_create_trip,
     validate_fact_payload, validate_model_name, validate_pack_id, validate_provider_id,
-    validate_search_query, validate_update_trip,
+    validate_search_query, validate_update_trip, world_heritage_near,
 };
 use voyalier_core::{
     VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, VaultStatus, derive_key as vault_derive_key,
@@ -870,6 +870,12 @@ impl AppService {
             .as_ref()
             .map(|snapshot| nearest_airports(snapshot.latitude, snapshot.longitude, 4))
             .unwrap_or_default();
+        // World Heritage sites within 150 km of the destination — bundled data,
+        // no fetch, from the same stored coordinates.
+        let world_heritage = destination_facts
+            .as_ref()
+            .map(|snapshot| world_heritage_near(snapshot.latitude, snapshot.longitude, 150.0, 5))
+            .unwrap_or_default();
         // Derived on read from the snapshot's two stored offsets: present only
         // once the origin was geocoded on the last fetch.
         let time_difference = destination_facts.as_ref().and_then(|snapshot| {
@@ -903,6 +909,7 @@ impl AppService {
             nearest_airports,
             time_difference,
             public_holidays,
+            world_heritage,
         })
     }
 
@@ -5384,6 +5391,12 @@ mod tests {
         // The nearest airports fall out of the same stored coordinates.
         assert!(!detail.nearest_airports.is_empty(), "airports derived");
         assert_eq!(detail.nearest_airports[0].iata, "ITM");
+        // As do the World Heritage sites near the destination.
+        assert!(!detail.world_heritage.is_empty(), "heritage derived");
+        assert_eq!(
+            detail.world_heritage[0].name,
+            "Historic Monuments of Ancient Kyoto"
+        );
 
         // A destination edit invalidates the facts, like weather and advice.
         service
@@ -5402,6 +5415,7 @@ mod tests {
         assert!(after.destination_facts.is_none());
         assert!(after.astro.is_empty());
         assert!(after.nearest_airports.is_empty());
+        assert!(after.world_heritage.is_empty());
         cleanup_database(database);
     }
 

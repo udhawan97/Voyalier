@@ -61,6 +61,12 @@ export interface TripDetail {
    * `holidays` list is empty when none land in the window.
    */
   publicHolidays?: PublicHolidaysSnapshot;
+  /**
+   * UNESCO World Heritage sites near the destination, by great-circle distance
+   * from the snapshot's coordinates. Bundled and offline; empty without a
+   * snapshot.
+   */
+  worldHeritage: HeritageSite[];
 }
 /** The destination-vs-origin wall-clock gap on the trip's dates. */
 export interface TimeDifference {
@@ -103,6 +109,14 @@ export interface NearbyAirport {
   /** Great-circle distance from the destination, kilometres. */
   distanceKm: number;
   size: AirportSize;
+}
+/** One UNESCO World Heritage site near the destination. */
+export interface HeritageSite {
+  name: string;
+  /** Great-circle distance from the destination, kilometres. */
+  distanceKm: number;
+  /** Year the site was inscribed, when known. */
+  year?: number;
 }
 /** Whether the sun rises and sets at all on a day. */
 export type PolarState = "normal" | "polarDay" | "polarNight";
