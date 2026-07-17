@@ -12,6 +12,7 @@ mod astro;
 mod brief;
 mod climate;
 mod email;
+mod facts;
 mod itinerary;
 mod local_ai;
 mod packing;
@@ -62,6 +63,9 @@ pub use climate::{
 // `extract_email_body` is deliberately not re-exported: it must only be reached
 // through `parse_import`, which bounds the raw input before the extractor walks
 // an untrusted MIME tree.
+pub use facts::{
+    CountryFacts, CurrencyRate, EmergencyNumbers, country_facts, cross_rate, parse_ecb_rates,
+};
 pub use itinerary::detect_itinerary_conflicts;
 pub use local_ai::{
     LocalAiModel, LocalAiStatus, LocalModelPullResult, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,
