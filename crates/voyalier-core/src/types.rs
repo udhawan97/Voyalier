@@ -6,6 +6,8 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::advisories::AdvisoryPanel;
+use crate::astro::AstroDay;
+use crate::facts::{CountryFacts, DestinationFactsSnapshot};
 use crate::packing::PackingSuggestion;
 use crate::weather::WeatherSnapshot;
 
@@ -89,6 +91,20 @@ pub struct TripDetail {
     /// never fetched, never model-authored.
     #[serde(default)]
     pub packing_list: Vec<PackingSuggestion>,
+    /// The latest user-fetched destination-facts snapshot, when one exists.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub destination_facts: Option<DestinationFactsSnapshot>,
+    /// The bundled facts for the destination's country, resolved fresh from
+    /// the snapshot's country code. Present only when the country is covered.
+    ///
+    /// `skip_deserializing`: these are serialize-only bundled records (borrowed
+    /// `&'static str`), always derived on read and never parsed back in.
+    #[serde(default, skip_deserializing, skip_serializing_if = "Option::is_none")]
+    pub country_facts: Option<CountryFacts>,
+    /// Sunrise/sunset/day-length per trip day, computed offline from the
+    /// snapshot's coordinates. Empty without a destination-facts snapshot.
+    #[serde(default)]
+    pub astro: Vec<AstroDay>,
 }
 
 /// Which deterministic plan-completeness check a readiness item reports on.

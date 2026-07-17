@@ -64,7 +64,8 @@ pub use climate::{
 // through `parse_import`, which bounds the raw input before the extractor walks
 // an untrusted MIME tree.
 pub use facts::{
-    CountryFacts, CurrencyRate, EmergencyNumbers, country_facts, cross_rate, parse_ecb_rates,
+    CountryFacts, CurrencyRate, DestinationFactsSnapshot, EmergencyNumbers, country_facts,
+    cross_rate, parse_ecb_rates,
 };
 pub use itinerary::detect_itinerary_conflicts;
 pub use local_ai::{

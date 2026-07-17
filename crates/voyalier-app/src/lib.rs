@@ -14,31 +14,31 @@ use sha2::{Digest, Sha256};
 use voyalier_core::{
     ASSIST_DRAFT_LODGING_DATES, ASSIST_SYSTEM_PROMPT, AddManualFactInput, AdvisoryEntry,
     AdvisoryPanel, AdvisorySource, AiPrompt, AiPromptKind, AiPromptSettings, AirQualityDay,
-    AppError, AssistActivityEntry, AssistDraftResult, AssistReply, AssistRequestPreview,
+    AppError, AssistActivityEntry, AssistDraftResult, AssistReply, AssistRequestPreview, AstroDay,
     CandidateFact, CandidateStatus, ClimateNormals, ConfirmCandidateInput, ConfirmedFact,
-    CreateTripInput, DRAFT_LODGING_DATES_SYSTEM_PROMPT, DocumentContent, DocumentKind,
-    DocumentParse, DocumentSummary, DownloadedPack, ErrorCode, ExtractionMethod, FCDO_COUNTRIES,
-    FactPayload, FactType, FcdoCountry, FieldSuggestion, GeocodedPlace, HealthNotice,
-    HealthResponse, ImportDocumentInput, ImportResult, IntelligenceMode, KeyValidation,
-    LocalAiStatus, LocalModelPullResult, LodgingDateProposal, MAX_AI_PROMPT_LEN, MAX_NOTES_CHARS,
-    MAX_OFFLINE_MAP_BYTES, OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OfflineMapArchive, OfflineMapChunk,
-    OfflineMapDescriptor, PROVIDERS, PackContent, PackInfo, PackSuggestion, PersonaWeights,
-    ProviderConfig, ProviderId, Recommendation, RedactionPolicy, SEARCH_SUGGESTION_LIMIT,
-    SearchHit, SearchableDocument, SourceDocument, SourceState, SourceStatus, SuggestionSource,
-    TodayView, Trip, TripAssessment, TripBrief, TripDetail, TripNotes, TripStatus, TripSummary,
-    UpdateTripInput, WarningCode, WeatherAlert, WeatherSnapshot, advisory_country, archive_window,
-    assess_trip, build_assist_preview, build_assist_request, build_draft_preview,
-    build_key_validation_request, build_packing_list, build_pull_body, build_today_view,
-    build_trip_brief, changed_payload_fields, entry_from_fcdo, estimate_tokens,
-    interpret_key_validation, interpret_pull_response, new_id, notices_for_country, now_rfc3339,
-    offline_map_download_url, pack_catalog, pack_download_url, parse_air_quality,
-    parse_assist_reply, parse_ca_gac, parse_cdc_notices, parse_climate_normals, parse_de_aa,
-    parse_fcdo_content, parse_forecast_response, parse_geocoding_response, parse_import,
-    parse_lodging_dates_reply, parse_nws_alerts, parse_pack_content, parse_us_state, provider_info,
-    rank_field_suggestions, recommend_places, search_trip_corpus, suggest_packs,
-    suggest_search_terms, validate_api_key, validate_country_slug, validate_create_trip,
-    validate_fact_payload, validate_model_name, validate_pack_id, validate_provider_id,
-    validate_search_query, validate_update_trip,
+    CreateTripInput, DRAFT_LODGING_DATES_SYSTEM_PROMPT, DestinationFactsSnapshot, DocumentContent,
+    DocumentKind, DocumentParse, DocumentSummary, DownloadedPack, ErrorCode, ExtractionMethod,
+    FCDO_COUNTRIES, FactPayload, FactType, FcdoCountry, FieldSuggestion, GeocodedPlace,
+    HealthNotice, HealthResponse, ImportDocumentInput, ImportResult, IntelligenceMode,
+    KeyValidation, LocalAiStatus, LocalModelPullResult, LodgingDateProposal, MAX_AI_PROMPT_LEN,
+    MAX_NOTES_CHARS, MAX_OFFLINE_MAP_BYTES, OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OfflineMapArchive,
+    OfflineMapChunk, OfflineMapDescriptor, PROVIDERS, PackContent, PackInfo, PackSuggestion,
+    PersonaWeights, ProviderConfig, ProviderId, Recommendation, RedactionPolicy,
+    SEARCH_SUGGESTION_LIMIT, SearchHit, SearchableDocument, SourceDocument, SourceState,
+    SourceStatus, SuggestionSource, TodayView, Trip, TripAssessment, TripBrief, TripDetail,
+    TripNotes, TripStatus, TripSummary, UpdateTripInput, WarningCode, WeatherAlert,
+    WeatherSnapshot, advisory_country, archive_window, assess_trip, build_assist_preview,
+    build_assist_request, build_draft_preview, build_key_validation_request, build_packing_list,
+    build_pull_body, build_today_view, build_trip_brief, changed_payload_fields, compute_astro_day,
+    country_facts, entry_from_fcdo, estimate_tokens, interpret_key_validation,
+    interpret_pull_response, new_id, notices_for_country, now_rfc3339, offline_map_download_url,
+    pack_catalog, pack_download_url, parse_air_quality, parse_assist_reply, parse_ca_gac,
+    parse_cdc_notices, parse_climate_normals, parse_de_aa, parse_ecb_rates, parse_fcdo_content,
+    parse_forecast_response, parse_geocoding_response, parse_import, parse_lodging_dates_reply,
+    parse_nws_alerts, parse_pack_content, parse_us_state, provider_info, rank_field_suggestions,
+    recommend_places, search_trip_corpus, suggest_packs, suggest_search_terms, validate_api_key,
+    validate_country_slug, validate_create_trip, validate_fact_payload, validate_model_name,
+    validate_pack_id, validate_provider_id, validate_search_query, validate_update_trip,
 };
 use voyalier_core::{
     VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, VaultStatus, derive_key as vault_derive_key,
@@ -850,6 +850,18 @@ impl AppService {
         let weather = fetch_weather_snapshot(&connection, trip_id)?;
         // Derived, not fetched: the same stored evidence, read a second way.
         let packing_list = build_packing_list(&trip, &confirmed_facts, weather.as_ref());
+        let destination_facts = load_destination_facts_snapshot(&connection, trip_id)?;
+        // Country facts are bundled and re-resolved from the stored country
+        // code, so a corrected value is never frozen into an old row; astro is
+        // computed from the stored coordinates for each day of the trip window.
+        let country_facts = destination_facts
+            .as_ref()
+            .and_then(|snapshot| country_facts(&snapshot.country_code))
+            .cloned();
+        let astro = destination_facts
+            .as_ref()
+            .map(|snapshot| derive_astro(snapshot, &trip))
+            .unwrap_or_default();
         Ok(TripDetail {
             trip,
             confirmed_facts,
@@ -859,6 +871,9 @@ impl AppService {
             advisory_panel,
             weather,
             packing_list,
+            destination_facts,
+            country_facts,
+            astro,
         })
     }
 
@@ -1795,6 +1810,89 @@ impl AppService {
         parse_nws_alerts(&body).ok()
     }
 
+    /// Fetch the destination's practical facts on one click: a geocode (name,
+    /// coordinates, country, timezone) and today's ECB reference rates.
+    ///
+    /// The country facts and the sun/moon days are derived from the stored
+    /// snapshot on read, not fetched — so this makes exactly two requests, and
+    /// a failed rate fetch still keeps the geocoded place.
+    pub fn fetch_destination_facts(
+        &self,
+        trip_id: &str,
+    ) -> Result<DestinationFactsSnapshot, AppError> {
+        let trip = {
+            let connection = self.connection()?;
+            self.records(&connection).trip(trip_id)?
+        };
+
+        let geocode_url = format!(
+            "https://geocoding-api.open-meteo.com/v1/search?name={}&count=1&language=en&format=json",
+            percent_encode(&trip.destination)
+        );
+        let place = parse_geocoding_response(
+            &self
+                .fetcher
+                .fetch_text(&geocode_url)
+                .map_err(weather_network_failure)?,
+        )?;
+
+        // The ECB feed is a small daily file; a failure here leaves the card
+        // with the place and its country facts but no rates.
+        let (rate_date, currency_rates) = match self
+            .fetcher
+            .fetch_text("https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml")
+            .and_then(|body| parse_ecb_rates(&body))
+        {
+            Ok((date, rates)) => (date, rates),
+            Err(_) => (String::new(), Vec::new()),
+        };
+
+        let snapshot = DestinationFactsSnapshot {
+            place_name: place.name.clone(),
+            place_region: place.region.clone(),
+            latitude: place.latitude,
+            longitude: place.longitude,
+            utc_offset_minutes: offset_minutes_for(&place.timezone, &trip.start_date),
+            country_code: place.country_code.clone(),
+            rate_date,
+            currency_rates,
+            retrieved_at: now_rfc3339(),
+        };
+
+        let connection = self.connection()?;
+        connection
+            .execute(
+                "INSERT INTO destination_facts_snapshots
+                 (trip_id, place_name, place_region, latitude, longitude, utc_offset_minutes,
+                  country_code, rate_date, currency_rates, retrieved_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+                 ON CONFLICT(trip_id) DO UPDATE SET
+                   place_name = excluded.place_name,
+                   place_region = excluded.place_region,
+                   latitude = excluded.latitude,
+                   longitude = excluded.longitude,
+                   utc_offset_minutes = excluded.utc_offset_minutes,
+                   country_code = excluded.country_code,
+                   rate_date = excluded.rate_date,
+                   currency_rates = excluded.currency_rates,
+                   retrieved_at = excluded.retrieved_at",
+                params![
+                    trip_id,
+                    snapshot.place_name,
+                    snapshot.place_region,
+                    snapshot.latitude,
+                    snapshot.longitude,
+                    snapshot.utc_offset_minutes,
+                    snapshot.country_code,
+                    snapshot.rate_date,
+                    json_to_sql(&snapshot.currency_rates)?,
+                    snapshot.retrieved_at,
+                ],
+            )
+            .map_err(storage_error)?;
+        Ok(snapshot)
+    }
+
     /// Build a redacted, shareable brief from the confirmed plan. The brief is
     /// produced by generation-time exclusion in the core, so secrets never
     /// enter the returned structure.
@@ -2226,6 +2324,14 @@ impl AppService {
             transaction
                 .execute(
                     "DELETE FROM advisory_panels WHERE trip_id = ?1",
+                    params![trip_id],
+                )
+                .map_err(storage_error)?;
+            // The facts snapshot (place, timezone, country, rates) is likewise
+            // about the old destination.
+            transaction
+                .execute(
+                    "DELETE FROM destination_facts_snapshots WHERE trip_id = ?1",
                     params![trip_id],
                 )
                 .map_err(storage_error)?;
@@ -2954,6 +3060,19 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
                 alerts TEXT NOT NULL DEFAULT '[]'
             );
 
+            CREATE TABLE IF NOT EXISTS destination_facts_snapshots (
+                trip_id TEXT PRIMARY KEY REFERENCES trips(id) ON DELETE CASCADE,
+                place_name TEXT NOT NULL,
+                place_region TEXT NOT NULL,
+                latitude REAL NOT NULL,
+                longitude REAL NOT NULL,
+                utc_offset_minutes INTEGER NOT NULL,
+                country_code TEXT NOT NULL,
+                rate_date TEXT NOT NULL,
+                currency_rates TEXT NOT NULL DEFAULT '[]',
+                retrieved_at TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS confirmed_facts (
                 id TEXT PRIMARY KEY,
                 trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
@@ -3060,6 +3179,11 @@ const MIGRATIONS: &[Migration] = &[
         to: 5,
         name: "weather_layers",
         run: migrate_weather_layers,
+    },
+    Migration {
+        to: 6,
+        name: "destination_facts",
+        run: migrate_destination_facts,
     },
 ];
 
@@ -3260,6 +3384,27 @@ fn migrate_advisory_panel(connection: &Connection) -> Result<(), AppError> {
 
     connection
         .execute_batch("DROP TABLE travel_advice_snapshots;")
+        .map_err(storage_error)
+}
+
+/// Create the `destination_facts_snapshots` table for databases that predate
+/// the facts card. Purely additive — nothing to backfill.
+fn migrate_destination_facts(connection: &Connection) -> Result<(), AppError> {
+    connection
+        .execute_batch(
+            "CREATE TABLE IF NOT EXISTS destination_facts_snapshots (
+                trip_id TEXT PRIMARY KEY REFERENCES trips(id) ON DELETE CASCADE,
+                place_name TEXT NOT NULL,
+                place_region TEXT NOT NULL,
+                latitude REAL NOT NULL,
+                longitude REAL NOT NULL,
+                utc_offset_minutes INTEGER NOT NULL,
+                country_code TEXT NOT NULL,
+                rate_date TEXT NOT NULL,
+                currency_rates TEXT NOT NULL DEFAULT '[]',
+                retrieved_at TEXT NOT NULL
+            );",
+        )
         .map_err(storage_error)
 }
 
@@ -3568,6 +3713,81 @@ fn load_advisory_panel(
         source_status,
         retrieved_at,
     }))
+}
+
+/// Resolve an IANA timezone name to its UTC offset in minutes on a given date.
+/// An unknown or empty name resolves to UTC rather than guessing — jiff bundles
+/// the tz database on platforms without a system one, so this works offline.
+fn offset_minutes_for(timezone: &str, on_date: &str) -> i32 {
+    if timezone.is_empty() {
+        return 0;
+    }
+    let Ok(tz) = jiff::tz::TimeZone::get(timezone) else {
+        return 0;
+    };
+    let Ok(date) = on_date.parse::<jiff::civil::Date>() else {
+        return 0;
+    };
+    // Noon avoids landing exactly on a DST transition boundary.
+    let Ok(datetime) = date.at(12, 0, 0, 0).to_zoned(tz) else {
+        return 0;
+    };
+    datetime.offset().seconds() / 60
+}
+
+/// The sun/moon days for the trip window, computed from a stored snapshot's
+/// coordinates and offset. Capped so a very long trip stays bounded.
+fn derive_astro(snapshot: &DestinationFactsSnapshot, trip: &Trip) -> Vec<AstroDay> {
+    const MAX_ASTRO_DAYS: usize = 16;
+    let (Ok(start), Ok(end)) = (
+        trip.start_date.parse::<jiff::civil::Date>(),
+        trip.end_date.parse::<jiff::civil::Date>(),
+    ) else {
+        return Vec::new();
+    };
+    let mut days = Vec::new();
+    let mut date = start;
+    while date <= end && days.len() < MAX_ASTRO_DAYS {
+        if let Ok(day) = compute_astro_day(
+            snapshot.latitude,
+            snapshot.longitude,
+            &date.to_string(),
+            snapshot.utc_offset_minutes,
+        ) {
+            days.push(day);
+        }
+        let Ok(next) = date.tomorrow() else { break };
+        date = next;
+    }
+    days
+}
+
+fn load_destination_facts_snapshot(
+    connection: &Connection,
+    trip_id: &str,
+) -> Result<Option<DestinationFactsSnapshot>, AppError> {
+    connection
+        .query_row(
+            "SELECT place_name, place_region, latitude, longitude, utc_offset_minutes,
+                    country_code, rate_date, currency_rates, retrieved_at
+             FROM destination_facts_snapshots WHERE trip_id = ?1",
+            params![trip_id],
+            |row| {
+                Ok(DestinationFactsSnapshot {
+                    place_name: row.get(0)?,
+                    place_region: row.get(1)?,
+                    latitude: row.get(2)?,
+                    longitude: row.get(3)?,
+                    utc_offset_minutes: row.get(4)?,
+                    country_code: row.get(5)?,
+                    rate_date: row.get(6)?,
+                    currency_rates: sql_to_json(row.get::<_, String>(7)?)?,
+                    retrieved_at: row.get(8)?,
+                })
+            },
+        )
+        .optional()
+        .map_err(storage_error)
 }
 
 fn fetch_weather_snapshot(
@@ -4764,6 +4984,174 @@ mod tests {
         assert!(stored.normals.is_none());
         assert!(stored.air_quality.is_empty());
         assert!(stored.alerts.is_empty());
+    }
+
+    /// The facts card fetches once: a geocode (name, coords, country, tz) and
+    /// the ECB rates. From that it derives country facts and per-day sun/moon,
+    /// none of which is re-fetched. A rate-source failure still keeps the rest.
+    fn facts_geocode_body(country_code: &str, timezone: &str) -> String {
+        format!(
+            r#"{{ "results": [ {{ "name": "Kyoto", "latitude": 35.0116,
+                "longitude": 135.7681, "country": "Japan", "admin1": "Kyoto",
+                "country_code": "{country_code}", "timezone": "{timezone}" }} ] }}"#
+        )
+    }
+
+    const ECB_BODY: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<gesmes:Envelope xmlns:gesmes="http://www.gesmes.org/xml/2002-08-01"
+ xmlns="http://www.ecb.int/vocabulary/2002-08-01/eurofxref">
+  <Cube><Cube time='2026-07-17'>
+    <Cube currency='USD' rate='1.1435'/>
+    <Cube currency='JPY' rate='185.65'/>
+    <Cube currency='GBP' rate='0.85098'/>
+  </Cube></Cube>
+</gesmes:Envelope>"#;
+
+    #[test]
+    fn fetch_destination_facts_stores_place_rates_and_derives_facts_and_astro() {
+        use voyalier_core::{PolarState, cross_rate};
+
+        struct RoutedFetcher {
+            calls: std::sync::Mutex<Vec<String>>,
+        }
+        impl AdviceFetcher for RoutedFetcher {
+            fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+                self.calls.lock().expect("lock").push(url.to_owned());
+                if url.contains("geocoding-api.open-meteo.com") {
+                    return Ok(facts_geocode_body("JP", "Asia/Tokyo"));
+                }
+                if url.contains("ecb.europa.eu") {
+                    return Ok(ECB_BODY.to_owned());
+                }
+                Err(AppError::new(
+                    ErrorCode::WeatherFetchFailed,
+                    "unexpected url",
+                ))
+            }
+        }
+
+        let database = temp_database("facts");
+        let fetcher = Arc::new(RoutedFetcher {
+            calls: std::sync::Mutex::new(Vec::new()),
+        });
+        let service = open_test_service_with_fetcher(&database, fetcher.clone()).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        let snapshot = service.fetch_destination_facts(&trip.id).expect("snapshot");
+        assert_eq!(snapshot.place_name, "Kyoto");
+        assert_eq!(snapshot.country_code, "JP");
+        // Asia/Tokyo is UTC+9 all year, so the offset is 540 minutes.
+        assert_eq!(snapshot.utc_offset_minutes, 540);
+        assert_eq!(snapshot.rate_date, "2026-07-17");
+        // The rates round-trip and convert: 1 USD ≈ 162.35 JPY via EUR.
+        let usd_jpy = cross_rate(&snapshot.currency_rates, "USD", "JPY").expect("usd->jpy");
+        assert!((usd_jpy - 162.35).abs() < 0.1, "{usd_jpy}");
+
+        let calls = fetcher.calls.lock().expect("lock").clone();
+        assert!(
+            calls
+                .iter()
+                .any(|url| url.contains("geocoding-api.open-meteo.com"))
+        );
+        assert!(calls.iter().any(|url| url.contains("ecb.europa.eu")));
+
+        // The detail derives the country facts (bundled) and the sun/moon days
+        // (computed) from the stored snapshot — no second fetch.
+        let detail = service.get_trip(&trip.id).expect("detail");
+        assert_eq!(detail.destination_facts.expect("stored").country_code, "JP");
+        let facts = detail.country_facts.expect("resolved facts");
+        assert_eq!(facts.currency_code, "JPY");
+        assert_eq!(facts.voltage_v, 100);
+        assert!(facts.drives_on_left);
+        assert!(
+            !detail.astro.is_empty(),
+            "astro derived for the trip window"
+        );
+        let first = &detail.astro[0];
+        assert_eq!(first.polar, PolarState::Normal);
+        assert!(first.sunrise.is_some());
+
+        // A destination edit invalidates the facts, like weather and advice.
+        service
+            .update_trip(
+                &trip.id,
+                UpdateTripInput {
+                    title: None,
+                    origin: None,
+                    destination: Some("Oslo".to_owned()),
+                    start_date: None,
+                    end_date: None,
+                },
+            )
+            .expect("destination edit");
+        let after = service.get_trip(&trip.id).expect("detail after edit");
+        assert!(after.destination_facts.is_none());
+        assert!(after.astro.is_empty());
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn facts_degrade_when_the_rate_source_is_down_and_are_absent_for_uncovered_countries() {
+        struct PickyFetcher;
+        impl AdviceFetcher for PickyFetcher {
+            fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+                if url.contains("geocoding-api.open-meteo.com") {
+                    // A country with no bundled facts (Antarctica) and no tz.
+                    return Ok(facts_geocode_body("AQ", ""));
+                }
+                if url.contains("ecb.europa.eu") {
+                    return Err(AppError::new(ErrorCode::WeatherFetchFailed, "rates down"));
+                }
+                Err(AppError::new(
+                    ErrorCode::WeatherFetchFailed,
+                    "unexpected url",
+                ))
+            }
+        }
+
+        let database = temp_database("facts_degraded");
+        let service =
+            open_test_service_with_fetcher(&database, Arc::new(PickyFetcher)).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        // The rate feed is down, but the geocode succeeded: the snapshot is
+        // still worth storing, just with no rates.
+        let snapshot = service.fetch_destination_facts(&trip.id).expect("snapshot");
+        assert!(snapshot.currency_rates.is_empty());
+        assert_eq!(snapshot.rate_date, "");
+        // An unknown timezone leaves the offset at UTC rather than guessing.
+        assert_eq!(snapshot.utc_offset_minutes, 0);
+
+        let detail = service.get_trip(&trip.id).expect("detail");
+        // Antarctica has no bundled facts, so the card shows none — but astro
+        // still computes from coordinates alone.
+        assert!(detail.country_facts.is_none());
+        assert!(!detail.astro.is_empty());
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn migration_v6_keeps_a_database_without_a_facts_table() {
+        let connection = Connection::open_in_memory().expect("memory db");
+        connection
+            .execute_batch(
+                r#"CREATE TABLE trips (id TEXT PRIMARY KEY);
+                   INSERT INTO trips (id) VALUES ('trip-1');
+                   PRAGMA user_version = 5;"#,
+            )
+            .expect("pre-v6 shape");
+
+        migrate(&connection).expect("migrate to v6");
+        assert_eq!(
+            user_version(&connection).expect("version"),
+            target_schema_version()
+        );
+        // The table now exists and a trip with no facts loads as None.
+        assert!(
+            load_destination_facts_snapshot(&connection, "trip-1")
+                .expect("load")
+                .is_none()
+        );
     }
 
     #[test]

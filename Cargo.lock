@@ -5063,6 +5063,7 @@ dependencies = [
  "base64 0.22.1",
  "directories",
  "getrandom 0.2.17",
+ "jiff",
  "keyring",
  "rusqlite",
  "serde",

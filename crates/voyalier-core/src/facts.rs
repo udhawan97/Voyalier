@@ -56,6 +56,30 @@ pub struct CountryFacts {
     pub emergency: EmergencyNumbers,
 }
 
+/// A dated destination-facts snapshot: where the place is, its timezone offset,
+/// which country it is in, and today's reference rates. The country facts and
+/// the sun/moon days are *derived* from this at read time, not stored — bundled
+/// facts never go stale in an old row, and astro is always current.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DestinationFactsSnapshot {
+    pub place_name: String,
+    pub place_region: String,
+    pub latitude: f64,
+    pub longitude: f64,
+    /// Minutes east of UTC at the destination on the trip's dates, for
+    /// converting sun times to local wall clock offline.
+    pub utc_offset_minutes: i32,
+    /// ISO-3166-1 alpha-2, the key into the bundled country-facts table.
+    pub country_code: String,
+    /// The ECB reference date the rates carry, verbatim.
+    pub rate_date: String,
+    /// EUR-based reference rates (EUR included as 1.0); empty when the rate
+    /// source could not be reached.
+    pub currency_rates: Vec<CurrencyRate>,
+    pub retrieved_at: String,
+}
+
 fn unreadable_source() -> AppError {
     AppError::new(
         ErrorCode::WeatherFetchFailed,

@@ -84,6 +84,9 @@ pub struct GeocodedPlace {
     /// ISO-3166-1 alpha-2, verbatim from the geocoder. This is what decides
     /// whether a US-only source like the NWS applies — no second lookup.
     pub country_code: String,
+    /// IANA timezone name (e.g. "Asia/Tokyo"), for resolving the local UTC
+    /// offset without a second lookup. Empty when the geocoder omits it.
+    pub timezone: String,
 }
 
 fn unreadable_source() -> AppError {
@@ -146,6 +149,11 @@ pub fn parse_geocoding_response(json: &str) -> Result<GeocodedPlace, AppError> {
         longitude,
         country_code: first
             .get("country_code")
+            .and_then(|field| field.as_str())
+            .unwrap_or_default()
+            .to_owned(),
+        timezone: first
+            .get("timezone")
             .and_then(|field| field.as_str())
             .unwrap_or_default()
             .to_owned(),
