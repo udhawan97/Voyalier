@@ -5,6 +5,7 @@
 
 mod advice;
 mod advisories;
+mod airports;
 mod alerts;
 mod assist;
 mod assist_draft;
@@ -42,6 +43,7 @@ pub use advisories::{
 // Per-provider endpoints, model defaults, body builders, and reply parsers stay
 // internal: which of each pairs with which provider is `assist`'s knowledge.
 // `build_assist_request` + `parse_assist_reply` are the way in.
+pub use airports::{AirportSize, NearbyAirport, nearest_airports};
 pub use alerts::{WeatherAlert, parse_nws_alerts};
 pub use assist::{
     ASSIST_SYSTEM_PROMPT, AssistActivityEntry, AssistReply, AssistRequest, AssistRequestPreview,
