@@ -13,30 +13,32 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use voyalier_core::{
     ASSIST_DRAFT_LODGING_DATES, ASSIST_SYSTEM_PROMPT, AddManualFactInput, AdvisoryEntry,
-    AdvisoryPanel, AdvisorySource, AiPrompt, AiPromptKind, AiPromptSettings, AppError,
-    AssistActivityEntry, AssistDraftResult, AssistReply, AssistRequestPreview, CandidateFact,
-    CandidateStatus, ConfirmCandidateInput, ConfirmedFact, CreateTripInput,
-    DRAFT_LODGING_DATES_SYSTEM_PROMPT, DocumentContent, DocumentKind, DocumentParse,
-    DocumentSummary, DownloadedPack, ErrorCode, ExtractionMethod, FCDO_COUNTRIES, FactPayload,
-    FactType, FcdoCountry, FieldSuggestion, HealthNotice, HealthResponse, ImportDocumentInput,
-    ImportResult, IntelligenceMode, KeyValidation, LocalAiStatus, LocalModelPullResult,
-    LodgingDateProposal, MAX_AI_PROMPT_LEN, MAX_NOTES_CHARS, MAX_OFFLINE_MAP_BYTES,
-    OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OfflineMapArchive, OfflineMapChunk, OfflineMapDescriptor,
-    PROVIDERS, PackContent, PackInfo, PackSuggestion, PersonaWeights, ProviderConfig, ProviderId,
-    Recommendation, RedactionPolicy, SEARCH_SUGGESTION_LIMIT, SearchHit, SearchableDocument,
-    SourceDocument, SourceState, SourceStatus, SuggestionSource, TodayView, Trip, TripAssessment,
-    TripBrief, TripDetail, TripNotes, TripStatus, TripSummary, UpdateTripInput, WarningCode,
-    WeatherSnapshot, advisory_country, assess_trip, build_assist_preview, build_assist_request,
-    build_draft_preview, build_key_validation_request, build_pull_body, build_today_view,
+    AdvisoryPanel, AdvisorySource, AiPrompt, AiPromptKind, AiPromptSettings, AirQualityDay,
+    AppError, AssistActivityEntry, AssistDraftResult, AssistReply, AssistRequestPreview,
+    CandidateFact, CandidateStatus, ClimateNormals, ConfirmCandidateInput, ConfirmedFact,
+    CreateTripInput, DRAFT_LODGING_DATES_SYSTEM_PROMPT, DocumentContent, DocumentKind,
+    DocumentParse, DocumentSummary, DownloadedPack, ErrorCode, ExtractionMethod, FCDO_COUNTRIES,
+    FactPayload, FactType, FcdoCountry, FieldSuggestion, GeocodedPlace, HealthNotice,
+    HealthResponse, ImportDocumentInput, ImportResult, IntelligenceMode, KeyValidation,
+    LocalAiStatus, LocalModelPullResult, LodgingDateProposal, MAX_AI_PROMPT_LEN, MAX_NOTES_CHARS,
+    MAX_OFFLINE_MAP_BYTES, OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OfflineMapArchive, OfflineMapChunk,
+    OfflineMapDescriptor, PROVIDERS, PackContent, PackInfo, PackSuggestion, PersonaWeights,
+    ProviderConfig, ProviderId, Recommendation, RedactionPolicy, SEARCH_SUGGESTION_LIMIT,
+    SearchHit, SearchableDocument, SourceDocument, SourceState, SourceStatus, SuggestionSource,
+    TodayView, Trip, TripAssessment, TripBrief, TripDetail, TripNotes, TripStatus, TripSummary,
+    UpdateTripInput, WarningCode, WeatherAlert, WeatherSnapshot, advisory_country, archive_window,
+    assess_trip, build_assist_preview, build_assist_request, build_draft_preview,
+    build_key_validation_request, build_packing_list, build_pull_body, build_today_view,
     build_trip_brief, changed_payload_fields, entry_from_fcdo, estimate_tokens,
     interpret_key_validation, interpret_pull_response, new_id, notices_for_country, now_rfc3339,
-    offline_map_download_url, pack_catalog, pack_download_url, parse_assist_reply, parse_ca_gac,
-    parse_cdc_notices, parse_de_aa, parse_fcdo_content, parse_forecast_response,
-    parse_geocoding_response, parse_import, parse_lodging_dates_reply, parse_pack_content,
-    parse_us_state, provider_info, rank_field_suggestions, recommend_places, search_trip_corpus,
-    suggest_packs, suggest_search_terms, validate_api_key, validate_country_slug,
-    validate_create_trip, validate_fact_payload, validate_model_name, validate_pack_id,
-    validate_provider_id, validate_search_query, validate_update_trip,
+    offline_map_download_url, pack_catalog, pack_download_url, parse_air_quality,
+    parse_assist_reply, parse_ca_gac, parse_cdc_notices, parse_climate_normals, parse_de_aa,
+    parse_fcdo_content, parse_forecast_response, parse_geocoding_response, parse_import,
+    parse_lodging_dates_reply, parse_nws_alerts, parse_pack_content, parse_us_state, provider_info,
+    rank_field_suggestions, recommend_places, search_trip_corpus, suggest_packs,
+    suggest_search_terms, validate_api_key, validate_country_slug, validate_create_trip,
+    validate_fact_payload, validate_model_name, validate_pack_id, validate_provider_id,
+    validate_search_query, validate_update_trip,
 };
 use voyalier_core::{
     VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, VaultStatus, derive_key as vault_derive_key,
@@ -846,6 +848,8 @@ impl AppService {
         } = assess_trip(&trip, &confirmed_facts, pending_candidate_count);
         let advisory_panel = load_advisory_panel(&connection, trip_id)?;
         let weather = fetch_weather_snapshot(&connection, trip_id)?;
+        // Derived, not fetched: the same stored evidence, read a second way.
+        let packing_list = build_packing_list(&trip, &confirmed_facts, weather.as_ref());
         Ok(TripDetail {
             trip,
             confirmed_facts,
@@ -854,6 +858,7 @@ impl AppService {
             readiness,
             advisory_panel,
             weather,
+            packing_list,
         })
     }
 
@@ -1690,7 +1695,7 @@ impl AppService {
              &timezone=auto&forecast_days=16",
             place.latitude, place.longitude
         );
-        let snapshot = parse_forecast_response(
+        let mut snapshot = parse_forecast_response(
             &place,
             &self
                 .fetcher
@@ -1701,13 +1706,25 @@ impl AppService {
             &now_rfc3339(),
         )?;
 
+        // The forecast is what the user clicked for; the layers below are
+        // extras. Each is attempted independently and a failure leaves that one
+        // layer empty rather than costing the outlook — so a slow archive or a
+        // down NWS never turns into "no weather".
+        snapshot.normals = self.fetch_climate_normals(&place, &trip);
+        snapshot.air_quality = self.fetch_air_quality(&place, &trip).unwrap_or_default();
+        // The NWS only covers the United States. Elsewhere Voyalier does not
+        // ask, so an empty list there means "not covered", never "all clear".
+        if place.country_code == "US" {
+            snapshot.alerts = self.fetch_nws_alerts(&place).unwrap_or_default();
+        }
+
         let connection = self.connection()?;
         connection
             .execute(
                 "INSERT INTO weather_snapshots
                  (trip_id, place_name, place_region, latitude, longitude, days, coverage,
-                  source_url, retrieved_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                  source_url, retrieved_at, normals, air_quality, alerts)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
                  ON CONFLICT(trip_id) DO UPDATE SET
                    place_name = excluded.place_name,
                    place_region = excluded.place_region,
@@ -1716,7 +1733,10 @@ impl AppService {
                    days = excluded.days,
                    coverage = excluded.coverage,
                    source_url = excluded.source_url,
-                   retrieved_at = excluded.retrieved_at",
+                   retrieved_at = excluded.retrieved_at,
+                   normals = excluded.normals,
+                   air_quality = excluded.air_quality,
+                   alerts = excluded.alerts",
                 params![
                     trip_id,
                     snapshot.place_name,
@@ -1726,11 +1746,53 @@ impl AppService {
                     json_to_sql(&snapshot.days)?,
                     enum_to_sql(snapshot.coverage)?,
                     snapshot.source_url,
-                    snapshot.retrieved_at
+                    snapshot.retrieved_at,
+                    snapshot.normals.as_ref().map(json_to_sql).transpose()?,
+                    json_to_sql(&snapshot.air_quality)?,
+                    json_to_sql(&snapshot.alerts)?,
                 ],
             )
             .map_err(storage_error)?;
         Ok(snapshot)
+    }
+
+    /// What the trip's dates have usually been like here, from observed
+    /// history. `None` when the source is unreachable or the history is too
+    /// thin to call anything typical.
+    fn fetch_climate_normals(&self, place: &GeocodedPlace, trip: &Trip) -> Option<ClimateNormals> {
+        let (start, end) = archive_window(&trip.start_date, &trip.end_date, NORMALS_YEARS).ok()?;
+        // One request for the whole span beats one per year: the core filters
+        // it down to the trip's own month-days.
+        let url = format!(
+            "https://archive-api.open-meteo.com/v1/archive?latitude={:.5}&longitude={:.5}\
+             &start_date={start}&end_date={end}\
+             &daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto",
+            place.latitude, place.longitude
+        );
+        let body = self.fetcher.fetch_text(&url).ok()?;
+        parse_climate_normals(&body, &trip.start_date, &trip.end_date).ok()?
+    }
+
+    fn fetch_air_quality(&self, place: &GeocodedPlace, trip: &Trip) -> Option<Vec<AirQualityDay>> {
+        // `pm2_5_max` and `us_aqi_max` are not daily variables in this API —
+        // asking for them fails the whole request. UV is daily; the rest is
+        // hourly and the core folds it into days.
+        let url = format!(
+            "https://air-quality-api.open-meteo.com/v1/air-quality?latitude={:.5}&longitude={:.5}\
+             &daily=uv_index_max&hourly=us_aqi,pm2_5&timezone=auto&forecast_days=7",
+            place.latitude, place.longitude
+        );
+        let body = self.fetcher.fetch_text(&url).ok()?;
+        parse_air_quality(&body, &trip.start_date, &trip.end_date).ok()
+    }
+
+    fn fetch_nws_alerts(&self, place: &GeocodedPlace) -> Option<Vec<WeatherAlert>> {
+        let url = format!(
+            "https://api.weather.gov/alerts/active?point={:.4},{:.4}",
+            place.latitude, place.longitude
+        );
+        let body = self.fetcher.fetch_text(&url).ok()?;
+        parse_nws_alerts(&body).ok()
     }
 
     /// Build a redacted, shareable brief from the confirmed plan. The brief is
@@ -2886,7 +2948,10 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
                 days TEXT NOT NULL,
                 coverage TEXT NOT NULL,
                 source_url TEXT NOT NULL,
-                retrieved_at TEXT NOT NULL
+                retrieved_at TEXT NOT NULL,
+                normals TEXT,
+                air_quality TEXT NOT NULL DEFAULT '[]',
+                alerts TEXT NOT NULL DEFAULT '[]'
             );
 
             CREATE TABLE IF NOT EXISTS confirmed_facts (
@@ -2949,6 +3014,9 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
     migrate(connection)
 }
 
+/// How many past years of observed weather a normals claim samples.
+const NORMALS_YEARS: u32 = 10;
+
 /// One schema step. `to` is the `PRAGMA user_version` the database carries once
 /// `run` succeeds.
 struct Migration {
@@ -2987,6 +3055,11 @@ const MIGRATIONS: &[Migration] = &[
         to: 4,
         name: "advisory_panel_tables",
         run: migrate_advisory_panel,
+    },
+    Migration {
+        to: 5,
+        name: "weather_layers",
+        run: migrate_weather_layers,
     },
 ];
 
@@ -3188,6 +3261,49 @@ fn migrate_advisory_panel(connection: &Connection) -> Result<(), AppError> {
     connection
         .execute_batch("DROP TABLE travel_advice_snapshots;")
         .map_err(storage_error)
+}
+
+/// Add the normals / air-quality / alerts columns to `weather_snapshots`.
+///
+/// Existing rows keep their forecast and simply carry no extra layers until the
+/// next fetch: a stored outlook is still true, it just says less.
+fn migrate_weather_layers(connection: &Connection) -> Result<(), AppError> {
+    let existing = {
+        let mut statement = connection
+            .prepare("PRAGMA table_info(weather_snapshots)")
+            .map_err(storage_error)?;
+        statement
+            .query_map([], |row| row.get::<_, String>(1))
+            .map_err(storage_error)?
+            .collect::<rusqlite::Result<Vec<String>>>()
+            .map_err(storage_error)?
+    };
+    // No table, nothing to widen: the base schema creates it already carrying
+    // these columns, so this step only has work to do on databases that predate
+    // them.
+    if existing.is_empty() {
+        return Ok(());
+    }
+    for (column, ddl) in [
+        (
+            "normals",
+            "ALTER TABLE weather_snapshots ADD COLUMN normals TEXT;",
+        ),
+        (
+            "air_quality",
+            "ALTER TABLE weather_snapshots ADD COLUMN air_quality TEXT NOT NULL DEFAULT '[]';",
+        ),
+        (
+            "alerts",
+            "ALTER TABLE weather_snapshots ADD COLUMN alerts TEXT NOT NULL DEFAULT '[]';",
+        ),
+    ] {
+        if existing.iter().any(|name| name == column) {
+            continue;
+        }
+        connection.execute_batch(ddl).map_err(storage_error)?;
+    }
+    Ok(())
 }
 
 /// Widen the `method` CHECK on the fact tables to allow 'assisted', for databases
@@ -3461,7 +3577,7 @@ fn fetch_weather_snapshot(
     connection
         .query_row(
             "SELECT place_name, place_region, latitude, longitude, days, coverage,
-                    source_url, retrieved_at
+                    source_url, retrieved_at, normals, air_quality, alerts
              FROM weather_snapshots WHERE trip_id = ?1",
             params![trip_id],
             |row| {
@@ -3474,6 +3590,12 @@ fn fetch_weather_snapshot(
                     coverage: sql_to_enum(row.get::<_, String>(5)?)?,
                     source_url: row.get(6)?,
                     retrieved_at: row.get(7)?,
+                    normals: row
+                        .get::<_, Option<String>>(8)?
+                        .map(sql_to_json)
+                        .transpose()?,
+                    air_quality: sql_to_json(row.get::<_, String>(9)?)?,
+                    alerts: sql_to_json(row.get::<_, String>(10)?)?,
                 })
             },
         )
@@ -3972,7 +4094,10 @@ mod tests {
             .expect("legacy shape");
 
         migrate(&connection).expect("migrate to v4");
-        assert_eq!(user_version(&connection).expect("version"), 4);
+        assert_eq!(
+            user_version(&connection).expect("version"),
+            target_schema_version()
+        );
 
         let legacy_tables: i64 = connection
             .query_row(
@@ -4376,6 +4501,58 @@ mod tests {
         cleanup_database(database2);
     }
 
+    /// The forecast is what the click is for; normals, air quality and alerts
+    /// are extras hung off the same click. This pins both halves: they arrive
+    /// when the sources answer, and their absence never costs the forecast.
+    fn weather_bodies(url: &str, country_code: &str) -> Option<String> {
+        if url.contains("geocoding-api.open-meteo.com") {
+            return Some(format!(
+                r#"{{ "results": [ {{ "name": "Kyoto", "latitude": 35.02107,
+                    "longitude": 135.75385, "country": "Japan", "admin1": "Kyoto",
+                    "country_code": "{country_code}" }} ] }}"#
+            ));
+        }
+        if url.contains("api.open-meteo.com/v1/forecast") {
+            return Some(
+                r#"{ "daily": {
+                    "time": ["2027-04-01", "2027-04-02"],
+                    "weather_code": [0, 61],
+                    "temperature_2m_max": [18.4, 15.1],
+                    "temperature_2m_min": [9.2, 8.7],
+                    "precipitation_probability_max": [5, 80]
+                } }"#
+                    .to_owned(),
+            );
+        }
+        if url.contains("archive-api.open-meteo.com") {
+            return Some(
+                r#"{ "daily": {
+                    "time": ["2025-04-01","2025-04-02","2026-04-01","2026-04-02"],
+                    "temperature_2m_max": [17.0, 19.0, 18.0, 20.0],
+                    "temperature_2m_min": [7.0, 9.0, 8.0, 10.0],
+                    "precipitation_sum": [0.0, 4.0, 0.0, 0.0]
+                } }"#
+                    .to_owned(),
+            );
+        }
+        if url.contains("air-quality-api.open-meteo.com") {
+            return Some(
+                r#"{ "daily": {"time": ["2027-04-01"], "uv_index_max": [6.5]},
+                     "hourly": {"time": ["2027-04-01T12:00"], "us_aqi": [42], "pm2_5": [8.1]} }"#
+                    .to_owned(),
+            );
+        }
+        if url.contains("api.weather.gov") {
+            return Some(
+                r#"{"features": [{"properties": {"id": "urn:oid:9", "event": "Flood Watch",
+                    "severity": "Severe", "headline": "Flood Watch", "areaDesc": "Davidson, TN",
+                    "senderName": "NWS Nashville", "status": "Actual"}}]}"#
+                    .to_owned(),
+            );
+        }
+        None
+    }
+
     #[test]
     fn fetch_weather_geocodes_the_destination_and_stores_the_outlook() {
         use voyalier_core::WeatherCoverage;
@@ -4386,20 +4563,8 @@ mod tests {
         impl AdviceFetcher for RoutedFetcher {
             fn fetch_text(&self, url: &str) -> Result<String, AppError> {
                 self.calls.lock().expect("lock").push(url.to_owned());
-                if url.contains("geocoding-api.open-meteo.com") {
-                    Ok(r#"{ "results": [ { "name": "Kyoto", "latitude": 35.02107,
-                        "longitude": 135.75385, "country": "Japan", "admin1": "Kyoto" } ] }"#
-                        .to_owned())
-                } else {
-                    Ok(r#"{ "daily": {
-                        "time": ["2027-04-01", "2027-04-02"],
-                        "weather_code": [0, 61],
-                        "temperature_2m_max": [18.4, 15.1],
-                        "temperature_2m_min": [9.2, 8.7],
-                        "precipitation_probability_max": [5, 80]
-                    } }"#
-                        .to_owned())
-                }
+                weather_bodies(url, "JP")
+                    .ok_or_else(|| AppError::new(ErrorCode::WeatherFetchFailed, "unexpected url"))
             }
         }
 
@@ -4417,18 +4582,51 @@ mod tests {
         // Trip runs 2027-04-01..10 but the horizon covered only two days.
         assert_eq!(snapshot.coverage, WeatherCoverage::Partial);
 
+        // The extra layers ride the same click.
+        let normals = snapshot.normals.as_ref().expect("normals");
+        assert_eq!(normals.sample_days, 4);
+        assert_eq!(normals.years_sampled, 2);
+        assert_eq!(normals.avg_high_c, 18.5);
+        assert_eq!(snapshot.air_quality.len(), 1);
+        assert_eq!(snapshot.air_quality[0].uv_index_max, Some(6.5));
+        assert_eq!(snapshot.air_quality[0].us_aqi_max, Some(42));
+
         let calls = fetcher.calls.lock().expect("lock").clone();
-        assert_eq!(calls.len(), 2);
         assert!(calls[0].contains("geocoding-api.open-meteo.com"));
         assert!(calls[0].contains("name=Kyoto"));
         assert!(calls[1].contains("api.open-meteo.com/v1/forecast"));
         assert!(calls[1].contains("latitude=35.02107"));
+        assert!(
+            calls
+                .iter()
+                .any(|url| url.contains("archive-api.open-meteo.com"))
+        );
+        assert!(
+            calls
+                .iter()
+                .any(|url| url.contains("air-quality-api.open-meteo.com"))
+        );
+        // Kyoto is not in the United States, so the NWS is never asked at all —
+        // an empty alert list abroad means "not covered", not "all clear".
+        assert!(
+            !calls.iter().any(|url| url.contains("api.weather.gov")),
+            "the NWS covers the US only and must not be called for {}",
+            snapshot.place_region
+        );
+        assert!(snapshot.alerts.is_empty());
 
         // Persists and rides on the trip detail.
         let detail = service.get_trip(&trip.id).expect("detail");
         let stored = detail.weather.expect("stored weather");
         assert_eq!(stored.days[1].description, "Light rain");
         assert_eq!(stored.days[1].precipitation_chance_pct, Some(80.0));
+        assert_eq!(stored.normals.expect("stored normals").sample_days, 4);
+        assert_eq!(stored.air_quality.len(), 1);
+        // Derived from the stored evidence, without another fetch.
+        assert!(
+            !detail.packing_list.is_empty(),
+            "a stored outlook should imply at least one suggestion"
+        );
 
         // Cosmetic edits retain the snapshot, but place/window edits must not
         // leave weather for the old trip attached to the updated trip.
@@ -4471,6 +4669,101 @@ mod tests {
                 .is_none()
         );
         cleanup_database(database);
+    }
+
+    #[test]
+    fn a_us_destination_gets_alerts_and_a_dead_layer_never_costs_the_forecast() {
+        struct PickyFetcher {
+            calls: std::sync::Mutex<Vec<String>>,
+        }
+        impl AdviceFetcher for PickyFetcher {
+            fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+                self.calls.lock().expect("lock").push(url.to_owned());
+                // The archive is down and the air-quality body is garbage.
+                if url.contains("archive-api.open-meteo.com") {
+                    return Err(AppError::new(ErrorCode::WeatherFetchFailed, "down"));
+                }
+                if url.contains("air-quality-api.open-meteo.com") {
+                    return Ok("<html>502</html>".to_owned());
+                }
+                weather_bodies(url, "US")
+                    .ok_or_else(|| AppError::new(ErrorCode::WeatherFetchFailed, "unexpected url"))
+            }
+        }
+
+        let database = temp_database("weather_us");
+        let fetcher = Arc::new(PickyFetcher {
+            calls: std::sync::Mutex::new(Vec::new()),
+        });
+        let service = open_test_service_with_fetcher(&database, fetcher.clone()).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+        let snapshot = service
+            .fetch_weather(&trip.id)
+            .expect("the forecast survives");
+        // The thing the user clicked for is still here...
+        assert_eq!(snapshot.days.len(), 2);
+        // ...and the two broken layers are simply absent rather than fatal.
+        assert!(snapshot.normals.is_none());
+        assert!(snapshot.air_quality.is_empty());
+        // The US destination reached the NWS.
+        let calls = fetcher.calls.lock().expect("lock").clone();
+        assert!(
+            calls
+                .iter()
+                .any(|url| url.contains("api.weather.gov/alerts/active?point="))
+        );
+        assert_eq!(snapshot.alerts.len(), 1);
+        assert_eq!(snapshot.alerts[0].event, "Flood Watch");
+        assert_eq!(
+            snapshot.alerts[0].url,
+            "https://api.weather.gov/alerts/urn:oid:9"
+        );
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn migration_v5_keeps_a_pre_layer_weather_row() {
+        let connection = Connection::open_in_memory().expect("memory db");
+        connection
+            .execute_batch(
+                r#"CREATE TABLE trips (id TEXT PRIMARY KEY);
+                   INSERT INTO trips (id) VALUES ('trip-1');
+                   CREATE TABLE weather_snapshots (
+                       trip_id TEXT PRIMARY KEY REFERENCES trips(id) ON DELETE CASCADE,
+                       place_name TEXT NOT NULL,
+                       place_region TEXT NOT NULL,
+                       latitude REAL NOT NULL,
+                       longitude REAL NOT NULL,
+                       days TEXT NOT NULL,
+                       coverage TEXT NOT NULL,
+                       source_url TEXT NOT NULL,
+                       retrieved_at TEXT NOT NULL
+                   );
+                   INSERT INTO weather_snapshots VALUES (
+                       'trip-1', 'Kyoto', 'Kyoto, Japan', 35.0, 135.8, '[]', 'none',
+                       'https://open-meteo.com/', '2026-07-10T12:00:00Z'
+                   );
+                   PRAGMA user_version = 4;"#,
+            )
+            .expect("pre-v5 shape");
+
+        migrate(&connection).expect("migrate to v5");
+        assert_eq!(
+            user_version(&connection).expect("version"),
+            target_schema_version()
+        );
+
+        // The stored outlook is still true; it just carries no extra layers
+        // until the next fetch.
+        let stored = fetch_weather_snapshot(&connection, "trip-1")
+            .expect("load")
+            .expect("row survived");
+        assert_eq!(stored.place_name, "Kyoto");
+        assert_eq!(stored.retrieved_at, "2026-07-10T12:00:00Z");
+        assert!(stored.normals.is_none());
+        assert!(stored.air_quality.is_empty());
+        assert!(stored.alerts.is_empty());
     }
 
     #[test]

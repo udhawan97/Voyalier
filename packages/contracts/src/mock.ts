@@ -65,6 +65,7 @@ import type {
   SourceDocument,
   AdvisoryEntry,
   AdvisoryPanel,
+  PackingSuggestion,
   Trip,
   TripBrief,
   WeatherSnapshot,
@@ -860,6 +861,61 @@ function mockRankFieldSuggestions(
   return [...prefix, ...contains].slice(0, MOCK_FIELD_SUGGESTION_LIMIT);
 }
 
+/**
+ * The mock's stand-in for `voyalier-core::build_packing_list`.
+ *
+ * Deliberately the same rules and thresholds as the core: the mock exists so
+ * the interface can be built against realistic data, and a mock that suggested
+ * different things than the real service would teach the UI a lie.
+ */
+function mockPackingList(
+  weather: WeatherSnapshot | undefined,
+  facts: ConfirmedFact[],
+  trip: Trip,
+): PackingSuggestion[] {
+  if (!weather) return [];
+  const list: PackingSuggestion[] = [];
+  const normals = weather.normals;
+  if (normals) {
+    if (normals.avgLowC < 5)
+      list.push({
+        code: "warm_layers",
+        reason: { code: "avg_low", value: normals.avgLowC },
+      });
+    if (normals.avgHighC >= 22)
+      list.push({
+        code: "light_clothing",
+        reason: { code: "avg_high", value: normals.avgHighC },
+      });
+    if (normals.wetDaySharePct >= 40)
+      list.push({
+        code: "rain_shell",
+        reason: { code: "wet_day_share", value: normals.wetDaySharePct },
+      });
+  }
+  const uv = weather.airQuality
+    .map((day) => day.uvIndexMax ?? 0)
+    .reduce((worst, value) => Math.max(worst, value), 0);
+  if (uv >= 8)
+    list.push({
+      code: "sun_protection",
+      reason: { code: "uv_index", value: uv },
+    });
+  const aqi = weather.airQuality
+    .map((day) => day.usAqiMax ?? 0)
+    .reduce((worst, value) => Math.max(worst, value), 0);
+  if (aqi >= 100)
+    list.push({ code: "mask", reason: { code: "aqi", value: aqi } });
+  if (facts.some((fact) => fact.factType === "flight_segment"))
+    list.push({ code: "travel_documents", reason: { code: "has_flight" } });
+  const nights = Math.round(
+    (Date.parse(trip.endDate) - Date.parse(trip.startDate)) / 86_400_000,
+  );
+  if (nights >= 7)
+    list.push({ code: "laundry", reason: { code: "nights", value: nights } });
+  return list;
+}
+
 const MOCK_ADVICE_COUNTRIES: FcdoCountry[] = [
   { slug: "france", name: "France" },
   { slug: "japan", name: "Japan" },
@@ -1436,6 +1492,7 @@ export function createMockGateway(options?: {
           ),
           ...(advisoryPanel ? { advisoryPanel: clone(advisoryPanel) } : {}),
           ...(weather ? { weather: clone(weather) } : {}),
+          packingList: mockPackingList(weather, confirmedFacts, trip),
         } satisfies TripDetail;
       }),
 
@@ -2305,6 +2362,27 @@ export function createMockGateway(options?: {
           coverage: days.length === 0 ? "none" : "partial",
           sourceUrl: "https://open-meteo.com/",
           retrievedAt: timestamp(),
+          // Fictional layers shaped like the real ones. Cold, wet and sunny
+          // enough to exercise every packing rule at once.
+          normals: {
+            yearsSampled: 10,
+            sampleDays: 100,
+            firstYear: 2016,
+            lastYear: 2025,
+            avgHighC: 16.2,
+            avgLowC: 4.1,
+            wetDaySharePct: 44.0,
+            warmestHighC: 24.3,
+            coldestLowC: -1.2,
+          },
+          airQuality: days.slice(0, 2).map((day, index) => ({
+            date: day.date,
+            uvIndexMax: [8.2, 6.4][index] ?? 6,
+            usAqiMax: [58, 42][index] ?? 50,
+            pm25Max: [19.0, 12.5][index] ?? 15,
+          })),
+          // The NWS covers the US only, and the fixture trip is not there.
+          alerts: [],
         };
         weatherSnapshots.set(tripId, snapshot);
         return clone(snapshot);

@@ -76,3 +76,71 @@ describe("weather outlook", () => {
     expect((await gateway.getTrip(trip.id)).weather).toBeUndefined();
   });
 });
+
+/**
+ * The layers hung off the same click: what these dates are usually like, the
+ * UV and air quality, official alerts, and what to pack. Each is evidence the
+ * reader can check, not a verdict.
+ */
+describe("weather layers", () => {
+  async function fetchOutlook() {
+    renderApp(createMockGateway());
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    );
+    const weather = await screen.findByRole("region", {
+      name: "Weather outlook",
+    });
+    fireEvent.click(
+      within(weather).getByRole("button", { name: "Fetch weather outlook" }),
+    );
+    await within(weather).findByText(/Partly cloudy/);
+    return weather;
+  }
+
+  it("shows what the dates are typically like, with the sample behind it", async () => {
+    const weather = await fetchOutlook();
+    // The averages are worthless without the history behind them, so the
+    // sample size rides along.
+    expect(within(weather).getByText(/Typically 4–16°C/)).toBeInTheDocument();
+    expect(
+      within(weather).getByText(/100 days across 10 years \(2016–2025\)/),
+    ).toBeInTheDocument();
+    expect(
+      within(weather).getByText(/44% of days see rain/),
+    ).toBeInTheDocument();
+  });
+
+  it("shows UV and air quality per day", async () => {
+    const weather = await fetchOutlook();
+    expect(within(weather).getByText("UV 8.2")).toBeInTheDocument();
+    expect(within(weather).getByText("AQI 58")).toBeInTheDocument();
+  });
+
+  it("suggests what to pack and names the reading behind each suggestion", async () => {
+    const weather = await fetchOutlook();
+    expect(
+      within(weather).getByRole("heading", { name: "What to pack" }),
+    ).toBeInTheDocument();
+    // Cold (4.1C typical low) and wet (44% of days) → layers and a shell.
+    expect(within(weather).getByText("Warm layers")).toBeInTheDocument();
+    expect(
+      within(weather).getByText(/Typical low is 4.1°C/),
+    ).toBeInTheDocument();
+    expect(within(weather).getByText("Rain shell")).toBeInTheDocument();
+    expect(
+      within(weather).getByText(/44% of typical days see rain/),
+    ).toBeInTheDocument();
+    // UV peaks at 8.2 → sun protection.
+    expect(within(weather).getByText("Sun protection")).toBeInTheDocument();
+    // AQI peaks at 58, well under 100 → no mask suggestion.
+    expect(within(weather).queryByText("A mask")).toBeNull();
+  });
+
+  it("says nothing about alerts outside the United States", async () => {
+    const weather = await fetchOutlook();
+    // The NWS covers the US only. Kyoto gets no alert block at all, rather
+    // than an empty one that would read as "all clear".
+    expect(within(weather).queryByText(/Official alerts/)).toBeNull();
+  });
+});

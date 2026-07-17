@@ -761,6 +761,7 @@ export function TripDetailView({
           tripId={tripId}
           destination={trip.destination}
           snapshot={data.detail.weather}
+          packingList={data.detail.packingList}
           onFetched={() => reload()}
         />
 

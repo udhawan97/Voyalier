@@ -10,6 +10,8 @@
 use jiff::civil::Date;
 use serde::{Deserialize, Serialize};
 
+use crate::alerts::WeatherAlert;
+use crate::climate::{AirQualityDay, ClimateNormals};
 use crate::types::{AppError, ErrorCode};
 
 /// How much of the trip window the forecast could cover.
@@ -58,6 +60,18 @@ pub struct WeatherSnapshot {
     pub source_url: String,
     /// When this device retrieved the snapshot (RFC 3339).
     pub retrieved_at: String,
+    /// What these calendar dates have usually been like here, when there is
+    /// enough observed history to say. Describes the past, never the future.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub normals: Option<ClimateNormals>,
+    /// UV and air quality per trip day; empty when the layer was unavailable.
+    #[serde(default)]
+    pub air_quality: Vec<AirQualityDay>,
+    /// Active official alerts for the destination. US destinations only (the
+    /// NWS is the only keyless public-domain alert source Voyalier reaches),
+    /// so empty elsewhere means "not covered", not "all clear".
+    #[serde(default)]
+    pub alerts: Vec<WeatherAlert>,
 }
 
 /// The place Open-Meteo's geocoder resolved a destination string to.
@@ -67,6 +81,9 @@ pub struct GeocodedPlace {
     pub region: String,
     pub latitude: f64,
     pub longitude: f64,
+    /// ISO-3166-1 alpha-2, verbatim from the geocoder. This is what decides
+    /// whether a US-only source like the NWS applies — no second lookup.
+    pub country_code: String,
 }
 
 fn unreadable_source() -> AppError {
@@ -127,6 +144,11 @@ pub fn parse_geocoding_response(json: &str) -> Result<GeocodedPlace, AppError> {
         region,
         latitude,
         longitude,
+        country_code: first
+            .get("country_code")
+            .and_then(|field| field.as_str())
+            .unwrap_or_default()
+            .to_owned(),
     })
 }
 
@@ -214,6 +236,12 @@ pub fn parse_forecast_response(
         coverage,
         source_url: "https://open-meteo.com/".to_owned(),
         retrieved_at: retrieved_at.to_owned(),
+        // The forecast is the thing the user clicked for; the extra layers are
+        // fetched separately and attached by the caller, so one of them being
+        // unavailable never costs the forecast.
+        normals: None,
+        air_quality: Vec::new(),
+        alerts: Vec::new(),
     })
 }
 

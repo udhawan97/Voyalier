@@ -6,6 +6,7 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::advisories::AdvisoryPanel;
+use crate::packing::PackingSuggestion;
 use crate::weather::WeatherSnapshot;
 
 pub const MAX_LOCATION_LEN: usize = 120;
@@ -83,6 +84,11 @@ pub struct TripDetail {
     /// Additive; omitted on the wire when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub weather: Option<WeatherSnapshot>,
+    /// Deterministic packing suggestions derived from the stored weather and
+    /// the confirmed facts. Empty until there is evidence to derive them from;
+    /// never fetched, never model-authored.
+    #[serde(default)]
+    pub packing_list: Vec<PackingSuggestion>,
 }
 
 /// Which deterministic plan-completeness check a readiness item reports on.

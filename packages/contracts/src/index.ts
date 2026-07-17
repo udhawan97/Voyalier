@@ -26,6 +26,12 @@ export interface TripDetail {
   advisoryPanel?: AdvisoryPanel;
   /** The latest user-fetched destination weather outlook, when one exists. */
   weather?: WeatherSnapshot;
+  /**
+   * Deterministic packing suggestions derived from the stored weather and the
+   * confirmed facts. Empty until there is evidence to derive them from; never
+   * fetched, never model-authored.
+   */
+  packingList: PackingSuggestion[];
 }
 export type ReadinessCheck =
   | "schedule_conflicts"
@@ -338,6 +344,83 @@ export interface WeatherSnapshot {
   sourceUrl: string;
   /** When this device retrieved the snapshot (RFC 3339). */
   retrievedAt: string;
+  /**
+   * What these calendar dates have usually been like here. Describes observed
+   * history, never a forecast; absent when there is too little of it to say.
+   */
+  normals?: ClimateNormals;
+  /** UV and air quality per trip day; empty when the layer was unavailable. */
+  airQuality: AirQualityDay[];
+  /**
+   * Active official alerts. The US National Weather Service is the only
+   * keyless public-domain alert source Voyalier reaches, so an empty list
+   * outside the US means "not covered", not "all clear".
+   */
+  alerts: WeatherAlert[];
+}
+/**
+ * Observed history for the trip's calendar dates.
+ *
+ * `yearsSampled` and `sampleDays` are on the wire so the interface can show
+ * what the claim rests on rather than presenting an average as a fact.
+ */
+export interface ClimateNormals {
+  yearsSampled: number;
+  sampleDays: number;
+  firstYear: number;
+  lastYear: number;
+  avgHighC: number;
+  avgLowC: number;
+  /** Share of sampled days with at least 1 mm of rain. */
+  wetDaySharePct: number;
+  warmestHighC: number;
+  coldestLowC: number;
+}
+/** One day's UV and air quality. Absent readings are absent, never zero. */
+export interface AirQualityDay {
+  date: string;
+  uvIndexMax?: number;
+  usAqiMax?: number;
+  pm25Max?: number;
+}
+/** One active NWS alert, in the source's own words. */
+export interface WeatherAlert {
+  event: string;
+  /** Source-native: Extreme | Severe | Moderate | Minor | Unknown. */
+  severity: string;
+  headline: string;
+  area: string;
+  onset?: string;
+  ends?: string;
+  sender: string;
+  url: string;
+}
+/** What to consider packing. Each maps to one sentence in the catalog. */
+export type PackingCode =
+  | "warm_layers"
+  | "light_clothing"
+  | "rain_shell"
+  | "sun_protection"
+  | "mask"
+  | "travel_documents"
+  | "laundry";
+/** Why a suggestion fired. Each maps to one sentence in the catalog. */
+export type PackingReasonCode =
+  | "avg_low"
+  | "avg_high"
+  | "wet_day_share"
+  | "uv_index"
+  | "aqi"
+  | "has_flight"
+  | "nights";
+/** The reading behind one suggestion, so the reasoning is checkable. */
+export interface PackingReason {
+  code: PackingReasonCode;
+  value?: number;
+}
+export interface PackingSuggestion {
+  code: PackingCode;
+  reason: PackingReason;
 }
 /** The kinds of on-device AI draft Voyalier can produce. */
 export type AssistDraftKind = "lodging_dates";

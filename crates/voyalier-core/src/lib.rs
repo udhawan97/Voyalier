@@ -5,12 +5,15 @@
 
 mod advice;
 mod advisories;
+mod alerts;
 mod assist;
 mod assist_draft;
 mod brief;
+mod climate;
 mod email;
 mod itinerary;
 mod local_ai;
+mod packing;
 mod packs;
 mod parser;
 mod provider;
@@ -37,6 +40,7 @@ pub use advisories::{
 // Per-provider endpoints, model defaults, body builders, and reply parsers stay
 // internal: which of each pairs with which provider is `assist`'s knowledge.
 // `build_assist_request` + `parse_assist_reply` are the way in.
+pub use alerts::{WeatherAlert, parse_nws_alerts};
 pub use assist::{
     ASSIST_SYSTEM_PROMPT, AssistActivityEntry, AssistReply, AssistRequest, AssistRequestPreview,
     MAX_AI_PROMPT_LEN, build_assist_preview, build_assist_request, estimate_tokens,
@@ -50,6 +54,9 @@ pub use assist_draft::{
     LodgingDateProposal, build_draft_preview, parse_lodging_dates_reply,
 };
 pub use brief::{RedactionPolicy, TripBrief, build_trip_brief};
+pub use climate::{
+    AirQualityDay, ClimateNormals, archive_window, parse_air_quality, parse_climate_normals,
+};
 // `extract_email_body` is deliberately not re-exported: it must only be reached
 // through `parse_import`, which bounds the raw input before the extractor walks
 // an untrusted MIME tree.
@@ -57,6 +64,9 @@ pub use itinerary::detect_itinerary_conflicts;
 pub use local_ai::{
     LocalAiModel, LocalAiStatus, LocalModelPullResult, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,
     build_pull_body, interpret_pull_response, parse_ollama_models,
+};
+pub use packing::{
+    PackingCode, PackingReason, PackingReasonCode, PackingSuggestion, build_packing_list,
 };
 pub use packs::{
     BoundingBox, DownloadedPack, MAX_OFFLINE_MAP_BYTES, OfflineMapArchive, OfflineMapChunk,

@@ -1281,9 +1281,11 @@ h3 {
   flex-direction: column;
 }
 
+/* Date, description, temps, rain, then the two air chips. Fixed columns keep
+   the numbers aligned down the list; the chips stay on the day's own row. */
 .voy-weather__day {
   display: grid;
-  grid-template-columns: 7.5rem 1fr auto auto;
+  grid-template-columns: 7.5rem 1fr auto auto auto auto;
   gap: 0.9rem;
   align-items: baseline;
   padding: 0.45rem 0;
@@ -1309,11 +1311,128 @@ h3 {
   font-variant-numeric: tabular-nums;
 }
 
+.voy-weather__day-uv,
+.voy-weather__day-aqi {
+  color: var(--voy-ink-muted);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .voy-weather__coverage {
   margin: 0.8rem 0 0;
   color: var(--voy-ink-muted);
   font-size: 0.88rem;
   line-height: 1.5;
+}
+
+.voy-weather__normals {
+  margin: 0.9rem 0 0.2rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper);
+}
+
+.voy-weather__normals-title {
+  margin: 0 0 0.35rem;
+  font-family: var(--voy-font-display);
+  font-size: 0.95rem;
+}
+
+.voy-weather__normals-range {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The sample the averages rest on. Quiet, but never omitted. */
+.voy-weather__normals-sample {
+  margin: 0.3rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.voy-weather__alerts {
+  margin: 1rem 0 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--voy-vermilion) 42%, transparent);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-tint-vermilion);
+}
+
+.voy-weather__alerts-title {
+  margin: 0 0 0.5rem;
+  font-family: var(--voy-font-display);
+  font-size: 0.95rem;
+  color: var(--voy-vermilion);
+}
+
+.voy-weather__alerts-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.voy-weather__alerts-list p {
+  margin: 0.2rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.82rem;
+}
+
+.voy-weather__licence {
+  margin: 0.6rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.voy-weather__packing {
+  margin: 1.1rem 0 0;
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--voy-line-strong);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-raised);
+}
+
+.voy-weather__packing-title {
+  margin: 0 0 0.3rem;
+  font-family: var(--voy-font-display);
+  font-size: 1rem;
+}
+
+.voy-weather__packing-intro {
+  margin: 0 0 0.7rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.voy-weather__packing-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.voy-weather__packing-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.voy-weather__packing-what {
+  font-weight: var(--voy-w-strong);
+}
+
+/* The reading behind the suggestion — the reason it is checkable. */
+.voy-weather__packing-why {
+  color: var(--voy-ink-muted);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .voy-weather__meta {
@@ -1341,7 +1460,8 @@ h3 {
     grid-template-columns: 1fr auto;
     grid-template-areas:
       "date temps"
-      "desc precip";
+      "desc precip"
+      "uv aqi";
   }
 
   .voy-weather__day-date {
@@ -1358,6 +1478,15 @@ h3 {
 
   .voy-weather__day-precip {
     grid-area: precip;
+  }
+
+  .voy-weather__day-uv {
+    grid-area: uv;
+  }
+
+  .voy-weather__day-aqi {
+    grid-area: aqi;
+    text-align: right;
   }
 }
 
