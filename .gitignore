@@ -46,3 +46,6 @@ var/
 *.tmp
 *.swp
 *.swo
+
+# Session memory (remember plugin) — local only, never in git
+.remember/
