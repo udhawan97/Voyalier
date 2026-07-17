@@ -15,6 +15,7 @@ mod climate;
 mod email;
 mod facts;
 mod gazetteer;
+mod heritage;
 mod holidays;
 mod itinerary;
 mod local_ai;
@@ -72,6 +73,7 @@ pub use facts::{
     country_facts, cross_rate, parse_ecb_rates, time_difference,
 };
 pub use gazetteer::{CitySuggestion, search_cities};
+pub use heritage::{HeritageSite, world_heritage_near};
 pub use holidays::{PublicHoliday, PublicHolidaysSnapshot, holidays_within, parse_nager_holidays};
 pub use itinerary::detect_itinerary_conflicts;
 pub use local_ai::{
