@@ -61,11 +61,24 @@ Axum route, Tauri command, gateway implementation, mock, and tests agree.
 - Has no Tauri, Axum, database, or network dependency.
 - Operates on explicit inputs and produces stable, fixture-testable outputs.
 - Treats document text and model output as data, never executable instruction.
+- Owns whole protocols, not their ingredients: importing a document
+  (`parse_import`) bounds the input, unwraps an email to its body, bounds that,
+  and picks the parser; an assist call (`build_assist_request` /
+  `parse_assist_reply`) pairs a provider with its endpoint, model default, body
+  shape, headers, and reply parser. The application layer supplies only what the
+  core cannot — the key and the fetch.
+- Reports findings, not sentences. Readiness returns a check id, a finding, and a
+  count; the interface turns those into localized prose.
 
 ### `packages/contracts` and `packages/ui` — shared boundaries
 
 - `packages/contracts` is the versioned TypeScript surface mirrored by Rust wire
   types and JSON Schema drift tests.
+- `packages/contracts/parity/*.json` holds what both languages must agree on —
+  validation limits, place folding, the default AI instructions, and the curated
+  official-source links. A Rust test holds the core to each file and a TypeScript
+  test holds the contract and its mock gateway to the same one, so a divergence
+  fails a test instead of passing quietly.
 - `packages/ui` carries the palette, typography, spacing, motion, and semantic
   tokens shared by product surfaces.
 
@@ -133,7 +146,18 @@ the local operating layer.
 
 All persistent state lives in an OS-appropriate application-data directory,
 never inside the application bundle. The database uses SQLite with WAL, foreign
-keys, a busy timeout, and `PRAGMA user_version` migrations.
+keys, and a busy timeout.
+
+Schema changes are an ordered list of steps keyed on `PRAGMA user_version`: each
+runs at most once and records itself before the next begins, so the order is
+structural rather than remembered. Version 1 means "some legacy shape" rather
+than a known one — every build since the first stamped it on open regardless of
+what the database held — so the two steps that predate the ledger still detect
+their own applicability. Steps added since can trust the version.
+
+The records whose columns the vault seals are read and written through one
+module, so which columns are sealed is declared once and enforced by the code
+that touches them.
 
 Raw imported content and sensitive confirmed-fact payloads have three vault
 states:
@@ -147,8 +171,10 @@ states:
   environment. The app remains testable and does not encrypt with an ephemeral
   key that would make data unrecoverable.
 
-Database migrations, key changes, backup, deletion, and legacy-record handling
-require fixture-backed tests before the signed public beta.
+Database migrations are fixture-backed: a legacy-shaped database is migrated in a
+test and checked for ordering and row survival. Key changes, backup, deletion,
+and legacy-record handling still need the same treatment before the signed public
+beta.
 
 ## Network inventory
 
@@ -169,9 +195,18 @@ aggregation, background scraping, or silent document upload.
 ## Invariants enforced in tests
 
 - Rust and TypeScript contracts stay aligned across both transports.
+- The rules the mock gateway mirrors agree with the core, against shared golden
+  files: validation limits (and the units they count in), place folding, the
+  default AI instructions, and the official-source links.
+- Every `ErrorCode` appears in the contract's `AppError` schema, enumerated
+  behind a compile-time exhaustive match rather than a hand-kept list.
 - Desktop command names and the single `input` argument shape round-trip.
 - Parser, ranking, readiness, itinerary, redaction, vault, and provider behavior
   use deterministic fixtures.
+- Schema migrations run in order, once each, and a legacy-shaped database keeps
+  its rows through them.
+- Every column declared sealed is ciphertext on disk and plaintext through the
+  record reads — the declaration drives the test.
 - Prompt-injection fixture text remains inert quoted source content.
 - Keys and raw document bodies never appear in response contracts.
 - Browser loopback requests fail closed for invalid Host or Origin values.
@@ -194,4 +229,5 @@ aggregation, background scraping, or silent document upload.
 
 Related decisions: [ADR-0001](ADR-0001-system-shape.md),
 [ADR-0002](ADR-0002-desktop-transport.md),
-[ADR-0003](ADR-0003-phase2-contract.md), and [map architecture](MAPS.md).
+[ADR-0003](ADR-0003-phase2-contract.md), [ADR-0004](ADR-0004-mock-parity.md), and
+[map architecture](MAPS.md).

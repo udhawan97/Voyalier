@@ -122,3 +122,29 @@ pattern used for conflicts, readiness, and the brief.
   payload preview with an "allow for this trip" choice; every call is recorded
   in a visible activity log. Ollama (local, keyless) ships before cloud
   providers.
+
+## Amendment (2026-07-16): `ReadinessItem` carries a finding, not prose
+
+This ADR's rule that every contract change is **additive and
+backward-compatible** was written so core and UX could build against a frozen
+surface in parallel. It is not an external-compatibility promise: both sides of
+this contract live in this repository and ship together, so there is no consumer
+outside it to break.
+
+`ReadinessItem.title` and `.detail` were English sentences built in
+`voyalier-core`, including its own pluralization, and rendered raw. That gave one
+panel two copy pipelines — the status label beside each item went through the
+message catalog and could be translated; the sentence next to it could not — and
+put a third copy of the same strings in the mock.
+
+`ReadinessItem` now carries `finding: { code, count? }` instead. The core reports
+what it found and how many; the interface owns the words. `title` is gone: it was
+derivable from `id`, which was already on the wire.
+
+This is a **replacing** change, deliberately. Additive would mean keeping the
+prose fields, which is the thing that was wrong. Rendered copy is unchanged —
+the web tests assert the strings end-to-end and passed untouched.
+
+The same treatment is still owed to `ItineraryConflict.message`,
+`SearchHit.label`/`snippet`, `Recommendation.reasons`, and `SourceLink.label`,
+all of which are still English built in the core.
