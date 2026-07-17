@@ -47,6 +47,7 @@ import type {
   UpdateTripInput,
   VaultStatus,
   DestinationFactsSnapshot,
+  PublicHolidaysSnapshot,
   WeatherSnapshot,
 } from "@voyalier/contracts";
 
@@ -295,6 +296,12 @@ export function createHttpGateway(
       request<DestinationFactsSnapshot>(
         "POST",
         `/api/v1/trips/${enc(tripId)}/destination-facts`,
+      ),
+
+    fetchPublicHolidays: (tripId: string) =>
+      request<PublicHolidaysSnapshot>(
+        "POST",
+        `/api/v1/trips/${enc(tripId)}/holidays`,
       ),
 
     searchTrip: (tripId: string, query: string) =>

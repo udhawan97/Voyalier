@@ -8,7 +8,8 @@ use voyalier_core::{
     DocumentContent, DocumentSummary, DownloadedPack, ErrorCode, FcdoCountry, FieldSuggestion,
     HealthResponse, ImportDocumentInput, ImportResult, KeyValidation, LocalAiStatus,
     LocalModelPullResult, OfflineMapArchive, OfflineMapChunk, PackInfo, PackSuggestion,
-    PersonaWeights, ProviderConfig, Recommendation, SearchHit, TodayView, Trip, TripBrief,
+    PersonaWeights, ProviderConfig, PublicHolidaysSnapshot, Recommendation, SearchHit, TodayView,
+    Trip, TripBrief,
     TripDetail, TripNotes, TripSummary, UpdateTripInput, VaultStatus, WeatherSnapshot,
 };
 
@@ -507,6 +508,14 @@ fn fetch_destination_facts(
 }
 
 #[tauri::command]
+fn fetch_public_holidays(
+    input: TripIdInput,
+    service: State<'_, AppService>,
+) -> Result<PublicHolidaysSnapshot, AppError> {
+    service.fetch_public_holidays(&input.trip_id)
+}
+
+#[tauri::command]
 fn delete_trip(input: TripIdInput, service: State<'_, AppService>) -> Result<(), AppError> {
     service.delete_trip(&input.trip_id)
 }
@@ -858,6 +867,7 @@ fn builder<R: tauri::Runtime>(
             fetch_advisories,
             fetch_weather,
             fetch_destination_facts,
+            fetch_public_holidays,
             delete_trip,
             import_document,
             get_trip_notes,
@@ -1247,6 +1257,7 @@ mod tests {
             "fetch_advisories",
             "fetch_weather",
             "fetch_destination_facts",
+            "fetch_public_holidays",
             "delete_trip",
             "import_document",
             "list_candidates",

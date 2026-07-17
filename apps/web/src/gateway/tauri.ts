@@ -47,6 +47,7 @@ import type {
   UpdateTripInput,
   VaultStatus,
   DestinationFactsSnapshot,
+  PublicHolidaysSnapshot,
   WeatherSnapshot,
 } from "@voyalier/contracts";
 
@@ -210,6 +211,9 @@ export function createTauriGateway(
 
     fetchDestinationFacts: (tripId: string) =>
       call<DestinationFactsSnapshot>("fetch_destination_facts", { tripId }),
+
+    fetchPublicHolidays: (tripId: string) =>
+      call<PublicHolidaysSnapshot>("fetch_public_holidays", { tripId }),
 
     searchTrip: (tripId: string, query: string) =>
       call<SearchHit[]>("search_trip", { tripId, query }),
