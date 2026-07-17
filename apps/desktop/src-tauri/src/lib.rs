@@ -9,8 +9,8 @@ use voyalier_core::{
     HealthResponse, ImportDocumentInput, ImportResult, KeyValidation, LocalAiStatus,
     LocalModelPullResult, OfflineMapArchive, OfflineMapChunk, PackInfo, PackSuggestion,
     PersonaWeights, ProviderConfig, PublicHolidaysSnapshot, Recommendation, SearchHit, TodayView,
-    Trip, TripBrief,
-    TripDetail, TripNotes, TripSummary, UpdateTripInput, VaultStatus, WeatherSnapshot,
+    Trip, TripBrief, TripDetail, TripNotes, TripSummary, UpdateTripInput, VaultStatus,
+    WeatherSnapshot,
 };
 
 #[derive(Debug, Clone, Deserialize)]
