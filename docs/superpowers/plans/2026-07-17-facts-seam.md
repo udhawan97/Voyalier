@@ -35,6 +35,7 @@
 **Files:** Create `crates/voyalier-core/src/astro.rs`; modify `lib.rs`.
 
 **Interfaces:**
+
 - Produces: `AstroDay { date, sunrise?: String, sunset?: String, day_length_minutes?: u32, polar: PolarState }`, `PolarState { Normal | PolarDay | PolarNight }`, `MoonPhase { age_days, illumination_pct, name: MoonPhaseName }`, `MoonPhaseName` (8-way closed enum, snake_case), `compute_astro_day(lat, lon, date: &str, utc_offset_minutes: i32) -> Result<AstroDay, AppError>`, `moon_phase(date: &str) -> Result<MoonPhase, AppError>`.
 
 The times are **local wall-clock at the destination**, so the caller passes the destination's UTC offset (from the geocode/timezone). Store the offset with coordinates so astro can be recomputed offline.
@@ -110,6 +111,7 @@ fn names_the_moon_phase_from_its_age() {
 **Files:** Create `crates/voyalier-core/src/facts.rs`; modify `lib.rs`.
 
 **Interfaces:**
+
 - Produces: `CurrencyRate { code: String, per_eur: f64 }`, `parse_ecb_rates(xml: &str) -> Result<(String, Vec<CurrencyRate>), AppError>` (returns the rate date + rates, EUR included as 1.0), `cross_rate(rates: &[CurrencyRate], from: &str, to: &str) -> Option<f64>`.
 
 - [ ] **Step 1: Failing tests** (trimmed real ECB shape):
@@ -159,6 +161,7 @@ fn an_unreadable_feed_is_an_error() {
 **Files:** modify `crates/voyalier-core/src/facts.rs`; `lib.rs`.
 
 **Interfaces:**
+
 - Produces: `CountryFacts { iso2, name, currency_code, plug_types: Vec<char-as-String>, voltage_v: u16, frequency_hz: u8, drives_on_left: bool, calling_code, emergency: EmergencyNumbers }`, `EmergencyNumbers { general?, police?, ambulance?, fire? }`, `country_facts(iso2: &str) -> Option<&'static CountryFacts>`.
 
 The table covers the **same 39 countries as `ADVISORY_COUNTRIES`**, so the app's curated country set stays consistent across advice, and facts. Values are well-established public facts (plug/voltage/driving-side/calling-code/emergency).
@@ -216,6 +219,7 @@ fn every_advisory_country_has_facts() {
 **Files:** `crates/voyalier-app/src/lib.rs`; `crates/voyalier-core/src/types.rs`.
 
 **Interfaces:**
+
 - New `DestinationFactsSnapshot { place_name, latitude, longitude, utc_offset_minutes, country_code, facts: Option<CountryFacts>, rate_date, currency_rates: Vec<CurrencyRate>, retrieved_at }`, stored per trip.
 - `fetch_destination_facts(&self, trip_id) -> Result<DestinationFactsSnapshot, AppError>`.
 - `TripDetail` gains `destination_facts: Option<DestinationFactsSnapshot>` (stored) and `astro: Vec<AstroDay>` (derived, one per trip day up to a cap, computed from the snapshot's coords + offset).

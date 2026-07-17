@@ -53,6 +53,28 @@ governments, and no government's advice is translated. A source that cannot be
 reached shows as such — its previously stored copy is kept and labelled, never
 silently refreshed or blended with another government's.
 
+## Fetched reference data
+
+Keyless, fetched on an explicit click, stored as a dated snapshot; not
+`official` source class (convenience, never a safety claim). Not sent to a
+model.
+
+| Provider              | Endpoint                                                | Licence / attribution                         | Notes                                                                        |
+| --------------------- | ------------------------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------- |
+| European Central Bank | `www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml` | Exchange rates from the European Central Bank | ~29 EUR-based reference rates; shown **indicative**, not a card/ATM rate     |
+| Open-Meteo geocoding  | `geocoding-api.open-meteo.com/v1/search`                | Weather data by Open-Meteo.com (CC BY 4.0)    | Reused from weather — resolves the destination to coordinates + country + tz |
+
+## Bundled and computed data
+
+No network at all. Astronomy is computed from coordinates and a date; country
+facts are a compiled-in table resolved fresh from a country code on each read
+(so a corrected value never goes stale in a stored snapshot).
+
+| Data          | Origin                                               | Licence / attribution                                              | Notes                                                                |
+| ------------- | ---------------------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| Sun & moon    | Standard NOAA sunrise equation + synodic month       | —                                                                  | Computed on-device; polar day/night stated, not faked                |
+| Country facts | OpenStreetMap/Wikidata (CC0/ODbL) and public sources | Compiled from OpenStreetMap/Wikidata (CC0/ODbL) and public sources | Plug/voltage/drive-side/calling-code/emergency for curated countries |
+
 ## Place entry and geocoding
 
 Origin, destination, and lodging fields offer type-ahead suggestions, but only
