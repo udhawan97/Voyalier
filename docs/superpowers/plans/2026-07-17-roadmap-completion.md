@@ -2,9 +2,10 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:test-driven-development. Red-green-refactor every task. Steps use checkbox (`- [ ]`).
 
-**Goal:** Build the remaining *codeable-and-verifiable-in-repo* candidates from `docs/roadmap/OPEN_DATA_FEATURE_CANDIDATES.md`. The pack-pipeline items (#7/#10/#17/#18) stay owner-infra (they need external pack regeneration + GitHub-Releases hosting) and are out of scope.
+**Goal:** Build the remaining _codeable-and-verifiable-in-repo_ candidates from `docs/roadmap/OPEN_DATA_FEATURE_CANDIDATES.md`. The pack-pipeline items (#7/#10/#17/#18) stay owner-infra (they need external pack regeneration + GitHub-Releases hosting) and are out of scope.
 
 **Status (2026-07-17): 4 of 5 shipped and merged to `main`; 1 deferred.**
+
 - ✅ **#11 Public holidays** — shipped (migration v8, Nager.Date).
 - ✅ **#8 World-Heritage** — shipped (942 sites from Wikidata, derived on read).
 - ✅ **#14 About-this-place** — shipped (migration v9, Wikimedia REST, CC BY-SA).

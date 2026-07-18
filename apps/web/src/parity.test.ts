@@ -153,15 +153,18 @@ describe("parity: packing list", () => {
     expect(cases).toHaveLength(6);
   });
 
-  it.each(cases)("agrees with the core for: $name", ({ trip, weather, facts, expected }) => {
-    expect(
-      mockPackingList(
-        (weather ?? undefined) as WeatherSnapshot | undefined,
-        facts as ConfirmedFact[],
-        trip as Trip,
-      ),
-    ).toEqual(expected);
-  });
+  it.each(cases)(
+    "agrees with the core for: $name",
+    ({ trip, weather, facts, expected }) => {
+      expect(
+        mockPackingList(
+          (weather ?? undefined) as WeatherSnapshot | undefined,
+          facts as ConfirmedFact[],
+          trip as Trip,
+        ),
+      ).toEqual(expected);
+    },
+  );
 });
 
 /**

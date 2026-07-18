@@ -372,7 +372,9 @@ function flightLabel(payload: FlightSegmentPayload): FactLabel {
 
 function lodgingLabel(payload: LodgingStayPayload): FactLabel {
   const property = payload.propertyName?.trim();
-  return property ? { code: "lodging_property", property } : { code: "lodging" };
+  return property
+    ? { code: "lodging_property", property }
+    : { code: "lodging" };
 }
 
 function collapseRuns(dates: string[]): Array<[string, string]> {
