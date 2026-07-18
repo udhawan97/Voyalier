@@ -151,6 +151,38 @@ The same treatment is still owed to `ItineraryConflict.message`,
 English built in the core, and the last two grew during this work rather than
 shrinking.
 
+### Update (2026-07-18): `ItineraryConflict` carries subjects, not a sentence
+
+`ItineraryConflict.message` is done, the same way and for the same reason. It
+was the worst of the list: the sentence was built in `itinerary.rs`, copied
+verbatim into `mock.ts`, and pinned as prose in `parity/assess-trip.json`, so a
+copy edit meant three files in two languages and a golden regeneration. In the
+schedule panel it rendered directly beside a translated severity badge — one
+list item, two copy pipelines, which is the exact defect the readiness migration
+fixed.
+
+It now carries `subjects: FactLabel[]`. `FactLabel` reports *which* identifying
+detail a fact has (`flight_number`, `flight_route`, `flight`,
+`lodging_property`, `lodging`) with the traveler's own data as its value; the
+interface turns that into a noun phrase and the sentence around it. Lodging gaps
+carry no subjects at all — they are about nights, and `startDate`/`endDate`
+already say which, so `Intl.PluralRules` picks singular or plural instead of the
+core picking it with an `if`.
+
+Rendered copy is unchanged: `scheduleCheck.test.tsx` asserts the sentences
+end-to-end and passed untouched, as it did for readiness.
+
+`parity/assess-trip.json` now pins codes and values rather than prose, and
+regenerating it is a documented step (`VOYALIER_REGENERATE_GOLDEN=1`) that lives
+beside the assertion so the two cannot compute it differently.
+
+Still owed: `SearchHit.label`, `Recommendation.reasons`,
+`AssistRequestPreview.groundedIn`, and `KeyValidation.message`.
+`SearchHit.snippet` is deliberately **not** on that list — it is verbatim user
+content, not copy, and translating it would be Voyalier rewriting the
+traveler's own documents. `SourceLink.label` is a curated proper name with one
+copy already, read from `parity/readiness-links.json` by both languages.
+
 ## Addendum (2026-07-17): US advisories are a fetched source, not a link
 
 This ADR recorded an owner decision that the US State Department stays

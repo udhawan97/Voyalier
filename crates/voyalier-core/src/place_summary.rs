@@ -26,6 +26,23 @@ pub struct PlaceSummary {
 
 /// Parse a Wikimedia REST `page/summary` response. A disambiguation page or an
 /// empty extract has nothing useful to show and is an error the caller surfaces.
+/// Fetch the Wikipedia summary for a place.
+///
+/// Which wiki answers, how a place name becomes a page title, and what counts
+/// as "no clear article" are this module's knowledge. The application layer
+/// supplies the fetch and the clock.
+pub fn place_summary(
+    place: &str,
+    retrieved_at: &str,
+    fetch: impl FnOnce(&str) -> Result<String, AppError>,
+) -> Result<PlaceSummary, AppError> {
+    let url = format!(
+        "https://en.wikipedia.org/api/rest_v1/page/summary/{}",
+        crate::source::percent_encode(place)
+    );
+    parse_place_summary(&fetch(&url)?, retrieved_at)
+}
+
 pub fn parse_place_summary(json: &str, retrieved_at: &str) -> Result<PlaceSummary, AppError> {
     let value: serde_json::Value = serde_json::from_str(json).map_err(|_| unreadable())?;
     let string = |key: &str| {

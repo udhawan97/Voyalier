@@ -1,7 +1,14 @@
 import limits from "@voyalier/contracts/parity/limits.json";
 import normalizePlaceGolden from "@voyalier/contracts/parity/normalize-place.json";
 import assessTripGolden from "@voyalier/contracts/parity/assess-trip.json";
-import type { ConfirmedFact, Trip } from "@voyalier/contracts";
+import packingGolden from "@voyalier/contracts/parity/packing.json";
+import tripFactsGolden from "@voyalier/contracts/parity/trip-facts.json";
+import type {
+  ConfirmedFact,
+  PublicHoliday,
+  Trip,
+  WeatherSnapshot,
+} from "@voyalier/contracts";
 import {
   MAX_AI_PROMPT_LEN,
   MAX_DOCUMENT_CHARS,
@@ -10,8 +17,13 @@ import {
   MAX_QUERY_LEN,
   countChars,
   mockAssessReadiness,
+  mockCountryFacts,
   mockDetectItineraryConflicts,
+  mockHolidaysWithin,
   mockNormalizePlace,
+  mockPackingList,
+  mockTimeDifference,
+  mockTippingGuidance,
 } from "@voyalier/contracts";
 
 /**
@@ -121,4 +133,91 @@ describe("parity: assessTrip", () => {
       expect({ conflicts, readiness }).toEqual(expected);
     },
   );
+});
+
+/**
+ * Packing suggestions are implemented twice, and the mirror landed *after*
+ * ADR-0004 asked for a golden per mirrored rule — six thresholds hand-copied
+ * from the core's constants with nothing connecting them.
+ *
+ * The thresholds are no longer mirrored at all: `parity/packing.json` declares
+ * them and `mockPackingList` reads that file, so this suite only has to prove
+ * the mock uses them, and that the rules around them agree with the core.
+ * `voyalier-core`'s `parity_packing_matches_the_contract` holds Rust to the
+ * same file.
+ */
+describe("parity: packing list", () => {
+  const cases = packingGolden.cases;
+
+  it("covers every golden case", () => {
+    expect(cases).toHaveLength(6);
+  });
+
+  it.each(cases)("agrees with the core for: $name", ({ trip, weather, facts, expected }) => {
+    expect(
+      mockPackingList(
+        (weather ?? undefined) as WeatherSnapshot | undefined,
+        facts as ConfirmedFact[],
+        trip as Trip,
+      ),
+    ).toEqual(expected);
+  });
+});
+
+/**
+ * The destination-facts rules both languages derive on read.
+ *
+ * The facts family grew a source a day with hand-written mock fixtures beside
+ * it and nothing comparing the two. Writing the golden found a real one: the
+ * core's window narrowing sorts by date then name and collapses exact
+ * duplicates, and the mock only filtered — so overlapping per-year fetches
+ * could show a holiday twice, in whatever order the feed used.
+ */
+describe("parity: trip facts", () => {
+  const timeDifference = tripFactsGolden.timeDifference.cases;
+  const holidays = tripFactsGolden.holidaysWithin.cases;
+  const tipping = tripFactsGolden.tipping.cases;
+  const countryFacts = tripFactsGolden.countryFacts.cases;
+
+  it("covers every golden case", () => {
+    expect(timeDifference).toHaveLength(4);
+    expect(holidays).toHaveLength(4);
+    expect(tipping).toHaveLength(2);
+    expect(countryFacts).toHaveLength(2);
+  });
+
+  it.each(timeDifference)(
+    "time difference: $name",
+    ({
+      originPlace,
+      originUtcOffsetMinutes,
+      destinationUtcOffsetMinutes,
+      expected,
+    }) => {
+      expect(
+        mockTimeDifference(
+          originPlace,
+          originUtcOffsetMinutes,
+          destinationUtcOffsetMinutes,
+        ),
+      ).toEqual(expected);
+    },
+  );
+
+  it.each(holidays)(
+    "holidays within the window: $name",
+    ({ holidays: input, start, end, expected }) => {
+      expect(mockHolidaysWithin(input as PublicHoliday[], start, end)).toEqual(
+        expected,
+      );
+    },
+  );
+
+  it.each(tipping)("tipping guidance for $iso2", ({ iso2, expected }) => {
+    expect(mockTippingGuidance(iso2) ?? null).toEqual(expected);
+  });
+
+  it.each(countryFacts)("country facts for $iso2", ({ iso2, expected }) => {
+    expect(mockCountryFacts(iso2) ?? null).toEqual(expected);
+  });
 });

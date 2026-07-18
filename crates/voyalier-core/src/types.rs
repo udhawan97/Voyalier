@@ -266,13 +266,41 @@ pub enum ConflictSeverity {
     Warning,
 }
 
+/// How to name a confirmed fact, for an interface to render.
+///
+/// Which identifying detail a fact actually has is a rule over the payload —
+/// a flight number if there is one, otherwise the airports, otherwise nothing
+/// — and that rule belongs here. Turning the answer into a noun phrase does
+/// not: "Flight AA100" is a sentence fragment in one language.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(
+    tag = "code",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
+pub enum FactLabel {
+    /// A flight the traveler gave a number for.
+    FlightNumber { number: String },
+    /// A flight known only by the airports it runs between.
+    FlightRoute { from: String, to: String },
+    /// A flight with neither a number nor both airports.
+    Flight,
+    /// A stay with a property name.
+    LodgingProperty { property: String },
+    /// A stay with no name recorded.
+    Lodging,
+}
+
 /// A single deterministic finding about the confirmed itinerary.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ItineraryConflict {
     pub kind: ItineraryConflictKind,
     pub severity: ConflictSeverity,
-    pub message: String,
+    /// The facts the finding is about, named for the interface to render in its
+    /// own words. Empty for window-level findings like gaps, which carry the
+    /// dates instead.
+    pub subjects: Vec<FactLabel>,
     /// Confirmed-fact ids involved (sorted). Empty for window-level findings like gaps.
     pub fact_ids: Vec<String>,
     /// For date-range findings (gaps): first affected night, ISO `YYYY-MM-DD`.

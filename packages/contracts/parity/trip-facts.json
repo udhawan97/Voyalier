@@ -1,0 +1,217 @@
+{
+  "$comment": "The destination-facts rules both languages compute on read, agreed between them. The service derives these in AppService::get_trip from a stored snapshot; mock.ts derives them again in its own getTrip. Nothing compared the two before this file. voyalier-core's parity_trip_facts_matches_the_contract holds Rust to it; apps/web's parity.test.ts holds the mock.",
+  "$scope": "Covers the rule-bearing derived fields only. Astro is deliberately absent: the mock's sun/moon times are documented as fictional fixture values, so pinning them would either fail on sight or force ephemeris maths into TypeScript. Nearest airports and world heritage are absent too — canned fixtures whose values the core's own unit tests already pin, with no read-time rule worth agreeing on.",
+  "timeDifference": {
+    "$why": "Two stored UTC offsets in, one wall-clock gap out. Minutes rather than hours because sub-hour zones are real, and zero is a genuine answer (same time as home) rather than 'unknown'.",
+    "cases": [
+      {
+        "name": "destination ahead of origin",
+        "originPlace": "Chicago",
+        "originUtcOffsetMinutes": -300,
+        "destinationUtcOffsetMinutes": 540,
+        "expected": { "originPlace": "Chicago", "offsetMinutes": 840 }
+      },
+      {
+        "name": "destination behind origin",
+        "originPlace": "Kyoto",
+        "originUtcOffsetMinutes": 540,
+        "destinationUtcOffsetMinutes": -300,
+        "expected": { "originPlace": "Kyoto", "offsetMinutes": -840 }
+      },
+      {
+        "name": "same wall clock is a real answer, not a missing one",
+        "originPlace": "Lisbon",
+        "originUtcOffsetMinutes": 60,
+        "destinationUtcOffsetMinutes": 60,
+        "expected": { "originPlace": "Lisbon", "offsetMinutes": 0 }
+      },
+      {
+        "name": "sub-hour zones stay exact",
+        "$why": "India is +330 and Nepal +345. Rounding either to hours loses the 15 minutes that make them different.",
+        "originPlace": "Delhi",
+        "originUtcOffsetMinutes": 330,
+        "destinationUtcOffsetMinutes": 345,
+        "expected": { "originPlace": "Delhi", "offsetMinutes": 15 }
+      }
+    ]
+  },
+  "holidaysWithin": {
+    "$why": "The snapshot stores every holiday across the trip's years so a date edit re-narrows without re-fetching. Narrowing is therefore a read-time rule, and it does three things rather than one: filter to the window inclusive at both ends, sort by date then name, and collapse exact duplicates. The sort and the dedup are the two a mirror forgets — the mock did, until this file.",
+    "cases": [
+      {
+        "name": "inclusive at both ends, excluding the days either side",
+        "start": "2026-11-03",
+        "end": "2026-11-05",
+        "holidays": [
+          {
+            "date": "2026-11-02",
+            "name": "Day Before",
+            "localName": "Day Before",
+            "global": true
+          },
+          {
+            "date": "2026-11-03",
+            "name": "Culture Day",
+            "localName": "文化の日",
+            "global": true
+          },
+          {
+            "date": "2026-11-05",
+            "name": "Window End",
+            "localName": "Window End",
+            "global": true
+          },
+          {
+            "date": "2026-11-06",
+            "name": "Day After",
+            "localName": "Day After",
+            "global": true
+          }
+        ],
+        "expected": [
+          {
+            "date": "2026-11-03",
+            "name": "Culture Day",
+            "localName": "文化の日",
+            "global": true
+          },
+          {
+            "date": "2026-11-05",
+            "name": "Window End",
+            "localName": "Window End",
+            "global": true
+          }
+        ]
+      },
+      {
+        "name": "sorts by date, then by name within a date",
+        "$why": "The source returns years in fetch order, and two holidays can share a date. Without the sort the panel lists them in whatever order the feed happened to use.",
+        "start": "2026-01-01",
+        "end": "2026-12-31",
+        "holidays": [
+          {
+            "date": "2026-05-05",
+            "name": "Children's Day",
+            "localName": "こどもの日",
+            "global": true
+          },
+          {
+            "date": "2026-01-01",
+            "name": "New Year's Day",
+            "localName": "元日",
+            "global": true
+          },
+          {
+            "date": "2026-05-05",
+            "name": "Boys' Festival",
+            "localName": "端午の節句",
+            "global": false
+          }
+        ],
+        "expected": [
+          {
+            "date": "2026-01-01",
+            "name": "New Year's Day",
+            "localName": "元日",
+            "global": true
+          },
+          {
+            "date": "2026-05-05",
+            "name": "Boys' Festival",
+            "localName": "端午の節句",
+            "global": false
+          },
+          {
+            "date": "2026-05-05",
+            "name": "Children's Day",
+            "localName": "こどもの日",
+            "global": true
+          }
+        ]
+      },
+      {
+        "name": "collapses exact duplicates",
+        "$why": "Overlapping per-year fetches can return the same holiday twice. Same date and same name is one holiday, however many times the feed said it.",
+        "start": "2026-01-01",
+        "end": "2026-12-31",
+        "holidays": [
+          {
+            "date": "2026-01-01",
+            "name": "New Year's Day",
+            "localName": "元日",
+            "global": true
+          },
+          {
+            "date": "2026-01-01",
+            "name": "New Year's Day",
+            "localName": "元日",
+            "global": true
+          }
+        ],
+        "expected": [
+          {
+            "date": "2026-01-01",
+            "name": "New Year's Day",
+            "localName": "元日",
+            "global": true
+          }
+        ]
+      },
+      {
+        "name": "no holidays in the window is empty, not absent",
+        "start": "2026-03-01",
+        "end": "2026-03-07",
+        "holidays": [
+          {
+            "date": "2026-01-01",
+            "name": "New Year's Day",
+            "localName": "元日",
+            "global": true
+          }
+        ],
+        "expected": []
+      }
+    ]
+  },
+  "tipping": {
+    "$why": "Bundled, resolved fresh from the destination's country code on every read so a corrected guide never freezes into a stored snapshot. The mock hardcodes the fixture country's line; this holds that line to the core's table, and holds both to returning nothing rather than inventing guidance for an uncurated country.",
+    "cases": [
+      {
+        "iso2": "JP",
+        "expected": "Not customary and can cause confusion — service is already included."
+      },
+      {
+        "iso2": "ZZ",
+        "$why": "Not a curated country. No guidance is the honest answer; a generic one would be Voyalier asserting a custom it has no source for.",
+        "expected": null
+      }
+    ]
+  },
+  "countryFacts": {
+    "$why": "Also bundled and resolved fresh from the country code. The mock carries only the fixture's Japan; this holds those values to the core's table so mock mode cannot show the UI a different Japan than the service would.",
+    "cases": [
+      {
+        "iso2": "JP",
+        "expected": {
+          "iso2": "JP",
+          "name": "Japan",
+          "currencyCode": "JPY",
+          "plugTypes": ["A", "B"],
+          "voltageV": 100,
+          "frequencyHz": 50,
+          "drivesOnLeft": true,
+          "callingCode": "+81",
+          "emergency": {
+            "police": "110",
+            "ambulance": "119",
+            "fire": "119"
+          }
+        }
+      },
+      {
+        "iso2": "ZZ",
+        "expected": null
+      }
+    ]
+  }
+}

@@ -1,6 +1,6 @@
 {
-  "$comment": "Golden output for assess_trip \u2014 itinerary conflicts plus the readiness rollup they drove. voyalier-core computes it (itinerary.rs + readiness.rs); mock.ts reimplements the same rules in TypeScript for the component tests, and nothing compared the two. Inputs are hand-designed to cover the boundaries; expected output is generated from the core, which is the reference implementation \u2014 core's own unit tests judge whether it is right, and this judges whether the mock agrees. voyalier-core's parity_assess_trip_matches_the_contract and apps/web's parity.test.ts both assert against this. Regenerate deliberately, never to make a red test green.",
-  "$knownQuirk": "'flight with no times, stay with no dates' reports lodging_clear: coverage is driven by gaps, and a stay with no dates yields no gap to find. Both languages do this. Pinned as-is \u2014 the golden records current behavior, it does not bless it.",
+  "$comment": "Golden output for assess_trip — itinerary conflicts plus the readiness rollup they drove. voyalier-core computes it (itinerary.rs + readiness.rs); mock.ts reimplements the same rules in TypeScript for the component tests, and nothing compared the two. Inputs are hand-designed to cover the boundaries; expected output is generated from the core, which is the reference implementation — core's own unit tests judge whether it is right, and this judges whether the mock agrees. voyalier-core's parity_assess_trip_matches_the_contract and apps/web's parity.test.ts both assert against this. Regenerate deliberately, never to make a red test green.",
+  "$knownQuirk": "'flight with no times, stay with no dates' reports lodging_clear: coverage is driven by gaps, and a stay with no dates yields no gap to find. Both languages do this. Pinned as-is — the golden records current behavior, it does not bless it.",
   "cases": [
     {
       "expected": {
@@ -35,15 +35,15 @@
               "id": "entry_requirements",
               "links": [
                 {
-                  "label": "UK FCDO travel advice \u2014 entry requirements by country",
+                  "label": "UK FCDO travel advice — entry requirements by country",
                   "url": "https://www.gov.uk/foreign-travel-advice"
                 },
                 {
-                  "label": "US State Dept \u2014 travel advisories by country",
+                  "label": "US State Dept — travel advisories by country",
                   "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
                 },
                 {
-                  "label": "US State Dept \u2014 international travel",
+                  "label": "US State Dept — international travel",
                   "url": "https://travel.state.gov/content/travel/en/international-travel.html"
                 }
               ],
@@ -56,11 +56,11 @@
               "id": "health_notices",
               "links": [
                 {
-                  "label": "US CDC \u2014 Travelers' Health, destination notices",
+                  "label": "US CDC — Travelers' Health, destination notices",
                   "url": "https://wwwnc.cdc.gov/travel/destinations/list"
                 },
                 {
-                  "label": "WHO \u2014 International travel and health",
+                  "label": "WHO — International travel and health",
                   "url": "https://www.who.int/travel-advice"
                 }
               ],
@@ -119,15 +119,15 @@
               "id": "entry_requirements",
               "links": [
                 {
-                  "label": "UK FCDO travel advice \u2014 entry requirements by country",
+                  "label": "UK FCDO travel advice — entry requirements by country",
                   "url": "https://www.gov.uk/foreign-travel-advice"
                 },
                 {
-                  "label": "US State Dept \u2014 travel advisories by country",
+                  "label": "US State Dept — travel advisories by country",
                   "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
                 },
                 {
-                  "label": "US State Dept \u2014 international travel",
+                  "label": "US State Dept — international travel",
                   "url": "https://travel.state.gov/content/travel/en/international-travel.html"
                 }
               ],
@@ -140,11 +140,11 @@
               "id": "health_notices",
               "links": [
                 {
-                  "label": "US CDC \u2014 Travelers' Health, destination notices",
+                  "label": "US CDC — Travelers' Health, destination notices",
                   "url": "https://wwwnc.cdc.gov/travel/destinations/list"
                 },
                 {
-                  "label": "WHO \u2014 International travel and health",
+                  "label": "WHO — International travel and health",
                   "url": "https://www.who.int/travel-advice"
                 }
               ],
@@ -203,15 +203,15 @@
               "id": "entry_requirements",
               "links": [
                 {
-                  "label": "UK FCDO travel advice \u2014 entry requirements by country",
+                  "label": "UK FCDO travel advice — entry requirements by country",
                   "url": "https://www.gov.uk/foreign-travel-advice"
                 },
                 {
-                  "label": "US State Dept \u2014 travel advisories by country",
+                  "label": "US State Dept — travel advisories by country",
                   "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
                 },
                 {
-                  "label": "US State Dept \u2014 international travel",
+                  "label": "US State Dept — international travel",
                   "url": "https://travel.state.gov/content/travel/en/international-travel.html"
                 }
               ],
@@ -224,11 +224,11 @@
               "id": "health_notices",
               "links": [
                 {
-                  "label": "US CDC \u2014 Travelers' Health, destination notices",
+                  "label": "US CDC — Travelers' Health, destination notices",
                   "url": "https://wwwnc.cdc.gov/travel/destinations/list"
                 },
                 {
-                  "label": "WHO \u2014 International travel and health",
+                  "label": "WHO — International travel and health",
                   "url": "https://www.who.int/travel-advice"
                 }
               ],
@@ -259,8 +259,17 @@
           {
             "factIds": ["f1", "f2"],
             "kind": "flight_overlap",
-            "message": "Flight F1 and Flight F2 overlap in time \u2014 a traveler can only be on one flight at once.",
-            "severity": "warning"
+            "severity": "warning",
+            "subjects": [
+              {
+                "code": "flight_number",
+                "number": "F1"
+              },
+              {
+                "code": "flight_number",
+                "number": "F2"
+              }
+            ]
           }
         ],
         "readiness": {
@@ -294,15 +303,15 @@
               "id": "entry_requirements",
               "links": [
                 {
-                  "label": "UK FCDO travel advice \u2014 entry requirements by country",
+                  "label": "UK FCDO travel advice — entry requirements by country",
                   "url": "https://www.gov.uk/foreign-travel-advice"
                 },
                 {
-                  "label": "US State Dept \u2014 travel advisories by country",
+                  "label": "US State Dept — travel advisories by country",
                   "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
                 },
                 {
-                  "label": "US State Dept \u2014 international travel",
+                  "label": "US State Dept — international travel",
                   "url": "https://travel.state.gov/content/travel/en/international-travel.html"
                 }
               ],
@@ -315,11 +324,11 @@
               "id": "health_notices",
               "links": [
                 {
-                  "label": "US CDC \u2014 Travelers' Health, destination notices",
+                  "label": "US CDC — Travelers' Health, destination notices",
                   "url": "https://wwwnc.cdc.gov/travel/destinations/list"
                 },
                 {
-                  "label": "WHO \u2014 International travel and health",
+                  "label": "WHO — International travel and health",
                   "url": "https://www.who.int/travel-advice"
                 }
               ],
@@ -381,14 +390,32 @@
           {
             "factIds": ["f1", "f2"],
             "kind": "flight_overlap",
-            "message": "Flight F1 and Flight F2 overlap in time \u2014 a traveler can only be on one flight at once.",
-            "severity": "warning"
+            "severity": "warning",
+            "subjects": [
+              {
+                "code": "flight_number",
+                "number": "F1"
+              },
+              {
+                "code": "flight_number",
+                "number": "F2"
+              }
+            ]
           },
           {
             "factIds": ["f2", "f3"],
             "kind": "flight_overlap",
-            "message": "Flight F2 and Flight F3 overlap in time \u2014 a traveler can only be on one flight at once.",
-            "severity": "warning"
+            "severity": "warning",
+            "subjects": [
+              {
+                "code": "flight_number",
+                "number": "F2"
+              },
+              {
+                "code": "flight_number",
+                "number": "F3"
+              }
+            ]
           }
         ],
         "readiness": {
@@ -422,15 +449,15 @@
               "id": "entry_requirements",
               "links": [
                 {
-                  "label": "UK FCDO travel advice \u2014 entry requirements by country",
+                  "label": "UK FCDO travel advice — entry requirements by country",
                   "url": "https://www.gov.uk/foreign-travel-advice"
                 },
                 {
-                  "label": "US State Dept \u2014 travel advisories by country",
+                  "label": "US State Dept — travel advisories by country",
                   "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
                 },
                 {
-                  "label": "US State Dept \u2014 international travel",
+                  "label": "US State Dept — international travel",
                   "url": "https://travel.state.gov/content/travel/en/international-travel.html"
                 }
               ],
@@ -443,11 +470,11 @@
               "id": "health_notices",
               "links": [
                 {
-                  "label": "US CDC \u2014 Travelers' Health, destination notices",
+                  "label": "US CDC — Travelers' Health, destination notices",
                   "url": "https://wwwnc.cdc.gov/travel/destinations/list"
                 },
                 {
-                  "label": "WHO \u2014 International travel and health",
+                  "label": "WHO — International travel and health",
                   "url": "https://www.who.int/travel-advice"
                 }
               ],
@@ -551,15 +578,15 @@
               "id": "entry_requirements",
               "links": [
                 {
-                  "label": "UK FCDO travel advice \u2014 entry requirements by country",
+                  "label": "UK FCDO travel advice — entry requirements by country",
                   "url": "https://www.gov.uk/foreign-travel-advice"
                 },
                 {
-                  "label": "US State Dept \u2014 travel advisories by country",
+                  "label": "US State Dept — travel advisories by country",
                   "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
                 },
                 {
-                  "label": "US State Dept \u2014 international travel",
+                  "label": "US State Dept — international travel",
                   "url": "https://travel.state.gov/content/travel/en/international-travel.html"
                 }
               ],
@@ -572,11 +599,11 @@
               "id": "health_notices",
               "links": [
                 {
-                  "label": "US CDC \u2014 Travelers' Health, destination notices",
+                  "label": "US CDC — Travelers' Health, destination notices",
                   "url": "https://wwwnc.cdc.gov/travel/destinations/list"
                 },
                 {
-                  "label": "WHO \u2014 International travel and health",
+                  "label": "WHO — International travel and health",
                   "url": "https://www.who.int/travel-advice"
                 }
               ],
@@ -665,15 +692,15 @@
               "id": "entry_requirements",
               "links": [
                 {
-                  "label": "UK FCDO travel advice \u2014 entry requirements by country",
+                  "label": "UK FCDO travel advice — entry requirements by country",
                   "url": "https://www.gov.uk/foreign-travel-advice"
                 },
                 {
-                  "label": "US State Dept \u2014 travel advisories by country",
+                  "label": "US State Dept — travel advisories by country",
                   "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
                 },
                 {
-                  "label": "US State Dept \u2014 international travel",
+                  "label": "US State Dept — international travel",
                   "url": "https://travel.state.gov/content/travel/en/international-travel.html"
                 }
               ],
@@ -686,11 +713,11 @@
               "id": "health_notices",
               "links": [
                 {
-                  "label": "US CDC \u2014 Travelers' Health, destination notices",
+                  "label": "US CDC — Travelers' Health, destination notices",
                   "url": "https://wwwnc.cdc.gov/travel/destinations/list"
                 },
                 {
-                  "label": "WHO \u2014 International travel and health",
+                  "label": "WHO — International travel and health",
                   "url": "https://www.who.int/travel-advice"
                 }
               ],
@@ -753,9 +780,9 @@
             "endDate": "2027-04-02",
             "factIds": [],
             "kind": "lodging_gap",
-            "message": "No lodging is booked for the nights of 2027-04-01 through 2027-04-02.",
             "severity": "notice",
-            "startDate": "2027-04-01"
+            "startDate": "2027-04-01",
+            "subjects": []
           }
         ],
         "readiness": {
@@ -790,15 +817,15 @@
               "id": "entry_requirements",
               "links": [
                 {
-                  "label": "UK FCDO travel advice \u2014 entry requirements by country",
+                  "label": "UK FCDO travel advice — entry requirements by country",
                   "url": "https://www.gov.uk/foreign-travel-advice"
                 },
                 {
-                  "label": "US State Dept \u2014 travel advisories by country",
+                  "label": "US State Dept — travel advisories by country",
                   "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
                 },
                 {
-                  "label": "US State Dept \u2014 international travel",
+                  "label": "US State Dept — international travel",
                   "url": "https://travel.state.gov/content/travel/en/international-travel.html"
                 }
               ],
@@ -811,11 +838,11 @@
               "id": "health_notices",
               "links": [
                 {
-                  "label": "US CDC \u2014 Travelers' Health, destination notices",
+                  "label": "US CDC — Travelers' Health, destination notices",
                   "url": "https://wwwnc.cdc.gov/travel/destinations/list"
                 },
                 {
-                  "label": "WHO \u2014 International travel and health",
+                  "label": "WHO — International travel and health",
                   "url": "https://www.who.int/travel-advice"
                 }
               ],
@@ -863,9 +890,9 @@
             "endDate": "2027-04-03",
             "factIds": [],
             "kind": "lodging_gap",
-            "message": "No lodging is booked for the nights of 2027-04-02 through 2027-04-03.",
             "severity": "notice",
-            "startDate": "2027-04-02"
+            "startDate": "2027-04-02",
+            "subjects": []
           }
         ],
         "readiness": {
@@ -900,15 +927,15 @@
               "id": "entry_requirements",
               "links": [
                 {
-                  "label": "UK FCDO travel advice \u2014 entry requirements by country",
+                  "label": "UK FCDO travel advice — entry requirements by country",
                   "url": "https://www.gov.uk/foreign-travel-advice"
                 },
                 {
-                  "label": "US State Dept \u2014 travel advisories by country",
+                  "label": "US State Dept — travel advisories by country",
                   "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
                 },
                 {
-                  "label": "US State Dept \u2014 international travel",
+                  "label": "US State Dept — international travel",
                   "url": "https://travel.state.gov/content/travel/en/international-travel.html"
                 }
               ],
@@ -921,11 +948,11 @@
               "id": "health_notices",
               "links": [
                 {
-                  "label": "US CDC \u2014 Travelers' Health, destination notices",
+                  "label": "US CDC — Travelers' Health, destination notices",
                   "url": "https://wwwnc.cdc.gov/travel/destinations/list"
                 },
                 {
-                  "label": "WHO \u2014 International travel and health",
+                  "label": "WHO — International travel and health",
                   "url": "https://www.who.int/travel-advice"
                 }
               ],
@@ -987,8 +1014,17 @@
           {
             "factIds": ["l1", "l2"],
             "kind": "lodging_overlap",
-            "message": "Stay l1 and Stay l2 overlap \u2014 two stays cover the same night.",
-            "severity": "warning"
+            "severity": "warning",
+            "subjects": [
+              {
+                "code": "lodging_property",
+                "property": "Stay l1"
+              },
+              {
+                "code": "lodging_property",
+                "property": "Stay l2"
+              }
+            ]
           }
         ],
         "readiness": {
@@ -1022,15 +1058,15 @@
               "id": "entry_requirements",
               "links": [
                 {
-                  "label": "UK FCDO travel advice \u2014 entry requirements by country",
+                  "label": "UK FCDO travel advice — entry requirements by country",
                   "url": "https://www.gov.uk/foreign-travel-advice"
                 },
                 {
-                  "label": "US State Dept \u2014 travel advisories by country",
+                  "label": "US State Dept — travel advisories by country",
                   "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
                 },
                 {
-                  "label": "US State Dept \u2014 international travel",
+                  "label": "US State Dept — international travel",
                   "url": "https://travel.state.gov/content/travel/en/international-travel.html"
                 }
               ],
@@ -1043,11 +1079,11 @@
               "id": "health_notices",
               "links": [
                 {
-                  "label": "US CDC \u2014 Travelers' Health, destination notices",
+                  "label": "US CDC — Travelers' Health, destination notices",
                   "url": "https://wwwnc.cdc.gov/travel/destinations/list"
                 },
                 {
-                  "label": "WHO \u2014 International travel and health",
+                  "label": "WHO — International travel and health",
                   "url": "https://www.who.int/travel-advice"
                 }
               ],
@@ -1109,16 +1145,25 @@
           {
             "factIds": ["f1", "f2"],
             "kind": "flight_overlap",
-            "message": "Flight F1 and Flight F2 overlap in time \u2014 a traveler can only be on one flight at once.",
-            "severity": "warning"
+            "severity": "warning",
+            "subjects": [
+              {
+                "code": "flight_number",
+                "number": "F1"
+              },
+              {
+                "code": "flight_number",
+                "number": "F2"
+              }
+            ]
           },
           {
             "endDate": "2027-04-02",
             "factIds": [],
             "kind": "lodging_gap",
-            "message": "No lodging is booked for the nights of 2027-04-01 through 2027-04-02.",
             "severity": "notice",
-            "startDate": "2027-04-01"
+            "startDate": "2027-04-01",
+            "subjects": []
           }
         ],
         "readiness": {
@@ -1154,15 +1199,15 @@
               "id": "entry_requirements",
               "links": [
                 {
-                  "label": "UK FCDO travel advice \u2014 entry requirements by country",
+                  "label": "UK FCDO travel advice — entry requirements by country",
                   "url": "https://www.gov.uk/foreign-travel-advice"
                 },
                 {
-                  "label": "US State Dept \u2014 travel advisories by country",
+                  "label": "US State Dept — travel advisories by country",
                   "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
                 },
                 {
-                  "label": "US State Dept \u2014 international travel",
+                  "label": "US State Dept — international travel",
                   "url": "https://travel.state.gov/content/travel/en/international-travel.html"
                 }
               ],
@@ -1175,11 +1220,11 @@
               "id": "health_notices",
               "links": [
                 {
-                  "label": "US CDC \u2014 Travelers' Health, destination notices",
+                  "label": "US CDC — Travelers' Health, destination notices",
                   "url": "https://wwwnc.cdc.gov/travel/destinations/list"
                 },
                 {
-                  "label": "WHO \u2014 International travel and health",
+                  "label": "WHO — International travel and health",
                   "url": "https://www.who.int/travel-advice"
                 }
               ],
@@ -1283,15 +1328,15 @@
               "id": "entry_requirements",
               "links": [
                 {
-                  "label": "UK FCDO travel advice \u2014 entry requirements by country",
+                  "label": "UK FCDO travel advice — entry requirements by country",
                   "url": "https://www.gov.uk/foreign-travel-advice"
                 },
                 {
-                  "label": "US State Dept \u2014 travel advisories by country",
+                  "label": "US State Dept — travel advisories by country",
                   "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
                 },
                 {
-                  "label": "US State Dept \u2014 international travel",
+                  "label": "US State Dept — international travel",
                   "url": "https://travel.state.gov/content/travel/en/international-travel.html"
                 }
               ],
@@ -1304,11 +1349,11 @@
               "id": "health_notices",
               "links": [
                 {
-                  "label": "US CDC \u2014 Travelers' Health, destination notices",
+                  "label": "US CDC — Travelers' Health, destination notices",
                   "url": "https://wwwnc.cdc.gov/travel/destinations/list"
                 },
                 {
-                  "label": "WHO \u2014 International travel and health",
+                  "label": "WHO — International travel and health",
                   "url": "https://www.who.int/travel-advice"
                 }
               ],

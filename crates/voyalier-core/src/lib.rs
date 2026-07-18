@@ -28,6 +28,7 @@ mod provider;
 mod readiness;
 mod recommend;
 mod search;
+mod source;
 mod suggest;
 mod tipping;
 mod today;
@@ -80,7 +81,12 @@ pub use facts::{
 };
 pub use gazetteer::{CitySuggestion, search_cities};
 pub use heritage::{HeritageSite, world_heritage_near};
-pub use holidays::{PublicHoliday, PublicHolidaysSnapshot, holidays_within, parse_nager_holidays};
+// The Nager endpoint and its per-year addressing stay internal: which URL
+// answers for a country and year is this module's knowledge. `public_holidays`
+// is the way in; `parse_nager_holidays` remains exported for the fixture tests.
+pub use holidays::{
+    PublicHoliday, PublicHolidaysSnapshot, holidays_within, parse_nager_holidays, public_holidays,
+};
 pub use itinerary::detect_itinerary_conflicts;
 pub use local_ai::{
     LocalAiModel, LocalAiStatus, LocalModelPullResult, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,
@@ -99,7 +105,7 @@ pub use packs::{
 // which parser handles which `DocumentKind` is this module's knowledge, not its
 // callers'. `parse_import` is the way in.
 pub use parser::{DocumentParse, ParsedCandidate, parse_import};
-pub use place_summary::{PlaceSummary, parse_place_summary};
+pub use place_summary::{PlaceSummary, parse_place_summary, place_summary};
 // The validation endpoint and its auth headers stay internal: which pairs with
 // which provider is `provider`'s knowledge. `build_key_validation_request` is
 // the way in.
@@ -123,7 +129,7 @@ pub use today::{TodayItem, TodayItemKind, TodayView, TripPhase, TripPhaseState, 
 pub use types::*;
 pub use vault::{VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, derive_key, open, seal};
 pub use weather::{
-    GeocodedPlace, WeatherCoverage, WeatherDay, WeatherSnapshot, describe_weather_code,
+    GeocodedPlace, WeatherCoverage, WeatherDay, WeatherSnapshot, describe_weather_code, geocode,
     parse_forecast_response, parse_geocoding_response,
 };
 

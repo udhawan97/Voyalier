@@ -1,3 +1,4 @@
+import packing from "../parity/packing.json";
 import prompts from "../parity/prompts.json";
 import readinessLinks from "../parity/readiness-links.json";
 
@@ -68,11 +69,14 @@ import type {
   AstroDay,
   CountryFacts,
   DestinationFactsSnapshot,
+  FactLabel,
   PlaceSummary,
+  PublicHoliday,
   PublicHolidaysSnapshot,
   HeritageSite,
   NearbyAirport,
   PackingSuggestion,
+  TimeDifference,
   Trip,
   TripBrief,
   WeatherSnapshot,
@@ -356,17 +360,19 @@ function nextDayN(date: string, offset: number): string {
   return current;
 }
 
-function flightLabel(payload: FlightSegmentPayload): string {
-  if (payload.flightNumber?.trim())
-    return `Flight ${payload.flightNumber.trim()}`;
+/** Which identifying detail this flight actually has, in preference order. */
+function flightLabel(payload: FlightSegmentPayload): FactLabel {
+  const number = payload.flightNumber?.trim();
+  if (number) return { code: "flight_number", number };
   const from = payload.departureAirportIata?.trim();
   const to = payload.arrivalAirportIata?.trim();
-  if (from && to) return `Flight ${from}→${to}`;
-  return "A flight";
+  if (from && to) return { code: "flight_route", from, to };
+  return { code: "flight" };
 }
 
-function lodgingLabel(payload: LodgingStayPayload): string {
-  return payload.propertyName?.trim() || "A lodging stay";
+function lodgingLabel(payload: LodgingStayPayload): FactLabel {
+  const property = payload.propertyName?.trim();
+  return property ? { code: "lodging_property", property } : { code: "lodging" };
 }
 
 function collapseRuns(dates: string[]): Array<[string, string]> {
@@ -420,7 +426,7 @@ export function detectItineraryConflicts(
         conflicts.push({
           kind: "flight_overlap",
           severity: "warning",
-          message: `${flightLabel(a.payload)} and ${flightLabel(b.payload)} overlap in time — a traveler can only be on one flight at once.`,
+          subjects: [flightLabel(a.payload), flightLabel(b.payload)],
           factIds: [a.fact.id, b.fact.id].sort(),
         });
       }
@@ -452,7 +458,7 @@ export function detectItineraryConflicts(
         conflicts.push({
           kind: "lodging_overlap",
           severity: "warning",
-          message: `${lodgingLabel(a.payload)} and ${lodgingLabel(b.payload)} overlap — two stays cover the same night.`,
+          subjects: [lodgingLabel(a.payload), lodgingLabel(b.payload)],
           factIds: [a.fact.id, b.fact.id].sort(),
         });
       }
@@ -480,10 +486,8 @@ export function detectItineraryConflicts(
       conflicts.push({
         kind: "lodging_gap",
         severity: "notice",
-        message:
-          first === last
-            ? `No lodging is booked for the night of ${first}.`
-            : `No lodging is booked for the nights of ${first} through ${last}.`,
+        // A gap is about nights, not facts: the dates carry it.
+        subjects: [],
         factIds: [],
         startDate: first,
         endDate: last,
@@ -877,18 +881,11 @@ function mockRankFieldSuggestions(
 }
 
 /**
- * The mock's stand-in for `voyalier-core::build_packing_list`.
- *
- * Deliberately the same rules and thresholds as the core: the mock exists so
- * the interface can be built against realistic data, and a mock that suggested
- * different things than the real service would teach the UI a lie.
- */
-/**
  * The mock's country facts. Only the fixture's Japan is needed; the real
  * service resolves the full bundled table. Values mirror the core table so the
  * mock cannot teach the UI a different Japan than the service would.
  */
-function mockCountryFacts(iso2: string): CountryFacts | undefined {
+export function mockCountryFacts(iso2: string): CountryFacts | undefined {
   if (iso2 !== "JP") return undefined;
   return {
     iso2: "JP",
@@ -959,6 +956,62 @@ function mockNearestAirports(): NearbyAirport[] {
   ];
 }
 
+/**
+ * The mock's tipping guidance, resolved from the country code the way the core
+ * resolves its bundled table. Only the fixture's Japan is curated here; the
+ * line itself is held to `voyalier-core`'s entry by `parity/trip-facts.json`.
+ *
+ * An uncurated country returns nothing rather than something generic: inventing
+ * guidance would be Voyalier asserting a custom it has no source for.
+ */
+export function mockTippingGuidance(iso2: string): string | undefined {
+  if (iso2 !== "JP") return undefined;
+  return "Not customary and can cause confusion — service is already included.";
+}
+
+/**
+ * The destination-vs-origin wall-clock gap, from the snapshot's two stored UTC
+ * offsets. Zero is a real answer, so the caller decides whether it has both
+ * offsets to call this at all.
+ */
+export function mockTimeDifference(
+  originPlace: string,
+  originUtcOffsetMinutes: number,
+  destinationUtcOffsetMinutes: number,
+): TimeDifference {
+  return {
+    originPlace,
+    offsetMinutes: destinationUtcOffsetMinutes - originUtcOffsetMinutes,
+  };
+}
+
+/**
+ * Narrow a holiday snapshot to the travel window, mirroring
+ * `voyalier-core::holidays_within`.
+ *
+ * Three rules, not one: filter inclusive at both ends, sort by date then name,
+ * and collapse exact duplicates. The mock used to only filter — overlapping
+ * per-year fetches could show a holiday twice, in feed order. ISO dates compare
+ * in date order as strings, so no parsing is needed.
+ */
+export function mockHolidaysWithin(
+  holidays: PublicHoliday[],
+  start: string,
+  end: string,
+): PublicHoliday[] {
+  const within = holidays
+    .filter((holiday) => holiday.date >= start && holiday.date <= end)
+    .sort(
+      (a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name),
+    );
+  return within.filter(
+    (holiday, index) =>
+      index === 0 ||
+      holiday.date !== within[index - 1].date ||
+      holiday.name !== within[index - 1].name,
+  );
+}
+
 function mockWorldHeritage(): HeritageSite[] {
   return [
     {
@@ -975,7 +1028,16 @@ function mockWorldHeritage(): HeritageSite[] {
   ];
 }
 
-function mockPackingList(
+/**
+ * The mock's stand-in for `voyalier-core::build_packing_list`.
+ *
+ * Deliberately the same rules as the core: the mock exists so the interface can
+ * be built against realistic data, and a mock that suggested different things
+ * than the real service would teach the UI a lie. The numbers the rules turn on
+ * are read from `parity/packing.json` rather than restated here, so there is one
+ * declaration; `parity.test.ts` holds the rules themselves to the same file.
+ */
+export function mockPackingList(
   weather: WeatherSnapshot | undefined,
   facts: ConfirmedFact[],
   trip: Trip,
@@ -984,17 +1046,17 @@ function mockPackingList(
   const list: PackingSuggestion[] = [];
   const normals = weather.normals;
   if (normals) {
-    if (normals.avgLowC < 5)
+    if (normals.avgLowC < packing.thresholds.coldLowC)
       list.push({
         code: "warm_layers",
         reason: { code: "avg_low", value: normals.avgLowC },
       });
-    if (normals.avgHighC >= 22)
+    if (normals.avgHighC >= packing.thresholds.warmHighC)
       list.push({
         code: "light_clothing",
         reason: { code: "avg_high", value: normals.avgHighC },
       });
-    if (normals.wetDaySharePct >= 40)
+    if (normals.wetDaySharePct >= packing.thresholds.wetSharePct)
       list.push({
         code: "rain_shell",
         reason: { code: "wet_day_share", value: normals.wetDaySharePct },
@@ -1003,7 +1065,7 @@ function mockPackingList(
   const uv = weather.airQuality
     .map((day) => day.uvIndexMax ?? 0)
     .reduce((worst, value) => Math.max(worst, value), 0);
-  if (uv >= 8)
+  if (uv >= packing.thresholds.highUv)
     list.push({
       code: "sun_protection",
       reason: { code: "uv_index", value: uv },
@@ -1011,14 +1073,14 @@ function mockPackingList(
   const aqi = weather.airQuality
     .map((day) => day.usAqiMax ?? 0)
     .reduce((worst, value) => Math.max(worst, value), 0);
-  if (aqi >= 100)
+  if (aqi >= packing.thresholds.poorAqi)
     list.push({ code: "mask", reason: { code: "aqi", value: aqi } });
   if (facts.some((fact) => fact.factType === "flight_segment"))
     list.push({ code: "travel_documents", reason: { code: "has_flight" } });
   const nights = Math.round(
     (Date.parse(trip.endDate) - Date.parse(trip.startDate)) / 86_400_000,
   );
-  if (nights >= 7)
+  if (nights >= packing.thresholds.laundryNights)
     list.push({ code: "laundry", reason: { code: "nights", value: nights } });
   return list;
 }
@@ -1599,27 +1661,27 @@ export function createMockGateway(options?: {
         const worldHeritage = destFacts ? mockWorldHeritage() : [];
         // Resolved from the country code, mirroring Rust — the fixture is Japan.
         const tipping = destFacts
-          ? "Not customary and can cause confusion — service is already included."
+          ? mockTippingGuidance(destFacts.countryCode)
           : undefined;
         // Derived on read from the snapshot's two offsets, mirroring the Rust
         // side — present only once the origin has been geocoded.
         const timeDifference =
           destFacts && destFacts.originUtcOffsetMinutes != null
-            ? {
-                originPlace: destFacts.originPlace ?? "",
-                offsetMinutes:
-                  destFacts.utcOffsetMinutes - destFacts.originUtcOffsetMinutes,
-              }
+            ? mockTimeDifference(
+                destFacts.originPlace ?? "",
+                destFacts.originUtcOffsetMinutes,
+                destFacts.utcOffsetMinutes,
+              )
             : undefined;
         // Public holidays narrowed to the travel window on read, mirroring Rust.
         const holidaysSnap = publicHolidaysSnapshots.get(tripId);
         const publicHolidays = holidaysSnap
           ? {
               ...clone(holidaysSnap),
-              holidays: holidaysSnap.holidays.filter(
-                (holiday) =>
-                  holiday.date >= trip.startDate &&
-                  holiday.date <= trip.endDate,
+              holidays: mockHolidaysWithin(
+                holidaysSnap.holidays,
+                trip.startDate,
+                trip.endDate,
               ),
             }
           : undefined;

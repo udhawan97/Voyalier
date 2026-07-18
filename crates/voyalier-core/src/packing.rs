@@ -16,18 +16,24 @@ use crate::climate::{AirQualityDay, ClimateNormals};
 use crate::types::{ConfirmedFact, FactType, Trip};
 use crate::weather::WeatherSnapshot;
 
+// The numbers the rules turn on are declared once, in
+// `packages/contracts/parity/packing.json`. These mirror that file and
+// `parity_packing_matches_the_contract` holds them to it; the mock imports the
+// same file rather than restating the numbers, so there is one declaration and
+// a red test on either side if it moves.
+//
 /// Below this average low, warm layers are worth naming.
-const COLD_LOW_C: f64 = 5.0;
+pub(crate) const COLD_LOW_C: f64 = 5.0;
 /// At or above this average high, light clothing is worth naming.
-const WARM_HIGH_C: f64 = 22.0;
+pub(crate) const WARM_HIGH_C: f64 = 22.0;
 /// At or above this share of wet days, rain gear is worth naming.
-const WET_SHARE_PCT: f64 = 40.0;
+pub(crate) const WET_SHARE_PCT: f64 = 40.0;
 /// At or above this UV index, sun protection is worth naming.
-const HIGH_UV: f64 = 8.0;
+pub(crate) const HIGH_UV: f64 = 8.0;
 /// At or above this US AQI, a mask is worth naming.
-const POOR_AQI: u16 = 100;
+pub(crate) const POOR_AQI: u16 = 100;
 /// At or above this many nights, laundry is worth naming.
-const LAUNDRY_NIGHTS: i64 = 7;
+pub(crate) const LAUNDRY_NIGHTS: i64 = 7;
 
 /// What to consider packing. A closed set: each maps to exactly one sentence in
 /// the interface's message catalog.

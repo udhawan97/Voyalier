@@ -464,10 +464,17 @@ fn parity_assess_trip_matches_the_contract() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../packages/contracts/parity/assess-trip.json");
     let raw = fs::read_to_string(&path).expect("parity/assess-trip.json");
-    let golden: Value = serde_json::from_str(&raw).expect("valid json");
-    let cases = golden["cases"].as_array().expect("cases array");
+    let mut golden: Value = serde_json::from_str(&raw).expect("valid json");
+    // ADR-0004: expected output here is generated from the core and then
+    // reviewed, because hand-writing a nested `ReadinessSummary` twelve times
+    // would be transcription rather than thought. `VOYALIER_REGENERATE_GOLDEN=1`
+    // is that regeneration, kept beside the assertion so the two cannot compute
+    // it differently. Deliberate, never to turn a red test green: read the diff.
+    let regenerate = std::env::var("VOYALIER_REGENERATE_GOLDEN").is_ok();
 
-    for case in cases {
+    let cases = golden["cases"].as_array().expect("cases array").clone();
+    let mut regenerated = Vec::with_capacity(cases.len());
+    for case in &cases {
         let name = case["name"].as_str().expect("name");
         let trip: Trip = serde_json::from_value(case["trip"].clone()).expect("trip");
         let facts: Vec<ConfirmedFact> =
@@ -479,12 +486,167 @@ fn parity_assess_trip_matches_the_contract() {
             "conflicts": assessment.conflicts,
             "readiness": assessment.readiness,
         });
+        if regenerate {
+            let mut updated = case.clone();
+            updated["expected"] = actual;
+            regenerated.push(updated);
+            continue;
+        }
         assert_eq!(
             actual, case["expected"],
             "assess_trip disagrees for {name:?}"
         );
     }
+    if regenerate {
+        golden["cases"] = Value::Array(regenerated);
+        let mut written = serde_json::to_string_pretty(&golden).expect("serializable");
+        written.push('\n');
+        fs::write(&path, written).expect("rewrite golden");
+        panic!("golden regenerated — review the diff, then run without the flag");
+    }
     assert_eq!(cases.len(), 12, "every golden case must be checked");
+}
+
+/// Packing suggestions are implemented twice — here and in the mock gateway.
+/// This holds the core to the golden; `apps/web/src/parity.test.ts` holds the
+/// mock to the same one.
+///
+/// The thresholds are the interesting half. They used to be six Rust constants
+/// and six unrelated magic numbers in `mock.ts`, added *after* ADR-0004 asked
+/// for a golden per mirrored rule, with nothing connecting them. Now the file
+/// is the declaration and the mock imports it, so only this side needs holding.
+#[test]
+fn parity_packing_matches_the_contract() {
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/contracts/parity/packing.json");
+    let raw = fs::read_to_string(&path).expect("parity/packing.json");
+    let golden: Value = serde_json::from_str(&raw).expect("valid json");
+
+    let thresholds = golden["thresholds"].as_object().expect("thresholds object");
+    let floats = [
+        ("coldLowC", crate::packing::COLD_LOW_C),
+        ("warmHighC", crate::packing::WARM_HIGH_C),
+        ("wetSharePct", crate::packing::WET_SHARE_PCT),
+        ("highUv", crate::packing::HIGH_UV),
+    ];
+    for (key, value) in floats {
+        assert_eq!(
+            thresholds.get(key).and_then(Value::as_f64),
+            Some(value),
+            "{key} disagrees with the core"
+        );
+    }
+    assert_eq!(
+        thresholds.get("poorAqi").and_then(Value::as_u64),
+        Some(u64::from(crate::packing::POOR_AQI)),
+        "poorAqi disagrees with the core"
+    );
+    assert_eq!(
+        thresholds.get("laundryNights").and_then(Value::as_i64),
+        Some(crate::packing::LAUNDRY_NIGHTS),
+        "laundryNights disagrees with the core"
+    );
+    // Nothing in the file goes unchecked, so a threshold cannot be added there
+    // and silently enforced nowhere.
+    assert_eq!(
+        thresholds
+            .keys()
+            .filter(|key| !key.starts_with('$'))
+            .count(),
+        floats.len() + 2,
+        "every threshold in parity/packing.json must be checked here"
+    );
+
+    let cases = golden["cases"].as_array().expect("cases array");
+    for case in cases {
+        let name = case["name"].as_str().expect("name");
+        let trip: Trip = serde_json::from_value(case["trip"].clone()).expect("trip");
+        let facts: Vec<ConfirmedFact> =
+            serde_json::from_value(case["facts"].clone()).expect("facts");
+        let weather: Option<crate::weather::WeatherSnapshot> =
+            serde_json::from_value(case["weather"].clone()).expect("weather");
+
+        let actual = serde_json::to_value(crate::packing::build_packing_list(
+            &trip,
+            &facts,
+            weather.as_ref(),
+        ))
+        .expect("serializable");
+        assert_eq!(
+            actual, case["expected"],
+            "build_packing_list disagrees for {name:?}"
+        );
+    }
+    assert_eq!(cases.len(), 6, "every golden case must be checked");
+}
+
+/// The destination-facts rules each language derives on read, held to one file.
+///
+/// These had no parity coverage at all: the facts family grew a source a day
+/// with hand-written mock fixtures beside it, and nothing compared the two. The
+/// narrowing rule is the one that mattered — the core sorts and de-duplicates
+/// where the mock only filtered.
+#[test]
+fn parity_trip_facts_matches_the_contract() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../packages/contracts/parity/trip-facts.json");
+    let raw = fs::read_to_string(&path).expect("parity/trip-facts.json");
+    let golden: Value = serde_json::from_str(&raw).expect("valid json");
+
+    let cases = golden["timeDifference"]["cases"]
+        .as_array()
+        .expect("timeDifference cases");
+    for case in cases {
+        let name = case["name"].as_str().expect("name");
+        let actual = serde_json::to_value(crate::facts::time_difference(
+            case["originPlace"].as_str().expect("originPlace"),
+            case["originUtcOffsetMinutes"].as_i64().expect("origin") as i32,
+            case["destinationUtcOffsetMinutes"]
+                .as_i64()
+                .expect("destination") as i32,
+        ))
+        .expect("serializable");
+        assert_eq!(actual, case["expected"], "time_difference for {name:?}");
+    }
+    assert_eq!(cases.len(), 4, "every timeDifference case must be checked");
+
+    let cases = golden["holidaysWithin"]["cases"]
+        .as_array()
+        .expect("holidaysWithin cases");
+    for case in cases {
+        let name = case["name"].as_str().expect("name");
+        let holidays: Vec<crate::holidays::PublicHoliday> =
+            serde_json::from_value(case["holidays"].clone()).expect("holidays");
+        let actual = serde_json::to_value(crate::holidays::holidays_within(
+            &holidays,
+            case["start"].as_str().expect("start"),
+            case["end"].as_str().expect("end"),
+        ))
+        .expect("serializable");
+        assert_eq!(actual, case["expected"], "holidays_within for {name:?}");
+    }
+    assert_eq!(cases.len(), 4, "every holidaysWithin case must be checked");
+
+    let cases = golden["tipping"]["cases"]
+        .as_array()
+        .expect("tipping cases");
+    for case in cases {
+        let iso2 = case["iso2"].as_str().expect("iso2");
+        let actual =
+            serde_json::to_value(crate::tipping::tipping_guidance(iso2)).expect("serializable");
+        assert_eq!(actual, case["expected"], "tipping_guidance for {iso2:?}");
+    }
+    assert_eq!(cases.len(), 2, "every tipping case must be checked");
+
+    let cases = golden["countryFacts"]["cases"]
+        .as_array()
+        .expect("countryFacts cases");
+    for case in cases {
+        let iso2 = case["iso2"].as_str().expect("iso2");
+        let actual = serde_json::to_value(crate::facts::country_facts(iso2)).expect("serializable");
+        assert_eq!(actual, case["expected"], "country_facts for {iso2:?}");
+    }
+    assert_eq!(cases.len(), 2, "every countryFacts case must be checked");
 }
 
 #[test]

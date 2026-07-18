@@ -9,7 +9,8 @@
 use jiff::civil::{Date, DateTime};
 
 use crate::types::{
-    ConfirmedFact, ConflictSeverity, FactType, ItineraryConflict, ItineraryConflictKind, Trip,
+    ConfirmedFact, ConflictSeverity, FactLabel, FactType, ItineraryConflict, ItineraryConflictKind,
+    Trip,
 };
 
 /// Guard against absurd trip windows (~10 years) when walking nights.
@@ -53,11 +54,7 @@ fn flight_overlaps(facts: &[ConfirmedFact]) -> Vec<ItineraryConflict> {
                 conflicts.push(ItineraryConflict {
                     kind: ItineraryConflictKind::FlightOverlap,
                     severity: ConflictSeverity::Warning,
-                    message: format!(
-                        "{} and {} overlap in time — a traveler can only be on one flight at once.",
-                        flight_label(left),
-                        flight_label(right)
-                    ),
+                    subjects: vec![flight_label(left), flight_label(right)],
                     fact_ids: sorted_ids(&left.id, &right.id),
                     start_date: None,
                     end_date: None,
@@ -80,11 +77,7 @@ fn lodging_overlaps(facts: &[ConfirmedFact]) -> Vec<ItineraryConflict> {
                 conflicts.push(ItineraryConflict {
                     kind: ItineraryConflictKind::LodgingOverlap,
                     severity: ConflictSeverity::Warning,
-                    message: format!(
-                        "{} and {} overlap — two stays cover the same night.",
-                        lodging_label(left),
-                        lodging_label(right)
-                    ),
+                    subjects: vec![lodging_label(left), lodging_label(right)],
                     fact_ids: sorted_ids(&left.id, &right.id),
                     start_date: None,
                     end_date: None,
@@ -130,15 +123,13 @@ fn lodging_gaps(trip: &Trip, facts: &[ConfirmedFact]) -> Vec<ItineraryConflict> 
     collapse_runs(&uncovered)
         .into_iter()
         .map(|(first, last)| {
-            let message = if first == last {
-                format!("No lodging is booked for the night of {first}.")
-            } else {
-                format!("No lodging is booked for the nights of {first} through {last}.")
-            };
             ItineraryConflict {
                 kind: ItineraryConflictKind::LodgingGap,
                 severity: ConflictSeverity::Notice,
-                message,
+                // A gap is about nights, not facts: `start_date`/`end_date`
+                // carry it, and whether that reads as one night or several is
+                // the interface's plural rules to apply.
+                subjects: Vec::new(),
                 fact_ids: Vec::new(),
                 start_date: Some(first.to_string()),
                 end_date: Some(last.to_string()),
@@ -173,7 +164,8 @@ fn collapse_runs(dates: &[Date]) -> Vec<(Date, Date)> {
     runs
 }
 
-fn flight_label(fact: &ConfirmedFact) -> String {
+/// Which identifying detail this flight actually has, in preference order.
+fn flight_label(fact: &ConfirmedFact) -> FactLabel {
     let payload = &fact.payload;
     if let Some(number) = payload
         .flight_number
@@ -181,7 +173,9 @@ fn flight_label(fact: &ConfirmedFact) -> String {
         .map(str::trim)
         .filter(|value| !value.is_empty())
     {
-        return format!("Flight {number}");
+        return FactLabel::FlightNumber {
+            number: number.to_owned(),
+        };
     }
     match (
         payload
@@ -195,19 +189,24 @@ fn flight_label(fact: &ConfirmedFact) -> String {
             .map(str::trim)
             .filter(|value| !value.is_empty()),
     ) {
-        (Some(from), Some(to)) => format!("Flight {from}\u{2192}{to}"),
-        _ => "A flight".to_owned(),
+        (Some(from), Some(to)) => FactLabel::FlightRoute {
+            from: from.to_owned(),
+            to: to.to_owned(),
+        },
+        _ => FactLabel::Flight,
     }
 }
 
-fn lodging_label(fact: &ConfirmedFact) -> String {
+fn lodging_label(fact: &ConfirmedFact) -> FactLabel {
     fact.payload
         .property_name
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned)
-        .unwrap_or_else(|| "A lodging stay".to_owned())
+        .map(|property| FactLabel::LodgingProperty {
+            property: property.to_owned(),
+        })
+        .unwrap_or(FactLabel::Lodging)
 }
 
 fn sorted_ids(left: &str, right: &str) -> Vec<String> {

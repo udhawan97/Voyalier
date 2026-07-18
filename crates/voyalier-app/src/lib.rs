@@ -31,17 +31,17 @@ use voyalier_core::{
     assess_trip, build_assist_preview, build_assist_request, build_draft_preview,
     build_key_validation_request, build_packing_list, build_pull_body, build_today_view,
     build_trip_brief, changed_payload_fields, compute_astro_day, country_facts, entry_from_fcdo,
-    estimate_tokens, holidays_within, interpret_key_validation, interpret_pull_response,
+    estimate_tokens, geocode, holidays_within, interpret_key_validation, interpret_pull_response,
     nearest_airports, new_id, notices_for_country, now_rfc3339, offline_map_download_url,
     pack_catalog, pack_download_url, parse_air_quality, parse_assist_reply, parse_ca_gac,
     parse_cdc_notices, parse_climate_normals, parse_de_aa, parse_ecb_rates, parse_fcdo_content,
-    parse_forecast_response, parse_geocoding_response, parse_import, parse_lodging_dates_reply,
-    parse_nager_holidays, parse_nws_alerts, parse_pack_content, parse_place_summary,
-    parse_us_state, provider_info, rank_field_suggestions, recommend_places, search_cities,
-    search_trip_corpus, suggest_packs, suggest_search_terms, time_difference, tipping_guidance,
-    validate_api_key, validate_country_slug, validate_create_trip, validate_fact_payload,
-    validate_model_name, validate_pack_id, validate_provider_id, validate_search_query,
-    validate_update_trip, world_heritage_near,
+    parse_forecast_response, parse_import, parse_lodging_dates_reply, parse_nws_alerts,
+    parse_pack_content, parse_us_state, place_summary, provider_info, public_holidays,
+    rank_field_suggestions, recommend_places, search_cities, search_trip_corpus, suggest_packs,
+    suggest_search_terms, time_difference, tipping_guidance, validate_api_key,
+    validate_country_slug, validate_create_trip, validate_fact_payload, validate_model_name,
+    validate_pack_id, validate_provider_id, validate_search_query, validate_update_trip,
+    world_heritage_near,
 };
 use voyalier_core::{
     BACKUP_FORMAT_VERSION, BackupManifest, VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN,
@@ -335,6 +335,177 @@ impl SecretStore for MemorySecretStore {
     }
 }
 
+/// What a [`FakeFetcher`] route answers with.
+#[derive(Clone, Debug)]
+pub enum Reply {
+    Text(String),
+    Bytes(Vec<u8>),
+    Status(u16),
+    Fail(ErrorCode, String),
+}
+
+/// In-memory fetcher for tests: the network seam's fake, beside the keychain's.
+///
+/// [`SecretStore`] has shipped [`MemorySecretStore`] since the beginning, so no
+/// test hand-writes a keychain. [`AdviceFetcher`] shipped nothing, so every test
+/// that needed one wrote its own — the same route-on-a-URL-substring shape, once
+/// per test, under a different name each time.
+///
+/// Routes match on a URL substring, **first registered wins**, so a specific
+/// route registered before a general one takes precedence. An unrouted URL is an
+/// error naming the URL rather than an empty body: a test that reaches for a
+/// source it did not declare should say so, not quietly read "".
+///
+/// Every request is recorded, so a test can assert what was actually fetched
+/// rather than only what came back.
+#[derive(Default)]
+pub struct FakeFetcher {
+    routes: Mutex<Vec<(String, Reply)>>,
+    calls: Mutex<Vec<String>>,
+    posted: Mutex<Vec<String>>,
+    forbidden: bool,
+}
+
+impl FakeFetcher {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// A fetcher that panics on any request, for the paths that must not reach
+    /// the network at all.
+    ///
+    /// Returning an error would be the weaker claim: the code under test could
+    /// swallow it and the test would still pass. Panicking names the URL that
+    /// was not supposed to be requested.
+    pub fn offline() -> Self {
+        Self {
+            forbidden: true,
+            ..Self::default()
+        }
+    }
+
+    /// Answer any URL containing `needle` with `body`.
+    pub fn route(self, needle: &str, body: &str) -> Self {
+        self.set(needle, Reply::Text(body.to_owned()));
+        self
+    }
+
+    /// Answer any URL containing `needle` with a failure.
+    pub fn route_fail(self, needle: &str, code: ErrorCode, message: &str) -> Self {
+        self.set(needle, Reply::Fail(code, message.to_owned()));
+        self
+    }
+
+    /// Answer any URL containing `needle` with a bare HTTP status.
+    pub fn route_status(self, needle: &str, status: u16) -> Self {
+        self.set(needle, Reply::Status(status));
+        self
+    }
+
+    /// Answer any URL containing `needle` with bytes.
+    pub fn route_bytes(self, needle: &str, bytes: Vec<u8>) -> Self {
+        self.set(needle, Reply::Bytes(bytes));
+        self
+    }
+
+    /// Add or replace a route after construction, so a test can take a source
+    /// offline (or bring it back) partway through without a second fetcher.
+    pub fn set(&self, needle: &str, reply: Reply) {
+        let mut routes = self.routes.lock().expect("routes");
+        match routes.iter_mut().find(|(known, _)| known == needle) {
+            Some((_, existing)) => *existing = reply,
+            None => routes.push((needle.to_owned(), reply)),
+        }
+    }
+
+    /// Every URL requested, in order.
+    pub fn calls(&self) -> Vec<String> {
+        self.calls.lock().expect("calls").clone()
+    }
+
+    /// Whether any request's URL contained `needle`.
+    pub fn called(&self, needle: &str) -> bool {
+        self.calls().iter().any(|url| url.contains(needle))
+    }
+
+    /// Every JSON body posted, in order.
+    pub fn posted(&self) -> Vec<String> {
+        self.posted.lock().expect("posted").clone()
+    }
+
+    fn reply_for(&self, url: &str) -> Reply {
+        assert!(
+            !self.forbidden,
+            "the code under test must not reach the network, but requested {url}"
+        );
+        self.calls.lock().expect("calls").push(url.to_owned());
+        self.routes
+            .lock()
+            .expect("routes")
+            .iter()
+            .find(|(needle, _)| url.contains(needle.as_str()))
+            .map(|(_, reply)| reply.clone())
+            .unwrap_or_else(|| {
+                Reply::Fail(ErrorCode::AdviceFetchFailed, format!("no route for {url}"))
+            })
+    }
+
+    fn text_for(&self, url: &str) -> Result<String, AppError> {
+        match self.reply_for(url) {
+            Reply::Text(body) => Ok(body),
+            Reply::Fail(code, message) => Err(AppError::new(code, message)),
+            Reply::Bytes(_) | Reply::Status(_) => Err(AppError::new(
+                ErrorCode::AdviceFetchFailed,
+                format!("route for {url} does not answer with text"),
+            )),
+        }
+    }
+}
+
+impl AdviceFetcher for FakeFetcher {
+    fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+        self.text_for(url)
+    }
+
+    fn fetch_bytes(&self, url: &str, _limit: usize) -> Result<Vec<u8>, AppError> {
+        match self.reply_for(url) {
+            Reply::Bytes(bytes) => Ok(bytes),
+            Reply::Text(body) => Ok(body.into_bytes()),
+            Reply::Fail(code, message) => Err(AppError::new(code, message)),
+            Reply::Status(_) => Err(AppError::new(
+                ErrorCode::PackDownloadFailed,
+                format!("route for {url} does not answer with bytes"),
+            )),
+        }
+    }
+
+    fn post_json(
+        &self,
+        url: &str,
+        body: &str,
+        _headers: &[(&str, &str)],
+    ) -> Result<String, AppError> {
+        self.posted.lock().expect("posted").push(body.to_owned());
+        self.text_for(url)
+    }
+
+    fn get_status(&self, url: &str, _headers: &[(&str, &str)]) -> Result<u16, AppError> {
+        match self.reply_for(url) {
+            Reply::Status(status) => Ok(status),
+            Reply::Fail(code, message) => Err(AppError::new(code, message)),
+            Reply::Text(_) | Reply::Bytes(_) => Err(AppError::new(
+                ErrorCode::AssistFailed,
+                format!("route for {url} does not answer with a status"),
+            )),
+        }
+    }
+
+    fn post_json_long(&self, url: &str, body: &str) -> Result<String, AppError> {
+        self.posted.lock().expect("posted").push(body.to_owned());
+        self.text_for(url)
+    }
+}
+
 fn keyring_failure(error: keyring::Error) -> AppError {
     AppError::new(
         ErrorCode::StorageFailure,
@@ -621,6 +792,68 @@ impl std::fmt::Display for PoisonError {
     }
 }
 impl std::error::Error for PoisonError {}
+
+/// What a trip edit changed. Every retrieved snapshot is stale because of one
+/// of these, so this is the whole vocabulary staleness is expressed in.
+#[derive(Debug, Clone, Copy, Default)]
+struct TripEdit {
+    destination: bool,
+    origin: bool,
+    dates: bool,
+}
+
+/// What makes a stored snapshot stale.
+///
+/// A snapshot is stale once the trip stops being about the thing the snapshot
+/// describes, and which thing that is differs per source: weather is about a
+/// place on given days, an advisory is about a country, the facts snapshot
+/// measures one endpoint against the other.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StaleWhen {
+    /// About the destination alone.
+    Destination,
+    /// About the destination across the travel window.
+    DestinationOrDates,
+    /// About the journey's two endpoints.
+    DestinationOrOrigin,
+}
+
+impl StaleWhen {
+    fn triggered_by(self, edit: TripEdit) -> bool {
+        match self {
+            Self::Destination => edit.destination,
+            Self::DestinationOrDates => edit.destination || edit.dates,
+            Self::DestinationOrOrigin => edit.destination || edit.origin,
+        }
+    }
+}
+
+/// Every table holding a snapshot of somewhere, and what makes it stale.
+///
+/// This was three `if` arms in `update_trip`, each deleting its own tables, and
+/// a new retrieved source meant finding the arm that matched — or quietly not
+/// adding one, leaving a snapshot of the old destination on the card. Declared
+/// here, a source states its staleness beside the others, `update_trip` reads
+/// the declaration rather than restating it, and
+/// `every_snapshot_table_declares_when_it_goes_stale` holds the list to the
+/// schema so a new snapshot table cannot arrive without an answer.
+const SNAPSHOT_TABLES: &[(&str, StaleWhen)] = &[
+    ("weather_snapshots", StaleWhen::DestinationOrDates),
+    // Holidays are scoped to the destination country *and* the travel window.
+    ("public_holidays_snapshots", StaleWhen::DestinationOrDates),
+    // Advice is about a destination: once that changes, every stored government
+    // card is about somewhere the traveller is not going.
+    ("advisory_snapshots", StaleWhen::Destination),
+    ("advisory_panels", StaleWhen::Destination),
+    ("place_summaries", StaleWhen::Destination),
+    // The facts snapshot describes the destination (place, timezone, country,
+    // rates) and measures its time difference from the origin — either endpoint
+    // changing makes the whole snapshot stale.
+    (
+        "destination_facts_snapshots",
+        StaleWhen::DestinationOrOrigin,
+    ),
+];
 
 #[derive(Clone)]
 pub struct AppService {
@@ -1934,16 +2167,11 @@ impl AppService {
             self.records(&connection).trip(trip_id)?
         };
 
-        let geocode_url = format!(
-            "https://geocoding-api.open-meteo.com/v1/search?name={}&count=1&language=en&format=json",
-            percent_encode(&trip.destination)
-        );
-        let place = parse_geocoding_response(
-            &self
-                .fetcher
-                .fetch_text(&geocode_url)
-                .map_err(weather_network_failure)?,
-        )?;
+        let place = geocode(&trip.destination, |url| {
+            self.fetcher
+                .fetch_text(url)
+                .map_err(weather_network_failure)
+        })?;
 
         let forecast_url = format!(
             "https://api.open-meteo.com/v1/forecast?latitude={:.5}&longitude={:.5}\
@@ -2066,16 +2294,11 @@ impl AppService {
             self.records(&connection).trip(trip_id)?
         };
 
-        let geocode_url = format!(
-            "https://geocoding-api.open-meteo.com/v1/search?name={}&count=1&language=en&format=json",
-            percent_encode(&trip.destination)
-        );
-        let place = parse_geocoding_response(
-            &self
-                .fetcher
-                .fetch_text(&geocode_url)
-                .map_err(weather_network_failure)?,
-        )?;
+        let place = geocode(&trip.destination, |url| {
+            self.fetcher
+                .fetch_text(url)
+                .map_err(weather_network_failure)
+        })?;
 
         // The ECB feed is a small daily file; a failure here leaves the card
         // with the place and its country facts but no rates.
@@ -2095,16 +2318,7 @@ impl AppService {
         let (origin_place, origin_utc_offset_minutes) = if trip.origin.trim().is_empty() {
             (None, None)
         } else {
-            let origin_url = format!(
-                "https://geocoding-api.open-meteo.com/v1/search?name={}&count=1&language=en&format=json",
-                percent_encode(&trip.origin)
-            );
-            match self
-                .fetcher
-                .fetch_text(&origin_url)
-                .ok()
-                .and_then(|body| parse_geocoding_response(&body).ok())
-            {
+            match geocode(&trip.origin, |url| self.fetcher.fetch_text(url)).ok() {
                 Some(origin) => (
                     Some(origin.name),
                     Some(offset_minutes_for(&origin.timezone, &trip.start_date)),
@@ -2179,32 +2393,17 @@ impl AppService {
 
         // Geocode the destination to its country — the lookup weather and facts
         // already use; Nager keys on the ISO-3166-1 alpha-2 code.
-        let geocode_url = format!(
-            "https://geocoding-api.open-meteo.com/v1/search?name={}&count=1&language=en&format=json",
-            percent_encode(&trip.destination)
-        );
-        let place = parse_geocoding_response(
-            &self
-                .fetcher
-                .fetch_text(&geocode_url)
-                .map_err(weather_network_failure)?,
-        )?;
+        let place = geocode(&trip.destination, |url| {
+            self.fetcher
+                .fetch_text(url)
+                .map_err(weather_network_failure)
+        })?;
 
-        let mut holidays = Vec::new();
-        for year in trip_years(&trip.start_date, &trip.end_date) {
-            let url = format!(
-                "https://date.nager.at/api/v3/PublicHolidays/{year}/{}",
-                place.country_code
-            );
-            if let Some(parsed) = self
-                .fetcher
-                .fetch_text(&url)
-                .ok()
-                .and_then(|body| parse_nager_holidays(&body).ok())
-            {
-                holidays.extend(parsed);
-            }
-        }
+        let holidays = public_holidays(
+            &place.country_code,
+            trip_years(&trip.start_date, &trip.end_date),
+            |url| self.fetcher.fetch_text(url),
+        );
 
         let snapshot = PublicHolidaysSnapshot {
             country_code: place.country_code.clone(),
@@ -2245,15 +2444,11 @@ impl AppService {
             let connection = self.connection()?;
             self.records(&connection).trip(trip_id)?
         };
-        let url = format!(
-            "https://en.wikipedia.org/api/rest_v1/page/summary/{}",
-            percent_encode(&trip.destination)
-        );
-        let body = self
-            .fetcher
-            .fetch_text(&url)
-            .map_err(weather_network_failure)?;
-        let summary = parse_place_summary(&body, &now_rfc3339())?;
+        let summary = place_summary(&trip.destination, &now_rfc3339(), |url| {
+            self.fetcher
+                .fetch_text(url)
+                .map_err(weather_network_failure)
+        })?;
 
         let connection = self.connection()?;
         connection
@@ -2669,11 +2864,11 @@ impl AppService {
         let mut connection = self.connection()?;
         let current = self.records(&connection).trip(trip_id)?;
         let input = validate_update_trip(&current, input)?;
-        let destination_changed = current.destination != input.destination;
-        let origin_changed = current.origin != input.origin;
-        let invalidates_weather = destination_changed
-            || current.start_date != input.start_date
-            || current.end_date != input.end_date;
+        let edit = TripEdit {
+            destination: current.destination != input.destination,
+            origin: current.origin != input.origin,
+            dates: current.start_date != input.start_date || current.end_date != input.end_date,
+        };
         let updated_at = now_rfc3339();
         let transaction = connection.transaction().map_err(storage_error)?;
         transaction
@@ -2692,55 +2887,17 @@ impl AppService {
                 ],
             )
             .map_err(storage_error)?;
-        if invalidates_weather {
-            transaction
-                .execute(
-                    "DELETE FROM weather_snapshots WHERE trip_id = ?1",
-                    params![trip_id],
-                )
-                .map_err(storage_error)?;
-            // Public holidays are scoped to the destination country and the
-            // travel window — both are captured by `invalidates_weather`.
-            transaction
-                .execute(
-                    "DELETE FROM public_holidays_snapshots WHERE trip_id = ?1",
-                    params![trip_id],
-                )
-                .map_err(storage_error)?;
-        }
-        if destination_changed {
-            // Advice is about a destination: once that changes, every stored
-            // government card is about somewhere the traveller is not going.
-            transaction
-                .execute(
-                    "DELETE FROM advisory_snapshots WHERE trip_id = ?1",
-                    params![trip_id],
-                )
-                .map_err(storage_error)?;
-            transaction
-                .execute(
-                    "DELETE FROM advisory_panels WHERE trip_id = ?1",
-                    params![trip_id],
-                )
-                .map_err(storage_error)?;
-            // The place summary is about the old destination too.
-            transaction
-                .execute(
-                    "DELETE FROM place_summaries WHERE trip_id = ?1",
-                    params![trip_id],
-                )
-                .map_err(storage_error)?;
-        }
-        if destination_changed || origin_changed {
-            // The facts snapshot is about the old destination (place, timezone,
-            // country, rates) and measures its time difference from the old
-            // origin — either endpoint changing makes the whole snapshot stale.
-            transaction
-                .execute(
-                    "DELETE FROM destination_facts_snapshots WHERE trip_id = ?1",
-                    params![trip_id],
-                )
-                .map_err(storage_error)?;
+        // Table names come from `SNAPSHOT_TABLES`, which is a compile-time list
+        // of our own schema — never user input.
+        for (table, stale_when) in SNAPSHOT_TABLES {
+            if stale_when.triggered_by(edit) {
+                transaction
+                    .execute(
+                        &format!("DELETE FROM {table} WHERE trip_id = ?1"),
+                        params![trip_id],
+                    )
+                    .map_err(storage_error)?;
+            }
         }
         transaction.commit().map_err(storage_error)?;
         self.records(&connection).trip(trip_id)
@@ -4504,23 +4661,6 @@ fn key_account(id: ProviderId) -> String {
     format!("api_key.{}", id.as_str())
 }
 
-/// Minimal RFC 3986 percent-encoding for a single query value.
-fn percent_encode(value: &str) -> String {
-    let mut encoded = String::with_capacity(value.len());
-    for byte in value.bytes() {
-        match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                encoded.push(byte as char);
-            }
-            _ => {
-                encoded.push('%');
-                encoded.push_str(&format!("{byte:02X}"));
-            }
-        }
-    }
-    encoded
-}
-
 /// Flag a proposed stay whose dates fall outside the trip window, so review
 /// surfaces it. Deterministic ISO-date string comparison; other checks (e.g.
 /// past dates) are left to the reviewer.
@@ -5683,23 +5823,15 @@ mod tests {
 
     /// Routes the destination geocode (name=Kyoto) to Japan and every other
     /// geocode (the origin) to Chicago, plus the ECB feed.
-    struct RoutedFactsFetcher;
-    impl AdviceFetcher for RoutedFactsFetcher {
-        fn fetch_text(&self, url: &str) -> Result<String, AppError> {
-            if url.contains("geocoding-api.open-meteo.com") {
-                if url.contains("name=Kyoto") {
-                    return Ok(facts_geocode_body("JP", "Asia/Tokyo"));
-                }
-                return Ok(chicago_geocode_body());
-            }
-            if url.contains("ecb.europa.eu") {
-                return Ok(ECB_BODY.to_owned());
-            }
-            Err(AppError::new(
-                ErrorCode::WeatherFetchFailed,
-                "unexpected url",
-            ))
-        }
+    /// The standard destination-facts routing: Kyoto as the destination,
+    /// Chicago as the origin, and the ECB rate feed. Routes match in
+    /// registration order, so the Kyoto geocode is declared before the general
+    /// one that stands in for the origin.
+    fn routed_facts_fetcher() -> FakeFetcher {
+        FakeFetcher::new()
+            .route("name=Kyoto", &facts_geocode_body("JP", "Asia/Tokyo"))
+            .route("geocoding-api.open-meteo.com", &chicago_geocode_body())
+            .route("ecb.europa.eu", ECB_BODY)
     }
 
     const ECB_BODY: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -5817,26 +5949,18 @@ mod tests {
 
     #[test]
     fn facts_degrade_when_the_rate_source_is_down_and_are_absent_for_uncovered_countries() {
-        struct PickyFetcher;
-        impl AdviceFetcher for PickyFetcher {
-            fn fetch_text(&self, url: &str) -> Result<String, AppError> {
-                if url.contains("geocoding-api.open-meteo.com") {
-                    // A country with no bundled facts (Antarctica) and no tz.
-                    return Ok(facts_geocode_body("AQ", ""));
-                }
-                if url.contains("ecb.europa.eu") {
-                    return Err(AppError::new(ErrorCode::WeatherFetchFailed, "rates down"));
-                }
-                Err(AppError::new(
-                    ErrorCode::WeatherFetchFailed,
-                    "unexpected url",
-                ))
-            }
-        }
+        // A country with no bundled facts (Antarctica) and no tz, and a rate
+        // feed that is down.
+        let fetcher = FakeFetcher::new()
+            .route(
+                "geocoding-api.open-meteo.com",
+                &facts_geocode_body("AQ", ""),
+            )
+            .route_fail("ecb.europa.eu", ErrorCode::WeatherFetchFailed, "rates down");
 
         let database = temp_database("facts_degraded");
         let service =
-            open_test_service_with_fetcher(&database, Arc::new(PickyFetcher)).expect("service");
+            open_test_service_with_fetcher(&database, Arc::new(fetcher)).expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
 
         // The rate feed is down, but the geocode succeeded: the snapshot is
@@ -5882,7 +6006,7 @@ mod tests {
     #[test]
     fn fetch_destination_facts_resolves_origin_for_a_time_difference() {
         let database = temp_database("facts_timediff");
-        let service = open_test_service_with_fetcher(&database, Arc::new(RoutedFactsFetcher))
+        let service = open_test_service_with_fetcher(&database, Arc::new(routed_facts_fetcher()))
             .expect("service");
         // valid_trip_input: origin Chicago, destination Kyoto, start 2027-04-01.
         // Chicago is CDT (−300) that day, Tokyo +540 → 840 min ahead.
@@ -5901,28 +6025,16 @@ mod tests {
 
     #[test]
     fn an_unresolvable_origin_yields_no_time_difference() {
-        struct EmptyOriginFetcher;
-        impl AdviceFetcher for EmptyOriginFetcher {
-            fn fetch_text(&self, url: &str) -> Result<String, AppError> {
-                if url.contains("geocoding-api.open-meteo.com") {
-                    if url.contains("name=Kyoto") {
-                        return Ok(facts_geocode_body("JP", "Asia/Tokyo"));
-                    }
-                    // The origin matches nothing on the map.
-                    return Ok(r#"{ "results": [] }"#.to_owned());
-                }
-                if url.contains("ecb.europa.eu") {
-                    return Ok(ECB_BODY.to_owned());
-                }
-                Err(AppError::new(
-                    ErrorCode::WeatherFetchFailed,
-                    "unexpected url",
-                ))
-            }
-        }
+        // The destination geocodes; the origin matches nothing on the map.
+        let empty_origin_fetcher = || {
+            FakeFetcher::new()
+                .route("name=Kyoto", &facts_geocode_body("JP", "Asia/Tokyo"))
+                .route("geocoding-api.open-meteo.com", r#"{ "results": [] }"#)
+                .route("ecb.europa.eu", ECB_BODY)
+        };
 
         let database = temp_database("facts_no_origin");
-        let service = open_test_service_with_fetcher(&database, Arc::new(EmptyOriginFetcher))
+        let service = open_test_service_with_fetcher(&database, Arc::new(empty_origin_fetcher()))
             .expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
 
@@ -5944,7 +6056,7 @@ mod tests {
     #[test]
     fn editing_the_origin_invalidates_the_facts_snapshot() {
         let database = temp_database("facts_origin_edit");
-        let service = open_test_service_with_fetcher(&database, Arc::new(RoutedFactsFetcher))
+        let service = open_test_service_with_fetcher(&database, Arc::new(routed_facts_fetcher()))
             .expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
         service.fetch_destination_facts(&trip.id).expect("snapshot");
@@ -6019,30 +6131,23 @@ mod tests {
 
     #[test]
     fn fetch_public_holidays_stores_all_years_and_filters_to_the_window() {
-        struct HolidayFetcher;
-        impl AdviceFetcher for HolidayFetcher {
-            fn fetch_text(&self, url: &str) -> Result<String, AppError> {
-                if url.contains("geocoding-api.open-meteo.com") {
-                    // name "Kyoto", country "Japan", country_code "JP".
-                    return Ok(facts_geocode_body("JP", "Asia/Tokyo"));
-                }
-                if url.contains("date.nager.at") && url.contains("/2027/JP") {
-                    return Ok(r#"[
-                      {"date":"2027-04-05","localName":"テスト祝日","name":"Test Holiday","global":true,"types":["Public"]},
-                      {"date":"2027-04-29","localName":"昭和の日","name":"Shōwa Day","global":true,"types":["Public"]}
-                    ]"#
-                    .to_owned());
-                }
-                Err(AppError::new(
-                    ErrorCode::AdviceFetchFailed,
-                    "unexpected url",
-                ))
-            }
-        }
+        // name "Kyoto", country "Japan", country_code "JP".
+        let fetcher = FakeFetcher::new()
+            .route(
+                "geocoding-api.open-meteo.com",
+                &facts_geocode_body("JP", "Asia/Tokyo"),
+            )
+            .route(
+                "date.nager.at/api/v3/PublicHolidays/2027/JP",
+                r#"[
+                  {"date":"2027-04-05","localName":"テスト祝日","name":"Test Holiday","global":true,"types":["Public"]},
+                  {"date":"2027-04-29","localName":"昭和の日","name":"Shōwa Day","global":true,"types":["Public"]}
+                ]"#,
+            );
 
         let database = temp_database("holidays");
         let service =
-            open_test_service_with_fetcher(&database, Arc::new(HolidayFetcher)).expect("service");
+            open_test_service_with_fetcher(&database, Arc::new(fetcher)).expect("service");
         // valid_trip_input: Kyoto, 2027-04-01 .. 2027-04-10.
         let trip = service.create_trip(valid_trip_input()).expect("trip");
 
@@ -6085,26 +6190,15 @@ mod tests {
 
     #[test]
     fn fetch_place_summary_stores_and_derives_on_detail() {
-        struct SummaryFetcher;
-        impl AdviceFetcher for SummaryFetcher {
-            fn fetch_text(&self, url: &str) -> Result<String, AppError> {
-                if url.contains("en.wikipedia.org/api/rest_v1/page/summary/Kyoto") {
-                    return Ok(
-                        r#"{"type":"standard","title":"Kyoto","description":"City in Japan",
-                        "extract":"Kyoto is the capital city of Kyoto Prefecture.",
-                        "content_urls":{"desktop":{"page":"https://en.wikipedia.org/wiki/Kyoto"}}}"#
-                            .to_owned(),
-                    );
-                }
-                Err(AppError::new(
-                    ErrorCode::AdviceFetchFailed,
-                    "unexpected url",
-                ))
-            }
-        }
+        let fetcher = FakeFetcher::new().route(
+            "en.wikipedia.org/api/rest_v1/page/summary/Kyoto",
+            r#"{"type":"standard","title":"Kyoto","description":"City in Japan",
+            "extract":"Kyoto is the capital city of Kyoto Prefecture.",
+            "content_urls":{"desktop":{"page":"https://en.wikipedia.org/wiki/Kyoto"}}}"#,
+        );
         let database = temp_database("place_summary");
         let service =
-            open_test_service_with_fetcher(&database, Arc::new(SummaryFetcher)).expect("service");
+            open_test_service_with_fetcher(&database, Arc::new(fetcher)).expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
 
         let summary = service.fetch_place_summary(&trip.id).expect("summary");
@@ -6138,6 +6232,82 @@ mod tests {
                 .is_none()
         );
         cleanup_database(database);
+    }
+
+    /// Every table that stores a snapshot of somewhere declares what makes it
+    /// stale, and nothing declares staleness for a table that is not one.
+    ///
+    /// The declaration drives `update_trip`, so a snapshot table missing from it
+    /// is a snapshot that survives the edit that invalidated it — a card showing
+    /// the old destination. That failure is invisible until someone edits a trip
+    /// and reads carefully, which is exactly the kind of thing to find here
+    /// instead. A snapshot table is recognised by its `trip_id` column: that is
+    /// what makes a row about one trip's destination rather than global data.
+    #[test]
+    fn every_snapshot_table_declares_when_it_goes_stale() {
+        let connection = Connection::open_in_memory().expect("memory db");
+        init_connection(&connection).expect("schema");
+
+        let tables: Vec<String> = {
+            let mut statement = connection
+                .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+                .expect("tables");
+            statement
+                .query_map([], |row| row.get::<_, String>(0))
+                .expect("names")
+                .collect::<rusqlite::Result<Vec<String>>>()
+                .expect("collect")
+        };
+
+        let declared: std::collections::BTreeSet<&str> =
+            SNAPSHOT_TABLES.iter().map(|(name, _)| *name).collect();
+        // Tables keyed to a trip that deliberately outlive a destination edit:
+        // the traveller's own content and their imported evidence, which an edit
+        // does not make wrong. Listing them here is the "why not" beside the
+        // "what", so the exemption is a decision rather than an omission.
+        let survives_an_edit: std::collections::BTreeSet<&str> = [
+            "trips",
+            "trip_notes",
+            "source_documents",
+            "candidate_facts",
+            "confirmed_facts",
+            "parser_runs",
+            "assist_activity",
+            "downloaded_packs",
+        ]
+        .into_iter()
+        .collect();
+
+        for table in &tables {
+            let has_trip_id = {
+                let mut statement = connection
+                    .prepare(&format!("PRAGMA table_info({table})"))
+                    .expect("table_info");
+                statement
+                    .query_map([], |row| row.get::<_, String>(1))
+                    .expect("columns")
+                    .collect::<rusqlite::Result<Vec<String>>>()
+                    .expect("collect")
+                    .iter()
+                    .any(|column| column == "trip_id")
+            };
+            if !has_trip_id || survives_an_edit.contains(table.as_str()) {
+                continue;
+            }
+            assert!(
+                declared.contains(table.as_str()),
+                "{table} stores something about a trip's destination but does not \
+                 say what makes it stale: add it to SNAPSHOT_TABLES, or to this \
+                 test's survives_an_edit list with the reason it outlives an edit"
+            );
+        }
+
+        for (table, _) in SNAPSHOT_TABLES {
+            assert!(
+                tables.iter().any(|known| known == table),
+                "SNAPSHOT_TABLES names {table}, which is not in the schema"
+            );
+        }
     }
 
     #[test]
@@ -6177,29 +6347,18 @@ mod tests {
     }
 
     #[test]
-    fn percent_encoding_covers_spaces_and_unicode() {
-        assert_eq!(percent_encode("Kyoto"), "Kyoto");
-        assert_eq!(percent_encode("New York"), "New%20York");
-        assert_eq!(percent_encode("São Paulo"), "S%C3%A3o%20Paulo");
-    }
-
-    #[test]
     fn provider_keys_live_in_the_secret_store_never_the_config_or_db() {
         use voyalier_core::ProviderId;
 
         // Provider config never touches the network.
-        struct NoFetcher;
-        impl AdviceFetcher for NoFetcher {
-            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
-                panic!("provider configuration must not fetch");
-            }
-        }
-
         let database = temp_database("providers");
         let secrets = Arc::new(MemorySecretStore::default());
-        let service =
-            AppService::open_path_with_deps(&database, Arc::new(NoFetcher), secrets.clone())
-                .expect("service");
+        let service = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .expect("service");
 
         // Fresh: nothing has a key.
         let providers = service.list_providers().expect("list");
@@ -6882,17 +7041,14 @@ mod tests {
 
     #[test]
     fn vault_encrypts_confirmed_fact_payloads_at_rest_and_migrates_legacy_rows() {
-        struct NoNet;
-        impl AdviceFetcher for NoNet {
-            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
-                panic!("no network");
-            }
-        }
-
         let database = temp_database("vault");
         let secrets = Arc::new(MemorySecretStore::default());
-        let service = AppService::open_path_with_deps(&database, Arc::new(NoNet), secrets.clone())
-            .expect("service");
+        let service = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .expect("service");
         assert!(
             service.vault.is_active(),
             "memory store makes the vault active"
@@ -6988,8 +7144,12 @@ mod tests {
                 )
                 .expect("legacy insert");
         }
-        let reopened = AppService::open_path_with_deps(&database, Arc::new(NoNet), secrets.clone())
-            .expect("reopen");
+        let reopened = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .expect("reopen");
         let migrated: String = {
             let reader = Connection::open(&database).expect("reader");
             reader
@@ -7016,17 +7176,14 @@ mod tests {
 
     #[test]
     fn optional_passphrase_locks_the_vault_and_unlock_restores_access() {
-        struct NoNet;
-        impl AdviceFetcher for NoNet {
-            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
-                panic!("no network");
-            }
-        }
-
         let database = temp_database("vault-passphrase");
         let secrets = Arc::new(MemorySecretStore::default());
-        let service = AppService::open_path_with_deps(&database, Arc::new(NoNet), secrets.clone())
-            .expect("service");
+        let service = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .expect("service");
 
         // Keychain mode to start: active, no passphrase.
         let status = service.get_vault_status().expect("status");
@@ -7076,8 +7233,12 @@ mod tests {
 
         // Reopening finds the wrapped key: the vault opens LOCKED and refuses to
         // read or write sealed data until unlocked.
-        let reopened = AppService::open_path_with_deps(&database, Arc::new(NoNet), secrets.clone())
-            .expect("reopen");
+        let reopened = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .expect("reopen");
         let status = reopened.get_vault_status().expect("status");
         assert!(status.protected && status.locked && !status.active);
         assert_eq!(
@@ -7126,9 +7287,12 @@ mod tests {
             .expect("remove");
         assert!(status.active && !status.protected && !status.locked);
         assert!(secrets.has(VAULT_KEY_ACCOUNT));
-        let reopened_plain =
-            AppService::open_path_with_deps(&database, Arc::new(NoNet), secrets.clone())
-                .expect("reopen plain");
+        let reopened_plain = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .expect("reopen plain");
         assert!(reopened_plain.get_vault_status().expect("status").active);
         assert!(reopened_plain.get_trip(&trip.id).is_ok());
 
@@ -7851,17 +8015,14 @@ mod tests {
 
     #[test]
     fn suggest_field_values_skips_confirmed_source_when_the_vault_is_locked() {
-        struct NoNet;
-        impl AdviceFetcher for NoNet {
-            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
-                panic!("no network");
-            }
-        }
-
         let database = temp_database("suggest-fields-locked");
         let secrets = Arc::new(MemorySecretStore::default());
-        let service = AppService::open_path_with_deps(&database, Arc::new(NoNet), secrets.clone())
-            .expect("service");
+        let service = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
         service
             .add_manual_fact(AddManualFactInput {
@@ -7879,8 +8040,12 @@ mod tests {
 
         // Reopen: the vault is locked, so the confirmed-fact source is unreadable.
         // Suggestions must degrade to empty rather than surfacing a locked error.
-        let reopened = AppService::open_path_with_deps(&database, Arc::new(NoNet), secrets.clone())
-            .expect("reopen");
+        let reopened = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .expect("reopen");
         assert!(reopened.get_vault_status().expect("status").locked);
         let address = reopened
             .suggest_field_values(&trip.id, "address", "")
@@ -8029,23 +8194,11 @@ mod tests {
 
     #[test]
     fn run_assist_draft_without_documents_calls_no_model() {
-        // A stub that panics if the model is ever contacted.
-        struct NoCall;
-        impl AdviceFetcher for NoCall {
-            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
-                panic!("no network");
-            }
-            fn post_json(
-                &self,
-                _url: &str,
-                _body: &str,
-                _headers: &[(&str, &str)],
-            ) -> Result<String, AppError> {
-                panic!("must not contact the model with no documents to read");
-            }
-        }
+        // Panics if the model is ever contacted: with no documents to read there
+        // is nothing to ask it about.
         let database = temp_database("draft-empty");
-        let service = open_test_service_with_fetcher(&database, Arc::new(NoCall)).expect("service");
+        let service = open_test_service_with_fetcher(&database, Arc::new(FakeFetcher::offline()))
+            .expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
 
         let result = service
@@ -8759,16 +8912,9 @@ mod tests {
 
     #[test]
     fn a_weather_network_failure_is_a_weather_error_not_an_advice_one() {
-        struct DeadNet;
-        impl AdviceFetcher for DeadNet {
-            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
-                // Mimic the shared fetcher's advice-flavored network failure.
-                Err(AppError::new(ErrorCode::AdviceFetchFailed, "boom"))
-            }
-        }
         let database = temp_database("weather-neterr");
-        let service =
-            open_test_service_with_fetcher(&database, Arc::new(DeadNet)).expect("service");
+        let service = open_test_service_with_fetcher(&database, Arc::new(FakeFetcher::new()))
+            .expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
         // fetch_weather re-flavors the fetch failure so the panel never wears
         // travel-advice wording.

@@ -99,6 +99,25 @@ fn unreadable_source() -> AppError {
     )
 }
 
+/// Resolve a free-text place name to a place on the map.
+///
+/// Which endpoint answers, how a user-typed name is encoded into it, and what
+/// a reply with no results means are this module's knowledge. Assembling that
+/// at the call site meant four call sites each deciding it again — three of
+/// them character-for-character identical — and a fifth would have decided it
+/// once more. The application layer supplies only what the core cannot: the
+/// fetch, and how a transport failure should be flavoured.
+pub fn geocode(
+    place: &str,
+    fetch: impl FnOnce(&str) -> Result<String, AppError>,
+) -> Result<GeocodedPlace, AppError> {
+    let url = format!(
+        "https://geocoding-api.open-meteo.com/v1/search?name={}&count=1&language=en&format=json",
+        crate::source::percent_encode(place)
+    );
+    parse_geocoding_response(&fetch(&url)?)
+}
+
 /// Parse the top geocoding result. No result is an error the user can act on
 /// (edit the destination), not a silent guess.
 pub fn parse_geocoding_response(json: &str) -> Result<GeocodedPlace, AppError> {
