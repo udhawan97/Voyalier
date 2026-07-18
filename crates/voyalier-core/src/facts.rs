@@ -151,8 +151,11 @@ pub fn parse_ecb_rates(xml: &str) -> Result<(String, Vec<CurrencyRate>), AppErro
                 let mut currency: Option<String> = None;
                 let mut rate: Option<f64> = None;
                 for attribute in element.attributes().flatten() {
+                    // Attribute-value normalization resolves entities as the XML
+                    // spec requires; the 0.37 `unescape_value` this replaces is
+                    // deprecated in favour of it.
                     let value = attribute
-                        .unescape_value()
+                        .normalized_value(quick_xml::XmlVersion::Explicit1_0)
                         .map_err(|_| unreadable_source())?;
                     match attribute.key.as_ref() {
                         b"time" => date = Some(value.into_owned()),
