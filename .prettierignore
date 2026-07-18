@@ -8,6 +8,11 @@ pnpm-lock.yaml
 # Some are intentionally malformed/truncated (e.g. malformed-truncated-html),
 # so reformatting them would change what the Rust parser is tested against.
 crates/**/fixtures/**
+packages/contracts/fixtures/**
+
+# Cross-language parity goldens — `VOYALIER_REGENERATE_GOLDEN=1` rewrites these
+# with serde_json's formatting, so prettier and the regenerator would fight.
+packages/contracts/parity/**
 
 # Build outputs and generated artifacts
 **/dist/**
