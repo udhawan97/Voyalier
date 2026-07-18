@@ -749,6 +749,34 @@ mod tests {
     }
 
     #[test]
+    fn cdc_titles_arrive_with_their_entities_decoded() {
+        // Real CDC titles carry escaped entities — "&amp;" for an ampersand and
+        // "&#8217;" for a curly apostrophe are routine. A traveler must never be
+        // shown the raw escape, so decoding happens in the parser rather than
+        // being left to whatever renders it.
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0"><channel>
+        <item>
+          <title>Level 2 - Dengue in Central &amp; South America</title>
+          <description>Watch the mosquitoes &lt;really&gt;.</description>
+          <link>https://wwwnc.cdc.gov/travel/notices/level2/dengue</link>
+        </item>
+        </channel></rss>"#;
+
+        let notices = parse_cdc_notices(xml).expect("parsed");
+        assert_eq!(notices.len(), 1);
+        assert_eq!(notices[0].title, "Level 2 - Dengue in Central & South America");
+        assert_eq!(notices[0].summary, "Watch the mosquitoes <really>.");
+        // Belt and braces: no raw entity may survive into what we display.
+        for raw in ["&amp;", "&lt;", "&gt;"] {
+            assert!(
+                !notices[0].title.contains(raw) && !notices[0].summary.contains(raw),
+                "an undecoded entity {raw} reached the traveler"
+            );
+        }
+    }
+
+    #[test]
     fn selects_notices_that_name_the_country() {
         let notices = parse_cdc_notices(CDC_FIXTURE).expect("parsed");
 
