@@ -51,14 +51,17 @@ Several core items are intentionally left out of `lib.rs`'s `pub use` list (endp
 ```bash
 make bootstrap   # verify node/pnpm/rustc/cargo, then pnpm install + cargo fetch
 make dev         # cargo server + web, concurrently
-make check       # the gate: pnpm check, then fmt/clippy/test across all four crates
+make check       # the gate: prettier + pnpm check, then fmt/clippy/test across all four crates
 ```
 
-`make check` (= `scripts/check.sh`) is what CI approximates. Do not substitute a bare `cargo test` —
-`voyalier-desktop` is outside the workspace default members, so it silently gets skipped.
+`make check` (= `scripts/check.sh`) **is** what CI runs — each CI job calls one stage of it
+(`check.sh web|rust|desktop`) so the three run in parallel under the job names branch protection
+requires. Add a check to `check.sh`, never inline it in a workflow, or the two drift. Do not
+substitute a bare `cargo test` — `voyalier-desktop` is outside the workspace default members, so it
+silently gets skipped.
 
-Not covered by `make check`, so verify by hand when relevant: `pnpm format:check` (Prettier is
-enforced nowhere), `pnpm audit --prod`, and the credential-string grep in `security-hygiene.yml`.
+Not covered by `make check`, so verify by hand when relevant: `pnpm audit --prod` and the
+credential-string grep in `security-hygiene.yml`.
 
 ## Testing conventions
 
