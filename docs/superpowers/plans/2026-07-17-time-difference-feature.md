@@ -16,7 +16,7 @@
 - **Best-effort origin.** The destination geocode stays mandatory (it drives the whole card). The origin geocode is a bonus, wrapped like the ECB rates are: any error, empty result, or blank origin → `origin_*` stay `None` and the Clock block simply does not render. A failed origin geocode never fails the fetch.
 - **Sub-hour zones survive.** Offsets are minutes, never whole hours — Kathmandu (+345) and Kolkata (+330) must render "10h 45m", not a rounded hour.
 - **Same-time is shown, not hidden.** A zero difference renders "keeps the same time as {origin}" — reassuring, worth a line.
-- **Migrations append-only, self-detecting.** v7 ALTERs `destination_facts_snapshots`; because a fresh DB runs the base CREATE (which gains the columns) *and then* every migration from version 0, v7 must detect its columns and skip when present — exactly like `migrate_weather_layers`. Pin migration tests to `target_schema_version()`, never a literal.
+- **Migrations append-only, self-detecting.** v7 ALTERs `destination_facts_snapshots`; because a fresh DB runs the base CREATE (which gains the columns) _and then_ every migration from version 0, v7 must detect its columns and skip when present — exactly like `migrate_weather_layers`. Pin migration tests to `target_schema_version()`, never a literal.
 - **Origin edits invalidate the snapshot.** The snapshot now depends on `trip.origin`, so `update_trip` must delete it when the origin changes (it already does for destination changes).
 - TDD: failing test first, watch it fail, minimal code, commit.
 
@@ -27,6 +27,7 @@
 **Files:** `crates/voyalier-core/src/facts.rs`; re-export in `crates/voyalier-core/src/lib.rs`.
 
 **Interfaces:**
+
 - Produces: `TimeDifference { origin_place: String, offset_minutes: i32 }` (Serialize, camelCase); `pub fn time_difference(origin_place: &str, origin_utc_offset_minutes: i32, destination_utc_offset_minutes: i32) -> TimeDifference`.
 
 - [ ] **Step 1: Failing test** (in `facts.rs` tests):
@@ -58,6 +59,7 @@ fn time_difference_is_signed_destination_minus_origin() {
 **Files:** `crates/voyalier-core/src/facts.rs` (snapshot fields), `crates/voyalier-core/src/types.rs` (TripDetail field), `crates/voyalier-app/src/lib.rs` (base CREATE, migration, fetch, load, derive, invalidate).
 
 **Interfaces:**
+
 - `DestinationFactsSnapshot` gains `origin_place: Option<String>` and `origin_utc_offset_minutes: Option<i32>` (both `#[serde(default, skip_serializing_if = "Option::is_none")]`).
 - `TripDetail` gains `time_difference: Option<TimeDifference>` (`#[serde(default, skip_deserializing, skip_serializing_if = "Option::is_none")]` — derived on read like `country_facts`).
 

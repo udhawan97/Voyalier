@@ -161,7 +161,7 @@ schedule panel it rendered directly beside a translated severity badge — one
 list item, two copy pipelines, which is the exact defect the readiness migration
 fixed.
 
-It now carries `subjects: FactLabel[]`. `FactLabel` reports *which* identifying
+It now carries `subjects: FactLabel[]`. `FactLabel` reports _which_ identifying
 detail a fact has (`flight_number`, `flight_route`, `flight`,
 `lodging_property`, `lodging`) with the traveler's own data as its value; the
 interface turns that into a noun phrase and the sentence around it. Lodging gaps
