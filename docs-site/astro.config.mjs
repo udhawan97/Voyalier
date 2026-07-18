@@ -46,6 +46,10 @@ export default defineConfig({
             },
             { label: "AI assist (BYOK)", link: "/guides/ai-assist/" },
             { label: "The encrypted vault", link: "/guides/encrypted-vault/" },
+            {
+              label: "Back up and restore",
+              link: "/guides/backup-and-restore/",
+            },
             { label: "Keeping Voyalier updated", link: "/guides/updates/" },
           ],
         },
