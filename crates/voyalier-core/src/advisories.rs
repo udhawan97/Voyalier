@@ -572,10 +572,15 @@ const MAX_HEALTH_NOTICES: usize = 50;
 /// is an error, so "CDC is down" can never be rendered as "CDC says you are
 /// fine".
 pub fn parse_cdc_notices(xml: &str) -> Result<Vec<HealthNotice>, AppError> {
+    use quick_xml::escape::resolve_predefined_entity;
     use quick_xml::events::Event;
 
     let mut reader = quick_xml::Reader::from_str(xml);
-    reader.config_mut().trim_text(true);
+    // Text is deliberately not trimmed by the reader. An entity arrives as its
+    // own event, splitting "Central &amp; South" into three, and trimming each
+    // fragment would eat the spaces around the entity. Every field is trimmed
+    // once it is complete instead, and whitespace between elements lands in a
+    // field name that was cleared on the closing tag, so it is discarded.
 
     let mut notices = Vec::new();
     let mut saw_channel = false;
@@ -604,7 +609,31 @@ pub fn parse_cdc_notices(xml: &str) -> Result<Vec<HealthNotice>, AppError> {
                 field = name;
             }
             Event::Text(text) if in_item => {
-                let value = text.unescape().map_err(|_| unreadable_source())?;
+                let value = text.xml10_content().map_err(|_| unreadable_source())?;
+                append_field(
+                    &field,
+                    &value,
+                    &mut title,
+                    &mut description,
+                    &mut link,
+                    &mut published_at,
+                );
+            }
+            Event::GeneralRef(entity) if in_item => {
+                // Entity references are their own events, so each is resolved
+                // and appended where it stood. Dropping this arm would silently
+                // delete every "&amp;" and "&#8217;" from a notice.
+                let raw = entity.decode().map_err(|_| unreadable_source())?;
+                let value = match entity.resolve_char_ref() {
+                    Ok(Some(character)) => character.to_string(),
+                    // Not a numeric reference: resolve the XML-predefined names,
+                    // and otherwise keep the reference verbatim. A feed using an
+                    // HTML entity we do not know should read a little oddly, not
+                    // lose the notice or fail the whole fetch.
+                    _ => resolve_predefined_entity(&raw)
+                        .map(str::to_owned)
+                        .unwrap_or_else(|| format!("&{raw};")),
+                };
                 append_field(
                     &field,
                     &value,
@@ -765,7 +794,10 @@ mod tests {
 
         let notices = parse_cdc_notices(xml).expect("parsed");
         assert_eq!(notices.len(), 1);
-        assert_eq!(notices[0].title, "Level 2 - Dengue in Central & South America");
+        assert_eq!(
+            notices[0].title,
+            "Level 2 - Dengue in Central & South America"
+        );
         assert_eq!(notices[0].summary, "Watch the mosquitoes <really>.");
         // Belt and braces: no raw entity may survive into what we display.
         for raw in ["&amp;", "&lt;", "&gt;"] {
@@ -774,6 +806,38 @@ mod tests {
                 "an undecoded entity {raw} reached the traveler"
             );
         }
+    }
+
+    #[test]
+    fn an_unknown_entity_costs_a_character_not_the_notice() {
+        // CDC prose really does carry HTML entities like "&nbsp;" that XML does
+        // not define. One unresolvable reference must not blank the notice or
+        // fail the whole fetch — a health notice that half-renders still warns
+        // the traveler, and one that vanishes does not.
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0"><channel>
+        <item>
+          <title>Level 1 - Measles&nbsp;in Japan</title>
+          <description>Numeric refs still resolve: &#8217;.</description>
+          <link>https://wwwnc.cdc.gov/travel/notices/level1/measles</link>
+        </item>
+        </channel></rss>"#;
+
+        let notices = parse_cdc_notices(xml).expect("an unknown entity must not fail the feed");
+        assert_eq!(notices.len(), 1);
+        assert_eq!(notices[0].level_label.as_deref(), Some("Level 1"));
+        // The unknown reference survives verbatim rather than being dropped.
+        assert!(
+            notices[0].title.contains("Measles") && notices[0].title.contains("in Japan"),
+            "the title lost text around the unknown entity: {}",
+            notices[0].title
+        );
+        // A numeric character reference still resolves to its character.
+        assert!(
+            notices[0].summary.contains('\u{2019}'),
+            "numeric reference did not resolve: {}",
+            notices[0].summary
+        );
     }
 
     #[test]
