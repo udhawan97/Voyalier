@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use tauri::State;
-use voyalier_app::{AppService, BackupInfo};
+use tauri_plugin_dialog::DialogExt;
+use voyalier_app::{AppService, BackupInfo, RestorePreview};
 use voyalier_core::{
     AddManualFactInput, AdvisoryPanel, AiPromptSettings, AppError, AssistActivityEntry,
     AssistDraftResult, AssistReply, AssistRequestPreview, CandidateFact, CandidateStatus,
@@ -671,6 +672,102 @@ fn clear_backups(input: EmptyInput, service: State<'_, AppService>) -> Result<us
 }
 
 // ---------------------------------------------------------------------------
+// Workspace backup and restore. The native picker runs Rust-side and hands back
+// only a path; the webview never reads or writes a file itself, which keeps the
+// same posture as the updater. The passphrase arrives as a command argument and
+// is never written anywhere — it only ever derives a key in voyalier-core.
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BackupPassphraseInput {
+    passphrase: String,
+}
+
+/// A cancelled picker is `None`, not an error — the traveler changing their
+/// mind is a normal outcome and must not surface as a failure.
+#[tauri::command]
+fn export_backup<R: tauri::Runtime>(
+    input: BackupPassphraseInput,
+    app: tauri::AppHandle<R>,
+    service: State<'_, AppService>,
+) -> Result<Option<String>, AppError> {
+    // Build the container first, so a refused passphrase or a locked vault
+    // fails before a file picker ever appears.
+    let bytes = service.export_backup(&input.passphrase)?;
+    let Some(chosen) = app
+        .dialog()
+        .file()
+        .set_title("Save Voyalier backup")
+        .add_filter("Voyalier backup", &["vbk"])
+        .set_file_name(default_backup_file_name())
+        .blocking_save_file()
+    else {
+        return Ok(None);
+    };
+    let path = chosen.into_path().map_err(|error| {
+        AppError::new(
+            ErrorCode::StorageFailure,
+            format!("the chosen location could not be used: {error}"),
+        )
+    })?;
+    std::fs::write(&path, &bytes).map_err(|error| {
+        AppError::new(
+            ErrorCode::StorageFailure,
+            format!("the backup could not be written: {error}"),
+        )
+    })?;
+    Ok(Some(path.to_string_lossy().into_owned()))
+}
+
+#[tauri::command]
+fn stage_restore<R: tauri::Runtime>(
+    input: BackupPassphraseInput,
+    app: tauri::AppHandle<R>,
+    service: State<'_, AppService>,
+) -> Result<Option<RestorePreview>, AppError> {
+    let Some(chosen) = app
+        .dialog()
+        .file()
+        .set_title("Choose a Voyalier backup")
+        .add_filter("Voyalier backup", &["vbk"])
+        .blocking_pick_file()
+    else {
+        return Ok(None);
+    };
+    let path = chosen.into_path().map_err(|error| {
+        AppError::new(
+            ErrorCode::StorageFailure,
+            format!("the chosen file could not be used: {error}"),
+        )
+    })?;
+    let bytes = std::fs::read(&path).map_err(|error| {
+        AppError::new(
+            ErrorCode::StorageFailure,
+            format!("the backup could not be read: {error}"),
+        )
+    })?;
+    service.stage_restore(&input.passphrase, &bytes).map(Some)
+}
+
+#[tauri::command]
+fn has_pending_restore(
+    input: EmptyInput,
+    service: State<'_, AppService>,
+) -> Result<bool, AppError> {
+    let _ = input;
+    Ok(service.has_pending_restore())
+}
+
+/// A dated default filename, so consecutive backups do not silently overwrite
+/// each other in the picker.
+fn default_backup_file_name() -> String {
+    let today = voyalier_core::now_rfc3339();
+    let day = today.split('T').next().unwrap_or("backup");
+    format!("voyalier-backup-{day}.vbk")
+}
+
+// ---------------------------------------------------------------------------
 // In-app updater — Rust-wrapped so the webview never holds the updater
 // capability. The endpoint and signature pubkey are fixed in tauri.conf.json;
 // these commands accept NO caller-supplied proxy or headers, so there is no
@@ -893,6 +990,9 @@ fn builder<R: tauri::Runtime>(
             set_app_setting,
             backup_database,
             clear_backups,
+            export_backup,
+            stage_restore,
+            has_pending_restore,
             updater_check,
             updater_install,
             updater_relaunch
@@ -904,6 +1004,10 @@ pub fn run() {
     let service = AppService::open_default().expect("Voyalier storage must initialize");
     #[cfg_attr(debug_assertions, allow(unused_mut))]
     let mut app = builder(tauri::Builder::default(), service);
+    // Native pickers for backup/restore. Registered in every build (unlike the
+    // updater) because backing your workspace up is not a release-only concern.
+    // Only our Rust commands call it; the webview holds no dialog capability.
+    app = app.plugin(tauri_plugin_dialog::init());
     // The updater plugin reads its fixed endpoint + pubkey from tauri.conf.json.
     // Registered only in packaged/release builds: a source/dev build has no
     // signing key, and its updater commands report the disabled state instead.
@@ -1279,6 +1383,9 @@ mod tests {
             "set_app_setting",
             "backup_database",
             "clear_backups",
+            "export_backup",
+            "stage_restore",
+            "has_pending_restore",
         ] {
             let error = invoke_with_body(&webview, command, json!({})).expect_err(command);
             assert!(
