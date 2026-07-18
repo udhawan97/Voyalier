@@ -44,8 +44,9 @@ use voyalier_core::{
     validate_update_trip, world_heritage_near,
 };
 use voyalier_core::{
-    VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, VaultStatus, derive_key as vault_derive_key,
-    open as vault_open, seal as vault_seal,
+    BACKUP_FORMAT_VERSION, BackupManifest, VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN,
+    VaultStatus, derive_key as vault_derive_key, open as vault_open, seal as vault_seal,
+    seal_backup,
 };
 
 const DATABASE_FILE: &str = "voyalier.sqlite3";
@@ -440,6 +441,14 @@ impl Vault {
 
     fn is_active(&self) -> bool {
         self.snapshot().key.is_some()
+    }
+
+    /// The data key held in memory, so a backup can re-wrap it under the user's
+    /// backup passphrase. `None` when the vault is locked **or** inactive —
+    /// callers must check [`Vault::status`] to tell those apart, because a
+    /// locked vault has a key it cannot reach while an inactive one has none.
+    fn active_data_key(&self) -> Option<[u8; VAULT_KEY_LEN]> {
+        self.snapshot().key
     }
 
     fn status(&self) -> VaultStatus {
@@ -1555,6 +1564,56 @@ impl AppService {
             label,
             created_at,
         })
+    }
+
+    /// Export the whole workspace as a portable, passphrase-encrypted `.vbk`
+    /// container the user can restore on any machine.
+    ///
+    /// The sealed rows are encrypted under a data key that lives in the OS
+    /// keychain, so the container carries that key re-wrapped under the
+    /// passphrase — without it the snapshot would be undecryptable elsewhere.
+    /// Returns the bytes; writing them to a chosen path is the caller's job.
+    pub fn export_backup(&self, passphrase: &str) -> Result<Vec<u8>, AppError> {
+        validate_passphrase(passphrase)?;
+        // A locked vault holds its key wrapped and unreachable, so the backup
+        // could not carry one and every sealed row would restore as garbage.
+        // Refuse rather than write a backup that silently loses the data.
+        if self.vault.status().locked {
+            return Err(vault_locked_error());
+        }
+        let data_key = self.vault.active_data_key();
+
+        // A consistent point-in-time snapshot of just the main `.sqlite3`: the
+        // write lock is held across the TRUNCATE checkpoint and the read, so no
+        // `-wal`/`-shm` strays are needed (same technique as `backup_database`).
+        let snapshot = {
+            let connection = self.connection()?;
+            connection
+                .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+                .map_err(storage_error)?;
+            fs::read(&self.database_path).map_err(storage_error)?
+        };
+
+        let manifest = BackupManifest {
+            format_version: BACKUP_FORMAT_VERSION,
+            schema_version: target_schema_version(),
+            app_version: env!("CARGO_PKG_VERSION").to_owned(),
+            created_at: now_rfc3339(),
+        };
+
+        let mut salt = [0u8; VAULT_SALT_LEN];
+        getrandom::getrandom(&mut salt).map_err(|_| nonce_error())?;
+        let mut nonce = [0u8; VAULT_NONCE_LEN];
+        getrandom::getrandom(&mut nonce).map_err(|_| nonce_error())?;
+
+        seal_backup(
+            passphrase,
+            &manifest,
+            data_key.as_ref(),
+            &snapshot,
+            &salt,
+            &nonce,
+        )
     }
 
     /// Delete every pre-update backup (and any `-wal`/`-shm` strays a reader
@@ -3470,8 +3529,8 @@ const MIGRATIONS: &[Migration] = &[
     },
 ];
 
-/// The version a fully migrated database carries.
-#[cfg(test)]
+/// The version a fully migrated database carries. Stamped into a backup's
+/// manifest so a restore can refuse a snapshot from a newer schema.
 fn target_schema_version() -> i64 {
     MIGRATIONS.last().map_or(0, |migration| migration.to)
 }
@@ -6164,6 +6223,70 @@ mod tests {
             .count();
         assert_eq!(remaining, 0);
         assert_eq!(service.clear_backups().expect("clear again"), 0);
+
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn exports_the_workspace_as_a_portable_encrypted_backup() {
+        let database = temp_database("export-backup");
+        let service = open_test_service(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        service
+            .add_manual_fact(AddManualFactInput {
+                trip_id: trip.id.clone(),
+                fact_type: FactType::FlightSegment,
+                payload: FactPayload {
+                    flight_number: Some("FP18".to_owned()),
+                    confirmation_code: Some("SECRET-PNR".to_owned()),
+                    passenger_name: Some("Jamie Traveler".to_owned()),
+                    ..FactPayload::default()
+                },
+            })
+            .expect("manual flight");
+
+        let container = service
+            .export_backup("correct horse battery staple")
+            .expect("export");
+
+        let opened = voyalier_core::open_backup("correct horse battery staple", &container)
+            .expect("open the backup");
+        assert_eq!(opened.manifest.schema_version, target_schema_version());
+        assert_eq!(opened.manifest.format_version, BACKUP_FORMAT_VERSION);
+        // Without the data key the sealed rows would be undecryptable on another
+        // machine, so a backup from an active vault must carry it.
+        assert!(opened.data_key.is_some(), "the vault key must ride along");
+        assert!(
+            opened.snapshot.starts_with(b"SQLite format 3\0"),
+            "the snapshot should be the SQLite file"
+        );
+        // The snapshot is a real workspace, not an empty database.
+        assert!(
+            opened
+                .snapshot
+                .windows(trip.id.len())
+                .any(|window| window == trip.id.as_bytes()),
+            "the exported snapshot should contain the trip"
+        );
+
+        // The traveler's secrets are not readable in the exported file.
+        for secret in [b"SECRET-PNR".as_slice(), b"Jamie Traveler".as_slice()] {
+            assert!(
+                container
+                    .windows(secret.len())
+                    .all(|window| window != secret),
+                "a secret leaked into the backup in the clear"
+            );
+        }
+
+        assert!(
+            voyalier_core::open_backup("the wrong passphrase", &container).is_err(),
+            "a wrong passphrase must not open the backup"
+        );
+        assert_eq!(
+            service.export_backup("short").expect_err("too short").code,
+            ErrorCode::ValidationInvalidInput
+        );
 
         cleanup_database(database);
     }
