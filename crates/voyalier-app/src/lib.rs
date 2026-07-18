@@ -335,6 +335,177 @@ impl SecretStore for MemorySecretStore {
     }
 }
 
+/// What a [`FakeFetcher`] route answers with.
+#[derive(Clone, Debug)]
+pub enum Reply {
+    Text(String),
+    Bytes(Vec<u8>),
+    Status(u16),
+    Fail(ErrorCode, String),
+}
+
+/// In-memory fetcher for tests: the network seam's fake, beside the keychain's.
+///
+/// [`SecretStore`] has shipped [`MemorySecretStore`] since the beginning, so no
+/// test hand-writes a keychain. [`AdviceFetcher`] shipped nothing, so every test
+/// that needed one wrote its own — the same route-on-a-URL-substring shape, once
+/// per test, under a different name each time.
+///
+/// Routes match on a URL substring, **first registered wins**, so a specific
+/// route registered before a general one takes precedence. An unrouted URL is an
+/// error naming the URL rather than an empty body: a test that reaches for a
+/// source it did not declare should say so, not quietly read "".
+///
+/// Every request is recorded, so a test can assert what was actually fetched
+/// rather than only what came back.
+#[derive(Default)]
+pub struct FakeFetcher {
+    routes: Mutex<Vec<(String, Reply)>>,
+    calls: Mutex<Vec<String>>,
+    posted: Mutex<Vec<String>>,
+    forbidden: bool,
+}
+
+impl FakeFetcher {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// A fetcher that panics on any request, for the paths that must not reach
+    /// the network at all.
+    ///
+    /// Returning an error would be the weaker claim: the code under test could
+    /// swallow it and the test would still pass. Panicking names the URL that
+    /// was not supposed to be requested.
+    pub fn offline() -> Self {
+        Self {
+            forbidden: true,
+            ..Self::default()
+        }
+    }
+
+    /// Answer any URL containing `needle` with `body`.
+    pub fn route(self, needle: &str, body: &str) -> Self {
+        self.set(needle, Reply::Text(body.to_owned()));
+        self
+    }
+
+    /// Answer any URL containing `needle` with a failure.
+    pub fn route_fail(self, needle: &str, code: ErrorCode, message: &str) -> Self {
+        self.set(needle, Reply::Fail(code, message.to_owned()));
+        self
+    }
+
+    /// Answer any URL containing `needle` with a bare HTTP status.
+    pub fn route_status(self, needle: &str, status: u16) -> Self {
+        self.set(needle, Reply::Status(status));
+        self
+    }
+
+    /// Answer any URL containing `needle` with bytes.
+    pub fn route_bytes(self, needle: &str, bytes: Vec<u8>) -> Self {
+        self.set(needle, Reply::Bytes(bytes));
+        self
+    }
+
+    /// Add or replace a route after construction, so a test can take a source
+    /// offline (or bring it back) partway through without a second fetcher.
+    pub fn set(&self, needle: &str, reply: Reply) {
+        let mut routes = self.routes.lock().expect("routes");
+        match routes.iter_mut().find(|(known, _)| known == needle) {
+            Some((_, existing)) => *existing = reply,
+            None => routes.push((needle.to_owned(), reply)),
+        }
+    }
+
+    /// Every URL requested, in order.
+    pub fn calls(&self) -> Vec<String> {
+        self.calls.lock().expect("calls").clone()
+    }
+
+    /// Whether any request's URL contained `needle`.
+    pub fn called(&self, needle: &str) -> bool {
+        self.calls().iter().any(|url| url.contains(needle))
+    }
+
+    /// Every JSON body posted, in order.
+    pub fn posted(&self) -> Vec<String> {
+        self.posted.lock().expect("posted").clone()
+    }
+
+    fn reply_for(&self, url: &str) -> Reply {
+        assert!(
+            !self.forbidden,
+            "the code under test must not reach the network, but requested {url}"
+        );
+        self.calls.lock().expect("calls").push(url.to_owned());
+        self.routes
+            .lock()
+            .expect("routes")
+            .iter()
+            .find(|(needle, _)| url.contains(needle.as_str()))
+            .map(|(_, reply)| reply.clone())
+            .unwrap_or_else(|| {
+                Reply::Fail(ErrorCode::AdviceFetchFailed, format!("no route for {url}"))
+            })
+    }
+
+    fn text_for(&self, url: &str) -> Result<String, AppError> {
+        match self.reply_for(url) {
+            Reply::Text(body) => Ok(body),
+            Reply::Fail(code, message) => Err(AppError::new(code, message)),
+            Reply::Bytes(_) | Reply::Status(_) => Err(AppError::new(
+                ErrorCode::AdviceFetchFailed,
+                format!("route for {url} does not answer with text"),
+            )),
+        }
+    }
+}
+
+impl AdviceFetcher for FakeFetcher {
+    fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+        self.text_for(url)
+    }
+
+    fn fetch_bytes(&self, url: &str, _limit: usize) -> Result<Vec<u8>, AppError> {
+        match self.reply_for(url) {
+            Reply::Bytes(bytes) => Ok(bytes),
+            Reply::Text(body) => Ok(body.into_bytes()),
+            Reply::Fail(code, message) => Err(AppError::new(code, message)),
+            Reply::Status(_) => Err(AppError::new(
+                ErrorCode::PackDownloadFailed,
+                format!("route for {url} does not answer with bytes"),
+            )),
+        }
+    }
+
+    fn post_json(
+        &self,
+        url: &str,
+        body: &str,
+        _headers: &[(&str, &str)],
+    ) -> Result<String, AppError> {
+        self.posted.lock().expect("posted").push(body.to_owned());
+        self.text_for(url)
+    }
+
+    fn get_status(&self, url: &str, _headers: &[(&str, &str)]) -> Result<u16, AppError> {
+        match self.reply_for(url) {
+            Reply::Status(status) => Ok(status),
+            Reply::Fail(code, message) => Err(AppError::new(code, message)),
+            Reply::Text(_) | Reply::Bytes(_) => Err(AppError::new(
+                ErrorCode::AssistFailed,
+                format!("route for {url} does not answer with a status"),
+            )),
+        }
+    }
+
+    fn post_json_long(&self, url: &str, body: &str) -> Result<String, AppError> {
+        self.posted.lock().expect("posted").push(body.to_owned());
+        self.text_for(url)
+    }
+}
+
 fn keyring_failure(error: keyring::Error) -> AppError {
     AppError::new(
         ErrorCode::StorageFailure,
@@ -5683,23 +5854,15 @@ mod tests {
 
     /// Routes the destination geocode (name=Kyoto) to Japan and every other
     /// geocode (the origin) to Chicago, plus the ECB feed.
-    struct RoutedFactsFetcher;
-    impl AdviceFetcher for RoutedFactsFetcher {
-        fn fetch_text(&self, url: &str) -> Result<String, AppError> {
-            if url.contains("geocoding-api.open-meteo.com") {
-                if url.contains("name=Kyoto") {
-                    return Ok(facts_geocode_body("JP", "Asia/Tokyo"));
-                }
-                return Ok(chicago_geocode_body());
-            }
-            if url.contains("ecb.europa.eu") {
-                return Ok(ECB_BODY.to_owned());
-            }
-            Err(AppError::new(
-                ErrorCode::WeatherFetchFailed,
-                "unexpected url",
-            ))
-        }
+    /// The standard destination-facts routing: Kyoto as the destination,
+    /// Chicago as the origin, and the ECB rate feed. Routes match in
+    /// registration order, so the Kyoto geocode is declared before the general
+    /// one that stands in for the origin.
+    fn routed_facts_fetcher() -> FakeFetcher {
+        FakeFetcher::new()
+            .route("name=Kyoto", &facts_geocode_body("JP", "Asia/Tokyo"))
+            .route("geocoding-api.open-meteo.com", &chicago_geocode_body())
+            .route("ecb.europa.eu", ECB_BODY)
     }
 
     const ECB_BODY: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -5817,26 +5980,18 @@ mod tests {
 
     #[test]
     fn facts_degrade_when_the_rate_source_is_down_and_are_absent_for_uncovered_countries() {
-        struct PickyFetcher;
-        impl AdviceFetcher for PickyFetcher {
-            fn fetch_text(&self, url: &str) -> Result<String, AppError> {
-                if url.contains("geocoding-api.open-meteo.com") {
-                    // A country with no bundled facts (Antarctica) and no tz.
-                    return Ok(facts_geocode_body("AQ", ""));
-                }
-                if url.contains("ecb.europa.eu") {
-                    return Err(AppError::new(ErrorCode::WeatherFetchFailed, "rates down"));
-                }
-                Err(AppError::new(
-                    ErrorCode::WeatherFetchFailed,
-                    "unexpected url",
-                ))
-            }
-        }
+        // A country with no bundled facts (Antarctica) and no tz, and a rate
+        // feed that is down.
+        let fetcher = FakeFetcher::new()
+            .route(
+                "geocoding-api.open-meteo.com",
+                &facts_geocode_body("AQ", ""),
+            )
+            .route_fail("ecb.europa.eu", ErrorCode::WeatherFetchFailed, "rates down");
 
         let database = temp_database("facts_degraded");
         let service =
-            open_test_service_with_fetcher(&database, Arc::new(PickyFetcher)).expect("service");
+            open_test_service_with_fetcher(&database, Arc::new(fetcher)).expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
 
         // The rate feed is down, but the geocode succeeded: the snapshot is
@@ -5882,7 +6037,7 @@ mod tests {
     #[test]
     fn fetch_destination_facts_resolves_origin_for_a_time_difference() {
         let database = temp_database("facts_timediff");
-        let service = open_test_service_with_fetcher(&database, Arc::new(RoutedFactsFetcher))
+        let service = open_test_service_with_fetcher(&database, Arc::new(routed_facts_fetcher()))
             .expect("service");
         // valid_trip_input: origin Chicago, destination Kyoto, start 2027-04-01.
         // Chicago is CDT (−300) that day, Tokyo +540 → 840 min ahead.
@@ -5901,28 +6056,16 @@ mod tests {
 
     #[test]
     fn an_unresolvable_origin_yields_no_time_difference() {
-        struct EmptyOriginFetcher;
-        impl AdviceFetcher for EmptyOriginFetcher {
-            fn fetch_text(&self, url: &str) -> Result<String, AppError> {
-                if url.contains("geocoding-api.open-meteo.com") {
-                    if url.contains("name=Kyoto") {
-                        return Ok(facts_geocode_body("JP", "Asia/Tokyo"));
-                    }
-                    // The origin matches nothing on the map.
-                    return Ok(r#"{ "results": [] }"#.to_owned());
-                }
-                if url.contains("ecb.europa.eu") {
-                    return Ok(ECB_BODY.to_owned());
-                }
-                Err(AppError::new(
-                    ErrorCode::WeatherFetchFailed,
-                    "unexpected url",
-                ))
-            }
-        }
+        // The destination geocodes; the origin matches nothing on the map.
+        let empty_origin_fetcher = || {
+            FakeFetcher::new()
+                .route("name=Kyoto", &facts_geocode_body("JP", "Asia/Tokyo"))
+                .route("geocoding-api.open-meteo.com", r#"{ "results": [] }"#)
+                .route("ecb.europa.eu", ECB_BODY)
+        };
 
         let database = temp_database("facts_no_origin");
-        let service = open_test_service_with_fetcher(&database, Arc::new(EmptyOriginFetcher))
+        let service = open_test_service_with_fetcher(&database, Arc::new(empty_origin_fetcher()))
             .expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
 
@@ -5944,7 +6087,7 @@ mod tests {
     #[test]
     fn editing_the_origin_invalidates_the_facts_snapshot() {
         let database = temp_database("facts_origin_edit");
-        let service = open_test_service_with_fetcher(&database, Arc::new(RoutedFactsFetcher))
+        let service = open_test_service_with_fetcher(&database, Arc::new(routed_facts_fetcher()))
             .expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
         service.fetch_destination_facts(&trip.id).expect("snapshot");
@@ -6019,30 +6162,23 @@ mod tests {
 
     #[test]
     fn fetch_public_holidays_stores_all_years_and_filters_to_the_window() {
-        struct HolidayFetcher;
-        impl AdviceFetcher for HolidayFetcher {
-            fn fetch_text(&self, url: &str) -> Result<String, AppError> {
-                if url.contains("geocoding-api.open-meteo.com") {
-                    // name "Kyoto", country "Japan", country_code "JP".
-                    return Ok(facts_geocode_body("JP", "Asia/Tokyo"));
-                }
-                if url.contains("date.nager.at") && url.contains("/2027/JP") {
-                    return Ok(r#"[
-                      {"date":"2027-04-05","localName":"テスト祝日","name":"Test Holiday","global":true,"types":["Public"]},
-                      {"date":"2027-04-29","localName":"昭和の日","name":"Shōwa Day","global":true,"types":["Public"]}
-                    ]"#
-                    .to_owned());
-                }
-                Err(AppError::new(
-                    ErrorCode::AdviceFetchFailed,
-                    "unexpected url",
-                ))
-            }
-        }
+        // name "Kyoto", country "Japan", country_code "JP".
+        let fetcher = FakeFetcher::new()
+            .route(
+                "geocoding-api.open-meteo.com",
+                &facts_geocode_body("JP", "Asia/Tokyo"),
+            )
+            .route(
+                "date.nager.at/api/v3/PublicHolidays/2027/JP",
+                r#"[
+                  {"date":"2027-04-05","localName":"テスト祝日","name":"Test Holiday","global":true,"types":["Public"]},
+                  {"date":"2027-04-29","localName":"昭和の日","name":"Shōwa Day","global":true,"types":["Public"]}
+                ]"#,
+            );
 
         let database = temp_database("holidays");
         let service =
-            open_test_service_with_fetcher(&database, Arc::new(HolidayFetcher)).expect("service");
+            open_test_service_with_fetcher(&database, Arc::new(fetcher)).expect("service");
         // valid_trip_input: Kyoto, 2027-04-01 .. 2027-04-10.
         let trip = service.create_trip(valid_trip_input()).expect("trip");
 
@@ -6085,26 +6221,15 @@ mod tests {
 
     #[test]
     fn fetch_place_summary_stores_and_derives_on_detail() {
-        struct SummaryFetcher;
-        impl AdviceFetcher for SummaryFetcher {
-            fn fetch_text(&self, url: &str) -> Result<String, AppError> {
-                if url.contains("en.wikipedia.org/api/rest_v1/page/summary/Kyoto") {
-                    return Ok(
-                        r#"{"type":"standard","title":"Kyoto","description":"City in Japan",
-                        "extract":"Kyoto is the capital city of Kyoto Prefecture.",
-                        "content_urls":{"desktop":{"page":"https://en.wikipedia.org/wiki/Kyoto"}}}"#
-                            .to_owned(),
-                    );
-                }
-                Err(AppError::new(
-                    ErrorCode::AdviceFetchFailed,
-                    "unexpected url",
-                ))
-            }
-        }
+        let fetcher = FakeFetcher::new().route(
+            "en.wikipedia.org/api/rest_v1/page/summary/Kyoto",
+            r#"{"type":"standard","title":"Kyoto","description":"City in Japan",
+            "extract":"Kyoto is the capital city of Kyoto Prefecture.",
+            "content_urls":{"desktop":{"page":"https://en.wikipedia.org/wiki/Kyoto"}}}"#,
+        );
         let database = temp_database("place_summary");
         let service =
-            open_test_service_with_fetcher(&database, Arc::new(SummaryFetcher)).expect("service");
+            open_test_service_with_fetcher(&database, Arc::new(fetcher)).expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
 
         let summary = service.fetch_place_summary(&trip.id).expect("summary");
@@ -6188,18 +6313,14 @@ mod tests {
         use voyalier_core::ProviderId;
 
         // Provider config never touches the network.
-        struct NoFetcher;
-        impl AdviceFetcher for NoFetcher {
-            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
-                panic!("provider configuration must not fetch");
-            }
-        }
-
         let database = temp_database("providers");
         let secrets = Arc::new(MemorySecretStore::default());
-        let service =
-            AppService::open_path_with_deps(&database, Arc::new(NoFetcher), secrets.clone())
-                .expect("service");
+        let service = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .expect("service");
 
         // Fresh: nothing has a key.
         let providers = service.list_providers().expect("list");
@@ -6882,17 +7003,14 @@ mod tests {
 
     #[test]
     fn vault_encrypts_confirmed_fact_payloads_at_rest_and_migrates_legacy_rows() {
-        struct NoNet;
-        impl AdviceFetcher for NoNet {
-            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
-                panic!("no network");
-            }
-        }
-
         let database = temp_database("vault");
         let secrets = Arc::new(MemorySecretStore::default());
-        let service = AppService::open_path_with_deps(&database, Arc::new(NoNet), secrets.clone())
-            .expect("service");
+        let service = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .expect("service");
         assert!(
             service.vault.is_active(),
             "memory store makes the vault active"
@@ -6988,8 +7106,12 @@ mod tests {
                 )
                 .expect("legacy insert");
         }
-        let reopened = AppService::open_path_with_deps(&database, Arc::new(NoNet), secrets.clone())
-            .expect("reopen");
+        let reopened = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .expect("reopen");
         let migrated: String = {
             let reader = Connection::open(&database).expect("reader");
             reader
@@ -7016,17 +7138,14 @@ mod tests {
 
     #[test]
     fn optional_passphrase_locks_the_vault_and_unlock_restores_access() {
-        struct NoNet;
-        impl AdviceFetcher for NoNet {
-            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
-                panic!("no network");
-            }
-        }
-
         let database = temp_database("vault-passphrase");
         let secrets = Arc::new(MemorySecretStore::default());
-        let service = AppService::open_path_with_deps(&database, Arc::new(NoNet), secrets.clone())
-            .expect("service");
+        let service = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .expect("service");
 
         // Keychain mode to start: active, no passphrase.
         let status = service.get_vault_status().expect("status");
@@ -7076,8 +7195,12 @@ mod tests {
 
         // Reopening finds the wrapped key: the vault opens LOCKED and refuses to
         // read or write sealed data until unlocked.
-        let reopened = AppService::open_path_with_deps(&database, Arc::new(NoNet), secrets.clone())
-            .expect("reopen");
+        let reopened = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .expect("reopen");
         let status = reopened.get_vault_status().expect("status");
         assert!(status.protected && status.locked && !status.active);
         assert_eq!(
@@ -7126,9 +7249,12 @@ mod tests {
             .expect("remove");
         assert!(status.active && !status.protected && !status.locked);
         assert!(secrets.has(VAULT_KEY_ACCOUNT));
-        let reopened_plain =
-            AppService::open_path_with_deps(&database, Arc::new(NoNet), secrets.clone())
-                .expect("reopen plain");
+        let reopened_plain = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .expect("reopen plain");
         assert!(reopened_plain.get_vault_status().expect("status").active);
         assert!(reopened_plain.get_trip(&trip.id).is_ok());
 
@@ -7851,17 +7977,14 @@ mod tests {
 
     #[test]
     fn suggest_field_values_skips_confirmed_source_when_the_vault_is_locked() {
-        struct NoNet;
-        impl AdviceFetcher for NoNet {
-            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
-                panic!("no network");
-            }
-        }
-
         let database = temp_database("suggest-fields-locked");
         let secrets = Arc::new(MemorySecretStore::default());
-        let service = AppService::open_path_with_deps(&database, Arc::new(NoNet), secrets.clone())
-            .expect("service");
+        let service = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
         service
             .add_manual_fact(AddManualFactInput {
@@ -7879,8 +8002,12 @@ mod tests {
 
         // Reopen: the vault is locked, so the confirmed-fact source is unreadable.
         // Suggestions must degrade to empty rather than surfacing a locked error.
-        let reopened = AppService::open_path_with_deps(&database, Arc::new(NoNet), secrets.clone())
-            .expect("reopen");
+        let reopened = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .expect("reopen");
         assert!(reopened.get_vault_status().expect("status").locked);
         let address = reopened
             .suggest_field_values(&trip.id, "address", "")
@@ -8029,23 +8156,11 @@ mod tests {
 
     #[test]
     fn run_assist_draft_without_documents_calls_no_model() {
-        // A stub that panics if the model is ever contacted.
-        struct NoCall;
-        impl AdviceFetcher for NoCall {
-            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
-                panic!("no network");
-            }
-            fn post_json(
-                &self,
-                _url: &str,
-                _body: &str,
-                _headers: &[(&str, &str)],
-            ) -> Result<String, AppError> {
-                panic!("must not contact the model with no documents to read");
-            }
-        }
+        // Panics if the model is ever contacted: with no documents to read there
+        // is nothing to ask it about.
         let database = temp_database("draft-empty");
-        let service = open_test_service_with_fetcher(&database, Arc::new(NoCall)).expect("service");
+        let service = open_test_service_with_fetcher(&database, Arc::new(FakeFetcher::offline()))
+            .expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
 
         let result = service
@@ -8759,16 +8874,9 @@ mod tests {
 
     #[test]
     fn a_weather_network_failure_is_a_weather_error_not_an_advice_one() {
-        struct DeadNet;
-        impl AdviceFetcher for DeadNet {
-            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
-                // Mimic the shared fetcher's advice-flavored network failure.
-                Err(AppError::new(ErrorCode::AdviceFetchFailed, "boom"))
-            }
-        }
         let database = temp_database("weather-neterr");
-        let service =
-            open_test_service_with_fetcher(&database, Arc::new(DeadNet)).expect("service");
+        let service = open_test_service_with_fetcher(&database, Arc::new(FakeFetcher::new()))
+            .expect("service");
         let trip = service.create_trip(valid_trip_input()).expect("trip");
         // fetch_weather re-flavors the fetch failure so the panel never wears
         // travel-advice wording.
