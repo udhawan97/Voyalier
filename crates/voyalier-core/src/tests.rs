@@ -464,10 +464,17 @@ fn parity_assess_trip_matches_the_contract() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../packages/contracts/parity/assess-trip.json");
     let raw = fs::read_to_string(&path).expect("parity/assess-trip.json");
-    let golden: Value = serde_json::from_str(&raw).expect("valid json");
-    let cases = golden["cases"].as_array().expect("cases array");
+    let mut golden: Value = serde_json::from_str(&raw).expect("valid json");
+    // ADR-0004: expected output here is generated from the core and then
+    // reviewed, because hand-writing a nested `ReadinessSummary` twelve times
+    // would be transcription rather than thought. `VOYALIER_REGENERATE_GOLDEN=1`
+    // is that regeneration, kept beside the assertion so the two cannot compute
+    // it differently. Deliberate, never to turn a red test green: read the diff.
+    let regenerate = std::env::var("VOYALIER_REGENERATE_GOLDEN").is_ok();
 
-    for case in cases {
+    let cases = golden["cases"].as_array().expect("cases array").clone();
+    let mut regenerated = Vec::with_capacity(cases.len());
+    for case in &cases {
         let name = case["name"].as_str().expect("name");
         let trip: Trip = serde_json::from_value(case["trip"].clone()).expect("trip");
         let facts: Vec<ConfirmedFact> =
@@ -479,10 +486,23 @@ fn parity_assess_trip_matches_the_contract() {
             "conflicts": assessment.conflicts,
             "readiness": assessment.readiness,
         });
+        if regenerate {
+            let mut updated = case.clone();
+            updated["expected"] = actual;
+            regenerated.push(updated);
+            continue;
+        }
         assert_eq!(
             actual, case["expected"],
             "assess_trip disagrees for {name:?}"
         );
+    }
+    if regenerate {
+        golden["cases"] = Value::Array(regenerated);
+        let mut written = serde_json::to_string_pretty(&golden).expect("serializable");
+        written.push('\n');
+        fs::write(&path, written).expect("rewrite golden");
+        panic!("golden regenerated — review the diff, then run without the flag");
     }
     assert_eq!(cases.len(), 12, "every golden case must be checked");
 }

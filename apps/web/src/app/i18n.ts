@@ -818,6 +818,23 @@ const en = {
   "schedule.clear": "No schedule conflicts found in your confirmed plans.",
   "schedule.conflict": "Conflict",
   "schedule.notice": "Notice",
+  // The core reports which facts a finding is about and how they are
+  // identified; the sentence is built here. A flight number and a property
+  // name are the traveler's own data, interpolated verbatim.
+  "schedule.label.flight_number": "Flight {number}",
+  "schedule.label.flight_route": "Flight {from}→{to}",
+  "schedule.label.flight": "A flight",
+  "schedule.label.lodging_property": "{property}",
+  "schedule.label.lodging": "A lodging stay",
+  "schedule.flight_overlap":
+    "{first} and {second} overlap in time — a traveler can only be on one flight at once.",
+  "schedule.lodging_overlap":
+    "{first} and {second} overlap — two stays cover the same night.",
+  // A one-night gap and a run of nights are the same finding with a different
+  // count, so the plural rules pick the form rather than the core picking it.
+  "schedule.lodging_gap.one": "No lodging is booked for the night of {first}.",
+  "schedule.lodging_gap.other":
+    "No lodging is booked for the nights of {first} through {last}.",
 
   "map.title": "Map",
   "map.intro":

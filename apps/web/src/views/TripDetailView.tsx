@@ -2,6 +2,7 @@ import { useState } from "react";
 import type {
   CandidateFact,
   ConfirmedFact,
+  FactLabel,
   ItineraryConflict,
   ReadinessCheck,
   ReadinessFindingCode,
@@ -378,6 +379,53 @@ function ScheduleCheck({ conflicts }: { conflicts: ItineraryConflict[] }) {
       </section>
     );
   }
+/**
+ * Name one fact the way this interface names facts.
+ *
+ * The core decided *which* identifying detail the fact has; the noun phrase is
+ * ours. Flight numbers and property names are the traveler's own data and go
+ * through verbatim.
+ */
+function conflictSubject(label: FactLabel): string {
+  switch (label.code) {
+    case "flight_number":
+      return t("schedule.label.flight_number", { number: label.number });
+    case "flight_route":
+      return t("schedule.label.flight_route", {
+        from: label.from,
+        to: label.to,
+      });
+    case "flight":
+      return t("schedule.label.flight");
+    case "lodging_property":
+      return t("schedule.label.lodging_property", {
+        property: label.property,
+      });
+    case "lodging":
+      return t("schedule.label.lodging");
+  }
+}
+
+/** Turn a finding into the sentence a traveler reads. */
+function conflictSentence(conflict: ItineraryConflict): string {
+  const [first, second] = conflict.subjects.map(conflictSubject);
+  switch (conflict.kind) {
+    case "flight_overlap":
+      return t("schedule.flight_overlap", { first, second });
+    case "lodging_overlap":
+      return t("schedule.lodging_overlap", { first, second });
+    case "lodging_gap": {
+      const start = conflict.startDate ?? "";
+      const last = conflict.endDate ?? start;
+      // The real night count, so a locale with more plural categories than
+      // English picks the right one rather than just one-versus-many.
+      const nights =
+        Math.round((Date.parse(last) - Date.parse(start)) / 86_400_000) + 1;
+      return plural("schedule.lodging_gap", nights, { first: start, last });
+    }
+  }
+}
+
   return (
     <section className="voy-schedule" aria-labelledby="schedule-title">
       <h2 className="voy-schedule__title">
@@ -399,7 +447,7 @@ function ScheduleCheck({ conflicts }: { conflicts: ItineraryConflict[] }) {
                   ? t("schedule.conflict")
                   : t("schedule.notice")}
               </span>
-              {conflict.message}
+              {conflictSentence(conflict)}
             </span>
           </li>
         ))}

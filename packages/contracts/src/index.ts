@@ -259,10 +259,30 @@ export interface ReadinessSummary {
 export type ItineraryConflictKind =
   "flight_overlap" | "lodging_overlap" | "lodging_gap";
 export type ConflictSeverity = "notice" | "warning";
+/**
+ * How to name a confirmed fact, for the interface to render in its own words.
+ *
+ * Which identifying detail a fact actually has — a flight number if there is
+ * one, otherwise the airports, otherwise nothing — is a rule over the payload
+ * and stays in the core. Turning the answer into a noun phrase does not:
+ * "Flight AA100" is a sentence fragment in one language.
+ */
+export type FactLabel =
+  | { code: "flight_number"; number: string }
+  | { code: "flight_route"; from: string; to: string }
+  | { code: "flight" }
+  | { code: "lodging_property"; property: string }
+  | { code: "lodging" };
 export interface ItineraryConflict {
   kind: ItineraryConflictKind;
   severity: ConflictSeverity;
-  message: string;
+  /**
+   * The facts this finding is about, named for the interface to render. Empty
+   * for window-level findings like gaps, which carry `startDate`/`endDate`
+   * instead — and whether that reads as one night or several is the plural
+   * rules' decision, not the core's.
+   */
+  subjects: FactLabel[];
   /** Confirmed-fact ids involved (sorted); empty for window-level findings like gaps. */
   factIds: string[];
   /** First affected night (ISO YYYY-MM-DD) for date-range findings. */

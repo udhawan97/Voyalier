@@ -69,6 +69,7 @@ import type {
   AstroDay,
   CountryFacts,
   DestinationFactsSnapshot,
+  FactLabel,
   PlaceSummary,
   PublicHoliday,
   PublicHolidaysSnapshot,
@@ -359,17 +360,19 @@ function nextDayN(date: string, offset: number): string {
   return current;
 }
 
-function flightLabel(payload: FlightSegmentPayload): string {
-  if (payload.flightNumber?.trim())
-    return `Flight ${payload.flightNumber.trim()}`;
+/** Which identifying detail this flight actually has, in preference order. */
+function flightLabel(payload: FlightSegmentPayload): FactLabel {
+  const number = payload.flightNumber?.trim();
+  if (number) return { code: "flight_number", number };
   const from = payload.departureAirportIata?.trim();
   const to = payload.arrivalAirportIata?.trim();
-  if (from && to) return `Flight ${from}→${to}`;
-  return "A flight";
+  if (from && to) return { code: "flight_route", from, to };
+  return { code: "flight" };
 }
 
-function lodgingLabel(payload: LodgingStayPayload): string {
-  return payload.propertyName?.trim() || "A lodging stay";
+function lodgingLabel(payload: LodgingStayPayload): FactLabel {
+  const property = payload.propertyName?.trim();
+  return property ? { code: "lodging_property", property } : { code: "lodging" };
 }
 
 function collapseRuns(dates: string[]): Array<[string, string]> {
@@ -423,7 +426,7 @@ export function detectItineraryConflicts(
         conflicts.push({
           kind: "flight_overlap",
           severity: "warning",
-          message: `${flightLabel(a.payload)} and ${flightLabel(b.payload)} overlap in time — a traveler can only be on one flight at once.`,
+          subjects: [flightLabel(a.payload), flightLabel(b.payload)],
           factIds: [a.fact.id, b.fact.id].sort(),
         });
       }
@@ -455,7 +458,7 @@ export function detectItineraryConflicts(
         conflicts.push({
           kind: "lodging_overlap",
           severity: "warning",
-          message: `${lodgingLabel(a.payload)} and ${lodgingLabel(b.payload)} overlap — two stays cover the same night.`,
+          subjects: [lodgingLabel(a.payload), lodgingLabel(b.payload)],
           factIds: [a.fact.id, b.fact.id].sort(),
         });
       }
@@ -483,10 +486,8 @@ export function detectItineraryConflicts(
       conflicts.push({
         kind: "lodging_gap",
         severity: "notice",
-        message:
-          first === last
-            ? `No lodging is booked for the night of ${first}.`
-            : `No lodging is booked for the nights of ${first} through ${last}.`,
+        // A gap is about nights, not facts: the dates carry it.
+        subjects: [],
         factIds: [],
         startDate: first,
         endDate: last,
