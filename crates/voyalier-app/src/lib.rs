@@ -31,17 +31,17 @@ use voyalier_core::{
     assess_trip, build_assist_preview, build_assist_request, build_draft_preview,
     build_key_validation_request, build_packing_list, build_pull_body, build_today_view,
     build_trip_brief, changed_payload_fields, compute_astro_day, country_facts, entry_from_fcdo,
-    estimate_tokens, holidays_within, interpret_key_validation, interpret_pull_response,
+    estimate_tokens, geocode, holidays_within, interpret_key_validation, interpret_pull_response,
     nearest_airports, new_id, notices_for_country, now_rfc3339, offline_map_download_url,
     pack_catalog, pack_download_url, parse_air_quality, parse_assist_reply, parse_ca_gac,
     parse_cdc_notices, parse_climate_normals, parse_de_aa, parse_ecb_rates, parse_fcdo_content,
-    parse_forecast_response, parse_geocoding_response, parse_import, parse_lodging_dates_reply,
-    parse_nager_holidays, parse_nws_alerts, parse_pack_content, parse_place_summary,
-    parse_us_state, provider_info, rank_field_suggestions, recommend_places, search_cities,
-    search_trip_corpus, suggest_packs, suggest_search_terms, time_difference, tipping_guidance,
-    validate_api_key, validate_country_slug, validate_create_trip, validate_fact_payload,
-    validate_model_name, validate_pack_id, validate_provider_id, validate_search_query,
-    validate_update_trip, world_heritage_near,
+    parse_forecast_response, parse_import, parse_lodging_dates_reply, parse_nws_alerts,
+    parse_pack_content, parse_us_state, place_summary, provider_info, public_holidays,
+    rank_field_suggestions, recommend_places, search_cities, search_trip_corpus, suggest_packs,
+    suggest_search_terms, time_difference, tipping_guidance, validate_api_key,
+    validate_country_slug, validate_create_trip, validate_fact_payload, validate_model_name,
+    validate_pack_id, validate_provider_id, validate_search_query, validate_update_trip,
+    world_heritage_near,
 };
 use voyalier_core::{
     BACKUP_FORMAT_VERSION, BackupManifest, VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN,
@@ -792,6 +792,68 @@ impl std::fmt::Display for PoisonError {
     }
 }
 impl std::error::Error for PoisonError {}
+
+/// What a trip edit changed. Every retrieved snapshot is stale because of one
+/// of these, so this is the whole vocabulary staleness is expressed in.
+#[derive(Debug, Clone, Copy, Default)]
+struct TripEdit {
+    destination: bool,
+    origin: bool,
+    dates: bool,
+}
+
+/// What makes a stored snapshot stale.
+///
+/// A snapshot is stale once the trip stops being about the thing the snapshot
+/// describes, and which thing that is differs per source: weather is about a
+/// place on given days, an advisory is about a country, the facts snapshot
+/// measures one endpoint against the other.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StaleWhen {
+    /// About the destination alone.
+    Destination,
+    /// About the destination across the travel window.
+    DestinationOrDates,
+    /// About the journey's two endpoints.
+    DestinationOrOrigin,
+}
+
+impl StaleWhen {
+    fn triggered_by(self, edit: TripEdit) -> bool {
+        match self {
+            Self::Destination => edit.destination,
+            Self::DestinationOrDates => edit.destination || edit.dates,
+            Self::DestinationOrOrigin => edit.destination || edit.origin,
+        }
+    }
+}
+
+/// Every table holding a snapshot of somewhere, and what makes it stale.
+///
+/// This was three `if` arms in `update_trip`, each deleting its own tables, and
+/// a new retrieved source meant finding the arm that matched — or quietly not
+/// adding one, leaving a snapshot of the old destination on the card. Declared
+/// here, a source states its staleness beside the others, `update_trip` reads
+/// the declaration rather than restating it, and
+/// `every_snapshot_table_declares_when_it_goes_stale` holds the list to the
+/// schema so a new snapshot table cannot arrive without an answer.
+const SNAPSHOT_TABLES: &[(&str, StaleWhen)] = &[
+    ("weather_snapshots", StaleWhen::DestinationOrDates),
+    // Holidays are scoped to the destination country *and* the travel window.
+    ("public_holidays_snapshots", StaleWhen::DestinationOrDates),
+    // Advice is about a destination: once that changes, every stored government
+    // card is about somewhere the traveller is not going.
+    ("advisory_snapshots", StaleWhen::Destination),
+    ("advisory_panels", StaleWhen::Destination),
+    ("place_summaries", StaleWhen::Destination),
+    // The facts snapshot describes the destination (place, timezone, country,
+    // rates) and measures its time difference from the origin — either endpoint
+    // changing makes the whole snapshot stale.
+    (
+        "destination_facts_snapshots",
+        StaleWhen::DestinationOrOrigin,
+    ),
+];
 
 #[derive(Clone)]
 pub struct AppService {
@@ -2105,16 +2167,11 @@ impl AppService {
             self.records(&connection).trip(trip_id)?
         };
 
-        let geocode_url = format!(
-            "https://geocoding-api.open-meteo.com/v1/search?name={}&count=1&language=en&format=json",
-            percent_encode(&trip.destination)
-        );
-        let place = parse_geocoding_response(
-            &self
-                .fetcher
-                .fetch_text(&geocode_url)
-                .map_err(weather_network_failure)?,
-        )?;
+        let place = geocode(&trip.destination, |url| {
+            self.fetcher
+                .fetch_text(url)
+                .map_err(weather_network_failure)
+        })?;
 
         let forecast_url = format!(
             "https://api.open-meteo.com/v1/forecast?latitude={:.5}&longitude={:.5}\
@@ -2237,16 +2294,11 @@ impl AppService {
             self.records(&connection).trip(trip_id)?
         };
 
-        let geocode_url = format!(
-            "https://geocoding-api.open-meteo.com/v1/search?name={}&count=1&language=en&format=json",
-            percent_encode(&trip.destination)
-        );
-        let place = parse_geocoding_response(
-            &self
-                .fetcher
-                .fetch_text(&geocode_url)
-                .map_err(weather_network_failure)?,
-        )?;
+        let place = geocode(&trip.destination, |url| {
+            self.fetcher
+                .fetch_text(url)
+                .map_err(weather_network_failure)
+        })?;
 
         // The ECB feed is a small daily file; a failure here leaves the card
         // with the place and its country facts but no rates.
@@ -2266,16 +2318,7 @@ impl AppService {
         let (origin_place, origin_utc_offset_minutes) = if trip.origin.trim().is_empty() {
             (None, None)
         } else {
-            let origin_url = format!(
-                "https://geocoding-api.open-meteo.com/v1/search?name={}&count=1&language=en&format=json",
-                percent_encode(&trip.origin)
-            );
-            match self
-                .fetcher
-                .fetch_text(&origin_url)
-                .ok()
-                .and_then(|body| parse_geocoding_response(&body).ok())
-            {
+            match geocode(&trip.origin, |url| self.fetcher.fetch_text(url)).ok() {
                 Some(origin) => (
                     Some(origin.name),
                     Some(offset_minutes_for(&origin.timezone, &trip.start_date)),
@@ -2350,32 +2393,17 @@ impl AppService {
 
         // Geocode the destination to its country — the lookup weather and facts
         // already use; Nager keys on the ISO-3166-1 alpha-2 code.
-        let geocode_url = format!(
-            "https://geocoding-api.open-meteo.com/v1/search?name={}&count=1&language=en&format=json",
-            percent_encode(&trip.destination)
-        );
-        let place = parse_geocoding_response(
-            &self
-                .fetcher
-                .fetch_text(&geocode_url)
-                .map_err(weather_network_failure)?,
-        )?;
+        let place = geocode(&trip.destination, |url| {
+            self.fetcher
+                .fetch_text(url)
+                .map_err(weather_network_failure)
+        })?;
 
-        let mut holidays = Vec::new();
-        for year in trip_years(&trip.start_date, &trip.end_date) {
-            let url = format!(
-                "https://date.nager.at/api/v3/PublicHolidays/{year}/{}",
-                place.country_code
-            );
-            if let Some(parsed) = self
-                .fetcher
-                .fetch_text(&url)
-                .ok()
-                .and_then(|body| parse_nager_holidays(&body).ok())
-            {
-                holidays.extend(parsed);
-            }
-        }
+        let holidays = public_holidays(
+            &place.country_code,
+            trip_years(&trip.start_date, &trip.end_date),
+            |url| self.fetcher.fetch_text(url),
+        );
 
         let snapshot = PublicHolidaysSnapshot {
             country_code: place.country_code.clone(),
@@ -2416,15 +2444,11 @@ impl AppService {
             let connection = self.connection()?;
             self.records(&connection).trip(trip_id)?
         };
-        let url = format!(
-            "https://en.wikipedia.org/api/rest_v1/page/summary/{}",
-            percent_encode(&trip.destination)
-        );
-        let body = self
-            .fetcher
-            .fetch_text(&url)
-            .map_err(weather_network_failure)?;
-        let summary = parse_place_summary(&body, &now_rfc3339())?;
+        let summary = place_summary(&trip.destination, &now_rfc3339(), |url| {
+            self.fetcher
+                .fetch_text(url)
+                .map_err(weather_network_failure)
+        })?;
 
         let connection = self.connection()?;
         connection
@@ -2840,11 +2864,11 @@ impl AppService {
         let mut connection = self.connection()?;
         let current = self.records(&connection).trip(trip_id)?;
         let input = validate_update_trip(&current, input)?;
-        let destination_changed = current.destination != input.destination;
-        let origin_changed = current.origin != input.origin;
-        let invalidates_weather = destination_changed
-            || current.start_date != input.start_date
-            || current.end_date != input.end_date;
+        let edit = TripEdit {
+            destination: current.destination != input.destination,
+            origin: current.origin != input.origin,
+            dates: current.start_date != input.start_date || current.end_date != input.end_date,
+        };
         let updated_at = now_rfc3339();
         let transaction = connection.transaction().map_err(storage_error)?;
         transaction
@@ -2863,55 +2887,17 @@ impl AppService {
                 ],
             )
             .map_err(storage_error)?;
-        if invalidates_weather {
-            transaction
-                .execute(
-                    "DELETE FROM weather_snapshots WHERE trip_id = ?1",
-                    params![trip_id],
-                )
-                .map_err(storage_error)?;
-            // Public holidays are scoped to the destination country and the
-            // travel window — both are captured by `invalidates_weather`.
-            transaction
-                .execute(
-                    "DELETE FROM public_holidays_snapshots WHERE trip_id = ?1",
-                    params![trip_id],
-                )
-                .map_err(storage_error)?;
-        }
-        if destination_changed {
-            // Advice is about a destination: once that changes, every stored
-            // government card is about somewhere the traveller is not going.
-            transaction
-                .execute(
-                    "DELETE FROM advisory_snapshots WHERE trip_id = ?1",
-                    params![trip_id],
-                )
-                .map_err(storage_error)?;
-            transaction
-                .execute(
-                    "DELETE FROM advisory_panels WHERE trip_id = ?1",
-                    params![trip_id],
-                )
-                .map_err(storage_error)?;
-            // The place summary is about the old destination too.
-            transaction
-                .execute(
-                    "DELETE FROM place_summaries WHERE trip_id = ?1",
-                    params![trip_id],
-                )
-                .map_err(storage_error)?;
-        }
-        if destination_changed || origin_changed {
-            // The facts snapshot is about the old destination (place, timezone,
-            // country, rates) and measures its time difference from the old
-            // origin — either endpoint changing makes the whole snapshot stale.
-            transaction
-                .execute(
-                    "DELETE FROM destination_facts_snapshots WHERE trip_id = ?1",
-                    params![trip_id],
-                )
-                .map_err(storage_error)?;
+        // Table names come from `SNAPSHOT_TABLES`, which is a compile-time list
+        // of our own schema — never user input.
+        for (table, stale_when) in SNAPSHOT_TABLES {
+            if stale_when.triggered_by(edit) {
+                transaction
+                    .execute(
+                        &format!("DELETE FROM {table} WHERE trip_id = ?1"),
+                        params![trip_id],
+                    )
+                    .map_err(storage_error)?;
+            }
         }
         transaction.commit().map_err(storage_error)?;
         self.records(&connection).trip(trip_id)
@@ -4675,23 +4661,6 @@ fn key_account(id: ProviderId) -> String {
     format!("api_key.{}", id.as_str())
 }
 
-/// Minimal RFC 3986 percent-encoding for a single query value.
-fn percent_encode(value: &str) -> String {
-    let mut encoded = String::with_capacity(value.len());
-    for byte in value.bytes() {
-        match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                encoded.push(byte as char);
-            }
-            _ => {
-                encoded.push('%');
-                encoded.push_str(&format!("{byte:02X}"));
-            }
-        }
-    }
-    encoded
-}
-
 /// Flag a proposed stay whose dates fall outside the trip window, so review
 /// surfaces it. Deterministic ISO-date string comparison; other checks (e.g.
 /// past dates) are left to the reviewer.
@@ -6265,6 +6234,82 @@ mod tests {
         cleanup_database(database);
     }
 
+    /// Every table that stores a snapshot of somewhere declares what makes it
+    /// stale, and nothing declares staleness for a table that is not one.
+    ///
+    /// The declaration drives `update_trip`, so a snapshot table missing from it
+    /// is a snapshot that survives the edit that invalidated it — a card showing
+    /// the old destination. That failure is invisible until someone edits a trip
+    /// and reads carefully, which is exactly the kind of thing to find here
+    /// instead. A snapshot table is recognised by its `trip_id` column: that is
+    /// what makes a row about one trip's destination rather than global data.
+    #[test]
+    fn every_snapshot_table_declares_when_it_goes_stale() {
+        let connection = Connection::open_in_memory().expect("memory db");
+        init_connection(&connection).expect("schema");
+
+        let tables: Vec<String> = {
+            let mut statement = connection
+                .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+                .expect("tables");
+            statement
+                .query_map([], |row| row.get::<_, String>(0))
+                .expect("names")
+                .collect::<rusqlite::Result<Vec<String>>>()
+                .expect("collect")
+        };
+
+        let declared: std::collections::BTreeSet<&str> =
+            SNAPSHOT_TABLES.iter().map(|(name, _)| *name).collect();
+        // Tables keyed to a trip that deliberately outlive a destination edit:
+        // the traveller's own content and their imported evidence, which an edit
+        // does not make wrong. Listing them here is the "why not" beside the
+        // "what", so the exemption is a decision rather than an omission.
+        let survives_an_edit: std::collections::BTreeSet<&str> = [
+            "trips",
+            "trip_notes",
+            "source_documents",
+            "candidate_facts",
+            "confirmed_facts",
+            "parser_runs",
+            "assist_activity",
+            "downloaded_packs",
+        ]
+        .into_iter()
+        .collect();
+
+        for table in &tables {
+            let has_trip_id = {
+                let mut statement = connection
+                    .prepare(&format!("PRAGMA table_info({table})"))
+                    .expect("table_info");
+                statement
+                    .query_map([], |row| row.get::<_, String>(1))
+                    .expect("columns")
+                    .collect::<rusqlite::Result<Vec<String>>>()
+                    .expect("collect")
+                    .iter()
+                    .any(|column| column == "trip_id")
+            };
+            if !has_trip_id || survives_an_edit.contains(table.as_str()) {
+                continue;
+            }
+            assert!(
+                declared.contains(table.as_str()),
+                "{table} stores something about a trip's destination but does not \
+                 say what makes it stale: add it to SNAPSHOT_TABLES, or to this \
+                 test's survives_an_edit list with the reason it outlives an edit"
+            );
+        }
+
+        for (table, _) in SNAPSHOT_TABLES {
+            assert!(
+                tables.iter().any(|known| known == table),
+                "SNAPSHOT_TABLES names {table}, which is not in the schema"
+            );
+        }
+    }
+
     #[test]
     fn migration_v9_adds_the_place_summaries_table() {
         let connection = Connection::open_in_memory().expect("memory db");
@@ -6299,13 +6344,6 @@ mod tests {
                 .expect("load")
                 .is_none()
         );
-    }
-
-    #[test]
-    fn percent_encoding_covers_spaces_and_unicode() {
-        assert_eq!(percent_encode("Kyoto"), "Kyoto");
-        assert_eq!(percent_encode("New York"), "New%20York");
-        assert_eq!(percent_encode("São Paulo"), "S%C3%A3o%20Paulo");
     }
 
     #[test]

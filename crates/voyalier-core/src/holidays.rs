@@ -71,6 +71,30 @@ pub fn parse_nager_holidays(json: &str) -> Result<Vec<PublicHoliday>, AppError> 
         .collect())
 }
 
+/// Fetch a country's public holidays for each of `years`.
+///
+/// Which source answers, how a year and country address it, and what a year it
+/// cannot cover means are this module's knowledge. A year that fails or parses
+/// as nothing contributes nothing rather than failing the whole fetch: a trip
+/// spanning a year the source has not published yet still gets the year it has.
+pub fn public_holidays(
+    country_code: &str,
+    years: impl IntoIterator<Item = i32>,
+    mut fetch: impl FnMut(&str) -> Result<String, AppError>,
+) -> Vec<PublicHoliday> {
+    let mut holidays = Vec::new();
+    for year in years {
+        let url = format!("https://date.nager.at/api/v3/PublicHolidays/{year}/{country_code}");
+        if let Some(parsed) = fetch(&url)
+            .ok()
+            .and_then(|body| parse_nager_holidays(&body).ok())
+        {
+            holidays.extend(parsed);
+        }
+    }
+    holidays
+}
+
 /// The holidays whose date falls within `[start, end]` inclusive, sorted by
 /// date then name, with exact duplicates collapsed. ISO `YYYY-MM-DD` strings
 /// compare in date order, so no date parsing is needed.
