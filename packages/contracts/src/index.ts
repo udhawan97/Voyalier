@@ -1072,5 +1072,10 @@ export { createMockGateway } from "./mock";
 export {
   assessReadiness as mockAssessReadiness,
   detectItineraryConflicts as mockDetectItineraryConflicts,
+  mockCountryFacts,
+  mockHolidaysWithin,
   mockNormalizePlace,
+  mockPackingList,
+  mockTimeDifference,
+  mockTippingGuidance,
 } from "./mock";

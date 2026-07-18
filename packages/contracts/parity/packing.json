@@ -1,0 +1,311 @@
+{
+  "$comment": "Packing suggestions, agreed by both languages. voyalier-core computes them (packing.rs::build_packing_list); mock.ts reimplements the same rules for component tests. `thresholds` is the single declaration of every number the rules turn on — the mock imports it rather than restating it, the way it already imports prompts.json and readiness-links.json, so there is one copy and nothing to keep in sync. voyalier-core's parity_packing_matches_the_contract holds Rust to it; apps/web's parity.test.ts holds the mock. `cases` pins rule output as well, because a thresholds-only golden would not catch a mirror that compared with the wrong operator.",
+  "$whyTheseCases": "Hand-designed for the boundaries, which is where a mirror drifts. 'exactly at every threshold' is the load-bearing one: warm layers fire *below* the cold low (strict), every other rule fires *at or above* its number (inclusive), so an operator slip in either language flips exactly one suggestion and this case catches it. 'just under every threshold' is its mirror image. Expected output is generated from the core and reviewed; the core's own unit tests judge whether it is right, this judges whether the mock agrees. Regenerate deliberately, never to turn a red test green.",
+  "thresholds": {
+    "coldLowC": 5.0,
+    "warmHighC": 22.0,
+    "wetSharePct": 40.0,
+    "highUv": 8.0,
+    "poorAqi": 100,
+    "laundryNights": 7
+  },
+  "cases": [
+    {
+      "name": "no weather snapshot suggests nothing, even with a flight",
+      "$why": "No evidence about the destination. A guessed list would be worse than none, so the flight alone does not unlock a suggestion.",
+      "trip": {
+        "id": "trip_packing",
+        "title": "Chicago -> Kyoto",
+        "origin": "Chicago",
+        "destination": "Kyoto",
+        "startDate": "2026-11-03",
+        "endDate": "2026-11-12",
+        "status": "active",
+        "createdAt": "2026-07-01T00:00:00Z",
+        "updatedAt": "2026-07-01T00:00:00Z"
+      },
+      "facts": [
+        {
+          "id": "f1",
+          "tripId": "trip_packing",
+          "factType": "flight_segment",
+          "payload": { "flightNumber": "F1" },
+          "method": "manual",
+          "candidateId": null,
+          "correctedFields": [],
+          "confirmedAt": "2026-07-01T00:00:00Z",
+          "sourceRemoved": false
+        }
+      ],
+      "weather": null,
+      "expected": []
+    },
+    {
+      "name": "a snapshot with no readings yields only what the itinerary proves",
+      "$why": "Normals absent and the air-quality layer unavailable. The flight is still a fact about the trip, so travel documents stand alone.",
+      "trip": {
+        "id": "trip_packing",
+        "title": "Chicago -> Kyoto",
+        "origin": "Chicago",
+        "destination": "Kyoto",
+        "startDate": "2026-11-03",
+        "endDate": "2026-11-04",
+        "status": "active",
+        "createdAt": "2026-07-01T00:00:00Z",
+        "updatedAt": "2026-07-01T00:00:00Z"
+      },
+      "facts": [
+        {
+          "id": "f1",
+          "tripId": "trip_packing",
+          "factType": "flight_segment",
+          "payload": { "flightNumber": "F1" },
+          "method": "manual",
+          "candidateId": null,
+          "correctedFields": [],
+          "confirmedAt": "2026-07-01T00:00:00Z",
+          "sourceRemoved": false
+        }
+      ],
+      "weather": {
+        "placeName": "Kyoto",
+        "placeRegion": "Japan",
+        "latitude": 35.0116,
+        "longitude": 135.7681,
+        "days": [],
+        "coverage": "none",
+        "sourceUrl": "https://open-meteo.com/",
+        "retrievedAt": "2026-07-01T00:00:00Z",
+        "airQuality": [],
+        "alerts": []
+      },
+      "expected": [
+        { "code": "travel_documents", "reason": { "code": "has_flight" } }
+      ]
+    },
+    {
+      "name": "every rule fires at once",
+      "$why": "Cold nights with warm days is a real continental-autumn shape, and it is the only way warm layers and light clothing fire together. Pins the sort order too: suggestions come back in code order, not in the order the rules ran.",
+      "trip": {
+        "id": "trip_packing",
+        "title": "Chicago -> Kyoto",
+        "origin": "Chicago",
+        "destination": "Kyoto",
+        "startDate": "2026-11-03",
+        "endDate": "2026-11-12",
+        "status": "active",
+        "createdAt": "2026-07-01T00:00:00Z",
+        "updatedAt": "2026-07-01T00:00:00Z"
+      },
+      "facts": [
+        {
+          "id": "f1",
+          "tripId": "trip_packing",
+          "factType": "flight_segment",
+          "payload": { "flightNumber": "F1" },
+          "method": "manual",
+          "candidateId": null,
+          "correctedFields": [],
+          "confirmedAt": "2026-07-01T00:00:00Z",
+          "sourceRemoved": false
+        }
+      ],
+      "weather": {
+        "placeName": "Kyoto",
+        "placeRegion": "Japan",
+        "latitude": 35.0116,
+        "longitude": 135.7681,
+        "days": [],
+        "coverage": "none",
+        "sourceUrl": "https://open-meteo.com/",
+        "retrievedAt": "2026-07-01T00:00:00Z",
+        "normals": {
+          "yearsSampled": 10,
+          "sampleDays": 100,
+          "firstYear": 2016,
+          "lastYear": 2025,
+          "avgHighC": 23.0,
+          "avgLowC": -2.0,
+          "wetDaySharePct": 55.0,
+          "warmestHighC": 28.0,
+          "coldestLowC": -7.0
+        },
+        "airQuality": [
+          {
+            "date": "2026-11-03",
+            "uvIndexMax": 9.5,
+            "usAqiMax": 120,
+            "pm25Max": 40.0
+          }
+        ],
+        "alerts": []
+      },
+      "expected": [
+        { "code": "warm_layers", "reason": { "code": "avg_low", "value": -2.0 } },
+        {
+          "code": "light_clothing",
+          "reason": { "code": "avg_high", "value": 23.0 }
+        },
+        {
+          "code": "rain_shell",
+          "reason": { "code": "wet_day_share", "value": 55.0 }
+        },
+        {
+          "code": "sun_protection",
+          "reason": { "code": "uv_index", "value": 9.5 }
+        },
+        { "code": "mask", "reason": { "code": "aqi", "value": 120.0 } },
+        { "code": "travel_documents", "reason": { "code": "has_flight" } },
+        { "code": "laundry", "reason": { "code": "nights", "value": 9.0 } }
+      ]
+    },
+    {
+      "name": "exactly at every threshold",
+      "$why": "The load-bearing case. Warm layers need a low STRICTLY below 5C, so 5.0 must not fire; every other rule is at-or-above, so 22.0, 40.0, 8.0, 100 and 7 nights must all fire. One flipped operator in either language changes exactly one entry here.",
+      "trip": {
+        "id": "trip_packing",
+        "title": "Chicago -> Kyoto",
+        "origin": "Chicago",
+        "destination": "Kyoto",
+        "startDate": "2026-11-03",
+        "endDate": "2026-11-10",
+        "status": "active",
+        "createdAt": "2026-07-01T00:00:00Z",
+        "updatedAt": "2026-07-01T00:00:00Z"
+      },
+      "facts": [],
+      "weather": {
+        "placeName": "Kyoto",
+        "placeRegion": "Japan",
+        "latitude": 35.0116,
+        "longitude": 135.7681,
+        "days": [],
+        "coverage": "none",
+        "sourceUrl": "https://open-meteo.com/",
+        "retrievedAt": "2026-07-01T00:00:00Z",
+        "normals": {
+          "yearsSampled": 10,
+          "sampleDays": 100,
+          "firstYear": 2016,
+          "lastYear": 2025,
+          "avgHighC": 22.0,
+          "avgLowC": 5.0,
+          "wetDaySharePct": 40.0,
+          "warmestHighC": 30.0,
+          "coldestLowC": 1.0
+        },
+        "airQuality": [
+          { "date": "2026-11-03", "uvIndexMax": 8.0, "usAqiMax": 100 }
+        ],
+        "alerts": []
+      },
+      "expected": [
+        {
+          "code": "light_clothing",
+          "reason": { "code": "avg_high", "value": 22.0 }
+        },
+        {
+          "code": "rain_shell",
+          "reason": { "code": "wet_day_share", "value": 40.0 }
+        },
+        {
+          "code": "sun_protection",
+          "reason": { "code": "uv_index", "value": 8.0 }
+        },
+        { "code": "mask", "reason": { "code": "aqi", "value": 100.0 } },
+        { "code": "laundry", "reason": { "code": "nights", "value": 7.0 } }
+      ]
+    },
+    {
+      "name": "just under every threshold",
+      "$why": "The mirror image. Only the cold low fires, because it is the one rule whose boundary sits the other way round.",
+      "trip": {
+        "id": "trip_packing",
+        "title": "Chicago -> Kyoto",
+        "origin": "Chicago",
+        "destination": "Kyoto",
+        "startDate": "2026-11-03",
+        "endDate": "2026-11-09",
+        "status": "active",
+        "createdAt": "2026-07-01T00:00:00Z",
+        "updatedAt": "2026-07-01T00:00:00Z"
+      },
+      "facts": [],
+      "weather": {
+        "placeName": "Kyoto",
+        "placeRegion": "Japan",
+        "latitude": 35.0116,
+        "longitude": 135.7681,
+        "days": [],
+        "coverage": "none",
+        "sourceUrl": "https://open-meteo.com/",
+        "retrievedAt": "2026-07-01T00:00:00Z",
+        "normals": {
+          "yearsSampled": 10,
+          "sampleDays": 100,
+          "firstYear": 2016,
+          "lastYear": 2025,
+          "avgHighC": 21.9,
+          "avgLowC": 4.9,
+          "wetDaySharePct": 39.9,
+          "warmestHighC": 27.0,
+          "coldestLowC": 0.5
+        },
+        "airQuality": [
+          { "date": "2026-11-03", "uvIndexMax": 7.9, "usAqiMax": 99 }
+        ],
+        "alerts": []
+      },
+      "expected": [
+        { "code": "warm_layers", "reason": { "code": "avg_low", "value": 4.9 } }
+      ]
+    },
+    {
+      "name": "a warm dry short trip suggests only what fits it",
+      "$why": "Nothing about warm weather should drag in rain or cold gear, and a three-night trip does not need laundry.",
+      "trip": {
+        "id": "trip_packing",
+        "title": "Chicago -> Lisbon",
+        "origin": "Chicago",
+        "destination": "Lisbon",
+        "startDate": "2026-07-01",
+        "endDate": "2026-07-04",
+        "status": "active",
+        "createdAt": "2026-07-01T00:00:00Z",
+        "updatedAt": "2026-07-01T00:00:00Z"
+      },
+      "facts": [],
+      "weather": {
+        "placeName": "Lisbon",
+        "placeRegion": "Portugal",
+        "latitude": 38.7223,
+        "longitude": -9.1393,
+        "days": [],
+        "coverage": "none",
+        "sourceUrl": "https://open-meteo.com/",
+        "retrievedAt": "2026-07-01T00:00:00Z",
+        "normals": {
+          "yearsSampled": 10,
+          "sampleDays": 100,
+          "firstYear": 2016,
+          "lastYear": 2025,
+          "avgHighC": 28.0,
+          "avgLowC": 19.0,
+          "wetDaySharePct": 5.0,
+          "warmestHighC": 33.0,
+          "coldestLowC": 14.0
+        },
+        "airQuality": [
+          { "date": "2026-07-01", "uvIndexMax": 3.0, "usAqiMax": 20 }
+        ],
+        "alerts": []
+      },
+      "expected": [
+        {
+          "code": "light_clothing",
+          "reason": { "code": "avg_high", "value": 28.0 }
+        }
+      ]
+    }
+  ]
+}
