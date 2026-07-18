@@ -5,6 +5,7 @@ import { t } from "../app/i18n";
 import { AiPromptSettings } from "./AiPromptSettings";
 import { AiProviders } from "./AiProviders";
 import { OnDeviceAi } from "./OnDeviceAi";
+import { BackupPanel } from "./BackupPanel";
 import { UpdatesPanel } from "./UpdatesPanel";
 import { VaultPanel } from "./VaultPanel";
 
@@ -51,6 +52,8 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
       <UpdatesPanel />
 
       <VaultPanel />
+
+      <BackupPanel />
     </div>
   );
 }

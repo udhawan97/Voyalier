@@ -8,6 +8,24 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Added
 
+- **Back up your whole workspace, and restore it anywhere.** Voyalier keeps
+  everything on your device, which meant a lost computer was lost trips — and the
+  optional vault passphrase has no recovery. Settings now saves your entire
+  workspace to a single encrypted `.vbk` file: trips, imported confirmations,
+  confirmed facts, notes, and offline packs. You choose a backup passphrase, and
+  the **whole** file is sealed under it, so even trip names and dates are
+  unreadable without it. The file also carries your workspace's encryption key,
+  re-wrapped under that passphrase — which is what lets a backup open on a
+  **different** computer, where the original keychain key never existed.
+  Restoring replaces your workspace rather than merging into it, and happens in
+  two deliberate steps: picking the file and passphrase only **stages** it,
+  changing nothing, and the swap runs at the next launch before the database
+  opens. Your current data is snapshotted first, so a restore you did not mean is
+  recoverable. A backup from a newer Voyalier is refused rather than half-read;
+  an older one migrates forward. Downloaded maps and AI provider keys are
+  deliberately left out — maps re-download, and third-party keys stay in your
+  keychain instead of travelling in a file — and the app says so rather than
+  letting you find out later.
 - **A tipping guide on the destination-facts card.** The card now shows a short,
   conservative note on tipping customs for the destination country — worked out
   on your device from a bundled table. It's framed as a rough guide (customs

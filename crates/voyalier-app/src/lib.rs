@@ -44,8 +44,9 @@ use voyalier_core::{
     validate_update_trip, world_heritage_near,
 };
 use voyalier_core::{
-    VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, VaultStatus, derive_key as vault_derive_key,
-    open as vault_open, seal as vault_seal,
+    BACKUP_FORMAT_VERSION, BackupManifest, VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN,
+    VaultStatus, derive_key as vault_derive_key, open as vault_open, open_backup,
+    seal as vault_seal, seal_backup,
 };
 
 const DATABASE_FILE: &str = "voyalier.sqlite3";
@@ -442,6 +443,14 @@ impl Vault {
         self.snapshot().key.is_some()
     }
 
+    /// The data key held in memory, so a backup can re-wrap it under the user's
+    /// backup passphrase. `None` when the vault is locked **or** inactive —
+    /// callers must check [`Vault::status`] to tell those apart, because a
+    /// locked vault has a key it cannot reach while an inactive one has none.
+    fn active_data_key(&self) -> Option<[u8; VAULT_KEY_LEN]> {
+        self.snapshot().key
+    }
+
     fn status(&self) -> VaultStatus {
         let state = self.snapshot();
         VaultStatus {
@@ -634,6 +643,20 @@ pub struct BackupInfo {
     pub created_at: String,
 }
 
+/// What a staged restore says about the backup it came from, so the UI can show
+/// the traveler what they are about to replace their workspace with. Metadata
+/// only — never any trip content.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RestorePreview {
+    /// When the backup was taken.
+    pub created_at: String,
+    /// The Voyalier version that wrote it.
+    pub app_version: String,
+    /// The schema the snapshot carries; never newer than this build understands.
+    pub schema_version: i64,
+}
+
 impl AppService {
     pub fn open_default() -> Result<Self, AppError> {
         Self::open_path(default_database_path()?)
@@ -662,8 +685,19 @@ impl AppService {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(storage_error)?;
         }
+        // A staged restore is applied before the database is opened, so the swap
+        // never races an open connection.
+        let restored = apply_pending_restore(secrets.as_ref(), path)?;
         let connection = Connection::open(path).map_err(storage_error)?;
         init_connection(&connection)?;
+        if restored {
+            // The restored database may carry the source machine's passphrase
+            // wrap, which would open the vault locked against a key that lives
+            // on a machine the traveler no longer has. Restore lands in keychain
+            // mode against the key the backup brought; a passphrase is re-set
+            // here if the traveler wants one.
+            clear_vault_wrap(&connection)?;
+        }
         let vault = Vault::load_or_init(secrets.as_ref(), &connection)?;
         // Encrypt any pre-existing plaintext payloads now the vault is available.
         migrate_encrypt_sensitive_columns(&connection, &vault)?;
@@ -1557,6 +1591,129 @@ impl AppService {
         })
     }
 
+    /// Export the whole workspace as a portable, passphrase-encrypted `.vbk`
+    /// container the user can restore on any machine.
+    ///
+    /// The sealed rows are encrypted under a data key that lives in the OS
+    /// keychain, so the container carries that key re-wrapped under the
+    /// passphrase — without it the snapshot would be undecryptable elsewhere.
+    /// Returns the bytes; writing them to a chosen path is the caller's job.
+    pub fn export_backup(&self, passphrase: &str) -> Result<Vec<u8>, AppError> {
+        validate_passphrase(passphrase)?;
+        // A locked vault holds its key wrapped and unreachable, so the backup
+        // could not carry one and every sealed row would restore as garbage.
+        // Refuse rather than write a backup that silently loses the data.
+        if self.vault.status().locked {
+            return Err(vault_locked_error());
+        }
+        let data_key = self.vault.active_data_key();
+
+        // A consistent point-in-time snapshot of just the main `.sqlite3`: the
+        // write lock is held across the TRUNCATE checkpoint and the read, so no
+        // `-wal`/`-shm` strays are needed (same technique as `backup_database`).
+        let snapshot = {
+            let connection = self.connection()?;
+            connection
+                .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+                .map_err(storage_error)?;
+            fs::read(&self.database_path).map_err(storage_error)?
+        };
+
+        let manifest = BackupManifest {
+            format_version: BACKUP_FORMAT_VERSION,
+            schema_version: target_schema_version(),
+            app_version: env!("CARGO_PKG_VERSION").to_owned(),
+            created_at: now_rfc3339(),
+        };
+
+        let mut salt = [0u8; VAULT_SALT_LEN];
+        getrandom::getrandom(&mut salt).map_err(|_| nonce_error())?;
+        let mut nonce = [0u8; VAULT_NONCE_LEN];
+        getrandom::getrandom(&mut nonce).map_err(|_| nonce_error())?;
+
+        seal_backup(
+            passphrase,
+            &manifest,
+            data_key.as_ref(),
+            &snapshot,
+            &salt,
+            &nonce,
+        )
+    }
+
+    /// Validate a `.vbk` container and stage it to be restored at the next
+    /// launch. Nothing in the live workspace is touched here: the decrypted
+    /// snapshot and the carried key are parked, and the swap happens in
+    /// [`apply_pending_restore`] before the database is opened. A crash between
+    /// the two loses nothing.
+    pub fn stage_restore(
+        &self,
+        passphrase: &str,
+        container: &[u8],
+    ) -> Result<RestorePreview, AppError> {
+        // Decrypting is what proves the passphrase; a wrong one stops here,
+        // before anything is written.
+        let opened = open_backup(passphrase, container)?;
+        if opened.manifest.schema_version > target_schema_version() {
+            return Err(AppError::new(
+                ErrorCode::ValidationInvalidInput,
+                "this backup was made by a newer version of Voyalier — update the app, then restore",
+            ));
+        }
+        let dir = self
+            .database_path
+            .parent()
+            .ok_or_else(|| {
+                AppError::new(
+                    ErrorCode::StorageFailure,
+                    "database has no parent directory for a staged restore",
+                )
+            })?
+            .to_path_buf();
+
+        // Park the key, then the snapshot, then the marker. The marker is the
+        // signal to apply, so writing it last means an interrupted stage is
+        // inert debris rather than a half-restore.
+        match opened.data_key {
+            Some(key) => self
+                .secrets
+                .set(VAULT_PENDING_KEY_ACCOUNT, &BASE64.encode(key))?,
+            None => {
+                let _ = self.secrets.delete(VAULT_PENDING_KEY_ACCOUNT);
+            }
+        }
+        fs::write(dir.join(PENDING_RESTORE_FILE), &opened.snapshot).map_err(storage_error)?;
+
+        let preview = RestorePreview {
+            created_at: opened.manifest.created_at,
+            app_version: opened.manifest.app_version,
+            schema_version: opened.manifest.schema_version,
+        };
+        let marker = PendingRestore {
+            created_at: preview.created_at.clone(),
+            app_version: preview.app_version.clone(),
+            schema_version: preview.schema_version,
+            key_present: opened.data_key.is_some(),
+        };
+        let encoded = serde_json::to_vec(&marker).map_err(|_| {
+            AppError::new(
+                ErrorCode::InternalUnexpected,
+                "the pending restore could not be written",
+            )
+        })?;
+        fs::write(dir.join(PENDING_RESTORE_MARKER), encoded).map_err(storage_error)?;
+
+        Ok(preview)
+    }
+
+    /// Whether a staged restore is waiting for the next launch, so the UI can
+    /// prompt for the restart that finishes it.
+    pub fn has_pending_restore(&self) -> bool {
+        self.database_path
+            .parent()
+            .is_some_and(|dir| dir.join(PENDING_RESTORE_MARKER).exists())
+    }
+
     /// Delete every pre-update backup (and any `-wal`/`-shm` strays a reader
     /// left behind), returning the number of `.sqlite3` snapshots removed. The
     /// backups directory itself is left in place. This is the "clear backups"
@@ -1581,7 +1738,7 @@ impl AppService {
             let entry = entry.map_err(storage_error)?;
             let name = entry.file_name();
             let name = name.to_string_lossy();
-            if name.starts_with("pre-update-")
+            if has_backup_snapshot_prefix(&name)
                 && fs::remove_file(entry.path()).is_ok()
                 && name.ends_with(".sqlite3")
             {
@@ -3091,6 +3248,121 @@ fn filesystem_stamp(rfc3339: &str) -> String {
 /// Delete all but the `keep` most-recent `pre-update-*.sqlite3` backups in `dir`,
 /// ordered by file modification time. Best-effort: a file that can't be removed
 /// is left in place rather than failing the backup.
+/// The decrypted snapshot waiting to become the workspace at the next launch.
+const PENDING_RESTORE_FILE: &str = "pending-restore.sqlite3";
+/// The marker that says a staged restore is ready. Written last and removed
+/// first, so a crash at any point leaves no half-applied restore.
+const PENDING_RESTORE_MARKER: &str = "pending-restore.json";
+/// Where the backup's data key waits between staging and applying.
+const VAULT_PENDING_KEY_ACCOUNT: &str = "vault.pending_data_key";
+
+/// The marker's contents. Metadata only — the snapshot holds the trip data and
+/// the keychain holds the key.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PendingRestore {
+    created_at: String,
+    app_version: String,
+    schema_version: i64,
+    /// Whether a data key was staged. `false` means the backup came from a
+    /// vault with no key at all (a keychain-less host), so the restored
+    /// workspace must start a fresh one rather than keep this machine's.
+    key_present: bool,
+}
+
+/// Apply a staged restore, if one is waiting, **before** the database is opened.
+///
+/// Doing the swap here rather than under a live connection is the whole point:
+/// no open SQLite handle has to be surgically replaced, and on Windows nothing
+/// holds a lock on the file being overwritten. The current workspace is
+/// snapshotted first, so a mistaken restore is reversible.
+fn apply_pending_restore(
+    secrets: &dyn SecretStore,
+    database_path: &Path,
+) -> Result<bool, AppError> {
+    let Some(dir) = database_path.parent() else {
+        return Ok(false);
+    };
+    let marker_path = dir.join(PENDING_RESTORE_MARKER);
+    let staged_path = dir.join(PENDING_RESTORE_FILE);
+    // Both halves must be present; a lone marker or a lone snapshot is the
+    // debris of an interrupted stage and is cleaned up rather than applied.
+    if !marker_path.exists() || !staged_path.exists() {
+        let _ = fs::remove_file(&marker_path);
+        let _ = fs::remove_file(&staged_path);
+        return Ok(false);
+    }
+    let marker: PendingRestore = fs::read(&marker_path)
+        .map_err(storage_error)
+        .and_then(|raw| {
+            serde_json::from_slice(&raw).map_err(|_| {
+                AppError::new(
+                    ErrorCode::StorageFailure,
+                    "the pending restore could not be read",
+                )
+            })
+        })?;
+
+    // Snapshot what is about to be replaced.
+    if database_path.exists() {
+        let backups_dir = dir.join("backups");
+        fs::create_dir_all(&backups_dir).map_err(storage_error)?;
+        let stamp = filesystem_stamp(&now_rfc3339());
+        let mut dest = backups_dir.join(format!("pre-restore-{stamp}.sqlite3"));
+        let mut collision = 1;
+        while dest.exists() {
+            dest = backups_dir.join(format!("pre-restore-{stamp}-{collision}.sqlite3"));
+            collision += 1;
+        }
+        fs::copy(database_path, &dest).map_err(storage_error)?;
+        prune_backups(&backups_dir, MAX_BACKUPS)?;
+    }
+
+    // Same directory, so this is an atomic swap.
+    fs::rename(&staged_path, database_path).map_err(storage_error)?;
+    // Any journal beside the replaced database describes the old file.
+    for suffix in ["-wal", "-shm"] {
+        let mut stray = database_path.as_os_str().to_owned();
+        stray.push(suffix);
+        let _ = fs::remove_file(PathBuf::from(stray));
+    }
+
+    // Install the key the backup carried, so its sealed rows open here. Without
+    // a carried key the restored rows are plaintext and a fresh key is
+    // generated on open, which then seals them.
+    match (marker.key_present, secrets.get(VAULT_PENDING_KEY_ACCOUNT)?) {
+        (true, Some(key)) => secrets.set(VAULT_KEY_ACCOUNT, &key)?,
+        _ => {
+            let _ = secrets.delete(VAULT_KEY_ACCOUNT);
+        }
+    }
+    let _ = secrets.delete(VAULT_PENDING_KEY_ACCOUNT);
+    fs::remove_file(&marker_path).map_err(storage_error)?;
+    Ok(true)
+}
+
+/// Drop a passphrase wrap carried in from a restored database, so the workspace
+/// opens in keychain mode against the key the backup brought with it.
+fn clear_vault_wrap(connection: &Connection) -> Result<(), AppError> {
+    connection
+        .execute("DELETE FROM vault_meta WHERE id = 1", [])
+        .map_err(storage_error)?;
+    Ok(())
+}
+
+/// Does this filename belong to one of our safety snapshots? Both kinds count:
+/// the pre-update net and the pre-restore one. They are retained and erased
+/// together — either sort outlives a deleted trip, so neither may escape the
+/// retention cap or the "clear backups" affordance.
+fn has_backup_snapshot_prefix(name: &str) -> bool {
+    name.starts_with("pre-update-") || name.starts_with("pre-restore-")
+}
+
+/// A complete snapshot file, as opposed to a `-wal`/`-shm` stray beside one.
+fn is_backup_snapshot(name: &str) -> bool {
+    has_backup_snapshot_prefix(name) && name.ends_with(".sqlite3")
+}
+
 fn prune_backups(dir: &Path, keep: usize) -> Result<(), AppError> {
     let mut backups: Vec<(std::time::SystemTime, PathBuf)> = fs::read_dir(dir)
         .map_err(storage_error)?
@@ -3099,7 +3371,7 @@ fn prune_backups(dir: &Path, keep: usize) -> Result<(), AppError> {
         .filter(|path| {
             path.file_name()
                 .and_then(|name| name.to_str())
-                .is_some_and(|name| name.starts_with("pre-update-") && name.ends_with(".sqlite3"))
+                .is_some_and(is_backup_snapshot)
         })
         .filter_map(|path| {
             let modified = fs::metadata(&path).and_then(|meta| meta.modified()).ok()?;
@@ -3470,8 +3742,8 @@ const MIGRATIONS: &[Migration] = &[
     },
 ];
 
-/// The version a fully migrated database carries.
-#[cfg(test)]
+/// The version a fully migrated database carries. Stamped into a backup's
+/// manifest so a restore can refuse a snapshot from a newer schema.
 fn target_schema_version() -> i64 {
     MIGRATIONS.last().map_or(0, |migration| migration.to)
 }
@@ -6164,6 +6436,213 @@ mod tests {
             .count();
         assert_eq!(remaining, 0);
         assert_eq!(service.clear_backups().expect("clear again"), 0);
+
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn exports_the_workspace_as_a_portable_encrypted_backup() {
+        let database = temp_database("export-backup");
+        let service = open_test_service(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        service
+            .add_manual_fact(AddManualFactInput {
+                trip_id: trip.id.clone(),
+                fact_type: FactType::FlightSegment,
+                payload: FactPayload {
+                    flight_number: Some("FP18".to_owned()),
+                    confirmation_code: Some("SECRET-PNR".to_owned()),
+                    passenger_name: Some("Jamie Traveler".to_owned()),
+                    ..FactPayload::default()
+                },
+            })
+            .expect("manual flight");
+
+        let container = service
+            .export_backup("correct horse battery staple")
+            .expect("export");
+
+        let opened = voyalier_core::open_backup("correct horse battery staple", &container)
+            .expect("open the backup");
+        assert_eq!(opened.manifest.schema_version, target_schema_version());
+        assert_eq!(opened.manifest.format_version, BACKUP_FORMAT_VERSION);
+        // Without the data key the sealed rows would be undecryptable on another
+        // machine, so a backup from an active vault must carry it.
+        assert!(opened.data_key.is_some(), "the vault key must ride along");
+        assert!(
+            opened.snapshot.starts_with(b"SQLite format 3\0"),
+            "the snapshot should be the SQLite file"
+        );
+        // The snapshot is a real workspace, not an empty database.
+        assert!(
+            opened
+                .snapshot
+                .windows(trip.id.len())
+                .any(|window| window == trip.id.as_bytes()),
+            "the exported snapshot should contain the trip"
+        );
+
+        // The traveler's secrets are not readable in the exported file.
+        for secret in [b"SECRET-PNR".as_slice(), b"Jamie Traveler".as_slice()] {
+            assert!(
+                container
+                    .windows(secret.len())
+                    .all(|window| window != secret),
+                "a secret leaked into the backup in the clear"
+            );
+        }
+
+        assert!(
+            voyalier_core::open_backup("the wrong passphrase", &container).is_err(),
+            "a wrong passphrase must not open the backup"
+        );
+        assert_eq!(
+            service.export_backup("short").expect_err("too short").code,
+            ErrorCode::ValidationInvalidInput
+        );
+
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn restores_a_backup_onto_another_machine_at_the_next_launch() {
+        // Workspace A — the machine being backed up.
+        let database_a = temp_database("restore-source");
+        let service_a = open_test_service(&database_a).expect("service a");
+        let trip_a = service_a.create_trip(valid_trip_input()).expect("trip a");
+        service_a
+            .add_manual_fact(AddManualFactInput {
+                trip_id: trip_a.id.clone(),
+                fact_type: FactType::FlightSegment,
+                payload: FactPayload {
+                    flight_number: Some("FP18".to_owned()),
+                    confirmation_code: Some("SECRET-PNR".to_owned()),
+                    ..FactPayload::default()
+                },
+            })
+            .expect("fact a");
+        let container = service_a
+            .export_backup("correct horse battery")
+            .expect("export");
+
+        // Workspace B — a different machine: its own database and its own
+        // keychain, so nothing but the container carries A's data across.
+        let database_b = temp_database("restore-target");
+        let secrets_b = Arc::new(MemorySecretStore::default());
+        let service_b =
+            AppService::open_path_with_deps(&database_b, Arc::new(UreqFetcher), secrets_b.clone())
+                .expect("service b");
+        let trip_b = service_b.create_trip(valid_trip_input()).expect("trip b");
+
+        let preview = service_b
+            .stage_restore("correct horse battery", &container)
+            .expect("stage");
+        assert_eq!(preview.schema_version, target_schema_version());
+
+        // Staging is inert — B keeps its own data until the app restarts, so a
+        // crash between staging and applying loses nothing.
+        assert!(
+            service_b
+                .list_trips()
+                .expect("trips b")
+                .iter()
+                .any(|summary| summary.trip.id == trip_b.id),
+            "staging must not touch the live workspace"
+        );
+
+        // Restart.
+        drop(service_b);
+        let reopened =
+            AppService::open_path_with_deps(&database_b, Arc::new(UreqFetcher), secrets_b.clone())
+                .expect("reopen b");
+
+        let trips = reopened.list_trips().expect("trips");
+        assert!(
+            trips.iter().any(|summary| summary.trip.id == trip_a.id),
+            "A's trip should be restored onto B"
+        );
+        assert!(
+            !trips.iter().any(|summary| summary.trip.id == trip_b.id),
+            "restore replaces the workspace rather than merging into it"
+        );
+
+        // The sealed payload decrypts, which is only possible because the data
+        // key travelled inside the container — B's keychain never had it.
+        let detail = reopened.get_trip(&trip_a.id).expect("detail");
+        assert!(
+            detail
+                .confirmed_facts
+                .iter()
+                .any(|fact| fact.payload.confirmation_code.as_deref() == Some("SECRET-PNR")),
+            "the restored sealed fact should decrypt"
+        );
+
+        // B's pre-restore data is snapshotted, so a mistaken restore is reversible.
+        let backups = database_b.parent().expect("parent").join("backups");
+        let safety = fs::read_dir(&backups)
+            .expect("backups dir")
+            .filter_map(Result::ok)
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("pre-restore-")
+            })
+            .count();
+        assert_eq!(safety, 1, "a pre-restore safety snapshot should exist");
+
+        // The staging marker is consumed, so the restore does not repeat.
+        assert!(!database_b.with_file_name("pending-restore.json").exists());
+
+        cleanup_database(database_a);
+        cleanup_database(database_b);
+    }
+
+    #[test]
+    fn refuses_to_stage_a_restore_it_cannot_trust() {
+        let database = temp_database("restore-refused");
+        let service = open_test_service(&database).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        let container = service
+            .export_backup("correct horse battery")
+            .expect("export");
+        let marker = database.with_file_name("pending-restore.json");
+
+        // A wrong passphrase cannot stage anything.
+        assert!(service.stage_restore("not the one", &container).is_err());
+        assert!(!marker.exists(), "a failed restore must leave no marker");
+
+        // Nor can a backup written by a newer Voyalier, whose schema this build
+        // cannot migrate backwards to understand.
+        let future = voyalier_core::seal_backup(
+            "correct horse battery",
+            &BackupManifest {
+                format_version: BACKUP_FORMAT_VERSION,
+                schema_version: target_schema_version() + 1,
+                app_version: "99.0.0".to_owned(),
+                created_at: now_rfc3339(),
+            },
+            None,
+            b"SQLite format 3\0not really",
+            &[1u8; VAULT_SALT_LEN],
+            &[2u8; VAULT_NONCE_LEN],
+        )
+        .expect("future container");
+        assert!(
+            service
+                .stage_restore("correct horse battery", &future)
+                .is_err()
+        );
+        assert!(!marker.exists(), "a refused restore must leave no marker");
+
+        // The live workspace is untouched throughout.
+        assert!(
+            service
+                .list_trips()
+                .expect("trips")
+                .iter()
+                .any(|summary| summary.trip.id == trip.id)
+        );
 
         cleanup_database(database);
     }

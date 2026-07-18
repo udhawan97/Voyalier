@@ -17,6 +17,39 @@ type Vars = Record<string, string | number>;
 // English catalog: the current, canonical copy. Values are verbatim so moving a
 // component onto t() changes no rendered text.
 const en = {
+  "backup.section": "Back up & restore",
+  "backup.intro":
+    "Save your whole workspace — trips, imported confirmations, and offline packs — to a single encrypted file you can keep somewhere safe or move to another computer.",
+  "backup.unsupported":
+    "Backing up needs the desktop app, which is where your data actually lives. In a browser there is no local database to save.",
+  "backup.export.title": "Save a backup",
+  "backup.export.hint":
+    "You choose a passphrase for the file. It travels with the backup, so the same file opens on any computer.",
+  "backup.export.action": "Save a backup",
+  "backup.export.confirm": "Save backup",
+  "backup.export.done": "Backup saved to {path}",
+  "backup.export.cancelled": "No backup was saved.",
+  "backup.warn.noRecovery":
+    "There is no recovery if you lose this passphrase — the backup is unreadable without it, and Voyalier never stores it.",
+  "backup.excludes":
+    "Downloaded maps and your AI provider keys are not included: maps can be downloaded again, and the keys stay in this computer's keychain rather than travelling in a file.",
+  "backup.restore.title": "Restore a backup",
+  "backup.restore.hint":
+    "Restoring replaces everything currently in Voyalier with the contents of the backup. Your current data is snapshotted first, so this can be undone.",
+  "backup.restore.action": "Restore from a backup",
+  "backup.restore.confirm": "Restore this backup",
+  "backup.restore.cancelled": "No backup was restored.",
+  "backup.restore.staged":
+    "Ready to restore a backup from {date}. Quit and reopen Voyalier to finish — nothing has changed yet.",
+  "backup.restore.pending":
+    "A restore is waiting. Quit and reopen Voyalier to finish it.",
+  "backup.passphrase": "Backup passphrase",
+  "backup.passphrase.placeholder": "Backup passphrase ({min}+ characters)",
+  "backup.confirmPassphrase": "Confirm backup passphrase",
+  "backup.confirmPassphrase.placeholder": "Confirm backup passphrase",
+  "backup.error.tooShort": "Use at least {min} characters.",
+  "backup.error.mismatch": "Those passphrases don't match.",
+  "backup.error.generic": "That didn't work. Please try again.",
   "vault.section": "Encryption",
   "vault.inactive":
     "A device keychain isn't available here, so sensitive fields are stored as plaintext and a passphrase can't be added. On macOS and Windows, Voyalier encrypts them automatically.",

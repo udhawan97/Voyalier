@@ -10,6 +10,7 @@ mod alerts;
 mod assist;
 mod assist_draft;
 mod astro;
+mod backup;
 mod brief;
 mod climate;
 mod email;
@@ -62,6 +63,9 @@ pub use astro::{AstroDay, MoonPhase, MoonPhaseName, PolarState, compute_astro_da
 pub use assist_draft::{
     ASSIST_DRAFT_LODGING_DATES, AssistDraftResult, DRAFT_LODGING_DATES_SYSTEM_PROMPT,
     LodgingDateProposal, build_draft_preview, parse_lodging_dates_reply,
+};
+pub use backup::{
+    BACKUP_FORMAT_VERSION, BACKUP_MAGIC, BackupManifest, OpenedBackup, open_backup, seal_backup,
 };
 pub use brief::{RedactionPolicy, TripBrief, build_trip_brief};
 pub use climate::{

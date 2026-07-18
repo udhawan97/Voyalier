@@ -1,0 +1,82 @@
+---
+title: Back up and restore
+description: Save your whole workspace to one encrypted file, and restore it here or on another computer.
+---
+
+Voyalier keeps everything on your device. That is the point — but it means a lost
+or wiped computer is lost trips, and the optional vault passphrase has **no
+recovery**. A backup is the way out of both.
+
+Find it under **Settings → Back up & restore** in the desktop app.
+
+## Saving a backup
+
+You choose a **backup passphrase**, and Voyalier writes a single `.vbk` file
+wherever you point it.
+
+The whole file is encrypted with a key derived from that passphrase (Argon2id,
+then XChaCha20-Poly1305). Everything is inside the sealed part — not just the
+fields that are already encrypted at rest, but the ordinary ones too, so trip
+names, destinations, and dates are not readable in the file either.
+
+The backup also carries your workspace's encryption key, re-wrapped under your
+backup passphrase. That is what lets the file open on a **different** computer:
+without it the restored data would be undecryptable, because the original key
+lives in the first machine's keychain and never leaves it.
+
+:::caution[There is no recovery if you lose the backup passphrase]
+Voyalier never stores it and cannot reset it. A `.vbk` file without its
+passphrase is unreadable — by us, and by anyone who finds the file.
+:::
+
+### What a backup does not include
+
+- **Downloaded offline maps.** They are large, and you can download them again.
+- **Your AI provider keys.** These stay in your computer's keychain rather than
+  travelling in a file. Re-enter them after restoring.
+
+Everything else comes along: trips, confirmed facts, imported documents, pending
+suggestions, offline packs, saved advice and weather snapshots, and your notes.
+
+## Restoring a backup
+
+Restoring **replaces** everything currently in Voyalier with the contents of the
+backup. It does not merge the two.
+
+It happens in two steps, on purpose:
+
+1. You pick the file and enter its passphrase. Voyalier checks both and stages
+   the restore. **Nothing has changed yet** — your current data is untouched, so
+   a wrong passphrase or a change of mind costs nothing.
+2. You quit and reopen Voyalier. The swap happens at startup, before the database
+   is opened, which is why the restart is needed.
+
+Just before the swap, Voyalier snapshots your current data into its `backups`
+folder as a `pre-restore-…` file, so a restore you did not mean is recoverable.
+Those snapshots are pruned to the most recent few and are erased by **Clear
+backups**, alongside the pre-update ones.
+
+### After a restore
+
+Your workspace opens **unlocked**, using the key that came with the backup. If
+the machine you backed up from had a vault passphrase, that is not carried over —
+set a new one under **Encryption** if you want it.
+
+### Restores that are refused
+
+- **A backup from a newer version of Voyalier.** Its data may use a shape this
+  build does not understand, so it is refused rather than half-read. Update the
+  app, then restore.
+- **A wrong passphrase, or a damaged file.** Both look the same to Voyalier: the
+  file simply does not open. Nothing is staged.
+
+An older backup is fine — it is migrated forward on the first launch after the
+swap, the same way an older workspace is.
+
+## Where the files live
+
+The `.vbk` file goes wherever you saved it. Treat it as sensitive: it is
+encrypted, but it is a complete copy of your trips.
+
+For where Voyalier's own data and its `backups` folder live on each platform, see
+[Troubleshooting](/troubleshooting/).
