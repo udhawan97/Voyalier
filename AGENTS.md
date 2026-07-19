@@ -31,9 +31,9 @@ Several core items are intentionally left out of `lib.rs`'s `pub use` list (endp
 
 ## Contracts and parity
 
-`packages/contracts` is hand-written TypeScript with no codegen. `AppGateway` is the one interface; a new method must land in every one of: `AppService`, the Axum route, the Tauri command, `contracts/src/index.ts`, `contracts/src/mock.ts`, and both `gateway/http.ts` and `gateway/tauri.ts`. TypeScript catches the last three; nothing catches a Rust-side route mismatch.
+`packages/contracts` is hand-written TypeScript with no codegen. `AppGateway` is the one interface; a new method must land in every one of: `AppService`, the Axum route, the Tauri command, `contracts/src/index.ts`, `contracts/src/mock.ts`, and both `gateway/http.ts` and `gateway/tauri.ts`. TypeScript catches the last three, and `packages/contracts/parity/routes.json` catches the transports: it declares each method's HTTP verb, HTTP path, and Tauri command, and is asserted from `apps/web/src/routeParity.test.ts` (both gateways), `voyalier-server` (the router's routes equal the manifest's, in both directions, and the crate never names a desktop-only command), and `voyalier-desktop` (`generate_handler!` registers every declared command and nothing more). Drift either way fails the gate — a method wired without a manifest row, or a row nothing is wired to. It is hand-maintained — never regenerate it from a gateway.
 
-- `packages/contracts/parity/*.json` are goldens asserted from both languages (`crates/voyalier-core/src/tests.rs` and `apps/web/src/parity.test.ts`). Both sides pin **exact case counts** — adding a case fails until you bump the number in both files.
+- `packages/contracts/parity/*.json` are goldens asserted from both languages (`crates/voyalier-core/src/tests.rs` and `apps/web/src/parity.test.ts`). Both sides pin **exact case counts** — adding a case fails until you bump the number in both files. Exception: `routes.json` is hand-maintained and never regenerated — see the parity paragraph above for what asserts it.
 - Regenerate goldens only with `VOYALIER_REGENERATE_GOLDEN=1`; it rewrites the file and then panics on purpose so you read the diff.
 - Limits count Unicode characters. Use `countChars()` from contracts, never `.length`.
 - Transport is chosen by `"__TAURI__" in window` — never by hostname or protocol. Tauri commands are snake_case and take exactly one argument named `input`.
@@ -69,7 +69,7 @@ credential-string grep in `security-hygiene.yml`.
 - Parser fixtures are directories under `crates/voyalier-core/fixtures/parser/<case>/`; dropping one in registers it, no wiring needed. `.prettierignore` excludes them because several are deliberately malformed — reformatting changes what the parser is tested against.
 - Web: Vitest + Testing Library, flat in `apps/web/src/` and named by **feature**, not module (`views/MapPanel.tsx` is tested by `src/mapPanel.test.tsx`). Render through `src/test/helpers.tsx`.
 - `IntersectionObserver` is stubbed to fire immediately in setup, so `DeferredSection` mounts eagerly; re-stub it if you are testing deferral.
-- There is no e2e layer yet despite `docs/testing/TEST_STRATEGY.md` requiring one, and `gateway.live.test.ts` never runs in CI. Nothing mechanically catches an http/tauri route mismatch.
+- There is no e2e layer yet despite `docs/testing/TEST_STRATEGY.md` requiring one, and `gateway.live.test.ts` never runs in CI. Route names, verbs, and path shapes are now caught by the `parity/routes.json` guard; what remains uncovered is serialization — a route that resolves but whose payload the other side cannot parse.
 
 ## Change discipline
 

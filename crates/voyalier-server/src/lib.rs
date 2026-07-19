@@ -772,7 +772,10 @@ fn status_for_error(code: ErrorCode) -> StatusCode {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::PathBuf};
+    use std::{
+        fs,
+        path::{Path, PathBuf},
+    };
 
     use axum::body::to_bytes;
     use serde_json::{Value, json};
@@ -1774,5 +1777,417 @@ mod tests {
         if let Some(parent) = database.parent() {
             let _ = fs::remove_dir_all(parent);
         }
+    }
+
+    /// Only the fields this crate asserts on. serde ignores the rest.
+    /// `command` is read by `the_router_declares_exactly_the_manifest`, which
+    /// folds it into the comparison key alongside `(verb, path)` so a same-verb
+    /// handler swap between two routes fails instead of comparing as two
+    /// identical keys.
+    #[derive(serde::Deserialize)]
+    struct SharedRoute {
+        method: String,
+        verb: String,
+        path: String,
+        command: String,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct ManifestCounts {
+        shared: usize,
+        #[serde(rename = "desktopOnly")]
+        desktop_only: usize,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct RouteManifest {
+        shared: Vec<SharedRoute>,
+        #[serde(rename = "desktopOnly")]
+        desktop_only: Vec<String>,
+        counts: ManifestCounts,
+    }
+
+    /// `packages/contracts/parity/routes.json` is the one declaration of the API
+    /// surface. `apps/web/src/routeParity.test.ts` holds the two web gateways to
+    /// the same file.
+    fn load_route_manifest() -> RouteManifest {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../packages/contracts/parity/routes.json");
+        let raw = fs::read_to_string(&path).expect("parity/routes.json");
+        serde_json::from_str(&raw).expect("parity/routes.json parses")
+    }
+
+    /// Substitute the manifest's path placeholders with the same sample values
+    /// `routeParity.test.ts` uses, so both sides probe identical URLs.
+    fn resolve_path(path: &str) -> String {
+        path.replace("{tripId}", "trip_1")
+            .replace("{packId}", "pack_1")
+            .replace("{documentId}", "doc_1")
+            .replace("{factId}", "fact_1")
+            .replace("{candidateId}", "cand_1")
+            .replace("{provider}", "openai")
+    }
+
+    /// A routing probe: status plus whether the body was empty, and deliberately
+    /// no body parsing. `request` would panic here, because Axum's extractor
+    /// rejections to an empty body answer in plain text rather than AppError JSON.
+    async fn route_probe(router: Router, method: Method, uri: &str) -> (StatusCode, bool) {
+        let request = Request::builder()
+            .method(method)
+            .uri(uri)
+            .header(header::HOST, "127.0.0.1:8787")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::empty())
+            .expect("request");
+        let response = router.oneshot(request).await.expect("response");
+        let status = response.status();
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("bytes");
+        (status, body.is_empty())
+    }
+
+    #[tokio::test]
+    async fn every_declared_route_is_served_by_the_router() {
+        let manifest = load_route_manifest();
+        assert_eq!(
+            manifest.shared.len(),
+            manifest.counts.shared,
+            "parity/routes.json declares counts.shared = {} but carries {} rows",
+            manifest.counts.shared,
+            manifest.shared.len()
+        );
+
+        let database = temp_database("route_parity");
+        let service = open_test_service(&database).expect("service");
+        let router = app(service);
+
+        // A positive control: route_probe's whole discrimination rests on "not
+        // (404 with an empty body)" meaning routed. Prove that a path nothing
+        // routes actually still comes back that way before trusting the 57
+        // checks below — anything that made the router answer before routing
+        // (a blanket middleware short-circuit, a change to Axum's own
+        // unmatched-path response) would otherwise turn every one of them
+        // vacuously green.
+        let (control_status, control_body_empty) = route_probe(
+            router.clone(),
+            Method::GET,
+            "/api/v1/definitely-not-a-route",
+        )
+        .await;
+        assert!(
+            control_status == StatusCode::NOT_FOUND && control_body_empty,
+            "route_probe's positive control got {control_status} (empty body: \
+             {control_body_empty}) for a path nothing routes. route_probe can no longer tell a \
+             routing miss apart from a handler's own response, so the 57 checks below would pass \
+             vacuously."
+        );
+
+        for route in &manifest.shared {
+            let uri = resolve_path(&route.path);
+            assert!(
+                !uri.contains('{'),
+                "parity/routes.json path {} has a placeholder with no sample value in resolve_path",
+                route.path
+            );
+            let method = Method::from_bytes(route.verb.as_bytes()).unwrap_or_else(|_| {
+                panic!("parity/routes.json verb {} is not a method", route.verb)
+            });
+
+            let (status, body_empty) = route_probe(router.clone(), method, &uri).await;
+
+            // An unmatched route is 404 with an empty body; a handler saying
+            // "trip not found" is 404 with an AppError body. Only the first is
+            // a routing failure. A verb mismatch on a matched path is 405.
+            assert!(
+                !(status == StatusCode::NOT_FOUND && body_empty),
+                "parity/routes.json declares {} -> {} {} but the Axum router has no such route \
+                 (404, empty body). Add it in crates/voyalier-server, or fix the manifest.",
+                route.method,
+                route.verb,
+                route.path
+            );
+            assert_ne!(
+                status,
+                StatusCode::METHOD_NOT_ALLOWED,
+                "parity/routes.json declares {} -> {} {} but the Axum router serves that path \
+                 under a different verb (405).",
+                route.method,
+                route.verb,
+                route.path
+            );
+        }
+
+        cleanup_database(database);
+    }
+
+    /// True if `byte` can appear inside a Rust identifier. Every name this
+    /// module scans — handler idents in `declared_routes`, desktop-only command
+    /// names in `source_names_identifier` — is ASCII, so a byte check is
+    /// enough; there is no need to decode UTF-8.
+    fn is_identifier_byte(byte: u8) -> bool {
+        byte.is_ascii_alphanumeric() || byte == b'_'
+    }
+
+    /// True if `source` mentions `name` as a whole-word identifier: not preceded
+    /// or followed by an ASCII alphanumeric or `_`. Wiring a handler requires
+    /// naming it — under any verb (`get`, `put`, `any`, `on(MethodFilter, ..)`,
+    /// `route_service`, ...), through a nested or merged `Router`, or via a local
+    /// binding — so this check is robust to every wiring form without parsing
+    /// Axum's routing API at all.
+    fn source_names_identifier(source: &str, name: &str) -> bool {
+        let bytes = source.as_bytes();
+        let mut start = 0;
+        while let Some(offset) = source[start..].find(name) {
+            let index = start + offset;
+            let before_ok = index == 0 || !is_identifier_byte(bytes[index - 1]);
+            let after = index + name.len();
+            let after_ok = after == bytes.len() || !is_identifier_byte(bytes[after]);
+            if before_ok && after_ok {
+                return true;
+            }
+            start = index + 1;
+        }
+        false
+    }
+
+    /// The updater, backup/restore, and settings commands are reachable only over
+    /// Tauri IPC. For the updater that separation is a stated security property
+    /// (docs/architecture/UPDATES.md: the webview holds no network path to it), so
+    /// this crate's source must never even name one of these commands — naming a
+    /// command is the one precondition every wiring form shares.
+    #[test]
+    fn desktop_only_commands_never_gain_an_http_route() {
+        let manifest = load_route_manifest();
+        assert_eq!(
+            manifest.desktop_only.len(),
+            manifest.counts.desktop_only,
+            "parity/routes.json declares counts.desktopOnly = {} but carries {} entries",
+            manifest.counts.desktop_only,
+            manifest.desktop_only.len()
+        );
+
+        let sources = [include_str!("lib.rs"), include_str!("main.rs")];
+        for command in &manifest.desktop_only {
+            let named = sources
+                .iter()
+                .any(|source| source_names_identifier(source, command));
+            assert!(
+                !named,
+                "SECURITY: `{command}` is declared desktop-only in parity/routes.json, but \
+                 crates/voyalier-server's source names it — a handler cannot be wired to a route \
+                 without being named. The updater, backup/restore, and settings commands must \
+                 stay off the loopback HTTP surface (docs/architecture/UPDATES.md). Remove the \
+                 wiring, or move the command out of desktopOnly with an ADR."
+            );
+        }
+    }
+
+    /// `pub fn app`'s body, so route parsing never strays into the test module
+    /// below it (which mentions `.route(` in its own assertion messages).
+    ///
+    /// Bounds the slice by depth-counting braces from the opening `{` of the
+    /// function body to its matching close, rather than assuming the body ends
+    /// at the first `"\n}\n"` — a heuristic that silently truncates as soon as
+    /// any nested block (a `#[rustfmt::skip]`-preserved one, a `let` with a
+    /// block body, ...) closes at column 0. This does not special-case braces
+    /// inside string or char literals; it is correct today only because every
+    /// `{param}` route placeholder is a balanced pair on a single line, so it
+    /// never perturbs the running depth. A future string literal with an
+    /// unbalanced brace would defeat it the same way the old heuristic could
+    /// be defeated — that residual risk is real and intentionally not handled
+    /// here, rather than papered over with a false claim of robustness.
+    fn router_source(source: &str) -> &str {
+        let start = source.find("pub fn app(").expect("pub fn app in lib.rs");
+        let rest = &source[start..];
+        let body_start = rest.find('{').expect("opening brace of pub fn app");
+        let mut depth = 0i32;
+        let mut end = None;
+        for (offset, ch) in rest[body_start..].char_indices() {
+            match ch {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = Some(body_start + offset + 1);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let end = end.expect("matching close brace for pub fn app");
+        &rest[..end]
+    }
+
+    /// Convert an Axum path's snake_case placeholders to the manifest's camelCase,
+    /// so `/api/v1/trips/{trip_id}` compares equal to `/api/v1/trips/{tripId}`.
+    fn normalize_placeholders(path: &str) -> String {
+        let mut out = String::with_capacity(path.len());
+        let mut rest = path;
+        while let Some(open) = rest.find('{') {
+            out.push_str(&rest[..open]);
+            let after = &rest[open + 1..];
+            let close = after
+                .find('}')
+                .expect("unclosed placeholder in a route path");
+            out.push('{');
+            let mut capitalize = false;
+            for character in after[..close].chars() {
+                if character == '_' {
+                    capitalize = true;
+                } else if capitalize {
+                    out.extend(character.to_uppercase());
+                    capitalize = false;
+                } else {
+                    out.push(character);
+                }
+            }
+            out.push('}');
+            rest = &after[close + 1..];
+        }
+        out.push_str(rest);
+        out
+    }
+
+    /// Every `(VERB, path, handler)` the router declares. Complete only because
+    /// (a) `the_router_uses_only_wiring_forms_the_parity_parser_understands`
+    /// holds the crate to `.route(path, verb(handler))` — if that test fails,
+    /// this one is blind and must be taught the new form — (b) `router_source`
+    /// bounds the scan to exactly `pub fn app`'s body via brace counting, so
+    /// nothing past the function leaks in and nothing inside it is cut off —
+    /// and (c) every `.route(` call must carry a string literal path, and every
+    /// whole-word `verb(` occurrence in its body must resolve to a bare
+    /// identifier followed by `)`, or this function panics rather than
+    /// silently dropping the route.
+    fn declared_routes(source: &str) -> std::collections::HashSet<(String, String, String)> {
+        let mut routes = std::collections::HashSet::new();
+        for chunk in router_source(source).split(".route(").skip(1) {
+            let open = chunk.find('"').expect(
+                "declared_routes: a `.route(` call has no string literal path — a `const` or \
+                 expression path is invisible to this parser. Use a literal path, or teach \
+                 declared_routes this form before using it.",
+            );
+            let length = chunk[open + 1..].find('"').expect(
+                "declared_routes: a `.route(` call has an unterminated string literal path.",
+            );
+            let path = normalize_placeholders(&chunk[open + 1..open + 1 + length]);
+            let body = &chunk[open + 1 + length + 1..];
+
+            // Every whole-word `verb(` occurrence must be understood (a bare
+            // identifier immediately closed by `)`), or a handler wired some
+            // other way (a closure, a module path, ...) would otherwise just
+            // vanish from `routes` with no signal. `total_calls` counts the
+            // whole-word occurrences; `understood_calls` counts the ones the
+            // simple identifier scan below could actually parse.
+            let mut total_calls = 0usize;
+            let mut understood_calls = 0usize;
+            for verb in ["get", "post", "patch", "delete"] {
+                let needle = format!("{verb}(");
+                let mut search_from = 0usize;
+                while let Some(found) = body[search_from..].find(&needle) {
+                    let at = search_from + found;
+                    search_from = at + needle.len();
+
+                    // Require a non-identifier byte before the needle, so
+                    // e.g. `widget(` does not read as a `get(` call.
+                    let before_ok = at == 0 || !is_identifier_byte(body.as_bytes()[at - 1]);
+                    if !before_ok {
+                        continue;
+                    }
+                    total_calls += 1;
+
+                    let start = at + needle.len();
+                    let end = body[start..]
+                        .find(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+                        .map_or(body.len(), |offset| start + offset);
+                    if end > start && body[end..].starts_with(')') {
+                        let handler = body[start..end].to_string();
+                        routes.insert((verb.to_ascii_uppercase(), path.clone(), handler));
+                        understood_calls += 1;
+                    }
+                }
+            }
+            assert_eq!(
+                total_calls, understood_calls,
+                "declared_routes understood {understood_calls} of {total_calls} verb(...) \
+                 call(s) in the `.route(\"{path}\", ...)` body. A closure, a module path, or any \
+                 handler form other than a bare identifier is invisible to this parser — teach \
+                 declared_routes the new form before using it."
+            );
+        }
+        routes
+    }
+
+    /// The parser above understands `.route(path, verb(handler))` and nothing else.
+    /// Axum offers plenty more — this keeps the crate inside what the guard can
+    /// actually see, so a new wiring form fails here rather than slipping past
+    /// `the_router_declares_exactly_the_manifest`.
+    #[test]
+    fn the_router_uses_only_wiring_forms_the_parity_parser_understands() {
+        let router = router_source(include_str!("lib.rs"));
+        for form in [
+            "put(",
+            "head(",
+            "options(",
+            "trace(",
+            "connect(",
+            "any(",
+            ".on(",
+            "_service",
+            "MethodFilter",
+            ".merge(",
+            ".nest",
+            "fallback",
+        ] {
+            assert!(
+                !router.contains(form),
+                "pub fn app uses `{form}`, which declared_routes cannot see. The parity guard would \
+                 stop noticing routes wired that way. Teach declared_routes the new form before \
+                 using it."
+            );
+        }
+    }
+
+    /// The reverse of `every_declared_route_is_served_by_the_router`: the router
+    /// must serve nothing the manifest does not declare, under the same
+    /// handler. Without this, a route added to Axum and never declared drifts
+    /// silently (the forward test only walks the manifest), and two same-verb
+    /// handlers swapped between routes would compare as two identical
+    /// `(verb, path)` keys and pass unnoticed.
+    #[test]
+    fn the_router_declares_exactly_the_manifest() {
+        let manifest = load_route_manifest();
+        let declared: std::collections::HashSet<(String, String, String)> = manifest
+            .shared
+            .iter()
+            .map(|route| {
+                (
+                    route.verb.clone(),
+                    route.path.clone(),
+                    route.command.clone(),
+                )
+            })
+            .collect();
+        let routed = declared_routes(include_str!("lib.rs"));
+
+        let mut undeclared: Vec<_> = routed.difference(&declared).collect();
+        undeclared.sort();
+        let mut unrouted: Vec<_> = declared.difference(&routed).collect();
+        unrouted.sort();
+
+        // One assertion covering both directions, so a mismatch that shows up
+        // on both sides (e.g. two handlers swapped between routes) prints the
+        // expected (manifest) and actual (routed) handler for each affected
+        // path together, rather than only whichever direction happened to be
+        // checked first.
+        assert!(
+            undeclared.is_empty() && unrouted.is_empty(),
+            "route parity between crates/voyalier-server and parity/routes.json has drifted.\n\
+             Routed as (verb, path, handler) but not declared in the manifest: {undeclared:?}\n\
+             Declared in the manifest as (verb, path, command) but not routed: {unrouted:?}\n\
+             Every route needs a manifest row naming the same handler as its `command`, or the \
+             web gateways can drift from it unnoticed."
+        );
     }
 }

@@ -10,9 +10,16 @@ pnpm-lock.yaml
 crates/**/fixtures/**
 packages/contracts/fixtures/**
 
-# Cross-language parity goldens — `VOYALIER_REGENERATE_GOLDEN=1` rewrites these
-# with serde_json's formatting, so prettier and the regenerator would fight.
+# Cross-language parity goldens — `VOYALIER_REGENERATE_GOLDEN=1` rewrites most
+# of these with serde_json's formatting, so prettier and the regenerator would
+# fight. `routes.json` is hand-maintained and never regenerated, but stays
+# excluded here too for directory-wide consistency.
 packages/contracts/parity/**
+
+# Agent scratch workspace — task briefs, reports, and progress ledgers written
+# by tooling mid-run. Git-ignored via .superpowers/sdd/.gitignore, but prettier
+# reads only this file, so without the entry `format:check` fails on scratch.
+.superpowers/
 
 # Build outputs and generated artifacts
 **/dist/**

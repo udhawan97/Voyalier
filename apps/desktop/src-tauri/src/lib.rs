@@ -1488,4 +1488,92 @@ mod tests {
             let _ = fs::remove_dir_all(parent);
         }
     }
+
+    #[derive(serde::Deserialize)]
+    struct SharedRoute {
+        method: String,
+        command: String,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct ManifestCounts {
+        shared: usize,
+        #[serde(rename = "desktopOnly")]
+        desktop_only: usize,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct RouteManifest {
+        shared: Vec<SharedRoute>,
+        #[serde(rename = "desktopOnly")]
+        desktop_only: Vec<String>,
+        counts: ManifestCounts,
+    }
+
+    fn load_route_manifest() -> RouteManifest {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../packages/contracts/parity/routes.json");
+        let raw = std::fs::read_to_string(&path).expect("parity/routes.json");
+        serde_json::from_str(&raw).expect("parity/routes.json parses")
+    }
+
+    /// The identifiers inside `tauri::generate_handler![...]`. The macro leaves no
+    /// runtime value to enumerate, so the list is read out of the source. A
+    /// proc-macro or a registry would be real machinery for a list that changes a
+    /// few times a year.
+    fn registered_commands(source: &str) -> Vec<&str> {
+        let marker = "generate_handler![";
+        let start = source
+            .find(marker)
+            .expect("generate_handler! block in lib.rs");
+        let after = &source[start + marker.len()..];
+        let end = after.find(']').expect("generate_handler! closing bracket");
+        after[..end]
+            .lines()
+            .map(|line| line.split("//").next().unwrap_or(""))
+            .flat_map(|line| line.split(','))
+            .map(str::trim)
+            .filter(|token| !token.is_empty())
+            .collect()
+    }
+
+    /// `packages/contracts/parity/routes.json` is the one declaration of the API
+    /// surface. tauri.ts invokes these names as untyped strings, so without this
+    /// a renamed or dropped command compiled clean and failed at runtime.
+    #[test]
+    fn generate_handler_registers_every_declared_command() {
+        let manifest = load_route_manifest();
+        let registered = registered_commands(include_str!("lib.rs"));
+
+        for route in &manifest.shared {
+            assert!(
+                registered.contains(&route.command.as_str()),
+                "parity/routes.json declares command `{}` for {}, but voyalier-desktop's \
+                 generate_handler! does not register it",
+                route.command,
+                route.method
+            );
+        }
+
+        for command in &manifest.desktop_only {
+            assert!(
+                registered.contains(&command.as_str()),
+                "parity/routes.json declares desktop-only command `{command}`, but \
+                 voyalier-desktop's generate_handler! does not register it"
+            );
+        }
+
+        // Catches the other direction: a command the manifest does not describe.
+        assert_eq!(
+            registered.len(),
+            manifest.counts.shared + manifest.counts.desktop_only,
+            "generate_handler! registers {} commands but parity/routes.json declares {} \
+             ({} shared + {} desktop-only). Every Tauri command must appear in the manifest, \
+             as a shared row or a desktopOnly entry.",
+            registered.len(),
+            manifest.counts.shared + manifest.counts.desktop_only,
+            manifest.counts.shared,
+            manifest.counts.desktop_only
+        );
+    }
 }
