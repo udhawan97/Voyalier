@@ -1862,6 +1862,27 @@ mod tests {
         let service = open_test_service(&database).expect("service");
         let router = app(service);
 
+        // A positive control: route_probe's whole discrimination rests on "not
+        // (404 with an empty body)" meaning routed. Prove that a path nothing
+        // routes actually still comes back that way before trusting the 57
+        // checks below — anything that made the router answer before routing
+        // (a blanket middleware short-circuit, a change to Axum's own
+        // unmatched-path response) would otherwise turn every one of them
+        // vacuously green.
+        let (control_status, control_body_empty) = route_probe(
+            router.clone(),
+            Method::GET,
+            "/api/v1/definitely-not-a-route",
+        )
+        .await;
+        assert!(
+            control_status == StatusCode::NOT_FOUND && control_body_empty,
+            "route_probe's positive control got {control_status} (empty body: \
+             {control_body_empty}) for a path nothing routes. route_probe can no longer tell a \
+             routing miss apart from a handler's own response, so the 57 checks below would pass \
+             vacuously."
+        );
+
         for route in &manifest.shared {
             let uri = resolve_path(&route.path);
             assert!(
