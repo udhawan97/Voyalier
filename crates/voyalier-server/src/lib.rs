@@ -1895,6 +1895,14 @@ mod tests {
         }
     }
 
+    /// True if `byte` can appear inside a Rust identifier. Every name this
+    /// module scans — handler idents in `declared_routes`, desktop-only command
+    /// names in `source_names_identifier` — is ASCII, so a byte check is
+    /// enough; there is no need to decode UTF-8.
+    fn is_identifier_byte(byte: u8) -> bool {
+        byte.is_ascii_alphanumeric() || byte == b'_'
+    }
+
     /// True if `source` mentions `name` as a whole-word identifier: not preceded
     /// or followed by an ASCII alphanumeric or `_`. Wiring a handler requires
     /// naming it — under any verb (`get`, `put`, `any`, `on(MethodFilter, ..)`,
@@ -1902,10 +1910,6 @@ mod tests {
     /// binding — so this check is robust to every wiring form without parsing
     /// Axum's routing API at all.
     fn source_names_identifier(source: &str, name: &str) -> bool {
-        fn is_identifier_byte(byte: u8) -> bool {
-            byte.is_ascii_alphanumeric() || byte == b'_'
-        }
-
         let bytes = source.as_bytes();
         let mut start = 0;
         while let Some(offset) = source[start..].find(name) {
@@ -2023,34 +2027,66 @@ mod tests {
     /// Every `(VERB, path)` the router declares. Complete only because (a)
     /// `the_router_uses_only_wiring_forms_the_parity_parser_understands` holds the
     /// crate to `.route(path, verb(handler))` — if that test fails, this one is
-    /// blind and must be taught the new form — and (b) `router_source` bounds the
-    /// scan to exactly `pub fn app`'s body via brace counting, so nothing past the
-    /// function leaks in and nothing inside it is cut off.
+    /// blind and must be taught the new form — (b) `router_source` bounds the scan
+    /// to exactly `pub fn app`'s body via brace counting, so nothing past the
+    /// function leaks in and nothing inside it is cut off — and (c) every
+    /// `.route(` call must carry a string literal path, and every whole-word
+    /// `verb(` occurrence in its body must resolve to a bare identifier followed
+    /// by `)`, or this function panics rather than silently dropping the route.
     fn declared_routes(source: &str) -> std::collections::HashSet<(String, String)> {
         let mut routes = std::collections::HashSet::new();
         for chunk in router_source(source).split(".route(").skip(1) {
-            let Some(open) = chunk.find('"') else {
-                continue;
-            };
-            let Some(length) = chunk[open + 1..].find('"') else {
-                continue;
-            };
+            let open = chunk.find('"').expect(
+                "declared_routes: a `.route(` call has no string literal path — a `const` or \
+                 expression path is invisible to this parser. Use a literal path, or teach \
+                 declared_routes this form before using it.",
+            );
+            let length = chunk[open + 1..].find('"').expect(
+                "declared_routes: a `.route(` call has an unterminated string literal path.",
+            );
             let path = normalize_placeholders(&chunk[open + 1..open + 1 + length]);
             let body = &chunk[open + 1 + length + 1..];
+
+            // Every whole-word `verb(` occurrence must be understood (a bare
+            // identifier immediately closed by `)`), or a handler wired some
+            // other way (a closure, a module path, ...) would otherwise just
+            // vanish from `routes` with no signal. `total_calls` counts the
+            // whole-word occurrences; `understood_calls` counts the ones the
+            // simple identifier scan below could actually parse.
+            let mut total_calls = 0usize;
+            let mut understood_calls = 0usize;
             for verb in ["get", "post", "patch", "delete"] {
                 let needle = format!("{verb}(");
-                let mut scan = body;
-                while let Some(at) = scan.find(&needle) {
-                    let start = at + needle.len();
-                    let end = scan[start..]
-                        .find(|c: char| !c.is_ascii_alphanumeric() && c != '_')
-                        .map_or(scan.len(), |offset| start + offset);
-                    if end > start && scan[end..].starts_with(')') {
-                        routes.insert((verb.to_ascii_uppercase(), path.clone()));
+                let mut search_from = 0usize;
+                while let Some(found) = body[search_from..].find(&needle) {
+                    let at = search_from + found;
+                    search_from = at + needle.len();
+
+                    // Require a non-identifier byte before the needle, so
+                    // e.g. `widget(` does not read as a `get(` call.
+                    let before_ok = at == 0 || !is_identifier_byte(body.as_bytes()[at - 1]);
+                    if !before_ok {
+                        continue;
                     }
-                    scan = &scan[start..];
+                    total_calls += 1;
+
+                    let start = at + needle.len();
+                    let end = body[start..]
+                        .find(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+                        .map_or(body.len(), |offset| start + offset);
+                    if end > start && body[end..].starts_with(')') {
+                        routes.insert((verb.to_ascii_uppercase(), path.clone()));
+                        understood_calls += 1;
+                    }
                 }
             }
+            assert_eq!(
+                total_calls, understood_calls,
+                "declared_routes understood {understood_calls} of {total_calls} verb(...) \
+                 call(s) in the `.route(\"{path}\", ...)` body. A closure, a module path, or any \
+                 handler form other than a bare identifier is invisible to this parser — teach \
+                 declared_routes the new form before using it."
+            );
         }
         routes
     }
