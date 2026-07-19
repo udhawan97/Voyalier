@@ -1952,4 +1952,136 @@ mod tests {
             );
         }
     }
+
+    /// `pub fn app`'s body, so route parsing never strays into the test module
+    /// below it (which mentions `.route(` in its own assertion messages).
+    fn router_source(source: &str) -> &str {
+        let start = source.find("pub fn app(").expect("pub fn app in lib.rs");
+        let rest = &source[start..];
+        let end = rest.find("\n}\n").expect("end of pub fn app");
+        &rest[..end]
+    }
+
+    /// Convert an Axum path's snake_case placeholders to the manifest's camelCase,
+    /// so `/api/v1/trips/{trip_id}` compares equal to `/api/v1/trips/{tripId}`.
+    fn normalize_placeholders(path: &str) -> String {
+        let mut out = String::with_capacity(path.len());
+        let mut rest = path;
+        while let Some(open) = rest.find('{') {
+            out.push_str(&rest[..open]);
+            let after = &rest[open + 1..];
+            let close = after
+                .find('}')
+                .expect("unclosed placeholder in a route path");
+            out.push('{');
+            let mut capitalize = false;
+            for character in after[..close].chars() {
+                if character == '_' {
+                    capitalize = true;
+                } else if capitalize {
+                    out.extend(character.to_uppercase());
+                    capitalize = false;
+                } else {
+                    out.push(character);
+                }
+            }
+            out.push('}');
+            rest = &after[close + 1..];
+        }
+        out.push_str(rest);
+        out
+    }
+
+    /// Every `(VERB, path)` the router declares. Complete only because
+    /// `the_router_uses_only_wiring_forms_the_parity_parser_understands` holds the
+    /// crate to `.route(path, verb(handler))` — if that test fails, this one is
+    /// blind and must be taught the new form.
+    fn declared_routes(source: &str) -> std::collections::HashSet<(String, String)> {
+        let mut routes = std::collections::HashSet::new();
+        for chunk in router_source(source).split(".route(").skip(1) {
+            let Some(open) = chunk.find('"') else {
+                continue;
+            };
+            let Some(length) = chunk[open + 1..].find('"') else {
+                continue;
+            };
+            let path = normalize_placeholders(&chunk[open + 1..open + 1 + length]);
+            let body = &chunk[open + 1 + length + 1..];
+            for verb in ["get", "post", "patch", "delete"] {
+                let needle = format!("{verb}(");
+                let mut scan = body;
+                while let Some(at) = scan.find(&needle) {
+                    let start = at + needle.len();
+                    let end = scan[start..]
+                        .find(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+                        .map_or(scan.len(), |offset| start + offset);
+                    if end > start && scan[end..].starts_with(')') {
+                        routes.insert((verb.to_ascii_uppercase(), path.clone()));
+                    }
+                    scan = &scan[start..];
+                }
+            }
+        }
+        routes
+    }
+
+    /// The parser above understands `.route(path, verb(handler))` and nothing else.
+    /// Axum offers plenty more — this keeps the crate inside what the guard can
+    /// actually see, so a new wiring form fails here rather than slipping past
+    /// `the_router_declares_exactly_the_manifest`.
+    #[test]
+    fn the_router_uses_only_wiring_forms_the_parity_parser_understands() {
+        let router = router_source(include_str!("lib.rs"));
+        for form in [
+            "put(",
+            "head(",
+            "options(",
+            "trace(",
+            "connect(",
+            "any(",
+            ".on(",
+            "route_service",
+            "MethodFilter",
+            ".merge(",
+            ".nest(",
+        ] {
+            assert!(
+                !router.contains(form),
+                "pub fn app uses `{form}`, which declared_routes cannot see. The parity guard would \
+                 stop noticing routes wired that way. Teach declared_routes the new form before \
+                 using it."
+            );
+        }
+    }
+
+    /// The reverse of `every_declared_route_is_served_by_the_router`: the router
+    /// must serve nothing the manifest does not declare. Without this, a route
+    /// added to Axum and never declared drifts silently, since the forward test
+    /// only walks the manifest.
+    #[test]
+    fn the_router_declares_exactly_the_manifest() {
+        let manifest = load_route_manifest();
+        let declared: std::collections::HashSet<(String, String)> = manifest
+            .shared
+            .iter()
+            .map(|route| (route.verb.clone(), route.path.clone()))
+            .collect();
+        let routed = declared_routes(include_str!("lib.rs"));
+
+        let mut undeclared: Vec<_> = routed.difference(&declared).collect();
+        undeclared.sort();
+        assert!(
+            undeclared.is_empty(),
+            "crates/voyalier-server routes {undeclared:?}, which parity/routes.json does not \
+             declare. Every route needs a manifest row, or the web gateways can drift from it \
+             unnoticed."
+        );
+
+        let mut unrouted: Vec<_> = declared.difference(&routed).collect();
+        unrouted.sort();
+        assert!(
+            unrouted.is_empty(),
+            "parity/routes.json declares {unrouted:?}, which crates/voyalier-server does not route."
+        );
+    }
 }
