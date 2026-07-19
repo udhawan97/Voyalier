@@ -1895,32 +1895,37 @@ mod tests {
         }
     }
 
-    /// Every identifier the router hands to a method filter — the `x` in `get(x)`,
-    /// `post(x)`, `patch(x)`, `delete(x)`. Deliberately greedy: it scans the whole
-    /// file rather than only `.route(...)` blocks, because for a disjointness
-    /// check over-collecting is the safe direction.
-    fn router_handler_names(source: &str) -> std::collections::HashSet<&str> {
-        let mut names = std::collections::HashSet::new();
-        for verb in ["get(", "post(", "patch(", "delete("] {
-            let mut rest = source;
-            while let Some(index) = rest.find(verb) {
-                let after = &rest[index + verb.len()..];
-                let end = after
-                    .find(|c: char| !c.is_ascii_alphanumeric() && c != '_')
-                    .unwrap_or(after.len());
-                if end > 0 && after[end..].starts_with(')') {
-                    names.insert(&after[..end]);
-                }
-                rest = after;
-            }
+    /// True if `source` mentions `name` as a whole-word identifier: not preceded
+    /// or followed by an ASCII alphanumeric or `_`. Wiring a handler requires
+    /// naming it — under any verb (`get`, `put`, `any`, `on(MethodFilter, ..)`,
+    /// `route_service`, ...), through a nested or merged `Router`, or via a local
+    /// binding — so this check is robust to every wiring form without parsing
+    /// Axum's routing API at all.
+    fn source_names_identifier(source: &str, name: &str) -> bool {
+        fn is_identifier_byte(byte: u8) -> bool {
+            byte.is_ascii_alphanumeric() || byte == b'_'
         }
-        names
+
+        let bytes = source.as_bytes();
+        let mut start = 0;
+        while let Some(offset) = source[start..].find(name) {
+            let index = start + offset;
+            let before_ok = index == 0 || !is_identifier_byte(bytes[index - 1]);
+            let after = index + name.len();
+            let after_ok = after == bytes.len() || !is_identifier_byte(bytes[after]);
+            if before_ok && after_ok {
+                return true;
+            }
+            start = index + 1;
+        }
+        false
     }
 
     /// The updater, backup/restore, and settings commands are reachable only over
     /// Tauri IPC. For the updater that separation is a stated security property
     /// (docs/architecture/UPDATES.md: the webview holds no network path to it), so
-    /// an HTTP route to one of these is a regression, not a feature.
+    /// this crate's source must never even name one of these commands — naming a
+    /// command is the one precondition every wiring form shares.
     #[test]
     fn desktop_only_commands_never_gain_an_http_route() {
         let manifest = load_route_manifest();
@@ -1932,15 +1937,18 @@ mod tests {
             manifest.desktop_only.len()
         );
 
-        let handlers = router_handler_names(include_str!("lib.rs"));
+        let sources = [include_str!("lib.rs"), include_str!("main.rs")];
         for command in &manifest.desktop_only {
+            let named = sources
+                .iter()
+                .any(|source| source_names_identifier(source, command));
             assert!(
-                !handlers.contains(command.as_str()),
+                !named,
                 "SECURITY: `{command}` is declared desktop-only in parity/routes.json, but \
-                 crates/voyalier-server routes a request to a handler of that name. The updater, \
-                 backup/restore, and settings commands must stay off the loopback HTTP surface \
-                 (docs/architecture/UPDATES.md). Remove the route, or move the command out of \
-                 desktopOnly with an ADR."
+                 crates/voyalier-server's source names it — a handler cannot be wired to a route \
+                 without being named. The updater, backup/restore, and settings commands must \
+                 stay off the loopback HTTP surface (docs/architecture/UPDATES.md). Remove the \
+                 wiring, or move the command out of desktopOnly with an ADR."
             );
         }
     }
