@@ -1894,4 +1894,54 @@ mod tests {
             );
         }
     }
+
+    /// Every identifier the router hands to a method filter — the `x` in `get(x)`,
+    /// `post(x)`, `patch(x)`, `delete(x)`. Deliberately greedy: it scans the whole
+    /// file rather than only `.route(...)` blocks, because for a disjointness
+    /// check over-collecting is the safe direction.
+    fn router_handler_names(source: &str) -> std::collections::HashSet<&str> {
+        let mut names = std::collections::HashSet::new();
+        for verb in ["get(", "post(", "patch(", "delete("] {
+            let mut rest = source;
+            while let Some(index) = rest.find(verb) {
+                let after = &rest[index + verb.len()..];
+                let end = after
+                    .find(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+                    .unwrap_or(after.len());
+                if end > 0 && after[end..].starts_with(')') {
+                    names.insert(&after[..end]);
+                }
+                rest = after;
+            }
+        }
+        names
+    }
+
+    /// The updater, backup/restore, and settings commands are reachable only over
+    /// Tauri IPC. For the updater that separation is a stated security property
+    /// (docs/architecture/UPDATES.md: the webview holds no network path to it), so
+    /// an HTTP route to one of these is a regression, not a feature.
+    #[test]
+    fn desktop_only_commands_never_gain_an_http_route() {
+        let manifest = load_route_manifest();
+        assert_eq!(
+            manifest.desktop_only.len(),
+            manifest.counts.desktop_only,
+            "parity/routes.json declares counts.desktopOnly = {} but carries {} entries",
+            manifest.counts.desktop_only,
+            manifest.desktop_only.len()
+        );
+
+        let handlers = router_handler_names(include_str!("lib.rs"));
+        for command in &manifest.desktop_only {
+            assert!(
+                !handlers.contains(command.as_str()),
+                "SECURITY: `{command}` is declared desktop-only in parity/routes.json, but \
+                 crates/voyalier-server routes a request to a handler of that name. The updater, \
+                 backup/restore, and settings commands must stay off the loopback HTTP surface \
+                 (docs/architecture/UPDATES.md). Remove the route, or move the command out of \
+                 desktopOnly with an ADR."
+            );
+        }
+    }
 }
