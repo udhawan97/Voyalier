@@ -1,0 +1,362 @@
+{
+  "shared": [
+    {
+      "method": "health",
+      "verb": "GET",
+      "path": "/api/health",
+      "command": "health"
+    },
+    {
+      "method": "createTrip",
+      "verb": "POST",
+      "path": "/api/v1/trips",
+      "command": "create_trip"
+    },
+    {
+      "method": "listTrips",
+      "verb": "GET",
+      "path": "/api/v1/trips",
+      "command": "list_trips"
+    },
+    {
+      "method": "getTrip",
+      "verb": "GET",
+      "path": "/api/v1/trips/{tripId}",
+      "command": "get_trip"
+    },
+    {
+      "method": "updateTrip",
+      "verb": "PATCH",
+      "path": "/api/v1/trips/{tripId}",
+      "command": "update_trip"
+    },
+    {
+      "method": "archiveTrip",
+      "verb": "POST",
+      "path": "/api/v1/trips/{tripId}/archive",
+      "command": "archive_trip"
+    },
+    {
+      "method": "unarchiveTrip",
+      "verb": "POST",
+      "path": "/api/v1/trips/{tripId}/unarchive",
+      "command": "unarchive_trip"
+    },
+    {
+      "method": "getTripBrief",
+      "verb": "GET",
+      "path": "/api/v1/trips/{tripId}/brief",
+      "command": "get_trip_brief"
+    },
+    {
+      "method": "getToday",
+      "verb": "GET",
+      "path": "/api/v1/trips/{tripId}/today",
+      "command": "get_today"
+    },
+    {
+      "method": "getVaultStatus",
+      "verb": "GET",
+      "path": "/api/v1/vault",
+      "command": "get_vault_status"
+    },
+    {
+      "method": "setVaultPassphrase",
+      "verb": "POST",
+      "path": "/api/v1/vault/passphrase",
+      "command": "set_vault_passphrase"
+    },
+    {
+      "method": "unlockVault",
+      "verb": "POST",
+      "path": "/api/v1/vault/unlock",
+      "command": "unlock_vault"
+    },
+    {
+      "method": "removeVaultPassphrase",
+      "verb": "POST",
+      "path": "/api/v1/vault/remove-passphrase",
+      "command": "remove_vault_passphrase"
+    },
+    {
+      "method": "detectLocalAi",
+      "verb": "GET",
+      "path": "/api/v1/local-ai",
+      "command": "detect_local_ai"
+    },
+    {
+      "method": "pullLocalModel",
+      "verb": "POST",
+      "path": "/api/v1/local-ai/pull",
+      "command": "pull_local_model"
+    },
+    {
+      "method": "listProviders",
+      "verb": "GET",
+      "path": "/api/v1/providers",
+      "command": "list_providers"
+    },
+    {
+      "method": "setProviderKey",
+      "verb": "POST",
+      "path": "/api/v1/providers/{provider}/key",
+      "command": "set_provider_key"
+    },
+    {
+      "method": "validateProviderKey",
+      "verb": "POST",
+      "path": "/api/v1/providers/{provider}/validate",
+      "command": "validate_provider_key"
+    },
+    {
+      "method": "clearProviderKey",
+      "verb": "DELETE",
+      "path": "/api/v1/providers/{provider}/key",
+      "command": "clear_provider_key"
+    },
+    {
+      "method": "setProviderModel",
+      "verb": "POST",
+      "path": "/api/v1/providers/{provider}/model",
+      "command": "set_provider_model"
+    },
+    {
+      "method": "previewAssist",
+      "verb": "GET",
+      "path": "/api/v1/trips/{tripId}/assist-preview",
+      "command": "preview_assist"
+    },
+    {
+      "method": "runAssist",
+      "verb": "POST",
+      "path": "/api/v1/trips/{tripId}/assist",
+      "command": "run_assist"
+    },
+    {
+      "method": "previewAssistDraft",
+      "verb": "GET",
+      "path": "/api/v1/trips/{tripId}/assist-draft-preview",
+      "command": "preview_assist_draft"
+    },
+    {
+      "method": "runAssistDraft",
+      "verb": "POST",
+      "path": "/api/v1/trips/{tripId}/assist-draft",
+      "command": "run_assist_draft"
+    },
+    {
+      "method": "listAssistActivity",
+      "verb": "GET",
+      "path": "/api/v1/trips/{tripId}/assist-activity",
+      "command": "list_assist_activity"
+    },
+    {
+      "method": "getAiPrompts",
+      "verb": "GET",
+      "path": "/api/v1/ai/prompts",
+      "command": "get_ai_prompts"
+    },
+    {
+      "method": "setAiPrompt",
+      "verb": "POST",
+      "path": "/api/v1/ai/prompts",
+      "command": "set_ai_prompt"
+    },
+    {
+      "method": "listPacks",
+      "verb": "GET",
+      "path": "/api/v1/packs",
+      "command": "list_packs"
+    },
+    {
+      "method": "suggestPacks",
+      "verb": "GET",
+      "path": "/api/v1/trips/{tripId}/pack-suggestions",
+      "command": "suggest_packs"
+    },
+    {
+      "method": "suggestFieldValues",
+      "verb": "GET",
+      "path": "/api/v1/trips/{tripId}/field-suggestions",
+      "command": "suggest_field_values"
+    },
+    {
+      "method": "suggestPlaces",
+      "verb": "GET",
+      "path": "/api/v1/places/suggest",
+      "command": "suggest_places"
+    },
+    {
+      "method": "downloadPack",
+      "verb": "POST",
+      "path": "/api/v1/trips/{tripId}/packs/{packId}",
+      "command": "download_pack"
+    },
+    {
+      "method": "listDownloadedPacks",
+      "verb": "GET",
+      "path": "/api/v1/trips/{tripId}/packs",
+      "command": "list_downloaded_packs"
+    },
+    {
+      "method": "deleteDownloadedPack",
+      "verb": "DELETE",
+      "path": "/api/v1/trips/{tripId}/packs/{packId}",
+      "command": "delete_downloaded_pack"
+    },
+    {
+      "method": "getOfflineMap",
+      "verb": "GET",
+      "path": "/api/v1/trips/{tripId}/offline-map",
+      "command": "get_offline_map"
+    },
+    {
+      "method": "readOfflineMapRange",
+      "verb": "POST",
+      "path": "/api/v1/trips/{tripId}/offline-map/range",
+      "command": "read_offline_map_range"
+    },
+    {
+      "method": "getRecommendations",
+      "verb": "POST",
+      "path": "/api/v1/trips/{tripId}/recommendations",
+      "command": "get_recommendations"
+    },
+    {
+      "method": "listAdviceCountries",
+      "verb": "GET",
+      "path": "/api/v1/advice/countries",
+      "command": "list_advice_countries"
+    },
+    {
+      "method": "fetchAdvisories",
+      "verb": "POST",
+      "path": "/api/v1/trips/{tripId}/advisories",
+      "command": "fetch_advisories"
+    },
+    {
+      "method": "fetchWeather",
+      "verb": "POST",
+      "path": "/api/v1/trips/{tripId}/weather",
+      "command": "fetch_weather"
+    },
+    {
+      "method": "fetchDestinationFacts",
+      "verb": "POST",
+      "path": "/api/v1/trips/{tripId}/destination-facts",
+      "command": "fetch_destination_facts"
+    },
+    {
+      "method": "fetchPublicHolidays",
+      "verb": "POST",
+      "path": "/api/v1/trips/{tripId}/holidays",
+      "command": "fetch_public_holidays"
+    },
+    {
+      "method": "fetchPlaceSummary",
+      "verb": "POST",
+      "path": "/api/v1/trips/{tripId}/summary",
+      "command": "fetch_place_summary"
+    },
+    {
+      "method": "searchTrip",
+      "verb": "GET",
+      "path": "/api/v1/trips/{tripId}/search",
+      "command": "search_trip"
+    },
+    {
+      "method": "suggestSearchTerms",
+      "verb": "GET",
+      "path": "/api/v1/trips/{tripId}/search-suggestions",
+      "command": "suggest_search_terms"
+    },
+    {
+      "method": "deleteTrip",
+      "verb": "DELETE",
+      "path": "/api/v1/trips/{tripId}",
+      "command": "delete_trip"
+    },
+    {
+      "method": "importDocument",
+      "verb": "POST",
+      "path": "/api/v1/trips/{tripId}/documents",
+      "command": "import_document"
+    },
+    {
+      "method": "getTripNotes",
+      "verb": "GET",
+      "path": "/api/v1/trips/{tripId}/notes",
+      "command": "get_trip_notes"
+    },
+    {
+      "method": "setTripNotes",
+      "verb": "POST",
+      "path": "/api/v1/trips/{tripId}/notes",
+      "command": "set_trip_notes"
+    },
+    {
+      "method": "listDocuments",
+      "verb": "GET",
+      "path": "/api/v1/trips/{tripId}/documents",
+      "command": "list_documents"
+    },
+    {
+      "method": "getDocument",
+      "verb": "GET",
+      "path": "/api/v1/documents/{documentId}",
+      "command": "get_document"
+    },
+    {
+      "method": "deleteDocument",
+      "verb": "DELETE",
+      "path": "/api/v1/documents/{documentId}",
+      "command": "delete_document"
+    },
+    {
+      "method": "listCandidates",
+      "verb": "GET",
+      "path": "/api/v1/trips/{tripId}/candidates",
+      "command": "list_candidates"
+    },
+    {
+      "method": "confirmCandidate",
+      "verb": "POST",
+      "path": "/api/v1/candidates/{candidateId}/confirm",
+      "command": "confirm_candidate"
+    },
+    {
+      "method": "rejectCandidate",
+      "verb": "POST",
+      "path": "/api/v1/candidates/{candidateId}/reject",
+      "command": "reject_candidate"
+    },
+    {
+      "method": "addManualFact",
+      "verb": "POST",
+      "path": "/api/v1/trips/{tripId}/facts",
+      "command": "add_manual_fact"
+    },
+    {
+      "method": "unconfirmFact",
+      "verb": "DELETE",
+      "path": "/api/v1/facts/{factId}",
+      "command": "unconfirm_fact"
+    }
+  ],
+  "desktopOnly": [
+    "backup_database",
+    "clear_backups",
+    "export_backup",
+    "stage_restore",
+    "has_pending_restore",
+    "get_app_setting",
+    "set_app_setting",
+    "updater_check",
+    "updater_install",
+    "updater_relaunch"
+  ],
+  "counts": {
+    "shared": 57,
+    "desktopOnly": 10
+  }
+}
