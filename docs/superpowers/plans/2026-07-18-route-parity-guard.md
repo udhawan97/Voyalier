@@ -671,6 +671,13 @@ each produced the expected failure before being reverted."
 
 ### Task 4: Assertion 5 — desktop-only commands stay off HTTP
 
+> **Amended after review.** The verb-scan parser below (`router_handler_names`) shipped in this
+> task's commit (`1cc4b13`) and was replaced by the whole-word identifier scan
+> `source_names_identifier` in a follow-up commit (`6a2e1cb`), which closed a bypass via `put`,
+> `any`, `.on(MethodFilter, ..)`, and `route_service` that a four-verb scan could not see. The code
+> block below is left as originally planned; `crates/voyalier-server/src/lib.rs` is the source of
+> truth for what actually shipped.
+
 **Files:**
 
 - Modify: `crates/voyalier-server/src/lib.rs` — same `mod tests`
@@ -943,6 +950,13 @@ reverted."
 > declared→served, never served→declared, so a route added to Axum and never declared passes
 > silently. `voyalier-desktop` already closes its equivalent with a total-count assertion. This
 > task gives the server the same symmetry.
+>
+> **Amended after review.** `router_source`'s `rest.find("\n}\n")` bound and the
+> `route_service`/`.nest(` denylist below shipped in this task's commit (`552183b`) and were
+> replaced by brace counting and a broadened denylist (covering the `_service`, `.nest`, and
+> `fallback` families rather than one spelling each) in a follow-up commit (`4e1ace4`). The code
+> block below is left as originally planned; `crates/voyalier-server/src/lib.rs` is the source of
+> truth for what actually shipped.
 
 **Files:**
 
