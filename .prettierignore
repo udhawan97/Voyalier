@@ -14,6 +14,11 @@ packages/contracts/fixtures/**
 # with serde_json's formatting, so prettier and the regenerator would fight.
 packages/contracts/parity/**
 
+# Agent scratch workspace — task briefs, reports, and progress ledgers written
+# by tooling mid-run. Git-ignored via .superpowers/sdd/.gitignore, but prettier
+# reads only this file, so without the entry `format:check` fails on scratch.
+.superpowers/
+
 # Build outputs and generated artifacts
 **/dist/**
 **/target/**
