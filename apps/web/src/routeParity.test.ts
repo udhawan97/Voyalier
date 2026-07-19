@@ -1,8 +1,10 @@
 import routes from "@voyalier/contracts/parity/routes.json";
 import type { AppGateway } from "@voyalier/contracts";
 
+import { createTauriBackup } from "./backup/tauriBackup";
 import { createHttpGateway } from "./gateway/http";
 import { createTauriGateway } from "./gateway/tauri";
+import { createTauriUpdater } from "./updater/tauriUpdater";
 
 /**
  * `packages/contracts/parity/routes.json` is the one declaration of the API
@@ -169,5 +171,57 @@ describe("route parity: tauri.ts against the manifest", () => {
     await drive(createTauriGateway({ invoke: recordingInvoke }), route.method);
 
     expect(invoked).toEqual([route.command]);
+  });
+});
+
+/**
+ * The desktop-only commands never reach AppGateway, so the blocks above cannot
+ * see them: `updater/tauriUpdater.ts` and `backup/tauriBackup.ts` invoke them
+ * directly, as untyped strings. voyalier-desktop holds `generate_handler!` to
+ * `desktopOnly`, which left one hole — rename a command in the Rust wrapper, in
+ * `generate_handler!`, and in the manifest, and every declared surface agrees
+ * while both bridges go on calling the dead name. Clean compile, runtime
+ * failure. This is that missing half.
+ *
+ * Every declared command is reachable by calling a bridge method — seven on the
+ * updater, three on backup — so this is a full set equality with no residual: a
+ * declared command no bridge invokes fails it, and a bridge invoking a command
+ * the manifest does not declare fails it too.
+ */
+describe("route parity: the desktop-only bridges against the manifest", () => {
+  it("invokes exactly the commands declared desktopOnly", async () => {
+    const invoked: string[] = [];
+    const recordingInvoke = (command: string): Promise<unknown> => {
+      invoked.push(command);
+      return Promise.resolve(undefined);
+    };
+
+    const updater = createTauriUpdater({ invoke: recordingInvoke });
+    const backup = createTauriBackup({ invoke: recordingInvoke });
+
+    // Driven through the real signatures, so a renamed or dropped bridge method
+    // fails to compile here rather than silently dropping a command from the
+    // union. Arguments are inert — none of them reaches a command name — and
+    // rejections are fine, since the invoke is recorded before any response is
+    // unwrapped.
+    await Promise.allSettled([
+      updater.check(),
+      updater.install(),
+      updater.relaunch(),
+      updater.getSetting("k"),
+      updater.setSetting("k", "v"),
+      updater.backup("label"),
+      updater.clearBackups(),
+      backup.exportBackup("pw"),
+      backup.stageRestore("pw"),
+      backup.hasPendingRestore(),
+    ]);
+
+    // A union: two bridge methods may legitimately share one command, and that
+    // is not drift. Copies are sorted so neither the manifest nor the call order
+    // above is load-bearing.
+    expect([...new Set(invoked)].sort()).toEqual(
+      [...routes.desktopOnly].sort(),
+    );
   });
 });
