@@ -1955,10 +1955,38 @@ mod tests {
 
     /// `pub fn app`'s body, so route parsing never strays into the test module
     /// below it (which mentions `.route(` in its own assertion messages).
+    ///
+    /// Bounds the slice by depth-counting braces from the opening `{` of the
+    /// function body to its matching close, rather than assuming the body ends
+    /// at the first `"\n}\n"` — a heuristic that silently truncates as soon as
+    /// any nested block (a `#[rustfmt::skip]`-preserved one, a `let` with a
+    /// block body, ...) closes at column 0. This does not special-case braces
+    /// inside string or char literals; it is correct today only because every
+    /// `{param}` route placeholder is a balanced pair on a single line, so it
+    /// never perturbs the running depth. A future string literal with an
+    /// unbalanced brace would defeat it the same way the old heuristic could
+    /// be defeated — that residual risk is real and intentionally not handled
+    /// here, rather than papered over with a false claim of robustness.
     fn router_source(source: &str) -> &str {
         let start = source.find("pub fn app(").expect("pub fn app in lib.rs");
         let rest = &source[start..];
-        let end = rest.find("\n}\n").expect("end of pub fn app");
+        let body_start = rest.find('{').expect("opening brace of pub fn app");
+        let mut depth = 0i32;
+        let mut end = None;
+        for (offset, ch) in rest[body_start..].char_indices() {
+            match ch {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = Some(body_start + offset + 1);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let end = end.expect("matching close brace for pub fn app");
         &rest[..end]
     }
 
@@ -1992,10 +2020,12 @@ mod tests {
         out
     }
 
-    /// Every `(VERB, path)` the router declares. Complete only because
+    /// Every `(VERB, path)` the router declares. Complete only because (a)
     /// `the_router_uses_only_wiring_forms_the_parity_parser_understands` holds the
     /// crate to `.route(path, verb(handler))` — if that test fails, this one is
-    /// blind and must be taught the new form.
+    /// blind and must be taught the new form — and (b) `router_source` bounds the
+    /// scan to exactly `pub fn app`'s body via brace counting, so nothing past the
+    /// function leaks in and nothing inside it is cut off.
     fn declared_routes(source: &str) -> std::collections::HashSet<(String, String)> {
         let mut routes = std::collections::HashSet::new();
         for chunk in router_source(source).split(".route(").skip(1) {
@@ -2040,10 +2070,11 @@ mod tests {
             "connect(",
             "any(",
             ".on(",
-            "route_service",
+            "_service",
             "MethodFilter",
             ".merge(",
-            ".nest(",
+            ".nest",
+            "fallback",
         ] {
             assert!(
                 !router.contains(form),
