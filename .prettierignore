@@ -10,8 +10,10 @@ pnpm-lock.yaml
 crates/**/fixtures/**
 packages/contracts/fixtures/**
 
-# Cross-language parity goldens — `VOYALIER_REGENERATE_GOLDEN=1` rewrites these
-# with serde_json's formatting, so prettier and the regenerator would fight.
+# Cross-language parity goldens — `VOYALIER_REGENERATE_GOLDEN=1` rewrites most
+# of these with serde_json's formatting, so prettier and the regenerator would
+# fight. `routes.json` is hand-maintained and never regenerated, but stays
+# excluded here too for directory-wide consistency.
 packages/contracts/parity/**
 
 # Agent scratch workspace — task briefs, reports, and progress ledgers written
