@@ -772,7 +772,10 @@ fn status_for_error(code: ErrorCode) -> StatusCode {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::PathBuf};
+    use std::{
+        fs,
+        path::{Path, PathBuf},
+    };
 
     use axum::body::to_bytes;
     use serde_json::{Value, json};
@@ -1773,6 +1776,122 @@ mod tests {
     fn cleanup_database(database: PathBuf) {
         if let Some(parent) = database.parent() {
             let _ = fs::remove_dir_all(parent);
+        }
+    }
+
+    /// Only the fields this crate asserts on. serde ignores the rest, so the
+    /// `command` column is deliberately absent — declaring it here would be dead
+    /// code under `clippy -D warnings`.
+    #[derive(serde::Deserialize)]
+    struct SharedRoute {
+        method: String,
+        verb: String,
+        path: String,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct ManifestCounts {
+        shared: usize,
+        #[serde(rename = "desktopOnly")]
+        desktop_only: usize,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct RouteManifest {
+        shared: Vec<SharedRoute>,
+        #[serde(rename = "desktopOnly")]
+        desktop_only: Vec<String>,
+        counts: ManifestCounts,
+    }
+
+    /// `packages/contracts/parity/routes.json` is the one declaration of the API
+    /// surface. `apps/web/src/routeParity.test.ts` holds the two web gateways to
+    /// the same file.
+    fn load_route_manifest() -> RouteManifest {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../packages/contracts/parity/routes.json");
+        let raw = fs::read_to_string(&path).expect("parity/routes.json");
+        serde_json::from_str(&raw).expect("parity/routes.json parses")
+    }
+
+    /// Substitute the manifest's path placeholders with the same sample values
+    /// `routeParity.test.ts` uses, so both sides probe identical URLs.
+    fn resolve_path(path: &str) -> String {
+        path.replace("{tripId}", "trip_1")
+            .replace("{packId}", "pack_1")
+            .replace("{documentId}", "doc_1")
+            .replace("{factId}", "fact_1")
+            .replace("{candidateId}", "cand_1")
+            .replace("{provider}", "openai")
+    }
+
+    /// A routing probe: status plus whether the body was empty, and deliberately
+    /// no body parsing. `request` would panic here, because Axum's extractor
+    /// rejections to an empty body answer in plain text rather than AppError JSON.
+    async fn route_probe(router: Router, method: Method, uri: &str) -> (StatusCode, bool) {
+        let request = Request::builder()
+            .method(method)
+            .uri(uri)
+            .header(header::HOST, "127.0.0.1:8787")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::empty())
+            .expect("request");
+        let response = router.oneshot(request).await.expect("response");
+        let status = response.status();
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("bytes");
+        (status, body.is_empty())
+    }
+
+    #[tokio::test]
+    async fn every_declared_route_is_served_by_the_router() {
+        let manifest = load_route_manifest();
+        assert_eq!(
+            manifest.shared.len(),
+            manifest.counts.shared,
+            "parity/routes.json declares counts.shared = {} but carries {} rows",
+            manifest.counts.shared,
+            manifest.shared.len()
+        );
+
+        let database = temp_database("route_parity");
+        let service = open_test_service(&database).expect("service");
+        let router = app(service);
+
+        for route in &manifest.shared {
+            let uri = resolve_path(&route.path);
+            assert!(
+                !uri.contains('{'),
+                "parity/routes.json path {} has a placeholder with no sample value in resolve_path",
+                route.path
+            );
+            let method = Method::from_bytes(route.verb.as_bytes()).unwrap_or_else(|_| {
+                panic!("parity/routes.json verb {} is not a method", route.verb)
+            });
+
+            let (status, body_empty) = route_probe(router.clone(), method, &uri).await;
+
+            // An unmatched route is 404 with an empty body; a handler saying
+            // "trip not found" is 404 with an AppError body. Only the first is
+            // a routing failure. A verb mismatch on a matched path is 405.
+            assert!(
+                !(status == StatusCode::NOT_FOUND && body_empty),
+                "parity/routes.json declares {} -> {} {} but the Axum router has no such route \
+                 (404, empty body). Add it in crates/voyalier-server, or fix the manifest.",
+                route.method,
+                route.verb,
+                route.path
+            );
+            assert_ne!(
+                status,
+                StatusCode::METHOD_NOT_ALLOWED,
+                "parity/routes.json declares {} -> {} {} but the Axum router serves that path \
+                 under a different verb (405).",
+                route.method,
+                route.verb,
+                route.path
+            );
         }
     }
 }
