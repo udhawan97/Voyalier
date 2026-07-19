@@ -934,6 +934,215 @@ reverted."
 
 ---
 
+### Task 7: The reverse direction — the router declares nothing extra
+
+> **Added mid-execution, and runs before Task 6.** Task 6's implementer empirically tested the
+> claim "add a gateway method and all four fail" and found it false in the direction that
+> actually happens: implement a method everywhere but forget the manifest row, and only the web
+> test and `voyalier-desktop`'s count check fail. `voyalier-server`'s tests only check
+> declared→served, never served→declared, so a route added to Axum and never declared passes
+> silently. `voyalier-desktop` already closes its equivalent with a total-count assertion. This
+> task gives the server the same symmetry.
+
+**Files:**
+
+- Modify: `crates/voyalier-server/src/lib.rs` — same `#[cfg(test)] mod tests`
+
+**Interfaces:**
+
+- Consumes: `load_route_manifest()` and `SharedRoute` from Task 3.
+- Produces: nothing consumed later.
+
+**Design note — a parser that knows its own limits.** Task 4's review found that a lexical scan
+for four verb constructors silently missed `put`, `any`, `.on(MethodFilter, …)`, and
+`route_service`. Rather than repeat that mistake, this task pairs the route parser with a second
+test asserting the crate uses **only** the wiring forms the parser understands. A blind spot that
+fails loudly is not a blind spot.
+
+- [ ] **Step 1: Write the tests**
+
+Add inside `mod tests`:
+
+```rust
+/// `pub fn app`'s body, so route parsing never strays into the test module
+/// below it (which mentions `.route(` in its own assertion messages).
+fn router_source(source: &str) -> &str {
+    let start = source.find("pub fn app(").expect("pub fn app in lib.rs");
+    let rest = &source[start..];
+    let end = rest.find("\n}\n").expect("end of pub fn app");
+    &rest[..end]
+}
+
+/// Convert an Axum path's snake_case placeholders to the manifest's camelCase,
+/// so `/api/v1/trips/{trip_id}` compares equal to `/api/v1/trips/{tripId}`.
+fn normalize_placeholders(path: &str) -> String {
+    let mut out = String::with_capacity(path.len());
+    let mut rest = path;
+    while let Some(open) = rest.find('{') {
+        out.push_str(&rest[..open]);
+        let after = &rest[open + 1..];
+        let close = after.find('}').expect("unclosed placeholder in a route path");
+        out.push('{');
+        let mut capitalize = false;
+        for character in after[..close].chars() {
+            if character == '_' {
+                capitalize = true;
+            } else if capitalize {
+                out.extend(character.to_uppercase());
+                capitalize = false;
+            } else {
+                out.push(character);
+            }
+        }
+        out.push('}');
+        rest = &after[close + 1..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Every `(VERB, path)` the router declares. Complete only because
+/// `the_router_uses_only_wiring_forms_the_parity_parser_understands` holds the
+/// crate to `.route(path, verb(handler))` — if that test fails, this one is
+/// blind and must be taught the new form.
+fn declared_routes(source: &str) -> std::collections::HashSet<(String, String)> {
+    let mut routes = std::collections::HashSet::new();
+    for chunk in router_source(source).split(".route(").skip(1) {
+        let Some(open) = chunk.find('"') else { continue };
+        let Some(length) = chunk[open + 1..].find('"') else {
+            continue;
+        };
+        let path = normalize_placeholders(&chunk[open + 1..open + 1 + length]);
+        let body = &chunk[open + 1 + length + 1..];
+        for verb in ["get", "post", "patch", "delete"] {
+            let needle = format!("{verb}(");
+            let mut scan = body;
+            while let Some(at) = scan.find(&needle) {
+                let start = at + needle.len();
+                let end = scan[start..]
+                    .find(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+                    .map_or(scan.len(), |offset| start + offset);
+                if end > start && scan[end..].starts_with(')') {
+                    routes.insert((verb.to_ascii_uppercase(), path.clone()));
+                }
+                scan = &scan[start..];
+            }
+        }
+    }
+    routes
+}
+
+/// The parser above understands `.route(path, verb(handler))` and nothing else.
+/// Axum offers plenty more — this keeps the crate inside what the guard can
+/// actually see, so a new wiring form fails here rather than slipping past
+/// `the_router_declares_exactly_the_manifest`.
+#[test]
+fn the_router_uses_only_wiring_forms_the_parity_parser_understands() {
+    let router = router_source(include_str!("lib.rs"));
+    for form in [
+        "put(",
+        "head(",
+        "options(",
+        "trace(",
+        "connect(",
+        "any(",
+        ".on(",
+        "route_service",
+        "MethodFilter",
+        ".merge(",
+        ".nest(",
+    ] {
+        assert!(
+            !router.contains(form),
+            "pub fn app uses `{form}`, which declared_routes cannot see. The parity guard would \
+             stop noticing routes wired that way. Teach declared_routes the new form before \
+             using it."
+        );
+    }
+}
+
+/// The reverse of `every_declared_route_is_served_by_the_router`: the router
+/// must serve nothing the manifest does not declare. Without this, a route
+/// added to Axum and never declared drifts silently, since the forward test
+/// only walks the manifest.
+#[test]
+fn the_router_declares_exactly_the_manifest() {
+    let manifest = load_route_manifest();
+    let declared: std::collections::HashSet<(String, String)> = manifest
+        .shared
+        .iter()
+        .map(|route| (route.verb.clone(), route.path.clone()))
+        .collect();
+    let routed = declared_routes(include_str!("lib.rs"));
+
+    let mut undeclared: Vec<_> = routed.difference(&declared).collect();
+    undeclared.sort();
+    assert!(
+        undeclared.is_empty(),
+        "crates/voyalier-server routes {undeclared:?}, which parity/routes.json does not \
+         declare. Every route needs a manifest row, or the web gateways can drift from it \
+         unnoticed."
+    );
+
+    let mut unrouted: Vec<_> = declared.difference(&routed).collect();
+    unrouted.sort();
+    assert!(
+        unrouted.is_empty(),
+        "parity/routes.json declares {unrouted:?}, which crates/voyalier-server does not route."
+    );
+}
+```
+
+- [ ] **Step 2: Run the tests**
+
+```bash
+cargo test -p voyalier-server the_router
+```
+
+Expected: both PASS. `declared_routes` should find exactly 57 pairs today.
+
+- [ ] **Step 3: Mutation check**
+
+Break 7a. Add a route the manifest does not declare — a handler `async fn ping() -> StatusCode { StatusCode::NO_CONTENT }` wired as `.route("/api/v1/ping", get(ping))`. Re-run.
+
+Expected: `the_router_declares_exactly_the_manifest` fails listing `("GET", "/api/v1/ping")` as undeclared. **Revert both edits.**
+
+Break 7b. Add a second verb to an already-declared path — change `.route("/api/v1/trips/{trip_id}/weather", post(fetch_weather))` to `.route("/api/v1/trips/{trip_id}/weather", post(fetch_weather).patch(fetch_weather))`. Re-run.
+
+Expected: the same test fails, naming the undeclared `("PATCH", …)` pair. **Revert.**
+
+Break 7c. Prove the blind-spot guard fires. Change that same route's `post(fetch_weather)` to `put(fetch_weather)` (import `axum::routing::put`). Re-run.
+
+Expected: `the_router_uses_only_wiring_forms_the_parity_parser_understands` fails naming `put(`. **Revert**, re-run, confirm both green.
+
+- [ ] **Step 4: Commit**
+
+```bash
+cargo fmt --all
+cargo clippy --locked -p voyalier-server --all-targets -- -D warnings
+git add crates/voyalier-server/src/lib.rs
+git commit -m "App: close the reverse direction of the route guard
+
+every_declared_route_is_served_by_the_router only walks the manifest, so
+a route added to Axum and never declared passed unnoticed — the guard
+checked declared-to-served but never served-to-declared. voyalier-desktop
+already closed its equivalent with a total-count assertion; the server
+had no such check, which made the contract's claim that the manifest
+cannot drift from either side untrue.
+
+Parses pub fn app's route declarations and asserts set equality with the
+manifest in both directions. Paired with a second test holding the crate
+to .route(path, verb(handler)) — the only wiring form the parser sees —
+so an unparseable form fails loudly instead of going blind, which is the
+failure the desktop-only guard already had to be fixed for once.
+
+Verified by mutation: an undeclared route, an undeclared extra verb on a
+declared path, and a put(..) wiring each produced the expected failure
+before being reverted."
+```
+
+---
+
 ### Task 6: Correct the agent contract
 
 **Files:**
@@ -955,7 +1164,7 @@ In the "Contracts and parity" section, the current text reads:
 
 Replace the final sentence so it reads:
 
-> TypeScript catches the last three, and `packages/contracts/parity/routes.json` catches the transports: it declares each method's HTTP verb, HTTP path, and Tauri command, and is asserted from `apps/web/src/routeParity.test.ts` (both gateways), `voyalier-server` (every declared route resolves; no desktop-only command has a route), and `voyalier-desktop` (`generate_handler!` registers every command). Add a gateway method and all four fail until the manifest is updated. It is hand-maintained — never regenerate it from a gateway.
+> TypeScript catches the last three, and `packages/contracts/parity/routes.json` catches the transports: it declares each method's HTTP verb, HTTP path, and Tauri command, and is asserted from `apps/web/src/routeParity.test.ts` (both gateways), `voyalier-server` (the router's routes equal the manifest's, in both directions, and the crate never names a desktop-only command), and `voyalier-desktop` (`generate_handler!` registers every declared command and nothing more). Drift either way fails the gate — a method wired without a manifest row, or a row nothing is wired to. It is hand-maintained — never regenerate it from a gateway.
 
 - [ ] **Step 2: Update the testing section**
 
