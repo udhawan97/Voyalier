@@ -1896,6 +1896,8 @@ mod tests {
                 route.path
             );
         }
+
+        cleanup_database(database);
     }
 
     /// True if `byte` can appear inside a Rust identifier. Every name this
