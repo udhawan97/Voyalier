@@ -1779,14 +1779,17 @@ mod tests {
         }
     }
 
-    /// Only the fields this crate asserts on. serde ignores the rest, so the
-    /// `command` column is deliberately absent — declaring it here would be dead
-    /// code under `clippy -D warnings`.
+    /// Only the fields this crate asserts on. serde ignores the rest.
+    /// `command` is read by `the_router_declares_exactly_the_manifest`, which
+    /// folds it into the comparison key alongside `(verb, path)` so a same-verb
+    /// handler swap between two routes fails instead of comparing as two
+    /// identical keys.
     #[derive(serde::Deserialize)]
     struct SharedRoute {
         method: String,
         verb: String,
         path: String,
+        command: String,
     }
 
     #[derive(serde::Deserialize)]
@@ -2024,16 +2027,17 @@ mod tests {
         out
     }
 
-    /// Every `(VERB, path)` the router declares. Complete only because (a)
-    /// `the_router_uses_only_wiring_forms_the_parity_parser_understands` holds the
-    /// crate to `.route(path, verb(handler))` — if that test fails, this one is
-    /// blind and must be taught the new form — (b) `router_source` bounds the scan
-    /// to exactly `pub fn app`'s body via brace counting, so nothing past the
-    /// function leaks in and nothing inside it is cut off — and (c) every
-    /// `.route(` call must carry a string literal path, and every whole-word
-    /// `verb(` occurrence in its body must resolve to a bare identifier followed
-    /// by `)`, or this function panics rather than silently dropping the route.
-    fn declared_routes(source: &str) -> std::collections::HashSet<(String, String)> {
+    /// Every `(VERB, path, handler)` the router declares. Complete only because
+    /// (a) `the_router_uses_only_wiring_forms_the_parity_parser_understands`
+    /// holds the crate to `.route(path, verb(handler))` — if that test fails,
+    /// this one is blind and must be taught the new form — (b) `router_source`
+    /// bounds the scan to exactly `pub fn app`'s body via brace counting, so
+    /// nothing past the function leaks in and nothing inside it is cut off —
+    /// and (c) every `.route(` call must carry a string literal path, and every
+    /// whole-word `verb(` occurrence in its body must resolve to a bare
+    /// identifier followed by `)`, or this function panics rather than
+    /// silently dropping the route.
+    fn declared_routes(source: &str) -> std::collections::HashSet<(String, String, String)> {
         let mut routes = std::collections::HashSet::new();
         for chunk in router_source(source).split(".route(").skip(1) {
             let open = chunk.find('"').expect(
@@ -2075,7 +2079,8 @@ mod tests {
                         .find(|c: char| !c.is_ascii_alphanumeric() && c != '_')
                         .map_or(body.len(), |offset| start + offset);
                     if end > start && body[end..].starts_with(')') {
-                        routes.insert((verb.to_ascii_uppercase(), path.clone()));
+                        let handler = body[start..end].to_string();
+                        routes.insert((verb.to_ascii_uppercase(), path.clone(), handler));
                         understood_calls += 1;
                     }
                 }
@@ -2122,33 +2127,44 @@ mod tests {
     }
 
     /// The reverse of `every_declared_route_is_served_by_the_router`: the router
-    /// must serve nothing the manifest does not declare. Without this, a route
-    /// added to Axum and never declared drifts silently, since the forward test
-    /// only walks the manifest.
+    /// must serve nothing the manifest does not declare, under the same
+    /// handler. Without this, a route added to Axum and never declared drifts
+    /// silently (the forward test only walks the manifest), and two same-verb
+    /// handlers swapped between routes would compare as two identical
+    /// `(verb, path)` keys and pass unnoticed.
     #[test]
     fn the_router_declares_exactly_the_manifest() {
         let manifest = load_route_manifest();
-        let declared: std::collections::HashSet<(String, String)> = manifest
+        let declared: std::collections::HashSet<(String, String, String)> = manifest
             .shared
             .iter()
-            .map(|route| (route.verb.clone(), route.path.clone()))
+            .map(|route| {
+                (
+                    route.verb.clone(),
+                    route.path.clone(),
+                    route.command.clone(),
+                )
+            })
             .collect();
         let routed = declared_routes(include_str!("lib.rs"));
 
         let mut undeclared: Vec<_> = routed.difference(&declared).collect();
         undeclared.sort();
-        assert!(
-            undeclared.is_empty(),
-            "crates/voyalier-server routes {undeclared:?}, which parity/routes.json does not \
-             declare. Every route needs a manifest row, or the web gateways can drift from it \
-             unnoticed."
-        );
-
         let mut unrouted: Vec<_> = declared.difference(&routed).collect();
         unrouted.sort();
+
+        // One assertion covering both directions, so a mismatch that shows up
+        // on both sides (e.g. two handlers swapped between routes) prints the
+        // expected (manifest) and actual (routed) handler for each affected
+        // path together, rather than only whichever direction happened to be
+        // checked first.
         assert!(
-            unrouted.is_empty(),
-            "parity/routes.json declares {unrouted:?}, which crates/voyalier-server does not route."
+            undeclared.is_empty() && unrouted.is_empty(),
+            "route parity between crates/voyalier-server and parity/routes.json has drifted.\n\
+             Routed as (verb, path, handler) but not declared in the manifest: {undeclared:?}\n\
+             Declared in the manifest as (verb, path, command) but not routed: {unrouted:?}\n\
+             Every route needs a manifest row naming the same handler as its `command`, or the \
+             web gateways can drift from it unnoticed."
         );
     }
 }
