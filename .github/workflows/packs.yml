@@ -23,10 +23,6 @@ on:
         description: Exact Protomaps planet build date (YYYYMMDD)
         default: "20260715"
         type: string
-      offline_map_pack_id:
-        description: One catalog pack to receive an offline PMTiles basemap
-        default: us-nashville
-        type: string
 
 permissions:
   contents: write # create/update the release and upload assets
@@ -77,9 +73,8 @@ jobs:
           tar -xzf "$archive" -C "$RUNNER_TEMP/pmtiles"
           echo "$RUNNER_TEMP/pmtiles" >> "$GITHUB_PATH"
 
-      - name: Build and verify one offline basemap slice
+      - name: Build and verify every catalog-enabled offline basemap slice
         env:
-          OFFLINE_MAP_PACK_ID: ${{ inputs.offline_map_pack_id }}
           PROTOMAPS_BUILD: ${{ inputs.protomaps_build }}
         run: node scripts/build-offline-map.mjs catalog.json
 

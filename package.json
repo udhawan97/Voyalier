@@ -15,12 +15,14 @@
     "build": "pnpm --filter @voyalier/contracts typecheck && pnpm --filter @voyalier/web build && pnpm --filter @voyalier/docs build",
     "typecheck": "pnpm --filter @voyalier/contracts typecheck && pnpm --filter @voyalier/web typecheck",
     "lint": "pnpm --filter @voyalier/web lint",
-    "test": "pnpm --filter @voyalier/web test",
+    "test": "node --test scripts/*.test.mjs && pnpm --filter @voyalier/web test",
+    "test:e2e": "playwright test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "concurrently": "^10.0.3",
     "prettier": "^3.9.5"
   }

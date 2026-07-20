@@ -12,6 +12,7 @@ DESKTOP_CRATES=(-p voyalier-desktop)
 stage_web() {
   pnpm format:check
   pnpm check
+  pnpm test:e2e
 }
 
 stage_rust() {
