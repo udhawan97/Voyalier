@@ -15,6 +15,7 @@
   --color-neutral: oklch(52% 0.012 73);
   --color-rule: oklch(76% 0.016 83);
   --color-rule-2: oklch(85% 0.014 83);
+  --color-control-rule: oklch(62% 0.012 73);
   --color-accent: oklch(55% 0.155 35);
   --color-accent-ink: oklch(98% 0.01 83);
   --color-focus: oklch(48% 0.19 35);
@@ -30,6 +31,7 @@
   --color-night-rule: oklch(34% 0.014 73);
   --color-scrim: oklch(14% 0.012 73 / 0.56);
   --color-paper-veil: oklch(95% 0.015 83 / 0.9);
+  --color-indigo-luminous: oklch(76% 0.04 255);
 
   --space-3xs: 0.125rem;
   --space-2xs: 0.25rem;
@@ -77,4 +79,25 @@
   --z-sticky: 200;
   --z-sticky-nav: 210;
   --z-tooltip: 600;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-paper: var(--color-night);
+  --color-paper-2: var(--color-night-2);
+  --color-paper-3: var(--color-night-3);
+  --color-paper-4: oklch(30% 0.014 73);
+  --color-ink: var(--color-night-ink);
+  --color-ink-2: oklch(83% 0.012 83);
+  --color-muted: var(--color-night-muted);
+  --color-neutral: oklch(66% 0.012 83);
+  --color-rule: var(--color-night-rule);
+  --color-rule-2: oklch(28% 0.014 73);
+  --color-control-rule: oklch(50% 0.012 83);
+  --color-accent: oklch(68% 0.135 35);
+  --color-accent-ink: var(--color-night);
+  --color-focus: var(--color-focus-on-dark);
+  --color-indigo: var(--color-indigo-soft);
+  --color-indigo-deep: var(--color-indigo-luminous);
+  --color-paper-veil: oklch(20% 0.014 73 / 0.92);
 }
