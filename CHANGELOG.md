@@ -11,11 +11,11 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 ### Added
 
 - **Saved interests and places now survive the planning session.** Persona
-  weights persist per trip, and a recommendation can be explicitly shortlisted
-  with its name, coordinates, reasons, source, license, and private notes. A
-  saved place survives removal of its source pack and says when that pack is no
-  longer available; it never becomes a confirmed booking unless the traveler
-  deliberately promotes it into the manual plan.
+  weights persist per trip after a dedicated save action, and a recommendation
+  can be explicitly shortlisted with its name, coordinates, reasons, source,
+  license, and private notes. A saved place survives removal of its source pack
+  and says when that pack is no longer available; **Add to plan** only prefills
+  the traveler-authored form, which must still be reviewed and submitted.
 - **Packing suggestions now lead to an actual checklist.** Evidence-backed
   suggestions remain suggestions until the traveler clicks **Add**, while custom
   items, checked state, and removal persist locally. Voyalier still does not
@@ -43,14 +43,14 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
   explicit online fallback until their own bounded extract is enabled.
 - **Spanish is available as an immediate local preference.** Settings offers
   System, English, and Español; changing it rerenders the visible application
-  without a reload and persists only in local storage. The catalog has complete
-  key coverage and Spanish copy for the primary shell and new v0.5 workflows;
-  untranslated secondary copy falls back safely instead of showing missing
-  keys.
+  without a reload and persists only in local storage. Every English message
+  has a reviewed Spanish counterpart with matching placeholders and plural
+  forms, so secondary workflows no longer fall back to English.
 - **A real-browser acceptance layer now runs in the release gate.** Playwright
-  drives checklist creation, manual planning, workspace search, data-source
-  settings, and the Spanish switch in Chromium against the loopback development
-  stack. It complements—not replaces—the Rust, live Axum serialization,
+  starts disposable SQLite and the real Axum + Vite stack, then drives trip
+  creation, Today, checklist state, manual planning, workspace search,
+  data-source settings, the Spanish switch, and reload persistence in Chromium.
+  It complements—not replaces—the Rust, live Axum serialization,
   transport-parity, component, accessibility, and packaged-app checks.
 
 - **Back up your whole workspace, and restore it anywhere.** Voyalier keeps

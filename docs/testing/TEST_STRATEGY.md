@@ -7,8 +7,10 @@
 - React component and accessibility tests.
 - Live HTTP serialization tests for the vertical gateway journey.
 - Playwright browser acceptance through the real loopback Axum + Vite stack for
-  traveler-owned planning, workspace search, trust settings, and locale
-  switching. `scripts/check.sh web` runs this layer in CI.
+  a disposable persisted trip, Today, traveler-owned planning, workspace
+  search, trust settings, locale switching, and reload persistence.
+  `scripts/check.sh integration` runs this layer after live HTTP serialization
+  in CI.
 - Fixture-based document extraction precision and recall.
 - Retrieval relevance and citation-validity evaluations.
 - Itinerary hard-constraint and timezone fixtures.

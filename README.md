@@ -131,7 +131,7 @@ The useful parts work without a paid AI key. The connected parts ask first.
 | **AI assist**        | Guided on-device Ollama setup (install → start → in-app model pull); BYOK OpenAI/Anthropic with **Validate & save**; editable, resettable system instructions; on-device lodging-date drafts you review; preview the exact redacted request; run only after consent; record metadata-only activity |
 | **Vault**            | Seal source text, pending evidence, and sensitive fact payloads with an OS-keychain data key; optionally wrap it with a local Argon2id passphrase                                                                                                                                                  |
 | **Share**            | Generate a redaction-first printable brief from confirmed facts; names and confirmation codes never enter the output model                                                                                                                                                                         |
-| **Trust & language** | Show the shipped source/license register in Settings and switch immediately among System, English, and Español preferences stored only on this device                                                                                                                                              |
+| **Trust & language** | Show the 20-entry source/license register grouped by built-in, consent-fetched, offline-download, and optional-AI inputs; switch immediately among System, complete English, and complete Español catalogs stored only on this device                                                              |
 | **Accessibility**    | Support keyboard flows, focus containment, reduced motion, semantic labeling, contrast review, and automated axe-core gates                                                                                                                                                                        |
 
 </details>
@@ -293,6 +293,8 @@ The UI speaks one `AppGateway` contract:
 - The desktop build selects the Tauri gateway and invokes the same Rust
   `AppService` directly — no local web server, no fixed-port listener.
 - Component tests select an in-memory mock with deterministic fixtures.
+- Playwright starts disposable SQLite plus the real Axum and Vite stack, then
+  proves planning, search, localization, and reload persistence in Chromium.
 
 That keeps product behavior in Rust services and domain rules instead of slowly
 collecting three slightly different answers to “is this hotel night missing?”

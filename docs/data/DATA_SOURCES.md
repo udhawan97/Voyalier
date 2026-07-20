@@ -27,8 +27,11 @@ Every adapter and stored source snapshot must record:
 
 The product-visible register is
 `packages/contracts/parity/data-sources.json`. Rust and React tests pin its row
-count, identifiers, license/attribution text, and authority boundaries so the
-Settings screen cannot drift from the repository policy below.
+count, identifiers, category, canonical URL, endpoint, license/attribution text,
+and authority boundaries so the Settings screen cannot drift from the
+repository policy below. The v0.5.0 register contains 20 entries grouped exactly
+as built-in data, consent-fetched sources, offline downloads, and optional AI;
+the UI renders those four groups from the same file.
 
 Offline map slices use an exact dated Protomaps Basemap PMTiles build clipped to
 the selected catalog bounding box. Nashville, Kyoto, Tokyo, and Paris are the
