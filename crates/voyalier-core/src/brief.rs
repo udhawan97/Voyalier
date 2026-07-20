@@ -9,6 +9,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::planning::{TripItem, TripItemKind};
 use crate::types::{ConfirmedFact, FactPayload, FactType, Trip};
 
 /// Which sensitive fields to strip before sharing.
@@ -72,10 +73,29 @@ pub struct TripBrief {
     pub end_date: String,
     pub flights: Vec<FactPayload>,
     pub stays: Vec<FactPayload>,
+    /// Traveler-authored itinerary entries with private notes excluded by
+    /// construction. These remain visibly separate from confirmed facts.
+    #[serde(default)]
+    pub trip_items: Vec<BriefTripItem>,
     /// Human-readable list of the field kinds removed from this brief, for
     /// transparency to whoever generated it.
     pub redacted_fields: Vec<String>,
     pub generated_at: String,
+}
+
+/// Share-safe projection of a traveler-authored itinerary entry.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BriefTripItem {
+    pub id: String,
+    pub kind: TripItemKind,
+    pub title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub location: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_at: Option<String>,
 }
 
 /// Build a shareable brief by excluding sensitive fields from a copy of the plan.
@@ -84,6 +104,7 @@ pub struct TripBrief {
 pub fn build_trip_brief(
     trip: &Trip,
     facts: &[ConfirmedFact],
+    trip_items: &[TripItem],
     policy: &RedactionPolicy,
     generated_at: &str,
 ) -> TripBrief {
@@ -104,6 +125,25 @@ pub fn build_trip_brief(
     }
     flights.sort_by(|left, right| left.0.cmp(&right.0));
     stays.sort_by(|left, right| left.0.cmp(&right.0));
+    let mut trip_items: Vec<BriefTripItem> = trip_items
+        .iter()
+        .map(|item| BriefTripItem {
+            id: item.id.clone(),
+            kind: item.kind,
+            title: item.title.clone(),
+            location: item.location.clone(),
+            start_at: item.start_at.clone(),
+            end_at: item.end_at.clone(),
+        })
+        .collect();
+    trip_items.sort_by(|left, right| {
+        left.start_at
+            .as_deref()
+            .unwrap_or("~")
+            .cmp(right.start_at.as_deref().unwrap_or("~"))
+            .then_with(|| left.title.cmp(&right.title))
+            .then_with(|| left.id.cmp(&right.id))
+    });
 
     TripBrief {
         title: trip.title.clone(),
@@ -113,6 +153,7 @@ pub fn build_trip_brief(
         end_date: trip.end_date.clone(),
         flights: flights.into_iter().map(|(_, payload)| payload).collect(),
         stays: stays.into_iter().map(|(_, payload)| payload).collect(),
+        trip_items,
         redacted_fields: policy.redacted_field_labels(),
         generated_at: generated_at.to_owned(),
     }
@@ -202,6 +243,7 @@ mod tests {
         let brief = build_trip_brief(
             &trip(),
             &[flight(), lodging()],
+            &[],
             &RedactionPolicy::for_sharing(),
             "2026-11-01T00:00:00Z",
         );
@@ -235,6 +277,7 @@ mod tests {
         let brief = build_trip_brief(
             &trip(),
             &[flight()],
+            &[],
             &RedactionPolicy::none(),
             "2026-11-01T00:00:00Z",
         );
@@ -257,6 +300,7 @@ mod tests {
         let brief = build_trip_brief(
             &trip(),
             &[late, early],
+            &[],
             &RedactionPolicy::none(),
             "2026-11-01T00:00:00Z",
         );
@@ -268,5 +312,34 @@ mod tests {
             brief.flights[1].departure_local.as_deref(),
             Some("2026-11-05T20:00")
         );
+    }
+
+    #[test]
+    fn manual_items_keep_calendar_fields_but_exclude_private_notes() {
+        let item = TripItem {
+            id: "item_1".to_owned(),
+            trip_id: "trip_1".to_owned(),
+            kind: TripItemKind::Activity,
+            title: "Tea ceremony".to_owned(),
+            location: Some("Gion".to_owned()),
+            start_at: Some("2026-11-05T15:00".to_owned()),
+            end_at: Some("2026-11-05T16:00".to_owned()),
+            notes: Some("PRIVATE ACCESS CODE".to_owned()),
+            saved_place_id: None,
+            created_at: "2026-01-01T00:00:00Z".to_owned(),
+            updated_at: "2026-01-01T00:00:00Z".to_owned(),
+        };
+        let brief = build_trip_brief(
+            &trip(),
+            &[],
+            &[item],
+            &RedactionPolicy::for_sharing(),
+            "2026-11-01T00:00:00Z",
+        );
+
+        let serialized = serde_json::to_string(&brief).expect("serialize");
+        assert!(serialized.contains("Tea ceremony"));
+        assert!(serialized.contains("Gion"));
+        assert!(!serialized.contains("PRIVATE ACCESS CODE"));
     }
 }

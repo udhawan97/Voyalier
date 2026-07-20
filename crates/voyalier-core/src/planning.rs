@@ -2,6 +2,7 @@
 //! evidence-backed facts: a saved idea or manually entered activity must never
 //! inherit the authority of a confirmed booking.
 
+use jiff::civil::DateTime;
 use serde::{Deserialize, Serialize};
 
 use crate::{AppError, ErrorCode, PersonaWeights, Recommendation};
@@ -182,10 +183,12 @@ pub fn validate_create_trip_item(
     input.title = validate_text(&input.title, "title", MAX_PLANNING_LABEL_CHARS, false)?.unwrap();
     input.location = validate_optional(input.location, "location", MAX_PLANNING_LABEL_CHARS)?;
     input.notes = validate_optional(input.notes, "notes", MAX_PLANNING_NOTES_CHARS)?;
-    input.start_at = validate_optional(input.start_at, "startAt", 64)?;
-    input.end_at = validate_optional(input.end_at, "endAt", 64)?;
+    input.start_at = validate_optional_datetime(input.start_at, "startAt")?;
+    input.end_at = validate_optional_datetime(input.end_at, "endAt")?;
     if let (Some(start), Some(end)) = (&input.start_at, &input.end_at) {
-        if end < start {
+        if end.parse::<DateTime>().expect("validated end")
+            < start.parse::<DateTime>().expect("validated start")
+        {
             return Err(AppError::with_detail(
                 ErrorCode::ValidationInvalidDateRange,
                 "trip item end must not precede its start",
@@ -195,6 +198,26 @@ pub fn validate_create_trip_item(
         }
     }
     Ok(input)
+}
+
+fn validate_optional_datetime(
+    value: Option<String>,
+    field: &str,
+) -> Result<Option<String>, AppError> {
+    let value = validate_optional(value, field, 64)?;
+    if let Some(value) = value {
+        value.parse::<DateTime>().map_err(|_| {
+            AppError::with_detail(
+                ErrorCode::ValidationInvalidInput,
+                format!("{field} must be a local ISO date and time"),
+                "field",
+                field,
+            )
+        })?;
+        Ok(Some(value))
+    } else {
+        Ok(None)
+    }
 }
 
 fn validate_optional(
@@ -250,7 +273,7 @@ mod tests {
             kind: TripItemKind::Activity,
             title: "  Tea ceremony  ".to_owned(),
             location: Some("  Gion  ".to_owned()),
-            start_at: Some("2027-04-04T15:00:00Z".to_owned()),
+            start_at: Some("2027-04-04T15:00:00".to_owned()),
             end_at: None,
             notes: Some("  Ask about accessibility  ".to_owned()),
             saved_place_id: None,
@@ -266,5 +289,29 @@ mod tests {
     fn rejects_empty_packing_labels() {
         let error = validate_packing_label("   ").expect_err("empty label");
         assert_eq!(error.code, crate::ErrorCode::ValidationInvalidInput);
+    }
+
+    #[test]
+    fn rejects_times_with_zones_instead_of_guessing_calendar_semantics() {
+        let error = validate_create_trip_item(CreateTripItemInput {
+            trip_id: "trip_1".to_owned(),
+            kind: TripItemKind::Rail,
+            title: "Train".to_owned(),
+            location: None,
+            start_at: Some("2027-04-04T15:00:00Z".to_owned()),
+            end_at: None,
+            notes: None,
+            saved_place_id: None,
+        })
+        .expect_err("zoned time");
+        assert_eq!(error.code, ErrorCode::ValidationInvalidInput);
+        assert_eq!(
+            error
+                .details
+                .as_ref()
+                .and_then(|details| details.get("field"))
+                .map(String::as_str),
+            Some("startAt")
+        );
     }
 }

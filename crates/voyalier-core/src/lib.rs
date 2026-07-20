@@ -69,7 +69,7 @@ pub use assist_draft::{
 pub use backup::{
     BACKUP_FORMAT_VERSION, BACKUP_MAGIC, BackupManifest, OpenedBackup, open_backup, seal_backup,
 };
-pub use brief::{RedactionPolicy, TripBrief, build_trip_brief};
+pub use brief::{BriefTripItem, RedactionPolicy, TripBrief, build_trip_brief};
 pub use climate::{
     AirQualityDay, ClimateNormals, archive_window, parse_air_quality, parse_climate_normals,
 };
@@ -88,7 +88,7 @@ pub use heritage::{HeritageSite, world_heritage_near};
 pub use holidays::{
     PublicHoliday, PublicHolidaysSnapshot, holidays_within, parse_nager_holidays, public_holidays,
 };
-pub use itinerary::detect_itinerary_conflicts;
+pub use itinerary::{detect_itinerary_conflicts, detect_planned_item_conflicts};
 pub use local_ai::{
     LocalAiModel, LocalAiStatus, LocalModelPullResult, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,
     build_pull_body, interpret_pull_response, parse_ollama_models,
@@ -123,7 +123,8 @@ pub use recommend::{
     recommend_places,
 };
 pub use search::{
-    SEARCH_SUGGESTION_LIMIT, SearchHit, SearchHitSource, SearchableDocument, search_trip_corpus,
+    SEARCH_SUGGESTION_LIMIT, SearchHit, SearchHitSource, SearchableDocument, WorkspaceSearchHit,
+    WorkspaceSearchRecord, WorkspaceSearchSource, search_trip_corpus, search_workspace_corpus,
     suggest_search_terms, validate_search_query,
 };
 pub use suggest::{

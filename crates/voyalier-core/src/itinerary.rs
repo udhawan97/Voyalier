@@ -8,6 +8,7 @@
 
 use jiff::civil::{Date, DateTime};
 
+use crate::planning::TripItem;
 use crate::types::{
     ConfirmedFact, ConflictSeverity, FactLabel, FactType, ItineraryConflict, ItineraryConflictKind,
     Trip,
@@ -22,6 +23,51 @@ pub fn detect_itinerary_conflicts(trip: &Trip, facts: &[ConfirmedFact]) -> Vec<I
     conflicts.extend(flight_overlaps(facts));
     conflicts.extend(lodging_overlaps(facts));
     conflicts.extend(lodging_gaps(trip, facts));
+    conflicts
+}
+
+/// Detect literal half-open overlaps among traveler-authored timed items.
+/// These remain planning notices and never feed the confirmed-plan readiness
+/// rollup.
+pub fn detect_planned_item_conflicts(items: &[TripItem]) -> Vec<ItineraryConflict> {
+    let timed: Vec<&TripItem> = items
+        .iter()
+        .filter(|item| {
+            matches!((&item.start_at, &item.end_at), (Some(start), Some(end)) if end > start)
+        })
+        .collect();
+    let mut conflicts = Vec::new();
+    for left_index in 0..timed.len() {
+        for right_index in (left_index + 1)..timed.len() {
+            let left = timed[left_index];
+            let right = timed[right_index];
+            let (left_start, left_end) = (
+                left.start_at.as_deref().unwrap_or_default(),
+                left.end_at.as_deref().unwrap_or_default(),
+            );
+            let (right_start, right_end) = (
+                right.start_at.as_deref().unwrap_or_default(),
+                right.end_at.as_deref().unwrap_or_default(),
+            );
+            if left_start < right_end && right_start < left_end {
+                let mut planned = vec![
+                    (left.id.clone(), left.title.clone()),
+                    (right.id.clone(), right.title.clone()),
+                ];
+                planned.sort_by(|a, b| a.0.cmp(&b.0));
+                conflicts.push(ItineraryConflict {
+                    kind: ItineraryConflictKind::PlannedItemOverlap,
+                    severity: ConflictSeverity::Notice,
+                    subjects: Vec::new(),
+                    fact_ids: Vec::new(),
+                    planned_item_ids: planned.iter().map(|entry| entry.0.clone()).collect(),
+                    planned_item_titles: planned.into_iter().map(|entry| entry.1).collect(),
+                    start_date: None,
+                    end_date: None,
+                });
+            }
+        }
+    }
     conflicts
 }
 
@@ -56,6 +102,8 @@ fn flight_overlaps(facts: &[ConfirmedFact]) -> Vec<ItineraryConflict> {
                     severity: ConflictSeverity::Warning,
                     subjects: vec![flight_label(left), flight_label(right)],
                     fact_ids: sorted_ids(&left.id, &right.id),
+                    planned_item_ids: Vec::new(),
+                    planned_item_titles: Vec::new(),
                     start_date: None,
                     end_date: None,
                 });
@@ -79,6 +127,8 @@ fn lodging_overlaps(facts: &[ConfirmedFact]) -> Vec<ItineraryConflict> {
                     severity: ConflictSeverity::Warning,
                     subjects: vec![lodging_label(left), lodging_label(right)],
                     fact_ids: sorted_ids(&left.id, &right.id),
+                    planned_item_ids: Vec::new(),
+                    planned_item_titles: Vec::new(),
                     start_date: None,
                     end_date: None,
                 });
@@ -131,6 +181,8 @@ fn lodging_gaps(trip: &Trip, facts: &[ConfirmedFact]) -> Vec<ItineraryConflict> 
                 // the interface's plural rules to apply.
                 subjects: Vec::new(),
                 fact_ids: Vec::new(),
+                planned_item_ids: Vec::new(),
+                planned_item_titles: Vec::new(),
                 start_date: Some(first.to_string()),
                 end_date: Some(last.to_string()),
             }
@@ -391,5 +443,35 @@ mod tests {
         broken.payload.departure_local = Some("garbage".to_owned());
         let conflicts = detect_itinerary_conflicts(&trip("2026-11-03", "2026-11-10"), &[broken]);
         assert!(conflicts.is_empty());
+    }
+
+    #[test]
+    fn overlapping_manual_items_are_notices_but_touching_items_are_clear() {
+        use crate::planning::TripItemKind;
+
+        let item = |id: &str, title: &str, start: &str, end: &str| TripItem {
+            id: id.to_owned(),
+            trip_id: "t1".to_owned(),
+            kind: TripItemKind::Activity,
+            title: title.to_owned(),
+            location: None,
+            start_at: Some(start.to_owned()),
+            end_at: Some(end.to_owned()),
+            notes: None,
+            saved_place_id: None,
+            created_at: String::new(),
+            updated_at: String::new(),
+        };
+        let conflicts = detect_planned_item_conflicts(&[
+            item("b", "Museum", "2026-11-04T10:00", "2026-11-04T12:00"),
+            item("a", "Tea", "2026-11-04T11:00", "2026-11-04T13:00"),
+            item("c", "Rail", "2026-11-04T13:00", "2026-11-04T14:00"),
+        ]);
+
+        assert_eq!(conflicts.len(), 1);
+        assert_eq!(conflicts[0].kind, ItineraryConflictKind::PlannedItemOverlap);
+        assert_eq!(conflicts[0].severity, ConflictSeverity::Notice);
+        assert_eq!(conflicts[0].planned_item_ids, ["a", "b"]);
+        assert_eq!(conflicts[0].planned_item_titles, ["Tea", "Museum"]);
     }
 }

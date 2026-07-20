@@ -94,7 +94,13 @@ pub fn build_assist_preview(
     generated_at: &str,
 ) -> AssistRequestPreview {
     // Reuse the brief's generation-time exclusion: secrets never enter the copy.
-    let brief = build_trip_brief(trip, facts, &RedactionPolicy::for_sharing(), generated_at);
+    let brief = build_trip_brief(
+        trip,
+        facts,
+        &[],
+        &RedactionPolicy::for_sharing(),
+        generated_at,
+    );
 
     let mut withheld = brief.redacted_fields.clone();
     // Only structured, confirmed facts are grounded in — never raw document text.

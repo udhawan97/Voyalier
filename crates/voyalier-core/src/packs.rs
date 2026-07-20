@@ -103,7 +103,7 @@ fn pack(id: &str, name: &str, region: &str, article: &str, bbox: BoundingBox) ->
         region: region.to_owned(),
         bbox,
         wikivoyage_article: article.to_owned(),
-        offline_map_available: matches!(id, "us-nashville" | "jp-kyoto"),
+        offline_map_available: matches!(id, "us-nashville" | "jp-kyoto" | "jp-tokyo" | "fr-paris"),
         layers: vec![places_layer(), articles_layer()],
     }
 }
@@ -617,7 +617,7 @@ mod tests {
                 .filter(|info| info.offline_map_available)
                 .map(|info| info.id.as_str())
                 .collect::<Vec<_>>(),
-            vec!["us-nashville", "jp-kyoto"]
+            vec!["us-nashville", "jp-kyoto", "jp-tokyo", "fr-paris"]
         );
     }
 

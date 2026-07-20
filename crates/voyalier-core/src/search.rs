@@ -48,6 +48,39 @@ pub struct SearchableDocument<'a> {
     pub content: &'a str,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkspaceSearchSource {
+    Document,
+    ConfirmedFact,
+    Note,
+    SavedPlace,
+    TripItem,
+}
+
+/// One locally opened record offered to the deterministic workspace search.
+/// The app layer owns opening sealed text; core only ranks borrowed strings.
+pub struct WorkspaceSearchRecord<'a> {
+    pub source: WorkspaceSearchSource,
+    pub trip_id: &'a str,
+    pub trip_title: &'a str,
+    pub record_id: &'a str,
+    pub label: &'a str,
+    pub text: &'a str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceSearchHit {
+    pub source: WorkspaceSearchSource,
+    pub trip_id: String,
+    pub trip_title: String,
+    pub record_id: String,
+    pub label: String,
+    pub snippet: String,
+    pub score: u32,
+}
+
 /// Validate a raw search query: non-empty after trimming, bounded length.
 pub fn validate_search_query(query: &str) -> Result<String, AppError> {
     let trimmed = query.trim();
@@ -177,6 +210,50 @@ pub fn search_trip_corpus(
             .then_with(|| left.record_id.cmp(&right.record_id))
     });
     ranked.truncate(MAX_HITS);
+    ranked.into_iter().map(|(hit, _)| hit).collect()
+}
+
+/// Search every trip's explicitly supplied local records. Pending parser
+/// candidates are absent by construction because the app never supplies them.
+pub fn search_workspace_corpus(
+    query: &str,
+    records: &[WorkspaceSearchRecord<'_>],
+) -> Vec<WorkspaceSearchHit> {
+    let tokens = query_tokens(query);
+    let mut ranked: Vec<(WorkspaceSearchHit, u32)> = records
+        .iter()
+        .filter_map(|record| {
+            let combined = format!("{} {}", record.label, record.text);
+            let lower = combined.to_lowercase();
+            let (matched, score, first_token) = score_haystack(&lower, &tokens);
+            if matched == 0 {
+                return None;
+            }
+            let snippet = first_token
+                .map(|token| snippet_around_first_match(&combined, &lower, token))
+                .unwrap_or_default();
+            Some((
+                WorkspaceSearchHit {
+                    source: record.source,
+                    trip_id: record.trip_id.to_owned(),
+                    trip_title: record.trip_title.to_owned(),
+                    record_id: record.record_id.to_owned(),
+                    label: record.label.to_owned(),
+                    snippet,
+                    score,
+                },
+                matched,
+            ))
+        })
+        .collect();
+    ranked.sort_by(|(left, left_matched), (right, right_matched)| {
+        right_matched
+            .cmp(left_matched)
+            .then_with(|| right.score.cmp(&left.score))
+            .then_with(|| left.trip_title.cmp(&right.trip_title))
+            .then_with(|| left.record_id.cmp(&right.record_id))
+    });
+    ranked.truncate(50);
     ranked.into_iter().map(|(hit, _)| hit).collect()
 }
 
@@ -489,5 +566,23 @@ mod tests {
             .collect();
         let hits = search_trip_corpus("match", &documents, &[]);
         assert_eq!(hits.len(), 20);
+    }
+
+    #[test]
+    fn workspace_search_keeps_trip_and_record_provenance() {
+        let records = [WorkspaceSearchRecord {
+            source: WorkspaceSearchSource::SavedPlace,
+            trip_id: "trip_kyoto",
+            trip_title: "Kyoto spring",
+            record_id: "place_1",
+            label: "Philosopher's Path",
+            text: "Walk early before the crowds",
+        }];
+
+        let hits = search_workspace_corpus("crowds", &records);
+
+        assert_eq!(hits[0].trip_id, "trip_kyoto");
+        assert_eq!(hits[0].source, WorkspaceSearchSource::SavedPlace);
+        assert!(hits[0].snippet.contains("crowds"));
     }
 }

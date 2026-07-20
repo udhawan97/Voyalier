@@ -30,21 +30,22 @@ use voyalier_core::{
     SourceDocument, SourceState, SourceStatus, SuggestionSource, TodayView, Trip, TripAssessment,
     TripBrief, TripDetail, TripItem, TripNotes, TripStatus, TripSummary, UpdatePackingItemInput,
     UpdateSavedPlaceInput, UpdateTripInput, UpdateTripItemInput, WarningCode, WeatherAlert,
-    WeatherSnapshot, advisory_country, archive_window, assess_trip, build_assist_preview,
-    build_assist_request, build_draft_preview, build_key_validation_request, build_packing_list,
-    build_pull_body, build_today_view, build_trip_brief, changed_payload_fields, compute_astro_day,
-    country_facts, entry_from_fcdo, estimate_tokens, geocode, holidays_within,
+    WeatherSnapshot, WorkspaceSearchHit, WorkspaceSearchRecord, WorkspaceSearchSource,
+    advisory_country, archive_window, assess_trip, build_assist_preview, build_assist_request,
+    build_draft_preview, build_key_validation_request, build_packing_list, build_pull_body,
+    build_today_view, build_trip_brief, changed_payload_fields, compute_astro_day, country_facts,
+    detect_planned_item_conflicts, entry_from_fcdo, estimate_tokens, geocode, holidays_within,
     interpret_key_validation, interpret_pull_response, nearest_airports, new_id,
     notices_for_country, now_rfc3339, offline_map_download_url, pack_catalog, pack_download_url,
     parse_air_quality, parse_assist_reply, parse_ca_gac, parse_cdc_notices, parse_climate_normals,
     parse_de_aa, parse_ecb_rates, parse_fcdo_content, parse_forecast_response, parse_import,
     parse_lodging_dates_reply, parse_nws_alerts, parse_pack_content, parse_us_state, place_summary,
     provider_info, public_holidays, rank_field_suggestions, recommend_attributed_places,
-    search_cities, search_trip_corpus, suggest_packs, suggest_search_terms, time_difference,
-    tipping_guidance, validate_api_key, validate_country_slug, validate_create_trip,
-    validate_create_trip_item, validate_fact_payload, validate_model_name, validate_pack_id,
-    validate_packing_label, validate_planning_notes, validate_provider_id, validate_search_query,
-    validate_update_trip, world_heritage_near,
+    search_cities, search_trip_corpus, search_workspace_corpus, suggest_packs,
+    suggest_search_terms, time_difference, tipping_guidance, validate_api_key,
+    validate_country_slug, validate_create_trip, validate_create_trip_item, validate_fact_payload,
+    validate_model_name, validate_pack_id, validate_packing_label, validate_planning_notes,
+    validate_provider_id, validate_search_query, validate_update_trip, world_heritage_near,
 };
 use voyalier_core::{
     BACKUP_FORMAT_VERSION, BackupManifest, VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN,
@@ -63,6 +64,15 @@ use records::{Records, SEALED_COLUMNS, ensure_candidate_pending};
 use snapshots::invalidate_after_trip_edit;
 
 type DocumentText = (String, String, String);
+
+struct OwnedWorkspaceSearchRecord {
+    source: WorkspaceSearchSource,
+    trip_id: String,
+    trip_title: String,
+    record_id: String,
+    label: String,
+    text: String,
+}
 
 /// Fetches a URL's body as text. The only network seam in the application
 /// layer — injectable so every test runs without touching the network.
@@ -1055,10 +1065,12 @@ impl AppService {
             )
             .map_err(storage_error)?;
         let pending_candidate_count = pending_candidate_count as u32;
+        let trip_items = self.records(&connection).trip_items(trip_id)?;
         let TripAssessment {
-            conflicts: itinerary_conflicts,
+            conflicts: mut itinerary_conflicts,
             readiness,
         } = assess_trip(&trip, &confirmed_facts, pending_candidate_count);
+        itinerary_conflicts.extend(detect_planned_item_conflicts(&trip_items));
         let advisory_panel = load_advisory_panel(&connection, trip_id)?;
         let weather = fetch_weather_snapshot(&connection, trip_id)?;
         // Derived, not fetched: the same stored evidence, read a second way.
@@ -1115,7 +1127,6 @@ impl AppService {
         let interest_profile = self.records(&connection).interest_profile(trip_id)?;
         let saved_places = self.records(&connection).saved_places(trip_id)?;
         let packing_items = self.records(&connection).packing_items(trip_id)?;
-        let trip_items = self.records(&connection).trip_items(trip_id)?;
         Ok(TripDetail {
             trip,
             confirmed_facts,
@@ -1186,6 +1197,19 @@ impl AppService {
                 "field",
                 "recommendation.packId",
             ));
+        }
+        if let Some(existing) = self
+            .records(&connection)
+            .saved_places(&input.trip_id)?
+            .into_iter()
+            .find(|place| {
+                place.pack_id == recommendation.pack_id
+                    && place.name == recommendation.name
+                    && place.lat == recommendation.lat
+                    && place.lon == recommendation.lon
+            })
+        {
+            return Ok(existing);
         }
         let now = now_rfc3339();
         let place = SavedPlace {
@@ -2289,6 +2313,95 @@ impl AppService {
         Ok(search_trip_corpus(&query, &searchable, &facts))
     }
 
+    /// Search traveler-visible local records across every trip. Pending parser
+    /// candidates are intentionally excluded; extracted text becomes searchable
+    /// only as a source document or after explicit confirmation.
+    pub fn search_workspace(&self, query: &str) -> Result<Vec<WorkspaceSearchHit>, AppError> {
+        let query = validate_search_query(query)?;
+        let connection = self.connection()?;
+        let trips = self.records(&connection).trip_summaries()?;
+        let mut owned = Vec::new();
+        for summary in trips {
+            let trip = summary.trip;
+            for (id, label, content) in self.records(&connection).trip_document_texts(&trip.id)? {
+                owned.push(OwnedWorkspaceSearchRecord {
+                    source: WorkspaceSearchSource::Document,
+                    trip_id: trip.id.clone(),
+                    trip_title: trip.title.clone(),
+                    record_id: id,
+                    label,
+                    text: content,
+                });
+            }
+            for fact in self.records(&connection).confirmed_facts(&trip.id)? {
+                let label = match fact.fact_type {
+                    FactType::FlightSegment => "Confirmed flight",
+                    FactType::LodgingStay => "Confirmed lodging",
+                };
+                owned.push(OwnedWorkspaceSearchRecord {
+                    source: WorkspaceSearchSource::ConfirmedFact,
+                    trip_id: trip.id.clone(),
+                    trip_title: trip.title.clone(),
+                    record_id: fact.id,
+                    label: label.to_owned(),
+                    text: serde_json::to_string(&fact.payload).map_err(storage_error)?,
+                });
+            }
+            let notes = self.records(&connection).trip_notes(&trip.id)?;
+            if !notes.body.is_empty() {
+                owned.push(OwnedWorkspaceSearchRecord {
+                    source: WorkspaceSearchSource::Note,
+                    trip_id: trip.id.clone(),
+                    trip_title: trip.title.clone(),
+                    record_id: trip.id.clone(),
+                    label: "Trip notes".to_owned(),
+                    text: notes.body,
+                });
+            }
+            for place in self.records(&connection).saved_places(&trip.id)? {
+                owned.push(OwnedWorkspaceSearchRecord {
+                    source: WorkspaceSearchSource::SavedPlace,
+                    trip_id: trip.id.clone(),
+                    trip_title: trip.title.clone(),
+                    record_id: place.id,
+                    label: place.name,
+                    text: format!(
+                        "{} {} {}",
+                        place.category,
+                        place.notes,
+                        place.reasons.join(" ")
+                    ),
+                });
+            }
+            for item in self.records(&connection).trip_items(&trip.id)? {
+                owned.push(OwnedWorkspaceSearchRecord {
+                    source: WorkspaceSearchSource::TripItem,
+                    trip_id: trip.id.clone(),
+                    trip_title: trip.title.clone(),
+                    record_id: item.id,
+                    label: item.title,
+                    text: [item.location, item.notes, item.start_at, item.end_at]
+                        .into_iter()
+                        .flatten()
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                });
+            }
+        }
+        let borrowed: Vec<WorkspaceSearchRecord<'_>> = owned
+            .iter()
+            .map(|record| WorkspaceSearchRecord {
+                source: record.source,
+                trip_id: &record.trip_id,
+                trip_title: &record.trip_title,
+                record_id: &record.record_id,
+                label: &record.label,
+                text: &record.text,
+            })
+            .collect();
+        Ok(search_workspace_corpus(&query, &borrowed))
+    }
+
     /// Typeahead term suggestions for a search query, from this trip's corpus.
     /// Local only. An empty or over-long query yields no suggestions (never an
     /// error — this drives as-you-type autocomplete).
@@ -2641,9 +2754,11 @@ impl AppService {
         let connection = self.connection()?;
         let trip = self.records(&connection).trip(trip_id)?;
         let confirmed_facts = self.records(&connection).confirmed_facts(trip_id)?;
+        let trip_items = self.records(&connection).trip_items(trip_id)?;
         Ok(build_trip_brief(
             &trip,
             &confirmed_facts,
+            &trip_items,
             &RedactionPolicy::for_sharing(),
             &now_rfc3339(),
         ))
@@ -2655,9 +2770,10 @@ impl AppService {
         let connection = self.connection()?;
         let trip = self.records(&connection).trip(trip_id)?;
         let facts = self.records(&connection).confirmed_facts(trip_id)?;
+        let trip_items = self.records(&connection).trip_items(trip_id)?;
         let now = now_rfc3339();
         let today = now.get(..10).unwrap_or(now.as_str());
-        Ok(build_today_view(&trip, &facts, today))
+        Ok(build_today_view(&trip, &facts, &trip_items, today))
     }
 
     /// Build a deterministic, redacted preview of the request Voyalier would
@@ -5161,7 +5277,7 @@ mod tests {
                 kind: voyalier_core::TripItemKind::Activity,
                 title: "Visit Frist".to_owned(),
                 location: Some("Frist Art Museum".to_owned()),
-                start_at: Some("2027-04-04T15:00:00Z".to_owned()),
+                start_at: Some("2027-04-04T15:00:00".to_owned()),
                 end_at: None,
                 notes: Some("Use the saved shortlist".to_owned()),
                 saved_place_id: Some(saved.id.clone()),
@@ -5180,6 +5296,9 @@ mod tests {
         assert_eq!(detail.packing_items[0].id, packing.id);
         assert_eq!(detail.trip_items[0].id, activity.id);
         assert!(detail.confirmed_facts.is_empty());
+        let workspace_hits = service.search_workspace("quiet morning").expect("search");
+        assert_eq!(workspace_hits[0].record_id, saved.id);
+        assert_eq!(workspace_hits[0].trip_id, trip.id);
 
         drop(service);
         let reopened = AppService::open_path_with_deps(&database, Arc::new(UreqFetcher), secrets)

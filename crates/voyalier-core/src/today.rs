@@ -7,6 +7,7 @@ use jiff::Unit;
 use jiff::civil::Date;
 use serde::{Deserialize, Serialize};
 
+use crate::planning::{TripItem, TripItemKind};
 use crate::types::{ConfirmedFact, FactPayload, FactType, Trip};
 
 /// Where the trip sits relative to `today`. `state` is the discriminant; the
@@ -42,6 +43,9 @@ pub enum TodayItemKind {
     Checkin,
     Checkout,
     StayingTonight,
+    Activity,
+    Rail,
+    Transfer,
 }
 
 /// One dated entry in the Today view.
@@ -171,7 +175,12 @@ fn property_name(payload: &FactPayload) -> String {
 }
 
 /// Build the Today view for `trip` and `facts` against `today` (YYYY-MM-DD).
-pub fn build_today_view(trip: &Trip, facts: &[ConfirmedFact], today: &str) -> TodayView {
+pub fn build_today_view(
+    trip: &Trip,
+    facts: &[ConfirmedFact],
+    trip_items: &[TripItem],
+    today: &str,
+) -> TodayView {
     let mut today_items: Vec<TodayItem> = Vec::new();
     let mut anchors: Vec<TodayItem> = Vec::new(); // future departures/check-ins
 
@@ -250,6 +259,29 @@ pub fn build_today_view(trip: &Trip, facts: &[ConfirmedFact], today: &str) -> To
         }
     }
 
+    for planned in trip_items {
+        let Some(start) = planned.start_at.as_deref() else {
+            continue;
+        };
+        let date = date_part(start);
+        let item = TodayItem {
+            kind: match planned.kind {
+                TripItemKind::Activity => TodayItemKind::Activity,
+                TripItemKind::Rail => TodayItemKind::Rail,
+                TripItemKind::Transfer => TodayItemKind::Transfer,
+            },
+            title: planned.title.clone(),
+            detail: planned.location.clone().unwrap_or_default(),
+            date: date.to_owned(),
+            time: time_part(start),
+        };
+        if date == today {
+            today_items.push(item);
+        } else if date > today {
+            anchors.push(item);
+        }
+    }
+
     today_items.sort_by(|a, b| {
         a.time
             .cmp(&b.time)
@@ -279,6 +311,9 @@ fn kind_order(kind: TodayItemKind) -> u8 {
         TodayItemKind::FlightArrival => 2,
         TodayItemKind::Checkin => 3,
         TodayItemKind::StayingTonight => 4,
+        TodayItemKind::Activity => 5,
+        TodayItemKind::Rail => 6,
+        TodayItemKind::Transfer => 7,
     }
 }
 
@@ -344,7 +379,7 @@ mod tests {
 
     #[test]
     fn phase_and_next_before_the_trip() {
-        let view = build_today_view(&trip(), &[flight(), stay()], "2026-11-01");
+        let view = build_today_view(&trip(), &[flight(), stay()], &[], "2026-11-01");
         assert_eq!(view.phase.state, TripPhaseState::Upcoming);
         assert_eq!(view.phase.days_until, Some(2));
         assert!(view.today.is_empty());
@@ -357,7 +392,7 @@ mod tests {
     #[test]
     fn active_day_surfaces_todays_items() {
         // 11-04: flight arrives and lodging checks in.
-        let view = build_today_view(&trip(), &[flight(), stay()], "2026-11-04");
+        let view = build_today_view(&trip(), &[flight(), stay()], &[], "2026-11-04");
         assert_eq!(view.phase.state, TripPhaseState::Active);
         assert_eq!(view.phase.day, Some(2));
         assert_eq!(view.phase.total_days, Some(10));
@@ -366,7 +401,7 @@ mod tests {
         assert!(kinds.contains(&TodayItemKind::Checkin));
 
         // A middle night shows "staying tonight" and no next anchor remains.
-        let mid = build_today_view(&trip(), &[flight(), stay()], "2026-11-06");
+        let mid = build_today_view(&trip(), &[flight(), stay()], &[], "2026-11-06");
         assert_eq!(
             mid.today.iter().map(|i| i.kind).collect::<Vec<_>>(),
             vec![TodayItemKind::StayingTonight]
@@ -376,10 +411,48 @@ mod tests {
 
     #[test]
     fn completed_after_the_trip() {
-        let view = build_today_view(&trip(), &[flight(), stay()], "2026-11-20");
+        let view = build_today_view(&trip(), &[flight(), stay()], &[], "2026-11-20");
         assert_eq!(view.phase.state, TripPhaseState::Completed);
         assert_eq!(view.phase.days_ago, Some(8));
         assert!(view.today.is_empty());
         assert!(view.next.is_none());
+    }
+
+    #[test]
+    fn manual_items_are_today_and_next_anchors_without_using_notes() {
+        let item = |id: &str, kind: TripItemKind, title: &str, start: &str| TripItem {
+            id: id.to_owned(),
+            trip_id: "t1".to_owned(),
+            kind,
+            title: title.to_owned(),
+            location: Some("Gion".to_owned()),
+            start_at: Some(start.to_owned()),
+            end_at: None,
+            notes: Some("PRIVATE".to_owned()),
+            saved_place_id: None,
+            created_at: "2026-01-01T00:00:00Z".to_owned(),
+            updated_at: "2026-01-01T00:00:00Z".to_owned(),
+        };
+        let items = vec![
+            item(
+                "a",
+                TripItemKind::Activity,
+                "Tea ceremony",
+                "2026-11-04T15:00",
+            ),
+            item(
+                "r",
+                TripItemKind::Rail,
+                "Train to Osaka",
+                "2026-11-05T09:00",
+            ),
+        ];
+        let view = build_today_view(&trip(), &[], &items, "2026-11-04");
+
+        assert_eq!(view.today[0].kind, TodayItemKind::Activity);
+        assert_eq!(view.today[0].title, "Tea ceremony");
+        assert_eq!(view.today[0].detail, "Gion");
+        assert!(!view.today[0].detail.contains("PRIVATE"));
+        assert_eq!(view.next.expect("next").kind, TodayItemKind::Rail);
     }
 }

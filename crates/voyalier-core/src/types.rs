@@ -267,6 +267,9 @@ pub enum ItineraryConflictKind {
     LodgingOverlap,
     /// One or more nights inside the trip window have no lodging booked.
     LodgingGap,
+    /// Two traveler-authored itinerary entries overlap. This is a notice, not
+    /// evidence of an impossible or double-booked confirmed plan.
+    PlannedItemOverlap,
 }
 
 /// How strongly a conflict should be surfaced. Advisory only.
@@ -316,6 +319,12 @@ pub struct ItineraryConflict {
     pub subjects: Vec<FactLabel>,
     /// Confirmed-fact ids involved (sorted). Empty for window-level findings like gaps.
     pub fact_ids: Vec<String>,
+    /// Traveler-authored record ids involved in a planning-only finding.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub planned_item_ids: Vec<String>,
+    /// Titles of traveler-authored records involved in a planning-only finding.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub planned_item_titles: Vec<String>,
     /// For date-range findings (gaps): first affected night, ISO `YYYY-MM-DD`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start_date: Option<String>,

@@ -30,6 +30,38 @@ fn creates_a_trimmed_trip_draft() {
 }
 
 #[test]
+fn data_source_register_has_unique_rows_and_a_pinned_count() {
+    let register: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../packages/contracts/parity/data-sources.json"
+    ))
+    .expect("data source register");
+    let sources = register["sources"].as_array().expect("sources");
+    assert_eq!(sources.len() as u64, register["count"].as_u64().unwrap());
+    let ids: std::collections::BTreeSet<&str> = sources
+        .iter()
+        .map(|source| source["id"].as_str().expect("source id"))
+        .collect();
+    assert_eq!(ids.len(), sources.len(), "source ids must be unique");
+    assert!(sources.iter().all(|source| {
+        [
+            "name",
+            "use",
+            "endpoint",
+            "license",
+            "attribution",
+            "network",
+            "authority",
+        ]
+        .iter()
+        .all(|field| {
+            source[*field]
+                .as_str()
+                .is_some_and(|value| !value.trim().is_empty())
+        })
+    }));
+}
+
+#[test]
 fn rejects_a_missing_destination() {
     let error = TripDraft::new("Chicago", " ", "2027-04-01", "2027-04-10")
         .expect_err("destination must be required");
