@@ -12,7 +12,7 @@
 
 use argon2::Argon2;
 use chacha20poly1305::aead::{Aead, KeyInit};
-use chacha20poly1305::{Key, XChaCha20Poly1305, XNonce};
+use chacha20poly1305::{XChaCha20Poly1305, XNonce};
 
 use crate::types::{AppError, ErrorCode};
 
@@ -51,15 +51,13 @@ pub fn seal(
     nonce: &[u8; VAULT_NONCE_LEN],
     plaintext: &[u8],
 ) -> Result<Vec<u8>, AppError> {
-    let cipher = XChaCha20Poly1305::new(Key::from_slice(key));
-    let ciphertext = cipher
-        .encrypt(XNonce::from_slice(nonce), plaintext)
-        .map_err(|_| {
-            AppError::new(
-                ErrorCode::InternalUnexpected,
-                "the vault could not seal the data",
-            )
-        })?;
+    let cipher = XChaCha20Poly1305::new(key.into());
+    let ciphertext = cipher.encrypt(nonce.into(), plaintext).map_err(|_| {
+        AppError::new(
+            ErrorCode::InternalUnexpected,
+            "the vault could not seal the data",
+        )
+    })?;
     let mut sealed = Vec::with_capacity(VAULT_NONCE_LEN + ciphertext.len());
     sealed.extend_from_slice(nonce);
     sealed.extend_from_slice(&ciphertext);
@@ -73,9 +71,10 @@ pub fn open(key: &[u8; VAULT_KEY_LEN], sealed: &[u8]) -> Result<Vec<u8>, AppErro
         return Err(vault_open_error());
     }
     let (nonce, ciphertext) = sealed.split_at(VAULT_NONCE_LEN);
-    let cipher = XChaCha20Poly1305::new(Key::from_slice(key));
+    let nonce = <&XNonce>::try_from(nonce).map_err(|_| vault_open_error())?;
+    let cipher = XChaCha20Poly1305::new(key.into());
     cipher
-        .decrypt(XNonce::from_slice(nonce), ciphertext)
+        .decrypt(nonce, ciphertext)
         .map_err(|_| vault_open_error())
 }
 
@@ -112,10 +111,21 @@ mod tests {
     }
 
     #[test]
-    fn is_deterministic_for_a_fixed_key_and_nonce() {
-        let a = seal(&key(), &nonce(), b"same").expect("seal");
-        let b = seal(&key(), &nonce(), b"same").expect("seal");
-        assert_eq!(a, b);
+    fn ciphertext_stays_compatible_with_chacha20poly1305_0_10() {
+        // Captured with chacha20poly1305 0.10.1 before the 0.11 API migration.
+        // Existing vault rows and portable backups carry exactly these bytes,
+        // so the dependency may change its interface but never this format.
+        const PRE_UPGRADE_SEALED: [u8; 44] = [
+            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 247, 103, 38,
+            126, 46, 141, 128, 66, 235, 189, 134, 138, 61, 40, 76, 167, 203, 27, 200, 121,
+        ];
+
+        let sealed = seal(&key(), &nonce(), b"same").expect("seal");
+        assert_eq!(sealed, PRE_UPGRADE_SEALED);
+        assert_eq!(
+            open(&key(), &PRE_UPGRADE_SEALED).expect("open pre-upgrade bytes"),
+            b"same"
+        );
     }
 
     #[test]
