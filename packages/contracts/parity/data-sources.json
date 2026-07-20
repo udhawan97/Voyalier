@@ -1,0 +1,145 @@
+{
+  "sources": [
+    {
+      "id": "uk-fcdo",
+      "name": "UK Foreign, Commonwealth & Development Office",
+      "use": "Official travel advice",
+      "endpoint": "gov.uk foreign-travel-advice content API",
+      "license": "Open Government Licence v3.0",
+      "attribution": "Contains public sector information licensed under the Open Government Licence v3.0",
+      "network": "Fetched only when you request official advice",
+      "authority": "Official UK government advice; written for UK nationals"
+    },
+    {
+      "id": "us-state",
+      "name": "U.S. Department of State",
+      "use": "Official travel advisories",
+      "endpoint": "cadataapi.state.gov TravelAdvisories",
+      "license": "Public domain",
+      "attribution": "U.S. Department of State",
+      "network": "Fetched only when you request official advice",
+      "authority": "Official U.S. government advice; written for U.S. nationals"
+    },
+    {
+      "id": "ca-gac",
+      "name": "Government of Canada — Global Affairs Canada",
+      "use": "Official travel advisories",
+      "endpoint": "data.international.gc.ca travel-voyage feed",
+      "license": "Open Government Licence — Canada",
+      "attribution": "Government of Canada — Global Affairs Canada",
+      "network": "Fetched only when you request official advice",
+      "authority": "Official Canadian government advice; written for Canadian nationals"
+    },
+    {
+      "id": "de-aa",
+      "name": "Auswärtiges Amt (Germany)",
+      "use": "Official travel advisories",
+      "endpoint": "German Federal Foreign Office OpenData travel warnings",
+      "license": "Data licence Germany — attribution — version 2.0",
+      "attribution": "Auswärtiges Amt",
+      "network": "Fetched only when you request official advice",
+      "authority": "Official German government advice; source wording may remain German"
+    },
+    {
+      "id": "us-cdc",
+      "name": "U.S. Centers for Disease Control and Prevention",
+      "use": "Travel health notices",
+      "endpoint": "CDC travel notices feed",
+      "license": "Public domain",
+      "attribution": "U.S. Centers for Disease Control and Prevention",
+      "network": "Fetched with the official-advice panel",
+      "authority": "Official U.S. public-health notices; informational, not personal medical advice"
+    },
+    {
+      "id": "open-meteo",
+      "name": "Open-Meteo",
+      "use": "Geocoding, weather, climate normals, and air quality",
+      "endpoint": "api.open-meteo.com and geocoding-api.open-meteo.com",
+      "license": "CC BY 4.0; hosted free tier has non-commercial terms",
+      "attribution": "Weather data by Open-Meteo.com",
+      "network": "Fetched only when you request a weather or destination snapshot",
+      "authority": "Forecast and historical observations; never safety or itinerary authority"
+    },
+    {
+      "id": "ecb",
+      "name": "European Central Bank",
+      "use": "Reference exchange rates",
+      "endpoint": "ECB euro foreign-exchange reference rates",
+      "license": "ECB reuse policy",
+      "attribution": "Exchange rates from the European Central Bank",
+      "network": "Fetched with destination facts",
+      "authority": "Reference rates, not a quoted retail conversion price"
+    },
+    {
+      "id": "nager-date",
+      "name": "Nager.Date",
+      "use": "Public holidays",
+      "endpoint": "date.nager.at public-holidays API",
+      "license": "MIT-licensed API project",
+      "attribution": "Holiday data from Nager.Date",
+      "network": "Fetched only when you request holidays",
+      "authority": "Informational calendar data; never entry or closure authority"
+    },
+    {
+      "id": "wikimedia",
+      "name": "Wikipedia / Wikimedia",
+      "use": "Destination summaries",
+      "endpoint": "Wikimedia REST page-summary API",
+      "license": "CC BY-SA 4.0",
+      "attribution": "Wikipedia contributors",
+      "network": "Fetched only when you request an about-place summary",
+      "authority": "Community-written context; never safety, price, or opening-hours authority"
+    },
+    {
+      "id": "overture",
+      "name": "Overture Maps Foundation",
+      "use": "Offline city-pack places",
+      "endpoint": "CI-built, bounded city-pack artifacts",
+      "license": "CDLA-Permissive-2.0",
+      "attribution": "© Overture Maps Foundation",
+      "network": "Downloaded only when you request a city pack",
+      "authority": "Open place data; recommendations do not assert live hours, prices, or availability"
+    },
+    {
+      "id": "wikivoyage",
+      "name": "Wikivoyage",
+      "use": "Offline city travel notes",
+      "endpoint": "CI-built, bounded city-pack artifacts",
+      "license": "CC BY-SA 3.0",
+      "attribution": "Wikivoyage contributors, CC BY-SA 3.0",
+      "network": "Downloaded only when you request a city pack",
+      "authority": "Community-written travel context; shown separately from place data"
+    },
+    {
+      "id": "protomaps-osm",
+      "name": "Protomaps Basemap / OpenStreetMap",
+      "use": "Offline maps",
+      "endpoint": "Pinned Protomaps PMTiles build, clipped and rehosted on GitHub Releases",
+      "license": "ODbL-1.0",
+      "attribution": "© OpenStreetMap contributors",
+      "network": "Downloaded only when you request a city pack's offline map",
+      "authority": "Basemap context; not routing, access, or opening-hours authority"
+    },
+    {
+      "id": "geonames",
+      "name": "GeoNames",
+      "use": "Bundled city autocomplete",
+      "endpoint": "Bundled cities15000 snapshot",
+      "license": "CC BY 4.0",
+      "attribution": "GeoNames",
+      "network": "Bundled with the app; no runtime request",
+      "authority": "Place-name autocomplete only"
+    },
+    {
+      "id": "ourairports",
+      "name": "OurAirports",
+      "use": "Bundled nearest-airport lookup",
+      "endpoint": "Bundled scheduled-service airport snapshot",
+      "license": "Public domain",
+      "attribution": "OurAirports",
+      "network": "Bundled with the app; no runtime request",
+      "authority": "Geographic airport proximity only; not flight availability"
+    }
+  ],
+  "count": 14
+}

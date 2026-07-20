@@ -216,6 +216,7 @@ pub fn app(service: AppService) -> Router {
         )
         .route("/api/v1/trips/{trip_id}/summary", post(fetch_place_summary))
         .route("/api/v1/trips/{trip_id}/search", get(search_trip))
+        .route("/api/v1/workspace/search", get(search_workspace))
         .route(
             "/api/v1/trips/{trip_id}/search-suggestions",
             get(suggest_search_terms),
@@ -228,10 +229,7 @@ pub fn app(service: AppService) -> Router {
             "/api/v1/trips/{trip_id}/interest-profile",
             put(set_interest_profile),
         )
-        .route(
-            "/api/v1/trips/{trip_id}/saved-places",
-            post(save_place),
-        )
+        .route("/api/v1/trips/{trip_id}/saved-places", post(save_place))
         .route(
             "/api/v1/saved-places/{saved_place_id}",
             patch(update_saved_place).delete(delete_saved_place),
@@ -244,10 +242,7 @@ pub fn app(service: AppService) -> Router {
             "/api/v1/packing-items/{packing_item_id}",
             patch(update_packing_item).delete(delete_packing_item),
         )
-        .route(
-            "/api/v1/trips/{trip_id}/trip-items",
-            post(create_trip_item),
-        )
+        .route("/api/v1/trips/{trip_id}/trip-items", post(create_trip_item))
         .route(
             "/api/v1/trip-items/{trip_item_id}",
             patch(update_trip_item).delete(delete_trip_item),
@@ -374,6 +369,13 @@ async fn search_trip(
     Ok(Json(service.search_trip(&trip_id, &query.q)?))
 }
 
+async fn search_workspace(
+    State(service): State<AppService>,
+    Query(query): Query<SearchQuery>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.search_workspace(&query.q)?))
+}
+
 async fn suggest_search_terms(
     State(service): State<AppService>,
     Path(trip_id): Path<String>,
@@ -393,27 +395,27 @@ async fn get_recommendations(
 async fn set_interest_profile(
     State(service): State<AppService>,
     Path(trip_id): Path<String>,
-    Json(mut input): Json<SetInterestProfileInput>,
+    Json(input): Json<SetInterestProfileInput>,
 ) -> Result<impl IntoResponse, ApiError> {
-    input.trip_id = trip_id;
+    ensure_path_trip_matches(&trip_id, &input.trip_id)?;
     Ok(Json(service.set_interest_profile(input)?))
 }
 
 async fn save_place(
     State(service): State<AppService>,
     Path(trip_id): Path<String>,
-    Json(mut input): Json<SavePlaceInput>,
+    Json(input): Json<SavePlaceInput>,
 ) -> Result<impl IntoResponse, ApiError> {
-    input.trip_id = trip_id;
+    ensure_path_trip_matches(&trip_id, &input.trip_id)?;
     Ok((StatusCode::CREATED, Json(service.save_place(input)?)))
 }
 
 async fn update_saved_place(
     State(service): State<AppService>,
     Path(saved_place_id): Path<String>,
-    Json(mut input): Json<UpdateSavedPlaceInput>,
+    Json(input): Json<UpdateSavedPlaceInput>,
 ) -> Result<impl IntoResponse, ApiError> {
-    input.saved_place_id = saved_place_id;
+    ensure_path_id_matches(&saved_place_id, &input.saved_place_id, "savedPlaceId")?;
     Ok(Json(service.update_saved_place(input)?))
 }
 
@@ -428,18 +430,18 @@ async fn delete_saved_place(
 async fn add_packing_item(
     State(service): State<AppService>,
     Path(trip_id): Path<String>,
-    Json(mut input): Json<AddPackingItemInput>,
+    Json(input): Json<AddPackingItemInput>,
 ) -> Result<impl IntoResponse, ApiError> {
-    input.trip_id = trip_id;
+    ensure_path_trip_matches(&trip_id, &input.trip_id)?;
     Ok((StatusCode::CREATED, Json(service.add_packing_item(input)?)))
 }
 
 async fn update_packing_item(
     State(service): State<AppService>,
     Path(packing_item_id): Path<String>,
-    Json(mut input): Json<UpdatePackingItemInput>,
+    Json(input): Json<UpdatePackingItemInput>,
 ) -> Result<impl IntoResponse, ApiError> {
-    input.packing_item_id = packing_item_id;
+    ensure_path_id_matches(&packing_item_id, &input.packing_item_id, "packingItemId")?;
     Ok(Json(service.update_packing_item(input)?))
 }
 
@@ -454,18 +456,18 @@ async fn delete_packing_item(
 async fn create_trip_item(
     State(service): State<AppService>,
     Path(trip_id): Path<String>,
-    Json(mut input): Json<CreateTripItemInput>,
+    Json(input): Json<CreateTripItemInput>,
 ) -> Result<impl IntoResponse, ApiError> {
-    input.trip_id = trip_id;
+    ensure_path_trip_matches(&trip_id, &input.trip_id)?;
     Ok((StatusCode::CREATED, Json(service.create_trip_item(input)?)))
 }
 
 async fn update_trip_item(
     State(service): State<AppService>,
     Path(trip_item_id): Path<String>,
-    Json(mut input): Json<UpdateTripItemInput>,
+    Json(input): Json<UpdateTripItemInput>,
 ) -> Result<impl IntoResponse, ApiError> {
-    input.trip_item_id = trip_item_id;
+    ensure_path_id_matches(&trip_item_id, &input.trip_item_id, "tripItemId")?;
     Ok(Json(service.update_trip_item(input)?))
 }
 
@@ -825,6 +827,19 @@ fn ensure_path_trip_matches(path_trip_id: &str, body_trip_id: &str) -> Result<()
     Ok(())
 }
 
+fn ensure_path_id_matches(path_id: &str, body_id: &str, field: &str) -> Result<(), ApiError> {
+    if path_id != body_id {
+        return Err(AppError::with_detail(
+            ErrorCode::ValidationInvalidInput,
+            format!("path {field} does not match body {field}"),
+            "field",
+            field,
+        )
+        .into());
+    }
+    Ok(())
+}
+
 fn ensure_path_candidate_matches(
     path_candidate_id: &str,
     body_candidate_id: &str,
@@ -1151,6 +1166,109 @@ mod tests {
         )
         .await;
         assert_eq!(deleted.status, StatusCode::NO_CONTENT);
+        cleanup_database(database);
+    }
+
+    #[tokio::test]
+    async fn planning_payloads_round_trip_through_live_axum_routes() {
+        let database = temp_database("planning-contract");
+        let service = open_test_service(&database).expect("service");
+        let router = app(service);
+        let created = request(
+            router.clone(),
+            Method::POST,
+            "/api/v1/trips",
+            Some(json!({
+                "origin": "Chicago",
+                "destination": "Kyoto",
+                "startDate": "2027-04-01",
+                "endDate": "2027-04-10"
+            })),
+        )
+        .await;
+        let trip_id = created.json["id"].as_str().expect("trip id");
+
+        let profile = request(
+            router.clone(),
+            Method::PUT,
+            &format!("/api/v1/trips/{trip_id}/interest-profile"),
+            Some(json!({
+                "tripId": trip_id,
+                "food": 0.2,
+                "culture": 1.0,
+                "nature": 0.8,
+                "nightlife": 0.1,
+                "shopping": 0.3
+            })),
+        )
+        .await;
+        assert_eq!(profile.status, StatusCode::OK);
+        assert_eq!(profile.json["culture"], 1.0);
+
+        let packing = request(
+            router.clone(),
+            Method::POST,
+            &format!("/api/v1/trips/{trip_id}/packing-items"),
+            Some(json!({ "tripId": trip_id, "label": "Museum pass" })),
+        )
+        .await;
+        assert_eq!(packing.status, StatusCode::CREATED);
+        let packing_id = packing.json["id"].as_str().expect("packing id");
+        let checked = request(
+            router.clone(),
+            Method::PATCH,
+            &format!("/api/v1/packing-items/{packing_id}"),
+            Some(json!({
+                "packingItemId": packing_id,
+                "label": "Museum pass",
+                "checked": true
+            })),
+        )
+        .await;
+        assert_eq!(checked.json["checked"], true);
+
+        let item = request(
+            router.clone(),
+            Method::POST,
+            &format!("/api/v1/trips/{trip_id}/trip-items"),
+            Some(json!({
+                "tripId": trip_id,
+                "kind": "activity",
+                "title": "Tea ceremony",
+                "location": "Gion"
+            })),
+        )
+        .await;
+        assert_eq!(item.status, StatusCode::CREATED);
+        assert_eq!(item.json["kind"], "activity");
+
+        request(
+            router.clone(),
+            Method::POST,
+            &format!("/api/v1/trips/{trip_id}/notes"),
+            Some(json!({ "body": "Meet beside the lantern" })),
+        )
+        .await;
+        let search = request(
+            router.clone(),
+            Method::GET,
+            "/api/v1/workspace/search?q=lantern",
+            None,
+        )
+        .await;
+        assert_eq!(search.status, StatusCode::OK);
+        assert_eq!(search.json[0]["source"], "note");
+        assert_eq!(search.json[0]["tripId"], trip_id);
+
+        let detail = request(
+            router,
+            Method::GET,
+            &format!("/api/v1/trips/{trip_id}"),
+            None,
+        )
+        .await;
+        assert_eq!(detail.json["packingItems"][0]["checked"], true);
+        assert_eq!(detail.json["tripItems"][0]["title"], "Tea ceremony");
         cleanup_database(database);
     }
 
@@ -1998,7 +2116,7 @@ mod tests {
             control_status == StatusCode::NOT_FOUND && control_body_empty,
             "route_probe's positive control got {control_status} (empty body: \
              {control_body_empty}) for a path nothing routes. route_probe can no longer tell a \
-             routing miss apart from a handler's own response, so the 57 checks below would pass \
+             routing miss apart from a handler's own response, so the 68 checks below would pass \
              vacuously."
         );
 
@@ -2201,7 +2319,7 @@ mod tests {
             // simple identifier scan below could actually parse.
             let mut total_calls = 0usize;
             let mut understood_calls = 0usize;
-            for verb in ["get", "post", "patch", "delete"] {
+            for verb in ["get", "post", "put", "patch", "delete"] {
                 let needle = format!("{verb}(");
                 let mut search_from = 0usize;
                 while let Some(found) = body[search_from..].find(&needle) {
@@ -2238,7 +2356,8 @@ mod tests {
         routes
     }
 
-    /// The parser above understands `.route(path, verb(handler))` and nothing else.
+    /// The parser above understands `.route(path, verb(handler))` for the five
+    /// listed HTTP verbs and nothing else.
     /// Axum offers plenty more — this keeps the crate inside what the guard can
     /// actually see, so a new wiring form fails here rather than slipping past
     /// `the_router_declares_exactly_the_manifest`.
@@ -2246,7 +2365,6 @@ mod tests {
     fn the_router_uses_only_wiring_forms_the_parity_parser_understands() {
         let router = router_source(include_str!("lib.rs"));
         for form in [
-            "put(",
             "head(",
             "options(",
             "trace(",

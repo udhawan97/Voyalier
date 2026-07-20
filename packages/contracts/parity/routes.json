@@ -325,6 +325,12 @@
       "command": "search_trip"
     },
     {
+      "method": "searchWorkspace",
+      "verb": "GET",
+      "path": "/api/v1/workspace/search",
+      "command": "search_workspace"
+    },
+    {
       "method": "suggestSearchTerms",
       "verb": "GET",
       "path": "/api/v1/trips/{tripId}/search-suggestions",
@@ -416,7 +422,7 @@
     "updater_relaunch"
   ],
   "counts": {
-    "shared": 67,
+    "shared": 68,
     "desktopOnly": 10
   }
 }

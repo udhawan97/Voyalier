@@ -13,7 +13,7 @@ use voyalier_core::{
     ProviderConfig, PublicHolidaysSnapshot, Recommendation, SavePlaceInput, SavedPlace, SearchHit,
     SetInterestProfileInput, TodayView, Trip, TripBrief, TripDetail, TripItem, TripNotes,
     TripSummary, UpdatePackingItemInput, UpdateSavedPlaceInput, UpdateTripInput,
-    UpdateTripItemInput, VaultStatus, WeatherSnapshot,
+    UpdateTripItemInput, VaultStatus, WeatherSnapshot, WorkspaceSearchHit,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -192,6 +192,14 @@ fn search_trip(
     service: State<'_, AppService>,
 ) -> Result<Vec<SearchHit>, AppError> {
     service.search_trip(&input.trip_id, &input.query)
+}
+
+#[tauri::command]
+fn search_workspace(
+    input: QueryInput,
+    service: State<'_, AppService>,
+) -> Result<Vec<WorkspaceSearchHit>, AppError> {
+    service.search_workspace(&input.query)
 }
 
 #[tauri::command]
@@ -1043,6 +1051,7 @@ fn builder<R: tauri::Runtime>(
             unlock_vault,
             remove_vault_passphrase,
             search_trip,
+            search_workspace,
             suggest_search_terms,
             preview_assist,
             run_assist,

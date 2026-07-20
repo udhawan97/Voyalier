@@ -74,6 +74,7 @@ import type {
   ReadinessStatus,
   ReadinessSummary,
   SearchHit,
+  WorkspaceSearchHit,
   SourceDocument,
   AdvisoryEntry,
   AdvisoryPanel,
@@ -508,6 +509,31 @@ export function detectItineraryConflicts(
     }
   }
 
+  return conflicts;
+}
+
+function detectPlannedItemConflicts(items: TripItem[]): ItineraryConflict[] {
+  const timed = items.filter(
+    (item) => item.startAt && item.endAt && item.endAt > item.startAt,
+  );
+  const conflicts: ItineraryConflict[] = [];
+  for (let left = 0; left < timed.length; left += 1) {
+    for (let right = left + 1; right < timed.length; right += 1) {
+      const a = timed[left];
+      const b = timed[right];
+      if (a.startAt! < b.endAt! && b.startAt! < a.endAt!) {
+        const planned = [a, b].sort((x, y) => x.id.localeCompare(y.id));
+        conflicts.push({
+          kind: "planned_item_overlap",
+          severity: "notice",
+          subjects: [],
+          factIds: [],
+          plannedItemIds: planned.map((item) => item.id),
+          plannedItemTitles: planned.map((item) => item.title),
+        });
+      }
+    }
+  }
   return conflicts;
 }
 
@@ -1234,6 +1260,7 @@ function suggestSearchTermsFrom(
 function buildShareBrief(
   trip: Trip,
   tripFacts: ConfirmedFact[],
+  manualItems: TripItem[],
   generatedAt: string,
 ): TripBrief {
   const flights = tripFacts
@@ -1256,6 +1283,21 @@ function buildShareBrief(
       ]),
     )
     .sort((a, b) => (a.checkinDate ?? "").localeCompare(b.checkinDate ?? ""));
+  const briefItems = manualItems
+    .map(({ id, kind, title, location, startAt, endAt }) => ({
+      id,
+      kind,
+      title,
+      ...(location ? { location } : {}),
+      ...(startAt ? { startAt } : {}),
+      ...(endAt ? { endAt } : {}),
+    }))
+    .sort(
+      (a, b) =>
+        (a.startAt ?? "~").localeCompare(b.startAt ?? "~") ||
+        a.title.localeCompare(b.title) ||
+        a.id.localeCompare(b.id),
+    );
 
   return {
     title: trip.title,
@@ -1265,6 +1307,7 @@ function buildShareBrief(
     endDate: trip.endDate,
     flights,
     stays,
+    tripItems: briefItems,
     redactedFields: ["Confirmation codes", "Traveler names"],
     generatedAt,
   };
@@ -1340,6 +1383,7 @@ function formatAssistItinerary(brief: TripBrief): string {
 function buildTodayView(
   trip: Trip,
   tripFacts: ConfirmedFact[],
+  manualItems: TripItem[],
   today: string,
 ): TodayView {
   const datePart = (value: string) => value.split("T")[0];
@@ -1417,6 +1461,35 @@ function buildTodayView(
       }
     }
   }
+  for (const planned of manualItems) {
+    if (!planned.startAt) continue;
+    const d = datePart(planned.startAt);
+    const item: TodayItem = {
+      kind: planned.kind,
+      title: planned.title,
+      detail: planned.location ?? "",
+      date: d,
+      time: timePart(planned.startAt),
+    };
+    if (d === today) todayItems.push(item);
+    else if (d > today) anchors.push(item);
+  }
+  const kindOrder: Record<TodayItem["kind"], number> = {
+    checkout: 0,
+    flight_departure: 1,
+    flight_arrival: 2,
+    checkin: 3,
+    staying_tonight: 4,
+    activity: 5,
+    rail: 6,
+    transfer: 7,
+  };
+  todayItems.sort(
+    (a, b) =>
+      (a.time ?? "").localeCompare(b.time ?? "") ||
+      kindOrder[a.kind] - kindOrder[b.kind] ||
+      a.title.localeCompare(b.title),
+  );
   anchors.sort(
     (a, b) =>
       a.date.localeCompare(b.date) ||
@@ -1664,10 +1737,17 @@ export function createMockGateway(options?: {
           (candidate) =>
             candidate.tripId === tripId && candidate.status === "pending",
         ).length;
-        const itineraryConflicts = detectItineraryConflicts(
+        const confirmedConflicts = detectItineraryConflicts(
           trip,
           confirmedFacts,
         );
+        const manualItems = [...tripItems.values()].filter(
+          (item) => item.tripId === tripId,
+        );
+        const itineraryConflicts = [
+          ...confirmedConflicts,
+          ...detectPlannedItemConflicts(manualItems),
+        ];
         const advisoryPanel = advisoryPanels.get(tripId);
         const weather = weatherSnapshots.get(tripId);
         const destFacts = destinationFactsSnapshots.get(tripId);
@@ -1711,7 +1791,7 @@ export function createMockGateway(options?: {
           readiness: assessReadiness(
             confirmedFacts,
             pendingCandidateCount,
-            itineraryConflicts,
+            confirmedConflicts,
           ),
           ...(advisoryPanel ? { advisoryPanel: clone(advisoryPanel) } : {}),
           ...(weather ? { weather: clone(weather) } : {}),
@@ -1749,9 +1829,7 @@ export function createMockGateway(options?: {
           packingItems: [...packingItems.values()]
             .filter((item) => item.tripId === tripId)
             .map(clone),
-          tripItems: [...tripItems.values()]
-            .filter((item) => item.tripId === tripId)
-            .map(clone),
+          tripItems: manualItems.map(clone),
         } satisfies TripDetail;
       }),
 
@@ -1913,6 +1991,74 @@ export function createMockGateway(options?: {
         return ranked.slice(0, 20).map((entry) => entry.hit);
       }),
 
+    searchWorkspace: (query: string) =>
+      execute("searchWorkspace", () => {
+        const trimmed = query.trim();
+        if (!trimmed || countChars(trimmed) > MAX_QUERY_LEN) {
+          throw appError(
+            "validation/invalid_input",
+            "search query is required",
+          );
+        }
+        const needle = trimmed.toLowerCase();
+        const hits: WorkspaceSearchHit[] = [];
+        const add = (
+          source: WorkspaceSearchHit["source"],
+          tripId: string,
+          recordId: string,
+          label: string,
+          text: string,
+        ) => {
+          const trip = trips.get(tripId);
+          const haystack = `${label} ${text}`;
+          if (!trip || !haystack.toLowerCase().includes(needle)) return;
+          hits.push({
+            source,
+            tripId,
+            tripTitle: trip.title,
+            recordId,
+            label,
+            snippet: haystack,
+            score: 1,
+          });
+        };
+        for (const stored of documents.values())
+          add(
+            "document",
+            stored.document.tripId,
+            stored.document.id,
+            stored.document.label,
+            stored.content,
+          );
+        for (const fact of facts.values())
+          add(
+            "confirmed_fact",
+            fact.tripId,
+            fact.id,
+            "Confirmed fact",
+            JSON.stringify(fact.payload),
+          );
+        for (const note of notes.values())
+          add("note", note.tripId, note.tripId, "Trip notes", note.body);
+        for (const place of savedPlaces.values())
+          add(
+            "saved_place",
+            place.tripId,
+            place.id,
+            place.name,
+            `${place.category} ${place.notes}`,
+          );
+        for (const item of tripItems.values())
+          add(
+            "trip_item",
+            item.tripId,
+            item.id,
+            item.title,
+            `${item.location ?? ""} ${item.notes ?? ""}`,
+          );
+        return hits.slice(0, 50).map(clone);
+      }),
+
     suggestSearchTerms: (tripId: string, query: string) =>
       execute("suggestSearchTerms", () => {
         requireTrip(tripId);
@@ -1934,7 +2080,10 @@ export function createMockGateway(options?: {
         const tripFacts = [...facts.values()].filter(
           (fact) => fact.tripId === tripId,
         );
-        return buildShareBrief(trip, tripFacts, timestamp());
+        const manualItems = [...tripItems.values()].filter(
+          (item) => item.tripId === tripId,
+        );
+        return buildShareBrief(trip, tripFacts, manualItems, timestamp());
       }),
 
     getToday: (tripId: string) =>
@@ -1944,7 +2093,15 @@ export function createMockGateway(options?: {
           (fact) => fact.tripId === tripId,
         );
         // Deterministic "today" for the mock.
-        return buildTodayView(trip, tripFacts, FIXTURE_TIME.slice(0, 10));
+        const manualItems = [...tripItems.values()].filter(
+          (item) => item.tripId === tripId,
+        );
+        return buildTodayView(
+          trip,
+          tripFacts,
+          manualItems,
+          FIXTURE_TIME.slice(0, 10),
+        );
       }),
 
     getVaultStatus: () => execute("getVaultStatus", () => vaultStatus()),
@@ -2131,7 +2288,7 @@ export function createMockGateway(options?: {
         const tripFacts = [...facts.values()].filter(
           (fact) => fact.tripId === tripId,
         );
-        const brief = buildShareBrief(trip, tripFacts, timestamp());
+        const brief = buildShareBrief(trip, tripFacts, [], timestamp());
         const model = providerModels.get(provider);
         const groundedIn: string[] = [];
         if (brief.flights.length > 0) {
@@ -2540,8 +2697,15 @@ export function createMockGateway(options?: {
           input.nightlife,
           input.shopping,
         ];
-        if (weights.some((weight) => !Number.isFinite(weight) || weight < 0 || weight > 1)) {
-          throw appError("validation/invalid_input", "interest weights must be from zero to one");
+        if (
+          weights.some(
+            (weight) => !Number.isFinite(weight) || weight < 0 || weight > 1,
+          )
+        ) {
+          throw appError(
+            "validation/invalid_input",
+            "interest weights must be from zero to one",
+          );
         }
         const profile: InterestProfile = { ...input, updatedAt: timestamp() };
         interestProfiles.set(input.tripId, profile);
@@ -2551,9 +2715,27 @@ export function createMockGateway(options?: {
     savePlace: (input: SavePlaceInput) =>
       execute("savePlace", () => {
         requireTrip(input.tripId);
-        if (!downloadedPacks.some((pack) => pack.tripId === input.tripId && pack.packId === input.recommendation.packId)) {
-          throw appError("validation/invalid_input", "source pack is not downloaded");
+        if (
+          !downloadedPacks.some(
+            (pack) =>
+              pack.tripId === input.tripId &&
+              pack.packId === input.recommendation.packId,
+          )
+        ) {
+          throw appError(
+            "validation/invalid_input",
+            "source pack is not downloaded",
+          );
         }
+        const existing = [...savedPlaces.values()].find(
+          (place) =>
+            place.tripId === input.tripId &&
+            place.packId === input.recommendation.packId &&
+            place.name === input.recommendation.name &&
+            place.lat === input.recommendation.lat &&
+            place.lon === input.recommendation.lon,
+        );
+        if (existing) return clone(existing);
         const now = timestamp();
         const place: SavedPlace = {
           id: nextId("place"),
@@ -2571,17 +2753,24 @@ export function createMockGateway(options?: {
     updateSavedPlace: (input: UpdateSavedPlaceInput) =>
       execute("updateSavedPlace", () => {
         const place = savedPlaces.get(input.savedPlaceId);
-        if (!place) throw appError("validation/invalid_input", "saved place not found");
-        const updated = { ...place, notes: input.notes.trim(), updatedAt: timestamp() };
+        if (!place)
+          throw appError("validation/invalid_input", "saved place not found");
+        const updated = {
+          ...place,
+          notes: input.notes.trim(),
+          updatedAt: timestamp(),
+        };
         savedPlaces.set(updated.id, updated);
         return clone(updated);
       }),
 
     deleteSavedPlace: (savedPlaceId: string) =>
       execute("deleteSavedPlace", () => {
-        if (!savedPlaces.delete(savedPlaceId)) throw appError("validation/invalid_input", "saved place not found");
+        if (!savedPlaces.delete(savedPlaceId))
+          throw appError("validation/invalid_input", "saved place not found");
         for (const [id, item] of tripItems) {
-          if (item.savedPlaceId === savedPlaceId) tripItems.set(id, { ...item, savedPlaceId: undefined });
+          if (item.savedPlaceId === savedPlaceId)
+            tripItems.set(id, { ...item, savedPlaceId: undefined });
         }
       }),
 
@@ -2589,10 +2778,20 @@ export function createMockGateway(options?: {
       execute("addPackingItem", () => {
         requireTrip(input.tripId);
         const label = input.label.trim();
-        if (!label) throw appError("validation/invalid_input", "label is required");
+        if (!label)
+          throw appError("validation/invalid_input", "label is required");
         const now = timestamp();
-        const item: PackingItem = { id: nextId("packing"), tripId: input.tripId, label, checked: false,
-          ...(input.suggestionCode ? { suggestionCode: input.suggestionCode } : {}), createdAt: now, updatedAt: now };
+        const item: PackingItem = {
+          id: nextId("packing"),
+          tripId: input.tripId,
+          label,
+          checked: false,
+          ...(input.suggestionCode
+            ? { suggestionCode: input.suggestionCode }
+            : {}),
+          createdAt: now,
+          updatedAt: now,
+        };
         packingItems.set(item.id, item);
         return clone(item);
       }),
@@ -2600,26 +2799,41 @@ export function createMockGateway(options?: {
     updatePackingItem: (input: UpdatePackingItemInput) =>
       execute("updatePackingItem", () => {
         const item = packingItems.get(input.packingItemId);
-        if (!item) throw appError("validation/invalid_input", "packing item not found");
+        if (!item)
+          throw appError("validation/invalid_input", "packing item not found");
         const label = input.label.trim();
-        if (!label) throw appError("validation/invalid_input", "label is required");
-        const updated = { ...item, label, checked: input.checked, updatedAt: timestamp() };
+        if (!label)
+          throw appError("validation/invalid_input", "label is required");
+        const updated = {
+          ...item,
+          label,
+          checked: input.checked,
+          updatedAt: timestamp(),
+        };
         packingItems.set(updated.id, updated);
         return clone(updated);
       }),
 
     deletePackingItem: (packingItemId: string) =>
       execute("deletePackingItem", () => {
-        if (!packingItems.delete(packingItemId)) throw appError("validation/invalid_input", "packing item not found");
+        if (!packingItems.delete(packingItemId))
+          throw appError("validation/invalid_input", "packing item not found");
       }),
 
     createTripItem: (input: CreateTripItemInput) =>
       execute("createTripItem", () => {
         requireTrip(input.tripId);
         const title = input.title.trim();
-        if (!title) throw appError("validation/invalid_input", "title is required");
+        if (!title)
+          throw appError("validation/invalid_input", "title is required");
         const now = timestamp();
-        const item: TripItem = { ...clone(input), id: nextId("item"), title, createdAt: now, updatedAt: now };
+        const item: TripItem = {
+          ...clone(input),
+          id: nextId("item"),
+          title,
+          createdAt: now,
+          updatedAt: now,
+        };
         tripItems.set(item.id, item);
         return clone(item);
       }),
@@ -2627,17 +2841,26 @@ export function createMockGateway(options?: {
     updateTripItem: (input: UpdateTripItemInput) =>
       execute("updateTripItem", () => {
         const item = tripItems.get(input.tripItemId);
-        if (!item) throw appError("validation/invalid_input", "trip item not found");
+        if (!item)
+          throw appError("validation/invalid_input", "trip item not found");
         const title = input.title.trim();
-        if (!title) throw appError("validation/invalid_input", "title is required");
-        const updated: TripItem = { ...item, ...clone(input), id: item.id, title, updatedAt: timestamp() };
+        if (!title)
+          throw appError("validation/invalid_input", "title is required");
+        const updated: TripItem = {
+          ...item,
+          ...clone(input),
+          id: item.id,
+          title,
+          updatedAt: timestamp(),
+        };
         tripItems.set(updated.id, updated);
         return clone(updated);
       }),
 
     deleteTripItem: (tripItemId: string) =>
       execute("deleteTripItem", () => {
-        if (!tripItems.delete(tripItemId)) throw appError("validation/invalid_input", "trip item not found");
+        if (!tripItems.delete(tripItemId))
+          throw appError("validation/invalid_input", "trip item not found");
       }),
 
     listAdviceCountries: () =>
@@ -2882,6 +3105,20 @@ export function createMockGateway(options?: {
         }
         advisoryPanels.delete(tripId);
         weatherSnapshots.delete(tripId);
+        destinationFactsSnapshots.delete(tripId);
+        publicHolidaysSnapshots.delete(tripId);
+        placeSummaries.delete(tripId);
+        interestProfiles.delete(tripId);
+        notes.delete(tripId);
+        for (const [id, place] of savedPlaces) {
+          if (place.tripId === tripId) savedPlaces.delete(id);
+        }
+        for (const [id, item] of packingItems) {
+          if (item.tripId === tripId) packingItems.delete(id);
+        }
+        for (const [id, item] of tripItems) {
+          if (item.tripId === tripId) tripItems.delete(id);
+        }
       }),
 
     importDocument: (input: ImportDocumentInput) =>

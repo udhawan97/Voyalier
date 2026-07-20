@@ -265,7 +265,7 @@ export interface ReadinessSummary {
   items: ReadinessItem[];
 }
 export type ItineraryConflictKind =
-  "flight_overlap" | "lodging_overlap" | "lodging_gap";
+  "flight_overlap" | "lodging_overlap" | "lodging_gap" | "planned_item_overlap";
 export type ConflictSeverity = "notice" | "warning";
 /**
  * How to name a confirmed fact, for the interface to render in its own words.
@@ -293,6 +293,10 @@ export interface ItineraryConflict {
   subjects: FactLabel[];
   /** Confirmed-fact ids involved (sorted); empty for window-level findings like gaps. */
   factIds: string[];
+  /** Traveler-authored record ids involved in a planning-only finding. */
+  plannedItemIds?: string[];
+  /** Titles for a planning-only finding. */
+  plannedItemTitles?: string[];
   /** First affected night (ISO YYYY-MM-DD) for date-range findings. */
   startDate?: string;
   /** Last affected night inclusive (ISO YYYY-MM-DD) for date-range findings. */
@@ -935,7 +939,10 @@ export interface CreateTripItemInput {
   notes?: string;
   savedPlaceId?: string;
 }
-export interface UpdateTripItemInput extends Omit<CreateTripItemInput, "tripId"> {
+export interface UpdateTripItemInput extends Omit<
+  CreateTripItemInput,
+  "tripId"
+> {
   tripItemId: string;
 }
 export type TripPhaseState = "upcoming" | "active" | "completed";
@@ -952,7 +959,10 @@ export type TodayItemKind =
   | "flight_arrival"
   | "checkin"
   | "checkout"
-  | "staying_tonight";
+  | "staying_tonight"
+  | "activity"
+  | "rail"
+  | "transfer";
 /** One dated entry in the Today view. */
 export interface TodayItem {
   kind: TodayItemKind;
@@ -979,6 +989,17 @@ export interface SearchHit {
   /** Transparent relevance: query-term occurrence count. */
   score: number;
 }
+export type WorkspaceSearchSource =
+  "document" | "confirmed_fact" | "note" | "saved_place" | "trip_item";
+export interface WorkspaceSearchHit {
+  source: WorkspaceSearchSource;
+  tripId: string;
+  tripTitle: string;
+  recordId: string;
+  label: string;
+  snippet: string;
+  score: number;
+}
 export interface TripBrief {
   title: string;
   origin: string;
@@ -989,9 +1010,19 @@ export interface TripBrief {
   flights: FlightSegmentPayload[];
   /** Redacted lodging entries in check-in order. */
   stays: LodgingStayPayload[];
+  /** Traveler-authored itinerary entries; private notes are excluded. */
+  tripItems: BriefTripItem[];
   /** Human-readable list of the field kinds removed from this brief. */
   redactedFields: string[];
   generatedAt: string;
+}
+export interface BriefTripItem {
+  id: string;
+  kind: TripItemKind;
+  title: string;
+  location?: string;
+  startAt?: string;
+  endAt?: string;
 }
 export type IntelligenceMode =
   "local" | "on_device_ai" | "cloud_ai" | "offline_snapshot";
@@ -1155,6 +1186,8 @@ export interface AppGateway {
   /** Fetch a Wikipedia summary of the destination (Wikimedia REST), consent-gated. */
   fetchPlaceSummary(tripId: string): Promise<PlaceSummary>;
   searchTrip(tripId: string, query: string): Promise<SearchHit[]>;
+  /** Search traveler-visible local records across every trip. */
+  searchWorkspace(query: string): Promise<WorkspaceSearchHit[]>;
   /** Typeahead term suggestions for the query's last word, from the trip corpus. */
   suggestSearchTerms(tripId: string, query: string): Promise<string[]>;
   deleteTrip(tripId: string): Promise<void>;
