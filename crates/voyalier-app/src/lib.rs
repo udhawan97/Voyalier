@@ -1072,10 +1072,7 @@ impl AppService {
             conflicts: mut itinerary_conflicts,
             readiness,
         } = assess_trip(&trip, &confirmed_facts, pending_candidate_count);
-        itinerary_conflicts.extend(detect_planned_item_conflicts(
-            &trip_items,
-            &confirmed_facts,
-        ));
+        itinerary_conflicts.extend(detect_planned_item_conflicts(&trip_items, &confirmed_facts));
         let advisory_panel = load_advisory_panel(&connection, trip_id)?;
         let weather = fetch_weather_snapshot(&connection, trip_id)?;
         // Derived, not fetched: the same stored evidence, read a second way.
@@ -1353,11 +1350,7 @@ impl AppService {
             notes: input.notes,
             saved_place_id: input.saved_place_id,
         })?;
-        validate_saved_place_trip(
-            &connection,
-            normalized.saved_place_id.as_deref(),
-            &trip_id,
-        )?;
+        validate_saved_place_trip(&connection, normalized.saved_place_id.as_deref(), &trip_id)?;
         let existing = self
             .records(&connection)
             .trip_items(&trip_id)?

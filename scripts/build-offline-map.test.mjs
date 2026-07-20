@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -75,7 +82,9 @@ function fakePmtiles({ sizes = { 15: 5, 14: 2 }, failVerify = false } = {}) {
   const run = async (_binary, args) => {
     calls.push(args);
     if (args[0] === "extract") {
-      const maxZoom = Number(args.find((value) => value.startsWith("--maxzoom=")).split("=")[1]);
+      const maxZoom = Number(
+        args.find((value) => value.startsWith("--maxzoom=")).split("=")[1],
+      );
       await writeFile(args[2], Buffer.alloc(sizes[maxZoom] ?? 2, maxZoom));
       return { stdout: "" };
     }
@@ -182,17 +191,26 @@ test("one publisher run retains verified outputs for all four enabled maps", asy
       now: () => "2026-07-20T12:00:00.000Z",
     });
 
-    assert.deepEqual(built, four.map(({ id }) => id));
+    assert.deepEqual(
+      built,
+      four.map(({ id }) => id),
+    );
     const manifest = JSON.parse(
       await readFile(path.join(outDir, "manifest.json"), "utf8"),
     );
     for (const { id } of four) {
-      assert.equal(manifest.packs.find((entry) => entry.id === id).offlineMap.assetName, `${id}.pmtiles`);
+      assert.equal(
+        manifest.packs.find((entry) => entry.id === id).offlineMap.assetName,
+        `${id}.pmtiles`,
+      );
       const descriptor = JSON.parse(
         await readFile(path.join(outDir, `${id}.json`), "utf8"),
       ).offlineMap;
       assert.equal(descriptor.assetName, `${id}.pmtiles`);
-      assert.equal((await stat(path.join(outDir, descriptor.assetName))).size, 2);
+      assert.equal(
+        (await stat(path.join(outDir, descriptor.assetName))).size,
+        2,
+      );
     }
   });
 });

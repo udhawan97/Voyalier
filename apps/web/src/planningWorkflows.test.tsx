@@ -125,13 +125,15 @@ describe("traveler-owned planning workflows", () => {
   it("prefills a saved place without writing until the traveler submits", async () => {
     const gateway = createMockGateway();
     await gateway.downloadPack("trip_kyoto", "jp-kyoto");
-    const recommendation = (await gateway.getRecommendations("trip_kyoto", {
-      food: 1,
-      culture: 0.5,
-      nature: 0.5,
-      nightlife: 0.5,
-      shopping: 0.5,
-    }))[0];
+    const recommendation = (
+      await gateway.getRecommendations("trip_kyoto", {
+        food: 1,
+        culture: 0.5,
+        nature: 0.5,
+        nightlife: 0.5,
+        shopping: 0.5,
+      })
+    )[0];
     await gateway.savePlace({
       tripId: "trip_kyoto",
       recommendation,
@@ -174,8 +176,9 @@ describe("traveler-owned planning workflows", () => {
     );
 
     const detail = await gateway.getTrip("trip_kyoto");
-    expect(detail.tripItems.find((item) => item.title.includes("breakfast")))
-      .toMatchObject({ savedPlaceId: expect.any(String) });
+    expect(
+      detail.tripItems.find((item) => item.title.includes("breakfast")),
+    ).toMatchObject({ savedPlaceId: expect.any(String) });
   });
 
   it("offers brief and calendar checkpoints for a manual-only trip", async () => {

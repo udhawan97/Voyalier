@@ -21,7 +21,8 @@ export function WorkspaceSearch({
   const [hits, setHits] = useState<WorkspaceSearchHit[] | null>(null);
   const requestIdRef = useRef(0);
   const action = useAsyncAction(
-    (value: string, _requestId: number) => gateway.searchWorkspace(value),
+    (...args: [value: string, requestId: number]) =>
+      gateway.searchWorkspace(args[0]),
     (result, _value, requestId) => {
       if (requestId === requestIdRef.current) setHits(result);
     },
@@ -96,9 +97,7 @@ export function WorkspaceSearch({
                   <span>
                     <span>{hit.tripTitle}</span> ·{" "}
                     <span>
-                      {t(
-                        `workspaceSearch.source.${hit.source}` as MessageKey,
-                      )}
+                      {t(`workspaceSearch.source.${hit.source}` as MessageKey)}
                     </span>
                     {hit.tripStatus === "archived" ? (
                       <>

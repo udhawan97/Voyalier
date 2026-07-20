@@ -99,14 +99,8 @@ fn data_source_register_has_unique_rows_and_a_pinned_count() {
         .iter()
         .map(|source| (source["id"].as_str().unwrap(), source))
         .collect();
-    assert_eq!(
-        by_id["ollama"]["endpoint"],
-        crate::assist::OLLAMA_CHAT_URL
-    );
-    assert_eq!(
-        by_id["openai"]["endpoint"],
-        crate::assist::OPENAI_CHAT_URL
-    );
+    assert_eq!(by_id["ollama"]["endpoint"], crate::assist::OLLAMA_CHAT_URL);
+    assert_eq!(by_id["openai"]["endpoint"], crate::assist::OPENAI_CHAT_URL);
     assert_eq!(
         by_id["anthropic"]["endpoint"],
         crate::assist::ANTHROPIC_MESSAGES_URL

@@ -568,9 +568,10 @@ function detectPlannedItemConflicts(
   }
   return conflicts.sort(
     (left, right) =>
-      (left.plannedItemIds ?? []).join().localeCompare(
-        (right.plannedItemIds ?? []).join(),
-      ) || left.factIds.join().localeCompare(right.factIds.join()),
+      (left.plannedItemIds ?? [])
+        .join()
+        .localeCompare((right.plannedItemIds ?? []).join()) ||
+      left.factIds.join().localeCompare(right.factIds.join()),
   );
 }
 

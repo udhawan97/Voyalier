@@ -37,9 +37,7 @@ function dateValue(date: string): string {
 /** "2026-11-03T11:20[:30]" → "20261103T1120[30]" (floating: no Z, no TZID). */
 function dateTimeValue(local: string): string {
   const [date, time] = local.split("T");
-  const [hour = "00", minute = "00", second = "00"] = (time ?? "").split(
-    ":",
-  );
+  const [hour = "00", minute = "00", second = "00"] = (time ?? "").split(":");
   return `${dateValue(date)}T${hour}${minute}${second}`;
 }
 

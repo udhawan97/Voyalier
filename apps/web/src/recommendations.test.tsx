@@ -50,7 +50,9 @@ describe("Recommendations", () => {
     fireEvent.click(
       within(region).getByRole("button", { name: "Save interests" }),
     );
-    expect(await within(region).findByText("Interests saved")).toBeInTheDocument();
+    expect(
+      await within(region).findByText("Interests saved"),
+    ).toBeInTheDocument();
     fireEvent.click(
       within(region).getByRole("button", { name: "Get recommendations" }),
     );

@@ -426,8 +426,7 @@ function ScheduleCheck({ conflicts }: { conflicts: ItineraryConflict[] }) {
         return plural("schedule.lodging_gap", nights, { first: start, last });
       }
       case "planned_item_overlap": {
-        const [firstPlan = "", secondPlan] =
-          conflict.plannedItemTitles ?? [];
+        const [firstPlan = "", secondPlan] = conflict.plannedItemTitles ?? [];
         if (!secondPlan && first) {
           return t("schedule.planned_item_fact_overlap", {
             plan: firstPlan,
@@ -823,9 +822,7 @@ export function TripDetailView({
         <ReadinessPanel readiness={readiness} />
       ) : null}
 
-      {hasItinerary ? (
-        <ScheduleCheck conflicts={itineraryConflicts} />
-      ) : null}
+      {hasItinerary ? <ScheduleCheck conflicts={itineraryConflicts} /> : null}
 
       {/* Everything from here down is below the fold and several of these fetch
           on mount, so they wait until they are nearly on screen. */}

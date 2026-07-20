@@ -49,11 +49,7 @@ export function DataSources() {
                 {sources.map((source) => (
                   <li key={source.id}>
                     <h4>
-                      <a
-                        href={source.url}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
+                      <a href={source.url} target="_blank" rel="noreferrer">
                         {source.name}
                       </a>
                     </h4>
