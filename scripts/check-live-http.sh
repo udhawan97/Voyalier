@@ -23,6 +23,9 @@ if curl -fsS --max-time 1 http://127.0.0.1:8787/api/health >/dev/null 2>&1; then
   exit 1
 fi
 
+# Finish a cold CI build before starting the bounded server-readiness clock.
+cargo build --locked -p voyalier-server
+
 VOYALIER_BIND=127.0.0.1:8787 \
 VOYALIER_DATA_DIR="$integration_tmp/data" \
 VOYALIER_LOG=warn \
