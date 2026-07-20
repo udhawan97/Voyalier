@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { AppError, AppGateway } from "@voyalier/contracts";
 
 import { AnnounceContext, GatewayContext, UpdaterContext } from "./app/context";
 import { RevalidateProvider, useRevalidateAll } from "./app/revalidate";
 import { t } from "./app/i18n";
+import { localeSnapshot, subscribeLocale } from "./app/locale";
 import { selectGateway, toAppError } from "./gateway";
 import { selectUpdater, type UpdaterGateway } from "./updater";
 import { useUpdater } from "./updater/useUpdater";
@@ -14,9 +15,13 @@ import { TripDetailView } from "./views/TripDetailView";
 import { TripListView } from "./views/TripListView";
 import { UpdatesPanel } from "./views/UpdatesPanel";
 import { VaultUnlock } from "./views/VaultUnlock";
+import { WorkspaceSearch } from "./views/WorkspaceSearch";
 
 type View =
-  { name: "list" } | { name: "trip"; tripId: string } | { name: "settings" };
+  | { name: "list" }
+  | { name: "trip"; tripId: string }
+  | { name: "settings" }
+  | { name: "search" };
 
 type AppProps = { gateway?: AppGateway; updater?: UpdaterGateway };
 
@@ -37,6 +42,9 @@ function Workspace({
   gateway: injected,
   updater: injectedUpdater,
 }: AppProps = {}) {
+  // Locale is an app-local external store. A preference change re-renders the
+  // whole visible workspace immediately without a reload or network request.
+  useSyncExternalStore(subscribeLocale, localeSnapshot, localeSnapshot);
   const [gateway] = useState<AppGateway>(() => injected ?? selectGateway());
   // A STABLE updater instance (see useUpdater's contract): created once so the
   // App-level state machine doesn't re-fire its mount effect every render.
@@ -94,6 +102,7 @@ function Workspace({
     [],
   );
   const openList = useCallback(() => setView({ name: "list" }), []);
+  const openSearch = useCallback(() => setView({ name: "search" }), []);
   // Settings is a detour, not a destination: remember where the user was so
   // "Back" returns them there instead of dumping them on the home list. Opening
   // Settings from Settings must not make Back a no-op loop.
@@ -127,6 +136,7 @@ function Workspace({
             <Topbar
               onHome={openList}
               onSettings={openSettings}
+              onSearch={openSearch}
               health={health}
             />
             <main className="voy-main" id="main">
@@ -142,6 +152,8 @@ function Workspace({
                 </>
               ) : view.name === "settings" ? (
                 <SettingsView onBack={leaveSettings} />
+              ) : view.name === "search" ? (
+                <WorkspaceSearch onBack={openList} onOpenTrip={openTrip} />
               ) : view.name === "list" ? (
                 <TripListView onOpenTrip={openTrip} />
               ) : (

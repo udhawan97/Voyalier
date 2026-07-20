@@ -8,6 +8,8 @@ import { OnDeviceAi } from "./OnDeviceAi";
 import { BackupPanel } from "./BackupPanel";
 import { UpdatesPanel } from "./UpdatesPanel";
 import { VaultPanel } from "./VaultPanel";
+import { DataSources } from "./DataSources";
+import { LocaleSettings } from "./LocaleSettings";
 
 /**
  * Every workspace-wide surface in one place.
@@ -43,6 +45,8 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
         <ThemeToggle />
       </section>
 
+      <LocaleSettings />
+
       <OnDeviceAi />
 
       <AiProviders />
@@ -52,6 +56,8 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
       <UpdatesPanel />
 
       <VaultPanel />
+
+      <DataSources />
 
       <BackupPanel />
     </div>

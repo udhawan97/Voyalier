@@ -154,6 +154,25 @@ export function buildIcs(brief: TripBrief, labels: IcsLabels): string {
     );
   });
 
+  brief.tripItems.forEach((item, index) => {
+    // An unscheduled idea remains in the printable brief but cannot become a
+    // calendar event without inventing a date or time.
+    if (!item.startAt) return;
+    lines.push(
+      ...event(
+        `voyalier-plan-${index}-${dateValue(brief.startDate)}@voyalier.local`,
+        stamp,
+        [
+          `DTSTART:${dateTimeValue(item.startAt)}`,
+          ...(item.endAt ? [`DTEND:${dateTimeValue(item.endAt)}`] : []),
+          `SUMMARY:${escapeText(item.title)}`,
+          ...(item.location ? [`LOCATION:${escapeText(item.location)}`] : []),
+          `DESCRIPTION:${escapeText(labels.description)}`,
+        ],
+      ),
+    );
+  });
+
   lines.push("END:VCALENDAR");
   // RFC 5545 requires CRLF line endings.
   return lines.map(foldLine).join("\r\n") + "\r\n";

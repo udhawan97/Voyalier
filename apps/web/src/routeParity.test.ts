@@ -112,6 +112,7 @@ const ARGS: Record<keyof AppGateway, unknown[]> = {
   fetchPublicHolidays: ["trip_1"],
   fetchPlaceSummary: ["trip_1"],
   searchTrip: ["trip_1", "q"],
+  searchWorkspace: ["q"],
   suggestSearchTerms: ["trip_1", "q"],
   deleteTrip: ["trip_1"],
   importDocument: [{ tripId: "trip_1" }],

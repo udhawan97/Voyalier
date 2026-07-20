@@ -45,6 +45,7 @@ import type {
   TripItem,
   UpdateTripItemInput,
   SearchHit,
+  WorkspaceSearchHit,
   SetProviderKeyInput,
   SetProviderModelInput,
   SuggestFieldValuesInput,
@@ -381,6 +382,12 @@ export function createHttpGateway(
       request<SearchHit[]>(
         "GET",
         `/api/v1/trips/${enc(tripId)}/search?q=${enc(query)}`,
+      ),
+
+    searchWorkspace: (query: string) =>
+      request<WorkspaceSearchHit[]>(
+        "GET",
+        `/api/v1/workspace/search?q=${enc(query)}`,
       ),
 
     suggestSearchTerms: (tripId: string, query: string) =>

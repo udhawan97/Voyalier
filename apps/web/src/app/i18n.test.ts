@@ -1,4 +1,5 @@
 import { t } from "./i18n";
+import { setLocalePreference } from "./locale";
 
 /**
  * The message catalog foundation. English is the source of truth today, so `t()`
@@ -25,5 +26,12 @@ describe("i18n message catalog", () => {
     // A caller that forgets a variable keeps the visible token instead of
     // rendering "undefined".
     expect(t("vault.error.tooShort")).toBe("Use at least {min} characters.");
+  });
+
+  it("switches to the complete Spanish catalog without a reload", () => {
+    setLocalePreference("es");
+    expect(t("settings.title")).toBe("Configuración");
+    expect(t("planning.packing.title")).toBe("Lista de equipaje");
+    setLocalePreference("en");
   });
 });

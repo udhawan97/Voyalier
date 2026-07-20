@@ -60,6 +60,7 @@ import { AssistDraft } from "./AssistDraft";
 import { CityPacks } from "./CityPacks";
 import { MapPanel } from "./MapPanel";
 import { Recommendations } from "./Recommendations";
+import { PlanningPanel } from "./PlanningPanel";
 import { DeleteTripDialog } from "./DeleteTripDialog";
 import { EditTripDialog } from "./EditTripDialog";
 import { ImportDialog } from "./ImportDialog";
@@ -110,6 +111,7 @@ function FactCard({
         </div>
         <MethodChip method={fact.method} />
       </div>
+
       <dl className="voy-fact__fields">
         {present.map((key) => (
           <div className="voy-fact__field" key={key}>
@@ -423,6 +425,14 @@ function ScheduleCheck({ conflicts }: { conflicts: ItineraryConflict[] }) {
           Math.round((Date.parse(last) - Date.parse(start)) / 86_400_000) + 1;
         return plural("schedule.lodging_gap", nights, { first: start, last });
       }
+      case "planned_item_overlap": {
+        const [firstPlan = "", secondPlan = ""] =
+          conflict.plannedItemTitles ?? [];
+        return t("schedule.planned_item_overlap", {
+          first: firstPlan,
+          second: secondPlan,
+        });
+      }
     }
   }
 
@@ -435,7 +445,7 @@ function ScheduleCheck({ conflicts }: { conflicts: ItineraryConflict[] }) {
       <ul className="voy-schedule__list">
         {conflicts.map((conflict) => (
           <li
-            key={`${conflict.kind}:${conflict.factIds.join(",")}:${conflict.startDate ?? ""}`}
+            key={`${conflict.kind}:${conflict.factIds.join(",")}:${conflict.plannedItemIds?.join(",") ?? ""}:${conflict.startDate ?? ""}`}
             className={`voy-schedule__item voy-schedule__item--${conflict.severity}`}
           >
             <span className="voy-schedule__icon" aria-hidden="true">
@@ -791,6 +801,15 @@ export function TripDetailView({
         )}
       </div>
 
+      <PlanningPanel
+        tripId={tripId}
+        savedPlaces={data.detail.savedPlaces}
+        suggestions={data.detail.packingList}
+        packingItems={data.detail.packingItems}
+        tripItems={data.detail.tripItems}
+        onChanged={() => reload()}
+      />
+
       {confirmedFacts.length > 0 || pendingCount > 0 ? (
         <ReadinessPanel readiness={readiness} />
       ) : null}
@@ -853,7 +872,12 @@ export function TripDetailView({
       <DeferredSection id="section-discover">
         <CityPacks tripId={tripId} destination={trip.destination} />
 
-        <Recommendations tripId={tripId} />
+        <Recommendations
+          tripId={tripId}
+          profile={data.detail.interestProfile}
+          savedPlaces={data.detail.savedPlaces}
+          onChanged={() => reload()}
+        />
 
         <MapPanel
           tripId={tripId}

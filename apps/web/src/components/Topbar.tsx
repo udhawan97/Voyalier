@@ -3,7 +3,7 @@ import markUrl from "@voyalier/brand/voyalier-mark.svg?url";
 import { t, type MessageKey } from "../app/i18n";
 import { ThemeToggle } from "./ThemeToggle";
 import { UpdatePill } from "./UpdatePill";
-import { GearIcon } from "./icons";
+import { GearIcon, SearchIcon } from "./icons";
 
 export type HealthState = "checking" | "online" | "offline";
 
@@ -16,10 +16,12 @@ const HEALTH: Record<HealthState, { key: MessageKey; cls: string }> = {
 export function Topbar({
   onHome,
   onSettings,
+  onSearch,
   health,
 }: {
   onHome: () => void;
   onSettings?: () => void;
+  onSearch?: () => void;
   health: HealthState;
 }) {
   const pill = HEALTH[health];
@@ -35,6 +37,16 @@ export function Topbar({
         <span className="voy-brand__word">Voyalier</span>
       </button>
       <div className="voy-topbar__right">
+        {onSearch ? (
+          <button
+            type="button"
+            className="voy-topbar__gear"
+            onClick={onSearch}
+            aria-label={t("topbar.search")}
+          >
+            <SearchIcon aria-hidden="true" />
+          </button>
+        ) : null}
         <UpdatePill onOpenSettings={onSettings} />
         <span
           className={`voy-health voy-health--${pill.cls}`}

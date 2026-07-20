@@ -1,5 +1,10 @@
-import { useId, useState } from "react";
-import type { PersonaWeights, Recommendation } from "@voyalier/contracts";
+import { useEffect, useId, useState } from "react";
+import type {
+  InterestProfile,
+  PersonaWeights,
+  Recommendation,
+  SavedPlace,
+} from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import { useAsyncAction } from "../app/useAsync";
@@ -58,18 +63,37 @@ const PRESETS: { nameKey: MessageKey; weights: PersonaWeights }[] = [
  * and every pick shows its source, license, score, and "because" reasons. Empty
  * until a city pack with places has been downloaded for the trip.
  */
-export function Recommendations({ tripId }: { tripId: string }) {
+export function Recommendations({
+  tripId,
+  profile,
+  savedPlaces,
+  onChanged,
+}: {
+  tripId: string;
+  profile?: InterestProfile;
+  savedPlaces?: SavedPlace[];
+  onChanged?: () => void;
+}) {
   const gateway = useGateway();
   const announce = useAnnounce();
   const baseId = useId();
-  const [weights, setWeights] = useState<PersonaWeights>(PRESETS[0].weights);
+  const [weights, setWeights] = useState<PersonaWeights>(
+    profile ?? PRESETS[0].weights,
+  );
   const [recs, setRecs] = useState<Recommendation[] | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  useEffect(() => {
+    if (profile) setWeights(profile);
+  }, [profile]);
   function setDimension(key: Dimension, value: number) {
     setWeights((prev) => ({ ...prev, [key]: value }));
   }
 
   const loadAction = useAsyncAction(
-    () => gateway.getRecommendations(tripId, weights),
+    async () => {
+      await gateway.setInterestProfile({ tripId, ...weights });
+      return gateway.getRecommendations(tripId, weights);
+    },
     (result) => {
       setRecs(result);
       announce(
@@ -82,6 +106,27 @@ export function Recommendations({ tripId }: { tripId: string }) {
   const load = () => loadAction.run();
   const loading = loadAction.busy;
   const error = loadAction.error;
+
+  async function save(rec: Recommendation) {
+    const id = `${rec.packId}:${rec.name}:${rec.lat},${rec.lon}`;
+    setSavingId(id);
+    try {
+      await gateway.savePlace({ tripId, recommendation: rec });
+      announce(t("recs.saved", { name: rec.name }));
+      onChanged?.();
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  const isSaved = (rec: Recommendation) =>
+    savedPlaces?.some(
+      (place) =>
+        place.packId === rec.packId &&
+        place.name === rec.name &&
+        place.lat === rec.lat &&
+        place.lon === rec.lon,
+    ) ?? false;
 
   return (
     <section className="voy-recs" aria-labelledby="recs-title">
@@ -147,24 +192,35 @@ export function Recommendations({ tripId }: { tripId: string }) {
           <p className="voy-recs__none">{t("recs.none")}</p>
         ) : (
           <ul className="voy-recs__list" aria-label={t("recs.list.aria")}>
-            {recs.map((rec) => (
-              <li
-                key={`${rec.name}:${rec.lat},${rec.lon}`}
-                className="voy-recs__row"
-              >
-                <div className="voy-recs__row-head">
-                  <span className="voy-recs__name">{rec.name}</span>
-                  <span className="voy-recs__dim">{rec.dimension}</span>
-                  {rec.wildcard ? (
-                    <span className="voy-recs__wild">{t("recs.wildcard")}</span>
-                  ) : null}
-                </div>
-                <p className="voy-recs__reasons">{rec.reasons.join(" · ")}</p>
-                <p className="voy-recs__prov">
-                  {rec.category} · {rec.source} ({rec.license})
-                </p>
-              </li>
-            ))}
+            {recs.map((rec) => {
+              const id = `${rec.packId}:${rec.name}:${rec.lat},${rec.lon}`;
+              const saved = isSaved(rec);
+              return (
+                <li key={id} className="voy-recs__row">
+                  <div className="voy-recs__row-head">
+                    <span className="voy-recs__name">{rec.name}</span>
+                    <span className="voy-recs__dim">{rec.dimension}</span>
+                    {rec.wildcard ? (
+                      <span className="voy-recs__wild">
+                        {t("recs.wildcard")}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="voy-recs__reasons">{rec.reasons.join(" · ")}</p>
+                  <p className="voy-recs__prov">
+                    {rec.category} · {rec.source} ({rec.license})
+                  </p>
+                  <Button
+                    variant="ghost"
+                    busy={savingId === id}
+                    disabled={saved}
+                    onClick={() => save(rec)}
+                  >
+                    {saved ? t("recs.savedAlready") : t("recs.save")}
+                  </Button>
+                </li>
+              );
+            })}
           </ul>
         )
       ) : null}

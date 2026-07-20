@@ -8,6 +8,7 @@ import {
   fieldLabel,
   fieldsForType,
   formatDateRange,
+  formatDateTimeLocal,
   formatFieldValue,
   tripRoute,
 } from "../app/format";
@@ -169,7 +170,36 @@ export function BriefDialog({
             </section>
           ) : null}
 
-          {data.flights.length === 0 && data.stays.length === 0 ? (
+          {data.tripItems.length > 0 ? (
+            <section
+              className="voy-brief__section"
+              aria-label={t("brief.plans")}
+            >
+              <h4 className="voy-brief__section-title">{t("brief.plans")}</h4>
+              {data.tripItems.map((item) => (
+                <article className="voy-brief__entry" key={item.id}>
+                  <div className="voy-brief__entry-body">
+                    <p className="voy-brief__entry-title">{item.title}</p>
+                    {item.location ? (
+                      <p className="voy-brief__entry-sub">{item.location}</p>
+                    ) : null}
+                    {item.startAt ? (
+                      <p className="voy-brief__entry-sub">
+                        {formatDateTimeLocal(item.startAt)}
+                        {item.endAt
+                          ? ` – ${formatDateTimeLocal(item.endAt)}`
+                          : ""}
+                      </p>
+                    ) : null}
+                  </div>
+                </article>
+              ))}
+            </section>
+          ) : null}
+
+          {data.flights.length === 0 &&
+          data.stays.length === 0 &&
+          data.tripItems.length === 0 ? (
             <p className="voy-brief__empty">{t("brief.empty")}</p>
           ) : null}
 

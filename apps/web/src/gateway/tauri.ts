@@ -45,6 +45,7 @@ import type {
   TripItem,
   UpdateTripItemInput,
   SearchHit,
+  WorkspaceSearchHit,
   SetProviderKeyInput,
   SetProviderModelInput,
   SuggestFieldValuesInput,
@@ -216,8 +217,7 @@ export function createTauriGateway(
     setInterestProfile: (input: SetInterestProfileInput) =>
       call<InterestProfile>("set_interest_profile", input),
 
-    savePlace: (input: SavePlaceInput) =>
-      call<SavedPlace>("save_place", input),
+    savePlace: (input: SavePlaceInput) => call<SavedPlace>("save_place", input),
 
     updateSavedPlace: (input: UpdateSavedPlaceInput) =>
       call<SavedPlace>("update_saved_place", input),
@@ -262,6 +262,9 @@ export function createTauriGateway(
 
     searchTrip: (tripId: string, query: string) =>
       call<SearchHit[]>("search_trip", { tripId, query }),
+
+    searchWorkspace: (query: string) =>
+      call<WorkspaceSearchHit[]>("search_workspace", { query }),
 
     suggestSearchTerms: (tripId: string, query: string) =>
       call<string[]>("suggest_search_terms", { tripId, query }),

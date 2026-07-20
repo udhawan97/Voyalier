@@ -62,5 +62,14 @@ describe("Recommendations", () => {
     );
     // A wildcard from a different dimension is surfaced.
     expect(within(list).getByText("wildcard")).toBeInTheDocument();
+
+    // Saving is explicit and the result appears in the separate shortlist.
+    fireEvent.click(
+      within(items[0]).getByRole("button", { name: "Save place" }),
+    );
+    const savedPlaces = screen.getByRole("region", { name: "Saved places" });
+    expect(
+      await within(savedPlaces).findByText("Hattie B's Hot Chicken"),
+    ).toBeInTheDocument();
   });
 });

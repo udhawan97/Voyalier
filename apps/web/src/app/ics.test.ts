@@ -33,6 +33,7 @@ function brief(overrides: Partial<TripBrief> = {}): TripBrief {
         checkoutDate: "2026-11-10",
       },
     ],
+    tripItems: [],
     redactedFields: ["Confirmation codes", "Traveler names"],
     generatedAt: "2026-07-10T12:00:00Z",
     ...overrides,
@@ -74,6 +75,28 @@ describe("calendar export", () => {
     // reads the brief and not something that could reintroduce one.
     const ics = buildIcs(brief(), LABELS);
     expect(ics).not.toMatch(/KY7M2Q|confirmationCode|passengerName|guestName/i);
+  });
+
+  it("exports scheduled manual items without their private notes", () => {
+    const ics = buildIcs(
+      brief({
+        tripItems: [
+          {
+            id: "item_1",
+            kind: "activity",
+            title: "Tea ceremony",
+            location: "Gion",
+            startAt: "2026-11-05T15:00",
+            endAt: "2026-11-05T16:00",
+          },
+        ],
+      }),
+      LABELS,
+    );
+    expect(ics).toContain("SUMMARY:Tea ceremony");
+    expect(ics).toContain("DTSTART:20261105T150000");
+    expect(ics).toContain("LOCATION:Gion");
+    expect(ics).not.toContain("PRIVATE ACCESS CODE");
   });
 
   it("escapes text that would otherwise break the format", () => {
