@@ -24,6 +24,7 @@ mod packing;
 mod packs;
 mod parser;
 mod place_summary;
+mod planning;
 mod provider;
 mod readiness;
 mod recommend;
@@ -106,6 +107,7 @@ pub use packs::{
 // callers'. `parse_import` is the way in.
 pub use parser::{DocumentParse, ParsedCandidate, parse_import};
 pub use place_summary::{PlaceSummary, parse_place_summary, place_summary};
+pub use planning::*;
 // The validation endpoint and its auth headers stay internal: which pairs with
 // which provider is `provider`'s knowledge. `build_key_validation_request` is
 // the way in.
@@ -116,7 +118,10 @@ pub use provider::{
     validate_provider_id,
 };
 pub use readiness::{TripAssessment, assess_trip};
-pub use recommend::{PersonaWeights, Recommendation, recommend_places};
+pub use recommend::{
+    AttributedPackPlace, PersonaWeights, Recommendation, recommend_attributed_places,
+    recommend_places,
+};
 pub use search::{
     SEARCH_SUGGESTION_LIMIT, SearchHit, SearchHitSource, SearchableDocument, search_trip_corpus,
     suggest_search_terms, validate_search_query,

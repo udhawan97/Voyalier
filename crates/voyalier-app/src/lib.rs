@@ -12,36 +12,39 @@ use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use voyalier_core::{
-    ASSIST_DRAFT_LODGING_DATES, ASSIST_SYSTEM_PROMPT, AddManualFactInput, AdvisoryEntry,
-    AdvisoryPanel, AdvisorySource, AiPrompt, AiPromptKind, AiPromptSettings, AirQualityDay,
-    AppError, AssistActivityEntry, AssistDraftResult, AssistReply, AssistRequestPreview, AstroDay,
-    CandidateFact, CandidateStatus, ClimateNormals, ConfirmCandidateInput, ConfirmedFact,
-    CreateTripInput, DRAFT_LODGING_DATES_SYSTEM_PROMPT, DestinationFactsSnapshot, DocumentContent,
-    DocumentKind, DocumentParse, DocumentSummary, DownloadedPack, ErrorCode, ExtractionMethod,
-    FCDO_COUNTRIES, FIELD_SUGGESTION_LIMIT, FactPayload, FactType, FcdoCountry, FieldSuggestion,
-    GeocodedPlace, HealthNotice, HealthResponse, ImportDocumentInput, ImportResult,
-    IntelligenceMode, KeyValidation, LocalAiStatus, LocalModelPullResult, LodgingDateProposal,
+    ASSIST_DRAFT_LODGING_DATES, ASSIST_SYSTEM_PROMPT, AddManualFactInput, AddPackingItemInput,
+    AdvisoryEntry, AdvisoryPanel, AdvisorySource, AiPrompt, AiPromptKind, AiPromptSettings,
+    AirQualityDay, AppError, AssistActivityEntry, AssistDraftResult, AssistReply,
+    AssistRequestPreview, AstroDay, AttributedPackPlace, CandidateFact, CandidateStatus,
+    ClimateNormals, ConfirmCandidateInput, ConfirmedFact, CreateTripInput, CreateTripItemInput,
+    DRAFT_LODGING_DATES_SYSTEM_PROMPT, DestinationFactsSnapshot, DocumentContent, DocumentKind,
+    DocumentParse, DocumentSummary, DownloadedPack, ErrorCode, ExtractionMethod, FCDO_COUNTRIES,
+    FIELD_SUGGESTION_LIMIT, FactPayload, FactType, FcdoCountry, FieldSuggestion, GeocodedPlace,
+    HealthNotice, HealthResponse, ImportDocumentInput, ImportResult, IntelligenceMode,
+    InterestProfile, KeyValidation, LocalAiStatus, LocalModelPullResult, LodgingDateProposal,
     MAX_AI_PROMPT_LEN, MAX_NOTES_CHARS, MAX_OFFLINE_MAP_BYTES, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,
     OfflineMapArchive, OfflineMapChunk, OfflineMapDescriptor, PROVIDERS, PackContent, PackInfo,
-    PackSuggestion, PersonaWeights, PlaceSummary, ProviderConfig, ProviderId,
-    PublicHolidaysSnapshot, Recommendation, RedactionPolicy, SEARCH_SUGGESTION_LIMIT, SearchHit,
-    SearchableDocument, SourceDocument, SourceState, SourceStatus, SuggestionSource, TodayView,
-    Trip, TripAssessment, TripBrief, TripDetail, TripNotes, TripStatus, TripSummary,
-    UpdateTripInput, WarningCode, WeatherAlert, WeatherSnapshot, advisory_country, archive_window,
-    assess_trip, build_assist_preview, build_assist_request, build_draft_preview,
-    build_key_validation_request, build_packing_list, build_pull_body, build_today_view,
-    build_trip_brief, changed_payload_fields, compute_astro_day, country_facts, entry_from_fcdo,
-    estimate_tokens, geocode, holidays_within, interpret_key_validation, interpret_pull_response,
-    nearest_airports, new_id, notices_for_country, now_rfc3339, offline_map_download_url,
-    pack_catalog, pack_download_url, parse_air_quality, parse_assist_reply, parse_ca_gac,
-    parse_cdc_notices, parse_climate_normals, parse_de_aa, parse_ecb_rates, parse_fcdo_content,
-    parse_forecast_response, parse_import, parse_lodging_dates_reply, parse_nws_alerts,
-    parse_pack_content, parse_us_state, place_summary, provider_info, public_holidays,
-    rank_field_suggestions, recommend_places, search_cities, search_trip_corpus, suggest_packs,
-    suggest_search_terms, time_difference, tipping_guidance, validate_api_key,
-    validate_country_slug, validate_create_trip, validate_fact_payload, validate_model_name,
-    validate_pack_id, validate_provider_id, validate_search_query, validate_update_trip,
-    world_heritage_near,
+    PackSuggestion, PackingItem, PersonaWeights, PlaceSummary, ProviderConfig, ProviderId,
+    PublicHolidaysSnapshot, Recommendation, RedactionPolicy, SEARCH_SUGGESTION_LIMIT,
+    SavePlaceInput, SavedPlace, SearchHit, SearchableDocument, SetInterestProfileInput,
+    SourceDocument, SourceState, SourceStatus, SuggestionSource, TodayView, Trip, TripAssessment,
+    TripBrief, TripDetail, TripItem, TripNotes, TripStatus, TripSummary, UpdatePackingItemInput,
+    UpdateSavedPlaceInput, UpdateTripInput, UpdateTripItemInput, WarningCode, WeatherAlert,
+    WeatherSnapshot, advisory_country, archive_window, assess_trip, build_assist_preview,
+    build_assist_request, build_draft_preview, build_key_validation_request, build_packing_list,
+    build_pull_body, build_today_view, build_trip_brief, changed_payload_fields, compute_astro_day,
+    country_facts, entry_from_fcdo, estimate_tokens, geocode, holidays_within,
+    interpret_key_validation, interpret_pull_response, nearest_airports, new_id,
+    notices_for_country, now_rfc3339, offline_map_download_url, pack_catalog, pack_download_url,
+    parse_air_quality, parse_assist_reply, parse_ca_gac, parse_cdc_notices, parse_climate_normals,
+    parse_de_aa, parse_ecb_rates, parse_fcdo_content, parse_forecast_response, parse_import,
+    parse_lodging_dates_reply, parse_nws_alerts, parse_pack_content, parse_us_state, place_summary,
+    provider_info, public_holidays, rank_field_suggestions, recommend_attributed_places,
+    search_cities, search_trip_corpus, suggest_packs, suggest_search_terms, time_difference,
+    tipping_guidance, validate_api_key, validate_country_slug, validate_create_trip,
+    validate_create_trip_item, validate_fact_payload, validate_model_name, validate_pack_id,
+    validate_packing_label, validate_planning_notes, validate_provider_id, validate_search_query,
+    validate_update_trip, world_heritage_near,
 };
 use voyalier_core::{
     BACKUP_FORMAT_VERSION, BackupManifest, VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN,
@@ -1109,6 +1112,10 @@ impl AppService {
                     ..snapshot
                 }
             });
+        let interest_profile = self.records(&connection).interest_profile(trip_id)?;
+        let saved_places = self.records(&connection).saved_places(trip_id)?;
+        let packing_items = self.records(&connection).packing_items(trip_id)?;
+        let trip_items = self.records(&connection).trip_items(trip_id)?;
         Ok(TripDetail {
             trip,
             confirmed_facts,
@@ -1127,7 +1134,210 @@ impl AppService {
             world_heritage,
             place_summary,
             tipping,
+            interest_profile,
+            saved_places,
+            packing_items,
+            trip_items,
         })
+    }
+
+    /// Persist the deterministic recommendation weights for this trip.
+    pub fn set_interest_profile(
+        &self,
+        input: SetInterestProfileInput,
+    ) -> Result<InterestProfile, AppError> {
+        let connection = self.connection()?;
+        self.records(&connection).trip(&input.trip_id)?;
+        let weights = input.weights.validate()?;
+        let profile = InterestProfile {
+            trip_id: input.trip_id,
+            weights,
+            updated_at: Some(now_rfc3339()),
+        };
+        self.records(&connection)
+            .upsert_interest_profile(&profile)?;
+        Ok(profile)
+    }
+
+    /// Snapshot a recommendation and its provenance into the trip shortlist.
+    pub fn save_place(&self, input: SavePlaceInput) -> Result<SavedPlace, AppError> {
+        let connection = self.connection()?;
+        self.records(&connection).trip(&input.trip_id)?;
+        let recommendation = input.recommendation;
+        if recommendation.pack_id.trim().is_empty() {
+            return Err(AppError::with_detail(
+                ErrorCode::ValidationInvalidInput,
+                "a saved place must identify its source pack",
+                "field",
+                "recommendation.packId",
+            ));
+        }
+        let source_pack_available: bool = connection
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM downloaded_packs WHERE trip_id=?1 AND pack_id=?2)",
+                params![input.trip_id, recommendation.pack_id],
+                |row| row.get(0),
+            )
+            .map_err(storage_error)?;
+        if !source_pack_available {
+            return Err(AppError::with_detail(
+                ErrorCode::ValidationInvalidInput,
+                "the recommendation source pack is not downloaded for this trip",
+                "field",
+                "recommendation.packId",
+            ));
+        }
+        let now = now_rfc3339();
+        let place = SavedPlace {
+            id: new_id("place"),
+            trip_id: input.trip_id,
+            pack_id: recommendation.pack_id,
+            source_pack_available,
+            name: recommendation.name,
+            category: recommendation.category,
+            dimension: recommendation.dimension,
+            lat: recommendation.lat,
+            lon: recommendation.lon,
+            source: recommendation.source,
+            license: recommendation.license,
+            reasons: recommendation.reasons,
+            wildcard: recommendation.wildcard,
+            notes: validate_planning_notes(&input.notes)?,
+            created_at: now.clone(),
+            updated_at: now,
+        };
+        self.records(&connection).insert_saved_place(&place)?;
+        Ok(place)
+    }
+
+    pub fn update_saved_place(&self, input: UpdateSavedPlaceInput) -> Result<SavedPlace, AppError> {
+        let connection = self.connection()?;
+        let trip_id = record_trip_id(&connection, "saved_places", &input.saved_place_id)?;
+        self.records(&connection).update_saved_place_notes(
+            &input.saved_place_id,
+            &validate_planning_notes(&input.notes)?,
+            &now_rfc3339(),
+        )?;
+        self.records(&connection)
+            .saved_places(&trip_id)?
+            .into_iter()
+            .find(|place| place.id == input.saved_place_id)
+            .ok_or_else(|| AppError::new(ErrorCode::InternalUnexpected, "saved place disappeared"))
+    }
+
+    pub fn delete_saved_place(&self, saved_place_id: &str) -> Result<(), AppError> {
+        let connection = self.connection()?;
+        self.records(&connection).delete_saved_place(saved_place_id)
+    }
+
+    pub fn add_packing_item(&self, input: AddPackingItemInput) -> Result<PackingItem, AppError> {
+        let connection = self.connection()?;
+        self.records(&connection).trip(&input.trip_id)?;
+        let now = now_rfc3339();
+        let item = PackingItem {
+            id: new_id("packing"),
+            trip_id: input.trip_id,
+            label: validate_packing_label(&input.label)?,
+            checked: false,
+            suggestion_code: input.suggestion_code,
+            created_at: now.clone(),
+            updated_at: now,
+        };
+        self.records(&connection).insert_packing_item(&item)?;
+        Ok(item)
+    }
+
+    pub fn update_packing_item(
+        &self,
+        input: UpdatePackingItemInput,
+    ) -> Result<PackingItem, AppError> {
+        let connection = self.connection()?;
+        let trip_id = record_trip_id(&connection, "packing_items", &input.packing_item_id)?;
+        let existing = self
+            .records(&connection)
+            .packing_items(&trip_id)?
+            .into_iter()
+            .find(|item| item.id == input.packing_item_id)
+            .ok_or_else(|| {
+                AppError::new(ErrorCode::ValidationInvalidInput, "packing item not found")
+            })?;
+        let item = PackingItem {
+            label: validate_packing_label(&input.label)?,
+            checked: input.checked,
+            updated_at: now_rfc3339(),
+            ..existing
+        };
+        self.records(&connection).update_packing_item(&item)?;
+        Ok(item)
+    }
+
+    pub fn delete_packing_item(&self, packing_item_id: &str) -> Result<(), AppError> {
+        let connection = self.connection()?;
+        self.records(&connection)
+            .delete_packing_item(packing_item_id)
+    }
+
+    pub fn create_trip_item(&self, input: CreateTripItemInput) -> Result<TripItem, AppError> {
+        let input = validate_create_trip_item(input)?;
+        let connection = self.connection()?;
+        self.records(&connection).trip(&input.trip_id)?;
+        let now = now_rfc3339();
+        let item = TripItem {
+            id: new_id("item"),
+            trip_id: input.trip_id,
+            kind: input.kind,
+            title: input.title,
+            location: input.location,
+            start_at: input.start_at,
+            end_at: input.end_at,
+            notes: input.notes,
+            saved_place_id: input.saved_place_id,
+            created_at: now.clone(),
+            updated_at: now,
+        };
+        self.records(&connection).insert_trip_item(&item)?;
+        Ok(item)
+    }
+
+    pub fn update_trip_item(&self, input: UpdateTripItemInput) -> Result<TripItem, AppError> {
+        let connection = self.connection()?;
+        let trip_id = record_trip_id(&connection, "trip_items", &input.trip_item_id)?;
+        let normalized = validate_create_trip_item(CreateTripItemInput {
+            trip_id: trip_id.clone(),
+            kind: input.kind,
+            title: input.title,
+            location: input.location,
+            start_at: input.start_at,
+            end_at: input.end_at,
+            notes: input.notes,
+            saved_place_id: input.saved_place_id,
+        })?;
+        let existing = self
+            .records(&connection)
+            .trip_items(&trip_id)?
+            .into_iter()
+            .find(|item| item.id == input.trip_item_id)
+            .ok_or_else(|| {
+                AppError::new(ErrorCode::ValidationInvalidInput, "trip item not found")
+            })?;
+        let item = TripItem {
+            kind: normalized.kind,
+            title: normalized.title,
+            location: normalized.location,
+            start_at: normalized.start_at,
+            end_at: normalized.end_at,
+            notes: normalized.notes,
+            saved_place_id: normalized.saved_place_id,
+            updated_at: now_rfc3339(),
+            ..existing
+        };
+        self.records(&connection).update_trip_item(&item)?;
+        Ok(item)
+    }
+
+    pub fn delete_trip_item(&self, trip_item_id: &str) -> Result<(), AppError> {
+        let connection = self.connection()?;
+        self.records(&connection).delete_trip_item(trip_item_id)
     }
 
     /// The curated list of fetchable FCDO country pages.
@@ -1527,22 +1737,31 @@ impl AppService {
         let connection = self.connection()?;
         self.records(&connection).trip(trip_id)?;
         let mut statement = connection
-            .prepare("SELECT content FROM downloaded_packs WHERE trip_id = ?1")
+            .prepare("SELECT pack_id, content FROM downloaded_packs WHERE trip_id = ?1")
             .map_err(storage_error)?;
         let rows = statement
-            .query_map(params![trip_id], |row| row.get::<_, String>(0))
+            .query_map(params![trip_id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
             .map_err(storage_error)?;
 
         let mut places = Vec::new();
         for row in rows {
-            let content = row.map_err(storage_error)?;
+            let (pack_id, content) = row.map_err(storage_error)?;
             // Stored content is our own re-serialized PackContent; skip anything
             // unreadable rather than failing the whole request.
             if let Ok(pack) = serde_json::from_str::<PackContent>(&content) {
-                places.extend(pack.places);
+                places.extend(pack.places.into_iter().map(|place| AttributedPackPlace {
+                    pack_id: pack_id.clone(),
+                    place,
+                }));
             }
         }
-        Ok(recommend_places(&places, &weights, RECOMMENDATION_LIMIT))
+        Ok(recommend_attributed_places(
+            &places,
+            &weights,
+            RECOMMENDATION_LIMIT,
+        ))
     }
 
     /// The configured state of every supported AI provider. Reports only whether
@@ -3821,6 +4040,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "place_summaries",
         run: migrate_place_summaries,
     },
+    Migration {
+        to: 10,
+        name: "traveler_planning",
+        run: migrate_traveler_planning,
+    },
 ];
 
 /// The version a fully migrated database carries. Stamped into a backup's
@@ -3861,6 +4085,71 @@ fn migrate(connection: &Connection) -> Result<(), AppError> {
         version = migration.to;
     }
     Ok(())
+}
+
+/// Add traveler-owned planning records. These tables intentionally sit beside,
+/// rather than inside, the evidence tables so a saved idea or manual activity
+/// can never be mistaken for a confirmed fact.
+fn migrate_traveler_planning(connection: &Connection) -> Result<(), AppError> {
+    connection
+        .execute_batch(
+            "CREATE TABLE IF NOT EXISTS trip_interest_profiles (
+                trip_id TEXT PRIMARY KEY REFERENCES trips(id) ON DELETE CASCADE,
+                food REAL NOT NULL CHECK(food BETWEEN 0 AND 1),
+                culture REAL NOT NULL CHECK(culture BETWEEN 0 AND 1),
+                nature REAL NOT NULL CHECK(nature BETWEEN 0 AND 1),
+                nightlife REAL NOT NULL CHECK(nightlife BETWEEN 0 AND 1),
+                shopping REAL NOT NULL CHECK(shopping BETWEEN 0 AND 1),
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS saved_places (
+                id TEXT PRIMARY KEY,
+                trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                pack_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                category TEXT NOT NULL,
+                dimension TEXT NOT NULL,
+                lat REAL NOT NULL,
+                lon REAL NOT NULL,
+                source TEXT NOT NULL,
+                license TEXT NOT NULL,
+                reasons_json TEXT NOT NULL,
+                wildcard INTEGER NOT NULL CHECK(wildcard IN (0, 1)),
+                notes TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(trip_id, pack_id, name, lat, lon)
+            );
+
+            CREATE TABLE IF NOT EXISTS packing_items (
+                id TEXT PRIMARY KEY,
+                trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                label TEXT NOT NULL,
+                checked INTEGER NOT NULL DEFAULT 0 CHECK(checked IN (0, 1)),
+                suggestion_code TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS packing_items_suggestion
+                ON packing_items(trip_id, suggestion_code)
+                WHERE suggestion_code IS NOT NULL;
+
+            CREATE TABLE IF NOT EXISTS trip_items (
+                id TEXT PRIMARY KEY,
+                trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                kind TEXT NOT NULL CHECK(kind IN ('activity', 'rail', 'transfer')),
+                title TEXT NOT NULL,
+                location TEXT,
+                start_at TEXT,
+                end_at TEXT,
+                notes TEXT,
+                saved_place_id TEXT REFERENCES saved_places(id) ON DELETE SET NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );",
+        )
+        .map_err(storage_error)
 }
 
 /// Add `source_removed` to `confirmed_facts` for databases created before the
@@ -4745,6 +5034,31 @@ fn storage_error(error: impl std::error::Error) -> AppError {
     AppError::new(ErrorCode::StorageFailure, error.to_string())
 }
 
+fn record_trip_id(
+    connection: &Connection,
+    table: &'static str,
+    record_id: &str,
+) -> Result<String, AppError> {
+    debug_assert!(matches!(
+        table,
+        "saved_places" | "packing_items" | "trip_items"
+    ));
+    connection
+        .query_row(
+            &format!("SELECT trip_id FROM {table} WHERE id=?1"),
+            params![record_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(storage_error)?
+        .ok_or_else(|| {
+            AppError::new(
+                ErrorCode::ValidationInvalidInput,
+                "planning record not found",
+            )
+        })
+}
+
 fn sha256_hex(bytes: &[u8]) -> String {
     let digest = Sha256::digest(bytes);
     digest
@@ -4779,6 +5093,100 @@ mod tests {
         let reopened = open_test_service(&database).expect("reopen");
         let detail = reopened.get_trip(&trip.id).expect("read trip");
         assert_eq!(detail.trip.destination, "Kyoto");
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn traveler_planning_persists_without_becoming_confirmed_evidence() {
+        struct PlanningPackFetcher;
+        impl AdviceFetcher for PlanningPackFetcher {
+            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+                Ok(serde_json::json!({
+                    "packId": "us-nashville",
+                    "places": [{
+                        "name": "Frist Art Museum",
+                        "category": "art_museum",
+                        "lat": 36.156,
+                        "lon": -86.783
+                    }],
+                    "articles": []
+                })
+                .to_string())
+            }
+        }
+
+        let database = temp_database("traveler-planning");
+        let secrets = Arc::new(MemorySecretStore::default());
+        let service = AppService::open_path_with_deps(
+            &database,
+            Arc::new(PlanningPackFetcher),
+            secrets.clone(),
+        )
+        .expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        service
+            .download_pack(&trip.id, "us-nashville")
+            .expect("pack");
+
+        let profile = service
+            .set_interest_profile(SetInterestProfileInput {
+                trip_id: trip.id.clone(),
+                weights: PersonaWeights {
+                    culture: 1.0,
+                    ..PersonaWeights::balanced()
+                },
+            })
+            .expect("profile");
+        let recommendation = service
+            .get_recommendations(&trip.id, profile.weights)
+            .expect("recommendations")
+            .remove(0);
+        let saved = service
+            .save_place(SavePlaceInput {
+                trip_id: trip.id.clone(),
+                recommendation,
+                notes: "Quiet morning option".to_owned(),
+            })
+            .expect("saved place");
+        let packing = service
+            .add_packing_item(AddPackingItemInput {
+                trip_id: trip.id.clone(),
+                label: "Museum pass".to_owned(),
+                suggestion_code: None,
+            })
+            .expect("packing item");
+        let activity = service
+            .create_trip_item(CreateTripItemInput {
+                trip_id: trip.id.clone(),
+                kind: voyalier_core::TripItemKind::Activity,
+                title: "Visit Frist".to_owned(),
+                location: Some("Frist Art Museum".to_owned()),
+                start_at: Some("2027-04-04T15:00:00Z".to_owned()),
+                end_at: None,
+                notes: Some("Use the saved shortlist".to_owned()),
+                saved_place_id: Some(saved.id.clone()),
+            })
+            .expect("activity");
+
+        // Removing the source pack keeps the provenance snapshot, while making
+        // its unavailable state explicit. Promotion remains a separate record.
+        service
+            .delete_downloaded_pack(&trip.id, "us-nashville")
+            .expect("delete pack");
+        let detail = service.get_trip(&trip.id).expect("detail");
+        assert_eq!(detail.interest_profile.weights.culture, 1.0);
+        assert_eq!(detail.saved_places[0].id, saved.id);
+        assert!(!detail.saved_places[0].source_pack_available);
+        assert_eq!(detail.packing_items[0].id, packing.id);
+        assert_eq!(detail.trip_items[0].id, activity.id);
+        assert!(detail.confirmed_facts.is_empty());
+
+        drop(service);
+        let reopened = AppService::open_path_with_deps(&database, Arc::new(UreqFetcher), secrets)
+            .expect("reopen");
+        let detail = reopened.get_trip(&trip.id).expect("persisted detail");
+        assert_eq!(detail.saved_places[0].notes, "Quiet morning option");
+        assert_eq!(detail.trip_items[0].title, "Visit Frist");
         cleanup_database(database);
     }
 
@@ -8152,6 +8560,57 @@ mod tests {
         service
             .set_trip_notes(&trip.id, "Gate code 5150, ask for Rin")
             .expect("notes");
+        // Populate every traveler-planning sealed column through the public
+        // service. The direct insert is only the non-sensitive downloaded-pack
+        // prerequisite for the saved recommendation.
+        service
+            .connection()
+            .expect("connection")
+            .execute(
+                "INSERT INTO downloaded_packs
+                    (trip_id, pack_id, name, region, place_count, article_count, content, downloaded_at)
+                 VALUES (?1, 'us-nashville', 'Nashville', 'Tennessee', 1, 0, '{}', 'now')",
+                params![trip.id],
+            )
+            .expect("pack prerequisite");
+        let saved = service
+            .save_place(SavePlaceInput {
+                trip_id: trip.id.clone(),
+                recommendation: Recommendation {
+                    pack_id: "us-nashville".to_owned(),
+                    name: "Frist Art Museum".to_owned(),
+                    category: "art_museum".to_owned(),
+                    dimension: "culture".to_owned(),
+                    lat: 36.156,
+                    lon: -86.783,
+                    source: "Overture Maps".to_owned(),
+                    license: "CDLA-Permissive-2.0".to_owned(),
+                    score: 1.0,
+                    reasons: vec!["Matches your interest in culture".to_owned()],
+                    wildcard: false,
+                },
+                notes: "Meet Hana by the side entrance".to_owned(),
+            })
+            .expect("saved place");
+        service
+            .add_packing_item(AddPackingItemInput {
+                trip_id: trip.id.clone(),
+                label: "Passport copy".to_owned(),
+                suggestion_code: None,
+            })
+            .expect("packing");
+        service
+            .create_trip_item(CreateTripItemInput {
+                trip_id: trip.id.clone(),
+                kind: voyalier_core::TripItemKind::Activity,
+                title: "Private studio visit".to_owned(),
+                location: Some("12 Secret Lane".to_owned()),
+                start_at: None,
+                end_at: None,
+                notes: Some("Door code 8080".to_owned()),
+                saved_place_id: Some(saved.id),
+            })
+            .expect("trip item");
 
         let connection = service.connection().expect("connection");
         for (table, column) in SEALED_COLUMNS {
@@ -8186,6 +8645,15 @@ mod tests {
         let detail = service.get_trip(&trip.id).expect("detail");
         let payload = serde_json::to_string(&detail.confirmed_facts[0].payload).expect("json");
         assert!(!payload.contains(VAULT_PREFIX));
+        assert_eq!(
+            detail.saved_places[0].notes,
+            "Meet Hana by the side entrance"
+        );
+        assert_eq!(detail.packing_items[0].label, "Passport copy");
+        assert_eq!(
+            detail.trip_items[0].location.as_deref(),
+            Some("12 Secret Lane")
+        );
 
         drop(service);
         cleanup_database(database);

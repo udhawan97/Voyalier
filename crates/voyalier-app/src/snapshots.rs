@@ -137,6 +137,12 @@ mod tests {
             "parser_runs",
             "assist_activity",
             "downloaded_packs",
+            // Traveler-owned planning remains useful after a destination edit;
+            // the person decides what to revise or remove.
+            "trip_interest_profiles",
+            "saved_places",
+            "packing_items",
+            "trip_items",
         ]
         .into_iter()
         .collect();

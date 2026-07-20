@@ -13,6 +13,7 @@ use crate::heritage::HeritageSite;
 use crate::holidays::PublicHolidaysSnapshot;
 use crate::packing::PackingSuggestion;
 use crate::place_summary::PlaceSummary;
+use crate::planning::{InterestProfile, PackingItem, SavedPlace, TripItem};
 use crate::weather::WeatherSnapshot;
 
 pub const MAX_LOCATION_LEN: usize = 120;
@@ -136,6 +137,18 @@ pub struct TripDetail {
     /// fresh from the facts snapshot's country code. Present only when curated.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tipping: Option<String>,
+    /// Persisted traveler interests. Missing storage rows read as balanced.
+    pub interest_profile: InterestProfile,
+    /// Shortlisted recommendations, kept separate from scheduled items.
+    #[serde(default)]
+    pub saved_places: Vec<SavedPlace>,
+    /// Explicit traveler-owned checklist. Suggestions never enter it silently.
+    #[serde(default)]
+    pub packing_items: Vec<PackingItem>,
+    /// Manual activities, rail segments, and transfers. These are plans, not
+    /// evidence-backed confirmed facts.
+    #[serde(default)]
+    pub trip_items: Vec<TripItem>,
 }
 
 /// Which deterministic plan-completeness check a readiness item reports on.

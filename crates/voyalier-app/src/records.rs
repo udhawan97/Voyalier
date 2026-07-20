@@ -29,7 +29,8 @@ use serde::de::DeserializeOwned;
 
 use voyalier_core::{
     AppError, CandidateFact, CandidateStatus, ConfirmedFact, DocumentContent, ErrorCode,
-    SourceDocument, Trip, TripNotes, TripSummary,
+    InterestProfile, PackingItem, PersonaWeights, SavedPlace, SourceDocument, Trip, TripItem,
+    TripItemKind, TripNotes, TripSummary,
 };
 
 use crate::{DocumentText, Vault, storage_error};
@@ -51,6 +52,11 @@ pub(crate) const SEALED_COLUMNS: &[(&str, &str)] = &[
     // Notes are whatever the traveler chose to write down — treat them as
     // sensitive as the confirmations they sit beside.
     ("trip_notes", "body"),
+    ("saved_places", "notes"),
+    ("packing_items", "label"),
+    ("trip_items", "title"),
+    ("trip_items", "location"),
+    ("trip_items", "notes"),
 ];
 
 const TRIP_COLUMNS: &str =
@@ -469,6 +475,379 @@ impl<'a> Records<'a> {
         Ok(())
     }
 
+    // ---- traveler-owned planning ---------------------------------------
+
+    pub(crate) fn interest_profile(&self, trip_id: &str) -> Result<InterestProfile, AppError> {
+        let row = self
+            .connection
+            .query_row(
+                "SELECT food, culture, nature, nightlife, shopping, updated_at
+                 FROM trip_interest_profiles WHERE trip_id = ?1",
+                params![trip_id],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                        row.get(5)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(storage_error)?;
+        Ok(match row {
+            Some((food, culture, nature, nightlife, shopping, updated_at)) => InterestProfile {
+                trip_id: trip_id.to_owned(),
+                weights: PersonaWeights {
+                    food,
+                    culture,
+                    nature,
+                    nightlife,
+                    shopping,
+                },
+                updated_at: Some(updated_at),
+            },
+            None => InterestProfile::balanced(trip_id),
+        })
+    }
+
+    pub(crate) fn upsert_interest_profile(
+        &self,
+        profile: &InterestProfile,
+    ) -> Result<(), AppError> {
+        self.connection
+            .execute(
+                "INSERT INTO trip_interest_profiles
+                    (trip_id, food, culture, nature, nightlife, shopping, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                 ON CONFLICT(trip_id) DO UPDATE SET
+                    food=?2, culture=?3, nature=?4, nightlife=?5, shopping=?6, updated_at=?7",
+                params![
+                    profile.trip_id,
+                    profile.weights.food,
+                    profile.weights.culture,
+                    profile.weights.nature,
+                    profile.weights.nightlife,
+                    profile.weights.shopping,
+                    profile.updated_at,
+                ],
+            )
+            .map_err(storage_error)?;
+        Ok(())
+    }
+
+    pub(crate) fn saved_places(&self, trip_id: &str) -> Result<Vec<SavedPlace>, AppError> {
+        let mut statement = self
+            .connection
+            .prepare(
+                "SELECT s.id, s.trip_id, s.pack_id,
+                        EXISTS(SELECT 1 FROM downloaded_packs d
+                               WHERE d.trip_id=s.trip_id AND d.pack_id=s.pack_id),
+                        s.name, s.category, s.dimension, s.lat, s.lon, s.source, s.license,
+                        s.reasons_json, s.wildcard, s.notes, s.created_at, s.updated_at
+                 FROM saved_places s WHERE s.trip_id=?1 ORDER BY s.created_at DESC, s.id DESC",
+            )
+            .map_err(storage_error)?;
+        let rows = statement
+            .query_map(params![trip_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, String>(6)?,
+                    row.get::<_, f64>(7)?,
+                    row.get::<_, f64>(8)?,
+                    row.get::<_, String>(9)?,
+                    row.get::<_, String>(10)?,
+                    row.get::<_, String>(11)?,
+                    row.get::<_, i64>(12)?,
+                    row.get::<_, String>(13)?,
+                    row.get::<_, String>(14)?,
+                    row.get::<_, String>(15)?,
+                ))
+            })
+            .map_err(storage_error)?;
+        rows.map(|row| {
+            let (
+                id,
+                trip_id,
+                pack_id,
+                available,
+                name,
+                category,
+                dimension,
+                lat,
+                lon,
+                source,
+                license,
+                reasons,
+                wildcard,
+                notes,
+                created_at,
+                updated_at,
+            ) = row.map_err(storage_error)?;
+            Ok(SavedPlace {
+                id,
+                trip_id,
+                pack_id,
+                source_pack_available: available != 0,
+                name,
+                category,
+                dimension,
+                lat,
+                lon,
+                source,
+                license,
+                reasons: from_sql_json(&reasons)?,
+                wildcard: wildcard != 0,
+                notes: self.vault.open_field(&notes)?,
+                created_at,
+                updated_at,
+            })
+        })
+        .collect()
+    }
+
+    pub(crate) fn insert_saved_place(&self, place: &SavedPlace) -> Result<(), AppError> {
+        self.connection
+            .execute(
+                "INSERT INTO saved_places
+                    (id, trip_id, pack_id, name, category, dimension, lat, lon, source, license,
+                     reasons_json, wildcard, notes, created_at, updated_at)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15)",
+                params![
+                    place.id,
+                    place.trip_id,
+                    place.pack_id,
+                    place.name,
+                    place.category,
+                    place.dimension,
+                    place.lat,
+                    place.lon,
+                    place.source,
+                    place.license,
+                    to_sql_json(&place.reasons)?,
+                    i64::from(place.wildcard),
+                    self.vault.seal_field(&place.notes)?,
+                    place.created_at,
+                    place.updated_at,
+                ],
+            )
+            .map_err(storage_error)?;
+        Ok(())
+    }
+
+    pub(crate) fn update_saved_place_notes(
+        &self,
+        saved_place_id: &str,
+        notes: &str,
+        updated_at: &str,
+    ) -> Result<(), AppError> {
+        let changed = self
+            .connection
+            .execute(
+                "UPDATE saved_places SET notes=?2, updated_at=?3 WHERE id=?1",
+                params![saved_place_id, self.vault.seal_field(notes)?, updated_at],
+            )
+            .map_err(storage_error)?;
+        require_changed(changed, "saved place")
+    }
+
+    pub(crate) fn delete_saved_place(&self, saved_place_id: &str) -> Result<(), AppError> {
+        let changed = self
+            .connection
+            .execute(
+                "DELETE FROM saved_places WHERE id=?1",
+                params![saved_place_id],
+            )
+            .map_err(storage_error)?;
+        require_changed(changed, "saved place")
+    }
+
+    pub(crate) fn packing_items(&self, trip_id: &str) -> Result<Vec<PackingItem>, AppError> {
+        let mut statement = self
+            .connection
+            .prepare(
+                "SELECT id, trip_id, label, checked, suggestion_code, created_at, updated_at
+             FROM packing_items WHERE trip_id=?1 ORDER BY created_at, id",
+            )
+            .map_err(storage_error)?;
+        let rows = statement
+            .query_map(params![trip_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, String>(6)?,
+                ))
+            })
+            .map_err(storage_error)?;
+        rows.map(|row| {
+            let (id, trip_id, label, checked, suggestion_code, created_at, updated_at) =
+                row.map_err(storage_error)?;
+            Ok(PackingItem {
+                id,
+                trip_id,
+                label: self.vault.open_field(&label)?,
+                checked: checked != 0,
+                suggestion_code,
+                created_at,
+                updated_at,
+            })
+        })
+        .collect()
+    }
+
+    pub(crate) fn insert_packing_item(&self, item: &PackingItem) -> Result<(), AppError> {
+        self.connection.execute(
+            "INSERT INTO packing_items (id, trip_id, label, checked, suggestion_code, created_at, updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7)",
+            params![item.id, item.trip_id, self.vault.seal_field(&item.label)?, i64::from(item.checked),
+                item.suggestion_code, item.created_at, item.updated_at],
+        ).map_err(storage_error)?;
+        Ok(())
+    }
+
+    pub(crate) fn update_packing_item(&self, item: &PackingItem) -> Result<(), AppError> {
+        let changed = self
+            .connection
+            .execute(
+                "UPDATE packing_items SET label=?2, checked=?3, updated_at=?4 WHERE id=?1",
+                params![
+                    item.id,
+                    self.vault.seal_field(&item.label)?,
+                    i64::from(item.checked),
+                    item.updated_at
+                ],
+            )
+            .map_err(storage_error)?;
+        require_changed(changed, "packing item")
+    }
+
+    pub(crate) fn delete_packing_item(&self, id: &str) -> Result<(), AppError> {
+        let changed = self
+            .connection
+            .execute("DELETE FROM packing_items WHERE id=?1", params![id])
+            .map_err(storage_error)?;
+        require_changed(changed, "packing item")
+    }
+
+    pub(crate) fn trip_items(&self, trip_id: &str) -> Result<Vec<TripItem>, AppError> {
+        let mut statement = self.connection.prepare(
+            "SELECT id, trip_id, kind, title, location, start_at, end_at, notes, saved_place_id,
+                    created_at, updated_at FROM trip_items WHERE trip_id=?1
+             ORDER BY COALESCE(start_at, '9999'), created_at, id"
+        ).map_err(storage_error)?;
+        let rows = statement
+            .query_map(params![trip_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                    row.get::<_, Option<String>>(6)?,
+                    row.get::<_, Option<String>>(7)?,
+                    row.get::<_, Option<String>>(8)?,
+                    row.get::<_, String>(9)?,
+                    row.get::<_, String>(10)?,
+                ))
+            })
+            .map_err(storage_error)?;
+        rows.map(|row| {
+            let (
+                id,
+                trip_id,
+                kind,
+                title,
+                location,
+                start_at,
+                end_at,
+                notes,
+                saved_place_id,
+                created_at,
+                updated_at,
+            ) = row.map_err(storage_error)?;
+            Ok(TripItem {
+                id,
+                trip_id,
+                kind: from_sql_enum::<TripItemKind>(&kind)?,
+                title: self.vault.open_field(&title)?,
+                location: location
+                    .map(|value| self.vault.open_field(&value))
+                    .transpose()?,
+                start_at,
+                end_at,
+                notes: notes
+                    .map(|value| self.vault.open_field(&value))
+                    .transpose()?,
+                saved_place_id,
+                created_at,
+                updated_at,
+            })
+        })
+        .collect()
+    }
+
+    pub(crate) fn insert_trip_item(&self, item: &TripItem) -> Result<(), AppError> {
+        self.connection.execute(
+            "INSERT INTO trip_items (id, trip_id, kind, title, location, start_at, end_at, notes,
+                                     saved_place_id, created_at, updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
+            params![item.id, item.trip_id, to_sql_enum(item.kind)?, self.vault.seal_field(&item.title)?,
+                item.location.as_deref().map(|value| self.vault.seal_field(value)).transpose()?,
+                item.start_at, item.end_at,
+                item.notes.as_deref().map(|value| self.vault.seal_field(value)).transpose()?,
+                item.saved_place_id, item.created_at, item.updated_at],
+        ).map_err(storage_error)?;
+        Ok(())
+    }
+
+    pub(crate) fn update_trip_item(&self, item: &TripItem) -> Result<(), AppError> {
+        let changed = self
+            .connection
+            .execute(
+                "UPDATE trip_items SET kind=?2, title=?3, location=?4, start_at=?5, end_at=?6,
+                                   notes=?7, saved_place_id=?8, updated_at=?9 WHERE id=?1",
+                params![
+                    item.id,
+                    to_sql_enum(item.kind)?,
+                    self.vault.seal_field(&item.title)?,
+                    item.location
+                        .as_deref()
+                        .map(|value| self.vault.seal_field(value))
+                        .transpose()?,
+                    item.start_at,
+                    item.end_at,
+                    item.notes
+                        .as_deref()
+                        .map(|value| self.vault.seal_field(value))
+                        .transpose()?,
+                    item.saved_place_id,
+                    item.updated_at
+                ],
+            )
+            .map_err(storage_error)?;
+        require_changed(changed, "trip item")
+    }
+
+    pub(crate) fn delete_trip_item(&self, id: &str) -> Result<(), AppError> {
+        let changed = self
+            .connection
+            .execute("DELETE FROM trip_items WHERE id=?1", params![id])
+            .map_err(storage_error)?;
+        require_changed(changed, "trip item")
+    }
+
     fn open_candidate(&self, raw: RawCandidate) -> Result<CandidateFact, AppError> {
         Ok(CandidateFact {
             id: raw.id,
@@ -498,6 +877,17 @@ impl<'a> Records<'a> {
             confirmed_at: raw.confirmed_at,
             source_removed: raw.source_removed != 0,
         })
+    }
+}
+
+fn require_changed(changed: usize, record: &str) -> Result<(), AppError> {
+    if changed == 0 {
+        Err(AppError::new(
+            ErrorCode::ValidationInvalidInput,
+            format!("{record} not found"),
+        ))
+    } else {
+        Ok(())
     }
 }
 

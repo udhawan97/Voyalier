@@ -8,7 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::packs::PackPlace;
+use crate::{AppError, ErrorCode, packs::PackPlace};
 
 /// The persona dimensions a traveler can weight (each 0.0–1.0). Presets in the
 /// UI map onto these; the contract only ever carries the weights.
@@ -31,6 +31,30 @@ impl PersonaWeights {
             nature: 0.5,
             nightlife: 0.5,
             shopping: 0.5,
+        }
+    }
+
+    /// Validate weights received over a public contract. Persisted profiles
+    /// reject invalid values instead of silently clamping traveler input.
+    pub fn validate(self) -> Result<Self, AppError> {
+        let valid = [
+            self.food,
+            self.culture,
+            self.nature,
+            self.nightlife,
+            self.shopping,
+        ]
+        .into_iter()
+        .all(|weight| weight.is_finite() && (0.0..=1.0).contains(&weight));
+        if valid {
+            Ok(self)
+        } else {
+            Err(AppError::with_detail(
+                ErrorCode::ValidationInvalidInput,
+                "interest weights must be finite numbers from zero to one",
+                "field",
+                "weights",
+            ))
         }
     }
 
@@ -137,6 +161,8 @@ fn dimension_for(category: &str) -> Option<Dimension> {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Recommendation {
+    /// The downloaded pack that supplied this place.
+    pub pack_id: String,
     pub name: String,
     pub category: String,
     /// The persona dimension the place matched.
@@ -153,6 +179,15 @@ pub struct Recommendation {
     pub wildcard: bool,
 }
 
+/// A pack place paired with the pack that supplied it. The attribution is kept
+/// outside `PackPlace` because pack files declare provenance once at the pack
+/// level rather than duplicating it in every place row.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AttributedPackPlace {
+    pub pack_id: String,
+    pub place: PackPlace,
+}
+
 /// Rank a pack's places against `weights`, returning up to `limit` results,
 /// highest score first. Places whose category matches no dimension, or whose
 /// dimension weight is zero, are excluded. One pick from a dimension other than
@@ -162,16 +197,35 @@ pub fn recommend_places(
     weights: &PersonaWeights,
     limit: usize,
 ) -> Vec<Recommendation> {
+    let attributed: Vec<AttributedPackPlace> = places
+        .iter()
+        .cloned()
+        .map(|place| AttributedPackPlace {
+            pack_id: String::new(),
+            place,
+        })
+        .collect();
+    recommend_attributed_places(&attributed, weights, limit)
+}
+
+/// Rank places while preserving the pack that supplied every result.
+pub fn recommend_attributed_places(
+    places: &[AttributedPackPlace],
+    weights: &PersonaWeights,
+    limit: usize,
+) -> Vec<Recommendation> {
     let weights = weights.clamped();
     let mut scored: Vec<Recommendation> = places
         .iter()
-        .filter_map(|place| {
+        .filter_map(|attributed| {
+            let place = &attributed.place;
             let dimension = dimension_for(&place.category)?;
             let score = weights.weight_of(dimension);
             if score <= 0.0 {
                 return None;
             }
             Some(Recommendation {
+                pack_id: attributed.pack_id.clone(),
                 name: place.name.clone(),
                 category: place.category.clone(),
                 dimension: dimension.label().to_owned(),
@@ -277,5 +331,28 @@ mod tests {
         // Ties broken by name → stable, deterministic order.
         assert_eq!(recs[0].name, "Cafe 00");
         assert_eq!(recs[4].name, "Cafe 04");
+    }
+
+    #[test]
+    fn rejects_interest_weights_outside_the_contract_range() {
+        let invalid = PersonaWeights {
+            food: 1.1,
+            ..PersonaWeights::balanced()
+        };
+
+        let error = invalid.validate().expect_err("weight above one");
+        assert_eq!(error.code, crate::ErrorCode::ValidationInvalidInput);
+    }
+
+    #[test]
+    fn attributed_recommendations_preserve_the_originating_pack() {
+        let places = vec![AttributedPackPlace {
+            pack_id: "city-nashville".to_owned(),
+            place: place("Frist Museum", "art_museum"),
+        }];
+
+        let recommendations = recommend_attributed_places(&places, &PersonaWeights::balanced(), 10);
+
+        assert_eq!(recommendations[0].pack_id, "city-nashville");
     }
 }
