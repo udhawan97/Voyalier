@@ -10,6 +10,7 @@ import type {
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError, formatDateTimeLocal } from "../app/format";
 import { t, type MessageKey } from "../app/i18n";
+import { groundingLabel, withheldFieldLabel } from "../app/localizedContract";
 import { SectionTitle } from "../components/primitives";
 import { SparklesIcon } from "../components/icons";
 import { Button } from "../components/Button";
@@ -92,14 +93,10 @@ export function AssistPreview({
     } catch (caught) {
       setReply(null);
       const appError = caught as AppError;
-      // Validation errors (e.g. "add an API key first") carry a useful message;
-      // an unreachable AI gets the "is Ollama running?" guidance.
       setRunError(
-        appError.code === "validation/invalid_input"
-          ? appError.message
-          : appError.code === "assist/unreachable"
-            ? describeError(appError).body
-            : describeError(appError).title,
+        appError.code === "assist/unreachable"
+          ? describeError(appError).body
+          : describeError(appError).body,
       );
     } finally {
       setRunning(false);
@@ -177,7 +174,9 @@ export function AssistPreview({
           ) : null}
           <p className="voy-assist__meta">
             {preview.groundedIn.length > 0
-              ? t("assist.grounded", { sources: preview.groundedIn.join(", ") })
+              ? t("assist.grounded", {
+                  sources: preview.groundedIn.map(groundingLabel).join(", "),
+                })
               : t("assist.noGrounding")}
             {" · "}
             {t("assist.tokens", { tokens: preview.estimatedTokens })}
@@ -196,7 +195,7 @@ export function AssistPreview({
               <h3 className="voy-assist__subhead">{t("assist.withheld")}</h3>
               <ul className="voy-assist__withheld">
                 {preview.withheld.map((item) => (
-                  <li key={item}>{item}</li>
+                  <li key={item}>{withheldFieldLabel(item)}</li>
                 ))}
               </ul>
             </>

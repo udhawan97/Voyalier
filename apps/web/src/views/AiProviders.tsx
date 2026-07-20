@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { AppError, ProviderConfig, ProviderId } from "@voyalier/contracts";
+import type { ProviderConfig, ProviderId } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import { t } from "../app/i18n";
@@ -47,8 +47,8 @@ function ProviderRow({
     try {
       onChanged(await action());
       announce(done);
-    } catch (caught) {
-      setError((caught as AppError).message || t("providers.error"));
+    } catch {
+      setError(t("providers.error"));
     } finally {
       setBusy(null);
     }
@@ -70,7 +70,7 @@ function ProviderRow({
         key: keyInput,
       });
       if (verdict.status === "rejected") {
-        setError(verdict.message);
+        setError(t("providers.keyRejected"));
         return;
       }
       const updated = await gateway.setProviderKey({
@@ -86,8 +86,8 @@ function ProviderRow({
               provider: config.label,
             }),
       );
-    } catch (caught) {
-      setError((caught as AppError).message || t("providers.error"));
+    } catch {
+      setError(t("providers.error"));
     } finally {
       setBusy(null);
     }

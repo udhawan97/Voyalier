@@ -68,7 +68,7 @@ function TripCard({
               count={trip.pendingCandidateCount}
               label={plural("tripcard.pending", trip.pendingCandidateCount)}
             />
-            <span>to review</span>
+            <span>{t("tripcard.toReview")}</span>
           </span>
         ) : null}
       </div>

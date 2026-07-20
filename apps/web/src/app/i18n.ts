@@ -45,6 +45,8 @@ const en = {
   "backup.confirmPassphrase.placeholder": "Confirm backup passphrase",
   "backup.error.tooShort": "Use at least {min} characters.",
   "backup.error.mismatch": "Those passphrases don't match.",
+  "backup.error.newerVersion":
+    "This backup was made by a newer version of Voyalier. Update the app, then restore it again.",
   "backup.error.generic": "That didn't work. Please try again.",
   "vault.section": "Encryption",
   "vault.inactive":
@@ -118,10 +120,16 @@ const en = {
   "error.assistUnreachable.body":
     "Voyalier couldn't reach the AI. If you're using on-device AI, make sure Ollama is running (and a model is pulled), then try again. For a cloud provider, check your connection. Nothing was changed.",
   "error.weatherFetch.title": "Couldn't get the weather outlook",
+  "error.weatherFetch.body":
+    "Check the destination and your connection, then try again.",
   "error.packDownload.title": "Couldn't download that city pack",
   "error.packDownload.body":
     "Voyalier couldn't fetch the pack right now. Check your connection and try again — nothing was changed.",
   "error.validation.title": "Check the highlighted fields",
+  "error.validation.body": "Check the entered values and try again.",
+  "tripFieldError.origin": "Enter a valid trip origin.",
+  "tripFieldError.destination": "Enter a valid trip destination.",
+  "tripFieldError.dateRange": "Use a valid date range with the start first.",
   "error.unexpected.title": "Something went wrong",
   "error.unexpected.body": "An unexpected error occurred. Nothing was changed.",
 
@@ -185,6 +193,7 @@ const en = {
   "tripcard.archive": "Archive",
   "tripcard.unarchive": "Unarchive",
   "tripcard.delete": "Delete",
+  "tripcard.toReview": "to review",
 
   "status.trip.draft": "Draft",
   "status.trip.active": "Active",
@@ -240,6 +249,16 @@ const en = {
   "today.empty.active": "Nothing scheduled today.",
   "today.empty.other": "No plans for today.",
   "today.next": "Next",
+  "today.item.depart": "Depart — {subject}",
+  "today.item.departGeneric": "Flight departure",
+  "today.item.arrive": "Arrive — {subject}",
+  "today.item.arriveGeneric": "Flight arrival",
+  "today.item.checkin": "Check in — {subject}",
+  "today.item.checkinGeneric": "Check in",
+  "today.item.checkout": "Check out — {subject}",
+  "today.item.checkoutGeneric": "Check out",
+  "today.item.staying": "Staying at {subject}",
+  "today.item.stayingGeneric": "Staying tonight",
   "today.error":
     "Today couldn't load right now. The rest of your trip is fine.",
 
@@ -286,6 +305,13 @@ const en = {
   "localai.card.downloading":
     "Downloading… keep the app open (this can take several minutes)",
   "localai.card.needsRunning": "Start Ollama to download from here.",
+  "localai.card.downloaded": "Downloaded {model}.",
+  "localai.card.downloadFailed":
+    "Couldn't download that model. Check Ollama and try again.",
+  "localai.model.gemma.blurb":
+    "Balanced quality — a strong all-rounder for most machines.",
+  "localai.model.qwen.blurb":
+    "Lighter and faster — a good pick for modest laptops.",
 
   "action.checkAgain": "Check again",
   "a11y.opensInNewTab": " (opens in new tab)",
@@ -310,6 +336,9 @@ const en = {
   "search.announce.copied": "Copied to clipboard.",
   "search.hit.document": "imported document",
   "search.hit.confirmed": "confirmed plan",
+  "search.label.flight": "Flight {subject}",
+  "search.label.flightGeneric": "Flight",
+  "search.label.stayGeneric": "Stay",
 
   "addFact.title": "Add a flight or stay",
   "addFact.description":
@@ -368,6 +397,10 @@ const en = {
   "brief.empty":
     "No confirmed flights or stays yet. Confirm some plans to fill the brief.",
   "brief.redaction": "Hidden from this brief: {fields}.",
+  "contract.redacted.confirmationCodes": "Confirmation codes",
+  "contract.redacted.travelerNames": "Traveler names",
+  "contract.redacted.addresses": "Addresses",
+  "contract.withheld.importedDocumentText": "Imported document text",
 
   "review.title": "Review suggestions",
   "review.description":
@@ -395,6 +428,7 @@ const en = {
   "providers.status.keyStored": "Key stored",
   "providers.status.noKey": "No key",
   "providers.error": "Couldn't save that — nothing was changed.",
+  "providers.keyRejected": "That API key was rejected. Check it and try again.",
   "providers.stored": "API key stored in your keychain.",
   "providers.removeKey": "Remove key",
   "providers.apiKey": "{provider} API key",
@@ -491,6 +525,8 @@ const en = {
   "recs.dim.nature": "Nature",
   "recs.dim.nightlife": "Nightlife",
   "recs.dim.shopping": "Shopping",
+  "recs.reason.interest": "Matches your interest in {dimension}",
+  "recs.reason.wildcard": "A change of pace from your top picks",
   "recs.preset.balanced": "Balanced",
   "recs.preset.foodie": "Foodie",
   "recs.preset.explorer": "Explorer",
@@ -557,6 +593,8 @@ const en = {
   "workspaceSearch.source.trip_item": "Traveler-authored plan",
   "workspaceSearch.archived": "Archived trip",
   "workspaceSearch.updated": "Trip updated {date}",
+  "workspaceSearch.label.confirmedFact": "Confirmed fact",
+  "workspaceSearch.label.note": "Trip notes",
   "dataSources.title": "Data sources & licenses",
   "dataSources.intro":
     "See what Voyalier uses, when a network request happens, the required attribution, and what each source can — and cannot — establish.",
@@ -568,6 +606,99 @@ const en = {
   "dataSources.group.consentFetched": "Fetched with consent",
   "dataSources.group.offlineDownloads": "Offline downloads",
   "dataSources.group.optionalAi": "Optional AI",
+  "dataSources.uk-fcdo.use": "Official travel advice",
+  "dataSources.uk-fcdo.network":
+    "Fetched only when you request official advice",
+  "dataSources.uk-fcdo.authority":
+    "Official UK government advice; written for UK nationals",
+  "dataSources.us-state.use": "Official travel advisories",
+  "dataSources.us-state.network":
+    "Fetched only when you request official advice",
+  "dataSources.us-state.authority":
+    "Official U.S. government advice; written for U.S. nationals",
+  "dataSources.ca-gac.use": "Official travel advisories",
+  "dataSources.ca-gac.network": "Fetched only when you request official advice",
+  "dataSources.ca-gac.authority":
+    "Official Canadian government advice; written for Canadian nationals",
+  "dataSources.de-aa.use": "Official travel advisories",
+  "dataSources.de-aa.network": "Fetched only when you request official advice",
+  "dataSources.de-aa.authority":
+    "Official German government advice; source wording may remain German",
+  "dataSources.us-cdc.use": "Travel health notices",
+  "dataSources.us-cdc.network": "Fetched with the official-advice panel",
+  "dataSources.us-cdc.authority":
+    "Official U.S. public-health notices; informational, not personal medical advice",
+  "dataSources.open-meteo.use":
+    "Geocoding, weather, climate normals, and air quality",
+  "dataSources.open-meteo.network":
+    "Fetched only when you request a weather or destination snapshot",
+  "dataSources.open-meteo.authority":
+    "Forecast and historical observations; never safety or itinerary authority",
+  "dataSources.nws.use": "Active U.S. weather alerts near a destination",
+  "dataSources.nws.network":
+    "Fetched with a requested weather snapshot for U.S. coordinates",
+  "dataSources.nws.authority":
+    "Official alert feed; timestamps and source wording remain visible",
+  "dataSources.ecb.use": "Reference exchange rates",
+  "dataSources.ecb.network": "Fetched with destination facts",
+  "dataSources.ecb.authority":
+    "Reference rates, not a quoted retail conversion price",
+  "dataSources.nager-date.use": "Public holidays",
+  "dataSources.nager-date.network": "Fetched only when you request holidays",
+  "dataSources.nager-date.authority":
+    "Informational calendar data; never entry or closure authority",
+  "dataSources.wikimedia.use": "Destination summaries",
+  "dataSources.wikimedia.network":
+    "Fetched only when you request an about-place summary",
+  "dataSources.wikimedia.authority":
+    "Community-written context; never safety, price, or opening-hours authority",
+  "dataSources.openfreemap.use": "Online map style and vector tiles",
+  "dataSources.openfreemap.network":
+    "Fetched only after you select Show map without an offline basemap",
+  "dataSources.openfreemap.authority":
+    "Visual map context with no routing, live-access, or availability claim",
+  "dataSources.overture.use": "Offline city-pack places",
+  "dataSources.overture.network":
+    "Downloaded only when you request a city pack",
+  "dataSources.overture.authority":
+    "Open place data; recommendations do not assert live hours, prices, or availability",
+  "dataSources.wikivoyage.use": "Offline city travel notes",
+  "dataSources.wikivoyage.network":
+    "Downloaded only when you request a city pack",
+  "dataSources.wikivoyage.authority":
+    "Community-written travel context; shown separately from place data",
+  "dataSources.protomaps-osm.use": "Offline maps",
+  "dataSources.protomaps-osm.network":
+    "Downloaded only when you request a city pack's offline map",
+  "dataSources.protomaps-osm.authority":
+    "Basemap context; not routing, access, or opening-hours authority",
+  "dataSources.geonames.use": "Bundled city autocomplete",
+  "dataSources.geonames.network": "Bundled with the app; no runtime request",
+  "dataSources.geonames.authority": "Place-name autocomplete only",
+  "dataSources.ourairports.use": "Bundled nearest-airport lookup",
+  "dataSources.ourairports.network": "Bundled with the app; no runtime request",
+  "dataSources.ourairports.authority":
+    "Geographic airport proximity only; not flight availability",
+  "dataSources.wikidata-heritage.use": "Bundled World Heritage site lookup",
+  "dataSources.wikidata-heritage.network":
+    "Bundled with the app; no runtime request",
+  "dataSources.wikidata-heritage.authority":
+    "Convenience lookup from a dated extract; not a complete UNESCO registry",
+  "dataSources.ollama.use": "Optional on-device AI assistance",
+  "dataSources.ollama.network":
+    "Called only after preview and explicit consent; requests stay on localhost",
+  "dataSources.ollama.authority":
+    "Draft assistance only; never a second forecast or booking authority",
+  "dataSources.openai.use": "Optional bring-your-own-key cloud assistance",
+  "dataSources.openai.network":
+    "The exact redacted preview is sent only after explicit consent",
+  "dataSources.openai.authority":
+    "Draft assistance only; output remains untrusted and evidence-bound",
+  "dataSources.anthropic.use": "Optional bring-your-own-key cloud assistance",
+  "dataSources.anthropic.network":
+    "The exact redacted preview is sent only after explicit consent",
+  "dataSources.anthropic.authority":
+    "Draft assistance only; output remains untrusted and evidence-bound",
 
   "advice.title": "Official travel advice",
   "advice.announce.saved": "Official advice for {country} saved.",
@@ -743,6 +874,15 @@ const en = {
     "This request would run locally on this device via {provider}.",
   "assist.model": "Model: {model}",
   "assist.grounded": "Based on {sources}",
+  "assist.grounding.flight.one": "1 confirmed flight",
+  "assist.grounding.flight.other": "{count} confirmed flights",
+  "assist.grounding.stay.one": "1 confirmed stay",
+  "assist.grounding.stay.other": "{count} confirmed stays",
+  "assist.grounding.document.one": "1 imported document",
+  "assist.grounding.document.other": "{count} imported documents",
+  "assist.grounding.tripDates": "trip dates",
+  "assist.grounding.noDocuments": "no imported documents yet",
+  "assist.grounding.confirmedEvidence": "confirmed trip evidence",
   "assist.noGrounding": "No confirmed plans to draw on yet",
   "assist.tokens": "~{tokens} tokens",
   "assist.systemInstruction": "System instruction",
@@ -1110,6 +1250,8 @@ const es: Record<MessageKey, string> = {
   "backup.confirmPassphrase.placeholder": "Confirmar frase de contraseña",
   "backup.error.tooShort": "Usa al menos {min} caracteres.",
   "backup.error.mismatch": "Las frases de contraseña no coinciden.",
+  "backup.error.newerVersion":
+    "Esta copia se creó con una versión más reciente de Voyalier. Actualiza la aplicación y vuelve a restaurarla.",
   "backup.error.generic": "Eso no funcionó. Inténtalo de nuevo.",
   "vault.section": "Cifrado",
   "vault.inactive":
@@ -1186,10 +1328,18 @@ const es: Record<MessageKey, string> = {
   "error.assistUnreachable.body":
     "Voyalier no pudo contactar con la IA. Si usas una IA en el dispositivo, asegúrate de que Ollama esté ejecutándose (y que un modelo esté descargado), luego intenta de nuevo. Para un proveedor en la nube, revisa tu conexión. No se realizó ningún cambio.",
   "error.weatherFetch.title": "No se pudo obtener el pronóstico del tiempo",
+  "error.weatherFetch.body":
+    "Revisa el destino y tu conexión, y vuelve a intentarlo.",
   "error.packDownload.title": "No se pudo descargar el paquete de esa ciudad",
   "error.packDownload.body":
     "Voyalier no pudo obtener el paquete en este momento. Revisa tu conexión e inténtalo de nuevo; no se realizó ningún cambio.",
   "error.validation.title": "Revisa los campos resaltados",
+  "error.validation.body":
+    "Revisa los valores ingresados e inténtalo de nuevo.",
+  "tripFieldError.origin": "Ingresa un origen de viaje válido.",
+  "tripFieldError.destination": "Ingresa un destino de viaje válido.",
+  "tripFieldError.dateRange":
+    "Usa un intervalo de fechas válido con el inicio primero.",
   "error.unexpected.title": "Algo salió mal",
   "error.unexpected.body":
     "Ocurrió un error inesperado. No se realizó ningún cambio.",
@@ -1250,6 +1400,7 @@ const es: Record<MessageKey, string> = {
   "tripcard.archive": "Archivar",
   "tripcard.unarchive": "Desarchivar",
   "tripcard.delete": "Eliminar",
+  "tripcard.toReview": "por revisar",
   "status.trip.draft": "Borrador",
   "status.trip.active": "Activo",
   "status.trip.archived": "Archivado",
@@ -1305,6 +1456,16 @@ const es: Record<MessageKey, string> = {
   "today.empty.active": "No hay nada programado para hoy.",
   "today.empty.other": "Sin planes para hoy.",
   "today.next": "Siguiente",
+  "today.item.depart": "Salida — {subject}",
+  "today.item.departGeneric": "Salida del vuelo",
+  "today.item.arrive": "Llegada — {subject}",
+  "today.item.arriveGeneric": "Llegada del vuelo",
+  "today.item.checkin": "Llegada al alojamiento — {subject}",
+  "today.item.checkinGeneric": "Llegada al alojamiento",
+  "today.item.checkout": "Salida del alojamiento — {subject}",
+  "today.item.checkoutGeneric": "Salida del alojamiento",
+  "today.item.staying": "Estancia en {subject}",
+  "today.item.stayingGeneric": "Estancia esta noche",
   "today.error":
     "No se pudo cargar la agenda de hoy. El resto del viaje está bien.",
   "localai.title": "IA en el dispositivo",
@@ -1346,6 +1507,13 @@ const es: Record<MessageKey, string> = {
   "localai.card.downloading":
     "Descargando… mantén la app abierta (esto puede tardar varios minutos)",
   "localai.card.needsRunning": "Inicia Ollama para descargar desde aquí.",
+  "localai.card.downloaded": "Se descargó {model}.",
+  "localai.card.downloadFailed":
+    "No se pudo descargar ese modelo. Revisa Ollama e inténtalo de nuevo.",
+  "localai.model.gemma.blurb":
+    "Calidad equilibrada: una opción versátil y sólida para la mayoría de los equipos.",
+  "localai.model.qwen.blurb":
+    "Más ligero y rápido: una buena opción para portátiles modestos.",
   "action.checkAgain": "Verificar de nuevo",
   "a11y.opensInNewTab": " (se abre en una pestaña nueva)",
   "a11y.skipToContent": "Saltar al contenido",
@@ -1368,6 +1536,9 @@ const es: Record<MessageKey, string> = {
   "search.announce.copied": "Copiado al portapapeles.",
   "search.hit.document": "documento importado",
   "search.hit.confirmed": "plan confirmado",
+  "search.label.flight": "Vuelo {subject}",
+  "search.label.flightGeneric": "Vuelo",
+  "search.label.stayGeneric": "Estancia",
   "addFact.title": "Agregar vuelo o estancia",
   "addFact.description":
     "Ingresa un vuelo o una estancia manualmente. Las entradas manuales son tuyas y aparecen en el Blueprint de inmediato.",
@@ -1425,6 +1596,10 @@ const es: Record<MessageKey, string> = {
   "brief.empty":
     "Aún no hay vuelos ni estancias confirmados. Confirma algunos planes para completar el resumen.",
   "brief.redaction": "Oculto en este resumen: {fields}.",
+  "contract.redacted.confirmationCodes": "Códigos de confirmación",
+  "contract.redacted.travelerNames": "Nombres de los viajeros",
+  "contract.redacted.addresses": "Direcciones",
+  "contract.withheld.importedDocumentText": "Texto de documentos importados",
   "review.title": "Revisar sugerencias",
   "review.description":
     "Voyalier encontró esto en tus documentos. Nada se guarda hasta que lo confirmes; revisa la evidencia citada para cada campo.",
@@ -1451,6 +1626,8 @@ const es: Record<MessageKey, string> = {
   "providers.status.keyStored": "Clave guardada",
   "providers.status.noKey": "Sin clave",
   "providers.error": "No se pudo guardar; no hubo cambios.",
+  "providers.keyRejected":
+    "Esa clave de API fue rechazada. Revísala e inténtalo de nuevo.",
   "providers.stored": "Clave API guardada en tu llavero.",
   "providers.removeKey": "Eliminar clave",
   "providers.apiKey": "Clave API de {provider}",
@@ -1547,6 +1724,8 @@ const es: Record<MessageKey, string> = {
   "recs.dim.nature": "Naturaleza",
   "recs.dim.nightlife": "Vida nocturna",
   "recs.dim.shopping": "Compras",
+  "recs.reason.interest": "Coincide con tu interés en {dimension}",
+  "recs.reason.wildcard": "Una alternativa a tus opciones principales",
   "recs.preset.balanced": "Equilibrado",
   "recs.preset.foodie": "Gastronómico",
   "recs.preset.explorer": "Explorador",
@@ -1613,6 +1792,8 @@ const es: Record<MessageKey, string> = {
   "workspaceSearch.source.trip_item": "Plan del viajero",
   "workspaceSearch.archived": "Viaje archivado",
   "workspaceSearch.updated": "Viaje actualizado el {date}",
+  "workspaceSearch.label.confirmedFact": "Dato confirmado",
+  "workspaceSearch.label.note": "Notas del viaje",
   "dataSources.title": "Fuentes de datos y licencias",
   "dataSources.intro":
     "Mira qué usa Voyalier, cuándo ocurre una solicitud de red, la atribución requerida y qué puede —y qué no puede— establecer cada fuente.",
@@ -1624,6 +1805,109 @@ const es: Record<MessageKey, string> = {
   "dataSources.group.consentFetched": "Obtenido con consentimiento",
   "dataSources.group.offlineDownloads": "Descargas sin conexión",
   "dataSources.group.optionalAi": "IA opcional",
+  "dataSources.uk-fcdo.use": "Avisos de viaje oficiales",
+  "dataSources.uk-fcdo.network":
+    "Se obtiene solo cuando solicitas avisos oficiales",
+  "dataSources.uk-fcdo.authority":
+    "Aviso oficial del Gobierno británico; escrito para nacionales del Reino Unido",
+  "dataSources.us-state.use": "Avisos de viaje oficiales",
+  "dataSources.us-state.network":
+    "Se obtiene solo cuando solicitas avisos oficiales",
+  "dataSources.us-state.authority":
+    "Aviso oficial del Gobierno de EE. UU.; escrito para nacionales estadounidenses",
+  "dataSources.ca-gac.use": "Avisos de viaje oficiales",
+  "dataSources.ca-gac.network":
+    "Se obtiene solo cuando solicitas avisos oficiales",
+  "dataSources.ca-gac.authority":
+    "Aviso oficial del Gobierno canadiense; escrito para nacionales canadienses",
+  "dataSources.de-aa.use": "Avisos de viaje oficiales",
+  "dataSources.de-aa.network":
+    "Se obtiene solo cuando solicitas avisos oficiales",
+  "dataSources.de-aa.authority":
+    "Aviso oficial del Gobierno alemán; el texto de origen puede permanecer en alemán",
+  "dataSources.us-cdc.use": "Avisos de salud para viajeros",
+  "dataSources.us-cdc.network": "Se obtiene con el panel de avisos oficiales",
+  "dataSources.us-cdc.authority":
+    "Avisos oficiales de salud pública de EE. UU.; informativos, no son consejo médico personal",
+  "dataSources.open-meteo.use":
+    "Geocodificación, tiempo, normales climáticas y calidad del aire",
+  "dataSources.open-meteo.network":
+    "Se obtiene solo cuando solicitas una instantánea meteorológica o del destino",
+  "dataSources.open-meteo.authority":
+    "Pronósticos y observaciones históricas; nunca es autoridad sobre seguridad o itinerarios",
+  "dataSources.nws.use":
+    "Alertas meteorológicas activas de EE. UU. cerca de un destino",
+  "dataSources.nws.network":
+    "Se obtiene con una instantánea meteorológica solicitada para coordenadas de EE. UU.",
+  "dataSources.nws.authority":
+    "Fuente oficial de alertas; las marcas de tiempo y el texto de origen permanecen visibles",
+  "dataSources.ecb.use": "Tipos de cambio de referencia",
+  "dataSources.ecb.network": "Se obtiene con los datos del destino",
+  "dataSources.ecb.authority":
+    "Tipos de referencia, no un precio minorista de conversión cotizado",
+  "dataSources.nager-date.use": "Días festivos",
+  "dataSources.nager-date.network":
+    "Se obtiene solo cuando solicitas días festivos",
+  "dataSources.nager-date.authority":
+    "Datos de calendario informativos; nunca son autoridad de entrada o cierres",
+  "dataSources.wikimedia.use": "Resúmenes de destinos",
+  "dataSources.wikimedia.network":
+    "Se obtiene solo cuando solicitas un resumen del lugar",
+  "dataSources.wikimedia.authority":
+    "Contexto escrito por la comunidad; nunca es autoridad sobre seguridad, precios u horarios",
+  "dataSources.openfreemap.use":
+    "Estilo de mapa en línea y teselas vectoriales",
+  "dataSources.openfreemap.network":
+    "Se obtiene solo después de elegir Mostrar mapa sin un mapa base sin conexión",
+  "dataSources.openfreemap.authority":
+    "Contexto visual del mapa sin afirmar rutas, acceso en vivo ni disponibilidad",
+  "dataSources.overture.use": "Lugares de paquetes urbanos sin conexión",
+  "dataSources.overture.network":
+    "Se descarga solo cuando solicitas un paquete urbano",
+  "dataSources.overture.authority":
+    "Datos abiertos de lugares; las recomendaciones no afirman horarios, precios ni disponibilidad actuales",
+  "dataSources.wikivoyage.use": "Notas urbanas de viaje sin conexión",
+  "dataSources.wikivoyage.network":
+    "Se descarga solo cuando solicitas un paquete urbano",
+  "dataSources.wikivoyage.authority":
+    "Contexto de viaje escrito por la comunidad; se muestra separado de los datos de lugares",
+  "dataSources.protomaps-osm.use": "Mapas sin conexión",
+  "dataSources.protomaps-osm.network":
+    "Se descarga solo cuando solicitas el mapa sin conexión de un paquete urbano",
+  "dataSources.protomaps-osm.authority":
+    "Contexto de mapa base; no es autoridad sobre rutas, acceso u horarios",
+  "dataSources.geonames.use": "Autocompletado de ciudades incluido",
+  "dataSources.geonames.network":
+    "Incluido con la app; sin solicitudes durante el uso",
+  "dataSources.geonames.authority": "Solo autocompletado de topónimos",
+  "dataSources.ourairports.use": "Búsqueda incluida de aeropuertos cercanos",
+  "dataSources.ourairports.network":
+    "Incluido con la app; sin solicitudes durante el uso",
+  "dataSources.ourairports.authority":
+    "Solo proximidad geográfica de aeropuertos; no disponibilidad de vuelos",
+  "dataSources.wikidata-heritage.use":
+    "Búsqueda incluida de sitios del Patrimonio Mundial",
+  "dataSources.wikidata-heritage.network":
+    "Incluido con la app; sin solicitudes durante el uso",
+  "dataSources.wikidata-heritage.authority":
+    "Consulta práctica de una extracción fechada; no es un registro completo de la UNESCO",
+  "dataSources.ollama.use": "Asistencia opcional de IA en el dispositivo",
+  "dataSources.ollama.network":
+    "Se usa solo después de una vista previa y consentimiento explícito; las solicitudes permanecen en localhost",
+  "dataSources.ollama.authority":
+    "Solo asistencia para borradores; nunca es un segundo pronóstico ni autoridad de reservas",
+  "dataSources.openai.use":
+    "Asistencia opcional en la nube con tu propia clave",
+  "dataSources.openai.network":
+    "La vista previa redactada exacta se envía solo después de una vista previa y consentimiento explícito",
+  "dataSources.openai.authority":
+    "Solo asistencia para borradores; el resultado sigue siendo no confiable y ligado a la evidencia",
+  "dataSources.anthropic.use":
+    "Asistencia opcional en la nube con tu propia clave",
+  "dataSources.anthropic.network":
+    "La vista previa redactada exacta se envía solo después de una vista previa y consentimiento explícito",
+  "dataSources.anthropic.authority":
+    "Solo asistencia para borradores; el resultado sigue siendo no confiable y ligado a la evidencia",
   "advice.title": "Aviso de viaje oficial",
   "advice.announce.saved": "Aviso oficial para {country} guardado.",
   "advice.stale":
@@ -1779,6 +2063,15 @@ const es: Record<MessageKey, string> = {
     "Esta solicitud se ejecutaría localmente en este dispositivo a través de {provider}.",
   "assist.model": "Modelo: {model}",
   "assist.grounded": "Basado en {sources}",
+  "assist.grounding.flight.one": "1 vuelo confirmado",
+  "assist.grounding.flight.other": "{count} vuelos confirmados",
+  "assist.grounding.stay.one": "1 estancia confirmada",
+  "assist.grounding.stay.other": "{count} estancias confirmadas",
+  "assist.grounding.document.one": "1 documento importado",
+  "assist.grounding.document.other": "{count} documentos importados",
+  "assist.grounding.tripDates": "fechas del viaje",
+  "assist.grounding.noDocuments": "aún no hay documentos importados",
+  "assist.grounding.confirmedEvidence": "datos confirmados del viaje",
   "assist.noGrounding": "Aún no hay planes confirmados para usar como base",
   "assist.tokens": "~{tokens} tokens",
   "assist.systemInstruction": "Instrucción del sistema",
@@ -2118,9 +2411,13 @@ function localeChain(locale: string): string[] {
 
 function interpolate(template: string, vars?: Vars): string {
   if (!vars) return template;
-  return template.replace(/\{(\w+)\}/g, (whole, name: string) =>
-    name in vars ? String(vars[name]) : whole,
-  );
+  return template.replace(/\{(\w+)\}/g, (whole, name: string) => {
+    if (!(name in vars)) return whole;
+    const value = vars[name];
+    return typeof value === "number"
+      ? new Intl.NumberFormat(APP_LOCALE).format(value)
+      : String(value);
+  });
 }
 
 /**

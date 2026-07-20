@@ -1,0 +1,19 @@
+{
+  "$comment": "Golden cases for the persisted saved-place identity. Rust and TypeScript both assert this file because disagreement can make the real service and UI/mock accept different duplicates.",
+  "cases": [
+    { "input": "Café Place", "expected": "cafe place" },
+    { "input": "cafe-place", "expected": "cafe place" },
+    { "input": "Říčany", "expected": "ricany" },
+    { "input": "İstanbul", "expected": "istanbul" },
+    { "input": "Weißenburg", "expected": "weisenburg" },
+    { "input": "Tromsø", "expected": "tromso" },
+    { "input": "ΟΣ", "expected": "οσ" },
+    { "input": "ος", "expected": "οσ" },
+    { "input": "東京", "expected": "東京" },
+    { "input": "大阪", "expected": "大阪" },
+    { "input": "東京 A", "expected": "東京 a" },
+    { "input": "大阪 A", "expected": "大阪 a" },
+    { "input": "Oʻahu", "expected": "oahu" },
+    { "input": "!!!", "expected": "codepoints:21-21-21" }
+  ]
+}

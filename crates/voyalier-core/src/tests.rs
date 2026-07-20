@@ -357,6 +357,26 @@ fn parity_normalize_place_matches_the_contract() {
     assert_eq!(checked, 23, "every golden case must be checked");
 }
 
+#[test]
+fn parity_saved_place_identity_matches_the_contract() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../packages/contracts/parity/saved-place-identity.json");
+    let raw = fs::read_to_string(&path).expect("parity/saved-place-identity.json");
+    let golden: Value = serde_json::from_str(&raw).expect("valid json");
+    let cases = golden["cases"].as_array().expect("cases array");
+
+    for case in cases {
+        let input = case["input"].as_str().expect("input");
+        let expected = case["expected"].as_str().expect("expected");
+        assert_eq!(
+            crate::packs::saved_place_identity(input),
+            expected,
+            "saved_place_identity({input:?})"
+        );
+    }
+    assert_eq!(cases.len(), 14, "every golden case must be checked");
+}
+
 /// Every `ErrorCode` appears in the contract's AppError schema.
 ///
 /// `rust_examples_validate_against_contract_schemas` validates one hardcoded

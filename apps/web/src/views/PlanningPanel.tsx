@@ -8,9 +8,10 @@ import type {
 } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
-import { describeError } from "../app/format";
+import { describeError, formatDateTimeLocal } from "../app/format";
 import { t, type MessageKey } from "../app/i18n";
 import { Button } from "../components/Button";
+import { ConfirmButton } from "../components/ConfirmButton";
 import { CheckIcon, PlusIcon } from "../components/icons";
 import { SectionTitle } from "../components/primitives";
 import { toAppError } from "../gateway/errors";
@@ -91,7 +92,14 @@ export function PlanningPanel({
         ) : (
           <ul className="voy-planning__list">
             {savedPlaces.map((place) => (
-              <li key={place.id} className="voy-planning__card">
+              <li
+                key={place.id}
+                className="voy-planning__card"
+                tabIndex={-1}
+                data-search-source="saved_place"
+                data-search-record={place.id}
+                data-testid={`search-target-saved_place-${place.id}`}
+              >
                 <div>
                   <strong>{place.name}</strong>
                   <p>
@@ -152,20 +160,18 @@ export function PlanningPanel({
                   >
                     {t("planning.saved.addToPlan")}
                   </Button>
-                  <Button
-                    variant="ghost"
-                    aria-label={t("planning.removeNamed", {
+                  <ConfirmButton
+                    label={t("planning.remove")}
+                    ariaLabel={t("planning.removeNamed", {
                       name: place.name,
                     })}
                     busy={busy === `delete-place:${place.id}`}
-                    onClick={() =>
+                    onConfirm={() =>
                       change(`delete-place:${place.id}`, () =>
                         gateway.deleteSavedPlace(place.id),
                       )
                     }
-                  >
-                    {t("planning.remove")}
-                  </Button>
+                  />
                 </div>
               </li>
             ))}
@@ -305,18 +311,16 @@ export function PlanningPanel({
                   {t("planning.items.edit")}
                 </Button>
               )}
-              <Button
-                variant="ghost"
-                aria-label={t("planning.removeNamed", { name: item.label })}
+              <ConfirmButton
+                label={t("planning.remove")}
+                ariaLabel={t("planning.removeNamed", { name: item.label })}
                 busy={busy === `delete-packing:${item.id}`}
-                onClick={() =>
+                onConfirm={() =>
                   change(`delete-packing:${item.id}`, () =>
                     gateway.deletePackingItem(item.id),
                   )
                 }
-              >
-                {t("planning.remove")}
-              </Button>
+              />
             </li>
           ))}
         </ul>
@@ -426,13 +430,22 @@ export function PlanningPanel({
         </form>
         <ul className="voy-planning__list">
           {tripItems.map((item) => (
-            <li key={item.id} className="voy-planning__card">
+            <li
+              key={item.id}
+              className="voy-planning__card"
+              tabIndex={-1}
+              data-search-source="trip_item"
+              data-search-record={item.id}
+              data-testid={`search-target-trip_item-${item.id}`}
+            >
               <div>
                 <strong>{item.title}</strong>
                 <p>
                   {t(`planning.items.${item.kind}` as MessageKey)}
                   {item.location ? ` · ${item.location}` : ""}
-                  {item.startAt ? ` · ${item.startAt}` : ""}
+                  {item.startAt
+                    ? ` · ${formatDateTimeLocal(item.startAt)}`
+                    : ""}
                 </p>
               </div>
               <div className="voy-planning__actions">
@@ -454,20 +467,18 @@ export function PlanningPanel({
                 >
                   {t("planning.items.edit")}
                 </Button>
-                <Button
-                  variant="ghost"
-                  aria-label={t("planning.items.removeLabel", {
+                <ConfirmButton
+                  label={t("planning.remove")}
+                  ariaLabel={t("planning.items.removeLabel", {
                     name: item.title,
                   })}
                   busy={busy === `delete-item:${item.id}`}
-                  onClick={() =>
+                  onConfirm={() =>
                     change(`delete-item:${item.id}`, () =>
                       gateway.deleteTripItem(item.id),
                     )
                   }
-                >
-                  {t("planning.remove")}
-                </Button>
+                />
               </div>
             </li>
           ))}

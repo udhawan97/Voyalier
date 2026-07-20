@@ -109,7 +109,7 @@ describe("On-device AI lodging draft", () => {
       }),
     );
     expect(
-      await within(region).findByText(/didn't match the expected format/),
+      await within(region).findByText(/couldn't complete the request/),
     ).toBeInTheDocument();
     // No review dialog opened — nothing was drafted.
     expect(

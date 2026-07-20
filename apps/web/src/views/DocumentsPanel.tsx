@@ -92,7 +92,12 @@ function DocumentRow({
   const error = showAction.error ?? removeAction.error;
 
   return (
-    <li className="voy-doc">
+    <li
+      className="voy-doc"
+      tabIndex={-1}
+      data-search-source="document"
+      data-search-record={document.id}
+    >
       <div className="voy-doc__head">
         <span className="voy-doc__icon" aria-hidden="true">
           <FileTextIcon />

@@ -11,6 +11,7 @@ import type {
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError, formatDate, formatDateTimeLocal } from "../app/format";
 import { t } from "../app/i18n";
+import { APP_LOCALE } from "../app/locale";
 import { SectionTitle } from "../components/primitives";
 import { GlobeIcon } from "../components/icons";
 import { useAsyncAction } from "../app/useAsync";
@@ -148,7 +149,7 @@ function Money({
                   {t("facts.money.rate", {
                     from: row.from,
                     to: currencyCode,
-                    value: row.value.toLocaleString(undefined, {
+                    value: row.value.toLocaleString(APP_LOCALE, {
                       maximumFractionDigits: 2,
                     }),
                   })}
@@ -271,7 +272,9 @@ function Heritage({ sites }: { sites: HeritageSite[] }) {
               {site.year
                 ? t("facts.heritage.rowYear", {
                     name: site.name,
-                    year: site.year,
+                    // A year is an identifier, not a quantity; locale grouping
+                    // would turn 1994 into 1,994 in English.
+                    year: String(site.year),
                   })
                 : site.name}
             </span>

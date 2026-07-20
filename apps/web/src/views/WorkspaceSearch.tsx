@@ -9,12 +9,20 @@ import { Button } from "../components/Button";
 import { ArrowLeftIcon, SearchIcon } from "../components/icons";
 import { SectionTitle } from "../components/primitives";
 
+function resultLabel(hit: WorkspaceSearchHit): string {
+  if (hit.source === "confirmed_fact") {
+    return t("workspaceSearch.label.confirmedFact");
+  }
+  if (hit.source === "note") return t("workspaceSearch.label.note");
+  return hit.label;
+}
+
 export function WorkspaceSearch({
   onBack,
-  onOpenTrip,
+  onOpenResult,
 }: {
   onBack: () => void;
-  onOpenTrip: (tripId: string) => void;
+  onOpenResult: (hit: WorkspaceSearchHit) => void;
 }) {
   const gateway = useGateway();
   const [query, setQuery] = useState("");
@@ -92,8 +100,8 @@ export function WorkspaceSearch({
           <ul className="voy-workspace-search__results">
             {hits.map((hit) => (
               <li key={`${hit.source}:${hit.recordId}`}>
-                <button type="button" onClick={() => onOpenTrip(hit.tripId)}>
-                  <strong>{hit.label}</strong>
+                <button type="button" onClick={() => onOpenResult(hit)}>
+                  <strong>{resultLabel(hit)}</strong>
                   <span>
                     <span>{hit.tripTitle}</span> ·{" "}
                     <span>

@@ -1,10 +1,19 @@
-import { act, fireEvent, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type { WorkspaceSearchHit } from "@voyalier/contracts";
 import { createMockGateway } from "@voyalier/contracts";
 
+import { setLocalePreference } from "./app/locale";
 import { renderApp } from "./test/helpers";
 
 describe("workspace search", () => {
+  afterEach(() => setLocalePreference("en"));
+
   it("matches any query word and ranks records covering more words", async () => {
     const gateway = createMockGateway();
     await gateway.setTripNotes("trip_kyoto", "Maple museum route");
@@ -101,5 +110,93 @@ describe("workspace search", () => {
     )!;
     expect(within(result).getAllByText("Trip notes")).toHaveLength(2);
     expect(within(result).getByText("Archived trip")).toBeInTheDocument();
+  });
+
+  it("moves focus to the matching traveler-owned record", async () => {
+    const gateway = createMockGateway();
+    const item = await gateway.createTripItem({
+      tripId: "trip_kyoto",
+      kind: "activity",
+      title: "Ceramics workshop",
+      location: "Gion",
+      startAt: "2026-11-05T10:00",
+      endAt: "2026-11-05T12:00",
+    });
+    expect(await gateway.searchWorkspace("2026-11-05T10:00")).toEqual(
+      expect.arrayContaining([expect.objectContaining({ recordId: item.id })]),
+    );
+    renderApp(gateway);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Search workspace" }),
+    );
+    fireEvent.change(screen.getByLabelText("Search all trips"), {
+      target: { value: "Ceramics workshop" },
+    });
+    const result = await screen.findByRole("button", {
+      name: /Ceramics workshop.*Kyoto autumn journey/,
+    });
+    fireEvent.click(result);
+
+    const target = await screen.findByTestId(
+      `search-target-trip_item-${item.id}`,
+    );
+    await waitFor(() => expect(target).toHaveFocus());
+
+    const custom = screen.getByLabelText("Custom item");
+    const form = custom.closest("form")!;
+    const add = within(form).getByRole("button", { name: "Add" });
+    fireEvent.change(custom, { target: { value: "Revalidation marker" } });
+    add.focus();
+    fireEvent.click(add);
+    await screen.findByText("Revalidation marker");
+    expect(add).toHaveFocus();
+  });
+
+  it("localizes product-owned result labels while preserving source text", async () => {
+    const gateway = createMockGateway();
+    await gateway.setTripNotes("trip_kyoto", "Museo del papel");
+    await gateway.downloadPack("trip_kyoto", "jp-kyoto");
+    const weights = {
+      food: 1,
+      culture: 0.5,
+      nature: 0.5,
+      nightlife: 0.5,
+      shopping: 0.5,
+    };
+    const recommendation = (
+      await gateway.getRecommendations("trip_kyoto", weights)
+    )[0];
+    await gateway.savePlace({
+      tripId: "trip_kyoto",
+      recommendation,
+      weights,
+    });
+    setLocalePreference("es");
+    renderApp(gateway);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Buscar en el espacio de trabajo",
+      }),
+    );
+    fireEvent.change(screen.getByLabelText("Buscar en todos los viajes"), {
+      target: { value: "Museo" },
+    });
+
+    const result = (await screen.findByText("Kyoto autumn journey")).closest(
+      "button",
+    )!;
+    expect(within(result).getAllByText("Notas del viaje")).toHaveLength(2);
+    expect(within(result).queryByText("Trip notes")).not.toBeInTheDocument();
+    expect(result.textContent).not.toContain("Trip notes");
+    expect(
+      (await gateway.searchWorkspace("Trip notes")).filter(
+        (hit) => hit.source === "note",
+      ),
+    ).toHaveLength(0);
+    expect(await gateway.searchWorkspace("propertyName")).toHaveLength(0);
+    expect(await gateway.searchWorkspace("confirmationCode")).toHaveLength(0);
+    expect(await gateway.searchWorkspace("Matches your interest")).toHaveLength(
+      0,
+    );
   });
 });

@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     env, fs,
     io::{Read, Seek, SeekFrom},
     path::{Path, PathBuf},
@@ -34,15 +35,15 @@ use voyalier_core::{
     advisory_country, archive_window, assess_trip, build_assist_preview, build_assist_request,
     build_draft_preview, build_key_validation_request, build_packing_list, build_pull_body,
     build_today_view, build_trip_brief, changed_payload_fields, compute_astro_day, country_facts,
-    detect_planned_item_conflicts, entry_from_fcdo, estimate_tokens, geocode, holidays_within,
-    interpret_key_validation, interpret_pull_response, nearest_airports, new_id,
+    detect_planned_item_conflicts, entry_from_fcdo, estimate_tokens, fact_search_text, geocode,
+    holidays_within, interpret_key_validation, interpret_pull_response, nearest_airports, new_id,
     notices_for_country, now_rfc3339, offline_map_download_url, pack_catalog, pack_download_url,
     parse_air_quality, parse_assist_reply, parse_ca_gac, parse_cdc_notices, parse_climate_normals,
     parse_de_aa, parse_ecb_rates, parse_fcdo_content, parse_forecast_response, parse_import,
     parse_lodging_dates_reply, parse_nws_alerts, parse_pack_content, parse_us_state, place_summary,
     provider_info, public_holidays, rank_field_suggestions, recommend_attributed_places,
-    search_cities, search_trip_corpus, search_workspace_corpus, suggest_packs,
-    suggest_search_terms, time_difference, tipping_guidance, validate_api_key,
+    saved_place_identity, search_cities, search_trip_corpus, search_workspace_corpus,
+    suggest_packs, suggest_search_terms, time_difference, tipping_guidance, validate_api_key,
     validate_country_slug, validate_create_trip, validate_create_trip_item, validate_fact_payload,
     validate_model_name, validate_pack_id, validate_packing_label, validate_planning_notes,
     validate_provider_id, validate_search_query, validate_update_trip, world_heritage_near,
@@ -1174,39 +1175,41 @@ impl AppService {
 
     /// Snapshot a recommendation and its provenance into the trip shortlist.
     pub fn save_place(&self, input: SavePlaceInput) -> Result<SavedPlace, AppError> {
+        let SavePlaceInput {
+            trip_id,
+            recommendation: requested,
+            weights,
+            notes,
+        } = input;
+        let weights = weights.validate()?;
+        let requested_name = saved_place_identity(&requested.name);
+        let recommendation = self
+            .get_recommendations(&trip_id, weights)?
+            .into_iter()
+            .find(|candidate| {
+                candidate.pack_id == requested.pack_id
+                    && saved_place_identity(&candidate.name) == requested_name
+                    && candidate.lat == requested.lat
+                    && candidate.lon == requested.lon
+            })
+            .ok_or_else(|| {
+                AppError::with_detail(
+                    ErrorCode::ValidationInvalidInput,
+                    "the saved place identity is not a current recommendation from the downloaded pack",
+                    "field",
+                    "recommendation",
+                )
+            })?;
         let connection = self.connection()?;
-        self.records(&connection).trip(&input.trip_id)?;
-        let recommendation = input.recommendation;
-        if recommendation.pack_id.trim().is_empty() {
-            return Err(AppError::with_detail(
-                ErrorCode::ValidationInvalidInput,
-                "a saved place must identify its source pack",
-                "field",
-                "recommendation.packId",
-            ));
-        }
-        let source_pack_available: bool = connection
-            .query_row(
-                "SELECT EXISTS(SELECT 1 FROM downloaded_packs WHERE trip_id=?1 AND pack_id=?2)",
-                params![input.trip_id, recommendation.pack_id],
-                |row| row.get(0),
-            )
-            .map_err(storage_error)?;
-        if !source_pack_available {
-            return Err(AppError::with_detail(
-                ErrorCode::ValidationInvalidInput,
-                "the recommendation source pack is not downloaded for this trip",
-                "field",
-                "recommendation.packId",
-            ));
-        }
+        let source_pack_available = true;
         if let Some(existing) = self
             .records(&connection)
-            .saved_places(&input.trip_id)?
+            .saved_places(&trip_id)?
             .into_iter()
             .find(|place| {
                 place.pack_id == recommendation.pack_id
-                    && place.name == recommendation.name
+                    && saved_place_identity(&place.name)
+                        == saved_place_identity(&recommendation.name)
                     && place.lat == recommendation.lat
                     && place.lon == recommendation.lon
             })
@@ -1216,7 +1219,7 @@ impl AppService {
         let now = now_rfc3339();
         let place = SavedPlace {
             id: new_id("place"),
-            trip_id: input.trip_id,
+            trip_id,
             pack_id: recommendation.pack_id,
             source_pack_available,
             name: recommendation.name,
@@ -1228,12 +1231,28 @@ impl AppService {
             license: recommendation.license,
             reasons: recommendation.reasons,
             wildcard: recommendation.wildcard,
-            notes: validate_planning_notes(&input.notes)?,
+            notes: validate_planning_notes(&notes)?,
             created_at: now.clone(),
             updated_at: now,
         };
-        self.records(&connection).insert_saved_place(&place)?;
-        Ok(place)
+        if self.records(&connection).insert_saved_place(&place)? {
+            return Ok(place);
+        }
+        self.records(&connection)
+            .saved_places(&place.trip_id)?
+            .into_iter()
+            .find(|saved| {
+                saved.pack_id == place.pack_id
+                    && saved_place_identity(&saved.name) == saved_place_identity(&place.name)
+                    && saved.lat == place.lat
+                    && saved.lon == place.lon
+            })
+            .ok_or_else(|| {
+                AppError::new(
+                    ErrorCode::InternalUnexpected,
+                    "saved place identity conflicted without an existing record",
+                )
+            })
     }
 
     pub fn update_saved_place(&self, input: UpdateSavedPlaceInput) -> Result<SavedPlace, AppError> {
@@ -2355,6 +2374,7 @@ impl AppService {
                     FactType::FlightSegment => "Confirmed flight",
                     FactType::LodgingStay => "Confirmed lodging",
                 };
+                let text = fact_search_text(&fact);
                 owned.push(OwnedWorkspaceSearchRecord {
                     source: WorkspaceSearchSource::ConfirmedFact,
                     trip_id: trip.id.clone(),
@@ -2363,7 +2383,7 @@ impl AppService {
                     trip_updated_at: trip.updated_at.clone(),
                     record_id: fact.id,
                     label: label.to_owned(),
-                    text: serde_json::to_string(&fact.payload).map_err(storage_error)?,
+                    text,
                 });
             }
             let notes = self.records(&connection).trip_notes(&trip.id)?;
@@ -2388,12 +2408,10 @@ impl AppService {
                     trip_updated_at: trip.updated_at.clone(),
                     record_id: place.id,
                     label: place.name,
-                    text: format!(
-                        "{} {} {}",
-                        place.category,
-                        place.notes,
-                        place.reasons.join(" ")
-                    ),
+                    // The name and notes are source/traveler text. Category and
+                    // recommendation reasons are product-owned English labels
+                    // and must not leak into search or localized snippets.
+                    text: place.notes,
                 });
             }
             for item in self.records(&connection).trip_items(&trip.id)? {
@@ -4188,6 +4206,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "traveler_planning",
         run: migrate_traveler_planning,
     },
+    Migration {
+        to: 11,
+        name: "saved_place_folded_identity",
+        run: migrate_saved_place_folded_identity,
+    },
 ];
 
 /// The version a fully migrated database carries. Stamped into a backup's
@@ -4291,6 +4314,117 @@ fn migrate_traveler_planning(connection: &Connection) -> Result<(), AppError> {
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );",
+        )
+        .map_err(storage_error)
+}
+
+/// Persist the same folded place identity used by recommendation matching, so
+/// case, punctuation, and diacritics cannot create duplicate saved places.
+/// Existing duplicates are retired deterministically before the unique index
+/// is installed; their sealed notes remain in the database, while linked plan
+/// items point at the newest active saved record.
+fn migrate_saved_place_folded_identity(connection: &Connection) -> Result<(), AppError> {
+    let columns = {
+        let mut statement = connection
+            .prepare("PRAGMA table_info(saved_places)")
+            .map_err(storage_error)?;
+        statement
+            .query_map([], |row| row.get::<_, String>(1))
+            .map_err(storage_error)?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(storage_error)?
+    };
+    if !columns.iter().any(|column| column == "name_folded") {
+        connection
+            .execute_batch("ALTER TABLE saved_places ADD COLUMN name_folded TEXT;")
+            .map_err(storage_error)?;
+    }
+    if !columns.iter().any(|column| column == "merged_into") {
+        connection
+            .execute_batch(
+                "ALTER TABLE saved_places ADD COLUMN merged_into TEXT
+                 REFERENCES saved_places(id) ON DELETE CASCADE;",
+            )
+            .map_err(storage_error)?;
+    }
+
+    let rows = {
+        let mut statement = connection
+            .prepare(
+                "SELECT id, trip_id, pack_id, name, lat, lon
+                 FROM saved_places
+                 WHERE merged_into IS NULL
+                 ORDER BY updated_at DESC, id DESC",
+            )
+            .map_err(storage_error)?;
+        statement
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, f64>(4)?,
+                    row.get::<_, f64>(5)?,
+                ))
+            })
+            .map_err(storage_error)?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(storage_error)?
+    };
+
+    let mut keepers: HashMap<(String, String, String, u64, u64), String> = HashMap::new();
+    for (id, trip_id, pack_id, name, lat, lon) in rows {
+        let folded = saved_place_identity(&name);
+        let identity = (
+            trip_id,
+            pack_id,
+            folded.clone(),
+            lat.to_bits(),
+            lon.to_bits(),
+        );
+        if let Some(keeper) = keepers.get(&identity) {
+            connection
+                .execute(
+                    "UPDATE trip_items SET saved_place_id=?1 WHERE saved_place_id=?2",
+                    params![keeper, id],
+                )
+                .map_err(storage_error)?;
+            connection
+                .execute(
+                    "UPDATE saved_places SET name_folded=?2, merged_into=?3 WHERE id=?1",
+                    params![id, folded, keeper],
+                )
+                .map_err(storage_error)?;
+        } else {
+            connection
+                .execute(
+                    "UPDATE saved_places SET name_folded=?2 WHERE id=?1",
+                    params![id, folded],
+                )
+                .map_err(storage_error)?;
+            keepers.insert(identity, id);
+        }
+    }
+
+    connection
+        .execute_batch(
+            "DROP INDEX IF EXISTS saved_places_folded_identity;
+             CREATE UNIQUE INDEX saved_places_folded_identity
+             ON saved_places(trip_id, pack_id, name_folded, lat, lon)
+             WHERE merged_into IS NULL;
+             CREATE TRIGGER IF NOT EXISTS saved_places_require_folded_identity_insert
+             BEFORE INSERT ON saved_places
+             WHEN NEW.name_folded IS NULL
+             BEGIN
+                 SELECT RAISE(ABORT, 'saved place folded identity is required');
+             END;
+             CREATE TRIGGER IF NOT EXISTS saved_places_require_folded_identity_update
+             BEFORE UPDATE OF name_folded ON saved_places
+             WHEN NEW.name_folded IS NULL
+             BEGIN
+                 SELECT RAISE(ABORT, 'saved place folded identity is required');
+             END;",
         )
         .map_err(storage_error)
 }
@@ -5301,13 +5435,38 @@ mod tests {
             .get_recommendations(&trip.id, profile.weights)
             .expect("recommendations")
             .remove(0);
+        let mut forged = recommendation.clone();
+        forged.category = "forged_category".to_owned();
+        forged.dimension = "forged_dimension".to_owned();
+        forged.source = "Forged source".to_owned();
+        forged.license = "Forged license".to_owned();
+        forged.reasons = vec!["Forged reason".to_owned()];
         let saved = service
             .save_place(SavePlaceInput {
                 trip_id: trip.id.clone(),
-                recommendation,
+                recommendation: forged,
+                weights: profile.weights,
                 notes: "Quiet morning option".to_owned(),
             })
             .expect("saved place");
+        assert_eq!(saved.name, recommendation.name);
+        assert_eq!(saved.category, recommendation.category);
+        assert_eq!(saved.dimension, recommendation.dimension);
+        assert_eq!(saved.source, recommendation.source);
+        assert_eq!(saved.license, recommendation.license);
+        assert_eq!(saved.reasons, recommendation.reasons);
+
+        let mut folded_identity = recommendation.clone();
+        folded_identity.name = recommendation.name.to_lowercase();
+        let duplicate = service
+            .save_place(SavePlaceInput {
+                trip_id: trip.id.clone(),
+                recommendation: folded_identity,
+                weights: profile.weights,
+                notes: String::new(),
+            })
+            .expect("folded duplicate");
+        assert_eq!(duplicate.id, saved.id);
         let packing = service
             .add_packing_item(AddPackingItemInput {
                 trip_id: trip.id.clone(),
@@ -5372,6 +5531,13 @@ mod tests {
         let workspace_hits = service.search_workspace("quiet morning").expect("search");
         assert_eq!(workspace_hits[0].record_id, saved.id);
         assert_eq!(workspace_hits[0].trip_id, trip.id);
+        assert!(
+            service
+                .search_workspace("Matches your interest")
+                .expect("product reason query")
+                .is_empty(),
+            "generated recommendation reasons are not searchable content"
+        );
 
         drop(service);
         let reopened = AppService::open_path_with_deps(&database, Arc::new(UreqFetcher), secrets)
@@ -5602,6 +5768,21 @@ mod tests {
         assert!(
             hits.iter()
                 .any(|hit| hit.source == SearchHitSource::ConfirmedFact)
+        );
+        let workspace_hits = service
+            .search_workspace("Shuttle Side Inn")
+            .expect("workspace");
+        assert!(
+            workspace_hits
+                .iter()
+                .any(|hit| hit.source == WorkspaceSearchSource::ConfirmedFact)
+        );
+        assert!(
+            service
+                .search_workspace("propertyName")
+                .expect("product field query")
+                .is_empty(),
+            "contract field names are not searchable content"
         );
 
         // Validation and unknown-trip errors are deterministic.
@@ -8759,9 +8940,11 @@ mod tests {
             .connection()
             .expect("connection")
             .execute(
-                "INSERT INTO downloaded_packs
+                r#"INSERT INTO downloaded_packs
                     (trip_id, pack_id, name, region, place_count, article_count, content, downloaded_at)
-                 VALUES (?1, 'us-nashville', 'Nashville', 'Tennessee', 1, 0, '{}', 'now')",
+                 VALUES (?1, 'us-nashville', 'Nashville', 'Tennessee', 1, 0,
+                    '{"packId":"us-nashville","places":[{"name":"Frist Art Museum","category":"art_museum","lat":36.156,"lon":-86.783}],"articles":[]}',
+                    'now')"#,
                 params![trip.id],
             )
             .expect("pack prerequisite");
@@ -8780,6 +8963,10 @@ mod tests {
                     score: 1.0,
                     reasons: vec!["Matches your interest in culture".to_owned()],
                     wildcard: false,
+                },
+                weights: PersonaWeights {
+                    culture: 1.0,
+                    ..PersonaWeights::balanced()
                 },
                 notes: "Meet Hana by the side entrance".to_owned(),
             })
@@ -8934,6 +9121,103 @@ mod tests {
         sorted.dedup();
         assert_eq!(versions, sorted, "migration versions ascend and are unique");
         assert!(versions.first().is_some_and(|first| *first > 1));
+    }
+
+    #[test]
+    fn saved_place_identity_migration_merges_folded_duplicates_and_is_retry_safe() {
+        let connection = Connection::open_in_memory().expect("db");
+        connection
+            .execute_batch(
+                "PRAGMA foreign_keys = ON;
+                 CREATE TABLE trips (id TEXT PRIMARY KEY);
+                 INSERT INTO trips VALUES ('trip');",
+            )
+            .expect("base");
+        migrate_traveler_planning(&connection).expect("planning schema");
+        connection
+            .execute_batch(
+                "INSERT INTO saved_places VALUES
+                    ('old','trip','kyoto','Café Place','food','food',35.0,135.0,
+                     'source','license','[]',0,'notes','2026-01-01','2026-01-01'),
+                    ('new','trip','kyoto','cafe-place','food','food',35.0,135.0,
+                     'source','license','[]',0,'notes','2026-01-02','2026-01-02');
+                 INSERT INTO trip_items VALUES
+                    ('item','trip','activity','Visit',NULL,NULL,NULL,NULL,'old','2026-01-01','2026-01-01');",
+            )
+            .expect("legacy rows");
+
+        migrate_saved_place_folded_identity(&connection).expect("first migration");
+        migrate_saved_place_folded_identity(&connection).expect("retry migration");
+
+        let places: i64 = connection
+            .query_row(
+                "SELECT count(*) FROM saved_places WHERE merged_into IS NULL",
+                [],
+                |row| row.get(0),
+            )
+            .expect("place count");
+        assert_eq!(places, 1);
+        let kept: (String, String) = connection
+            .query_row(
+                "SELECT id, name_folded FROM saved_places WHERE merged_into IS NULL",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("keeper");
+        assert_eq!(kept, ("new".to_owned(), "cafe place".to_owned()));
+        let linked: String = connection
+            .query_row(
+                "SELECT saved_place_id FROM trip_items WHERE id='item'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("linked item");
+        assert_eq!(linked, "new");
+        let retired: (String, String) = connection
+            .query_row(
+                "SELECT merged_into, notes FROM saved_places WHERE id='old'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("retired duplicate");
+        assert_eq!(retired, ("new".to_owned(), "notes".to_owned()));
+
+        let duplicate = connection.execute(
+            "INSERT INTO saved_places
+                (id,trip_id,pack_id,name,name_folded,category,dimension,lat,lon,source,license,
+                 reasons_json,wildcard,notes,created_at,updated_at)
+             VALUES ('third','trip','kyoto','CAFÉ PLACE','cafe place','food','food',35.0,135.0,
+                     'source','license','[]',0,'notes','2026-01-03','2026-01-03')",
+            [],
+        );
+        assert!(
+            duplicate.is_err(),
+            "the folded identity is database-enforced"
+        );
+        let missing_identity = connection.execute(
+            "INSERT INTO saved_places
+                (id,trip_id,pack_id,name,category,dimension,lat,lon,source,license,
+                 reasons_json,wildcard,notes,created_at,updated_at)
+             VALUES ('missing','trip','other','Place','food','food',35.0,135.0,
+                     'source','license','[]',0,'notes','2026-01-03','2026-01-03')",
+            [],
+        );
+        assert!(
+            missing_identity.is_err(),
+            "the folded identity cannot be omitted"
+        );
+        for (id, name) in [("tokyo", "東京"), ("osaka", "大阪")] {
+            connection
+                .execute(
+                    "INSERT INTO saved_places
+                        (id,trip_id,pack_id,name,name_folded,category,dimension,lat,lon,
+                         source,license,reasons_json,wildcard,notes,created_at,updated_at)
+                     VALUES (?1,'trip','jp',?2,?3,'sight','culture',35.0,135.0,
+                             'source','license','[]',0,'notes','2026-01-03','2026-01-03')",
+                    params![id, name, saved_place_identity(name)],
+                )
+                .expect("distinct non-Latin identity");
+        }
     }
 
     #[test]

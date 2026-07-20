@@ -13,6 +13,8 @@ import {
   tripRoute,
 } from "../app/format";
 import { t } from "../app/i18n";
+import { APP_LOCALE } from "../app/locale";
+import { redactedFieldLabel } from "../app/localizedContract";
 import { useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
@@ -206,7 +208,10 @@ export function BriefDialog({
           {data.redactedFields.length > 0 ? (
             <p className="voy-brief__redaction">
               {t("brief.redaction", {
-                fields: data.redactedFields.join(", ").toLowerCase(),
+                fields: data.redactedFields
+                  .map(redactedFieldLabel)
+                  .join(", ")
+                  .toLocaleLowerCase(APP_LOCALE),
               })}
             </p>
           ) : null}

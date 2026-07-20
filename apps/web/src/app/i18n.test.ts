@@ -1,5 +1,6 @@
 import { catalogs, plural, t } from "./i18n";
 import { APP_LOCALE, setLocalePreference } from "./locale";
+import register from "@voyalier/contracts/parity/data-sources.json";
 
 /**
  * The message catalog foundation. English is the source of truth today, so `t()`
@@ -34,6 +35,9 @@ describe("i18n message catalog", () => {
     setLocalePreference("es");
     expect(t("settings.title")).toBe("Configuración");
     expect(t("planning.packing.title")).toBe("Lista de equipaje");
+    expect(plural("search.matches", 10000, { query: "mapa" })).toBe(
+      "10.000 coincidencias para mapa.",
+    );
   });
 
   it("resolves the system preference through a regional Spanish locale", () => {
@@ -43,7 +47,21 @@ describe("i18n message catalog", () => {
     setLocalePreference("system");
 
     expect(APP_LOCALE).toBe("es-MX");
+    expect(document.documentElement.lang).toBe("es");
     expect(t("settings.title")).toBe("Configuración");
+
+    language.mockRestore();
+  });
+
+  it("keeps an unsupported system locale while falling back to English copy", () => {
+    const language = vi
+      .spyOn(window.navigator, "language", "get")
+      .mockReturnValue("fr-FR");
+    setLocalePreference("system");
+
+    expect(APP_LOCALE).toBe("fr-FR");
+    expect(document.documentElement.lang).toBe("en");
+    expect(t("settings.title")).toBe("Settings");
 
     language.mockRestore();
   });
@@ -62,6 +80,16 @@ describe("i18n message catalog", () => {
       expect(placeholders(catalogs.es[key]), key).toEqual(
         placeholders(catalogs.en[key]),
       );
+    }
+  });
+
+  it("catalogs every product-authored source boundary", () => {
+    for (const source of register.sources) {
+      for (const field of ["use", "network", "authority"]) {
+        const key = `dataSources.${source.id}.${field}`;
+        expect(key in catalogs.en, key).toBe(true);
+        expect(key in catalogs.es, key).toBe(true);
+      }
     }
   });
 

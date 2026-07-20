@@ -2,7 +2,7 @@ import type { TodayItem, TodayView, TripPhase } from "@voyalier/contracts";
 
 import { useGateway } from "../app/context";
 import { useAsyncData } from "../app/useAsync";
-import { formatDate } from "../app/format";
+import { formatDate, formatTimeLocal } from "../app/format";
 import { t } from "../app/i18n";
 import { tripScope, useScopeKey } from "../app/revalidate";
 import { Button } from "../components/Button";
@@ -25,8 +25,38 @@ function phaseHeadline(phase: TripPhase): string {
   }
 }
 
+function itemTitle(item: TodayItem): string {
+  switch (item.kind) {
+    case "flight_departure":
+      return item.subject
+        ? t("today.item.depart", { subject: item.subject })
+        : t("today.item.departGeneric");
+    case "flight_arrival":
+      return item.subject
+        ? t("today.item.arrive", { subject: item.subject })
+        : t("today.item.arriveGeneric");
+    case "checkin":
+      return item.subject
+        ? t("today.item.checkin", { subject: item.subject })
+        : t("today.item.checkinGeneric");
+    case "checkout":
+      return item.subject
+        ? t("today.item.checkout", { subject: item.subject })
+        : t("today.item.checkoutGeneric");
+    case "staying_tonight":
+      return item.subject
+        ? t("today.item.staying", { subject: item.subject })
+        : t("today.item.stayingGeneric");
+    case "activity":
+    case "rail":
+    case "transfer":
+      return item.title;
+  }
+}
+
 function itemLine(item: TodayItem): string {
-  return item.time ? `${item.title} · ${item.time}` : item.title;
+  const title = itemTitle(item);
+  return item.time ? `${title} · ${formatTimeLocal(item.time)}` : title;
 }
 
 /**

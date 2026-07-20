@@ -161,6 +161,9 @@ Requirements:
 - pnpm 11+
 - Current stable Rust toolchain with `rustfmt` and `clippy`
 
+`make bootstrap` also installs the pinned Chromium runtime used by the required
+real-loopback Playwright gate.
+
 ```bash
 git clone https://github.com/udhawan97/Voyalier.git
 cd Voyalier
@@ -182,7 +185,7 @@ service at `http://127.0.0.1:8787`.
 ```bash
 pnpm dev:web      # React interface only
 pnpm dev:docs     # Astro/Starlight documentation
-make check        # TypeScript, tests, builds, Rust fmt/clippy/tests
+make check        # Web/Rust/desktop checks plus live HTTP and Chromium acceptance
 pnpm test:e2e     # Chromium acceptance against the real browser development stack
 ```
 

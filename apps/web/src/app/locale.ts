@@ -21,7 +21,15 @@ function storedPreference(): LocalePreference {
 let preference = storedPreference();
 
 function resolveLocale(value: LocalePreference): string {
-  return value === "system" ? systemLocale() : value;
+  if (value !== "system") return value;
+  try {
+    // Preserve the browser's region so System formats en-GB, es-MX, and other
+    // locales as the traveler configured them. Message lookup still falls
+    // through the exhaustive Spanish/English catalogs by language subtag.
+    return Intl.getCanonicalLocales(systemLocale())[0] ?? "en-US";
+  } catch {
+    return "en-US";
+  }
 }
 
 /** Live ESM binding retained for the existing date/number format helpers. */
@@ -29,7 +37,12 @@ export let APP_LOCALE: string = resolveLocale(preference);
 
 function applyDocumentLanguage(): void {
   if (typeof document !== "undefined") {
-    document.documentElement.lang = APP_LOCALE.split("-")[0];
+    // Only Spanish has a shipped non-English catalog. An unsupported system
+    // locale keeps its region for Intl formatting, but the visible copy falls
+    // back to English, so assistive technology must be told `en`.
+    document.documentElement.lang = APP_LOCALE.toLowerCase().startsWith("es")
+      ? "es"
+      : "en";
   }
 }
 

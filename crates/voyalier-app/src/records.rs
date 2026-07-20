@@ -30,7 +30,7 @@ use serde::de::DeserializeOwned;
 use voyalier_core::{
     AppError, CandidateFact, CandidateStatus, ConfirmedFact, DocumentContent, ErrorCode,
     InterestProfile, PackingItem, PersonaWeights, SavedPlace, SourceDocument, Trip, TripItem,
-    TripItemKind, TripNotes, TripSummary,
+    TripItemKind, TripNotes, TripSummary, saved_place_identity,
 };
 
 use crate::{DocumentText, Vault, storage_error};
@@ -547,7 +547,9 @@ impl<'a> Records<'a> {
                                WHERE d.trip_id=s.trip_id AND d.pack_id=s.pack_id),
                         s.name, s.category, s.dimension, s.lat, s.lon, s.source, s.license,
                         s.reasons_json, s.wildcard, s.notes, s.created_at, s.updated_at
-                 FROM saved_places s WHERE s.trip_id=?1 ORDER BY s.created_at DESC, s.id DESC",
+                 FROM saved_places s
+                 WHERE s.trip_id=?1 AND s.merged_into IS NULL
+                 ORDER BY s.created_at DESC, s.id DESC",
             )
             .map_err(storage_error)?;
         let rows = statement
@@ -613,18 +615,22 @@ impl<'a> Records<'a> {
         .collect()
     }
 
-    pub(crate) fn insert_saved_place(&self, place: &SavedPlace) -> Result<(), AppError> {
-        self.connection
+    pub(crate) fn insert_saved_place(&self, place: &SavedPlace) -> Result<bool, AppError> {
+        let changed = self
+            .connection
             .execute(
                 "INSERT INTO saved_places
-                    (id, trip_id, pack_id, name, category, dimension, lat, lon, source, license,
-                     reasons_json, wildcard, notes, created_at, updated_at)
-                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15)",
+                    (id, trip_id, pack_id, name, name_folded, category, dimension, lat, lon,
+                     source, license, reasons_json, wildcard, notes, created_at, updated_at)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)
+                 ON CONFLICT(trip_id, pack_id, name_folded, lat, lon)
+                 WHERE merged_into IS NULL DO NOTHING",
                 params![
                     place.id,
                     place.trip_id,
                     place.pack_id,
                     place.name,
+                    saved_place_identity(&place.name),
                     place.category,
                     place.dimension,
                     place.lat,
@@ -639,7 +645,7 @@ impl<'a> Records<'a> {
                 ],
             )
             .map_err(storage_error)?;
-        Ok(())
+        Ok(changed == 1)
     }
 
     pub(crate) fn update_saved_place_notes(

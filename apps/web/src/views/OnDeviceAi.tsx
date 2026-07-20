@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { AppError, LocalAiStatus } from "@voyalier/contracts";
+import type { LocalAiStatus } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import { plural, t } from "../app/i18n";
@@ -16,7 +16,7 @@ import { Button } from "../components/Button";
  * One recommended-model card: an editable tag, the exact `ollama pull` command
  * (copyable), and — when Ollama is running — an in-app Download button that pulls
  * the model. The tag is prefilled but editable, so any other (or custom) model
- * still works; a pull error is surfaced verbatim rather than hidden.
+ * still works; pull outcomes use localized product copy.
  */
 function ModelCard({
   model,
@@ -63,11 +63,14 @@ function ModelCard({
     setBusy(true);
     try {
       const pulled = await gateway.pullLocalModel(trimmed);
-      setResult(pulled);
-      announce(pulled.message);
+      const message = pulled.ok
+        ? t("localai.card.downloaded", { model: trimmed })
+        : t("localai.card.downloadFailed");
+      setResult({ ok: pulled.ok, message });
+      announce(message);
       if (pulled.ok) onDownloaded();
-    } catch (caught) {
-      const message = (caught as AppError).message || t("providers.error");
+    } catch {
+      const message = t("localai.card.downloadFailed");
       setResult({ ok: false, message });
       announce(message);
     } finally {
@@ -81,7 +84,7 @@ function ModelCard({
         <span className="voy-modelcard__name">{model.label}</span>
         <span className="voy-modelcard__size">{model.size}</span>
       </div>
-      <p className="voy-modelcard__blurb">{model.blurb}</p>
+      <p className="voy-modelcard__blurb">{t(model.blurbKey)}</p>
 
       <label className="voy-sr-only" htmlFor={`model-tag-${model.id}`}>
         {t("localai.card.tag", { model: model.label })}

@@ -87,7 +87,13 @@ export function TripNotes({ tripId }: { tripId: string }) {
   }
 
   return (
-    <section className="voy-notes" aria-labelledby="notes-title">
+    <section
+      className="voy-notes"
+      aria-labelledby="notes-title"
+      tabIndex={-1}
+      data-search-source="note"
+      data-search-record={tripId}
+    >
       <SectionTitle id="notes-title" icon={<PencilIcon />}>
         {t("notes.title")}
       </SectionTitle>

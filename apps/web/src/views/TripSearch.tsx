@@ -13,9 +13,19 @@ const DEBOUNCE_MS = 200;
 
 function hitIcon(hit: SearchHit) {
   if (hit.source === "confirmed_fact") {
-    return hit.label.startsWith("Flight") ? <PlaneIcon /> : <BedIcon />;
+    return hit.factType === "flight_segment" ? <PlaneIcon /> : <BedIcon />;
   }
   return null;
+}
+
+function hitLabel(hit: SearchHit): string {
+  if (hit.source === "document") return hit.label;
+  if (hit.factType === "flight_segment") {
+    return hit.subject
+      ? t("search.label.flight", { subject: hit.subject })
+      : t("search.label.flightGeneric");
+  }
+  return hit.subject ?? t("search.label.stayGeneric");
 }
 
 /** Replace the query's last whitespace word with a chosen suggestion term. */
@@ -176,7 +186,7 @@ export function TripSearch({ tripId }: { tripId: string }) {
                   </span>
                   <span className="voy-search__hit-body">
                     <span className="voy-search__hit-label">
-                      {hit.label}
+                      {hitLabel(hit)}
                       <span className="voy-search__hit-kind">
                         {" · "}
                         {hit.source === "document"

@@ -460,6 +460,63 @@ export const MAX_AI_PROMPT_LEN = 6000;
 export function countChars(text: string): number {
   return [...text].length;
 }
+
+/** Match the ASCII-folded place text used by catalog matching. */
+export function normalizePlace(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/ø/g, "o")
+    .replace(/ß/g, "s")
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/['`´‘’ʻ]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+/**
+ * Stable saved-place key shared with the Rust core. It preserves every script,
+ * including mixed-script names, and lowercases one scalar at a time so JS's
+ * context-sensitive casing cannot disagree with Rust.
+ */
+export function savedPlaceIdentity(value: string): string {
+  let identity = "";
+  let separated = true;
+  const replacements: Readonly<Record<string, string>> = {
+    ß: "s",
+    ø: "o",
+    æ: "ae",
+    œ: "oe",
+    ł: "l",
+    đ: "d",
+    ð: "d",
+    þ: "th",
+    ı: "i",
+    ς: "σ",
+  };
+  for (const decomposed of value.normalize("NFKD")) {
+    for (const character of decomposed.toLowerCase()) {
+      if (/^\p{M}$/u.test(character)) continue;
+      if (/^['`´‘’ʻ]$/u.test(character)) continue;
+      const replacement = replacements[character];
+      if (replacement !== undefined) {
+        identity += replacement;
+        separated = false;
+      } else if (/^[\p{L}\p{N}]$/u.test(character)) {
+        identity += character;
+        separated = false;
+      } else if (!separated) {
+        identity += " ";
+        separated = true;
+      }
+    }
+  }
+  identity = identity.trimEnd();
+  if (identity) return identity;
+  return `codepoints:${[...value]
+    .map((character) => character.codePointAt(0)!.toString(16))
+    .join("-")}`;
+}
 /** One fetchable FCDO country page (curated list; slugs are never free text). */
 export interface FcdoCountry {
   slug: string;
@@ -721,12 +778,15 @@ export interface AssistRequestPreview {
   /** The exact user message: the traveler's own confirmed itinerary, redacted. */
   userContent: string;
   /** Field kinds excluded from the request, for transparency. */
-  withheld: string[];
+  withheld: WithheldField[];
   /** A citation of what the request is grounded in (e.g. "2 confirmed flights"). */
   groundedIn: string[];
   /** A rough token estimate for cost awareness (not a billing figure). */
   estimatedTokens: number;
 }
+export type RedactedField =
+  "Confirmation codes" | "Traveler names" | "Addresses";
+export type WithheldField = RedactedField | "Imported document text";
 /**
  * The assistant's reply from a completed on-device run. `text` is model output
  * and is never authoritative — Voyalier surfaces high-stakes facts only from
@@ -890,6 +950,8 @@ export interface SavedPlace {
 export interface SavePlaceInput {
   tripId: string;
   recommendation: Recommendation;
+  /** Weights used to derive this recommendation; the service recomputes it. */
+  weights: PersonaWeights;
   notes?: string;
 }
 export interface UpdateSavedPlaceInput {
@@ -966,6 +1028,8 @@ export type TodayItemKind =
 /** One dated entry in the Today view. */
 export interface TodayItem {
   kind: TodayItemKind;
+  /** Source/traveler text inserted into a localized label when available. */
+  subject?: string;
   title: string;
   detail?: string;
   date: string;
@@ -981,6 +1045,9 @@ export interface TodayView {
 export type SearchHitSource = "document" | "confirmed_fact";
 export interface SearchHit {
   source: SearchHitSource;
+  factType?: FactType;
+  /** Source/traveler text inserted into a localized fact label. */
+  subject?: string;
   /** The document or confirmed-fact id, depending on `source`. */
   recordId: string;
   label: string;
@@ -1015,7 +1082,7 @@ export interface TripBrief {
   /** Traveler-authored itinerary entries; private notes are excluded. */
   tripItems: BriefTripItem[];
   /** Human-readable list of the field kinds removed from this brief. */
-  redactedFields: string[];
+  redactedFields: RedactedField[];
   generatedAt: string;
 }
 export interface BriefTripItem {

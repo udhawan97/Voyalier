@@ -9,6 +9,7 @@ import type {
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError } from "../app/format";
 import { plural, t } from "../app/i18n";
+import { APP_LOCALE } from "../app/locale";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 import { ChoiceGroup } from "../components/ChoiceGroup";
@@ -266,8 +267,8 @@ export function ImportDialog({
           aria-live="polite"
         >
           {t("import.charcount", {
-            count: charCount.toLocaleString(),
-            max: MAX_CHARS.toLocaleString(),
+            count: charCount.toLocaleString(APP_LOCALE),
+            max: MAX_CHARS.toLocaleString(APP_LOCALE),
           })}
         </p>
       </form>

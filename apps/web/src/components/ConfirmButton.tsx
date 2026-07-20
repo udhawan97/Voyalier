@@ -17,6 +17,7 @@ export function ConfirmButton({
   busy,
   disabled,
   icon,
+  ariaLabel,
   variant = "ghost",
 }: {
   label: string;
@@ -24,6 +25,7 @@ export function ConfirmButton({
   busy?: boolean;
   disabled?: boolean;
   icon?: ReactNode;
+  ariaLabel?: string;
   variant?: ButtonVariant;
 }) {
   const [armed, setArmed] = useState(false);
@@ -53,6 +55,13 @@ export function ConfirmButton({
       busy={busy}
       disabled={disabled}
       icon={icon}
+      aria-label={
+        ariaLabel
+          ? armed
+            ? t("confirm.arm", { label: ariaLabel })
+            : ariaLabel
+          : undefined
+      }
       onClick={handleClick}
     >
       {armed ? t("confirm.arm", { label }) : label}

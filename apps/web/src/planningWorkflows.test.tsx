@@ -66,6 +66,8 @@ describe("traveler-owned planning workflows", () => {
     });
     fireEvent.click(within(items).getByRole("button", { name: "Add to plan" }));
     const tea = await within(items).findByText("Tea ceremony");
+    expect(tea.closest("li")).toHaveTextContent("Nov 5, 2026 · 10:00");
+    expect(tea.closest("li")).not.toHaveTextContent("2026-11-05T10:00");
     fireEvent.click(
       within(tea.closest("li")!).getByRole("button", {
         name: "Edit Tea ceremony",
@@ -134,10 +136,37 @@ describe("traveler-owned planning workflows", () => {
         shopping: 0.5,
       })
     )[0];
-    await gateway.savePlace({
+    const weights = {
+      food: 1,
+      culture: 0.5,
+      nature: 0.5,
+      nightlife: 0.5,
+      shopping: 0.5,
+    };
+    const savedRecord = await gateway.savePlace({
       tripId: "trip_kyoto",
-      recommendation,
+      recommendation: {
+        ...recommendation,
+        source: "Forged source",
+        license: "Forged license",
+        reasons: ["Forged reason"],
+      },
+      weights,
     });
+    expect(savedRecord).toMatchObject({
+      source: "Overture Maps",
+      license: "CDLA-Permissive-2.0",
+      reasons: recommendation.reasons,
+    });
+    const duplicate = await gateway.savePlace({
+      tripId: "trip_kyoto",
+      recommendation: {
+        ...recommendation,
+        name: recommendation.name.toLowerCase(),
+      },
+      weights,
+    });
+    expect(duplicate.id).toBe(savedRecord.id);
     renderApp(gateway);
     await openKyoto();
 
@@ -210,5 +239,55 @@ describe("traveler-owned planning workflows", () => {
     expect(
       screen.getByRole("heading", { name: "Schedule check" }),
     ).toBeInTheDocument();
+  });
+
+  it("requires a deliberate second click before deleting planning records", async () => {
+    const gateway = createMockGateway();
+    await gateway.downloadPack("trip_kyoto", "jp-kyoto");
+    const weights = {
+      food: 1,
+      culture: 0.5,
+      nature: 0.5,
+      nightlife: 0.5,
+      shopping: 0.5,
+    };
+    const recommendation = (
+      await gateway.getRecommendations("trip_kyoto", weights)
+    )[0];
+    await gateway.savePlace({
+      tripId: "trip_kyoto",
+      recommendation,
+      weights,
+    });
+    await gateway.addPackingItem({
+      tripId: "trip_kyoto",
+      label: "Paper tickets",
+    });
+    await gateway.createTripItem({
+      tripId: "trip_kyoto",
+      kind: "rail",
+      title: "Airport express",
+    });
+    renderApp(gateway);
+    await openKyoto();
+
+    for (const name of [
+      `Remove ${recommendation.name}`,
+      "Remove Paper tickets",
+      "Remove Airport express",
+    ]) {
+      const remove = screen.getByRole("button", { name });
+      fireEvent.click(remove);
+      expect(
+        screen.getByRole("button", { name: `${name} — sure?` }),
+      ).toBeInTheDocument();
+      expect(screen.getByText(name.replace("Remove ", ""))).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: `${name} — sure?` }));
+      await waitFor(() =>
+        expect(
+          screen.queryByText(name.replace("Remove ", "")),
+        ).not.toBeInTheDocument(),
+      );
+    }
   });
 });

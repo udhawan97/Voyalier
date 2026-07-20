@@ -63,6 +63,7 @@ pub struct SavedPlace {
 pub struct SavePlaceInput {
     pub trip_id: String,
     pub recommendation: Recommendation,
+    pub weights: PersonaWeights,
     #[serde(default)]
     pub notes: String,
 }

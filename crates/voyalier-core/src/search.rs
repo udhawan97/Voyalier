@@ -30,6 +30,11 @@ pub enum SearchHitSource {
 #[serde(rename_all = "camelCase")]
 pub struct SearchHit {
     pub source: SearchHitSource,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fact_type: Option<FactType>,
+    /// Source/traveler text inserted into a localized fact label.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subject: Option<String>,
     /// `source_documents.id` or `confirmed_facts.id` depending on `source`.
     pub record_id: String,
     /// Human label: the document label, or a fact headline.
@@ -170,6 +175,8 @@ pub fn search_trip_corpus(
         ranked.push((
             SearchHit {
                 source: SearchHitSource::Document,
+                fact_type: None,
+                subject: None,
                 record_id: document.id.to_owned(),
                 label: document.label.to_owned(),
                 snippet,
@@ -197,6 +204,8 @@ pub fn search_trip_corpus(
             ranked.push((
                 SearchHit {
                     source: SearchHitSource::ConfirmedFact,
+                    fact_type: Some(fact.fact_type),
+                    subject: fact_subject(fact),
                     record_id: fact.id.clone(),
                     label: fact_label(fact),
                     snippet,
@@ -227,14 +236,26 @@ pub fn search_workspace_corpus(
     let mut ranked: Vec<(WorkspaceSearchHit, u32)> = records
         .iter()
         .filter_map(|record| {
-            let combined = format!("{} {}", record.label, record.text);
+            let searches_source_label = matches!(
+                record.source,
+                WorkspaceSearchSource::Document
+                    | WorkspaceSearchSource::SavedPlace
+                    | WorkspaceSearchSource::TripItem
+            );
+            let combined = if searches_source_label {
+                format!("{} {}", record.label, record.text)
+            } else {
+                record.text.to_owned()
+            };
             let lower = combined.to_lowercase();
             let (matched, score, first_token) = score_haystack(&lower, &tokens);
             if matched == 0 {
                 return None;
             }
+            let text_lower = record.text.to_lowercase();
             let snippet = first_token
-                .map(|token| snippet_around_first_match(&combined, &lower, token))
+                .filter(|token| text_lower.contains(token))
+                .map(|token| snippet_around_first_match(record.text, &text_lower, token))
                 .unwrap_or_default();
             Some((
                 WorkspaceSearchHit {
@@ -264,7 +285,7 @@ pub fn search_workspace_corpus(
 }
 
 /// Typeahead term suggestions for the query's last word: distinct words from the
-/// corpus (document text, fact field values, and fact labels) that contain it —
+/// corpus (document text and fact field values) that contain it —
 /// so a partial "shut" surfaces "shuttle" to autofill. Prefix matches rank first,
 /// then by how often the term appears. Local only; nothing leaves the device.
 pub fn suggest_search_terms(
@@ -308,7 +329,6 @@ pub fn suggest_search_terms(
                 consider(word);
             }
         }
-        consider(&fact_label(fact));
     }
 
     let mut terms: Vec<(String, u32, bool)> = seen
@@ -408,6 +428,25 @@ fn fact_label(fact: &ConfirmedFact) -> String {
     }
 }
 
+fn fact_subject(fact: &ConfirmedFact) -> Option<String> {
+    match fact.fact_type {
+        FactType::FlightSegment => fact
+            .payload
+            .flight_number
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned),
+        FactType::LodgingStay => fact
+            .payload
+            .property_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned),
+    }
+}
+
 fn fact_field_values(fact: &ConfirmedFact) -> Vec<&str> {
     let payload = &fact.payload;
     [
@@ -431,6 +470,13 @@ fn fact_field_values(fact: &ConfirmedFact) -> Vec<&str> {
     .collect()
 }
 
+/// Traveler/source-supplied confirmed-fact values, flattened for local search.
+/// Field names are deliberately excluded: camelCase contract keys are product
+/// implementation text, not content the traveler entered or approved.
+pub fn fact_search_text(fact: &ConfirmedFact) -> String {
+    fact_field_values(fact).join(" ")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -452,6 +498,15 @@ mod tests {
             confirmed_at: "2026-01-01T00:00:00Z".to_owned(),
             source_removed: false,
         }
+    }
+
+    #[test]
+    fn fact_search_text_contains_values_but_never_contract_field_names() {
+        let text = fact_search_text(&fact("fact_1", "River Paper Inn", "RPI731"));
+        assert!(text.contains("River Paper Inn"));
+        assert!(text.contains("RPI731"));
+        assert!(!text.contains("propertyName"));
+        assert!(!text.contains("confirmationCode"));
     }
 
     #[test]
@@ -622,8 +677,8 @@ mod tests {
             trip_status: TripStatus::Draft,
             trip_updated_at: "2026-07-01T12:00:00Z",
             record_id: "note_1",
-            label: "İİx",
-            text: "Unicode note",
+            label: "Trip notes",
+            text: "İİx Unicode note",
         }];
 
         let hits = search_workspace_corpus("x", &records);

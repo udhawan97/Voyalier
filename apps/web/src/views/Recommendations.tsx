@@ -1,10 +1,12 @@
 import { useId, useState } from "react";
 import type {
+  AppError,
   InterestProfile,
   PersonaWeights,
   Recommendation,
   SavedPlace,
 } from "@voyalier/contracts";
+import { savedPlaceIdentity } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import { useAsyncAction } from "../app/useAsync";
@@ -13,6 +15,7 @@ import { plural, t, type MessageKey } from "../app/i18n";
 import { SectionTitle } from "../components/primitives";
 import { CompassIcon } from "../components/icons";
 import { Button } from "../components/Button";
+import { toAppError } from "../gateway/errors";
 
 type Dimension = keyof PersonaWeights;
 
@@ -23,6 +26,19 @@ const DIMENSIONS: { key: Dimension; label: MessageKey }[] = [
   { key: "nightlife", label: "recs.dim.nightlife" },
   { key: "shopping", label: "recs.dim.shopping" },
 ];
+
+const DIMENSION_MESSAGES: Record<string, MessageKey> = {
+  food: "recs.dim.food",
+  culture: "recs.dim.culture",
+  nature: "recs.dim.nature",
+  nightlife: "recs.dim.nightlife",
+  shopping: "recs.dim.shopping",
+};
+
+function dimensionLabel(dimension: string): string {
+  const key = DIMENSION_MESSAGES[dimension];
+  return key ? t(key) : dimension;
+}
 
 const PRESETS: { nameKey: MessageKey; weights: PersonaWeights }[] = [
   {
@@ -84,15 +100,20 @@ export function Recommendations({
     profile ?? PRESETS[0].weights,
   );
   const [recs, setRecs] = useState<Recommendation[] | null>(null);
+  const [recommendationWeights, setRecommendationWeights] =
+    useState<PersonaWeights | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<AppError | undefined>();
   function setDimension(key: Dimension, value: number) {
     setWeights((prev) => ({ ...prev, [key]: value }));
   }
 
   const loadAction = useAsyncAction(
-    () => gateway.getRecommendations(tripId, weights),
-    (result) => {
+    (requestedWeights: PersonaWeights) =>
+      gateway.getRecommendations(tripId, requestedWeights),
+    (result, requestedWeights) => {
       setRecs(result);
+      setRecommendationWeights(requestedWeights);
       announce(
         result.length === 0
           ? t("recs.announce.none")
@@ -100,7 +121,7 @@ export function Recommendations({
       );
     },
   );
-  const load = () => loadAction.run();
+  const load = () => loadAction.run(weights);
   const loading = loadAction.busy;
   const error = loadAction.error;
   const interestsDirty = DIMENSIONS.some(
@@ -117,11 +138,18 @@ export function Recommendations({
 
   async function save(rec: Recommendation) {
     const id = `${rec.packId}:${rec.name}:${rec.lat},${rec.lon}`;
+    setSaveError(undefined);
     setSavingId(id);
     try {
-      await gateway.savePlace({ tripId, recommendation: rec });
+      await gateway.savePlace({
+        tripId,
+        recommendation: rec,
+        weights: recommendationWeights ?? weights,
+      });
       announce(t("recs.saved", { name: rec.name }));
       onChanged?.();
+    } catch (cause) {
+      setSaveError(toAppError(cause));
     } finally {
       setSavingId(null);
     }
@@ -131,7 +159,7 @@ export function Recommendations({
     savedPlaces?.some(
       (place) =>
         place.packId === rec.packId &&
-        place.name === rec.name &&
+        savedPlaceIdentity(place.name) === savedPlaceIdentity(rec.name) &&
         place.lat === rec.lat &&
         place.lon === rec.lon,
     ) ?? false;
@@ -158,6 +186,12 @@ export function Recommendations({
           </Button>
         ))}
       </div>
+
+      {saveInterests.error ? (
+        <p className="voy-recs__error" role="alert">
+          {describeError(saveInterests.error).title}
+        </p>
+      ) : null}
 
       <div className="voy-recs__sliders">
         {DIMENSIONS.map(({ key, label }) => {
@@ -211,6 +245,12 @@ export function Recommendations({
         </p>
       ) : null}
 
+      {saveError ? (
+        <p className="voy-recs__error" role="alert">
+          {describeError(saveError).title}
+        </p>
+      ) : null}
+
       {recs !== null ? (
         recs.length === 0 ? (
           <p className="voy-recs__none">{t("recs.none")}</p>
@@ -223,14 +263,23 @@ export function Recommendations({
                 <li key={id} className="voy-recs__row">
                   <div className="voy-recs__row-head">
                     <span className="voy-recs__name">{rec.name}</span>
-                    <span className="voy-recs__dim">{rec.dimension}</span>
+                    <span className="voy-recs__dim">
+                      {dimensionLabel(rec.dimension)}
+                    </span>
                     {rec.wildcard ? (
                       <span className="voy-recs__wild">
                         {t("recs.wildcard")}
                       </span>
                     ) : null}
                   </div>
-                  <p className="voy-recs__reasons">{rec.reasons.join(" · ")}</p>
+                  <p className="voy-recs__reasons">
+                    {t("recs.reason.interest", {
+                      dimension: dimensionLabel(
+                        rec.dimension,
+                      ).toLocaleLowerCase(),
+                    })}
+                    {rec.wildcard ? ` · ${t("recs.reason.wildcard")}` : ""}
+                  </p>
                   <p className="voy-recs__prov">
                     {rec.category} · {rec.source} ({rec.license})
                   </p>

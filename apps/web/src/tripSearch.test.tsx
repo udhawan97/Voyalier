@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
 
+import { setLocalePreference } from "./app/locale";
 import { renderApp } from "./test/helpers";
 
 async function openSearch() {
@@ -22,6 +23,8 @@ function searchInput(region: HTMLElement) {
  * offered as autofill suggestions, and results can be copied to reuse.
  */
 describe("trip search", () => {
+  afterEach(() => setLocalePreference("en"));
+
   it("searches live as you type and labels provenance", async () => {
     renderApp(createMockGateway());
     const search = await openSearch();
@@ -154,5 +157,26 @@ describe("trip search", () => {
     // Typeahead completes a partial word from the document.
     const terms = await gateway.suggestSearchTerms(trip.id, "shut");
     expect(terms.some((term) => term.toLowerCase() === "shuttle")).toBe(true);
+  });
+
+  it("localizes fact labels while preserving their source subject", async () => {
+    setLocalePreference("es");
+    renderApp(createMockGateway());
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Abrir Kyoto autumn journey",
+      }),
+    );
+    const search = await screen.findByRole("region", {
+      name: "Buscar en este viaje",
+    });
+    fireEvent.change(
+      within(search).getByLabelText(
+        "Busca en tus documentos y planes confirmados",
+      ),
+      { target: { value: "FP18" } },
+    );
+    expect(await within(search).findByText("Vuelo FP18")).toBeInTheDocument();
+    expect(within(search).queryByText("Flight FP18")).toBeNull();
   });
 });

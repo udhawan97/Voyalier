@@ -1,6 +1,6 @@
 import register from "@voyalier/contracts/parity/data-sources.json";
 
-import { t } from "../app/i18n";
+import { t, type MessageKey } from "../app/i18n";
 import { SectionTitle } from "../components/primitives";
 import { CompassIcon } from "../components/icons";
 
@@ -54,15 +54,18 @@ export function DataSources() {
                       </a>
                     </h4>
                     <p>
-                      <strong>{t("dataSources.use")}</strong> {source.use}
+                      <strong>{t("dataSources.use")}</strong>{" "}
+                      {t(`dataSources.${source.id}.use` as MessageKey)}
                     </p>
                     <p>
                       <strong>{t("dataSources.license")}</strong>{" "}
                       {source.license}
                     </p>
                     <p>{source.attribution}</p>
-                    <p>{source.network}</p>
-                    <p>{source.authority}</p>
+                    <p>{t(`dataSources.${source.id}.network` as MessageKey)}</p>
+                    <p>
+                      {t(`dataSources.${source.id}.authority` as MessageKey)}
+                    </p>
                     <p>
                       <strong>{t("dataSources.endpoint")}</strong>{" "}
                       <code>{source.endpoint}</code>

@@ -1,5 +1,6 @@
 import limits from "@voyalier/contracts/parity/limits.json";
 import normalizePlaceGolden from "@voyalier/contracts/parity/normalize-place.json";
+import savedPlaceIdentityGolden from "@voyalier/contracts/parity/saved-place-identity.json";
 import assessTripGolden from "@voyalier/contracts/parity/assess-trip.json";
 import packingGolden from "@voyalier/contracts/parity/packing.json";
 import tripFactsGolden from "@voyalier/contracts/parity/trip-facts.json";
@@ -24,6 +25,7 @@ import {
   mockPackingList,
   mockTimeDifference,
   mockTippingGuidance,
+  savedPlaceIdentity,
 } from "@voyalier/contracts";
 
 /**
@@ -96,6 +98,18 @@ describe("parity: normalizePlace", () => {
 
   it.each(cases)("folds $input to $expected", ({ input, expected }) => {
     expect(mockNormalizePlace(input)).toBe(expected);
+  });
+});
+
+describe("parity: savedPlaceIdentity", () => {
+  const cases = savedPlaceIdentityGolden.cases;
+
+  it("covers every golden case", () => {
+    expect(cases).toHaveLength(14);
+  });
+
+  it.each(cases)("identifies $input as $expected", ({ input, expected }) => {
+    expect(savedPlaceIdentity(input)).toBe(expected);
   });
 });
 

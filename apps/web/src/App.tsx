@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import type { AppError, AppGateway } from "@voyalier/contracts";
+import type {
+  AppError,
+  AppGateway,
+  WorkspaceSearchHit,
+} from "@voyalier/contracts";
 
 import { AnnounceContext, GatewayContext, UpdaterContext } from "./app/context";
 import { RevalidateProvider, useRevalidateAll } from "./app/revalidate";
@@ -19,7 +23,11 @@ import { WorkspaceSearch } from "./views/WorkspaceSearch";
 
 type View =
   | { name: "list" }
-  | { name: "trip"; tripId: string }
+  | {
+      name: "trip";
+      tripId: string;
+      searchTarget?: Pick<WorkspaceSearchHit, "source" | "recordId">;
+    }
   | { name: "settings" }
   | { name: "search" };
 
@@ -103,6 +111,15 @@ function Workspace({
   );
   const openList = useCallback(() => setView({ name: "list" }), []);
   const openSearch = useCallback(() => setView({ name: "search" }), []);
+  const openSearchResult = useCallback(
+    (hit: WorkspaceSearchHit) =>
+      setView({
+        name: "trip",
+        tripId: hit.tripId,
+        searchTarget: { source: hit.source, recordId: hit.recordId },
+      }),
+    [],
+  );
   // Settings is a detour, not a destination: remember where the user was so
   // "Back" returns them there instead of dumping them on the home list. Opening
   // Settings from Settings must not make Back a no-op loop.
@@ -153,13 +170,17 @@ function Workspace({
               ) : view.name === "settings" ? (
                 <SettingsView onBack={leaveSettings} />
               ) : view.name === "search" ? (
-                <WorkspaceSearch onBack={openList} onOpenTrip={openTrip} />
+                <WorkspaceSearch
+                  onBack={openList}
+                  onOpenResult={openSearchResult}
+                />
               ) : view.name === "list" ? (
                 <TripListView onOpenTrip={openTrip} />
               ) : (
                 <TripDetailView
                   key={view.tripId}
                   tripId={view.tripId}
+                  searchTarget={view.searchTarget}
                   onBack={openList}
                   onDeleted={openList}
                   onOpenSettings={openSettings}

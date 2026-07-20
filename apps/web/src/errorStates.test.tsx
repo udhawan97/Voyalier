@@ -56,7 +56,7 @@ describe("AppError rendered states", () => {
     );
     await fillAndSubmitCreate();
     expect(
-      await screen.findByText("origin must be between 1 and 120 characters"),
+      await screen.findByText("Enter a valid trip origin."),
     ).toBeInTheDocument();
   });
 
@@ -71,7 +71,7 @@ describe("AppError rendered states", () => {
     );
     await fillAndSubmitCreate();
     expect(
-      await screen.findByText("startDate must be on or before endDate"),
+      await screen.findByText("Use a valid date range with the start first."),
     ).toBeInTheDocument();
   });
 

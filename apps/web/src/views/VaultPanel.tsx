@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { AppError, VaultStatus } from "@voyalier/contracts";
+import type { VaultStatus } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import { t } from "../app/i18n";
@@ -58,8 +58,8 @@ export function VaultPanel() {
       setStatus(await action());
       announce(done);
       reset();
-    } catch (caught) {
-      setError((caught as AppError).message || t("vault.error.generic"));
+    } catch {
+      setError(t("vault.error.generic"));
     } finally {
       setBusy(false);
     }

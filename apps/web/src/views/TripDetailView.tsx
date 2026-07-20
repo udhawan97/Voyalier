@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   CandidateFact,
   ConfirmedFact,
@@ -9,6 +9,7 @@ import type {
   ReadinessItem,
   ReadinessStatus,
   ReadinessSummary,
+  WorkspaceSearchHit,
 } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
@@ -96,7 +97,12 @@ function FactCard({
     (key) => values[key] != null && values[key] !== "",
   );
   return (
-    <article className="voy-fact">
+    <article
+      className="voy-fact"
+      tabIndex={-1}
+      data-search-source="confirmed_fact"
+      data-search-record={fact.id}
+    >
       <div className="voy-fact__head">
         <span className="voy-fact__icon" aria-hidden="true">
           {fact.factType === "flight_segment" ? <PlaneIcon /> : <BedIcon />}
@@ -473,11 +479,13 @@ function ScheduleCheck({ conflicts }: { conflicts: ItineraryConflict[] }) {
 
 export function TripDetailView({
   tripId,
+  searchTarget,
   onBack,
   onDeleted,
   onOpenSettings,
 }: {
   tripId: string;
+  searchTarget?: Pick<WorkspaceSearchHit, "source" | "recordId">;
   onBack: () => void;
   onDeleted: () => void;
   onOpenSettings?: () => void;
@@ -495,6 +503,51 @@ export function TripDetailView({
     },
     useScopeKey(tripScope(tripId)),
   );
+  const searchTargetConsumed = useRef(false);
+
+  useEffect(() => {
+    if (!data || !searchTarget || searchTargetConsumed.current) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let attempts = 0;
+    const focusTarget = () => {
+      const exact = [
+        ...document.querySelectorAll<HTMLElement>("[data-search-source]"),
+      ].find(
+        (element) =>
+          element.dataset.searchSource === searchTarget.source &&
+          element.dataset.searchRecord === searchTarget.recordId,
+      );
+      if (exact) {
+        searchTargetConsumed.current = true;
+        exact.scrollIntoView?.({ block: "center" });
+        exact.focus({ preventScroll: true });
+        return;
+      }
+      attempts += 1;
+      if (
+        attempts === 1 &&
+        (searchTarget.source === "document" || searchTarget.source === "note")
+      ) {
+        document.getElementById("section-prepare")?.scrollIntoView?.();
+      }
+      if (attempts < 20) {
+        timer = setTimeout(focusTarget, 50);
+        return;
+      }
+      const fallback = document.getElementById(
+        searchTarget.source === "document" || searchTarget.source === "note"
+          ? "section-prepare"
+          : "section-plan",
+      );
+      searchTargetConsumed.current = true;
+      fallback?.setAttribute("tabindex", "-1");
+      fallback?.focus({ preventScroll: true });
+    };
+    timer = setTimeout(focusTarget, 0);
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [data, searchTarget]);
 
   const [showImport, setShowImport] = useState(false);
   const [showAddFact, setShowAddFact] = useState(false);

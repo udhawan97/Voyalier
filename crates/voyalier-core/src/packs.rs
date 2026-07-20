@@ -11,6 +11,7 @@
 //! per trip with explicit consent — none of that happens here.
 
 use serde::{Deserialize, Serialize};
+use unicode_normalization::{UnicodeNormalization, char::is_combining_mark};
 
 use crate::types::{AppError, ErrorCode};
 
@@ -470,6 +471,62 @@ pub fn normalize_place(input: &str) -> String {
     out
 }
 
+/// Stable saved-place identity shared with the TypeScript contract.
+///
+/// Unlike catalog matching, this preserves every script so mixed names such as
+/// `東京 A` and `大阪 A` cannot collapse to the same ASCII fragment. NFKD plus
+/// per-scalar lowercase keeps the algorithm reproducible in Rust and JS; the
+/// small explicit compatibility table covers letters NFKD does not decompose.
+pub fn saved_place_identity(input: &str) -> String {
+    let mut identity = String::new();
+    let mut previous_separator = true;
+    for decomposed in input.nfkd() {
+        for character in decomposed.to_lowercase() {
+            if is_combining_mark(character) {
+                continue;
+            }
+            let replacement = match character {
+                '\'' | '`' | '\u{2018}' | '\u{2019}' | '\u{02BB}' | '\u{00B4}' => continue,
+                'ß' => Some("s"),
+                'ø' => Some("o"),
+                'æ' => Some("ae"),
+                'œ' => Some("oe"),
+                'ł' => Some("l"),
+                'đ' | 'ð' => Some("d"),
+                'þ' => Some("th"),
+                'ı' => Some("i"),
+                // Unicode lowercase is context-sensitive in JavaScript but
+                // scalar-based in Rust. Canonicalize both sigma forms so `ΟΣ`
+                // and `ος` remain the same identity on both sides.
+                'ς' => Some("σ"),
+                _ => None,
+            };
+            if let Some(replacement) = replacement {
+                identity.push_str(replacement);
+                previous_separator = false;
+            } else if character.is_alphanumeric() {
+                identity.push(character);
+                previous_separator = false;
+            } else if !previous_separator {
+                identity.push(' ');
+                previous_separator = true;
+            }
+        }
+    }
+    if identity.ends_with(' ') {
+        identity.pop();
+    }
+    if !identity.is_empty() {
+        return identity;
+    }
+    let codepoints = input
+        .chars()
+        .map(|character| format!("{:x}", character as u32))
+        .collect::<Vec<_>>()
+        .join("-");
+    format!("codepoints:{codepoints}")
+}
+
 /// True when `term_norm` appears in `padded_dest` as a whole run of tokens.
 /// `padded_dest` must be the normalized destination wrapped in single spaces.
 fn phrase_in(padded_dest: &str, term_norm: &str) -> bool {
@@ -710,6 +767,19 @@ mod tests {
         assert_eq!(matched_ids("Kauaʻi, Hawaii")[0], "us-hi-kauai");
         assert_eq!(matched_ids("kauai")[0], "us-hi-kauai");
         assert_eq!(matched_ids("Reykjavík")[0], "is-reykjavik");
+    }
+
+    #[test]
+    fn saved_place_identity_preserves_distinct_non_latin_names() {
+        assert_eq!(saved_place_identity("Café Place"), "cafe place");
+        assert_eq!(saved_place_identity("cafe-place"), "cafe place");
+        assert_eq!(saved_place_identity("東京"), "東京");
+        assert_eq!(saved_place_identity("大阪"), "大阪");
+        assert_ne!(
+            saved_place_identity("東京 A"),
+            saved_place_identity("大阪 A")
+        );
+        assert_ne!(saved_place_identity("東京"), saved_place_identity("大阪"));
     }
 
     #[test]

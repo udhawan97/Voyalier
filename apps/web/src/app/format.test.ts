@@ -4,7 +4,9 @@ import {
   formatDateIn,
   formatDateRange,
   formatDateTimeLocal,
+  formatTimeLocal,
 } from "./format";
+import { setLocalePreference } from "./locale";
 
 /**
  * Date formatting is now locale-aware (via Intl) but must keep the contract's
@@ -40,10 +42,18 @@ describe("date formatting", () => {
     expect(formatDate("")).toBe("");
   });
 
-  it("keeps the wall-clock time verbatim in a datetime", () => {
+  it("localizes wall-clock time without shifting it", () => {
+    setLocalePreference("en");
     expect(formatDateTimeLocal("2026-11-03T11:20")).toBe(
-      `${formatDate("2026-11-03")} · 11:20`,
+      `${formatDate("2026-11-03")} · 11:20 AM`,
     );
+    const english = formatTimeLocal("13:05");
+    setLocalePreference("es");
+    const spanish = formatTimeLocal("13:05");
+    expect(english).toMatch(/1:05\sPM/i);
+    expect(spanish).toContain("13:05");
+    expect(spanish).not.toBe(english);
+    setLocalePreference("en");
     // No "T" → falls back to a plain date.
     expect(formatDateTimeLocal("2026-11-03")).toBe(formatDate("2026-11-03"));
   });

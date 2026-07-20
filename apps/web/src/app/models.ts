@@ -16,7 +16,7 @@ export interface RecommendedModel {
   /** Approximate on-disk download size. */
   size: string;
   /** One line on what it's good for. */
-  blurb: string;
+  blurbKey: MessageKey;
 }
 
 export const RECOMMENDED_MODELS: readonly RecommendedModel[] = [
@@ -25,14 +25,14 @@ export const RECOMMENDED_MODELS: readonly RecommendedModel[] = [
     label: "Gemma · 12B",
     tag: "gemma4:12b-it-qat",
     size: "~7 GB",
-    blurb: "Balanced quality — a strong all-rounder for most machines.",
+    blurbKey: "localai.model.gemma.blurb",
   },
   {
     id: "qwen",
     label: "Qwen · 8B",
     tag: "qwen3:8b",
     size: "~5 GB",
-    blurb: "Lighter and faster — a good pick for modest laptops.",
+    blurbKey: "localai.model.qwen.blurb",
   },
 ];
 
@@ -40,3 +40,4 @@ export const RECOMMENDED_MODELS: readonly RecommendedModel[] = [
 export function pullCommand(tag: string): string {
   return `ollama pull ${tag.trim()}`;
 }
+import type { MessageKey } from "./i18n";

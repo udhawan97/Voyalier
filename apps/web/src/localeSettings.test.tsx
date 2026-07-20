@@ -1,10 +1,13 @@
 import { fireEvent, screen } from "@testing-library/react";
 
-import { setLocalePreference } from "./app/locale";
-import { renderSettings } from "./test/helpers";
+import { APP_LOCALE, setLocalePreference } from "./app/locale";
+import { renderApp, renderSettings } from "./test/helpers";
 
 describe("language preference", () => {
-  afterEach(() => setLocalePreference("en"));
+  afterEach(() => {
+    vi.restoreAllMocks();
+    setLocalePreference("en");
+  });
 
   it("re-renders the visible interface immediately in Spanish", async () => {
     setLocalePreference("en");
@@ -22,5 +25,25 @@ describe("language preference", () => {
     ).toBeInTheDocument();
     expect(document.documentElement.lang).toBe("es");
     expect(screen.getByRole("combobox", { name: "Idioma" })).toHaveFocus();
+  });
+
+  it("localizes trip status badges", async () => {
+    setLocalePreference("es");
+    renderApp();
+    expect(await screen.findByText("Activo")).toBeInTheDocument();
+    expect(screen.queryByText("Active")).toBeNull();
+  });
+
+  it("keeps the browser region when System is selected", () => {
+    const language = vi.spyOn(navigator, "language", "get");
+    language.mockReturnValue("en-GB");
+    setLocalePreference("system");
+    expect(APP_LOCALE).toBe("en-GB");
+    expect(document.documentElement.lang).toBe("en");
+
+    language.mockReturnValue("es-MX");
+    setLocalePreference("system");
+    expect(APP_LOCALE).toBe("es-MX");
+    expect(document.documentElement.lang).toBe("es");
   });
 });

@@ -8,6 +8,7 @@ import type {
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError } from "../app/format";
 import { plural, t } from "../app/i18n";
+import { groundingLabel } from "../app/localizedContract";
 import { SectionTitle } from "../components/primitives";
 import { SparklesIcon } from "../components/icons";
 import { Button } from "../components/Button";
@@ -67,16 +68,7 @@ export function AssistDraft({
       }
     } catch (caught) {
       const appError = caught as AppError;
-      // An unreachable model gets "is Ollama running?"; a completed-but-invalid
-      // reply (assist/failed) carries its own "didn't validate" detail.
-      setError(
-        appError.code === "assist/unreachable"
-          ? describeError(appError).body
-          : appError.code === "assist/failed" ||
-              appError.code === "validation/invalid_input"
-            ? appError.message
-            : describeError(appError).title,
-      );
+      setError(describeError(appError).body);
     } finally {
       setRunning(false);
     }
@@ -109,7 +101,9 @@ export function AssistDraft({
           </p>
           <p className="voy-assist__meta">
             {preview.groundedIn.length > 0
-              ? t("assist.grounded", { sources: preview.groundedIn.join(", ") })
+              ? t("assist.grounded", {
+                  sources: preview.groundedIn.map(groundingLabel).join(", "),
+                })
               : t("assist.noGrounding")}
             {" · "}
             {t("assist.tokens", { tokens: preview.estimatedTokens })}

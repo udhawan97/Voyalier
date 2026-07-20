@@ -100,7 +100,8 @@ pub use packs::{
     BoundingBox, DownloadedPack, MAX_OFFLINE_MAP_BYTES, OfflineMapArchive, OfflineMapChunk,
     OfflineMapDescriptor, PACK_RELEASE_TAG, PackArticle, PackContent, PackInfo, PackLayerLicense,
     PackMatchKind, PackPlace, PackSuggestion, normalize_place, offline_map_download_url,
-    pack_catalog, pack_download_url, parse_pack_content, suggest_packs, validate_pack_id,
+    pack_catalog, pack_download_url, parse_pack_content, saved_place_identity, suggest_packs,
+    validate_pack_id,
 };
 // The parser trait, its implementations, and `NormalizedDocument` stay internal:
 // which parser handles which `DocumentKind` is this module's knowledge, not its
@@ -124,8 +125,8 @@ pub use recommend::{
 };
 pub use search::{
     SEARCH_SUGGESTION_LIMIT, SearchHit, SearchHitSource, SearchableDocument, WorkspaceSearchHit,
-    WorkspaceSearchRecord, WorkspaceSearchSource, search_trip_corpus, search_workspace_corpus,
-    suggest_search_terms, validate_search_query,
+    WorkspaceSearchRecord, WorkspaceSearchSource, fact_search_text, search_trip_corpus,
+    search_workspace_corpus, suggest_search_terms, validate_search_query,
 };
 pub use suggest::{
     FIELD_SUGGESTION_LIMIT, FieldSuggestion, SuggestionSource, rank_field_suggestions,

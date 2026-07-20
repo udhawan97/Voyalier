@@ -74,8 +74,9 @@ function Normals({ normals }: { normals: ClimateNormals }) {
         {t("weather.normals.sample", {
           days: normals.sampleDays,
           years: normals.yearsSampled,
-          from: normals.firstYear,
-          to: normals.lastYear,
+          // Calendar years should keep their four-digit shape in every locale.
+          from: String(normals.firstYear),
+          to: String(normals.lastYear),
         })}
         <span aria-hidden="true"> · </span>
         {t("weather.normals.extremes", {

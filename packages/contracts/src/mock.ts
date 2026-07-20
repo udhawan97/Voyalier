@@ -8,6 +8,8 @@ import {
   MAX_NOTES_CHARS,
   MAX_QUERY_LEN,
   countChars,
+  normalizePlace,
+  savedPlaceIdentity,
 } from "./index";
 
 import type {
@@ -885,20 +887,7 @@ const REGION_STOPWORDS = new Set(["usa", "the", "and", "of"]);
  * the gateway surface.
  */
 export function mockNormalizePlace(input: string): string {
-  return (
-    input
-      .toLowerCase()
-      .replace(/ø/g, "o")
-      .replace(/ß/g, "s")
-      // NFKD only decomposes *composed* letters, so ø and ß survive it and would
-      // fall through to the separator strip below — "Tromsø" became "troms".
-      // The core folds them explicitly, so do the same, to the same letters.
-      .normalize("NFKD")
-      .replace(/[̀-ͯ]/g, "") // combining diacritics
-      .replace(/['`´‘’ʻ]/g, "") // apostrophe-like + ʻokina
-      .replace(/[^a-z0-9]+/g, " ")
-      .trim()
-  );
+  return normalizePlace(input);
 }
 
 const MATCH_RANK: Record<PackMatchKind, number> = {
@@ -1288,14 +1277,6 @@ function suggestSearchTermsFrom(
       consider(value);
       for (const word of value.split(/[^\p{L}\p{N}]+/u)) consider(word);
     }
-    const label =
-      fact.factType === "flight_segment"
-        ? (fact.payload as Record<string, string | undefined>).flightNumber
-          ? `Flight ${(fact.payload as Record<string, string>).flightNumber}`
-          : "Flight"
-        : ((fact.payload as Record<string, string | undefined>).propertyName ??
-          "Stay");
-    consider(label);
   }
   return [...seen.entries()]
     .sort(
@@ -1463,13 +1444,14 @@ function buildTodayView(
         p.departureAirportIata && p.arrivalAirportIata
           ? `${p.departureAirportIata} → ${p.arrivalAirportIata}`
           : "";
-      const label =
-        [p.airlineName, p.flightNumber].filter(Boolean).join(" ") || "Flight";
+      const subject =
+        [p.airlineName, p.flightNumber].filter(Boolean).join(" ") || undefined;
       if (p.departureLocal) {
         const d = datePart(p.departureLocal);
         const item: TodayItem = {
           kind: "flight_departure",
-          title: `Depart — ${label}`,
+          title: subject ? `Depart — ${subject}` : "Depart",
+          subject,
           detail: route,
           date: d,
           time: timePart(p.departureLocal),
@@ -1480,7 +1462,8 @@ function buildTodayView(
       if (p.arrivalLocal && datePart(p.arrivalLocal) === today) {
         todayItems.push({
           kind: "flight_arrival",
-          title: `Arrive — ${label}`,
+          title: subject ? `Arrive — ${subject}` : "Arrive",
+          subject,
           detail: route,
           date: today,
           time: timePart(p.arrivalLocal),
@@ -1488,13 +1471,14 @@ function buildTodayView(
       }
     } else {
       const p = fact.payload as LodgingStayPayload;
-      const name = p.propertyName ?? "your stay";
+      const subject = p.propertyName;
       const ci = p.checkinDate;
       const co = p.checkoutDate;
       if (ci) {
         const item: TodayItem = {
           kind: "checkin",
-          title: `Check in — ${name}`,
+          title: subject ? `Check in — ${subject}` : "Check in",
+          subject,
           detail: p.address ?? "",
           date: ci,
         };
@@ -1504,13 +1488,15 @@ function buildTodayView(
       if (co === today) {
         todayItems.push({
           kind: "checkout",
-          title: `Check out — ${name}`,
+          title: subject ? `Check out — ${subject}` : "Check out",
+          subject,
           date: today,
         });
       } else if (ci && co && ci < today && today < co) {
         todayItems.push({
           kind: "staying_tonight",
-          title: `Staying at ${name}`,
+          title: subject ? `Staying at ${subject}` : "Staying tonight",
+          subject,
           detail: p.address ?? "",
           date: today,
         });
@@ -1652,6 +1638,44 @@ export function createMockGateway(options?: {
   const savedPlaces = new Map<string, SavedPlace>();
   const packingItems = new Map<string, PackingItem>();
   const tripItems = new Map<string, TripItem>();
+
+  function recommendationsFor(
+    tripId: string,
+    weights: PersonaWeights,
+  ): Recommendation[] {
+    const downloaded = downloadedPacks.find((pack) => pack.tripId === tripId);
+    if (!downloaded) return [];
+    const recs: Recommendation[] = [];
+    for (const place of MOCK_PLACES) {
+      const dimension = mockDimensionFor(place.category);
+      if (!dimension) continue;
+      const score = Math.min(1, Math.max(0, weights[dimension]));
+      if (score <= 0) continue;
+      recs.push({
+        packId: downloaded.packId,
+        name: place.name,
+        category: place.category,
+        dimension,
+        lat: place.lat,
+        lon: place.lon,
+        source: "Overture Maps",
+        license: "CDLA-Permissive-2.0",
+        score,
+        reasons: [`Matches your interest in ${dimension}`],
+        wildcard: false,
+      });
+    }
+    recs.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+    if (recs.length > 0) {
+      const top = recs[0].dimension;
+      const wild = recs.find((rec) => rec.dimension !== top);
+      if (wild) {
+        wild.wildcard = true;
+        wild.reasons.push("A change of pace from your top picks");
+      }
+    }
+    return recs;
+  }
   // Encrypted-vault state: active by default (keychain mode). An optional
   // passphrase can be set; the mock keeps it only to validate unlock, mirroring
   // that the real gateway never returns or persists the passphrase in plaintext.
@@ -2029,6 +2053,11 @@ export function createMockGateway(options?: {
             ranked.push({
               hit: {
                 source: "confirmed_fact",
+                factType: fact.factType,
+                subject:
+                  fact.factType === "flight_segment"
+                    ? payload.flightNumber
+                    : payload.propertyName,
                 recordId: fact.id,
                 label:
                   fact.factType === "flight_segment"
@@ -2072,7 +2101,11 @@ export function createMockGateway(options?: {
           text: string,
         ) => {
           const trip = trips.get(tripId);
-          const haystack = `${label} ${text}`;
+          const searchesSourceLabel =
+            source === "document" ||
+            source === "saved_place" ||
+            source === "trip_item";
+          const haystack = searchesSourceLabel ? `${label} ${text}` : text;
           if (!trip) return;
           const { matched, occurrences, first } = scoreHaystack(
             haystack.toLowerCase(),
@@ -2089,7 +2122,10 @@ export function createMockGateway(options?: {
               tripUpdatedAt: trip.updatedAt,
               recordId,
               label,
-              snippet: first ? snippetAround(haystack, first) : "",
+              snippet:
+                first && text.toLowerCase().includes(first)
+                  ? snippetAround(text, first)
+                  : "",
               score: occurrences,
             },
           });
@@ -2108,25 +2144,19 @@ export function createMockGateway(options?: {
             fact.tripId,
             fact.id,
             "Confirmed fact",
-            JSON.stringify(fact.payload),
+            factFieldStrings(fact).join(" "),
           );
         for (const note of notes.values())
           add("note", note.tripId, note.tripId, "Trip notes", note.body);
         for (const place of savedPlaces.values())
-          add(
-            "saved_place",
-            place.tripId,
-            place.id,
-            place.name,
-            `${place.category} ${place.notes}`,
-          );
+          add("saved_place", place.tripId, place.id, place.name, place.notes);
         for (const item of tripItems.values())
           add(
             "trip_item",
             item.tripId,
             item.id,
             item.title,
-            `${item.location ?? ""} ${item.notes ?? ""}`,
+            `${item.location ?? ""} ${item.notes ?? ""} ${item.startAt ?? ""} ${item.endAt ?? ""}`,
           );
         return ranked
           .sort(
@@ -2731,41 +2761,7 @@ export function createMockGateway(options?: {
     getRecommendations: (tripId: string, weights: PersonaWeights) =>
       execute("getRecommendations", () => {
         requireTrip(tripId);
-        // Only recommend once a pack (with places) is downloaded for the trip.
-        const downloaded = downloadedPacks.find(
-          (pack) => pack.tripId === tripId,
-        );
-        if (!downloaded) return [];
-        const recs: Recommendation[] = [];
-        for (const place of MOCK_PLACES) {
-          const dimension = mockDimensionFor(place.category);
-          if (!dimension) continue;
-          const score = Math.min(1, Math.max(0, weights[dimension]));
-          if (score <= 0) continue;
-          recs.push({
-            packId: downloaded.packId,
-            name: place.name,
-            category: place.category,
-            dimension,
-            lat: place.lat,
-            lon: place.lon,
-            source: "Overture Maps",
-            license: "CDLA-Permissive-2.0",
-            score,
-            reasons: [`Matches your interest in ${dimension}`],
-            wildcard: false,
-          });
-        }
-        recs.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
-        if (recs.length > 0) {
-          const top = recs[0].dimension;
-          const wild = recs.find((rec) => rec.dimension !== top);
-          if (wild) {
-            wild.wildcard = true;
-            wild.reasons.push("A change of pace from your top picks");
-          }
-        }
-        return recs;
+        return clone(recommendationsFor(tripId, weights));
       }),
 
     setInterestProfile: (input: SetInterestProfileInput) =>
@@ -2797,24 +2793,40 @@ export function createMockGateway(options?: {
       execute("savePlace", () => {
         requireTrip(input.tripId);
         if (
-          !downloadedPacks.some(
-            (pack) =>
-              pack.tripId === input.tripId &&
-              pack.packId === input.recommendation.packId,
+          Object.values(input.weights).some(
+            (weight) => !Number.isFinite(weight) || weight < 0 || weight > 1,
           )
         ) {
           throw appError(
             "validation/invalid_input",
-            "source pack is not downloaded",
+            "interest weights must be from zero to one",
+          );
+        }
+        const requestedName = savedPlaceIdentity(input.recommendation.name);
+        const recommendation = recommendationsFor(
+          input.tripId,
+          input.weights,
+        ).find(
+          (candidate) =>
+            candidate.packId === input.recommendation.packId &&
+            savedPlaceIdentity(candidate.name) === requestedName &&
+            candidate.lat === input.recommendation.lat &&
+            candidate.lon === input.recommendation.lon,
+        );
+        if (!recommendation) {
+          throw appError(
+            "validation/invalid_input",
+            "saved place identity is not a current pack recommendation",
           );
         }
         const existing = [...savedPlaces.values()].find(
           (place) =>
             place.tripId === input.tripId &&
-            place.packId === input.recommendation.packId &&
-            place.name === input.recommendation.name &&
-            place.lat === input.recommendation.lat &&
-            place.lon === input.recommendation.lon,
+            place.packId === recommendation.packId &&
+            savedPlaceIdentity(place.name) ===
+              savedPlaceIdentity(recommendation.name) &&
+            place.lat === recommendation.lat &&
+            place.lon === recommendation.lon,
         );
         if (existing) return clone(existing);
         const now = timestamp();
@@ -2822,7 +2834,7 @@ export function createMockGateway(options?: {
           id: nextId("place"),
           tripId: input.tripId,
           sourcePackAvailable: true,
-          ...clone(input.recommendation),
+          ...clone(recommendation),
           notes: input.notes?.trim() ?? "",
           createdAt: now,
           updatedAt: now,

@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { ExtractionMethod, TripStatus } from "@voyalier/contracts";
 
-import { methodDescription, methodLabel } from "../app/format";
+import { methodDescription, methodLabel, tripStatusLabel } from "../app/format";
 import { ArchiveIcon, DotIcon } from "./icons";
 
 export type Tone = "neutral" | "moss" | "indigo" | "vermilion" | "silver";
@@ -27,20 +27,17 @@ export function StatusBadge({
   );
 }
 
-const TRIP_STATUS: Record<
-  TripStatus,
-  { tone: Tone; icon: ReactNode; label: string }
-> = {
-  draft: { tone: "silver", icon: <DotIcon />, label: "Draft" },
-  active: { tone: "moss", icon: <DotIcon />, label: "Active" },
-  archived: { tone: "neutral", icon: <ArchiveIcon />, label: "Archived" },
+const TRIP_STATUS: Record<TripStatus, { tone: Tone; icon: ReactNode }> = {
+  draft: { tone: "silver", icon: <DotIcon /> },
+  active: { tone: "moss", icon: <DotIcon /> },
+  archived: { tone: "neutral", icon: <ArchiveIcon /> },
 };
 
 export function TripStatusBadge({ status }: { status: TripStatus }) {
   const meta = TRIP_STATUS[status];
   return (
     <StatusBadge tone={meta.tone} icon={meta.icon}>
-      {meta.label}
+      {tripStatusLabel(status)}
     </StatusBadge>
   );
 }

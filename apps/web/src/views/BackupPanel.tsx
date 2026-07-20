@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import type { AppError } from "@voyalier/contracts";
 
 import { useAnnounce } from "../app/context";
 import { t } from "../app/i18n";
@@ -66,8 +65,18 @@ export function BackupPanel({
     try {
       await action();
       reset();
-    } catch (caught) {
-      setError((caught as AppError).message || t("backup.error.generic"));
+    } catch (cause) {
+      const detail =
+        cause instanceof Error
+          ? cause.message
+          : typeof cause === "string"
+            ? cause
+            : "";
+      setError(
+        detail.includes("newer version of Voyalier")
+          ? t("backup.error.newerVersion")
+          : t("backup.error.generic"),
+      );
     } finally {
       setBusy(false);
     }

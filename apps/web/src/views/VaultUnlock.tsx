@@ -1,5 +1,4 @@
 import { useState } from "react";
-import type { AppError } from "@voyalier/contracts";
 
 import { useGateway } from "../app/context";
 import { t } from "../app/i18n";
@@ -25,8 +24,8 @@ export function VaultUnlock({ onUnlocked }: { onUnlocked: () => void }) {
       await gateway.unlockVault(passphrase);
       setPassphrase("");
       onUnlocked();
-    } catch (caught) {
-      setError((caught as AppError).message || t("vault.unlock.error"));
+    } catch {
+      setError(t("vault.unlock.error"));
     } finally {
       setBusy(false);
     }

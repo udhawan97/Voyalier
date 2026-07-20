@@ -49,7 +49,7 @@ Several core items are intentionally left out of `lib.rs`'s `pub use` list (endp
 ## Commands
 
 ```bash
-make bootstrap   # verify node/pnpm/rustc/cargo, then pnpm install + cargo fetch
+make bootstrap   # verify tools, install packages + Chromium, then cargo fetch
 make dev         # cargo server + web, concurrently
 make check       # the gate: prettier + pnpm check, then fmt/clippy/test across all four crates
 ```
@@ -69,7 +69,7 @@ credential-string grep in `security-hygiene.yml`.
 - Parser fixtures are directories under `crates/voyalier-core/fixtures/parser/<case>/`; dropping one in registers it, no wiring needed. `.prettierignore` excludes them because several are deliberately malformed — reformatting changes what the parser is tested against.
 - Web: Vitest + Testing Library, flat in `apps/web/src/` and named by **feature**, not module (`views/MapPanel.tsx` is tested by `src/mapPanel.test.tsx`). Render through `src/test/helpers.tsx`.
 - `IntersectionObserver` is stubbed to fire immediately in setup, so `DeferredSection` mounts eagerly; re-stub it if you are testing deferral.
-- `scripts/check.sh integration` boots the real loopback server against a temporary data directory and runs `gateway.live.test.ts` in CI, covering HTTP serialization through create/read/delete and import/review lifecycles. Route names, verbs, and path shapes are caught separately by the `parity/routes.json` guard. Browser-level Playwright and an equivalent packaged-Tauri serialization journey remain future layers.
+- `scripts/check.sh integration` boots the real loopback server against temporary data for `gateway.live.test.ts`, then runs Playwright through the real Axum + Vite stack with a disposable SQLite workspace. Route names, verbs, and path shapes are caught separately by the `parity/routes.json` guard. An equivalent packaged-Tauri serialization journey remains a future layer.
 
 ## Change discipline
 

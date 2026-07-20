@@ -111,7 +111,7 @@ describe("encrypted vault — optional passphrase", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Unlock" }));
     expect(
-      await screen.findByText("that passphrase is incorrect"),
+      await screen.findByText("That passphrase didn't work."),
     ).toBeInTheDocument();
 
     // Correct passphrase opens the workspace.

@@ -1,6 +1,7 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
 
+import { setLocalePreference } from "./app/locale";
 import { renderApp } from "./test/helpers";
 
 async function openTrip() {
@@ -19,6 +20,8 @@ async function openTrip() {
  * built with secrets excluded by construction, and it transmits nothing.
  */
 describe("AI request preview", () => {
+  afterEach(() => setLocalePreference("en"));
+
   it("builds no preview until asked, then shows a redacted local request", async () => {
     let calls = 0;
     const base = createMockGateway();
@@ -92,7 +95,9 @@ describe("AI request preview", () => {
       within(region).getByRole("button", { name: "Send to OpenAI" }),
     );
     expect(
-      await within(region).findByText(/add an API key/i),
+      await within(region).findByText(
+        /Check the entered values and try again/i,
+      ),
     ).toBeInTheDocument();
   });
 
@@ -120,5 +125,33 @@ describe("AI request preview", () => {
       name: "Assist activity log",
     });
     expect(within(log).getByText("llama3.2")).toBeInTheDocument();
+  });
+
+  it("localizes grounding and withheld field names in Spanish", async () => {
+    setLocalePreference("es");
+    renderApp(createMockGateway());
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Abrir Kyoto autumn journey",
+      }),
+    );
+    const region = await screen.findByRole("region", {
+      name: "Vista previa de la solicitud de IA",
+    });
+    fireEvent.click(
+      within(region).getByRole("button", {
+        name: "Vista previa de la solicitud",
+      }),
+    );
+    expect(
+      await within(region).findByText(/Basado en 1 vuelo confirmado/),
+    ).toBeInTheDocument();
+    expect(
+      within(region).getByText("Códigos de confirmación"),
+    ).toBeInTheDocument();
+    expect(
+      within(region).getByText("Texto de documentos importados"),
+    ).toBeInTheDocument();
+    expect(within(region).queryByText("Confirmation codes")).toBeNull();
   });
 });

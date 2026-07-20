@@ -1,10 +1,13 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { act, fireEvent, screen, within } from "@testing-library/react";
 import register from "@voyalier/contracts/parity/data-sources.json";
 
 import { renderSettings } from "./test/helpers";
+import { setLocalePreference } from "./app/locale";
 import { OPENFREEMAP_STYLE_URL } from "./views/MapPanel";
 
 describe("data source register", () => {
+  afterEach(() => setLocalePreference("en"));
+
   it("renders the shared, exact source list with license and authority boundaries", async () => {
     await renderSettings();
     const region = screen.getByRole("region", {
@@ -63,5 +66,31 @@ describe("data source register", () => {
         /not routing, access, or opening-hours authority/i,
       ),
     ).toBeInTheDocument();
+  });
+
+  it("localizes Voyalier-authored source boundaries in Spanish", async () => {
+    await renderSettings();
+    act(() => setLocalePreference("es"));
+    const region = screen.getByRole("region", {
+      name: "Fuentes de datos y licencias",
+    });
+    fireEvent.click(
+      within(region).getByText("Mostrar todas las fuentes de datos"),
+    );
+
+    expect(
+      within(region).getAllByText("Avisos de viaje oficiales").length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(region).getAllByText(/solo después de una vista previa/i).length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(region).getAllByText(/asistencia para borradores/i).length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(region).queryByText(
+        "Optional bring-your-own-key cloud assistance",
+      ),
+    ).not.toBeInTheDocument();
   });
 });

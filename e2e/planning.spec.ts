@@ -44,8 +44,12 @@ test("planning persists through the real loopback service and a browser reload",
   const plans = page.getByRole("region", { name: "Activities & transfers" });
   await plans.getByLabel("Name").fill("Tea ceremony");
   await plans.getByLabel("Location (optional)").fill("Left Bank");
+  await plans.getByLabel("Start (optional)").fill(`${isoDay(0)}T12:00`);
   await plans.getByRole("button", { name: "Add to plan" }).click();
   await expect(plans.getByText("Tea ceremony")).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Today" }).getByText(/Tea ceremony/),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: "Search workspace" }).click();
   await page.getByLabel("Search all trips").fill("Tea ceremony");
@@ -86,5 +90,9 @@ test("planning persists through the real loopback service and a browser reload",
     .getByRole("button", { name: "Abrir Loopback release trip" })
     .click();
   await expect(page.getByText("Museum pass")).toBeVisible();
-  await expect(page.getByText("Tea ceremony")).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "Actividades y traslados" })
+      .getByText("Tea ceremony", { exact: true }),
+  ).toBeVisible();
 });

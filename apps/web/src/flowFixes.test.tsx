@@ -107,8 +107,8 @@ describe("User-flow gap fixes", () => {
     ).toBeInTheDocument();
   });
 
-  // #7 — a weather lookup failure shows weather wording and the actionable
-  // "couldn't find that destination" detail, not travel-advice copy.
+  // #7 — a weather lookup failure shows localized weather recovery copy, not
+  // travel-advice wording or raw backend prose.
   it("shows a weather-specific error, not advice copy", async () => {
     renderApp(
       failingGateway({
@@ -130,8 +130,9 @@ describe("User-flow gap fixes", () => {
       await within(region).findByText("Couldn't get the weather outlook"),
     ).toBeInTheDocument();
     expect(
-      within(region).getByText(/could not find that destination/),
+      within(region).getByText(/Check the destination and your connection/),
     ).toBeInTheDocument();
+    expect(within(region).queryByText(/weather source/)).toBeNull();
     expect(within(region).queryByText(/the advice page/)).toBeNull();
   });
 });

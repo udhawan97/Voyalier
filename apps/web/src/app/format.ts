@@ -15,8 +15,10 @@ import { APP_LOCALE } from "./locale";
 export { APP_LOCALE };
 
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
+const TIME_ONLY = /^(\d{2}):(\d{2})(?::(\d{2}))?$/;
 
 const dateFormatters = new Map<string, Intl.DateTimeFormat>();
+const timeFormatters = new Map<string, Intl.DateTimeFormat>();
 
 function dateFormatterFor(locale: string): Intl.DateTimeFormat {
   let formatter = dateFormatters.get(locale);
@@ -53,15 +55,38 @@ export function formatDate(value: string): string {
   return formatDateIn(value, APP_LOCALE);
 }
 
+/** Localize a wall-clock time without applying any timezone conversion. */
+export function formatTimeLocal(value: string): string {
+  const match = TIME_ONLY.exec(value);
+  if (!match) return value;
+  const [, hour, minute, second] = match;
+  const key = `${APP_LOCALE}:${second ? "seconds" : "minutes"}`;
+  let formatter = timeFormatters.get(key);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(APP_LOCALE, {
+      hour: "numeric",
+      minute: "2-digit",
+      ...(second ? { second: "2-digit" } : {}),
+      timeZone: "UTC",
+    });
+    timeFormatters.set(key, formatter);
+  }
+  return formatter.format(
+    new Date(
+      Date.UTC(2000, 0, 1, Number(hour), Number(minute), Number(second ?? 0)),
+    ),
+  );
+}
+
 /**
- * Format a local datetime ("2026-11-03T11:20") as "Nov 3, 2026 · 11:20". The
- * date localizes; the wall-clock time is kept verbatim (never through Date, so
- * no timezone conversion).
+ * Format a local datetime ("2026-11-03T11:20") as a localized date and time.
+ * Both parts are constructed as UTC calendar fields, so Intl can apply locale
+ * conventions without shifting the traveler's wall-clock value.
  */
 export function formatDateTimeLocal(value: string): string {
   const [datePart, timePart] = value.split("T");
   if (!timePart) return formatDate(value);
-  return `${formatDate(datePart)} · ${timePart}`;
+  return `${formatDate(datePart)} · ${formatTimeLocal(timePart)}`;
 }
 
 export function formatDateRange(startDate: string, endDate: string): string {
@@ -327,9 +352,10 @@ export function describeError(error: AppError): ErrorCopy {
         body: t("error.adviceFetch.body"),
       };
     case "weather/fetch_failed":
-      // The body is the backend's specific, actionable message (e.g. "couldn't
-      // find that destination" vs "couldn't reach the weather service").
-      return { title: t("error.weatherFetch.title"), body: error.message };
+      return {
+        title: t("error.weatherFetch.title"),
+        body: t("error.weatherFetch.body"),
+      };
     case "assist/failed":
       return { title: t("error.assist.title"), body: t("error.assist.body") };
     case "assist/unreachable":
@@ -344,8 +370,10 @@ export function describeError(error: AppError): ErrorCopy {
       };
     case "validation/invalid_input":
     case "validation/invalid_date_range":
-      // The body is the server's field-level message, kept verbatim.
-      return { title: t("error.validation.title"), body: error.message };
+      return {
+        title: t("error.validation.title"),
+        body: t("error.validation.body"),
+      };
     case "internal/unexpected":
     default:
       return {
@@ -366,17 +394,20 @@ export function tripFieldError(
   error: AppError,
 ): { field: TripFieldKey; message: string } | null {
   if (error.code === "validation/invalid_date_range") {
-    return { field: "dates", message: error.message };
+    return { field: "dates", message: t("tripFieldError.dateRange") };
   }
   if (error.code === "validation/invalid_input") {
     const field = error.details?.field ?? "";
     if (field.includes("origin"))
-      return { field: "origin", message: error.message };
+      return { field: "origin", message: t("tripFieldError.origin") };
     if (field.includes("destination")) {
-      return { field: "destination", message: error.message };
+      return {
+        field: "destination",
+        message: t("tripFieldError.destination"),
+      };
     }
     if (field.includes("Date") || field.includes("date")) {
-      return { field: "dates", message: error.message };
+      return { field: "dates", message: t("tripFieldError.dateRange") };
     }
   }
   return null;

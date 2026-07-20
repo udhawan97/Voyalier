@@ -1,6 +1,7 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
 
+import { setLocalePreference } from "./app/locale";
 import { renderApp } from "./test/helpers";
 
 /**
@@ -10,6 +11,8 @@ import { renderApp } from "./test/helpers";
  * them.
  */
 describe("shareable brief", () => {
+  afterEach(() => setLocalePreference("en"));
+
   it("renders a redacted brief with confirmation codes removed", async () => {
     renderApp(createMockGateway());
 
@@ -66,5 +69,27 @@ describe("shareable brief", () => {
     expect(serialized).not.toContain("Jamie Traveler");
     expect(serialized).toContain("AA1");
     expect(brief.redactedFields).toContain("Confirmation codes");
+  });
+
+  it("localizes the redaction disclosure without changing source data", async () => {
+    setLocalePreference("es");
+    renderApp(createMockGateway());
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Abrir Kyoto autumn journey",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Compartir resumen" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Resumen para compartir",
+    });
+    expect(
+      within(dialog).getByText(
+        /Oculto en este resumen: códigos de confirmación, nombres de los viajeros\./,
+      ),
+    ).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Confirmation codes/)).toBeNull();
   });
 });

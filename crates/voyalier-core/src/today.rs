@@ -53,6 +53,10 @@ pub enum TodayItemKind {
 #[serde(rename_all = "camelCase")]
 pub struct TodayItem {
     pub kind: TodayItemKind,
+    /// Traveler or source text used as the subject of a localized UI label.
+    /// Absent when the source did not supply a carrier/property name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subject: Option<String>,
     pub title: String,
     #[serde(skip_serializing_if = "String::is_empty")]
     pub detail: String,
@@ -151,7 +155,7 @@ fn flight_route(payload: &FactPayload) -> String {
     }
 }
 
-fn flight_label(payload: &FactPayload) -> String {
+fn flight_subject(payload: &FactPayload) -> Option<String> {
     let carrier: String = [
         payload.airline_name.as_deref(),
         payload.flight_number.as_deref(),
@@ -160,18 +164,11 @@ fn flight_label(payload: &FactPayload) -> String {
     .flatten()
     .collect::<Vec<_>>()
     .join(" ");
-    if carrier.is_empty() {
-        "Flight".to_owned()
-    } else {
-        carrier
-    }
+    (!carrier.is_empty()).then_some(carrier)
 }
 
-fn property_name(payload: &FactPayload) -> String {
-    payload
-        .property_name
-        .clone()
-        .unwrap_or_else(|| "your stay".to_owned())
+fn property_subject(payload: &FactPayload) -> Option<String> {
+    payload.property_name.clone()
 }
 
 /// Build the Today view for `trip` and `facts` against `today` (YYYY-MM-DD).
@@ -190,9 +187,14 @@ pub fn build_today_view(
                 let payload = &fact.payload;
                 if let Some(departure) = payload.departure_local.as_deref() {
                     let date = date_part(departure);
+                    let subject = flight_subject(payload);
                     let item = TodayItem {
                         kind: TodayItemKind::FlightDeparture,
-                        title: format!("Depart — {}", flight_label(payload)),
+                        title: subject.as_ref().map_or_else(
+                            || "Depart".to_owned(),
+                            |value| format!("Depart — {value}"),
+                        ),
+                        subject,
                         detail: flight_route(payload),
                         date: date.to_owned(),
                         time: time_part(departure),
@@ -206,9 +208,14 @@ pub fn build_today_view(
                 if let Some(arrival) = payload.arrival_local.as_deref() {
                     let date = date_part(arrival);
                     if date == today {
+                        let subject = flight_subject(payload);
                         today_items.push(TodayItem {
                             kind: TodayItemKind::FlightArrival,
-                            title: format!("Arrive — {}", flight_label(payload)),
+                            title: subject.as_ref().map_or_else(
+                                || "Arrive".to_owned(),
+                                |value| format!("Arrive — {value}"),
+                            ),
+                            subject,
                             detail: flight_route(payload),
                             date: date.to_owned(),
                             time: time_part(arrival),
@@ -220,11 +227,15 @@ pub fn build_today_view(
                 let payload = &fact.payload;
                 let checkin = payload.checkin_date.as_deref();
                 let checkout = payload.checkout_date.as_deref();
-                let name = property_name(payload);
+                let subject = property_subject(payload);
                 if let Some(checkin) = checkin {
                     let item = TodayItem {
                         kind: TodayItemKind::Checkin,
-                        title: format!("Check in — {name}"),
+                        title: subject.as_ref().map_or_else(
+                            || "Check in".to_owned(),
+                            |value| format!("Check in — {value}"),
+                        ),
+                        subject: subject.clone(),
                         detail: payload.address.clone().unwrap_or_default(),
                         date: checkin.to_owned(),
                         time: None,
@@ -238,7 +249,11 @@ pub fn build_today_view(
                 if checkout == Some(today) {
                     today_items.push(TodayItem {
                         kind: TodayItemKind::Checkout,
-                        title: format!("Check out — {name}"),
+                        title: subject.as_ref().map_or_else(
+                            || "Check out".to_owned(),
+                            |value| format!("Check out — {value}"),
+                        ),
+                        subject: subject.clone(),
                         detail: String::new(),
                         date: today.to_owned(),
                         time: None,
@@ -248,7 +263,11 @@ pub fn build_today_view(
                     if checkin < today && today < checkout {
                         today_items.push(TodayItem {
                             kind: TodayItemKind::StayingTonight,
-                            title: format!("Staying at {name}"),
+                            title: subject.as_ref().map_or_else(
+                                || "Staying tonight".to_owned(),
+                                |value| format!("Staying at {value}"),
+                            ),
+                            subject: subject.clone(),
                             detail: payload.address.clone().unwrap_or_default(),
                             date: today.to_owned(),
                             time: None,
@@ -270,6 +289,7 @@ pub fn build_today_view(
                 TripItemKind::Rail => TodayItemKind::Rail,
                 TripItemKind::Transfer => TodayItemKind::Transfer,
             },
+            subject: None,
             title: planned.title.clone(),
             detail: planned.location.clone().unwrap_or_default(),
             date: date.to_owned(),
@@ -407,6 +427,21 @@ mod tests {
             vec![TodayItemKind::StayingTonight]
         );
         assert!(mid.next.is_none());
+    }
+
+    #[test]
+    fn missing_source_names_stay_typed_instead_of_becoming_english_ui_copy() {
+        let mut unnamed_flight = flight();
+        unnamed_flight.payload.airline_name = None;
+        unnamed_flight.payload.flight_number = None;
+        let mut unnamed_stay = stay();
+        unnamed_stay.payload.property_name = None;
+
+        let view = build_today_view(&trip(), &[unnamed_flight, unnamed_stay], &[], "2026-11-04");
+        assert!(view.today.iter().all(|item| item.subject.is_none()));
+        let wire = serde_json::to_string(&view).expect("serialize");
+        assert!(!wire.contains("your stay"));
+        assert!(!wire.contains("Flight"));
     }
 
     #[test]
