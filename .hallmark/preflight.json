@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "scannedAt": "2026-07-20",
+  "packageMtime": 1784524260,
+  "framework": "Astro 7.1.1 with Starlight 0.41.3",
+  "fonts": ["Shippori Mincho", "Zen Kaku Gothic New"],
+  "palette": "Quiet Journey: washi, sumi, ai indigo, shu vermilion",
+  "spacing": "4-point custom-property scale",
+  "motion": "CSS-only; no motion runtime",
+  "preserve": [
+    "self-hosted fonts",
+    "brand palette",
+    "folded-route mark",
+    "reduced-motion contract",
+    "documentation readability"
+  ]
+}

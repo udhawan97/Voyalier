@@ -1,0 +1,57 @@
+---
+interface Props {
+  compact?: boolean
+}
+
+const { compact = false } = Astro.props
+---
+
+<div
+  class:list={['route-artifact', { 'route-artifact--compact': compact }]}
+  data-route-artifact={!compact ? '' : undefined}
+  aria-hidden="true"
+>
+  <div class="route-artifact__ground"></div>
+  <svg class="route-artifact__svg" viewBox="0 0 640 480" focusable="false">
+    <g class="route-artifact__paper">
+      <path class="route-artifact__edge" d="M72 101 239 48l12 320L84 422Z" />
+      <path class="route-artifact__edge route-artifact__edge--middle" d="m239 48 164 62 11 322-163-64Z" />
+      <path class="route-artifact__edge route-artifact__edge--end" d="m403 110 159-55 10 321-158 56Z" />
+
+      <path class="route-artifact__panel route-artifact__panel--start" d="M66 88 239 34l12 320L78 409Z" />
+      <path class="route-artifact__panel route-artifact__panel--middle" d="m239 34 170 63 11 322-169-65Z" />
+      <path class="route-artifact__panel route-artifact__panel--end" d="m409 97 166-56 9 321-164 57Z" />
+
+      <g class="route-artifact__contours">
+        <path d="M94 157 216 119" />
+        <path d="M92 192 218 153" />
+        <path d="m278 118 101 38" />
+        <path d="m280 154 102 38" />
+        <path d="m445 158 101-34" />
+        <path d="m446 195 102-35" />
+      </g>
+
+      <path
+        class="route-artifact__route"
+        pathLength="1"
+        d="M113 326C146 276 181 293 205 244c25-51 59-76 98-50 42 28 39 93 83 102 47 9 60-92 111-114 28-12 43-5 58-29"
+      />
+      <path
+        class="route-artifact__route route-artifact__route--echo"
+        pathLength="1"
+        d="M113 326C146 276 181 293 205 244c25-51 59-76 98-50 42 28 39 93 83 102 47 9 60-92 111-114 28-12 43-5 58-29"
+      />
+
+      <g class="route-artifact__stops">
+        <circle cx="113" cy="326" r="8" />
+        <circle cx="205" cy="244" r="8" />
+        <circle cx="386" cy="296" r="8" />
+      </g>
+      <circle class="route-artifact__waypoint" cx="555" cy="153" r="13" />
+      <circle class="route-artifact__waypoint-ring" cx="555" cy="153" r="25" />
+    </g>
+  </svg>
+  <div class="route-artifact__caption route-artifact__caption--source">Source</div>
+  <div class="route-artifact__caption route-artifact__caption--review">Review</div>
+  <div class="route-artifact__caption route-artifact__caption--ready">Ready</div>
+</div>
