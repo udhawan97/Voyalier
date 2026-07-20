@@ -28,6 +28,7 @@ cargo build --locked -p voyalier-server
 
 VOYALIER_BIND=127.0.0.1:8787 \
 VOYALIER_DATA_DIR="$integration_tmp/data" \
+VOYALIER_INTEGRATION_TEST=1 \
 VOYALIER_LOG=warn \
   cargo run --locked -p voyalier-server >"$server_log" 2>&1 &
 server_pid=$!

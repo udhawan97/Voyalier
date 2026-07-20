@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import type {
   InterestProfile,
   PersonaWeights,
@@ -82,9 +82,6 @@ export function Recommendations({
   );
   const [recs, setRecs] = useState<Recommendation[] | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
-  useEffect(() => {
-    if (profile) setWeights(profile);
-  }, [profile]);
   function setDimension(key: Dimension, value: number) {
     setWeights((prev) => ({ ...prev, [key]: value }));
   }
