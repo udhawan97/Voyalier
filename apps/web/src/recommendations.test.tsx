@@ -46,6 +46,11 @@ describe("Recommendations", () => {
 
     // Pick the Foodie preset, then recommendations rank food first.
     fireEvent.click(within(region).getByRole("button", { name: "Foodie" }));
+    expect(within(region).getByText("Interests not saved")).toBeInTheDocument();
+    fireEvent.click(
+      within(region).getByRole("button", { name: "Save interests" }),
+    );
+    expect(await within(region).findByText("Interests saved")).toBeInTheDocument();
     fireEvent.click(
       within(region).getByRole("button", { name: "Get recommendations" }),
     );

@@ -45,6 +45,11 @@ export function PlanningPanel({
   const [endAt, setEndAt] = useState("");
   const [itemNotes, setItemNotes] = useState("");
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [selectedSavedPlaceId, setSelectedSavedPlaceId] = useState<
+    string | null
+  >(null);
+  const [editingPackingId, setEditingPackingId] = useState<string | null>(null);
+  const [packingLabel, setPackingLabel] = useState("");
 
   function resetItemForm() {
     setEditingItemId(null);
@@ -54,6 +59,7 @@ export function PlanningPanel({
     setStartAt("");
     setEndAt("");
     setItemNotes("");
+    setSelectedSavedPlaceId(null);
   }
 
   async function change(key: string, action: () => Promise<unknown>) {
@@ -110,6 +116,9 @@ export function PlanningPanel({
                 <div className="voy-planning__actions">
                   <Button
                     variant="ghost"
+                    aria-label={t("planning.saved.saveNotesLabel", {
+                      name: place.name,
+                    })}
                     busy={busy === `notes:${place.id}`}
                     onClick={() =>
                       change(`notes:${place.id}`, () =>
@@ -124,25 +133,30 @@ export function PlanningPanel({
                   </Button>
                   <Button
                     variant="secondary"
-                    busy={busy === `promote:${place.id}`}
-                    onClick={() =>
-                      change(`promote:${place.id}`, async () => {
-                        await gateway.createTripItem({
-                          tripId,
-                          kind: "activity",
-                          title: place.name,
-                          savedPlaceId: place.id,
-                        });
-                        announce(
-                          t("planning.saved.promoted", { name: place.name }),
-                        );
-                      })
-                    }
+                    aria-label={t("planning.saved.addToPlanLabel", {
+                      name: place.name,
+                    })}
+                    onClick={() => {
+                      setEditingItemId(null);
+                      setKind("activity");
+                      setTitle(place.name);
+                      setLocation(`${place.lat}, ${place.lon}`);
+                      setStartAt("");
+                      setEndAt("");
+                      setItemNotes("");
+                      setSelectedSavedPlaceId(place.id);
+                      announce(
+                        t("planning.saved.prefilled", { name: place.name }),
+                      );
+                    }}
                   >
                     {t("planning.saved.addToPlan")}
                   </Button>
                   <Button
                     variant="ghost"
+                    aria-label={t("planning.removeNamed", {
+                      name: place.name,
+                    })}
                     busy={busy === `delete-place:${place.id}`}
                     onClick={() =>
                       change(`delete-place:${place.id}`, () =>
@@ -170,7 +184,15 @@ export function PlanningPanel({
               const accepted = acceptedCodes.has(suggestion.code);
               return (
                 <li key={suggestion.code}>
-                  <span>{t(`packing.${suggestion.code}` as MessageKey)}</span>
+                  <span>
+                    {t(`packing.${suggestion.code}` as MessageKey)}
+                    <small>
+                      {t(
+                        `packing.reason.${suggestion.reason.code}` as MessageKey,
+                        { value: suggestion.reason.value ?? "" },
+                      )}
+                    </small>
+                  </span>
                   <Button
                     variant="ghost"
                     disabled={accepted}
@@ -224,24 +246,68 @@ export function PlanningPanel({
         <ul className="voy-planning__checklist">
           {packingItems.map((item) => (
             <li key={item.id}>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={item.checked}
-                  onChange={(event) =>
-                    void change(`packing:${item.id}`, () =>
-                      gateway.updatePackingItem({
+              {editingPackingId === item.id ? (
+                <label>
+                  {t("planning.packing.nameLabel")}
+                  <input
+                    value={packingLabel}
+                    onChange={(event) => setPackingLabel(event.target.value)}
+                  />
+                </label>
+              ) : (
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={item.checked}
+                    onChange={(event) =>
+                      void change(`packing:${item.id}`, () =>
+                        gateway.updatePackingItem({
+                          packingItemId: item.id,
+                          label: item.label,
+                          checked: event.target.checked,
+                        }),
+                      )
+                    }
+                  />
+                  <span>{item.label}</span>
+                </label>
+              )}
+              {editingPackingId === item.id ? (
+                <Button
+                  variant="ghost"
+                  aria-label={t("planning.packing.saveLabel")}
+                  busy={busy === `packing:${item.id}`}
+                  onClick={() =>
+                    void change(`packing:${item.id}`, async () => {
+                      await gateway.updatePackingItem({
                         packingItemId: item.id,
-                        label: item.label,
-                        checked: event.target.checked,
-                      }),
-                    )
+                        label: packingLabel,
+                        checked: item.checked,
+                      });
+                      setEditingPackingId(null);
+                      setPackingLabel("");
+                    })
                   }
-                />
-                <span>{item.label}</span>
-              </label>
+                >
+                  {t("planning.items.save")}
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  aria-label={t("planning.packing.renameLabel", {
+                    name: item.label,
+                  })}
+                  onClick={() => {
+                    setEditingPackingId(item.id);
+                    setPackingLabel(item.label);
+                  }}
+                >
+                  {t("planning.items.edit")}
+                </Button>
+              )}
               <Button
                 variant="ghost"
+                aria-label={t("planning.removeNamed", { name: item.label })}
                 busy={busy === `delete-packing:${item.id}`}
                 onClick={() =>
                   change(`delete-packing:${item.id}`, () =>
@@ -273,6 +339,9 @@ export function PlanningPanel({
               ...(startAt ? { startAt } : {}),
               ...(endAt ? { endAt } : {}),
               ...(itemNotes.trim() ? { notes: itemNotes } : {}),
+              ...(selectedSavedPlaceId
+                ? { savedPlaceId: selectedSavedPlaceId }
+                : {}),
             };
             const key = editingItemId
               ? `trip-item:${editingItemId}`
@@ -369,6 +438,9 @@ export function PlanningPanel({
               <div className="voy-planning__actions">
                 <Button
                   variant="ghost"
+                  aria-label={t("planning.items.editLabel", {
+                    name: item.title,
+                  })}
                   onClick={() => {
                     setEditingItemId(item.id);
                     setKind(item.kind);
@@ -377,12 +449,16 @@ export function PlanningPanel({
                     setStartAt(item.startAt ?? "");
                     setEndAt(item.endAt ?? "");
                     setItemNotes(item.notes ?? "");
+                    setSelectedSavedPlaceId(item.savedPlaceId ?? null);
                   }}
                 >
                   {t("planning.items.edit")}
                 </Button>
                 <Button
                   variant="ghost"
+                  aria-label={t("planning.items.removeLabel", {
+                    name: item.title,
+                  })}
                   busy={busy === `delete-item:${item.id}`}
                   onClick={() =>
                     change(`delete-item:${item.id}`, () =>

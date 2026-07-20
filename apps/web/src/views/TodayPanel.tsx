@@ -4,6 +4,7 @@ import { useGateway } from "../app/context";
 import { useAsyncData } from "../app/useAsync";
 import { formatDate } from "../app/format";
 import { t } from "../app/i18n";
+import { tripScope, useScopeKey } from "../app/revalidate";
 import { Button } from "../components/Button";
 import { SectionTitle } from "../components/primitives";
 import { CalendarIcon, RetryIcon } from "../components/icons";
@@ -35,9 +36,10 @@ function itemLine(item: TodayItem): string {
  */
 export function TodayPanel({ tripId }: { tripId: string }) {
   const gateway = useGateway();
+  const tripVersion = useScopeKey(tripScope(tripId));
   const today = useAsyncData<TodayView>(
     () => gateway.getToday(tripId),
-    `today:${tripId}`,
+    `today:${tripId}:${tripVersion}`,
   );
 
   if (today.status === "error") {

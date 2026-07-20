@@ -27,6 +27,14 @@ function resolveLocale(value: LocalePreference): string {
 /** Live ESM binding retained for the existing date/number format helpers. */
 export let APP_LOCALE: string = resolveLocale(preference);
 
+function applyDocumentLanguage(): void {
+  if (typeof document !== "undefined") {
+    document.documentElement.lang = APP_LOCALE.split("-")[0];
+  }
+}
+
+applyDocumentLanguage();
+
 export function getLocalePreference(): LocalePreference {
   return preference;
 }
@@ -39,7 +47,7 @@ export function setLocalePreference(value: LocalePreference): void {
   } catch {
     // Storage can be unavailable in privacy modes; the session still switches.
   }
-  document.documentElement.lang = APP_LOCALE.split("-")[0];
+  applyDocumentLanguage();
   for (const listener of listeners) listener();
 }
 

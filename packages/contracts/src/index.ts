@@ -995,6 +995,8 @@ export interface WorkspaceSearchHit {
   source: WorkspaceSearchSource;
   tripId: string;
   tripTitle: string;
+  tripStatus: TripStatus;
+  tripUpdatedAt: string;
   recordId: string;
   label: string;
   snippet: string;

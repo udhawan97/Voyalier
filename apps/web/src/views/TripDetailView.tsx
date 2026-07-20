@@ -24,7 +24,7 @@ import {
 } from "../app/format";
 import { buildIcs, icsFilename } from "../app/ics";
 import { plural, t, type MessageKey, type PluralBase } from "../app/i18n";
-import { tripScope, useScopeKey } from "../app/revalidate";
+import { tripScope, useRevalidate, useScopeKey } from "../app/revalidate";
 import { useAsyncAction, useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
@@ -426,11 +426,17 @@ function ScheduleCheck({ conflicts }: { conflicts: ItineraryConflict[] }) {
         return plural("schedule.lodging_gap", nights, { first: start, last });
       }
       case "planned_item_overlap": {
-        const [firstPlan = "", secondPlan = ""] =
+        const [firstPlan = "", secondPlan] =
           conflict.plannedItemTitles ?? [];
+        if (!secondPlan && first) {
+          return t("schedule.planned_item_fact_overlap", {
+            plan: firstPlan,
+            fact: first,
+          });
+        }
         return t("schedule.planned_item_overlap", {
           first: firstPlan,
-          second: secondPlan,
+          second: secondPlan ?? "",
         });
       }
     }
@@ -479,6 +485,7 @@ export function TripDetailView({
 }) {
   const gateway = useGateway();
   const announce = useAnnounce();
+  const revalidate = useRevalidate();
   const { status, data, error, reload } = useAsyncData(
     async () => {
       const [detail, pending] = await Promise.all([
@@ -642,6 +649,8 @@ export function TripDetailView({
     .filter((fact) => fact.factType === "lodging_stay")
     .sort(byField("checkinDate"));
   const isArchived = trip.status === "archived";
+  const hasItinerary =
+    confirmedFacts.length > 0 || data.detail.tripItems.length > 0;
 
   return (
     <section className="voy-detail" aria-labelledby="detail-heading">
@@ -674,13 +683,13 @@ export function TripDetailView({
           <Button variant="ghost" onClick={() => setShowEdit(true)}>
             {t("detail.edit")}
           </Button>
-          {confirmedFacts.length > 0 ? (
+          {hasItinerary ? (
             <Button variant="ghost" onClick={() => setShowBrief(true)}>
               {t("detail.shareBrief")}
             </Button>
           ) : null}
-          {/* Same gate as the brief: nothing confirmed, nothing to export. */}
-          {confirmedFacts.length > 0 ? (
+          {/* Both confirmed facts and traveler-authored plans are exportable. */}
+          {hasItinerary ? (
             <Button
               variant="ghost"
               onClick={() => exportAction.run()}
@@ -807,14 +816,14 @@ export function TripDetailView({
         suggestions={data.detail.packingList}
         packingItems={data.detail.packingItems}
         tripItems={data.detail.tripItems}
-        onChanged={() => reload()}
+        onChanged={() => revalidate(tripScope(tripId))}
       />
 
       {confirmedFacts.length > 0 || pendingCount > 0 ? (
         <ReadinessPanel readiness={readiness} />
       ) : null}
 
-      {confirmedFacts.length > 0 ? (
+      {hasItinerary ? (
         <ScheduleCheck conflicts={itineraryConflicts} />
       ) : null}
 

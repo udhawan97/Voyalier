@@ -2,7 +2,9 @@
   "sources": [
     {
       "id": "uk-fcdo",
+      "category": "consent_fetched",
       "name": "UK Foreign, Commonwealth & Development Office",
+      "url": "https://www.gov.uk/foreign-travel-advice",
       "use": "Official travel advice",
       "endpoint": "gov.uk foreign-travel-advice content API",
       "license": "Open Government Licence v3.0",
@@ -12,7 +14,9 @@
     },
     {
       "id": "us-state",
+      "category": "consent_fetched",
       "name": "U.S. Department of State",
+      "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html",
       "use": "Official travel advisories",
       "endpoint": "cadataapi.state.gov TravelAdvisories",
       "license": "Public domain",
@@ -22,7 +26,9 @@
     },
     {
       "id": "ca-gac",
+      "category": "consent_fetched",
       "name": "Government of Canada — Global Affairs Canada",
+      "url": "https://travel.gc.ca/travelling/advisories",
       "use": "Official travel advisories",
       "endpoint": "data.international.gc.ca travel-voyage feed",
       "license": "Open Government Licence — Canada",
@@ -32,7 +38,9 @@
     },
     {
       "id": "de-aa",
+      "category": "consent_fetched",
       "name": "Auswärtiges Amt (Germany)",
+      "url": "https://www.auswaertiges-amt.de/en/ReiseUndSicherheit",
       "use": "Official travel advisories",
       "endpoint": "German Federal Foreign Office OpenData travel warnings",
       "license": "Data licence Germany — attribution — version 2.0",
@@ -42,7 +50,9 @@
     },
     {
       "id": "us-cdc",
+      "category": "consent_fetched",
       "name": "U.S. Centers for Disease Control and Prevention",
+      "url": "https://wwwnc.cdc.gov/travel/notices",
       "use": "Travel health notices",
       "endpoint": "CDC travel notices feed",
       "license": "Public domain",
@@ -52,7 +62,9 @@
     },
     {
       "id": "open-meteo",
+      "category": "consent_fetched",
       "name": "Open-Meteo",
+      "url": "https://open-meteo.com/",
       "use": "Geocoding, weather, climate normals, and air quality",
       "endpoint": "api.open-meteo.com and geocoding-api.open-meteo.com",
       "license": "CC BY 4.0; hosted free tier has non-commercial terms",
@@ -61,8 +73,22 @@
       "authority": "Forecast and historical observations; never safety or itinerary authority"
     },
     {
+      "id": "nws",
+      "category": "consent_fetched",
+      "name": "U.S. National Weather Service",
+      "url": "https://www.weather.gov/documentation/services-web-api",
+      "use": "Active U.S. weather alerts near a destination",
+      "endpoint": "api.weather.gov/alerts/active",
+      "license": "U.S. government public domain unless specifically annotated",
+      "attribution": "U.S. National Weather Service",
+      "network": "Fetched with a requested weather snapshot for U.S. coordinates",
+      "authority": "Official alert feed; timestamps and source wording remain visible"
+    },
+    {
       "id": "ecb",
+      "category": "consent_fetched",
       "name": "European Central Bank",
+      "url": "https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html",
       "use": "Reference exchange rates",
       "endpoint": "ECB euro foreign-exchange reference rates",
       "license": "ECB reuse policy",
@@ -72,7 +98,9 @@
     },
     {
       "id": "nager-date",
+      "category": "consent_fetched",
       "name": "Nager.Date",
+      "url": "https://date.nager.at/",
       "use": "Public holidays",
       "endpoint": "date.nager.at public-holidays API",
       "license": "MIT-licensed API project",
@@ -82,7 +110,9 @@
     },
     {
       "id": "wikimedia",
+      "category": "consent_fetched",
       "name": "Wikipedia / Wikimedia",
+      "url": "https://www.wikipedia.org/",
       "use": "Destination summaries",
       "endpoint": "Wikimedia REST page-summary API",
       "license": "CC BY-SA 4.0",
@@ -91,8 +121,22 @@
       "authority": "Community-written context; never safety, price, or opening-hours authority"
     },
     {
+      "id": "openfreemap",
+      "category": "consent_fetched",
+      "name": "OpenFreeMap",
+      "url": "https://openfreemap.org/",
+      "use": "Online map style and vector tiles",
+      "endpoint": "https://tiles.openfreemap.org/styles/liberty",
+      "license": "MIT service project; OpenStreetMap data under ODbL-1.0",
+      "attribution": "OpenFreeMap © OpenMapTiles Data from OpenStreetMap",
+      "network": "Fetched only after you select Show map without an offline basemap",
+      "authority": "Visual map context with no routing, live-access, or availability claim"
+    },
+    {
       "id": "overture",
+      "category": "offline_download",
       "name": "Overture Maps Foundation",
+      "url": "https://overturemaps.org/",
       "use": "Offline city-pack places",
       "endpoint": "CI-built, bounded city-pack artifacts",
       "license": "CDLA-Permissive-2.0",
@@ -102,7 +146,9 @@
     },
     {
       "id": "wikivoyage",
+      "category": "offline_download",
       "name": "Wikivoyage",
+      "url": "https://www.wikivoyage.org/",
       "use": "Offline city travel notes",
       "endpoint": "CI-built, bounded city-pack artifacts",
       "license": "CC BY-SA 3.0",
@@ -112,7 +158,9 @@
     },
     {
       "id": "protomaps-osm",
+      "category": "offline_download",
       "name": "Protomaps Basemap / OpenStreetMap",
+      "url": "https://protomaps.com/",
       "use": "Offline maps",
       "endpoint": "Pinned Protomaps PMTiles build, clipped and rehosted on GitHub Releases",
       "license": "ODbL-1.0",
@@ -122,7 +170,9 @@
     },
     {
       "id": "geonames",
+      "category": "built_in",
       "name": "GeoNames",
+      "url": "https://www.geonames.org/",
       "use": "Bundled city autocomplete",
       "endpoint": "Bundled cities15000 snapshot",
       "license": "CC BY 4.0",
@@ -132,14 +182,64 @@
     },
     {
       "id": "ourairports",
+      "category": "built_in",
       "name": "OurAirports",
+      "url": "https://ourairports.com/data/",
       "use": "Bundled nearest-airport lookup",
       "endpoint": "Bundled scheduled-service airport snapshot",
       "license": "Public domain",
       "attribution": "OurAirports",
       "network": "Bundled with the app; no runtime request",
       "authority": "Geographic airport proximity only; not flight availability"
+    },
+    {
+      "id": "wikidata-heritage",
+      "category": "built_in",
+      "name": "Wikidata",
+      "url": "https://www.wikidata.org/wiki/Wikidata:Licensing",
+      "use": "Bundled World Heritage site lookup",
+      "endpoint": "Pinned Wikidata P1435=Q9259 extract",
+      "license": "CC0 1.0",
+      "attribution": "Wikidata contributors",
+      "network": "Bundled with the app; no runtime request",
+      "authority": "Convenience lookup from a dated extract; not a complete UNESCO registry"
+    },
+    {
+      "id": "ollama",
+      "category": "optional_ai",
+      "name": "Ollama",
+      "url": "https://ollama.com/",
+      "use": "Optional on-device AI assistance",
+      "endpoint": "http://localhost:11434/api/chat",
+      "license": "Ollama software terms; model licenses vary",
+      "attribution": "Ollama and the selected local model",
+      "network": "Called only after preview and explicit consent; requests stay on localhost",
+      "authority": "Draft assistance only; never a second forecast or booking authority"
+    },
+    {
+      "id": "openai",
+      "category": "optional_ai",
+      "name": "OpenAI API",
+      "url": "https://platform.openai.com/docs/api-reference",
+      "use": "Optional bring-your-own-key cloud assistance",
+      "endpoint": "https://api.openai.com/v1/chat/completions",
+      "license": "OpenAI API terms",
+      "attribution": "OpenAI",
+      "network": "The exact redacted preview is sent only after explicit consent",
+      "authority": "Draft assistance only; output remains untrusted and evidence-bound"
+    },
+    {
+      "id": "anthropic",
+      "category": "optional_ai",
+      "name": "Anthropic API",
+      "url": "https://docs.anthropic.com/en/api",
+      "use": "Optional bring-your-own-key cloud assistance",
+      "endpoint": "https://api.anthropic.com/v1/messages",
+      "license": "Anthropic commercial terms",
+      "attribution": "Anthropic",
+      "network": "The exact redacted preview is sent only after explicit consent",
+      "authority": "Draft assistance only; output remains untrusted and evidence-bound"
     }
   ],
-  "count": 14
+  "count": 20
 }

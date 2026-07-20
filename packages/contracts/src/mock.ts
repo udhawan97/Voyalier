@@ -512,7 +512,10 @@ export function detectItineraryConflicts(
   return conflicts;
 }
 
-function detectPlannedItemConflicts(items: TripItem[]): ItineraryConflict[] {
+function detectPlannedItemConflicts(
+  items: TripItem[],
+  facts: ConfirmedFact[],
+): ItineraryConflict[] {
   const timed = items.filter(
     (item) => item.startAt && item.endAt && item.endAt > item.startAt,
   );
@@ -534,7 +537,41 @@ function detectPlannedItemConflicts(items: TripItem[]): ItineraryConflict[] {
       }
     }
   }
-  return conflicts;
+  const flights = facts
+    .filter((fact) => fact.factType === "flight_segment")
+    .map((fact) => {
+      const payload = fact.payload as FlightSegmentPayload;
+      const departure = payload.departureLocal
+        ? normalizeDateTime(payload.departureLocal)
+        : null;
+      const arrival = payload.arrivalLocal
+        ? normalizeDateTime(payload.arrivalLocal)
+        : null;
+      return departure && arrival && arrival >= departure
+        ? { fact, departure, arrival, payload }
+        : null;
+    })
+    .filter((entry) => entry !== null);
+  for (const item of timed) {
+    for (const flight of flights) {
+      if (item.startAt! < flight.arrival && flight.departure < item.endAt!) {
+        conflicts.push({
+          kind: "planned_item_overlap",
+          severity: "notice",
+          subjects: [flightLabel(flight.payload)],
+          factIds: [flight.fact.id],
+          plannedItemIds: [item.id],
+          plannedItemTitles: [item.title],
+        });
+      }
+    }
+  }
+  return conflicts.sort(
+    (left, right) =>
+      (left.plannedItemIds ?? []).join().localeCompare(
+        (right.plannedItemIds ?? []).join(),
+      ) || left.factIds.join().localeCompare(right.factIds.join()),
+  );
 }
 
 const READINESS_SEVERITY: Record<ReadinessStatus, number> = {
@@ -806,6 +843,24 @@ const MOCK_PACKS: PackInfo[] = [
     region: "Japan",
     bbox: { west: 135.68, south: 34.93, east: 135.83, north: 35.1 },
     wikivoyageArticle: "Kyoto",
+    offlineMapAvailable: true,
+    layers: packLayers(),
+  },
+  {
+    id: "jp-tokyo",
+    name: "Tokyo",
+    region: "Japan",
+    bbox: { west: 139.56, south: 35.53, east: 139.92, north: 35.82 },
+    wikivoyageArticle: "Tokyo",
+    offlineMapAvailable: true,
+    layers: packLayers(),
+  },
+  {
+    id: "fr-paris",
+    name: "Paris",
+    region: "France",
+    bbox: { west: 2.22, south: 48.81, east: 2.47, north: 48.91 },
+    wikivoyageArticle: "Paris",
     offlineMapAvailable: true,
     layers: packLayers(),
   },
@@ -1746,7 +1801,7 @@ export function createMockGateway(options?: {
         );
         const itineraryConflicts = [
           ...confirmedConflicts,
-          ...detectPlannedItemConflicts(manualItems),
+          ...detectPlannedItemConflicts(manualItems, confirmedFacts),
         ];
         const advisoryPanel = advisoryPanels.get(tripId);
         const weather = weatherSnapshots.get(tripId);
@@ -1828,6 +1883,12 @@ export function createMockGateway(options?: {
             })),
           packingItems: [...packingItems.values()]
             .filter((item) => item.tripId === tripId)
+            .sort(
+              (left, right) =>
+                Number(left.checked) - Number(right.checked) ||
+                left.createdAt.localeCompare(right.createdAt) ||
+                left.id.localeCompare(right.id),
+            )
             .map(clone),
           tripItems: manualItems.map(clone),
         } satisfies TripDetail;
@@ -2000,8 +2061,8 @@ export function createMockGateway(options?: {
             "search query is required",
           );
         }
-        const needle = trimmed.toLowerCase();
-        const hits: WorkspaceSearchHit[] = [];
+        const tokens = queryTokens(trimmed);
+        const ranked: { hit: WorkspaceSearchHit; matched: number }[] = [];
         const add = (
           source: WorkspaceSearchHit["source"],
           tripId: string,
@@ -2011,15 +2072,25 @@ export function createMockGateway(options?: {
         ) => {
           const trip = trips.get(tripId);
           const haystack = `${label} ${text}`;
-          if (!trip || !haystack.toLowerCase().includes(needle)) return;
-          hits.push({
-            source,
-            tripId,
-            tripTitle: trip.title,
-            recordId,
-            label,
-            snippet: haystack,
-            score: 1,
+          if (!trip) return;
+          const { matched, occurrences, first } = scoreHaystack(
+            haystack.toLowerCase(),
+            tokens,
+          );
+          if (matched === 0) return;
+          ranked.push({
+            matched,
+            hit: {
+              source,
+              tripId,
+              tripTitle: trip.title,
+              tripStatus: trip.status,
+              tripUpdatedAt: trip.updatedAt,
+              recordId,
+              label,
+              snippet: first ? snippetAround(haystack, first) : "",
+              score: occurrences,
+            },
           });
         };
         for (const stored of documents.values())
@@ -2056,7 +2127,16 @@ export function createMockGateway(options?: {
             item.title,
             `${item.location ?? ""} ${item.notes ?? ""}`,
           );
-        return hits.slice(0, 50).map(clone);
+        return ranked
+          .sort(
+            (left, right) =>
+              right.matched - left.matched ||
+              right.hit.score - left.hit.score ||
+              right.hit.tripUpdatedAt.localeCompare(left.hit.tripUpdatedAt) ||
+              left.hit.recordId.localeCompare(right.hit.recordId),
+          )
+          .slice(0, 50)
+          .map(({ hit }) => clone(hit));
       }),
 
     suggestSearchTerms: (tripId: string, query: string) =>
@@ -2780,6 +2860,14 @@ export function createMockGateway(options?: {
         const label = input.label.trim();
         if (!label)
           throw appError("validation/invalid_input", "label is required");
+        if (input.suggestionCode) {
+          const existing = [...packingItems.values()].find(
+            (item) =>
+              item.tripId === input.tripId &&
+              item.suggestionCode === input.suggestionCode,
+          );
+          if (existing) return clone(existing);
+        }
         const now = timestamp();
         const item: PackingItem = {
           id: nextId("packing"),
@@ -2823,6 +2911,15 @@ export function createMockGateway(options?: {
     createTripItem: (input: CreateTripItemInput) =>
       execute("createTripItem", () => {
         requireTrip(input.tripId);
+        if (
+          input.savedPlaceId &&
+          savedPlaces.get(input.savedPlaceId)?.tripId !== input.tripId
+        ) {
+          throw appError(
+            "validation/invalid_input",
+            "saved place belongs to a different trip",
+          );
+        }
         const title = input.title.trim();
         if (!title)
           throw appError("validation/invalid_input", "title is required");
@@ -2843,6 +2940,15 @@ export function createMockGateway(options?: {
         const item = tripItems.get(input.tripItemId);
         if (!item)
           throw appError("validation/invalid_input", "trip item not found");
+        if (
+          input.savedPlaceId &&
+          savedPlaces.get(input.savedPlaceId)?.tripId !== item.tripId
+        ) {
+          throw appError(
+            "validation/invalid_input",
+            "saved place belongs to a different trip",
+          );
+        }
         const title = input.title.trim();
         if (!title)
           throw appError("validation/invalid_input", "title is required");

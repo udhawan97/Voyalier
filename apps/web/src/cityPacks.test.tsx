@@ -15,6 +15,13 @@ async function openPacks(tripButton = "Open Kyoto autumn journey") {
  * required seed cities with their per-layer licenses.
  */
 describe("City packs", () => {
+  it("mirrors the core's four catalog-enabled offline maps", async () => {
+    const packs = await createMockGateway().listPacks();
+    expect(
+      packs.filter((pack) => pack.offlineMapAvailable).map((pack) => pack.id),
+    ).toEqual(["us-nashville", "jp-kyoto", "jp-tokyo", "fr-paris"]);
+  });
+
   it("does not read the catalog until asked", async () => {
     let calls = 0;
     const base = createMockGateway();
@@ -34,6 +41,9 @@ describe("City packs", () => {
       within(region).getByRole("button", { name: "Browse city packs" }),
     );
     expect(await within(region).findByText("Nashville")).toBeInTheDocument();
+    expect(within(region).getAllByText("Kyoto").length).toBeGreaterThan(0);
+    expect(within(region).getByText("Tokyo")).toBeInTheDocument();
+    expect(within(region).getByText("Paris")).toBeInTheDocument();
     expect(calls).toBe(1);
   });
 

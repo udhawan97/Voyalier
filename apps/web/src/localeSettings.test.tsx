@@ -9,7 +9,9 @@ describe("language preference", () => {
   it("re-renders the visible interface immediately in Spanish", async () => {
     setLocalePreference("en");
     await renderSettings();
-    fireEvent.change(screen.getByRole("combobox", { name: "Language" }), {
+    const language = screen.getByRole("combobox", { name: "Language" });
+    language.focus();
+    fireEvent.change(language, {
       target: { value: "es" },
     });
     expect(
@@ -19,5 +21,6 @@ describe("language preference", () => {
       screen.getByText("Fuentes de datos y licencias"),
     ).toBeInTheDocument();
     expect(document.documentElement.lang).toBe("es");
+    expect(screen.getByRole("combobox", { name: "Idioma" })).toHaveFocus();
   });
 });

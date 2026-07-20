@@ -99,6 +99,25 @@ describe("calendar export", () => {
     expect(ics).not.toContain("PRIVATE ACCESS CODE");
   });
 
+  it("preserves supplied seconds without appending an extra pair", () => {
+    const ics = buildIcs(
+      brief({
+        tripItems: [
+          {
+            id: "item_seconds",
+            kind: "activity",
+            title: "Timed entry",
+            startAt: "2026-11-05T15:00:30",
+          },
+        ],
+      }),
+      LABELS,
+    );
+
+    expect(ics).toContain("DTSTART:20261105T150030");
+    expect(ics).not.toContain("DTSTART:20261105T15003000");
+  });
+
   it("escapes text that would otherwise break the format", () => {
     const ics = buildIcs(
       brief({

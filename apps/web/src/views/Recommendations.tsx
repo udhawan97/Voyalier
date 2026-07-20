@@ -80,6 +80,9 @@ export function Recommendations({
   const [weights, setWeights] = useState<PersonaWeights>(
     profile ?? PRESETS[0].weights,
   );
+  const [savedWeights, setSavedWeights] = useState<PersonaWeights>(
+    profile ?? PRESETS[0].weights,
+  );
   const [recs, setRecs] = useState<Recommendation[] | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   function setDimension(key: Dimension, value: number) {
@@ -87,10 +90,7 @@ export function Recommendations({
   }
 
   const loadAction = useAsyncAction(
-    async () => {
-      await gateway.setInterestProfile({ tripId, ...weights });
-      return gateway.getRecommendations(tripId, weights);
-    },
+    () => gateway.getRecommendations(tripId, weights),
     (result) => {
       setRecs(result);
       announce(
@@ -103,6 +103,17 @@ export function Recommendations({
   const load = () => loadAction.run();
   const loading = loadAction.busy;
   const error = loadAction.error;
+  const interestsDirty = DIMENSIONS.some(
+    ({ key }) => weights[key] !== savedWeights[key],
+  );
+  const saveInterests = useAsyncAction(
+    () => gateway.setInterestProfile({ tripId, ...weights }),
+    (saved) => {
+      setSavedWeights(saved);
+      announce(t("recs.interests.saved"));
+      onChanged?.();
+    },
+  );
 
   async function save(rec: Recommendation) {
     const id = `${rec.packId}:${rec.name}:${rec.lat},${rec.lon}`;
@@ -172,6 +183,22 @@ export function Recommendations({
             </div>
           );
         })}
+      </div>
+
+      <div className="voy-recs__interest-actions">
+        <Button
+          variant="ghost"
+          busy={saveInterests.busy}
+          disabled={!interestsDirty}
+          onClick={() => void saveInterests.run()}
+        >
+          {t("recs.interests.save")}
+        </Button>
+        <span role="status">
+          {interestsDirty
+            ? t("recs.interests.unsaved")
+            : t("recs.interests.saved")}
+        </span>
       </div>
 
       <Button variant="secondary" busy={loading} onClick={load}>

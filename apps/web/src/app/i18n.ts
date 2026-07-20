@@ -1,15 +1,11 @@
 import { APP_LOCALE } from "./locale";
 
 /**
- * Minimal message catalog — the localization-readiness foundation.
+ * Exhaustive English and Spanish message catalogs.
  *
- * UI strings are keyed by stable ids, with English as the source of truth today.
- * Additional locales are additive (a partial catalog keyed by the same ids), and
- * lookups fall back along the locale chain to English, so a missing translation
- * never leaves a blank. `{name}` placeholders are interpolated by [[t]].
- *
- * Components move onto `t()` incrementally; the vault UI is the reference. Adding
- * a translated locale later is a data-only change — no component edits.
+ * English remains the source of truth, while `Record<MessageKey, string>` makes
+ * every shipped locale provide every UI key. Source and traveler-authored text
+ * stays unchanged; named `{name}` placeholders are interpolated by `t()`.
  */
 
 type Vars = Record<string, string | number>;
@@ -501,6 +497,9 @@ const en = {
   "recs.save": "Save place",
   "recs.savedAlready": "Saved",
   "recs.saved": "Saved {name} to this trip.",
+  "recs.interests.save": "Save interests",
+  "recs.interests.unsaved": "Interests not saved",
+  "recs.interests.saved": "Interests saved",
 
   "planning.saved.title": "Saved places",
   "planning.saved.intro":
@@ -511,13 +510,20 @@ const en = {
   "planning.saved.saveNotes": "Save notes",
   "planning.saved.addToPlan": "Add to plan",
   "planning.saved.promoted": "Added {name} to the plan.",
+  "planning.saved.prefilled": "Ready to add {name}; review the plan first.",
+  "planning.saved.addToPlanLabel": "Add {name} to plan",
+  "planning.saved.saveNotesLabel": "Save notes for {name}",
   "planning.remove": "Remove",
+  "planning.removeNamed": "Remove {name}",
   "planning.packing.title": "Packing checklist",
   "planning.packing.intro":
     "Suggestions stay suggestions until you add them. Once added, weather updates never change or remove your checklist.",
   "planning.packing.custom": "Custom item",
   "planning.packing.add": "Add",
   "planning.packing.added": "Added",
+  "planning.packing.nameLabel": "Packing item name",
+  "planning.packing.renameLabel": "Rename {name}",
+  "planning.packing.saveLabel": "Save packing item",
   "planning.items.title": "Activities & transfers",
   "planning.items.intro":
     "Add plans you entered yourself. They are shown as traveler-authored plans, never as confirmed bookings.",
@@ -532,6 +538,8 @@ const en = {
   "planning.items.notes": "Private notes (optional)",
   "planning.items.add": "Add to plan",
   "planning.items.edit": "Edit",
+  "planning.items.editLabel": "Edit {name}",
+  "planning.items.removeLabel": "Remove {name}",
   "planning.items.save": "Save changes",
   "topbar.search": "Search workspace",
   "workspaceSearch.back": "All trips",
@@ -542,12 +550,24 @@ const en = {
   "workspaceSearch.placeholder": "Search all trips",
   "workspaceSearch.search": "Search",
   "workspaceSearch.none": "No matches in this workspace.",
+  "workspaceSearch.source.document": "Source document",
+  "workspaceSearch.source.confirmed_fact": "Confirmed fact",
+  "workspaceSearch.source.note": "Trip notes",
+  "workspaceSearch.source.saved_place": "Saved place",
+  "workspaceSearch.source.trip_item": "Traveler-authored plan",
+  "workspaceSearch.archived": "Archived trip",
+  "workspaceSearch.updated": "Trip updated {date}",
   "dataSources.title": "Data sources & licenses",
   "dataSources.intro":
     "See what Voyalier uses, when a network request happens, the required attribution, and what each source can — and cannot — establish.",
   "dataSources.show": "Show all data sources",
   "dataSources.use": "Used for:",
   "dataSources.license": "License / terms:",
+  "dataSources.endpoint": "Endpoint:",
+  "dataSources.group.builtIn": "Built into the app",
+  "dataSources.group.consentFetched": "Fetched with consent",
+  "dataSources.group.offlineDownloads": "Offline downloads",
+  "dataSources.group.optionalAi": "Optional AI",
 
   "advice.title": "Official travel advice",
   "advice.announce.saved": "Official advice for {country} saved.",
@@ -888,6 +908,8 @@ const en = {
     "No lodging is booked for the nights of {first} through {last}.",
   "schedule.planned_item_overlap":
     "Your plans “{first}” and “{second}” overlap. Check whether that is intentional.",
+  "schedule.planned_item_fact_overlap":
+    "Your plan “{plan}” overlaps {fact}. Check whether that is intentional; readiness is unchanged.",
 
   "map.title": "Map",
   "map.intro":
@@ -1053,140 +1075,473 @@ const en = {
 
 export type MessageKey = keyof typeof en;
 
-// Spanish ships with the same complete key set as English. The spread makes
-// key additions fail-safe while the explicit entries below translate the app
-// shell and every primary planning/search/settings workflow in this release.
+// Spanish is exhaustive by construction: adding an English key fails type checking
+// until its reviewed Spanish counterpart lands with the same placeholders.
 const es: Record<MessageKey, string> = {
-  ...en,
-  "a11y.skipToContent": "Saltar al contenido",
+  "backup.section": "Copia de seguridad y restauración",
+  "backup.intro":
+    "Guarda todo tu espacio de trabajo —viajes, confirmaciones importadas y paquetes sin conexión— en un solo archivo cifrado que puedes guardar en un lugar seguro o mover a otra computadora.",
+  "backup.unsupported":
+    "La copia de seguridad requiere la aplicación de escritorio, que es donde realmente reside tu información. En el navegador no hay una base de datos local para guardar.",
+  "backup.export.title": "Guardar copia de seguridad",
+  "backup.export.hint":
+    "Tú eliges una frase de contraseña para el archivo. Esta acompaña a la copia, por lo que el mismo archivo se abrirá en cualquier computadora.",
+  "backup.export.action": "Guardar copia de seguridad",
+  "backup.export.confirm": "Guardar copia",
+  "backup.export.done": "Copia guardada en {path}",
+  "backup.export.cancelled": "No se guardó ninguna copia.",
+  "backup.warn.noRecovery":
+    "No hay forma de recuperar la información si pierdes esta frase de contraseña: la copia es ilegible sin ella y Voyalier nunca la almacena.",
+  "backup.excludes":
+    "Los mapas descargados y tus claves del proveedor de IA no se incluyen: los mapas pueden descargarse de nuevo y las claves permanecen en el llavero de esta computadora en lugar de viajar en un archivo.",
+  "backup.restore.title": "Restaurar copia de seguridad",
+  "backup.restore.hint":
+    "Restaurar reemplaza todo lo que hay actualmente en Voyalier con el contenido de la copia. Primero se crea una instantánea de tus datos actuales, por lo que esto se puede deshacer.",
+  "backup.restore.action": "Restaurar desde copia",
+  "backup.restore.confirm": "Restaurar esta copia",
+  "backup.restore.cancelled": "No se restauró ninguna copia.",
+  "backup.restore.staged":
+    "Listo para restaurar la copia del {date}. Sal y vuelve a abrir Voyalier para finalizar; aún no ha cambiado nada.",
+  "backup.restore.pending":
+    "Hay una restauración pendiente. Sal y vuelve a abrir Voyalier para completarla.",
+  "backup.passphrase": "Frase de contraseña de copia",
+  "backup.passphrase.placeholder": "Frase de contraseña ({min}+ caracteres)",
+  "backup.confirmPassphrase": "Confirmar frase de contraseña",
+  "backup.confirmPassphrase.placeholder": "Confirmar frase de contraseña",
+  "backup.error.tooShort": "Usa al menos {min} caracteres.",
+  "backup.error.mismatch": "Las frases de contraseña no coinciden.",
+  "backup.error.generic": "Eso no funcionó. Inténtalo de nuevo.",
+  "vault.section": "Cifrado",
+  "vault.inactive":
+    "No hay un llavero de dispositivo disponible aquí, por lo que los campos sensibles se guardan en texto plano y no se puede añadir una frase de contraseña. En macOS y Windows, Voyalier los cifra automáticamente.",
+  "vault.intro.base":
+    "Los códigos de confirmación y los nombres de los viajeros están cifrados en este dispositivo.",
+  "vault.intro.protected":
+    "Una frase de contraseña que elegiste también protege la clave; Voyalier te la pedirá al iniciar.",
+  "vault.intro.unprotected":
+    "Añade una frase de contraseña para una segunda capa que proteja tus datos incluso en una computadora desbloqueada.",
+  "vault.state.on": "La protección por frase de contraseña está activada.",
+  "vault.state.off": "La protección por frase de contraseña está desactivada.",
+  "vault.currentPassphrase": "Frase de contraseña actual",
+  "vault.currentPassphrase.placeholder":
+    "Ingresa tu frase de contraseña actual",
+  "vault.newPassphrase": "Nueva frase de contraseña",
+  "vault.newPassphrase.placeholder":
+    "Nueva frase de contraseña ({min}+ caracteres)",
+  "vault.confirmPassphrase": "Confirmar frase de contraseña",
+  "vault.confirmPassphrase.placeholder": "Confirmar frase de contraseña",
+  "vault.warn.noRecovery":
+    "No hay forma de recuperarla si la olvidas: Voyalier no puede restablecer una frase de contraseña que nunca almacena.",
+  "vault.action.add": "Añadir frase de contraseña",
+  "vault.action.set": "Establecer frase de contraseña",
+  "vault.action.remove": "Eliminar frase de contraseña",
+  "vault.action.cancel": "Cancelar",
+  "vault.error.tooShort": "Usa al menos {min} caracteres.",
+  "vault.error.mismatch": "Las dos frases de contraseña no coinciden.",
+  "vault.error.generic":
+    "Eso no funcionó. Verifica la frase de contraseña e inténtalo de nuevo; no se cambió nada.",
+  "vault.announce.set": "Frase de contraseña establecida.",
+  "vault.announce.removed": "Frase de contraseña eliminada.",
+  "vault.unlock.title": "Tu bóveda está bloqueada",
+  "vault.unlock.intro":
+    "Ingresa tu frase de contraseña para abrir este espacio de trabajo. Se usa solo en este dispositivo para desbloquear tus datos de viaje cifrados.",
+  "vault.unlock.passphrase": "Frase de contraseña",
+  "vault.unlock.action": "Desbloquear",
+  "vault.unlock.error": "Esa frase de contraseña no es correcta.",
+  "vault.unlock.forgot": "¿Olvidaste tu frase de contraseña?",
+  "vault.unlock.forgot.body":
+    "Por diseño, no hay forma de recuperarla: la frase de contraseña nunca se almacena ni se envía, por lo que Voyalier no puede restablecerla. Si hiciste una copia de seguridad del directorio de datos locales antes de activarla, restaurar esa copia te devuelve a una versión sin protección. De lo contrario, no podrás abrir los datos cifrados del viaje.",
+  "error.transport.title": "Voyalier no puede contactar con el motor",
+  "error.transport.body":
+    "La parte de Voyalier que se ejecuta en este dispositivo no responde en este momento. Tus datos están seguros.",
+  "error.storage.title": "Almacenamiento local no disponible",
+  "error.storage.body":
+    "Voyalier no pudo leer ni escribir tus datos locales. No se realizó ningún cambio.",
+  "error.tripNotFound.title": "Este viaje ya no está aquí",
+  "error.tripNotFound.body":
+    "Es posible que haya sido eliminado en este dispositivo.",
+  "error.candidateNotFound.title": "Esta sugerencia ya no está aquí",
+  "error.candidateNotFound.body":
+    "Es posible que ya haya sido resuelta. Actualiza para ver la lista actual.",
+  "error.candidateResolved.title": "Ya se resolvió",
+  "error.candidateResolved.body":
+    "Esta sugerencia ya fue confirmada o descartada.",
+  "error.factNotFound.title": "Este dato ya no está aquí",
+  "error.factNotFound.body": "Es posible que ya haya sido eliminado.",
+  "error.documentEmpty.title": "No hay nada para importar",
+  "error.documentEmpty.body": "El contenido pegado estaba vacío.",
+  "error.documentTooLarge.title": "Ese documento es demasiado grande",
+  "error.documentTooLarge.body":
+    "Los documentos están limitados a 1,000,000 de caracteres.",
+  "error.documentDuplicate.title": "Ya fue importado",
+  "error.documentDuplicate.body":
+    "Este documento exacto ya se había importado antes.",
+  "error.adviceFetch.title": "No se pudo contactar con la fuente oficial",
+  "error.adviceFetch.body":
+    "Voyalier no pudo obtener la página de consejos en este momento. Revisa tu conexión e inténtalo de nuevo; no se realizó ningún cambio.",
+  "error.assist.title": "La asistencia no terminó",
+  "error.assist.body":
+    "Voyalier no pudo completar la solicitud. Revisa el modelo y tu conexión (o que tu IA local esté ejecutándose), luego intenta de nuevo; no se realizó ningún cambio.",
+  "error.assistUnreachable.title": "No se pudo contactar con tu IA",
+  "error.assistUnreachable.body":
+    "Voyalier no pudo contactar con la IA. Si usas una IA en el dispositivo, asegúrate de que Ollama esté ejecutándose (y que un modelo esté descargado), luego intenta de nuevo. Para un proveedor en la nube, revisa tu conexión. No se realizó ningún cambio.",
+  "error.weatherFetch.title": "No se pudo obtener el pronóstico del tiempo",
+  "error.packDownload.title": "No se pudo descargar el paquete de esa ciudad",
+  "error.packDownload.body":
+    "Voyalier no pudo obtener el paquete en este momento. Revisa tu conexión e inténtalo de nuevo; no se realizó ningún cambio.",
+  "error.validation.title": "Revisa los campos resaltados",
+  "error.unexpected.title": "Algo salió mal",
+  "error.unexpected.body":
+    "Ocurrió un error inesperado. No se realizó ningún cambio.",
   "topbar.home": "Voyalier — todos los viajes",
-  "topbar.settings": "Configuración",
-  "topbar.search": "Buscar en el espacio de trabajo",
   "health.checking": "Iniciando…",
   "health.online": "Listo",
   "health.offline": "Sin conexión",
   "action.retry": "Reintentar",
   "action.cancel": "Cancelar",
-  "action.checkAgain": "Comprobar de nuevo",
-  "action.done": "Listo",
-  "action.close": "Cerrar",
-  "theme.label": "Tema de color",
-  "theme.light": "Claro",
-  "theme.system": "Sistema",
-  "theme.dark": "Oscuro",
-  "settings.title": "Configuración",
-  "settings.intro":
-    "Todo lo que aparece aquí se aplica a Voyalier, no a un solo viaje.",
-  "settings.appearance": "Apariencia",
-  "settings.appearance.hint": "Sistema sigue la configuración de tu ordenador.",
-  "settings.language": "Idioma",
-  "settings.language.hint":
-    "Sistema sigue el idioma de tu ordenador. Esta preferencia solo se guarda en esta aplicación y en este dispositivo.",
-  "settings.language.system": "Sistema",
-  "settings.back": "Volver",
+  "confirm.arm": "{label} — ¿estás seguro?",
+  "deleteTrip.title": "¿Eliminar este viaje?",
+  "deleteTrip.description":
+    "Esto eliminará permanentemente “{title}” y todo su contenido. Esta acción no se puede deshacer.",
+  "deleteTrip.confirm": "Eliminar viaje",
+  "deleteTrip.confirmLabel": "Escribe delete para confirmar",
+  "deleteTrip.placeholder": "delete",
+  "deleteTrip.hint":
+    "¿Prefieres conservarlo? Archivar oculta el viaje sin eliminar nada.",
   "createTrip.title": "Crear un viaje",
   "createTrip.description":
-    "Empieza por el destino y las fechas. Todo lo demás puede añadirse después.",
+    "Empieza por indicar adónde vas y cuándo. Todo lo demás puede venir después.",
   "createTrip.submit": "Crear viaje",
   "createTrip.origin.label": "Desde",
+  "createTrip.origin.placeholder": "Chicago",
+  "createTrip.origin.required": "Ingresa dónde comienza el viaje.",
   "createTrip.destination.label": "Destino",
   "createTrip.destination.placeholder": "Kioto",
-  "createTrip.origin.required": "Indica el lugar de salida.",
-  "createTrip.destination.required": "Indica el destino.",
+  "createTrip.destination.required": "Ingresa a dónde va el viaje.",
   "createTrip.tooLong": "Usa 120 caracteres o menos.",
   "createTrip.startDate": "Fecha de inicio",
-  "createTrip.endDate": "Fecha de fin",
-  "createTrip.dates.required": "Indica ambas fechas.",
-  "createTrip.dates.order": "La fecha de fin debe ser posterior al inicio.",
+  "createTrip.endDate": "Fecha de finalización",
+  "createTrip.dates.required":
+    "Agrega una fecha de inicio y una de finalización.",
+  "createTrip.dates.order":
+    "La fecha de inicio debe ser igual o anterior a la fecha de finalización.",
   "createTrip.name.label": "Nombre del viaje (opcional)",
-  "createTrip.name.hint": "Si lo dejas vacío, usaremos el destino.",
-  "createTrip.name.placeholder": "Escapada de primavera",
-  "triplist.eyebrow": "Espacio de viajes local",
+  "createTrip.name.hint": "Si lo dejas vacío, usaremos «Origen → Destino».",
+  "createTrip.name.placeholder": "Viaje de otoño a Kioto",
+  "editTrip.title": "Editar viaje",
+  "editTrip.description":
+    "Corrige el destino, las fechas o el nombre. Tus documentos importados, datos y planes se mantendrán.",
+  "editTrip.submit": "Guardar cambios",
+  "triplist.eyebrow": "Tu espacio de trabajo",
   "triplist.title": "Tus viajes",
-  "triplist.create": "Nuevo viaje",
+  "triplist.create": "Crear un viaje",
   "triplist.loading": "Cargando viajes…",
-  "triplist.empty.title": "Crea tu primer viaje",
+  "triplist.empty.title": "Aún no hay viajes",
   "triplist.empty.body":
-    "Organiza confirmaciones, fuentes oficiales y planes en un espacio privado del dispositivo.",
+    "Voyalier convierte confirmaciones y notas dispersas en un itinerario confiable — crea un viaje para comenzar.",
+  "triplist.announce.archived": "{title} archivado.",
+  "triplist.announce.unarchived": "{title} desarchivado.",
+  "triplist.announce.created": "Viaje creado: {title}.",
+  "triplist.announce.deleted": "{title} eliminado.",
   "triplist.hideArchived": "Ocultar archivados",
-  "triplist.allArchived": "Todos tus viajes están archivados.",
-  "triplist.announce.archived": "Viaje archivado.",
-  "triplist.announce.unarchived": "Viaje desarchivado.",
-  "triplist.announce.created": "Viaje creado.",
-  "triplist.announce.deleted": "Viaje eliminado.",
+  "triplist.allArchived":
+    "No hay viajes activos — tus viajes están archivados. Muéstralos abajo para reabrir uno.",
   "tripcard.open": "Abrir {title}",
   "tripcard.archive": "Archivar",
   "tripcard.unarchive": "Desarchivar",
   "tripcard.delete": "Eliminar",
-  "tripcard.facts.one": "{count} dato confirmado",
-  "tripcard.facts.other": "{count} datos confirmados",
-  "tripcard.pending.one": "{count} sugerencia pendiente",
-  "tripcard.pending.other": "{count} sugerencias pendientes",
-  "triplist.showArchived.one": "Mostrar {count} archivado",
-  "triplist.showArchived.other": "Mostrar {count} archivados",
-  "detail.back": "Todos los viajes",
-  "detail.loading": "Cargando viaje…",
-  "detail.backToTrips": "Volver a los viajes",
-  "detail.status": "Estado: ",
-  "detail.import": "Importar",
-  "detail.edit": "Editar",
-  "detail.unarchive": "Desarchivar",
-  "detail.addFact": "Añadir vuelo o alojamiento",
-  "detail.shareBrief": "Compartir resumen",
-  "detail.archive": "Archivar",
-  "detail.delete": "Eliminar",
-  "detail.pending.desc": "Revísalas antes de que cambie el viaje.",
-  "detail.nopending": "No hay sugerencias pendientes.",
-  "detail.blueprint": "Plan confirmado",
-  "detail.blueprint.sub": "Solo datos que confirmaste explícitamente.",
-  "detail.empty.title": "Aún no hay vuelos ni alojamientos confirmados",
-  "detail.importDocument": "Importar confirmación",
-  "detail.empty.body":
-    "Importa una confirmación o añade los datos manualmente.",
-  "detail.edited": "Editado",
-  "detail.unconfirm": "Mover a revisión",
-  "detail.remove": "Quitar",
-  "detail.announce.updated": "Viaje actualizado.",
-  "detail.announce.unarchived": "Viaje desarchivado.",
-  "detail.announce.archived": "Viaje archivado.",
-  "detail.announce.unconfirmed": "Dato devuelto a revisión.",
-  "detail.announce.removed": "Dato eliminado.",
-  "detail.announce.added": "Dato añadido.",
-  "tripnav.label": "Ir a una sección",
-  "tripnav.plan": "Plan",
-  "tripnav.prepare": "Preparar",
-  "tripnav.discover": "Descubrir",
-  "tripnav.ai": "IA",
-  "packs.title": "Datos de ciudad sin conexión",
+  "status.trip.draft": "Borrador",
+  "status.trip.active": "Activo",
+  "status.trip.archived": "Archivado",
+  "status.candidate.pending": "Pendiente",
+  "status.candidate.confirmed": "Confirmado",
+  "status.candidate.rejected": "Rechazado",
+  "factType.flight": "Vuelo",
+  "factType.stay": "Estancia",
+  "fact.flightHeadline": "Vuelo {number}",
+  "fact.flightSegment": "Tramo de vuelo",
+  "fact.lodgingStay": "Estancia de alojamiento",
+  "method.structured": "Estructurado",
+  "method.inferred": "Inferido",
+  "method.manual": "Manual",
+  "method.assisted": "Sugerido por IA",
+  "method.structured.desc":
+    "Leído de datos estructurados incluidos en el documento.",
+  "method.inferred.desc":
+    "Inferido del texto no estructurado; vale la pena revisarlo con atención.",
+  "method.manual.desc": "Introducido por ti.",
+  "method.assisted.desc":
+    "Redactado por tu IA local a partir de tu texto importado; revísalo antes de confirmar.",
+  "warning.missing_dates": "No se encontraron fechas para este elemento.",
+  "warning.missing_locations":
+    "No se encontraron ubicaciones para este elemento.",
+  "warning.ambiguous_date_format":
+    "El formato de fecha es ambiguo y podría interpretarse mal.",
+  "warning.past_date": "Esta fecha ya pasó.",
+  "warning.outside_trip_window": "Esto está fuera del rango de tu viaje.",
+  "warning.unrecognized_airport_code":
+    "No se reconoció el código del aeropuerto.",
+  "field.airlineName": "Aerolínea",
+  "field.airlineIata": "Código de aerolínea",
+  "field.flightNumber": "Número de vuelo",
+  "field.departureAirportIata": "Desde (aeropuerto)",
+  "field.arrivalAirportIata": "Hacia (aeropuerto)",
+  "field.departureLocal": "Salida (hora local)",
+  "field.arrivalLocal": "Llegada (hora local)",
+  "field.confirmationCode": "Código de confirmación",
+  "field.passengerName": "Pasajero",
+  "field.propertyName": "Propiedad",
+  "field.address": "Dirección",
+  "field.checkinDate": "Llegada",
+  "field.checkoutDate": "Salida",
+  "field.guestName": "Huésped",
+  "today.title": "Hoy",
+  "today.phase.tomorrow": "Comienza mañana",
+  "today.phase.upcoming": "Comienza en {days} días",
+  "today.phase.active": "Día {day} de {total}",
+  "today.phase.yesterday": "Terminó ayer",
+  "today.phase.completed": "Terminó hace {days} días",
+  "today.schedule": "Agenda de hoy",
+  "today.empty.active": "No hay nada programado para hoy.",
+  "today.empty.other": "Sin planes para hoy.",
+  "today.next": "Siguiente",
+  "today.error":
+    "No se pudo cargar la agenda de hoy. El resto del viaje está bien.",
+  "localai.title": "IA en el dispositivo",
+  "localai.badge.available": "Disponible",
+  "localai.badge.notDetected": "No detectado",
+  "localai.precheck":
+    "Voyalier puede usar un Ollama local para asistencia privada opcional; nada saldrá de tu dispositivo. Verifica si hay uno en ejecución.",
+  "localai.models.aria": "Modelos instalados",
+  "localai.noModels.before":
+    "Ollama está en ejecución pero no hay modelos instalados. Descarga uno (por ejemplo, ",
+  "localai.noModels.after":
+    ") para habilitar la asistencia opcional en el dispositivo.",
+  "localai.notDetected.before": "No se detectó IA en el dispositivo. Instala ",
+  "localai.notDetected.after":
+    " para habilitar la asistencia privada opcional. Voyalier seguirá siendo totalmente funcional sin ella.",
+  "localai.ollama": "Ollama",
+  "localai.check": "Buscar IA en el dispositivo",
+  "localai.scope":
+    "La detección solo se ejecuta en este dispositivo. Una vez instalado un modelo, las funciones de IA pueden usarlo; siempre en este dispositivo y siempre bajo tu elección.",
+  "localai.setup.lead":
+    "Configúralo en unos pocos pasos: es gratis, se ejecuta totalmente en tu dispositivo y es opcional.",
+  "localai.step.install.title": "1. Instalar Ollama",
+  "localai.step.install.before": "Descarga e instala ",
+  "localai.step.install.after": "; es gratis y se ejecuta localmente.",
+  "localai.step.start.title": "2. Iniciar Ollama",
+  "localai.step.start.body":
+    "Abre la aplicación Ollama. En macOS, aparece en tu barra de menús y suele iniciarse automáticamente tras la instalación.",
+  "localai.step.model.title": "3. Obtener un modelo",
+  "localai.step.model.body":
+    "Elige uno de los siguientes. Copia el comando en tu terminal o, una vez que Ollama esté en ejecución, descárgalo directamente aquí.",
+  "localai.nomodels.lead":
+    "Ollama está en ejecución. Añade un modelo para habilitar la asistencia privada opcional.",
+  "localai.recommended.aria": "Modelos recomendados",
+  "localai.addAnother": "Añadir otro modelo",
+  "localai.card.tag": "Etiqueta del modelo para {model}",
+  "localai.card.copy": "Copiar comando",
+  "localai.card.copied": "Copiado",
+  "localai.card.download": "Descargar",
+  "localai.card.downloading":
+    "Descargando… mantén la app abierta (esto puede tardar varios minutos)",
+  "localai.card.needsRunning": "Inicia Ollama para descargar desde aquí.",
+  "action.checkAgain": "Verificar de nuevo",
+  "a11y.opensInNewTab": " (se abre en una pestaña nueva)",
+  "a11y.skipToContent": "Saltar al contenido",
+  "search.title": "Buscar en este viaje",
+  "search.label": "Busca en tus documentos y planes confirmados",
+  "search.placeholder": "Traslado, código de confirmación, hotel…",
+  "search.submit": "Buscar",
+  "search.hint":
+    "Escribe para buscar mientras tecleas; funcionan palabras parciales y cualquier palabra coincide. Elige una sugerencia o copia un resultado para reutilizarlo.",
+  "search.error.empty": "Escribe algo para buscar.",
+  "search.announce.none": "Sin coincidencias para {query}.",
+  "search.none":
+    "No hay coincidencias para “{query}” en tus documentos ni planes confirmados.",
+  "search.results.aria": "Resultados de búsqueda",
+  "search.suggestions.aria": "Sugerencias de búsqueda",
+  "search.suggestions.label": "Intenta:",
+  "search.copy": "Copiar",
+  "search.copied": "Copiado",
+  "search.copy.aria": "Copiar “{value}”",
+  "search.announce.copied": "Copiado al portapapeles.",
+  "search.hit.document": "documento importado",
+  "search.hit.confirmed": "plan confirmado",
+  "addFact.title": "Agregar vuelo o estancia",
+  "addFact.description":
+    "Ingresa un vuelo o una estancia manualmente. Las entradas manuales son tuyas y aparecen en el Blueprint de inmediato.",
+  "addFact.submit": "Agregar al Blueprint",
+  "addFact.type": "Tipo",
+  "addFact.typeChoice": "Tipo de dato",
+  "addFact.empty": "Agrega al menos un detalle antes de guardar.",
+  "action.done": "Listo",
+  "import.title": "Importar documento",
+  "import.description":
+    "Pega un correo de confirmación o una página de reserva. Voyalier lo lee en este dispositivo y te muestra lo que encontró antes de guardar nada.",
+  "import.submit": "Importar",
+  "import.error.empty": "Pega algún contenido para importar.",
+  "import.error.tooLarge":
+    "Este documento supera el límite de 1,000,000 caracteres.",
+  "import.error.wasEmpty": "El contenido pegado estaba vacío.",
+  "import.duplicate.title": "Ya importado",
+  "import.duplicate.body":
+    "Este contenido exacto ya se importó antes{doc}. Edita el contenido para importar algo nuevo.",
+  "import.duplicate.docSuffix": " (documento {id})",
+  "import.format": "Formato",
+  "import.formatChoice": "Formato de documento",
+  "import.format.text": "Texto plano",
+  "import.format.html": "HTML",
+  "import.format.email": "Correo electrónico",
+  "import.label": "Etiqueta (opcional)",
+  "import.label.placeholder": "Confirmación de vuelo",
+  "import.file.label": "Agregar archivo",
+  "import.file.button": "Elegir archivo",
+  "import.file.drop": "Suelta un archivo aquí",
+  "import.file.hint":
+    "Suelta un archivo .eml, .html o .txt — o pega el contenido abajo. Se lee en este dispositivo; nada se sube a la red.",
+  "import.file.tooLarge":
+    "Ese archivo supera el límite de 1,000,000 caracteres.",
+  "import.file.unreadable":
+    "No se pudo leer ese archivo. Intenta pegando el contenido en su lugar.",
+  "import.file.loaded": "Cargado “{name}”. Revísalo abajo y luego impórtalo.",
+  "import.content": "Contenido",
+  "import.content.placeholder": "Pega tu confirmación aquí…",
+  "import.content.placeholder.email":
+    "Pega el correo de confirmación completo, incluyendo los encabezados. Voyalier lee el cuerpo e ignora el resto.",
+  "import.charcount": "{count} / {max} caracteres",
+  "import.done.title": "Importado",
+  "import.done.label": "“{label}” importado.",
+  "import.done.none": "No se encontraron nuevas sugerencias en este documento.",
+  "action.close": "Cerrar",
+  "brief.title": "Resumen para compartir",
+  "brief.description":
+    "Una copia que puedes compartir. Los códigos de confirmación y los nombres de los viajeros se eliminan antes de salir de este dispositivo.",
+  "brief.print": "Imprimir / Guardar como PDF",
+  "brief.loading": "Preparando el resumen…",
+  "brief.flights": "Vuelos",
+  "brief.stays": "Estancias",
+  "brief.plans": "Actividades y traslados",
+  "brief.empty":
+    "Aún no hay vuelos ni estancias confirmados. Confirma algunos planes para completar el resumen.",
+  "brief.redaction": "Oculto en este resumen: {fields}.",
+  "review.title": "Revisar sugerencias",
+  "review.description":
+    "Voyalier encontró esto en tus documentos. Nada se guarda hasta que lo confirmes; revisa la evidencia citada para cada campo.",
+  "review.announce.confirmed": "Se confirmó {fact}.",
+  "review.announce.dismissed": "Se descartó {fact}.",
+  "review.editnote":
+    "Edita cualquier campo y luego confirma. Los campos modificados se registrarán en el dato guardado.",
+  "review.evidence": "Del documento",
+  "review.cancelEdit": "Cancelar edición",
+  "review.saveConfirm": "Guardar y confirmar",
+  "review.confirm": "Confirmar",
+  "review.editConfirm": "Editar y confirmar",
+  "review.dismiss": "Descartar",
+  "review.empty.title": "Todo al día",
+  "review.empty.body":
+    "Todas las sugerencias han sido confirmadas o descartadas.",
+  "providers.title": "Proveedores de IA",
+  "providers.intro":
+    "Usa tu propia clave de OpenAI o Anthropic para asistencia opcional en la nube. Las claves se guardan en el llavero de tu dispositivo; nunca en los archivos de Voyalier ni en ningún servidor compartido.",
+  "providers.manage": "Gestionar proveedores de IA",
+  "providers.scope":
+    "Las claves permanecen en el llavero de tu sistema operativo y nunca salen de tu dispositivo. Una clave solo se usa para enviar una solicitud que tú revisas y eliges enviar, bajo la opción “Vista previa de solicitud de IA”.",
+  "providers.status.onDevice": "En el dispositivo",
+  "providers.status.keyStored": "Clave guardada",
+  "providers.status.noKey": "Sin clave",
+  "providers.error": "No se pudo guardar; no hubo cambios.",
+  "providers.stored": "Clave API guardada en tu llavero.",
+  "providers.removeKey": "Eliminar clave",
+  "providers.apiKey": "Clave API de {provider}",
+  "providers.apiKey.placeholder": "Pega tu clave API",
+  "providers.saveKey": "Guardar clave",
+  "providers.onDeviceNote":
+    "Se ejecuta localmente en este dispositivo; no requiere clave.",
+  "providers.model.label": "Modelo de {provider}",
+  "providers.model.placeholder": "Modelo (opcional)",
+  "providers.saveModel": "Guardar modelo",
+  "providers.announce.keyRemoved": "Clave de {provider} eliminada.",
+  "providers.announce.keySaved": "Clave de {provider} guardada.",
+  "providers.announce.keyVerified":
+    "Clave de {provider} guardada y verificada.",
+  "providers.announce.keySavedUnverified":
+    "Clave de {provider} guardada, pero no se pudo verificar en este momento.",
+  "providers.announce.modelSaved": "Modelo de {provider} guardado.",
+  "providers.validateSave": "Validar y guardar",
+  "providers.help.summary": "Cómo obtener una clave",
+  "providers.help.intro": "Obtén una clave API de {provider}:",
+  "providers.help.step.account":
+    "Inicia sesión o crea una cuenta en {provider}.",
+  "providers.help.step.create.before": "Abre la ",
+  "providers.help.step.create.link": "página de claves API",
+  "providers.help.step.create.after": " y crea una nueva clave secreta.",
+  "providers.help.step.paste":
+    "Pégala arriba y luego selecciona Validar y guardar.",
+  "prompts.title": "Personalizar instrucciones de IA",
+  "prompts.intro":
+    "Avanzado: cambia lo que Voyalier le dice a la IA. El borrador de fechas de alojamiento seguirá aceptando solo fechas, sin importar lo que escribas aquí. Relajar las instrucciones de asistencia puede hacer que las respuestas sean más arriesgadas; en cualquier caso, Voyalier marcará las respuestas de la IA como no oficiales.",
+  "prompts.kind.assist": "Instrucción de asistencia y vista previa",
+  "prompts.kind.draft_lodging_dates":
+    "Instrucción de borrador de fechas de alojamiento",
+  "prompts.desc.assist":
+    "Se usa cuando revisas o ejecutas una solicitud de IA para un viaje.",
+  "prompts.desc.draft_lodging_dates":
+    "Se usa cuando la IA local genera borradores de fechas de alojamiento faltantes.",
+  "prompts.badge.custom": "Personalizado",
+  "prompts.badge.default": "Predeterminado",
+  "prompts.save": "Guardar instrucción",
+  "prompts.reset": "Restablecer a predeterminado",
+  "prompts.error": "No se pudo guardar; no hubo cambios.",
+  "prompts.announce.saved": "{name} guardado.",
+  "prompts.announce.reset": "{name} restablecido a predeterminado.",
+  "prompts.scope":
+    "Guardado en este dispositivo. Se aplica a futuras solicitudes de IA que realices; nunca cambia lo que sale de tu dispositivo más allá del texto de la instrucción que ves en la vista previa.",
+  "packs.suggested.title": "Recomendados para este viaje",
+  "packs.suggested.matchExact": "Coincide con tu destino",
+  "packs.suggested.matchAlias": "Coincide con tu destino",
+  "packs.suggested.matchPartial": "En esta región",
+  "packs.suggested.download": "Descargar datos de la ciudad {name}",
+  "packs.suggested.ambiguous":
+    "Puede haber más de un paquete coincidente; elige uno:",
+  "packs.suggested.none":
+    "Aún no hay paquetes de ciudades que coincidan con “{destination}”. Explora todos los paquetes abajo.",
+  "packs.suggested.downloaded": "Descargado para este viaje.",
+  "packs.suggested.consent":
+    "Al descargar, se importan los datos de este paquete; no se envía nada sobre tu viaje excepto la solicitud del archivo del paquete.",
+  "combobox.listLabel": "Sugerencias de {label}",
+  "combobox.available.one": "{count} sugerencia disponible.",
+  "combobox.available.other": "{count} sugerencias disponibles.",
+  "suggest.source.confirmed_fact": "de este viaje",
+  "suggest.source.trip_history": "de una estancia anterior",
+  "suggest.source.pack_place": "de un paquete de ciudad",
+  "suggest.source.catalog": "paquete de ciudad",
+  "suggest.source.gazetteer": "ciudad",
+  "packs.title": "Datos de la ciudad sin conexión",
   "packs.intro":
-    "Descarga lugares y notas de viaje para usarlos sin conexión. Cada capa conserva su fuente y licencia.",
-  "packs.browse": "Ver paquetes de ciudades",
+    "Descarga los lugares y las notas de viaje de una ciudad para usarlos sin conexión. El paquete se descarga desde GitHub y se guarda en este dispositivo para este viaje; no se envía nada sobre tu viaje. Cada paquete combina lugares de Overture con una capa independiente de notas de Wikivoyage, cada una con su propia licencia.",
+  "packs.browse": "Explorar paquetes de ciudades",
   "packs.layers.aria": "Capas de datos de {name}",
-  "packs.remove": "Quitar",
+  "packs.remove": "Eliminar",
   "packs.download": "Descargar para este viaje",
-  "packs.includesOfflineMap": "Incluye un mapa sin conexión verificado.",
+  "packs.includesOfflineMap":
+    "Incluye una descarga verificada de mapa sin conexión; el tamaño varía según la ciudad.",
   "packs.scope":
-    "Los paquetes se guardan en este dispositivo. No se envían datos del viaje.",
-  "packs.announce.downloaded": "Paquete de {name} descargado.",
-  "packs.announce.removed": "Paquete de {name} eliminado.",
-  "packs.places.one": "{count} lugar",
-  "packs.places.other": "{count} lugares",
-  "packs.notes.one": "{count} nota",
-  "packs.notes.other": "{count} notas",
-  "packs.offline": "sin conexión",
-  "packs.offlineMap": "mapa sin conexión listo",
+    "Los paquetes se guardan en este dispositivo para este viaje. La descarga obtiene datos de GitHub; no se envía nada sobre tu viaje.",
+  "packs.announce.downloaded": "Paquete {name} descargado.",
+  "packs.announce.removed": "Paquete {name} eliminado.",
   "recs.title": "Recomendaciones",
   "recs.intro":
-    "Lugares de un paquete descargado, ordenados según tus intereses con una regla transparente, no un modelo.",
+    "Recomendaciones ordenadas de un paquete de ciudad descargado y ponderadas según tus intereses. La puntuación sigue una regla transparente, no un modelo, y cada recomendación conserva su fuente y licencia.",
   "recs.presets.aria": "Perfiles de intereses",
   "recs.get": "Obtener recomendaciones",
   "recs.list.aria": "Lugares recomendados",
-  "recs.wildcard": "sorpresa",
+  "recs.wildcard": "comodín",
   "recs.announce.none": "Aún no hay recomendaciones.",
   "recs.none":
-    "Aún no hay recomendaciones. Descarga un paquete de ciudad o amplía tus intereses.",
+    "Aún no hay recomendaciones — descarga un paquete de ciudad para este viaje (en “Datos de la ciudad sin conexión”) o amplía tus intereses.",
   "recs.scope":
-    "Sugerencias de datos abiertos; no confirman precios, horarios ni seguridad. Nada sale del dispositivo.",
+    "Sugerencias basadas en datos abiertos sobre lugares; no son una fuente autorizada sobre precios, horarios ni seguridad. Nada sale de tu dispositivo.",
   "recs.dim.food": "Comida",
   "recs.dim.culture": "Cultura",
   "recs.dim.nature": "Naturaleza",
@@ -1197,66 +1552,539 @@ const es: Record<MessageKey, string> = {
   "recs.preset.explorer": "Explorador",
   "recs.save": "Guardar lugar",
   "recs.savedAlready": "Guardado",
-  "recs.saved": "{name} se guardó en este viaje.",
-  "recs.announce.count.one": "{count} recomendación.",
-  "recs.announce.count.other": "{count} recomendaciones.",
+  "recs.saved": "Se guardó {name} en este viaje.",
+  "recs.interests.save": "Guardar intereses",
+  "recs.interests.unsaved": "Intereses no guardados",
+  "recs.interests.saved": "Intereses guardados",
   "planning.saved.title": "Lugares guardados",
   "planning.saved.intro":
-    "Tu lista conserva la fuente, licencia y motivos del momento en que guardaste cada lugar. Añadirlo al plan siempre es otra decisión.",
+    "Tu lista de lugares conserva la fuente, la licencia y los motivos registrados cuando guardaste cada lugar. Añadir uno al plan siempre es una decisión independiente.",
   "planning.saved.empty": "Aún no hay lugares guardados.",
   "planning.saved.packRemoved": "paquete de origen eliminado",
   "planning.saved.notes": "Notas privadas",
   "planning.saved.saveNotes": "Guardar notas",
   "planning.saved.addToPlan": "Añadir al plan",
-  "planning.saved.promoted": "{name} se añadió al plan.",
+  "planning.saved.promoted": "Se añadió {name} al plan.",
+  "planning.saved.prefilled":
+    "Listo para añadir {name}; revisa el plan primero.",
+  "planning.saved.addToPlanLabel": "Añadir {name} al plan",
+  "planning.saved.saveNotesLabel": "Guardar notas de {name}",
   "planning.remove": "Quitar",
+  "planning.removeNamed": "Eliminar {name}",
   "planning.packing.title": "Lista de equipaje",
   "planning.packing.intro":
-    "Las sugerencias no se añaden solas. Después de añadirlas, el clima nunca cambia ni elimina tu lista.",
+    "Las sugerencias siguen siendo sugerencias hasta que las añadas. Una vez añadidas, las actualizaciones del clima nunca cambiarán ni eliminarán tu lista.",
   "planning.packing.custom": "Artículo personalizado",
   "planning.packing.add": "Añadir",
   "planning.packing.added": "Añadido",
+  "planning.packing.nameLabel": "Nombre del artículo",
+  "planning.packing.renameLabel": "Renombrar {name}",
+  "planning.packing.saveLabel": "Guardar artículo",
   "planning.items.title": "Actividades y traslados",
   "planning.items.intro":
-    "Añade planes escritos por ti. Nunca se muestran como reservas confirmadas.",
+    "Añade planes que tú escribiste. Se muestran como planes creados por el viajero, nunca como reservas confirmadas.",
   "planning.items.kind": "Tipo",
   "planning.items.activity": "Actividad",
   "planning.items.rail": "Tren",
   "planning.items.transfer": "Traslado",
   "planning.items.name": "Nombre",
-  "planning.items.location": "Lugar (opcional)",
+  "planning.items.location": "Ubicación (opcional)",
   "planning.items.start": "Inicio (opcional)",
   "planning.items.end": "Fin (opcional)",
   "planning.items.notes": "Notas privadas (opcional)",
   "planning.items.add": "Añadir al plan",
   "planning.items.edit": "Editar",
+  "planning.items.editLabel": "Editar {name}",
+  "planning.items.removeLabel": "Eliminar {name}",
   "planning.items.save": "Guardar cambios",
-  "schedule.planned_item_overlap":
-    "Tus planes «{first}» y «{second}» se superponen. Comprueba si es intencional.",
-  "brief.plans": "Actividades y traslados",
+  "topbar.search": "Buscar en el espacio de trabajo",
   "workspaceSearch.back": "Todos los viajes",
   "workspaceSearch.title": "Buscar en el espacio de trabajo",
   "workspaceSearch.intro":
-    "Busca documentos, datos confirmados, notas, lugares guardados y planes en todos los viajes. Las sugerencias pendientes se excluyen hasta que las confirmes.",
+    "Busca documentos importados, datos confirmados, notas, lugares guardados y planes creados por el viajero en todos los viajes. Las sugerencias pendientes se excluyen hasta que las confirmes.",
   "workspaceSearch.label": "Buscar en todos los viajes",
   "workspaceSearch.placeholder": "Buscar en todos los viajes",
   "workspaceSearch.search": "Buscar",
-  "workspaceSearch.none": "No hay resultados en este espacio.",
+  "workspaceSearch.none": "No hay coincidencias en este espacio de trabajo.",
+  "workspaceSearch.source.document": "Documento de origen",
+  "workspaceSearch.source.confirmed_fact": "Dato confirmado",
+  "workspaceSearch.source.note": "Notas del viaje",
+  "workspaceSearch.source.saved_place": "Lugar guardado",
+  "workspaceSearch.source.trip_item": "Plan del viajero",
+  "workspaceSearch.archived": "Viaje archivado",
+  "workspaceSearch.updated": "Viaje actualizado el {date}",
   "dataSources.title": "Fuentes de datos y licencias",
   "dataSources.intro":
-    "Consulta qué usa Voyalier, cuándo se conecta, la atribución requerida y lo que cada fuente puede —y no puede— demostrar.",
-  "dataSources.show": "Mostrar todas las fuentes",
+    "Mira qué usa Voyalier, cuándo ocurre una solicitud de red, la atribución requerida y qué puede —y qué no puede— establecer cada fuente.",
+  "dataSources.show": "Mostrar todas las fuentes de datos",
   "dataSources.use": "Se usa para:",
   "dataSources.license": "Licencia / condiciones:",
+  "dataSources.endpoint": "Punto de conexión:",
+  "dataSources.group.builtIn": "Integrado en la app",
+  "dataSources.group.consentFetched": "Obtenido con consentimiento",
+  "dataSources.group.offlineDownloads": "Descargas sin conexión",
+  "dataSources.group.optionalAi": "IA opcional",
+  "advice.title": "Aviso de viaje oficial",
+  "advice.announce.saved": "Aviso oficial para {country} guardado.",
+  "advice.stale":
+    "Obtenido hace {days} días; vuelve a obtenerlo antes de confiar en él",
+  "advice.fresh": "Obtenido recientemente",
+  "advice.readMore": "Lee el aviso completo en la fuente",
+  "advice.retrieved": "Obtenido {stamp}",
+  "advice.sourceUpdated": "Fuente actualizada {stamp}",
+  "advice.crossSource":
+    "Cada gobierno escribe para sus propios ciudadanos y usa su propio lenguaje y niveles de alerta. Compara las fuentes, no los números.",
+  "advice.healthNotices": "Avisos de salud (US CDC)",
+  "advice.healthNotices.licence":
+    "Avisos de salud para viajes de los Centros para el Control y la Prevención de Enfermedades de EE. UU. (dominio público). Solo informativo.",
+  "advice.status.kept":
+    "{source}: no se pudo acceder; mostrando la última copia guardada",
+  "advice.status.unavailable": "{source}: no disponible en este momento",
+  "advice.status.notPublished": "{source} no publica avisos para este destino",
+  "advice.selectLabel": "País para obtener el aviso oficial",
+  "advice.chooseCountry": "Elige un país…",
+  "advice.fetchAgain": "Obtener de nuevo",
+  "advice.fetch": "Obtener aviso oficial",
+  "advice.consent":
+    "Obtener datos contacta a las fuentes gubernamentales del Reino Unido, EE. UU., Canadá y Alemania, así como al CDC de EE. UU. una sola vez desde este dispositivo y guarda una copia con fecha localmente. Nada sobre tu viaje sale de este dispositivo.",
+  "weather.title": "Pronóstico del tiempo",
+  "weather.announce.saved": "Pronóstico para {place} guardado.",
+  "weather.stale":
+    "Obtenido hace {hours} horas; vuelve a obtenerlo para ver los números actuales",
+  "weather.fresh": "Obtenido recientemente",
+  "weather.rain": "{pct}% de lluvia",
+  "weather.coverage.none":
+    "Los pronósticos solo llegan hasta 16 días; tu viaje aún no está cubierto. Vuelve a obtenerlo cuando se acerque la fecha de salida.",
+  "weather.coverage.partial":
+    "Los pronósticos solo llegan hasta 16 días, por lo que solo la primera parte de tu viaje está cubierta. Los días posteriores aparecerán conforme se acerque la salida.",
+  "weather.attribution": "Datos meteorológicos de Open-Meteo.com",
+  "weather.retrieved": "Obtenido {stamp}",
+  "weather.fetchAgain": "Obtener de nuevo",
+  "weather.fetch": "Obtener pronóstico del tiempo",
+  "weather.consent":
+    "Obtener datos envía el nombre de tu destino (“{destination}”) a open-meteo.com para ubicarlo en el mapa, luego recupera el pronóstico, el historial para tus fechas y la calidad del aire. Para destinos en EE. UU., también solicita alertas activas al Servicio Meteorológico Nacional. Nada más sobre tu viaje sale de este dispositivo.",
+  "facts.title": "Datos del destino",
+  "facts.fetch": "Obtener datos del destino",
+  "facts.fetchAgain": "Obtener de nuevo",
+  "facts.consent":
+    "Obtener datos envía tu destino (“{destination}”) y el nombre de tu lugar de origen a open-meteo.com para ubicarlos en el mapa, y solicita al Banco Central Europeo los tipos de cambio de referencia de hoy. La diferencia horaria, el sol, la luna, los datos del país y los aeropuertos cercanos se calculan en este dispositivo. Nada más sobre tu viaje sale de él.",
+  "facts.retrieved": "Obtenido {stamp}",
+  "facts.clock.title": "Diferencia horaria",
+  "facts.clock.ahead": "{destination} está {duration} por delante de {origin}",
+  "facts.clock.behind": "{destination} está {duration} por detrás de {origin}",
+  "facts.clock.same": "{destination} tiene la misma hora que {origin}",
+  "facts.clock.hours": "{hours}h",
+  "facts.clock.hoursMinutes": "{hours}h {minutes}m",
+  "facts.sky.title": "Cielo",
+  "facts.sky.sun": "{sunrise} – {sunset}",
+  "facts.sky.dayLength": "{hours}h {minutes}m de luz solar",
+  "facts.polar.day": "Sol de medianoche: el sol no se pone",
+  "facts.polar.night": "Noche polar: el sol no sale",
+  "facts.sky.moon": "{phase} · {pct}% iluminada",
+  "facts.money.title": "Dinero",
+  "facts.money.rate": "1 {from} = {value} {to}",
+  "facts.money.indicative":
+    "Tasas de referencia del Banco Central Europeo para {date} — son indicativas, no la tasa que aplicará tu tarjeta o un cajero automático.",
+  "facts.money.noRate":
+    "No hay tasa de referencia publicada para {currency}. Verifícalo localmente antes de viajar.",
+  "facts.practical.title": "Información práctica",
+  "facts.practical.plug": "Enchufes {types} · {voltage} V · {frequency} Hz",
+  "facts.practical.driveLeft": "Conducción por la izquierda",
+  "facts.practical.driveRight": "Conducción por la derecha",
+  "facts.practical.calling": "Código de llamada {code}",
+  "facts.practical.emergency": "Emergencias {number}",
+  "facts.practical.emergencyServices":
+    "Policía {police} · Ambulancia {ambulance} · Bomberos {fire}",
+  "facts.practical.none":
+    "Voyalier aún no tiene información práctica para este destino.",
+  "facts.tipping.title": "Propinas",
+  "facts.tipping.note":
+    "Una guía aproximada: las costumbres varían y cambian; si tienes dudas, dejar una propina pequeña o ninguna suele ser aceptable.",
+  "facts.airports.title": "Aeropuertos cercanos",
+  "facts.airports.row": "{iata} · {name}",
+  "facts.airports.distance": "{km} km",
+  "facts.heritage.title": "Patrimonio de la Humanidad cercano",
+  "facts.heritage.rowYear": "{name} · inscrito en {year}",
+  "holidays.title": "Días festivos",
+  "holidays.fetch": "Obtener días festivos",
+  "holidays.fetchAgain": "Obtener de nuevo",
+  "holidays.retrieved": "Obtenido el {stamp}",
+  "holidays.nameLocal": "{name} ({localName})",
+  "holidays.regional": "· regional",
+  "holidays.none": "No hay días festivos en {country} durante tu viaje.",
+  "holidays.consent":
+    "Al obtenerlos, se envía el nombre de tu destino (“{destination}”) a open-meteo.com para ubicarlo en un país y luego se solicita a Nager.Date los días festivos de ese país. Nada más sobre tu viaje sale de aquí.",
+  "about.title": "Sobre este lugar",
+  "about.fetch": "Obtener resumen",
+  "about.fetchAgain": "Obtener de nuevo",
+  "about.retrieved": "Obtenido el {stamp}",
+  "about.attribution": "Resumen de Wikipedia, bajo licencia CC BY-SA.",
+  "about.readMore": "Leer más sobre {title} →",
+  "about.consent":
+    "Al obtenerlo, se solicita a Wikipedia (en.wikipedia.org) un breve resumen de “{destination}”. Nada más sobre tu viaje sale de aquí.",
+  "moon.new_moon": "Luna nueva",
+  "moon.waxing_crescent": "Luna creciente",
+  "moon.first_quarter": "Cuarto creciente",
+  "moon.waxing_gibbous": "Gibosa creciente",
+  "moon.full_moon": "Luna llena",
+  "moon.waning_gibbous": "Gibosa menguante",
+  "moon.last_quarter": "Cuarto menguante",
+  "moon.waning_crescent": "Luna menguante",
+  "weather.normals.title": "Típico para estas fechas",
+  "weather.normals.range": "Normalmente entre {low} y {high}°C",
+  "weather.normals.sample": "{days} días en {years} años ({from}–{to})",
+  "weather.normals.wet": "El {pct}% de los días tienen lluvia",
+  "weather.normals.extremes": "Rango registrado: {coldest}°C a {warmest}°C",
+  "weather.uv": "UV {value}",
+  "weather.aqi": "AQI {value}",
+  "weather.alerts.title": "Alertas oficiales",
+  "weather.alerts.attribution":
+    "Dominio público (U.S. National Weather Service). Se muestra textualmente; verifica la fuente antes de confiar en ella.",
+  "weather.alerts.area": "Afecta a {area}",
   "packing.title": "Qué llevar",
-  "packing.intro": "Sugerencias basadas en las pruebas guardadas del viaje.",
-  "packing.warm_layers": "Capas de abrigo",
+  "packing.intro":
+    "Se calcula a partir del historial meteorológico anterior y tus planes confirmados. Son sugerencias, no una lista de equipaje.",
+  "packing.warm_layers": "Ropa de abrigo",
   "packing.light_clothing": "Ropa ligera",
   "packing.rain_shell": "Chaqueta impermeable",
   "packing.sun_protection": "Protección solar",
-  "packing.mask": "Mascarilla",
+  "packing.mask": "Una mascarilla",
   "packing.travel_documents": "Documentos de viaje",
-  "packing.laundry": "Plan para lavar ropa",
+  "packing.laundry": "Kit de lavandería",
+  "packing.reason.avg_low": "La mínima típica es de {value}°C",
+  "packing.reason.avg_high": "La máxima típica es de {value}°C",
+  "packing.reason.wet_day_share":
+    "El {value}% de los días típicos tienen lluvia",
+  "packing.reason.uv_index": "El índice UV alcanza {value}",
+  "packing.reason.aqi": "El índice de calidad del aire alcanza {value}",
+  "packing.reason.has_flight": "Tienes un vuelo confirmado",
+  "packing.reason.nights": "{value} noches fuera",
+  "assist.title": "Vista previa de la solicitud de IA",
+  "assist.intro":
+    "Mira exactamente lo que Voyalier enviaría a un proveedor para este viaje. Nunca se incluyen códigos de confirmación ni nombres de viajeros, y no se envía nada.",
+  "assist.readonly":
+    'Esto te da una respuesta de solo lectura; no cambiará tu viaje. Para que la IA complete las fechas de alojamiento de una reserva importada, usa "Completar con IA local" abajo.',
+  "assist.provider.ollama": "Ollama (en el dispositivo)",
+  "assist.provider.openai": "OpenAI",
+  "assist.provider.anthropic": "Anthropic",
+  "assist.selectLabel": "Proveedor para vista previa",
+  "assist.preview": "Vista previa de la solicitud",
+  "assist.announce.previewCloud":
+    "Vista previa lista. Esta solicitud saldría de tu dispositivo hacia {provider}.",
+  "assist.announce.previewLocal":
+    "Vista previa lista. Esta solicitud se ejecutaría localmente en este dispositivo.",
+  "assist.route.cloud":
+    "Esta solicitud saldría de tu dispositivo hacia {provider}.",
+  "assist.route.local":
+    "Esta solicitud se ejecutaría localmente en este dispositivo a través de {provider}.",
+  "assist.model": "Modelo: {model}",
+  "assist.grounded": "Basado en {sources}",
+  "assist.noGrounding": "Aún no hay planes confirmados para usar como base",
+  "assist.tokens": "~{tokens} tokens",
+  "assist.systemInstruction": "Instrucción del sistema",
+  "assist.tripDetails": "Detalles del viaje que incluiría",
+  "assist.withheld": "Omitido de la solicitud",
+  "assist.send": "Enviar a {provider}",
+  "assist.runLocal": "Ejecutar asistencia en el dispositivo",
+  "assist.note":
+    "Esto envía la solicitud anterior a {provider} usando tu clave guardada. Si no tienes una, agrégala primero en proveedores de IA.",
+  "assist.reply": "Respuesta de {model}",
+  "assist.disclaimer":
+    "Generado por IA a partir de tus planes confirmados. Voyalier nunca lo trata como una fuente autorizada. Verifica cualquier dato importante —requisitos de entrada, salud o seguridad— con una fuente oficial.",
+  "assist.announce.finished": "Asistencia finalizada con {model}.",
+  "assist.recentRuns": "Ejecuciones recientes",
+  "assist.log.aria": "Registro de actividad de asistencia",
+  "assist.scope":
+    "La vista previa muestra exactamente lo que se enviaría. Las ejecuciones locales permanecen en este dispositivo mediante Ollama; las de la nube envían la solicitud a tu proveedor elegido usando tu clave guardada. Cada ejecución completada aparece arriba.",
+  "draft.title": "Completar con IA local",
+  "draft.intro":
+    "Si una reserva importada tiene fechas de alojamiento que no se detectaron, tu IA local puede proponerlas a partir del texto. Se ejecuta en este dispositivo —nada sale— y cada sugerencia es un borrador que revisas antes de guardar nada.",
+  "draft.route":
+    "Se ejecuta en este dispositivo vía Ollama; nada sale de tu dispositivo.",
+  "draft.preview": "Vista previa de lo que lee",
+  "draft.reads": "Lo que leería",
+  "draft.instruction": "Instrucción",
+  "draft.run": "Proponer fechas de alojamiento",
+  "draft.none":
+    "No se encontraron fechas de alojamiento faltantes en el texto importado.",
+  "draft.needDocs":
+    "Importa una reserva primero; aún no hay texto para que la IA lo lea.",
+  "draft.announce.drafted.one":
+    "Se creó {count} sugerencia de alojamiento para revisar.",
+  "draft.announce.drafted.other":
+    "Se crearon {count} sugerencias de alojamiento para revisar.",
+  "draft.scope":
+    "Solo en el dispositivo. Voyalier redacta fechas a partir de tu propio texto importado; nunca inventa precios, visas, detalles de salud o seguridad, y nada se guarda hasta que lo revises.",
+  "tripcard.facts.one": "dato confirmado",
+  "tripcard.facts.other": "datos confirmados",
+  "tripcard.pending.one": "sugerencia pendiente",
+  "tripcard.pending.other": "sugerencias pendientes",
+  "triplist.showArchived.one": "Mostrar {count} viaje archivado",
+  "triplist.showArchived.other": "Mostrar {count} viajes archivados",
+  "localai.running.one":
+    "Ollama está ejecutándose con {count} modelo instalado. Voyalier puede usarlo para asistencia opcional y privada; nada sale de tu dispositivo.",
+  "localai.running.other":
+    "Ollama está ejecutándose con {count} modelos instalados. Voyalier puede usarlos para asistencia opcional y privada; nada sale de tu dispositivo.",
+  "search.matches.one": "{count} coincidencia para {query}.",
+  "search.matches.other": "{count} coincidencias para {query}.",
+  "import.review.one": "Revisar {count} sugerencia",
+  "import.review.other": "Revisar {count} sugerencias",
+  "import.found.one":
+    "Voyalier encontró {count} nueva sugerencia para revisar; nada cambia hasta que confirmes.",
+  "import.found.other":
+    "Voyalier encontró {count} nuevas sugerencias para revisar; nada cambia hasta que confirmes.",
+  "review.count.one": "{count} sugerencia para revisar",
+  "review.count.other": "{count} sugerencias para revisar",
+  "packs.places.one": "{count} lugar",
+  "packs.places.other": "{count} lugares",
+  "packs.notes.one": "{count} nota",
+  "packs.notes.other": "{count} notas",
+  "packs.offline": "sin conexión",
+  "packs.offlineMap": "mapa sin conexión listo",
+  "recs.announce.count.one": "{count} recomendación.",
+  "recs.announce.count.other": "{count} recomendaciones.",
+  "detail.back": "Todos los viajes",
+  "detail.loading": "Cargando viaje…",
+  "detail.backToTrips": "Volver a viajes",
+  "detail.status": "Estado: ",
+  "detail.import": "Importar",
+  "detail.edit": "Editar",
+  "detail.unarchive": "Desarchivar",
+  "detail.announce.updated": "Viaje actualizado.",
+  "detail.announce.unarchived": "Viaje desarchivado.",
+  "detail.addFact": "Añadir vuelo o estancia",
+  "detail.shareBrief": "Compartir resumen",
+  "detail.archive": "Archivar",
+  "detail.delete": "Eliminar",
+  "detail.pending.desc":
+    "Confirma o descarta lo que Voyalier encontró en tus documentos.",
+  "detail.nopending":
+    "No hay sugerencias pendientes. Importa un documento para encontrar más.",
+  "detail.blueprint": "Blueprint",
+  "detail.blueprint.sub": "Tus vuelos y estancias confirmados, en orden.",
+  "detail.empty.title": "Tu Blueprint está vacío",
+  "detail.importDocument": "Importar un documento",
+  "detail.empty.body":
+    "Los vuelos y estancias confirmados aparecerán aquí en el orden del itinerario. Importa una confirmación o añade un dato manualmente para comenzar.",
+  "detail.edited": "Editado antes de confirmar: {fields}",
+  "detail.unconfirm": "Volver a revisar",
+  "detail.remove": "Eliminar",
+  "detail.announce.archived": "Viaje archivado.",
+  "detail.announce.unconfirmed": "{fact} volvió a revisión.",
+  "detail.announce.removed": "{fact} eliminado.",
+  "detail.announce.added": "{fact} añadido.",
+  "readiness.title": "Preparación",
+  "readiness.checkYourself": "Compruébalo tú mismo",
+  "readiness.scope":
+    "Esto comprueba qué tan completo está tu plan y te dirige a fuentes oficiales. Voyalier nunca afirma ni da por cumplidos requisitos de entrada, salud o seguridad; confírmalos siempre con la fuente oficial.",
+  "readiness.label.not_checked": "No iniciado",
+  "readiness.label.clear": "En orden",
+  "readiness.label.monitor": "Revisar pronto",
+  "readiness.label.action_needed": "Atención necesaria",
+  "readiness.label.critical": "Crítico",
+  "readiness.check.schedule_conflicts": "Conflictos de horario",
+  "readiness.check.lodging_coverage": "Cobertura de alojamiento",
+  "readiness.check.pending_review": "Sugerencias para revisar",
+  "readiness.check.entry_requirements": "Requisitos de entrada y viaje",
+  "readiness.check.health_notices": "Avisos de salud",
+  "readiness.finding.no_facts_yet":
+    "Agrega vuelos o estancias para verificar traslapes.",
+  "readiness.finding.schedule_conflicts.one":
+    "{count} conflicto de horario para resolver.",
+  "readiness.finding.schedule_conflicts.other":
+    "{count} conflictos de horario para resolver.",
+  "readiness.finding.schedule_notices.one":
+    "{count} aviso de horario para revisar.",
+  "readiness.finding.schedule_notices.other":
+    "{count} avisos de horario para revisar.",
+  "readiness.finding.schedule_clear":
+    "No hay traslapes en tus planes confirmados.",
+  "readiness.finding.no_lodging_yet": "Aún no has añadido alojamiento.",
+  "readiness.finding.lodging_gaps":
+    "Algunas noches de tu viaje no tienen alojamiento reservado.",
+  "readiness.finding.lodging_clear":
+    "Todas las noches de tu viaje tienen alojamiento.",
+  "readiness.finding.pending_review.one":
+    "{count} sugerencia importada esperando revisión.",
+  "readiness.finding.pending_review.other":
+    "{count} sugerencias importadas esperando revisión.",
+  "readiness.finding.nothing_pending": "No hay nada pendiente por revisar.",
+  "readiness.linkOnly.entry_requirements":
+    "Los requisitos dependen de tu nacionalidad y cambian con frecuencia. Confírmalos en una fuente gubernamental oficial antes de viajar; Voyalier enlaza a fuentes oficiales y nunca afirma ni autoriza reglas de entrada.",
+  "readiness.linkOnly.health_notices":
+    "Los consejos de vacunación y salud dependen de tu destino y estado de salud, y cambian con frecuencia. Consulta una fuente oficial antes de viajar; Voyalier enlaza a fuentes oficiales y nunca ofrece asesoría médica.",
+  "schedule.title": "Revisión de horario",
+  "schedule.clear": "No se encontraron conflictos en tus planes confirmados.",
+  "schedule.conflict": "Conflicto",
+  "schedule.notice": "Aviso",
+  "schedule.label.flight_number": "Vuelo {number}",
+  "schedule.label.flight_route": "Vuelo {from}→{to}",
+  "schedule.label.flight": "Un vuelo",
+  "schedule.label.lodging_property": "{property}",
+  "schedule.label.lodging": "Una estancia de alojamiento",
+  "schedule.flight_overlap":
+    "{first} y {second} se traslapan en el tiempo; un viajero solo puede estar en un vuelo a la vez.",
+  "schedule.lodging_overlap":
+    "{first} y {second} se traslapan; dos estancias cubren la misma noche.",
+  "schedule.lodging_gap.one":
+    "No hay alojamiento reservado para la noche del {first}.",
+  "schedule.lodging_gap.other":
+    "No hay alojamiento reservado para las noches del {first} al {last}.",
+  "schedule.planned_item_overlap":
+    "Tus planes “{first}” y “{second}” se superponen. Verifica si esto es intencional.",
+  "schedule.planned_item_fact_overlap":
+    "Tu plan “{plan}” se traslapa con {fact}. Verifica si es intencional; el estado de preparación no ha cambiado.",
+  "map.title": "Mapa",
+  "map.intro":
+    "Mira tu destino y los lugares recomendados en un mapa. Un mapa base sin conexión descargado permanece en este dispositivo; de lo contrario, mostrar el mapa descarga mosaicos desde OpenFreeMap. No se envía información sobre tu viaje.",
+  "map.show": "Mostrar mapa",
+  "map.aria": "Mapa del viaje",
+  "map.scope":
+    "Mapa base © OpenFreeMap · datos del mapa © colaboradores de OpenStreetMap.",
+  "map.scope.offline":
+    "Mapa base sin conexión de {source} · datos del mapa © colaboradores de OpenStreetMap. No se envió ninguna solicitud de mosaico fuera de este dispositivo.",
+  "map.scope.empty":
+    "Descarga un paquete de ciudad y obtén recomendaciones para ver lugares aquí.",
+  "map.error.load":
+    "El mapa no pudo iniciarse aquí. El resto de las funciones de tu viaje siguen funcionando.",
+  "map.error.webgl":
+    "Este dispositivo o navegador no puede mostrar el mapa (sin WebGL). El resto de las funciones de tu viaje siguen funcionando.",
+  "theme.label": "Tema de color",
+  "theme.light": "Claro",
+  "theme.system": "Sistema",
+  "theme.dark": "Oscuro",
+  "settings.title": "Configuración",
+  "settings.intro":
+    "Todo lo que aparece aquí se aplica a Voyalier en su totalidad, no a un viaje individual.",
+  "settings.appearance": "Apariencia",
+  "settings.appearance.hint":
+    "El sistema sigue la configuración de tu computadora.",
+  "settings.language": "Idioma",
+  "settings.language.hint":
+    "El sistema sigue la configuración de tu computadora. Esta preferencia solo se mantiene en esta aplicación en este dispositivo.",
+  "settings.language.system": "Sistema",
+  "settings.back": "Volver",
+  "topbar.settings": "Configuración",
+  "assist.needsSetup": "Configura la IA en Ajustes para usar esta función.",
+  "assist.needsSetup.link": "Abrir Ajustes",
+  "sample.explore": "Explorar un viaje de ejemplo",
+  "sample.hint":
+    "Datos ficticios que puedes eliminar. No se envía nada a ningún lugar.",
+  "sample.building": "Creando…",
+  "sample.error": "No se pudo generar el viaje de ejemplo.",
+  "sample.title": "Ejemplo: Fin de semana largo en Kioto",
+  "sample.origin": "San Francisco",
+  "sample.destination": "Kioto",
+  "sample.document": "Correo de confirmación de ejemplo",
+  "notes.title": "Notas",
+  "notes.intro":
+    "Cualquier cosa que quieras recordar: planes a medias, un restaurante que alguien mencionó, qué reservar después.",
+  "notes.excluded":
+    "Se mantienen en este dispositivo y están cifradas. Nunca se incluyen en un resumen compartido ni se envían a un proveedor de IA.",
+  "notes.label": "Notas del viaje",
+  "notes.placeholder": "Empieza a escribir…",
+  "notes.saving": "Guardando…",
+  "notes.saved": "Guardado",
+  "notes.error": "No se pudieron guardar tus notas; siguen aquí, intactas.",
+  "notes.tooLong":
+    "Eso es más largo de lo que Voyalier puede almacenar. No se guardó nada.",
+  "ics.export": "Exportar calendario",
+  "ics.exporting": "Preparando…",
+  "ics.error": "No se pudo generar el archivo de calendario.",
+  "ics.done": "Archivo de calendario guardado.",
+  "ics.summary.flight": "Vuelo {flight}",
+  "ics.summary.stay": "Estancia — {property}",
+  "ics.description":
+    "Exportado desde Voyalier. Las horas son las que aparecen en tu confirmación, sin zona horaria; Voyalier no la asume, por lo que tu calendario las mostrará en su propia hora local. No se incluyen códigos de confirmación ni nombres de viajeros.",
+  "documents.title": "Documentos importados",
+  "documents.intro":
+    "Las confirmaciones que trajiste. Voyalier conserva el texto original para que puedas verificar qué leyó y eliminarlo cuando quieras.",
+  "documents.empty": "Aún no has importado nada.",
+  "documents.empty.hint":
+    "Importa una confirmación y el original se guardará aquí.",
+  "documents.error": "No se pudieron cargar tus documentos.",
+  "documents.imported": "Importado el {date}",
+  "documents.size.one": "{count} carácter",
+  "documents.size.other": "{count} caracteres",
+  "documents.counts.pending.one": "{count} pendiente de revisión",
+  "documents.counts.pending.other": "{count} pendientes de revisión",
+  "documents.counts.confirmed.one": "{count} confirmado",
+  "documents.counts.confirmed.other": "{count} confirmados",
+  "documents.view": "Mostrar original",
+  "documents.hide": "Ocultar original",
+  "documents.viewError": "No se pudo abrir ese documento.",
+  "documents.remove": "Eliminar",
+  "documents.removeError": "No se pudo eliminar ese documento.",
+  "documents.removed": "Se eliminó {label}.",
+  "documents.removeWarning.pending.one":
+    "Su sugerencia pendiente de revisión también se eliminará.",
+  "documents.removeWarning.pending.other":
+    "Sus {count} sugerencias pendientes de revisión también se eliminarán.",
+  "documents.removeWarning.confirmed":
+    "Los datos que ya confirmaste permanecerán en tu viaje, pero perderán su evidencia.",
+  "documents.sourceRemoved": "Documento fuente eliminado",
+  "documents.kind.pasted_text": "Texto pegado",
+  "documents.kind.html": "HTML",
+  "documents.kind.email": "Correo electrónico",
+  "tripnav.label": "Ir a una sección",
+  "tripnav.plan": "Planificar",
+  "tripnav.prepare": "Preparar",
+  "tripnav.discover": "Descubrir",
+  "tripnav.ai": "IA",
+  "dialog.close": "Cerrar diálogo",
+  "updates.title": "Actualizaciones",
+  "updates.current": "Versión {version}",
+  "updates.check": "Buscar actualizaciones",
+  "updates.checking": "Buscando actualizaciones…",
+  "updates.upToDate": "Tienes la última versión ({version}).",
+  "updates.consent.title": "¿Buscar actualizaciones automáticamente?",
+  "updates.consent.body":
+    "Voyalier puede consultar GitHub una vez al día para buscar nuevas versiones. Solo se obtienen metadatos de la versión; no se envía información sobre ti ni sobre tus viajes.",
+  "updates.consent.yes": "Sí, buscar automáticamente",
+  "updates.consent.no": "No, lo haré manualmente",
+  "updates.available.title": "Actualización disponible: {version}",
+  "updates.available.body":
+    "Hay una nueva versión lista para descargar e instalar. Tus viajes permanecerán en este dispositivo.",
+  "updates.install": "Descargar e instalar",
+  "updates.installWin": "Actualizar y reiniciar",
+  "updates.installWin.note":
+    "Voyalier se cerrará, se actualizará y se volverá a abrir (en menos de un minuto).",
+  "updates.installing": "Descargando actualización…",
+  "updates.installingWin":
+    "Instalando — Voyalier se cerrará y se volverá a abrir.",
+  "updates.progress.aria": "Progreso de descarga de la actualización",
+  "updates.progress.percent": "{percent}% descargado",
+  "updates.progress.indeterminate": "Descargando…",
+  "updates.skip": "Omitir esta versión",
+  "updates.skipped": "Omitiste esta versión.",
+  "updates.unskip": "Deshacer omisión",
+  "updates.notes.heading": "Notas de GitHub (no verificadas)",
+  "updates.staged.title": "Actualización instalada",
+  "updates.staged.body":
+    "Reinicia Voyalier para finalizar la actualización a {version}.",
+  "updates.restart": "Reiniciar Voyalier",
+  "updates.error.offline":
+    "Estás sin conexión. Reconéctate e inténtalo de nuevo.",
+  "updates.error.generic":
+    "No se pudo buscar actualizaciones; GitHub podría estar ocupado o inaccesible.",
+  "updates.retry": "Reintentar",
+  "updates.releases": "Ver versiones en GitHub",
+  "updates.disabled":
+    "Esta es una versión de desarrollo; las actualizaciones internas están desactivadas.",
+  "updates.unsupported.title":
+    "Las actualizaciones internas no están disponibles aquí",
+  "updates.unsupported.source":
+    "¿Ejecutas Voyalier desde el código fuente? Actualiza desde el repositorio: git pull y luego make bootstrap.",
+  "updates.unsupported.download":
+    "O descarga la aplicación de escritorio empaquetada.",
+  "updates.pill.available": "Actualización disponible",
+  "updates.pill.staged": "Reiniciar para actualizar",
+  "updates.autocheck": "Buscar actualizaciones automáticamente",
+  "updates.clearBackups": "Borrar copias de seguridad de actualización",
+  "updates.backupsCleared.one": "Se borró {count} copia de seguridad.",
+  "updates.backupsCleared.other": "Se borraron {count} copias de seguridad.",
+  "updates.justUpdated": "Actualizado a Voyalier {version}.",
+  "updates.dismiss": "Descartar",
 };
 
 // Distributes over the MessageKey union, keeping only keys with a `.one`
@@ -1266,11 +2094,16 @@ const es: Record<MessageKey, string> = {
 type PluralBaseOf<K> = K extends `${infer Base}.one` ? Base : never;
 export type PluralBase = PluralBaseOf<MessageKey>;
 
-// Registry of locales. English is always present; others are added here.
-const catalogs: Record<string, Partial<Record<MessageKey, string>>> = {
+// Shipped catalogs are exhaustive; the wider lookup type preserves the locale
+// chain's safe English fallback for unshipped browser locale variants.
+export const catalogs = {
   en,
   es,
-};
+} satisfies Record<"en" | "es", Record<MessageKey, string>>;
+const catalogLookup: Record<
+  string,
+  Partial<Record<MessageKey, string>>
+> = catalogs;
 
 /** "fr-FR" → ["fr-fr", "fr", "en"]; always ends at English. */
 function localeChain(locale: string): string[] {
@@ -1297,7 +2130,7 @@ function interpolate(template: string, vars?: Vars): string {
  */
 export function t(key: MessageKey, vars?: Vars): string {
   for (const locale of localeChain(APP_LOCALE)) {
-    const value = catalogs[locale]?.[key];
+    const value = catalogLookup[locale]?.[key];
     if (value != null) return interpolate(value, vars);
   }
   return interpolate(en[key], vars);
@@ -1325,7 +2158,7 @@ export function plural(base: PluralBase, count: number, vars?: Vars): string {
   const merged: Vars = { count, ...vars };
   const candidates = [`${base}.${category}`, `${base}.other`];
   for (const locale of localeChain(APP_LOCALE)) {
-    const catalog = catalogs[locale] as Record<string, string> | undefined;
+    const catalog = catalogLookup[locale] as Record<string, string> | undefined;
     for (const candidate of candidates) {
       const value = catalog?.[candidate];
       if (value != null) return interpolate(value, merged);

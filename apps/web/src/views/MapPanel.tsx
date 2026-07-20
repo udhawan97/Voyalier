@@ -22,7 +22,8 @@ type Pmtiles = typeof import("pmtiles");
 
 // OpenFreeMap Liberty: a free, no-API-key vector basemap (OpenStreetMap data).
 // The offline path is a per-pack PMTiles extract read via the pmtiles protocol.
-const STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
+export const OPENFREEMAP_STYLE_URL =
+  "https://tiles.openfreemap.org/styles/liberty";
 
 class GatewayPmtilesSource implements PmtilesSource {
   constructor(
@@ -238,7 +239,7 @@ export function MapPanel({
     let map: MaplibreMap;
     let protocolRegistered = false;
     try {
-      let style: string | StyleSpecification = STYLE_URL;
+      let style: string | StyleSpecification = OPENFREEMAP_STYLE_URL;
       if (offlineMap && pm) {
         const source = new GatewayPmtilesSource(gateway, tripId, offlineMap);
         const archive = new pm.PMTiles(source);
