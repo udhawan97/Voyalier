@@ -4,10 +4,9 @@ import { createHttpGateway } from "./http";
 
 /*
  * Runs the HTTP gateway against the real loopback core. Skipped unless
- * VITE_LIVE_API=1 — run at integration after Codex's core merges:
+ * VITE_LIVE_API=1. The repository and CI entry point owns the server lifecycle:
  *
- *   cargo run -p voyalier-server            # terminal 1
- *   VITE_LIVE_API=1 pnpm --filter @voyalier/web test gateway.live
+ *   ./scripts/check.sh integration
  */
 const LIVE = import.meta.env.VITE_LIVE_API === "1";
 const BASE_URL =
@@ -41,7 +40,7 @@ describe.skipIf(!LIVE)("HTTP gateway against the live core", () => {
 
   it("round-trips a create → read → delete lifecycle", async () => {
     const trip = await gateway.createTrip({
-      title: "Live gateway smoke",
+      title: "Live gateway smoke - 京都",
       origin: "Chicago",
       destination: "Kyoto",
       startDate: "2027-05-01",
@@ -51,6 +50,8 @@ describe.skipIf(!LIVE)("HTTP gateway against the live core", () => {
 
     const detail = await gateway.getTrip(trip.id);
     expect(detail.trip.id).toBe(trip.id);
+    expect(detail.trip.title).toBe("Live gateway smoke - 京都");
+    expect(detail.weather).toBeUndefined();
 
     await gateway.deleteTrip(trip.id);
     await expect(gateway.getTrip(trip.id)).rejects.toMatchObject({
