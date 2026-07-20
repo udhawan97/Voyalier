@@ -69,6 +69,8 @@ struct OwnedWorkspaceSearchRecord {
     source: WorkspaceSearchSource,
     trip_id: String,
     trip_title: String,
+    trip_status: voyalier_core::TripStatus,
+    trip_updated_at: String,
     record_id: String,
     label: String,
     text: String,
@@ -1070,7 +1072,10 @@ impl AppService {
             conflicts: mut itinerary_conflicts,
             readiness,
         } = assess_trip(&trip, &confirmed_facts, pending_candidate_count);
-        itinerary_conflicts.extend(detect_planned_item_conflicts(&trip_items));
+        itinerary_conflicts.extend(detect_planned_item_conflicts(
+            &trip_items,
+            &confirmed_facts,
+        ));
         let advisory_panel = load_advisory_panel(&connection, trip_id)?;
         let weather = fetch_weather_snapshot(&connection, trip_id)?;
         // Derived, not fetched: the same stored evidence, read a second way.
@@ -1257,11 +1262,22 @@ impl AppService {
     pub fn add_packing_item(&self, input: AddPackingItemInput) -> Result<PackingItem, AppError> {
         let connection = self.connection()?;
         self.records(&connection).trip(&input.trip_id)?;
+        let label = validate_packing_label(&input.label)?;
+        if let Some(code) = input.suggestion_code.as_deref() {
+            if let Some(existing) = self
+                .records(&connection)
+                .packing_items(&input.trip_id)?
+                .into_iter()
+                .find(|item| item.suggestion_code.as_deref() == Some(code))
+            {
+                return Ok(existing);
+            }
+        }
         let now = now_rfc3339();
         let item = PackingItem {
             id: new_id("packing"),
             trip_id: input.trip_id,
-            label: validate_packing_label(&input.label)?,
+            label,
             checked: false,
             suggestion_code: input.suggestion_code,
             created_at: now.clone(),
@@ -1305,6 +1321,7 @@ impl AppService {
         let input = validate_create_trip_item(input)?;
         let connection = self.connection()?;
         self.records(&connection).trip(&input.trip_id)?;
+        validate_saved_place_trip(&connection, input.saved_place_id.as_deref(), &input.trip_id)?;
         let now = now_rfc3339();
         let item = TripItem {
             id: new_id("item"),
@@ -1336,6 +1353,11 @@ impl AppService {
             notes: input.notes,
             saved_place_id: input.saved_place_id,
         })?;
+        validate_saved_place_trip(
+            &connection,
+            normalized.saved_place_id.as_deref(),
+            &trip_id,
+        )?;
         let existing = self
             .records(&connection)
             .trip_items(&trip_id)?
@@ -2328,6 +2350,8 @@ impl AppService {
                     source: WorkspaceSearchSource::Document,
                     trip_id: trip.id.clone(),
                     trip_title: trip.title.clone(),
+                    trip_status: trip.status,
+                    trip_updated_at: trip.updated_at.clone(),
                     record_id: id,
                     label,
                     text: content,
@@ -2342,6 +2366,8 @@ impl AppService {
                     source: WorkspaceSearchSource::ConfirmedFact,
                     trip_id: trip.id.clone(),
                     trip_title: trip.title.clone(),
+                    trip_status: trip.status,
+                    trip_updated_at: trip.updated_at.clone(),
                     record_id: fact.id,
                     label: label.to_owned(),
                     text: serde_json::to_string(&fact.payload).map_err(storage_error)?,
@@ -2353,6 +2379,8 @@ impl AppService {
                     source: WorkspaceSearchSource::Note,
                     trip_id: trip.id.clone(),
                     trip_title: trip.title.clone(),
+                    trip_status: trip.status,
+                    trip_updated_at: trip.updated_at.clone(),
                     record_id: trip.id.clone(),
                     label: "Trip notes".to_owned(),
                     text: notes.body,
@@ -2363,6 +2391,8 @@ impl AppService {
                     source: WorkspaceSearchSource::SavedPlace,
                     trip_id: trip.id.clone(),
                     trip_title: trip.title.clone(),
+                    trip_status: trip.status,
+                    trip_updated_at: trip.updated_at.clone(),
                     record_id: place.id,
                     label: place.name,
                     text: format!(
@@ -2378,6 +2408,8 @@ impl AppService {
                     source: WorkspaceSearchSource::TripItem,
                     trip_id: trip.id.clone(),
                     trip_title: trip.title.clone(),
+                    trip_status: trip.status,
+                    trip_updated_at: trip.updated_at.clone(),
                     record_id: item.id,
                     label: item.title,
                     text: [item.location, item.notes, item.start_at, item.end_at]
@@ -2394,6 +2426,8 @@ impl AppService {
                 source: record.source,
                 trip_id: &record.trip_id,
                 trip_title: &record.trip_title,
+                trip_status: record.trip_status,
+                trip_updated_at: &record.trip_updated_at,
                 record_id: &record.record_id,
                 label: &record.label,
                 text: &record.text,
@@ -5175,6 +5209,23 @@ fn record_trip_id(
         })
 }
 
+fn validate_saved_place_trip(
+    connection: &Connection,
+    saved_place_id: Option<&str>,
+    expected_trip_id: &str,
+) -> Result<(), AppError> {
+    let Some(saved_place_id) = saved_place_id else {
+        return Ok(());
+    };
+    if record_trip_id(connection, "saved_places", saved_place_id)? != expected_trip_id {
+        return Err(AppError::new(
+            ErrorCode::ValidationInvalidInput,
+            "saved place belongs to a different trip",
+        ));
+    }
+    Ok(())
+}
+
 fn sha256_hex(bytes: &[u8]) -> String {
     let digest = Sha256::digest(bytes);
     digest
@@ -5271,6 +5322,21 @@ mod tests {
                 suggestion_code: None,
             })
             .expect("packing item");
+        let suggested = service
+            .add_packing_item(AddPackingItemInput {
+                trip_id: trip.id.clone(),
+                label: "Rain shell".to_owned(),
+                suggestion_code: Some("rain_shell".to_owned()),
+            })
+            .expect("suggested packing item");
+        let duplicate_suggestion = service
+            .add_packing_item(AddPackingItemInput {
+                trip_id: trip.id.clone(),
+                label: "Rain jacket".to_owned(),
+                suggestion_code: Some("rain_shell".to_owned()),
+            })
+            .expect("idempotent suggested packing item");
+        assert_eq!(duplicate_suggestion.id, suggested.id);
         let activity = service
             .create_trip_item(CreateTripItemInput {
                 trip_id: trip.id.clone(),
@@ -5283,6 +5349,20 @@ mod tests {
                 saved_place_id: Some(saved.id.clone()),
             })
             .expect("activity");
+        let other_trip = service.create_trip(valid_trip_input()).expect("other trip");
+        let error = service
+            .create_trip_item(CreateTripItemInput {
+                trip_id: other_trip.id,
+                kind: voyalier_core::TripItemKind::Activity,
+                title: "Wrong-trip saved place".to_owned(),
+                location: None,
+                start_at: None,
+                end_at: None,
+                notes: None,
+                saved_place_id: Some(saved.id.clone()),
+            })
+            .expect_err("cross-trip saved place must fail");
+        assert_eq!(error.code, ErrorCode::ValidationInvalidInput);
 
         // Removing the source pack keeps the provenance snapshot, while making
         // its unavailable state explicit. Promotion remains a separate record.

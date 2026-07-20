@@ -29,7 +29,10 @@ pub fn detect_itinerary_conflicts(trip: &Trip, facts: &[ConfirmedFact]) -> Vec<I
 /// Detect literal half-open overlaps among traveler-authored timed items.
 /// These remain planning notices and never feed the confirmed-plan readiness
 /// rollup.
-pub fn detect_planned_item_conflicts(items: &[TripItem]) -> Vec<ItineraryConflict> {
+pub fn detect_planned_item_conflicts(
+    items: &[TripItem],
+    facts: &[ConfirmedFact],
+) -> Vec<ItineraryConflict> {
     let timed: Vec<&TripItem> = items
         .iter()
         .filter(|item| {
@@ -68,6 +71,50 @@ pub fn detect_planned_item_conflicts(items: &[TripItem]) -> Vec<ItineraryConflic
             }
         }
     }
+    let flights: Vec<(&ConfirmedFact, DateTime, DateTime)> = facts
+        .iter()
+        .filter(|fact| fact.fact_type == FactType::FlightSegment)
+        .filter_map(|fact| {
+            let departure = fact
+                .payload
+                .departure_local
+                .as_deref()
+                .and_then(parse_datetime)?;
+            let arrival = fact
+                .payload
+                .arrival_local
+                .as_deref()
+                .and_then(parse_datetime)?;
+            (arrival >= departure).then_some((fact, departure, arrival))
+        })
+        .collect();
+    for item in timed {
+        let Some(item_start) = item.start_at.as_deref().and_then(parse_datetime) else {
+            continue;
+        };
+        let Some(item_end) = item.end_at.as_deref().and_then(parse_datetime) else {
+            continue;
+        };
+        for (flight, flight_start, flight_end) in &flights {
+            if item_start < *flight_end && *flight_start < item_end {
+                conflicts.push(ItineraryConflict {
+                    kind: ItineraryConflictKind::PlannedItemOverlap,
+                    severity: ConflictSeverity::Notice,
+                    subjects: vec![flight_label(flight)],
+                    fact_ids: vec![flight.id.clone()],
+                    planned_item_ids: vec![item.id.clone()],
+                    planned_item_titles: vec![item.title.clone()],
+                    start_date: None,
+                    end_date: None,
+                });
+            }
+        }
+    }
+    conflicts.sort_by(|left, right| {
+        left.planned_item_ids
+            .cmp(&right.planned_item_ids)
+            .then_with(|| left.fact_ids.cmp(&right.fact_ids))
+    });
     conflicts
 }
 
@@ -462,16 +509,48 @@ mod tests {
             created_at: String::new(),
             updated_at: String::new(),
         };
-        let conflicts = detect_planned_item_conflicts(&[
-            item("b", "Museum", "2026-11-04T10:00", "2026-11-04T12:00"),
-            item("a", "Tea", "2026-11-04T11:00", "2026-11-04T13:00"),
-            item("c", "Rail", "2026-11-04T13:00", "2026-11-04T14:00"),
-        ]);
+        let conflicts = detect_planned_item_conflicts(
+            &[
+                item("b", "Museum", "2026-11-04T10:00", "2026-11-04T12:00"),
+                item("a", "Tea", "2026-11-04T11:00", "2026-11-04T13:00"),
+                item("c", "Rail", "2026-11-04T13:00", "2026-11-04T14:00"),
+            ],
+            &[],
+        );
 
         assert_eq!(conflicts.len(), 1);
         assert_eq!(conflicts[0].kind, ItineraryConflictKind::PlannedItemOverlap);
         assert_eq!(conflicts[0].severity, ConflictSeverity::Notice);
         assert_eq!(conflicts[0].planned_item_ids, ["a", "b"]);
         assert_eq!(conflicts[0].planned_item_titles, ["Tea", "Museum"]);
+    }
+
+    #[test]
+    fn manual_items_overlapping_confirmed_flights_are_notices() {
+        use crate::planning::TripItemKind;
+
+        let item = TripItem {
+            id: "plan_1".to_owned(),
+            trip_id: "t1".to_owned(),
+            kind: TripItemKind::Transfer,
+            title: "Airport transfer".to_owned(),
+            location: None,
+            start_at: Some("2026-11-03T10:00".to_owned()),
+            end_at: Some("2026-11-03T11:00".to_owned()),
+            notes: None,
+            saved_place_id: None,
+            created_at: String::new(),
+            updated_at: String::new(),
+        };
+
+        let conflicts = detect_planned_item_conflicts(
+            &[item],
+            &[flight("flight_1", "2026-11-03T10:30", "2026-11-03T12:00")],
+        );
+
+        assert_eq!(conflicts.len(), 1);
+        assert_eq!(conflicts[0].severity, ConflictSeverity::Notice);
+        assert_eq!(conflicts[0].planned_item_titles, ["Airport transfer"]);
+        assert_eq!(conflicts[0].fact_ids, ["flight_1"]);
     }
 }

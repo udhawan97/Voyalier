@@ -9,7 +9,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::types::{AppError, ConfirmedFact, ErrorCode, FactType};
+use crate::types::{AppError, ConfirmedFact, ErrorCode, FactType, TripStatus};
 
 pub const MAX_QUERY_LEN: usize = 200;
 const MAX_HITS: usize = 20;
@@ -64,6 +64,8 @@ pub struct WorkspaceSearchRecord<'a> {
     pub source: WorkspaceSearchSource,
     pub trip_id: &'a str,
     pub trip_title: &'a str,
+    pub trip_status: TripStatus,
+    pub trip_updated_at: &'a str,
     pub record_id: &'a str,
     pub label: &'a str,
     pub text: &'a str,
@@ -75,6 +77,8 @@ pub struct WorkspaceSearchHit {
     pub source: WorkspaceSearchSource,
     pub trip_id: String,
     pub trip_title: String,
+    pub trip_status: TripStatus,
+    pub trip_updated_at: String,
     pub record_id: String,
     pub label: String,
     pub snippet: String,
@@ -237,6 +241,8 @@ pub fn search_workspace_corpus(
                     source: record.source,
                     trip_id: record.trip_id.to_owned(),
                     trip_title: record.trip_title.to_owned(),
+                    trip_status: record.trip_status,
+                    trip_updated_at: record.trip_updated_at.to_owned(),
                     record_id: record.record_id.to_owned(),
                     label: record.label.to_owned(),
                     snippet,
@@ -250,7 +256,7 @@ pub fn search_workspace_corpus(
         right_matched
             .cmp(left_matched)
             .then_with(|| right.score.cmp(&left.score))
-            .then_with(|| left.trip_title.cmp(&right.trip_title))
+            .then_with(|| right.trip_updated_at.cmp(&left.trip_updated_at))
             .then_with(|| left.record_id.cmp(&right.record_id))
     });
     ranked.truncate(50);
@@ -337,17 +343,36 @@ fn count_occurrences(haystack: &str, needle: &str) -> u32 {
 
 /// A verbatim excerpt around the first match, clipped to char boundaries with
 /// ellipses when truncated.
-fn snippet_around_first_match(original: &str, lowered: &str, needle: &str) -> String {
-    let Some(byte_start) = lowered.find(needle) else {
+fn snippet_around_first_match(original: &str, _lowered: &str, needle: &str) -> String {
+    // Unicode lowercase conversion can expand a character (for example,
+    // `İ` becomes `i` plus a combining dot). Byte offsets in the folded string
+    // therefore cannot be used to slice the original. Build the folded string
+    // together with an explicit mapping back to original character positions.
+    let mut folded = String::new();
+    let mut folded_segments = Vec::new();
+    for (original_index, character) in original.chars().enumerate() {
+        let start = folded.len();
+        folded.extend(character.to_lowercase());
+        folded_segments.push((start, folded.len(), original_index));
+    }
+
+    let Some(byte_start) = folded.find(needle) else {
         return String::new();
     };
-    // Work in char space so multibyte text never splits.
-    let prefix_chars = original[..byte_start].chars().count();
-    let needle_chars = needle.chars().count();
+    let byte_end = byte_start.saturating_add(needle.len());
+    let prefix_chars = folded_segments
+        .iter()
+        .find(|(start, end, _)| *start <= byte_start && byte_start < *end)
+        .map_or(0, |(_, _, index)| *index);
+    let match_end_chars = folded_segments
+        .iter()
+        .rev()
+        .find(|(start, end, _)| *start < byte_end && byte_start < *end)
+        .map_or(prefix_chars.saturating_add(1), |(_, _, index)| index + 1);
     let chars: Vec<char> = original.chars().collect();
 
     let start = prefix_chars.saturating_sub(SNIPPET_CONTEXT_CHARS);
-    let end = (prefix_chars + needle_chars + SNIPPET_CONTEXT_CHARS).min(chars.len());
+    let end = (match_end_chars + SNIPPET_CONTEXT_CHARS).min(chars.len());
 
     let mut snippet: String = chars[start..end].iter().collect();
     snippet = snippet.split_whitespace().collect::<Vec<_>>().join(" ");
@@ -574,6 +599,8 @@ mod tests {
             source: WorkspaceSearchSource::SavedPlace,
             trip_id: "trip_kyoto",
             trip_title: "Kyoto spring",
+            trip_status: TripStatus::Active,
+            trip_updated_at: "2026-07-01T12:00:00Z",
             record_id: "place_1",
             label: "Philosopher's Path",
             text: "Walk early before the crowds",
@@ -584,5 +611,55 @@ mod tests {
         assert_eq!(hits[0].trip_id, "trip_kyoto");
         assert_eq!(hits[0].source, WorkspaceSearchSource::SavedPlace);
         assert!(hits[0].snippet.contains("crowds"));
+    }
+
+    #[test]
+    fn workspace_search_handles_lowercase_expansion_without_panicking() {
+        let records = [WorkspaceSearchRecord {
+            source: WorkspaceSearchSource::Note,
+            trip_id: "trip_istanbul",
+            trip_title: "Istanbul",
+            trip_status: TripStatus::Draft,
+            trip_updated_at: "2026-07-01T12:00:00Z",
+            record_id: "note_1",
+            label: "İİx",
+            text: "Unicode note",
+        }];
+
+        let hits = search_workspace_corpus("x", &records);
+
+        assert_eq!(hits.len(), 1);
+        assert!(hits[0].snippet.contains('x'));
+    }
+
+    #[test]
+    fn workspace_search_breaks_equal_scores_by_latest_trip_update() {
+        let records = [
+            WorkspaceSearchRecord {
+                source: WorkspaceSearchSource::Note,
+                trip_id: "trip_old",
+                trip_title: "A title that would otherwise sort first",
+                trip_status: TripStatus::Archived,
+                trip_updated_at: "2026-01-01T00:00:00Z",
+                record_id: "note_old",
+                label: "Museum note",
+                text: "museum",
+            },
+            WorkspaceSearchRecord {
+                source: WorkspaceSearchSource::Note,
+                trip_id: "trip_new",
+                trip_title: "Z title",
+                trip_status: TripStatus::Active,
+                trip_updated_at: "2026-07-01T00:00:00Z",
+                record_id: "note_new",
+                label: "Museum note",
+                text: "museum",
+            },
+        ];
+
+        let hits = search_workspace_corpus("museum", &records);
+
+        assert_eq!(hits[0].trip_id, "trip_new");
+        assert_eq!(hits[1].trip_status, TripStatus::Archived);
     }
 }

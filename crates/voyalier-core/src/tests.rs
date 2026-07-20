@@ -42,9 +42,36 @@ fn data_source_register_has_unique_rows_and_a_pinned_count() {
         .map(|source| source["id"].as_str().expect("source id"))
         .collect();
     assert_eq!(ids.len(), sources.len(), "source ids must be unique");
+    assert_eq!(
+        ids,
+        BTreeSet::from([
+            "anthropic",
+            "ca-gac",
+            "de-aa",
+            "ecb",
+            "geonames",
+            "nager-date",
+            "nws",
+            "ollama",
+            "open-meteo",
+            "openai",
+            "openfreemap",
+            "ourairports",
+            "overture",
+            "protomaps-osm",
+            "uk-fcdo",
+            "us-cdc",
+            "us-state",
+            "wikidata-heritage",
+            "wikimedia",
+            "wikivoyage",
+        ])
+    );
     assert!(sources.iter().all(|source| {
         [
             "name",
+            "category",
+            "url",
             "use",
             "endpoint",
             "license",
@@ -59,6 +86,31 @@ fn data_source_register_has_unique_rows_and_a_pinned_count() {
                 .is_some_and(|value| !value.trim().is_empty())
         })
     }));
+    assert!(sources.iter().all(|source| {
+        matches!(
+            source["category"].as_str(),
+            Some("built_in" | "consent_fetched" | "offline_download" | "optional_ai")
+        ) && source["url"]
+            .as_str()
+            .is_some_and(|url| url.starts_with("https://"))
+    }));
+
+    let by_id: BTreeMap<&str, &Value> = sources
+        .iter()
+        .map(|source| (source["id"].as_str().unwrap(), source))
+        .collect();
+    assert_eq!(
+        by_id["ollama"]["endpoint"],
+        crate::assist::OLLAMA_CHAT_URL
+    );
+    assert_eq!(
+        by_id["openai"]["endpoint"],
+        crate::assist::OPENAI_CHAT_URL
+    );
+    assert_eq!(
+        by_id["anthropic"]["endpoint"],
+        crate::assist::ANTHROPIC_MESSAGES_URL
+    );
 }
 
 #[test]

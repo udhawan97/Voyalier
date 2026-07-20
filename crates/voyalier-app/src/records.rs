@@ -674,7 +674,7 @@ impl<'a> Records<'a> {
             .connection
             .prepare(
                 "SELECT id, trip_id, label, checked, suggestion_code, created_at, updated_at
-             FROM packing_items WHERE trip_id=?1 ORDER BY created_at, id",
+             FROM packing_items WHERE trip_id=?1 ORDER BY checked, created_at, id",
             )
             .map_err(storage_error)?;
         let rows = statement
