@@ -1,6 +1,6 @@
 # Cinematic website refresh
 
-Status: ready for implementation
+Status: implemented and verified
 
 ## Trigger
 

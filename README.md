@@ -33,12 +33,18 @@
 </p>
 
 <p align="center">
+  <strong><a href="https://udhawan97.github.io/Voyalier/">Explore the Voyalier product story →</a></strong><br>
+  <sub>The “Quiet Wonder” refresh pairs real product captures with a reduced-motion-aware path from source to travel day.</sub>
+</p>
+
+<p align="center">
+  <a href="https://udhawan97.github.io/Voyalier/"><kbd>&nbsp;🧭&nbsp;Website&nbsp;</kbd></a>&nbsp;
+  <a href="https://udhawan97.github.io/Voyalier/introduction/"><kbd>&nbsp;📖&nbsp;Docs&nbsp;</kbd></a>&nbsp;
   <a href="#what-it-does"><kbd>&nbsp;✨&nbsp;Features&nbsp;</kbd></a>&nbsp;
   <a href="https://github.com/udhawan97/Voyalier/releases/latest"><kbd>&nbsp;⬇️&nbsp;Download&nbsp;</kbd></a>&nbsp;
   <a href="#run-it"><kbd>&nbsp;🚀&nbsp;Run&nbsp;it&nbsp;</kbd></a>&nbsp;
   <a href="#privacy"><kbd>&nbsp;🔒&nbsp;Privacy&nbsp;</kbd></a>&nbsp;
-  <a href="#under-the-hood"><kbd>&nbsp;⚙️&nbsp;Under&nbsp;the&nbsp;hood&nbsp;</kbd></a>&nbsp;
-  <a href="https://udhawan97.github.io/Voyalier/"><kbd>&nbsp;📖&nbsp;Docs&nbsp;</kbd></a>
+  <a href="#under-the-hood"><kbd>&nbsp;⚙️&nbsp;Under&nbsp;the&nbsp;hood&nbsp;</kbd></a>
 </p>
 
 > [!NOTE]

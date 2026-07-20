@@ -1,27 +1,48 @@
 @import "./fonts.css";
 @import "@voyalier/ui/tokens.css";
+@import "../../../tokens.css";
 
 /* Folded-route palette: washi/ivory surfaces, ai-indigo accents, sumi ink.
  * Starlight themes switch on [data-theme], so values are literal, not
  * prefers-color-scheme tokens. */
 
 :root {
-  --sl-color-accent-low: #e5e4dc;
-  --sl-color-accent: #46536b;
-  --sl-color-accent-high: #2c3547;
-  --sl-color-bg: #faf7ef;
-  --sl-color-bg-nav: #f3efe4;
-  --sl-color-bg-sidebar: #f3efe4;
-  --sl-font: "Zen Kaku Gothic New", Inter, ui-sans-serif, sans-serif;
+  --sl-color-accent-low: var(--color-paper-3);
+  --sl-color-accent: var(--color-indigo);
+  --sl-color-accent-high: var(--color-indigo-deep);
+  --sl-color-bg: var(--color-paper-2);
+  --sl-color-bg-nav: var(--color-paper);
+  --sl-color-bg-sidebar: var(--color-paper);
+  --sl-font: var(--font-body);
+  --sl-content-width: 52rem;
 }
 
 :root[data-theme="dark"] {
-  --sl-color-accent-low: #2a2e38;
-  --sl-color-accent: #93a0b8;
-  --sl-color-accent-high: #e8ecf4;
-  --sl-color-bg: #171614;
-  --sl-color-bg-nav: #1e1c19;
-  --sl-color-bg-sidebar: #1e1c19;
+  --sl-color-accent-low: var(--color-night-3);
+  --sl-color-accent: var(--color-indigo-soft);
+  --sl-color-accent-high: var(--color-night-ink);
+  --sl-color-bg: var(--color-night);
+  --sl-color-bg-nav: var(--color-night-2);
+  --sl-color-bg-sidebar: var(--color-night-2);
+}
+
+html,
+body {
+  overflow-x: clip;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+:focus-visible {
+  outline: var(--rule-strong) solid var(--color-focus);
+  outline-offset: var(--space-2xs);
+}
+
+:root[data-theme="dark"] :focus-visible {
+  outline-color: var(--color-focus-on-dark);
 }
 
 .site-title {
@@ -30,9 +51,88 @@
   text-transform: uppercase;
 }
 
+header.header {
+  border-block-end: var(--rule-hair) solid var(--sl-color-hairline-light);
+  box-shadow: none;
+}
+
 .sl-markdown-content h1,
 .sl-markdown-content h2,
 .sl-markdown-content h3 {
-  font-family: "Shippori Mincho", "Iowan Old Style", Georgia, serif;
+  overflow-wrap: anywhere;
+  font-family: var(--font-display);
+  font-style: normal;
   font-weight: 500;
+  letter-spacing: -0.025em;
+}
+
+.sl-markdown-content a:not([class]) {
+  text-decoration-thickness: var(--rule-hair);
+  text-underline-offset: var(--space-2xs);
+}
+
+.download-chooser {
+  display: grid;
+  gap: var(--space-xl);
+  margin-block: var(--space-2xl);
+  padding: var(--space-xl);
+  border-block: var(--rule-hair) solid var(--sl-color-hairline-light);
+  background: var(--sl-color-bg-nav);
+}
+
+.download-choice {
+  display: grid;
+  align-content: start;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.download-choice + .download-choice {
+  padding-block-start: var(--space-xl);
+  border-block-start: var(--rule-hair) solid var(--sl-color-hairline-light);
+}
+
+.download-choice p {
+  margin: 0;
+}
+
+.download-choice-platform {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+.download-choice a {
+  justify-self: start;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  border-block-end: var(--rule-hair) solid currentColor;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+@media (min-width: 50rem) {
+  .download-chooser {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  }
+
+  .download-choice-primary {
+    grid-row: 1 / 3;
+    padding-inline-end: var(--space-xl);
+    border-inline-end: var(--rule-hair) solid var(--sl-color-hairline-light);
+  }
+
+  .download-choice + .download-choice {
+    padding-block-start: 0;
+    border-block-start: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 }
