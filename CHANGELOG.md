@@ -125,11 +125,13 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
   first-launch warnings and explains what they do and don't mean, and documents
   the optional SHA-256 check. Links point at `releases/latest` rather than any
   version, so the docs cannot go stale behind a release.
-- A complete Nashville offline-map vertical slice: pack CI extracts and verifies
-  a bounded Protomaps PMTiles archive, the local core verifies its size and
-  SHA-256 before storing it, and MapLibre reads only bounded byte ranges through
-  the existing app gateway. The online OpenFreeMap style remains the explicit
-  fallback when a compatible local archive is not present.
+- **Offline maps for Nashville and Kyoto.** Pack CI extracts and verifies a
+  bounded Protomaps PMTiles archive for each enabled city, the local core
+  verifies its size and SHA-256 before storing it, and MapLibre reads only
+  bounded byte ranges through the existing app gateway. Download size varies by
+  city and is stated that way before the click. The online OpenFreeMap style
+  remains the explicit fallback when a compatible local archive is not present;
+  other city packs do not pretend to be available offline yet.
 
 - **Trip notes**, **calendar export**, and a **sample trip**. Notes are free text
   for the half-made plans a trip has nowhere else to keep — sealed at rest, and

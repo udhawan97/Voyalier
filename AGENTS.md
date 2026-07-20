@@ -69,7 +69,7 @@ credential-string grep in `security-hygiene.yml`.
 - Parser fixtures are directories under `crates/voyalier-core/fixtures/parser/<case>/`; dropping one in registers it, no wiring needed. `.prettierignore` excludes them because several are deliberately malformed — reformatting changes what the parser is tested against.
 - Web: Vitest + Testing Library, flat in `apps/web/src/` and named by **feature**, not module (`views/MapPanel.tsx` is tested by `src/mapPanel.test.tsx`). Render through `src/test/helpers.tsx`.
 - `IntersectionObserver` is stubbed to fire immediately in setup, so `DeferredSection` mounts eagerly; re-stub it if you are testing deferral.
-- There is no e2e layer yet despite `docs/testing/TEST_STRATEGY.md` requiring one, and `gateway.live.test.ts` never runs in CI. Route names, verbs, and path shapes are now caught by the `parity/routes.json` guard; what remains uncovered is serialization — a route that resolves but whose payload the other side cannot parse.
+- `scripts/check.sh integration` boots the real loopback server against a temporary data directory and runs `gateway.live.test.ts` in CI, covering HTTP serialization through create/read/delete and import/review lifecycles. Route names, verbs, and path shapes are caught separately by the `parity/routes.json` guard. Browser-level Playwright and an equivalent packaged-Tauri serialization journey remain future layers.
 
 ## Change discipline
 

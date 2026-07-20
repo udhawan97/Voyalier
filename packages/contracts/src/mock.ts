@@ -769,6 +769,7 @@ const MOCK_PACKS: PackInfo[] = [
     region: "Japan",
     bbox: { west: 135.68, south: 34.93, east: 135.83, north: 35.1 },
     wikivoyageArticle: "Kyoto",
+    offlineMapAvailable: true,
     layers: packLayers(),
   },
 ];

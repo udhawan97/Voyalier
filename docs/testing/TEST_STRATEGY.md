@@ -5,7 +5,8 @@
 - Rust unit tests for domain rules and redaction.
 - API contract and migration tests.
 - React component and accessibility tests.
-- Playwright tests for the vertical user journey.
+- Live HTTP serialization tests for the vertical gateway journey. Browser-level
+  Playwright coverage remains the next end-to-end layer.
 - Fixture-based document extraction precision and recall.
 - Retrieval relevance and citation-validity evaluations.
 - Itinerary hard-constraint and timezone fixtures.

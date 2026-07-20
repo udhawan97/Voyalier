@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The gate. `make check` runs every stage; CI runs one stage per job so the
-# three of them go in parallel. Either way the commands live only here — CI
+# four of them go in parallel. Either way the commands live only here — CI
 # must never inline a check, or the two drift and only one of them is right.
 set -euo pipefail
 
@@ -25,17 +25,23 @@ stage_desktop() {
   cargo test --locked "${DESKTOP_CRATES[@]}"
 }
 
+stage_integration() {
+  ./scripts/check-live-http.sh
+}
+
 case "${1:-all}" in
 web) stage_web ;;
 rust) stage_rust ;;
 desktop) stage_desktop ;;
+integration) stage_integration ;;
 all)
   stage_web
   stage_rust
   stage_desktop
+  stage_integration
   ;;
 *)
-  echo "usage: $0 [all|web|rust|desktop]" >&2
+  echo "usage: $0 [all|web|rust|desktop|integration]" >&2
   exit 2
   ;;
 esac
