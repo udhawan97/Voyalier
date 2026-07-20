@@ -29,8 +29,13 @@ export function resolvePackIds(catalog, configured = "") {
         .map((value) => value.trim())
         .filter(Boolean)
     : enabled;
-  const unique = [...new Set(requested)];
-  for (const id of unique) {
+  const duplicate = requested.find(
+    (id, index) => requested.indexOf(id) !== index,
+  );
+  if (duplicate) {
+    throw new Error(`Duplicate offline map pack id: ${duplicate}`);
+  }
+  for (const id of requested) {
     if (!/^[a-z0-9-]+$/.test(id)) {
       throw new Error(`Refusing unsafe offline map pack id: ${id}`);
     }
@@ -38,8 +43,9 @@ export function resolvePackIds(catalog, configured = "") {
       throw new Error(`Pack is not catalog-enabled for offline maps: ${id}`);
     }
   }
-  if (unique.length === 0) throw new Error("No offline-map packs are enabled");
-  return unique;
+  if (requested.length === 0)
+    throw new Error("No offline-map packs are enabled");
+  return requested;
 }
 
 export function applyDescriptor(packContent, manifest, packId, descriptor) {
@@ -54,7 +60,25 @@ export function applyDescriptor(packContent, manifest, packId, descriptor) {
   manifestPack.offlineMap = descriptor;
 }
 
-async function extractVerified(pack, sourceUrl, archivePath) {
+const DEFAULT_DEPS = {
+  outDir: OUT_DIR,
+  pmtilesBin: PMTILES_BIN,
+  maxBytes: MAX_BYTES,
+  run,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+  now: () => new Date().toISOString(),
+};
+
+export async function extractVerified(
+  pack,
+  sourceUrl,
+  archivePath,
+  overrides = {},
+) {
+  const deps = { ...DEFAULT_DEPS, ...overrides };
   const bbox = pack.bbox;
   const bounds = [bbox.west, bbox.south, bbox.east, bbox.north];
   if (!bounds.every(Number.isFinite)) {
@@ -64,16 +88,16 @@ async function extractVerified(pack, sourceUrl, archivePath) {
   // Large cities retry at a lower maximum zoom instead of bypassing the hard
   // archive cap. The chosen zoom is recorded in the descriptor.
   for (const requestedMaxZoom of [15, 14, 13]) {
-    await rm(archivePath, { force: true });
-    await run(PMTILES_BIN, [
+    await deps.rm(archivePath, { force: true });
+    await deps.run(deps.pmtilesBin, [
       "extract",
       sourceUrl,
       archivePath,
       `--bbox=${bounds.join(",")}`,
       `--maxzoom=${requestedMaxZoom}`,
     ]);
-    await run(PMTILES_BIN, ["verify", archivePath]);
-    const { stdout } = await run(PMTILES_BIN, [
+    await deps.run(deps.pmtilesBin, ["verify", archivePath]);
+    const { stdout } = await deps.run(deps.pmtilesBin, [
       "show",
       archivePath,
       "--header-json",
@@ -82,32 +106,33 @@ async function extractVerified(pack, sourceUrl, archivePath) {
     if (header.tile_type !== "mvt" || header.maxzoom > requestedMaxZoom) {
       throw new Error(`Unexpected PMTiles header for ${pack.id}`);
     }
-    const byteLength = (await stat(archivePath)).size;
-    if (byteLength > 0 && byteLength <= MAX_BYTES) {
+    const byteLength = (await deps.stat(archivePath)).size;
+    if (byteLength > 0 && byteLength <= deps.maxBytes) {
       return { header, byteLength };
     }
     console.warn(
-      `${pack.id} produced ${byteLength} bytes at z${requestedMaxZoom}; retrying below the ${MAX_BYTES}-byte cap`,
+      `${pack.id} produced ${byteLength} bytes at z${requestedMaxZoom}; retrying below the ${deps.maxBytes}-byte cap`,
     );
   }
   throw new Error(
-    `Offline map for ${pack.id} exceeds ${MAX_BYTES} bytes at z13`,
+    `Offline map for ${pack.id} exceeds ${deps.maxBytes} bytes at z13`,
   );
 }
 
-async function buildOne(catalog, manifest, packId) {
+async function buildOne(catalog, manifest, packId, deps) {
   const pack = catalog.find((candidate) => candidate.id === packId);
   if (!pack) throw new Error(`Unknown pack id: ${packId}`);
 
   const sourceUrl = `https://build.protomaps.com/${PROTOMAPS_BUILD}.pmtiles`;
   const assetName = `${packId}.pmtiles`;
-  const archivePath = path.join(OUT_DIR, assetName);
+  const archivePath = path.join(deps.outDir, assetName);
   const { header, byteLength } = await extractVerified(
     pack,
     sourceUrl,
     archivePath,
+    deps,
   );
-  const bytes = await readFile(archivePath);
+  const bytes = await deps.readFile(archivePath);
   const descriptor = {
     assetName,
     byteLength,
@@ -116,34 +141,35 @@ async function buildOne(catalog, manifest, packId) {
     sourceUrl,
     license: "ODbL-1.0",
     attribution: "© OpenStreetMap contributors",
-    fetchedAt: new Date().toISOString(),
+    fetchedAt: deps.now(),
     minZoom: header.minzoom,
     maxZoom: header.maxzoom,
   };
 
-  const packPath = path.join(OUT_DIR, `${packId}.json`);
-  const content = JSON.parse(await readFile(packPath, "utf8"));
+  const packPath = path.join(deps.outDir, `${packId}.json`);
+  const content = JSON.parse(await deps.readFile(packPath, "utf8"));
   applyDescriptor(content, manifest, packId, descriptor);
-  await writeFile(packPath, JSON.stringify(content));
+  await deps.writeFile(packPath, JSON.stringify(content));
   console.log(
     `Wrote ${assetName}: ${byteLength} bytes, sha256 ${descriptor.sha256}`,
   );
 }
 
-export async function buildOfflineMaps(catalogPath) {
-  const catalog = JSON.parse(await readFile(catalogPath, "utf8"));
+export async function buildOfflineMaps(catalogPath, overrides = {}) {
+  const deps = { ...DEFAULT_DEPS, ...overrides };
+  const catalog = JSON.parse(await deps.readFile(catalogPath, "utf8"));
   const packIds = resolvePackIds(
     catalog,
     process.env.OFFLINE_MAP_PACK_IDS ?? "",
   );
-  const manifestPath = path.join(OUT_DIR, "manifest.json");
-  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  const manifestPath = path.join(deps.outDir, "manifest.json");
+  const manifest = JSON.parse(await deps.readFile(manifestPath, "utf8"));
   for (const packId of packIds) {
-    await buildOne(catalog, manifest, packId);
+    await buildOne(catalog, manifest, packId, deps);
   }
   // One final write retains every descriptor produced in this run; a partial
   // single-city invocation cannot silently clobber the catalog-enabled set.
-  await writeFile(manifestPath, JSON.stringify(manifest, null, 2));
+  await deps.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
   return packIds;
 }
 

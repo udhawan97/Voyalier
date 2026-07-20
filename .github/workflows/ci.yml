@@ -27,7 +27,6 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
       - run: ./scripts/check.sh web
 
   rust:
@@ -89,4 +88,5 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libdbus-1-dev pkg-config
+      - run: pnpm exec playwright install --with-deps chromium
       - run: ./scripts/check.sh integration

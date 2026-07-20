@@ -12,7 +12,6 @@ DESKTOP_CRATES=(-p voyalier-desktop)
 stage_web() {
   pnpm format:check
   pnpm check
-  pnpm test:e2e
 }
 
 stage_rust() {
@@ -28,6 +27,7 @@ stage_desktop() {
 
 stage_integration() {
   ./scripts/check-live-http.sh
+  pnpm test:e2e
 }
 
 case "${1:-all}" in
