@@ -25,8 +25,14 @@ Every adapter and stored source snapshot must record:
 
 `Not checked` is a first-class state and must never be collapsed into `Clear`.
 
+The product-visible register is
+`packages/contracts/parity/data-sources.json`. Rust and React tests pin its row
+count, identifiers, license/attribution text, and authority boundaries so the
+Settings screen cannot drift from the repository policy below.
+
 Offline map slices use an exact dated Protomaps Basemap PMTiles build clipped to
-the selected catalog bounding box. Nashville and Kyoto are the enabled targets.
+the selected catalog bounding box. Nashville, Kyoto, Tokyo, and Paris are the
+enabled targets.
 Pack metadata records the canonical build URL, retrieval time, ODbL-1.0
 identifier, OpenStreetMap contributor attribution, byte length, zoom range, and
 SHA-256. The client accepts only the trusted Protomaps HTTPS origin and verifies

@@ -6,7 +6,52 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-20 — The traveler-owned planning release
+
 ### Added
+
+- **Saved interests and places now survive the planning session.** Persona
+  weights persist per trip, and a recommendation can be explicitly shortlisted
+  with its name, coordinates, reasons, source, license, and private notes. A
+  saved place survives removal of its source pack and says when that pack is no
+  longer available; it never becomes a confirmed booking unless the traveler
+  deliberately promotes it into the manual plan.
+- **Packing suggestions now lead to an actual checklist.** Evidence-backed
+  suggestions remain suggestions until the traveler clicks **Add**, while custom
+  items, checked state, and removal persist locally. Voyalier still does not
+  auto-pack, infer personal needs, or claim the list is complete.
+- **Activities, rail legs, and transfers fill the space between
+  confirmations.** Traveler-authored items can be added, edited, timed, and
+  removed without inheriting evidence authority. Literal time overlaps are
+  notices—not readiness failures—and title, location, and local time can appear
+  in Today, the printable brief, and calendar export while private notes are
+  excluded by construction.
+- **Workspace search now reaches across every trip.** One local query searches
+  imported documents, confirmed facts, trip notes, saved places, and manual plan
+  items with bounded snippets and explicit trip/source provenance. Pending
+  extraction candidates stay out until reviewed, and no index or query leaves
+  the device.
+- **Settings now carries a source and license register.** The product-visible
+  table and its shared Rust/TypeScript golden name the major official,
+  open-data, map, weather, and reference inputs plus the authority each one does
+  and does not have. It is a shipped register, not a promise that every source
+  is live or authoritative for a particular trip.
+- **Nashville, Kyoto, Tokyo, and Paris now have verified offline-map targets.**
+  The publisher builds every catalog-enabled PMTiles slice in one run, retries
+  lower zooms to stay below the hard size bound, verifies each archive, and
+  writes one complete manifest. Other catalog cities continue to use the
+  explicit online fallback until their own bounded extract is enabled.
+- **Spanish is available as an immediate local preference.** Settings offers
+  System, English, and Español; changing it rerenders the visible application
+  without a reload and persists only in local storage. The catalog has complete
+  key coverage and Spanish copy for the primary shell and new v0.5 workflows;
+  untranslated secondary copy falls back safely instead of showing missing
+  keys.
+- **A real-browser acceptance layer now runs in the release gate.** Playwright
+  drives checklist creation, manual planning, workspace search, data-source
+  settings, and the Spanish switch in Chromium against the loopback development
+  stack. It complements—not replaces—the Rust, live Axum serialization,
+  transport-parity, component, accessibility, and packaged-app checks.
 
 - **Back up your whole workspace, and restore it anywhere.** Voyalier keeps
   everything on your device, which meant a lost computer was lost trips — and the

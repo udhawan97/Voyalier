@@ -123,10 +123,22 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   nightlife, shopping). Deterministic and transparent — a keyword-to-dimension
   rule, never a model — with per-pick source, license, score, "because" reasons,
   and a cross-dimension wildcard. Empty until a pack with places is downloaded.
+- ✓ Traveler-owned planning: persist persona weights and source-attributed saved
+  places; make packing suggestions explicitly accept-only; add editable manual
+  activities, rail legs, and transfers without promoting them into confirmed
+  evidence. Manual items can feed planning-only overlap notices, Today, brief,
+  calendar, and local search while private notes stay excluded from exports.
+- ✓ Workspace-wide search: scan documents, confirmed facts, trip notes, saved
+  places, and manual plans across every trip with bounded deterministic scoring
+  and explicit trip/source provenance. Pending candidates remain excluded.
+- ✓ Product-visible source register: one shared golden drives Settings and is
+  pinned by Rust and React tests, including license/attribution and authority
+  boundaries.
 - ✓ Offline Today view: a deterministic "now / next" summary at the top of a
   trip — phase (upcoming/active/completed with day counts), today's items
   (departures, arrivals, check-ins/outs, staying-tonight), and the next anchor.
-  Computed from confirmed facts against the current date; no network, no model.
+  Computed from confirmed facts plus clearly separate traveler-authored plans
+  against the current date; no network, no model.
 - ✓ Encrypted vault (keychain default + optional passphrase): every stored field
   that carries confirmation codes or traveler names — confirmed-fact payloads,
   the original imported document text, and pending candidates (payload + evidence
@@ -142,10 +154,11 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   returned, or logged, and there is no recovery if it is forgotten.
 - ✓ Map view: a consent-gated MapLibre GL map plotting the trip's destination
   and downloaded-pack recommendations. Default basemap is OpenFreeMap (free, no
-  API key, OpenStreetMap-derived, self-hostable). Nashville and Kyoto have
+  API key, OpenStreetMap-derived, self-hostable). Nashville, Kyoto, Tokyo, and Paris have
   complete PMTiles offline slices: CI builds bounded archives and the app
-  verifies and range-reads them locally. More pack extracts remain incremental
-  follow-up work.
+  verifies and range-reads them locally. The publisher builds all enabled maps
+  in one manifest-safe run; more pack extracts remain incremental follow-up
+  work.
   See `docs/architecture/MAPS.md`.
 - ✓ In-app updater: a `tauri-plugin-updater` loop wrapped in Rust commands (the
   webview never gets the updater capability — no hidden network path),
@@ -184,7 +197,8 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   `t()`** with locale-aware pluralization (`Intl.PluralRules`) — every panel,
   dialog, shell, and label migrated, English the byte-identical source of truth,
   added locales data-only. The catalog is type-safe (`MessageKey` +
-  compile-checked plural bases). Complete.)_
+  compile-checked plural bases). English and Spanish now ship with an immediate,
+  locally persisted System/English/Español preference. Complete.)_
 
 ## Later
 

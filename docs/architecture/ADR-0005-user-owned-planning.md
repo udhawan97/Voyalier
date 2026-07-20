@@ -55,7 +55,7 @@ Workspace search may index documents, confirmed facts, trip notes, saved places,
 and trip items, but every result states both its trip and source kind. Ranking is
 deterministic occurrence scoring, never a claim of importance.
 
-The data-source register is generated from one shared contract file and checked
+The data-source register is defined in one shared contract file and checked
 against the Rust source inventory. It is descriptive only: sources from different
 authorities or licenses are never merged into one trust score.
 

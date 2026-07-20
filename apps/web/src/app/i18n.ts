@@ -1226,7 +1226,14 @@ const es: Record<MessageKey, string> = {
   "planning.items.name": "Nombre",
   "planning.items.location": "Lugar (opcional)",
   "planning.items.start": "Inicio (opcional)",
+  "planning.items.end": "Fin (opcional)",
+  "planning.items.notes": "Notas privadas (opcional)",
   "planning.items.add": "Añadir al plan",
+  "planning.items.edit": "Editar",
+  "planning.items.save": "Guardar cambios",
+  "schedule.planned_item_overlap":
+    "Tus planes «{first}» y «{second}» se superponen. Comprueba si es intencional.",
+  "brief.plans": "Actividades y traslados",
   "workspaceSearch.back": "Todos los viajes",
   "workspaceSearch.title": "Buscar en el espacio de trabajo",
   "workspaceSearch.intro":

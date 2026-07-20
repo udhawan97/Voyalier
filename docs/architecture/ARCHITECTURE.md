@@ -27,8 +27,9 @@ Axum route, Tauri command, gateway implementation, mock, and tests agree.
 
 ### `apps/web` — product interface
 
-- React/Vite views for trips, Blueprint, review, readiness, Today, city packs,
-  recommendations, maps, AI preview, vault state, and the shareable brief.
+- React/Vite views for trips, Blueprint, review, readiness, Today, saved places,
+  packing, manual itinerary items, workspace search, city packs, maps, source
+  licenses, locale settings, AI preview, vault state, and the shareable brief.
 - Selects HTTP, Tauri, or mock transport through `AppGateway`.
 - Owns interaction and accessibility, not travel-rule authority.
 - Owns the words. The core reports findings and counts; `app/i18n` turns those
@@ -52,8 +53,9 @@ Axum route, Tauri command, gateway implementation, mock, and tests agree.
 
 - Owns SQLite transactions, migrations, WAL mode, foreign keys, and the busy
   timeout.
-- Orchestrates trip/fact lifecycle, imports, advice/weather snapshots, city
-  packs, recommendations, AI providers, activity records, and vault state.
+- Orchestrates trip/fact lifecycle, imports, traveler-owned planning records,
+  workspace search, advice/weather snapshots, city packs, recommendations, AI
+  providers, activity records, backup/restore, and vault state.
 - Contains the injectable network seam so tests can replace every remote fetch.
 - Stores BYOK secrets and the vault data key through the OS keychain, never in
   UI payloads, fixtures, logs, or committed files.
@@ -63,9 +65,9 @@ Axum route, Tauri command, gateway implementation, mock, and tests agree.
 
 ### `crates/voyalier-core` — deterministic domain
 
-- Owns types, validation, parsers, itinerary conflict detection, readiness,
-  search, Today, recommendations, brief redaction, vault cryptography, and
-  provider request/reply validation.
+- Owns types, validation, parsers, confirmed and planning-only conflict
+  detection, readiness, trip/workspace search, Today, recommendations, packing,
+  brief redaction, vault cryptography, and provider request/reply validation.
 - Has no Tauri, Axum, database, or network dependency.
 - Operates on explicit inputs and produces stable, fixture-testable outputs.
 - Treats document text and model output as data, never executable instruction.
@@ -83,10 +85,10 @@ Axum route, Tauri command, gateway implementation, mock, and tests agree.
 - `packages/contracts` is the versioned TypeScript surface mirrored by Rust wire
   types and JSON Schema drift tests.
 - `packages/contracts/parity/*.json` holds what both languages must agree on —
-  validation limits, place folding, the default AI instructions, and the curated
-  official-source links. A Rust test holds the core to each file and a TypeScript
-  test holds the contract and its mock gateway to the same one, so a divergence
-  fails a test instead of passing quietly.
+  validation limits, place folding, the default AI instructions, curated
+  official-source links, the product-visible source register, and transport
+  routes. Rust, TypeScript, Axum, and Tauri tests hold the relevant side to each
+  file so divergence fails a test instead of passing quietly.
 - `packages/ui` carries the palette, typography, spacing, motion, and semantic
   tokens shared by product surfaces.
 
@@ -104,13 +106,28 @@ Axum route, Tauri command, gateway implementation, mock, and tests agree.
    candidate pending.
 4. Confirmed facts retain the candidate link, extraction method, corrected field
    list, and confirmation time. Undo returns the candidate to pending review.
-5. Only confirmed facts feed itinerary conflicts, logistics readiness, Today,
-   and the redacted brief. Local search covers both stored source documents and
-   confirmed facts; recommendations rank downloaded open place data against
-   traveler-selected persona weights.
+5. Only confirmed facts feed evidence conflicts and logistics readiness.
+   Traveler-authored plans can appear in Today and the redacted brief through a
+   separate projection and remain visibly non-evidence. Recommendations rank
+   downloaded open place data against traveler-selected persona weights.
 
 Raw document content is intentionally absent from `SourceDocument`,
 `ImportResult`, HTTP responses, and Tauri responses.
+
+### Traveler-owned planning
+
+Interest weights, saved places, checklist items, and manual activities/rail/
+transfers use dedicated tables and contract types rather than `ConfirmedFact`.
+Suggestions enter these tables only after an explicit action. Every free-text
+column routes through `Records` and `SEALED_COLUMNS`; trip deletion and encrypted
+workspace backup/restore include the records automatically.
+
+Workspace search opens documents, confirmed facts, trip notes, saved places,
+and manual items through the vault-aware records layer, then applies the core's
+bounded deterministic ranking. Pending candidates are omitted by construction.
+Planning overlap notices stay out of readiness. Share/calendar projections copy
+only a manual item's title, location, and local times; private notes have no
+field in the projection and therefore cannot leak downstream.
 
 ### Retrieved facts and destination packs
 

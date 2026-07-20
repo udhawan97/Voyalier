@@ -14,9 +14,10 @@ and nothing about the trip is ever sent to the tile server.
    dropping in our own hosted tiles without changing the app.
 
 2. **Offline / per-pack — PMTiles.** Nashville established the first complete
-   vertical slice; Kyoto is the second enabled target. The `Build city packs`
-   workflow pins and verifies the PMTiles CLI, extracts the selected pack's
-   bounded archive from an exact dated Protomaps build, verifies it, and
+   vertical slice; Kyoto, Tokyo, and Paris now use the same enabled path. The
+   `Build city packs` workflow pins and verifies the PMTiles CLI, extracts every
+   catalog-enabled pack's bounded archive from an exact dated Protomaps build,
+   verifies each one, and
    publishes it beside pack JSON containing byte length,
    SHA-256, source URL, fetched time, zoom range, license, and attribution. The
    core refuses unknown sources, bad metadata, oversized archives, or bytes that
@@ -28,8 +29,8 @@ and nothing about the trip is ever sent to the tile server.
    from the verified archive. The local style contains no remote glyph, sprite,
    or tile URLs. When a compatible local archive is present, the map prefers it;
    otherwise the explicit Show map action uses OpenFreeMap. Packs other than
-   Nashville and Kyoto continue to use that online fallback until their own
-   extracts are enabled.
+   Nashville, Kyoto, Tokyo, and Paris continue to use that online fallback until
+   their own extracts are enabled.
 
 ## What the map shows
 
@@ -48,5 +49,5 @@ the pack manifest).
 ## Privacy
 
 The map initializes only on the explicit "Show map" click. With a verified
-Nashville or Kyoto archive, tile reads stay on-device. Without one, OpenFreeMap
+Nashville, Kyoto, Tokyo, or Paris archive, tile reads stay on-device. Without one, OpenFreeMap
 requests carry only the map viewport (never trip data). There is no telemetry.

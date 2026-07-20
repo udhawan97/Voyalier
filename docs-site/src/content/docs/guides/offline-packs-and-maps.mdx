@@ -42,6 +42,11 @@ is a deterministic keyword-to-dimension rule, never a model, and every pick show
 its source, license, score, and the reasons it was chosen, plus one
 cross-dimension "wildcard."
 
+The weights persist with the trip. **Save place** keeps a recommendation's
+source, license, reasons, and coordinates plus your private notes; removing the
+pack later leaves the saved place intact and labels the source pack unavailable.
+See [Saved places, packing, and manual plans](/Voyalier/guides/planning-and-search/).
+
 ## The map
 
 The **map** is consent-gated: nothing loads until you click **Show map**. It then
@@ -50,7 +55,7 @@ data) and plots your destination plus the downloaded pack's recommended places.
 The map library is a large download, so it is fetched only on that first click —
 if you never open a map, you never download it.
 
-Nashville and Kyoto packs can also include a verified PMTiles archive. Its size
+Nashville, Kyoto, Tokyo, and Paris packs can also include a verified PMTiles archive. Its size
 varies by city and the pack panel says so before download. Once present, map tile
 reads stay on-device through bounded byte-range requests; if the archive is
 missing or fails verification, the explicit online OpenFreeMap path remains the

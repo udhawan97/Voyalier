@@ -6,17 +6,23 @@ Voyalier is a private trip operating system. It turns fragmented research and co
 
 ## Core user journey
 
-1. Create a trip with origin, destination, dates, travelers, constraints, and preferences.
-2. Receive an immediate deterministic Blueprint while source research continues in the background.
-3. Review and save persona-aware recommendations.
+1. Create a trip with origin, destination, dates, and preferences.
+2. Receive an immediate deterministic Blueprint; fetch connected research only
+   through an explicit action.
+3. Review and save persona-aware recommendations without treating them as
+   reservations.
 4. Import confirmations and approve extracted facts.
-5. Resolve missing bookings, conflicts, and readiness actions.
-6. Use an offline Today view during travel.
-7. Export a redacted brief, calendar, or encrypted trip bundle.
+5. Build an explicit packing checklist and add traveler-authored activities,
+   rail legs, or transfers in a separate planning lane.
+6. Resolve missing bookings, confirmed-plan conflicts, planning notices, and
+   readiness actions.
+7. Search every local trip with source provenance and use an offline Today view
+   during travel.
+8. Export a redacted brief, calendar, or encrypted workspace backup.
 
 ## Primary surfaces
 
-Blueprint, Discover, Itinerary, Documents, Readiness, and Share.
+Blueprint, Discover, Plan, Documents, Readiness, Search, Settings, and Share.
 
 ## Persona weights
 
@@ -32,8 +38,9 @@ which replaced hard-coded named personas with tunable weights):
 
 Presets (Balanced, Foodie, Explorer) are just starting points for those weights.
 Scoring is a transparent deterministic rule — not a model — and each pick keeps
-its source, license, score, and reasons. Traveler constraints always override
-interest preference.
+its source, license, score, and reasons. Weights persist per trip; saving a place
+snapshots its provenance, and only an explicit promotion creates a manual plan
+item. Traveler constraints always override interest preference.
 
 ## MVP non-goals
 

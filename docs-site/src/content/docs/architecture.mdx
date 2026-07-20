@@ -45,17 +45,18 @@ web server.
 
 ### Application services — `crates/voyalier-app`
 
-Owns SQLite transactions and migrations, the trip and fact lifecycle, network
-fetch seams, downloaded packs, provider configuration, activity records, OS
+Owns SQLite transactions and migrations, the trip and fact lifecycle,
+traveler-owned planning records, workspace search, network fetch seams,
+downloaded packs, provider configuration, activity records, backup/restore, OS
 keychain access, and vault state. The production fetcher is replaceable, so the
 test suite never needs live endpoints.
 
 ### Deterministic domain — `crates/voyalier-core`
 
-Owns validation, parsers, itinerary conflicts, readiness, search, Today,
-recommendation ranking, brief redaction, vault cryptography, and provider
-request/reply validation. It has no Tauri, Axum, database, or network
-dependency.
+Owns validation, parsers, confirmed and planning-only itinerary conflicts,
+readiness, trip/workspace search, Today, recommendation ranking, packing, brief
+redaction, vault cryptography, and provider request/reply validation. It has no
+Tauri, Axum, database, or network dependency.
 
 ## Evidence is a lifecycle
 
@@ -116,9 +117,10 @@ health, price, availability, or opening-hour claims.
   alt="The Voyalier workspace flow from framing a trip through evidence gathering, review, readiness, offline preparation, Today, optional AI help, and a redacted shareable brief."
 />
 
-The offline baseline includes saved trips, confirmed facts, Blueprint,
-conflicts, readiness, local search, Today, and the printable brief. Network
-access adds dated evidence and packs; optional AI adds a drafting surface.
+The offline baseline includes saved trips, confirmed facts, traveler-owned
+saved places/checklists/manual plans, Blueprint, conflicts, readiness, workspace
+search, Today, and the printable brief. Network access adds dated evidence and
+packs; optional AI adds a drafting surface.
 Neither replaces the local trip operating layer.
 
 ## Local persistence and vault
@@ -127,10 +129,11 @@ Persistent state lives in an OS-appropriate application-data directory, never
 inside the app bundle. SQLite runs with WAL, foreign keys, a busy timeout, and
 versioned migrations.
 
-Raw imported content and sensitive confirmed-fact payloads are sealed when a
-recoverable data key is available. The OS keychain stores that data key and BYOK
-provider keys. A traveler can add a passphrase, which wraps the vault key and
-causes the workspace to open locked until that passphrase is supplied.
+Raw imported content, sensitive confirmed-fact payloads, trip notes, saved-place
+notes, checklist labels, and manual-plan text are sealed when a recoverable data
+key is available. The OS keychain stores that data key and BYOK provider keys. A
+traveler can add a passphrase, which wraps the vault key and causes the workspace
+to open locked until that passphrase is supplied.
 
 The vault intentionally has an inactive state for keychain-less CI or embedding
 contexts: Voyalier will not encrypt with an ephemeral key that would make the
@@ -160,8 +163,9 @@ aggregation, background scraping, or silent document upload.
   shipped, and releases carry packaged macOS and Windows assets — but until those
   certificates land, a packaged build trips a one-time Gatekeeper or SmartScreen
   warning on first launch.
-- The interactive map currently uses consent-gated OpenFreeMap tiles; PMTiles
-  remain the planned offline map path.
+- The map uses a verified local PMTiles archive for Nashville, Kyoto, Tokyo, or
+  Paris when downloaded; other pack cities use consent-gated OpenFreeMap until a
+  bounded extract is enabled.
 - Voyalier shows sources and uncertainty but does not claim legal, medical,
   safety, pricing, availability, or opening-hours authority.
 

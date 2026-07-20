@@ -44,6 +44,10 @@ export default defineConfig({
               label: "Offline packs, recommendations, and maps",
               link: "/guides/offline-packs-and-maps/",
             },
+            {
+              label: "Saved places, packing, and manual plans",
+              link: "/guides/planning-and-search/",
+            },
             { label: "AI assist (BYOK)", link: "/guides/ai-assist/" },
             { label: "The encrypted vault", link: "/guides/encrypted-vault/" },
             {

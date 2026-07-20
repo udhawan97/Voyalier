@@ -9,6 +9,11 @@ No public release may be promoted merely because the build completed.
 - Stale and unknown travel facts are labeled.
 - Redaction preview and exported PDF are visually reviewed.
 - Accessibility and reduced-motion checks pass.
+- Traveler-owned planning stays separate from confirmed facts/readiness through
+  save, edit, restart, backup/restore, brief, calendar, Today, and deletion.
+- Workspace search proves cross-trip provenance and excludes pending candidates.
+- System/English/Español switching applies immediately and persists after
+  relaunch without changing network behavior.
 
 ## Security and compliance
 
@@ -25,6 +30,10 @@ No public release may be promoted merely because the build completed.
 - Verify the local API binds only to loopback and shuts down with the app.
 - Verify an upgrade preserves user data and a failed migration can recover.
 - Verify `SHA256SUMS.txt` against uploaded assets.
+- Verify the `packs-v1` pre-release remains marked pre-release and carries
+  descriptors plus hash-matching PMTiles for Nashville, Kyoto, Tokyo, and Paris.
+- Run the installed app through saved place → checklist → manual item → Today →
+  workspace search → Spanish → backup/restore, using a disposable data directory.
 
 ## Updater release (first self-updating base = v0.3.0)
 
