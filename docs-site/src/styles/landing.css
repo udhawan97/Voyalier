@@ -341,18 +341,7 @@ h3 {
 }
 
 .hero h1 span {
-  position: relative;
   color: var(--color-indigo-deep);
-}
-
-.hero h1 span::after {
-  position: absolute;
-  inset: auto -0.2em 0.08em auto;
-  width: 0.14em;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: var(--color-accent);
-  content: "";
 }
 
 .hero-lede {
