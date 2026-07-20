@@ -25,12 +25,12 @@ Every adapter and stored source snapshot must record:
 
 `Not checked` is a first-class state and must never be collapsed into `Clear`.
 
-The first offline map slice uses an exact dated Protomaps Basemap PMTiles build
-clipped to Nashville's catalog bounding box. Pack metadata records the canonical
-build URL, retrieval time, ODbL-1.0 identifier, OpenStreetMap contributor
-attribution, byte length, zoom range, and SHA-256. The client accepts only the
-trusted Protomaps HTTPS origin and verifies the bytes before exposing bounded
-local range reads to MapLibre.
+Offline map slices use an exact dated Protomaps Basemap PMTiles build clipped to
+the selected catalog bounding box. Nashville and Kyoto are the enabled targets.
+Pack metadata records the canonical build URL, retrieval time, ODbL-1.0
+identifier, OpenStreetMap contributor attribution, byte length, zoom range, and
+SHA-256. The client accepts only the trusted Protomaps HTTPS origin and verifies
+the bytes before exposing bounded local range reads to MapLibre.
 
 ## Fetched official sources
 

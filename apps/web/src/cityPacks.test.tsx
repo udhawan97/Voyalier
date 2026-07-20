@@ -70,7 +70,14 @@ describe("City packs", () => {
       "li",
     )!;
     expect(
-      within(nashville).getByText(/offline map download \(about 16 MB\)/),
+      within(nashville).getByText(/offline map download; size varies by city/),
+    ).toBeInTheDocument();
+
+    const kyoto = within(region)
+      .getByRole("list", { name: "Kyoto data layers" })
+      .closest("li")!;
+    expect(
+      within(kyoto).getByText(/offline map download; size varies by city/),
     ).toBeInTheDocument();
     fireEvent.click(
       within(nashville).getByRole("button", { name: "Download for this trip" }),

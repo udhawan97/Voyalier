@@ -471,7 +471,7 @@ const en = {
   "packs.remove": "Remove",
   "packs.download": "Download for this trip",
   "packs.includesOfflineMap":
-    "Includes a verified offline map download (about 16 MB).",
+    "Includes a verified offline map download; size varies by city.",
   "packs.scope":
     "Packs are stored on this device for this trip. Downloading pulls data in from GitHub; nothing about your trip is sent.",
   "packs.announce.downloaded": "{name} pack downloaded.",

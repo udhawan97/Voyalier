@@ -13,10 +13,11 @@ and nothing about the trip is ever sent to the tile server.
    served under CC-BY. It is fully self-hostable, which keeps the door open to
    dropping in our own hosted tiles without changing the app.
 
-2. **Offline / per-pack — PMTiles.** Nashville is the first complete vertical
-   slice. The `Build city packs` workflow pins and verifies the PMTiles CLI,
-   extracts `us-nashville.pmtiles` from an exact dated Protomaps build, verifies
-   the archive, and publishes it beside pack JSON containing byte length,
+2. **Offline / per-pack — PMTiles.** Nashville established the first complete
+   vertical slice; Kyoto is the second enabled target. The `Build city packs`
+   workflow pins and verifies the PMTiles CLI, extracts the selected pack's
+   bounded archive from an exact dated Protomaps build, verifies it, and
+   publishes it beside pack JSON containing byte length,
    SHA-256, source URL, fetched time, zoom range, license, and attribution. The
    core refuses unknown sources, bad metadata, oversized archives, or bytes that
    do not match the descriptor before storing the file atomically.
@@ -26,8 +27,9 @@ and nothing about the trip is ever sent to the tile server.
    byte ranges (maximum 4 MiB), and the Rust side seeks and reads those ranges
    from the verified archive. The local style contains no remote glyph, sprite,
    or tile URLs. When a compatible local archive is present, the map prefers it;
-   otherwise the explicit Show map action uses OpenFreeMap. Other city packs
-   continue to use that online fallback until their own extracts are enabled.
+   otherwise the explicit Show map action uses OpenFreeMap. Packs other than
+   Nashville and Kyoto continue to use that online fallback until their own
+   extracts are enabled.
 
 ## What the map shows
 
@@ -37,14 +39,14 @@ and nothing about the trip is ever sent to the tile server.
 
 ## Attribution
 
-The online basemap credits OpenFreeMap and OpenStreetMap contributors. The
-offline Nashville archive records Protomaps as the source, ODbL-1.0 as its
-database license, and OpenStreetMap contributor attribution in both pack JSON
-and the manifest. Overture and Wikivoyage layers keep their own per-layer
-licenses (see the pack manifest).
+The online basemap credits OpenFreeMap and OpenStreetMap contributors. Each
+offline archive records Protomaps as the source, ODbL-1.0 as its database
+license, and OpenStreetMap contributor attribution in both pack JSON and the
+manifest. Overture and Wikivoyage layers keep their own per-layer licenses (see
+the pack manifest).
 
 ## Privacy
 
 The map initializes only on the explicit "Show map" click. With a verified
-Nashville archive, tile reads stay on-device. Without one, OpenFreeMap requests
-carry only the map viewport (never trip data). There is no telemetry.
+Nashville or Kyoto archive, tile reads stay on-device. Without one, OpenFreeMap
+requests carry only the map viewport (never trip data). There is no telemetry.
