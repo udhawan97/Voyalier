@@ -3,15 +3,17 @@ use tauri::State;
 use tauri_plugin_dialog::DialogExt;
 use voyalier_app::{AppService, BackupInfo, RestorePreview};
 use voyalier_core::{
-    AddManualFactInput, AdvisoryPanel, AiPromptSettings, AppError, AssistActivityEntry,
-    AssistDraftResult, AssistReply, AssistRequestPreview, CandidateFact, CandidateStatus,
-    ConfirmCandidateInput, ConfirmedFact, CreateTripInput, DestinationFactsSnapshot,
-    DocumentContent, DocumentSummary, DownloadedPack, ErrorCode, FcdoCountry, FieldSuggestion,
-    HealthResponse, ImportDocumentInput, ImportResult, KeyValidation, LocalAiStatus,
-    LocalModelPullResult, OfflineMapArchive, OfflineMapChunk, PackInfo, PackSuggestion,
-    PersonaWeights, PlaceSummary, ProviderConfig, PublicHolidaysSnapshot, Recommendation,
-    SearchHit, TodayView, Trip, TripBrief, TripDetail, TripNotes, TripSummary, UpdateTripInput,
-    VaultStatus, WeatherSnapshot,
+    AddManualFactInput, AddPackingItemInput, AdvisoryPanel, AiPromptSettings, AppError,
+    AssistActivityEntry, AssistDraftResult, AssistReply, AssistRequestPreview, CandidateFact,
+    CandidateStatus, ConfirmCandidateInput, ConfirmedFact, CreateTripInput, CreateTripItemInput,
+    DestinationFactsSnapshot, DocumentContent, DocumentSummary, DownloadedPack, ErrorCode,
+    FcdoCountry, FieldSuggestion, HealthResponse, ImportDocumentInput, ImportResult,
+    InterestProfile, KeyValidation, LocalAiStatus, LocalModelPullResult, OfflineMapArchive,
+    OfflineMapChunk, PackInfo, PackSuggestion, PackingItem, PersonaWeights, PlaceSummary,
+    ProviderConfig, PublicHolidaysSnapshot, Recommendation, SavePlaceInput, SavedPlace, SearchHit,
+    SetInterestProfileInput, TodayView, Trip, TripBrief, TripDetail, TripItem, TripNotes,
+    TripSummary, UpdatePackingItemInput, UpdateSavedPlaceInput, UpdateTripInput,
+    UpdateTripItemInput, VaultStatus, WeatherSnapshot,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -398,6 +400,104 @@ fn get_recommendations(
     service: State<'_, AppService>,
 ) -> Result<Vec<Recommendation>, AppError> {
     service.get_recommendations(&input.trip_id, input.weights)
+}
+
+#[tauri::command]
+fn set_interest_profile(
+    input: SetInterestProfileInput,
+    service: State<'_, AppService>,
+) -> Result<InterestProfile, AppError> {
+    service.set_interest_profile(input)
+}
+
+#[tauri::command]
+fn save_place(
+    input: SavePlaceInput,
+    service: State<'_, AppService>,
+) -> Result<SavedPlace, AppError> {
+    service.save_place(input)
+}
+
+#[tauri::command]
+fn update_saved_place(
+    input: UpdateSavedPlaceInput,
+    service: State<'_, AppService>,
+) -> Result<SavedPlace, AppError> {
+    service.update_saved_place(input)
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SavedPlaceIdInput {
+    saved_place_id: String,
+}
+
+#[tauri::command]
+fn delete_saved_place(
+    input: SavedPlaceIdInput,
+    service: State<'_, AppService>,
+) -> Result<(), AppError> {
+    service.delete_saved_place(&input.saved_place_id)
+}
+
+#[tauri::command]
+fn add_packing_item(
+    input: AddPackingItemInput,
+    service: State<'_, AppService>,
+) -> Result<PackingItem, AppError> {
+    service.add_packing_item(input)
+}
+
+#[tauri::command]
+fn update_packing_item(
+    input: UpdatePackingItemInput,
+    service: State<'_, AppService>,
+) -> Result<PackingItem, AppError> {
+    service.update_packing_item(input)
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PackingItemIdInput {
+    packing_item_id: String,
+}
+
+#[tauri::command]
+fn delete_packing_item(
+    input: PackingItemIdInput,
+    service: State<'_, AppService>,
+) -> Result<(), AppError> {
+    service.delete_packing_item(&input.packing_item_id)
+}
+
+#[tauri::command]
+fn create_trip_item(
+    input: CreateTripItemInput,
+    service: State<'_, AppService>,
+) -> Result<TripItem, AppError> {
+    service.create_trip_item(input)
+}
+
+#[tauri::command]
+fn update_trip_item(
+    input: UpdateTripItemInput,
+    service: State<'_, AppService>,
+) -> Result<TripItem, AppError> {
+    service.update_trip_item(input)
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TripItemIdInput {
+    trip_item_id: String,
+}
+
+#[tauri::command]
+fn delete_trip_item(
+    input: TripItemIdInput,
+    service: State<'_, AppService>,
+) -> Result<(), AppError> {
+    service.delete_trip_item(&input.trip_item_id)
 }
 
 #[tauri::command]
@@ -962,6 +1062,16 @@ fn builder<R: tauri::Runtime>(
             get_offline_map,
             read_offline_map_range,
             get_recommendations,
+            set_interest_profile,
+            save_place,
+            update_saved_place,
+            delete_saved_place,
+            add_packing_item,
+            update_packing_item,
+            delete_packing_item,
+            create_trip_item,
+            update_trip_item,
+            delete_trip_item,
             detect_local_ai,
             pull_local_model,
             list_providers,

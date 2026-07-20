@@ -74,6 +74,14 @@ export interface TripDetail {
    * from the snapshot's country code. Present only when curated.
    */
   tipping?: string;
+  /** Persisted recommendation weights; balanced until the traveler changes them. */
+  interestProfile: InterestProfile;
+  /** Shortlisted recommendations, distinct from scheduled trip items. */
+  savedPlaces: SavedPlace[];
+  /** Explicit traveler-owned packing checklist. */
+  packingItems: PackingItem[];
+  /** Manual activities, rail segments, and transfers; never confirmed evidence. */
+  tripItems: TripItem[];
 }
 /** The destination-vs-origin wall-clock gap on the trip's dates. */
 export interface TimeDifference {
@@ -838,6 +846,7 @@ export interface PersonaWeights {
  * never authoritative for prices, hours, or safety.
  */
 export interface Recommendation {
+  packId: string;
   name: string;
   category: string;
   dimension: string;
@@ -848,6 +857,86 @@ export interface Recommendation {
   score: number;
   reasons: string[];
   wildcard: boolean;
+}
+export interface InterestProfile extends PersonaWeights {
+  tripId: string;
+  updatedAt?: string;
+}
+export interface SetInterestProfileInput extends PersonaWeights {
+  tripId: string;
+}
+export interface SavedPlace {
+  id: string;
+  tripId: string;
+  packId: string;
+  sourcePackAvailable: boolean;
+  name: string;
+  category: string;
+  dimension: string;
+  lat: number;
+  lon: number;
+  source: string;
+  license: string;
+  reasons: string[];
+  wildcard: boolean;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface SavePlaceInput {
+  tripId: string;
+  recommendation: Recommendation;
+  notes?: string;
+}
+export interface UpdateSavedPlaceInput {
+  savedPlaceId: string;
+  notes: string;
+}
+export interface PackingItem {
+  id: string;
+  tripId: string;
+  label: string;
+  checked: boolean;
+  suggestionCode?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface AddPackingItemInput {
+  tripId: string;
+  label: string;
+  suggestionCode?: string;
+}
+export interface UpdatePackingItemInput {
+  packingItemId: string;
+  label: string;
+  checked: boolean;
+}
+export type TripItemKind = "activity" | "rail" | "transfer";
+export interface TripItem {
+  id: string;
+  tripId: string;
+  kind: TripItemKind;
+  title: string;
+  location?: string;
+  startAt?: string;
+  endAt?: string;
+  notes?: string;
+  savedPlaceId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface CreateTripItemInput {
+  tripId: string;
+  kind: TripItemKind;
+  title: string;
+  location?: string;
+  startAt?: string;
+  endAt?: string;
+  notes?: string;
+  savedPlaceId?: string;
+}
+export interface UpdateTripItemInput extends Omit<CreateTripItemInput, "tripId"> {
+  tripItemId: string;
 }
 export type TripPhaseState = "upcoming" | "active" | "completed";
 /** Where a trip sits relative to today; day counts present per state. */
@@ -1047,6 +1136,16 @@ export interface AppGateway {
     tripId: string,
     weights: PersonaWeights,
   ): Promise<Recommendation[]>;
+  setInterestProfile(input: SetInterestProfileInput): Promise<InterestProfile>;
+  savePlace(input: SavePlaceInput): Promise<SavedPlace>;
+  updateSavedPlace(input: UpdateSavedPlaceInput): Promise<SavedPlace>;
+  deleteSavedPlace(savedPlaceId: string): Promise<void>;
+  addPackingItem(input: AddPackingItemInput): Promise<PackingItem>;
+  updatePackingItem(input: UpdatePackingItemInput): Promise<PackingItem>;
+  deletePackingItem(packingItemId: string): Promise<void>;
+  createTripItem(input: CreateTripItemInput): Promise<TripItem>;
+  updateTripItem(input: UpdateTripItemInput): Promise<TripItem>;
+  deleteTripItem(tripItemId: string): Promise<void>;
   listAdviceCountries(): Promise<FcdoCountry[]>;
   fetchAdvisories(input: FetchAdvisoriesInput): Promise<AdvisoryPanel>;
   fetchWeather(tripId: string): Promise<WeatherSnapshot>;

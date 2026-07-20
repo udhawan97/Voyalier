@@ -33,6 +33,17 @@ import type {
   ProviderConfig,
   ProviderId,
   Recommendation,
+  InterestProfile,
+  SetInterestProfileInput,
+  SavePlaceInput,
+  SavedPlace,
+  UpdateSavedPlaceInput,
+  AddPackingItemInput,
+  PackingItem,
+  UpdatePackingItemInput,
+  CreateTripItemInput,
+  TripItem,
+  UpdateTripItemInput,
   SearchHit,
   SetProviderKeyInput,
   SetProviderModelInput,
@@ -201,6 +212,36 @@ export function createTauriGateway(
 
     getRecommendations: (tripId: string, weights: PersonaWeights) =>
       call<Recommendation[]>("get_recommendations", { tripId, weights }),
+
+    setInterestProfile: (input: SetInterestProfileInput) =>
+      call<InterestProfile>("set_interest_profile", input),
+
+    savePlace: (input: SavePlaceInput) =>
+      call<SavedPlace>("save_place", input),
+
+    updateSavedPlace: (input: UpdateSavedPlaceInput) =>
+      call<SavedPlace>("update_saved_place", input),
+
+    deleteSavedPlace: (savedPlaceId: string) =>
+      call<void>("delete_saved_place", { savedPlaceId }),
+
+    addPackingItem: (input: AddPackingItemInput) =>
+      call<PackingItem>("add_packing_item", input),
+
+    updatePackingItem: (input: UpdatePackingItemInput) =>
+      call<PackingItem>("update_packing_item", input),
+
+    deletePackingItem: (packingItemId: string) =>
+      call<void>("delete_packing_item", { packingItemId }),
+
+    createTripItem: (input: CreateTripItemInput) =>
+      call<TripItem>("create_trip_item", input),
+
+    updateTripItem: (input: UpdateTripItemInput) =>
+      call<TripItem>("update_trip_item", input),
+
+    deleteTripItem: (tripItemId: string) =>
+      call<void>("delete_trip_item", { tripItemId }),
 
     listAdviceCountries: () => call<FcdoCountry[]>("list_advice_countries", {}),
 

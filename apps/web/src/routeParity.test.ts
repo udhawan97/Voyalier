@@ -33,6 +33,9 @@ const SAMPLES: Record<string, string> = {
   factId: "fact_1",
   candidateId: "cand_1",
   provider: "openai",
+  savedPlaceId: "place_1",
+  packingItemId: "packing_1",
+  tripItemId: "item_1",
 };
 
 function resolvePath(path: string): string {
@@ -90,6 +93,18 @@ const ARGS: Record<keyof AppGateway, unknown[]> = {
   getOfflineMap: ["trip_1"],
   readOfflineMapRange: ["trip_1", "pack_1", 0, 1],
   getRecommendations: ["trip_1", {}],
+  setInterestProfile: [{ tripId: "trip_1" }],
+  savePlace: [{ tripId: "trip_1", recommendation: {} }],
+  updateSavedPlace: [{ savedPlaceId: "place_1", notes: "" }],
+  deleteSavedPlace: ["place_1"],
+  addPackingItem: [{ tripId: "trip_1", label: "item" }],
+  updatePackingItem: [
+    { packingItemId: "packing_1", label: "item", checked: false },
+  ],
+  deletePackingItem: ["packing_1"],
+  createTripItem: [{ tripId: "trip_1", kind: "activity", title: "item" }],
+  updateTripItem: [{ tripItemId: "item_1", kind: "activity", title: "item" }],
+  deleteTripItem: ["item_1"],
   listAdviceCountries: [],
   fetchAdvisories: [{ tripId: "trip_1", countrySlug: "japan" }],
   fetchWeather: ["trip_1"],

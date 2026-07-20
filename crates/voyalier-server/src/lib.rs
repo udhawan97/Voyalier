@@ -5,15 +5,16 @@ use axum::{
     http::{HeaderValue, Method, Request, StatusCode, header},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{delete, get, post},
+    routing::{delete, get, patch, post, put},
 };
 use serde::{Deserialize, Serialize};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use voyalier_app::AppService;
 use voyalier_core::{
-    AddManualFactInput, AppError, CandidateFact, CandidateStatus, ConfirmCandidateInput,
-    ConfirmedFact, CreateTripInput, ErrorCode, HealthResponse, ImportDocumentInput, PersonaWeights,
-    UpdateTripInput,
+    AddManualFactInput, AddPackingItemInput, AppError, CandidateFact, CandidateStatus,
+    ConfirmCandidateInput, ConfirmedFact, CreateTripInput, CreateTripItemInput, ErrorCode,
+    HealthResponse, ImportDocumentInput, PersonaWeights, SavePlaceInput, SetInterestProfileInput,
+    UpdatePackingItemInput, UpdateSavedPlaceInput, UpdateTripInput, UpdateTripItemInput,
 };
 
 #[derive(Debug, Serialize)]
@@ -224,6 +225,34 @@ pub fn app(service: AppService) -> Router {
             post(get_recommendations),
         )
         .route(
+            "/api/v1/trips/{trip_id}/interest-profile",
+            put(set_interest_profile),
+        )
+        .route(
+            "/api/v1/trips/{trip_id}/saved-places",
+            post(save_place),
+        )
+        .route(
+            "/api/v1/saved-places/{saved_place_id}",
+            patch(update_saved_place).delete(delete_saved_place),
+        )
+        .route(
+            "/api/v1/trips/{trip_id}/packing-items",
+            post(add_packing_item),
+        )
+        .route(
+            "/api/v1/packing-items/{packing_item_id}",
+            patch(update_packing_item).delete(delete_packing_item),
+        )
+        .route(
+            "/api/v1/trips/{trip_id}/trip-items",
+            post(create_trip_item),
+        )
+        .route(
+            "/api/v1/trip-items/{trip_item_id}",
+            patch(update_trip_item).delete(delete_trip_item),
+        )
+        .route(
             "/api/v1/trips/{trip_id}/notes",
             get(get_trip_notes).post(set_trip_notes),
         )
@@ -359,6 +388,93 @@ async fn get_recommendations(
     Json(weights): Json<PersonaWeights>,
 ) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(service.get_recommendations(&trip_id, weights)?))
+}
+
+async fn set_interest_profile(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+    Json(mut input): Json<SetInterestProfileInput>,
+) -> Result<impl IntoResponse, ApiError> {
+    input.trip_id = trip_id;
+    Ok(Json(service.set_interest_profile(input)?))
+}
+
+async fn save_place(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+    Json(mut input): Json<SavePlaceInput>,
+) -> Result<impl IntoResponse, ApiError> {
+    input.trip_id = trip_id;
+    Ok((StatusCode::CREATED, Json(service.save_place(input)?)))
+}
+
+async fn update_saved_place(
+    State(service): State<AppService>,
+    Path(saved_place_id): Path<String>,
+    Json(mut input): Json<UpdateSavedPlaceInput>,
+) -> Result<impl IntoResponse, ApiError> {
+    input.saved_place_id = saved_place_id;
+    Ok(Json(service.update_saved_place(input)?))
+}
+
+async fn delete_saved_place(
+    State(service): State<AppService>,
+    Path(saved_place_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    service.delete_saved_place(&saved_place_id)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn add_packing_item(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+    Json(mut input): Json<AddPackingItemInput>,
+) -> Result<impl IntoResponse, ApiError> {
+    input.trip_id = trip_id;
+    Ok((StatusCode::CREATED, Json(service.add_packing_item(input)?)))
+}
+
+async fn update_packing_item(
+    State(service): State<AppService>,
+    Path(packing_item_id): Path<String>,
+    Json(mut input): Json<UpdatePackingItemInput>,
+) -> Result<impl IntoResponse, ApiError> {
+    input.packing_item_id = packing_item_id;
+    Ok(Json(service.update_packing_item(input)?))
+}
+
+async fn delete_packing_item(
+    State(service): State<AppService>,
+    Path(packing_item_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    service.delete_packing_item(&packing_item_id)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn create_trip_item(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+    Json(mut input): Json<CreateTripItemInput>,
+) -> Result<impl IntoResponse, ApiError> {
+    input.trip_id = trip_id;
+    Ok((StatusCode::CREATED, Json(service.create_trip_item(input)?)))
+}
+
+async fn update_trip_item(
+    State(service): State<AppService>,
+    Path(trip_item_id): Path<String>,
+    Json(mut input): Json<UpdateTripItemInput>,
+) -> Result<impl IntoResponse, ApiError> {
+    input.trip_item_id = trip_item_id;
+    Ok(Json(service.update_trip_item(input)?))
+}
+
+async fn delete_trip_item(
+    State(service): State<AppService>,
+    Path(trip_item_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    service.delete_trip_item(&trip_item_id)?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn preview_assist(
@@ -1825,6 +1941,9 @@ mod tests {
             .replace("{documentId}", "doc_1")
             .replace("{factId}", "fact_1")
             .replace("{candidateId}", "cand_1")
+            .replace("{savedPlaceId}", "place_1")
+            .replace("{packingItemId}", "packing_1")
+            .replace("{tripItemId}", "item_1")
             .replace("{provider}", "openai")
     }
 

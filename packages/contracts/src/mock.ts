@@ -12,6 +12,7 @@ import {
 
 import type {
   AddManualFactInput,
+  AddPackingItemInput,
   AiPrompt,
   AiPromptKind,
   AiPromptSettings,
@@ -26,6 +27,7 @@ import type {
   ConfirmCandidateInput,
   ConfirmedFact,
   CreateTripInput,
+  CreateTripItemInput,
   DownloadedPack,
   ErrorCode,
   FactPayload,
@@ -52,6 +54,15 @@ import type {
   ProviderConfig,
   ProviderId,
   Recommendation,
+  InterestProfile,
+  SetInterestProfileInput,
+  SavePlaceInput,
+  SavedPlace,
+  UpdateSavedPlaceInput,
+  PackingItem,
+  UpdatePackingItemInput,
+  TripItem,
+  UpdateTripItemInput,
   SetProviderKeyInput,
   SetProviderModelInput,
   TodayItem,
@@ -1508,6 +1519,10 @@ export function createMockGateway(options?: {
   const assistActivity: (AssistActivityEntry & { tripId: string })[] = [];
   // Downloaded packs, keyed loosely by trip.
   const downloadedPacks: (DownloadedPack & { tripId: string })[] = [];
+  const interestProfiles = new Map<string, InterestProfile>();
+  const savedPlaces = new Map<string, SavedPlace>();
+  const packingItems = new Map<string, PackingItem>();
+  const tripItems = new Map<string, TripItem>();
   // Encrypted-vault state: active by default (keychain mode). An optional
   // passphrase can be set; the mock keeps it only to validate unlock, mirroring
   // that the real gateway never returns or persists the passphrase in plaintext.
@@ -1712,6 +1727,31 @@ export function createMockGateway(options?: {
           ...(placeSummaries.has(tripId)
             ? { placeSummary: clone(placeSummaries.get(tripId)!) }
             : {}),
+          interestProfile: clone(
+            interestProfiles.get(tripId) ?? {
+              tripId,
+              food: 0.5,
+              culture: 0.5,
+              nature: 0.5,
+              nightlife: 0.5,
+              shopping: 0.5,
+            },
+          ),
+          savedPlaces: [...savedPlaces.values()]
+            .filter((place) => place.tripId === tripId)
+            .map((place) => ({
+              ...clone(place),
+              sourcePackAvailable: downloadedPacks.some(
+                (pack) =>
+                  pack.tripId === tripId && pack.packId === place.packId,
+              ),
+            })),
+          packingItems: [...packingItems.values()]
+            .filter((item) => item.tripId === tripId)
+            .map(clone),
+          tripItems: [...tripItems.values()]
+            .filter((item) => item.tripId === tripId)
+            .map(clone),
         } satisfies TripDetail;
       }),
 
@@ -2454,7 +2494,10 @@ export function createMockGateway(options?: {
       execute("getRecommendations", () => {
         requireTrip(tripId);
         // Only recommend once a pack (with places) is downloaded for the trip.
-        if (!downloadedPacks.some((pack) => pack.tripId === tripId)) return [];
+        const downloaded = downloadedPacks.find(
+          (pack) => pack.tripId === tripId,
+        );
+        if (!downloaded) return [];
         const recs: Recommendation[] = [];
         for (const place of MOCK_PLACES) {
           const dimension = mockDimensionFor(place.category);
@@ -2462,6 +2505,7 @@ export function createMockGateway(options?: {
           const score = Math.min(1, Math.max(0, weights[dimension]));
           if (score <= 0) continue;
           recs.push({
+            packId: downloaded.packId,
             name: place.name,
             category: place.category,
             dimension,
@@ -2484,6 +2528,116 @@ export function createMockGateway(options?: {
           }
         }
         return recs;
+      }),
+
+    setInterestProfile: (input: SetInterestProfileInput) =>
+      execute("setInterestProfile", () => {
+        requireTrip(input.tripId);
+        const weights = [
+          input.food,
+          input.culture,
+          input.nature,
+          input.nightlife,
+          input.shopping,
+        ];
+        if (weights.some((weight) => !Number.isFinite(weight) || weight < 0 || weight > 1)) {
+          throw appError("validation/invalid_input", "interest weights must be from zero to one");
+        }
+        const profile: InterestProfile = { ...input, updatedAt: timestamp() };
+        interestProfiles.set(input.tripId, profile);
+        return clone(profile);
+      }),
+
+    savePlace: (input: SavePlaceInput) =>
+      execute("savePlace", () => {
+        requireTrip(input.tripId);
+        if (!downloadedPacks.some((pack) => pack.tripId === input.tripId && pack.packId === input.recommendation.packId)) {
+          throw appError("validation/invalid_input", "source pack is not downloaded");
+        }
+        const now = timestamp();
+        const place: SavedPlace = {
+          id: nextId("place"),
+          tripId: input.tripId,
+          sourcePackAvailable: true,
+          ...clone(input.recommendation),
+          notes: input.notes?.trim() ?? "",
+          createdAt: now,
+          updatedAt: now,
+        };
+        savedPlaces.set(place.id, place);
+        return clone(place);
+      }),
+
+    updateSavedPlace: (input: UpdateSavedPlaceInput) =>
+      execute("updateSavedPlace", () => {
+        const place = savedPlaces.get(input.savedPlaceId);
+        if (!place) throw appError("validation/invalid_input", "saved place not found");
+        const updated = { ...place, notes: input.notes.trim(), updatedAt: timestamp() };
+        savedPlaces.set(updated.id, updated);
+        return clone(updated);
+      }),
+
+    deleteSavedPlace: (savedPlaceId: string) =>
+      execute("deleteSavedPlace", () => {
+        if (!savedPlaces.delete(savedPlaceId)) throw appError("validation/invalid_input", "saved place not found");
+        for (const [id, item] of tripItems) {
+          if (item.savedPlaceId === savedPlaceId) tripItems.set(id, { ...item, savedPlaceId: undefined });
+        }
+      }),
+
+    addPackingItem: (input: AddPackingItemInput) =>
+      execute("addPackingItem", () => {
+        requireTrip(input.tripId);
+        const label = input.label.trim();
+        if (!label) throw appError("validation/invalid_input", "label is required");
+        const now = timestamp();
+        const item: PackingItem = { id: nextId("packing"), tripId: input.tripId, label, checked: false,
+          ...(input.suggestionCode ? { suggestionCode: input.suggestionCode } : {}), createdAt: now, updatedAt: now };
+        packingItems.set(item.id, item);
+        return clone(item);
+      }),
+
+    updatePackingItem: (input: UpdatePackingItemInput) =>
+      execute("updatePackingItem", () => {
+        const item = packingItems.get(input.packingItemId);
+        if (!item) throw appError("validation/invalid_input", "packing item not found");
+        const label = input.label.trim();
+        if (!label) throw appError("validation/invalid_input", "label is required");
+        const updated = { ...item, label, checked: input.checked, updatedAt: timestamp() };
+        packingItems.set(updated.id, updated);
+        return clone(updated);
+      }),
+
+    deletePackingItem: (packingItemId: string) =>
+      execute("deletePackingItem", () => {
+        if (!packingItems.delete(packingItemId)) throw appError("validation/invalid_input", "packing item not found");
+      }),
+
+    createTripItem: (input: CreateTripItemInput) =>
+      execute("createTripItem", () => {
+        requireTrip(input.tripId);
+        const title = input.title.trim();
+        if (!title) throw appError("validation/invalid_input", "title is required");
+        const now = timestamp();
+        const item: TripItem = { ...clone(input), id: nextId("item"), title, createdAt: now, updatedAt: now };
+        tripItems.set(item.id, item);
+        return clone(item);
+      }),
+
+    updateTripItem: (input: UpdateTripItemInput) =>
+      execute("updateTripItem", () => {
+        const item = tripItems.get(input.tripItemId);
+        if (!item) throw appError("validation/invalid_input", "trip item not found");
+        const title = input.title.trim();
+        if (!title) throw appError("validation/invalid_input", "title is required");
+        const updated: TripItem = { ...item, ...clone(input), id: item.id, title, updatedAt: timestamp() };
+        tripItems.set(updated.id, updated);
+        return clone(updated);
+      }),
+
+    deleteTripItem: (tripItemId: string) =>
+      execute("deleteTripItem", () => {
+        if (!tripItems.delete(tripItemId)) throw appError("validation/invalid_input", "trip item not found");
       }),
 
     listAdviceCountries: () =>

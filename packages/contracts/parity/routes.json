@@ -223,6 +223,66 @@
       "command": "get_recommendations"
     },
     {
+      "method": "setInterestProfile",
+      "verb": "PUT",
+      "path": "/api/v1/trips/{tripId}/interest-profile",
+      "command": "set_interest_profile"
+    },
+    {
+      "method": "savePlace",
+      "verb": "POST",
+      "path": "/api/v1/trips/{tripId}/saved-places",
+      "command": "save_place"
+    },
+    {
+      "method": "updateSavedPlace",
+      "verb": "PATCH",
+      "path": "/api/v1/saved-places/{savedPlaceId}",
+      "command": "update_saved_place"
+    },
+    {
+      "method": "deleteSavedPlace",
+      "verb": "DELETE",
+      "path": "/api/v1/saved-places/{savedPlaceId}",
+      "command": "delete_saved_place"
+    },
+    {
+      "method": "addPackingItem",
+      "verb": "POST",
+      "path": "/api/v1/trips/{tripId}/packing-items",
+      "command": "add_packing_item"
+    },
+    {
+      "method": "updatePackingItem",
+      "verb": "PATCH",
+      "path": "/api/v1/packing-items/{packingItemId}",
+      "command": "update_packing_item"
+    },
+    {
+      "method": "deletePackingItem",
+      "verb": "DELETE",
+      "path": "/api/v1/packing-items/{packingItemId}",
+      "command": "delete_packing_item"
+    },
+    {
+      "method": "createTripItem",
+      "verb": "POST",
+      "path": "/api/v1/trips/{tripId}/trip-items",
+      "command": "create_trip_item"
+    },
+    {
+      "method": "updateTripItem",
+      "verb": "PATCH",
+      "path": "/api/v1/trip-items/{tripItemId}",
+      "command": "update_trip_item"
+    },
+    {
+      "method": "deleteTripItem",
+      "verb": "DELETE",
+      "path": "/api/v1/trip-items/{tripItemId}",
+      "command": "delete_trip_item"
+    },
+    {
       "method": "listAdviceCountries",
       "verb": "GET",
       "path": "/api/v1/advice/countries",
@@ -356,7 +416,7 @@
     "updater_relaunch"
   ],
   "counts": {
-    "shared": 57,
+    "shared": 67,
     "desktopOnly": 10
   }
 }

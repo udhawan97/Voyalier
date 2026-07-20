@@ -33,6 +33,17 @@ import type {
   ProviderConfig,
   ProviderId,
   Recommendation,
+  InterestProfile,
+  SetInterestProfileInput,
+  SavePlaceInput,
+  SavedPlace,
+  UpdateSavedPlaceInput,
+  AddPackingItemInput,
+  PackingItem,
+  UpdatePackingItemInput,
+  CreateTripItemInput,
+  TripItem,
+  UpdateTripItemInput,
   SearchHit,
   SetProviderKeyInput,
   SetProviderModelInput,
@@ -61,7 +72,7 @@ export interface HttpGatewayOptions {
   fetch?: typeof fetch;
 }
 
-type Method = "GET" | "POST" | "PATCH" | "DELETE";
+type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 /**
  * Talks to the loopback Axum API over same-origin fetch. Routes mirror
@@ -279,6 +290,64 @@ export function createHttpGateway(
         `/api/v1/trips/${enc(tripId)}/recommendations`,
         weights,
       ),
+
+    setInterestProfile: (input: SetInterestProfileInput) =>
+      request<InterestProfile>(
+        "PUT",
+        `/api/v1/trips/${enc(input.tripId)}/interest-profile`,
+        input,
+      ),
+
+    savePlace: (input: SavePlaceInput) =>
+      request<SavedPlace>(
+        "POST",
+        `/api/v1/trips/${enc(input.tripId)}/saved-places`,
+        input,
+      ),
+
+    updateSavedPlace: (input: UpdateSavedPlaceInput) =>
+      request<SavedPlace>(
+        "PATCH",
+        `/api/v1/saved-places/${enc(input.savedPlaceId)}`,
+        input,
+      ),
+
+    deleteSavedPlace: (savedPlaceId: string) =>
+      request<void>("DELETE", `/api/v1/saved-places/${enc(savedPlaceId)}`),
+
+    addPackingItem: (input: AddPackingItemInput) =>
+      request<PackingItem>(
+        "POST",
+        `/api/v1/trips/${enc(input.tripId)}/packing-items`,
+        input,
+      ),
+
+    updatePackingItem: (input: UpdatePackingItemInput) =>
+      request<PackingItem>(
+        "PATCH",
+        `/api/v1/packing-items/${enc(input.packingItemId)}`,
+        input,
+      ),
+
+    deletePackingItem: (packingItemId: string) =>
+      request<void>("DELETE", `/api/v1/packing-items/${enc(packingItemId)}`),
+
+    createTripItem: (input: CreateTripItemInput) =>
+      request<TripItem>(
+        "POST",
+        `/api/v1/trips/${enc(input.tripId)}/trip-items`,
+        input,
+      ),
+
+    updateTripItem: (input: UpdateTripItemInput) =>
+      request<TripItem>(
+        "PATCH",
+        `/api/v1/trip-items/${enc(input.tripItemId)}`,
+        input,
+      ),
+
+    deleteTripItem: (tripItemId: string) =>
+      request<void>("DELETE", `/api/v1/trip-items/${enc(tripItemId)}`),
 
     listAdviceCountries: () =>
       request<FcdoCountry[]>("GET", "/api/v1/advice/countries"),
