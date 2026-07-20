@@ -34,7 +34,7 @@
 
 <p align="center">
   <strong><a href="https://udhawan97.github.io/Voyalier/">Explore the Voyalier product story →</a></strong><br>
-  <sub>The “Quiet Wonder” refresh pairs real product captures with a reduced-motion-aware path from source to travel day.</sub>
+  <sub>The “Quiet Wonder” site pairs real product captures with a reduced-motion-aware path from source to travel day, and carries System, Light, or Dark appearance into the docs.</sub>
 </p>
 
 <p align="center">

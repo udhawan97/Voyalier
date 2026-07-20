@@ -1,6 +1,7 @@
 ---
 import '../styles/landing.css'
 import FoldedRouteArtifact from '../components/FoldedRouteArtifact.astro'
+import ThemeToggle from '../components/ThemeToggle.astro'
 import iconUrl from '@voyalier/brand/voyalier-app-icon.svg?url'
 import markUrl from '@voyalier/brand/voyalier-mark.svg?url'
 import markDarkUrl from '@voyalier/brand/voyalier-mark-dark.svg?url'
@@ -39,6 +40,19 @@ const productScenes = [
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <script is:inline>
+      (() => {
+        let storedTheme = ''
+        try {
+          storedTheme = localStorage.getItem('starlight-theme') || ''
+        } catch {
+          storedTheme = ''
+        }
+        const systemTheme = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+        document.documentElement.dataset.theme =
+          storedTheme === 'light' || storedTheme === 'dark' ? storedTheme : systemTheme
+      })()
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content="Voyalier folds scattered plans, confirmations, and sourced travel research into one calm, local-first trip workspace." />
     <meta property="og:title" content="Voyalier — One trip, folded into focus" />
@@ -59,10 +73,14 @@ const productScenes = [
 
     <header class="site-nav">
       <a class="wordmark" href={`${base}/`} aria-label="Voyalier home">
-        <img src={markUrl} width="96" height="96" alt="" />
+        <img class="wordmark-mark wordmark-mark-light" src={markUrl} width="96" height="96" alt="" />
+        <img class="wordmark-mark wordmark-mark-dark" src={markDarkUrl} width="96" height="96" alt="" />
         <span>Voyalier</span>
       </a>
-      <a class="nav-download" href={`${base}/download/`}>Download <span aria-hidden="true">↗</span></a>
+      <div class="site-nav__actions">
+        <ThemeToggle />
+        <a class="nav-download" href={`${base}/download/`}>Download <span aria-hidden="true">↗</span></a>
+      </div>
     </header>
 
     <main id="main-content">
@@ -195,7 +213,7 @@ const productScenes = [
       <p class="statement-footer__line">The plan stays useful when the signal disappears.</p>
       <div class="statement-footer__meta">
         <a class="wordmark wordmark-dark" href={`${base}/`} aria-label="Voyalier home">
-          <img src={markDarkUrl} width="96" height="96" alt="" />
+          <img class="wordmark-mark" src={markDarkUrl} width="96" height="96" alt="" />
           <span>Voyalier</span>
         </a>
         <nav aria-label="Footer navigation">

@@ -26,6 +26,11 @@ html {
   scroll-behavior: smooth;
   scroll-padding-block-start: var(--space-md);
   background: var(--color-paper);
+  color-scheme: light;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 body {
@@ -137,6 +142,12 @@ h3 {
   padding: var(--space-md) var(--page-gutter);
 }
 
+.site-nav__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
 .wordmark {
   display: inline-flex;
   min-height: 44px;
@@ -152,9 +163,21 @@ h3 {
   white-space: nowrap;
 }
 
-.wordmark img {
+.wordmark-mark {
   width: 1.75rem;
   height: 1.75rem;
+}
+
+.wordmark-mark-dark {
+  display: none;
+}
+
+:root[data-theme="dark"] .wordmark:not(.wordmark-dark) .wordmark-mark-light {
+  display: none;
+}
+
+:root[data-theme="dark"] .wordmark:not(.wordmark-dark) .wordmark-mark-dark {
+  display: block;
 }
 
 .nav-download,
@@ -872,6 +895,20 @@ h3 {
   transition:
     color var(--dur-short) var(--ease-out),
     transform var(--dur-micro) var(--ease-out);
+}
+
+:root[data-theme="dark"] .product-story {
+  background: var(--color-night-3);
+  color: var(--color-night-ink);
+}
+
+:root[data-theme="dark"] .diagram-evidence {
+  background: var(--color-night-3);
+  color: var(--color-night-ink);
+}
+
+:root[data-theme="dark"] .diagram-evidence figcaption {
+  color: var(--color-night-muted);
 }
 
 @keyframes hero-copy-arrive {

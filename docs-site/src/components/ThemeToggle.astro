@@ -1,0 +1,339 @@
+<voyalier-theme-toggle data-theme-preference="auto" data-state="loading">
+  <button
+    class="theme-toggle"
+    type="button"
+    disabled
+    aria-busy="true"
+    aria-label="Appearance is loading"
+    title="Appearance is loading"
+  >
+    <span class="theme-toggle__icon" aria-hidden="true">
+      <svg data-theme-icon="auto" viewBox="0 0 24 24" focusable="false">
+        <rect x="3.5" y="4.5" width="17" height="11.5" rx="2"></rect>
+        <path d="M8.5 20h7M10 16v4m4-4v4"></path>
+      </svg>
+      <svg data-theme-icon="light" viewBox="0 0 24 24" focusable="false">
+        <circle cx="12" cy="12" r="3.75"></circle>
+        <path d="M12 2.75v2M12 19.25v2M2.75 12h2M19.25 12h2M5.46 5.46l1.42 1.42M17.12 17.12l1.42 1.42M18.54 5.46l-1.42 1.42M6.88 17.12l-1.42 1.42"></path>
+      </svg>
+      <svg data-theme-icon="dark" viewBox="0 0 24 24" focusable="false">
+        <path d="M20.2 15.2A8.25 8.25 0 0 1 8.8 3.8 8.25 8.25 0 1 0 20.2 15.2Z"></path>
+      </svg>
+    </span>
+    <span class="theme-toggle__label" data-theme-label>System</span>
+    <span class="theme-toggle__state" aria-hidden="true"></span>
+  </button>
+  <span class="theme-toggle__announcement" data-theme-announcement aria-live="polite"></span>
+</voyalier-theme-toggle>
+
+<script>
+  type ThemePreference = 'auto' | 'light' | 'dark'
+  type ResolvedTheme = 'light' | 'dark'
+
+  const STORAGE_KEY = 'starlight-theme'
+  const systemTheme = matchMedia('(prefers-color-scheme: light)')
+
+  const parsePreference = (value: string | null): ThemePreference =>
+    value === 'light' || value === 'dark' ? value : 'auto'
+
+  const resolveTheme = (preference: ThemePreference): ResolvedTheme =>
+    preference === 'auto' ? (systemTheme.matches ? 'light' : 'dark') : preference
+
+  const preferenceLabel = (preference: ThemePreference): string =>
+    preference === 'auto' ? 'System' : preference === 'light' ? 'Light' : 'Dark'
+
+  const nextPreference = (preference: ThemePreference): ThemePreference => {
+    const systemPreference: ResolvedTheme = systemTheme.matches ? 'light' : 'dark'
+    const oppositePreference: ResolvedTheme = systemPreference === 'dark' ? 'light' : 'dark'
+    if (preference === 'auto') return oppositePreference
+    if (preference === oppositePreference) return systemPreference
+    return 'auto'
+  }
+
+  class VoyalierThemeToggle extends HTMLElement {
+    private button: HTMLButtonElement | null = null
+    private announcement: HTMLElement | null = null
+    private preference: ThemePreference = 'auto'
+    private resetStateTimer = 0
+
+    connectedCallback() {
+      this.button = this.querySelector<HTMLButtonElement>('.theme-toggle')
+      this.announcement = this.querySelector<HTMLElement>('[data-theme-announcement]')
+      if (!this.button) return
+
+      let storageFailed = false
+      try {
+        this.preference = parsePreference(localStorage.getItem(STORAGE_KEY))
+      } catch {
+        this.preference = 'auto'
+        storageFailed = true
+      }
+
+      this.applyPreference()
+      this.button.disabled = false
+      this.button.setAttribute('aria-busy', 'false')
+      this.dataset.state = storageFailed ? 'error' : 'default'
+      this.button.addEventListener('click', this.handleClick)
+      systemTheme.addEventListener('change', this.handleSystemThemeChange)
+    }
+
+    disconnectedCallback() {
+      this.button?.removeEventListener('click', this.handleClick)
+      systemTheme.removeEventListener('change', this.handleSystemThemeChange)
+      window.clearTimeout(this.resetStateTimer)
+    }
+
+    private handleClick = () => {
+      if (!this.button) return
+
+      window.clearTimeout(this.resetStateTimer)
+      this.preference = nextPreference(this.preference)
+      this.dataset.state = 'loading'
+      this.button.setAttribute('aria-busy', 'true')
+      this.applyPreference()
+
+      let stored = true
+      try {
+        localStorage.setItem(
+          STORAGE_KEY,
+          this.preference === 'auto' ? '' : this.preference,
+        )
+      } catch {
+        stored = false
+      }
+
+      requestAnimationFrame(() => {
+        if (!this.button) return
+        this.button.setAttribute('aria-busy', 'false')
+        this.dataset.state = stored ? 'success' : 'error'
+        if (this.announcement) {
+          const label = preferenceLabel(this.preference)
+          this.announcement.textContent = stored
+            ? `Appearance set to ${label}.`
+            : `${label} appearance is active for this page, but the preference could not be saved.`
+        }
+        if (stored) {
+          this.resetStateTimer = window.setTimeout(() => {
+            this.dataset.state = 'default'
+          }, 700)
+        }
+      })
+    }
+
+    private handleSystemThemeChange = () => {
+      this.applyPreference()
+    }
+
+    private applyPreference() {
+      const resolvedTheme = resolveTheme(this.preference)
+      const currentLabel = preferenceLabel(this.preference)
+      const followingPreference = nextPreference(this.preference)
+      const followingLabel = preferenceLabel(followingPreference).toLocaleLowerCase()
+
+      document.documentElement.dataset.theme = resolvedTheme
+      this.dataset.themePreference = this.preference
+      this.dataset.resolvedTheme = resolvedTheme
+      this.querySelector<HTMLElement>('[data-theme-label]')!.textContent = currentLabel
+      if (this.button) {
+        const resolvedLabel = this.preference === 'auto' ? `, currently ${resolvedTheme}` : ''
+        const accessibleLabel = `Appearance: ${currentLabel}${resolvedLabel}. Activate for ${followingLabel} mode.`
+        this.button.setAttribute('aria-label', accessibleLabel)
+        this.button.title = accessibleLabel
+      }
+    }
+  }
+
+  if (!customElements.get('voyalier-theme-toggle')) {
+    customElements.define('voyalier-theme-toggle', VoyalierThemeToggle)
+  }
+</script>
+
+<style>
+  /* Hallmark · component: theme toggle · genre: atmospheric · theme: custom Quiet Wonder
+   * states: default · hover · focus · active · disabled · loading · error · success
+   * contrast: pass (boundary 3.15:1 light / 3.24:1 dark; focus 6.18:1 / 10.78:1)
+   */
+
+  voyalier-theme-toggle {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+  }
+
+  .theme-toggle {
+    position: relative;
+    display: inline-flex;
+    min-width: 44px;
+    min-height: 44px;
+    appearance: none;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-xs);
+    padding: var(--space-sm);
+    border: var(--rule-hair) solid var(--color-control-rule);
+    border-radius: var(--radius-round);
+    background: var(--color-paper-veil);
+    color: var(--color-ink);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+    transition:
+      background-color var(--dur-short) var(--ease-out),
+      border-color var(--dur-short) var(--ease-out),
+      color var(--dur-short) var(--ease-out),
+      opacity var(--dur-short) var(--ease-out),
+      transform var(--dur-micro) var(--ease-out);
+  }
+
+  .theme-toggle__icon,
+  .theme-toggle__icon svg {
+    width: 1.125rem;
+    height: 1.125rem;
+  }
+
+  .theme-toggle__icon svg {
+    display: none;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.6;
+  }
+
+  voyalier-theme-toggle[data-theme-preference='auto'] [data-theme-icon='auto'],
+  voyalier-theme-toggle[data-theme-preference='light'] [data-theme-icon='light'],
+  voyalier-theme-toggle[data-theme-preference='dark'] [data-theme-icon='dark'] {
+    display: block;
+  }
+
+  .theme-toggle__label {
+    display: none;
+  }
+
+  .theme-toggle__state {
+    position: absolute;
+    inset-block-start: -0.2rem;
+    inset-inline-end: -0.15rem;
+    display: grid;
+    width: 1rem;
+    height: 1rem;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-size: 0.68rem;
+    font-weight: 700;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .theme-toggle:focus-visible {
+    outline: var(--rule-strong) solid var(--color-focus);
+    outline-offset: var(--space-2xs);
+  }
+
+  .theme-toggle:active {
+    transform: translateY(var(--space-3xs));
+  }
+
+  .theme-toggle:disabled,
+  voyalier-theme-toggle[data-state='disabled'] .theme-toggle {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .theme-toggle[aria-busy='true'],
+  voyalier-theme-toggle[data-state='loading'] .theme-toggle {
+    cursor: progress;
+    opacity: 0.72;
+  }
+
+  voyalier-theme-toggle[data-state='loading'] .theme-toggle__state {
+    border: var(--rule-hair) solid var(--color-rule);
+    border-block-start-color: var(--color-indigo);
+    opacity: 1;
+    animation: theme-toggle-progress 1s linear infinite;
+  }
+
+  voyalier-theme-toggle[data-state='error'] .theme-toggle {
+    border-color: var(--color-accent);
+  }
+
+  voyalier-theme-toggle[data-state='error'] .theme-toggle__state {
+    color: var(--color-accent);
+    opacity: 1;
+  }
+
+  voyalier-theme-toggle[data-state='error'] .theme-toggle__state::before {
+    content: '!';
+  }
+
+  voyalier-theme-toggle[data-state='success'] .theme-toggle {
+    border-color: var(--color-indigo);
+  }
+
+  voyalier-theme-toggle[data-state='success'] .theme-toggle__state {
+    color: var(--color-indigo);
+    opacity: 1;
+  }
+
+  voyalier-theme-toggle[data-state='success'] .theme-toggle__state::before {
+    content: '✓';
+  }
+
+  .theme-toggle__announcement {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  @keyframes theme-toggle-progress {
+    to {
+      transform: rotate(1turn);
+    }
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .theme-toggle:hover {
+      border-color: var(--color-indigo);
+      color: var(--color-indigo-deep);
+      transform: translateY(calc(var(--space-3xs) * -1));
+    }
+  }
+
+  @media (min-width: 48rem) {
+    .theme-toggle {
+      min-width: 6.5rem;
+      padding-inline: var(--space-md);
+    }
+
+    .theme-toggle__label {
+      display: inline;
+    }
+  }
+
+  @media (pointer: coarse) {
+    .theme-toggle {
+      min-height: 48px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .theme-toggle {
+      transition-duration: var(--dur-micro);
+    }
+
+    .theme-toggle:active {
+      transform: none;
+    }
+
+    voyalier-theme-toggle[data-state='loading'] .theme-toggle__state {
+      animation-duration: 2s;
+    }
+  }
+</style>

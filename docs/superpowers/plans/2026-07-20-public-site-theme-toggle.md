@@ -29,6 +29,7 @@ Modify:
 - `tokens.css` — explicit dark semantic tokens and component status tokens.
 - `docs-site/src/pages/index.astro` — pre-paint theme restoration and nav placement.
 - `docs-site/src/styles/landing.css` — dual-theme surfaces, control states, responsive nav behavior, and dark-section rhythm.
+- `README.md` — mention the shared System, Light, and Dark preference in the public-site handoff.
 
 Delete:
 
