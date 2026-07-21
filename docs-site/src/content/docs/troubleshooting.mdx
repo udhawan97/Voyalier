@@ -64,6 +64,19 @@ once.
   a destination outside that list won't have a snapshot. The linked official
   sources are always available regardless.
 
+## The topbar says Offline
+
+**Likely cause:** the interface cannot reach Voyalier's local engine.
+
+- The topbar, global recovery message, and failed work area should all agree on
+  **Offline**. Reconnect the browser development service or let the desktop app
+  finish reopening, then choose **Retry**.
+- A successful retry returns the topbar to **Ready** and reloads the affected
+  local view. Validation or storage errors stay attached to their own action and
+  do not masquerade as an outage.
+- When running from source, confirm the Axum API still answers on
+  `127.0.0.1:8787`; `make dev` starts both it and the web UI.
+
 ## A city pack won't download
 
 **Likely cause:** the pack contents haven't been published yet.

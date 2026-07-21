@@ -25,14 +25,17 @@ Packing suggestions are derived from the trip and stored weather evidence. They
 never enter the checklist silently: choose **Add** for a suggestion you want, or
 type a custom item. Check, uncheck, or remove items as the trip changes. Refreshing
 weather does not rewrite traveler-owned checklist state. Accepted and custom
-items can also be renamed; unchecked items stay above completed ones.
+items can also be renamed; unchecked items stay above completed ones. The custom
+**Add** action stays disabled until you enter an item, so an empty click cannot
+look like a lost change.
 
 ## Add an activity, rail leg, or transfer
 
 Enter a title and, optionally, a location, floating local start/end time, and
 private notes. Items can be edited or removed. If two timed items literally
 overlap, Voyalier shows a planning notice; the notice does not become a booking
-conflict or affect readiness.
+conflict or affect readiness. A name is required: submitting a blank form shows
+the requirement beside the field and moves keyboard focus there.
 
 Scheduled manual items can appear in Today, the printable brief, and `.ics`
 calendar export. The export projection has fields only for title, kind,
@@ -46,11 +49,21 @@ result names its trip and source kind. Pending extraction candidates remain out
 of search until you review them. Search is a bounded local scan: no query or
 index leaves the device.
 
+## Return after a reload
+
+While a trip is open, reloading returns to that trip and preserves a selected
+Plan, Prepare, Discover, or AI section. Voyalier keeps only the active trip id in
+browser session storage for this re-entry hint—never the trip's content,
+evidence, notes, or search text. Choosing **All trips** clears the hint and any
+stale section link.
+
 ## Language and source transparency
 
 Settings includes **Language** (System, English, or Español) and **Data sources &
 licenses**. A language change applies immediately and stays in local browser
 storage; every application message has both English and Spanish copy. The
+topbar and Settings theme controls share one Light/System/Dark preference, so
+changing either updates both immediately. The
 20-entry source register groups built-in, consent-fetched, offline-download, and
 optional-AI inputs and names each authority and license boundary. It does not
 merge different sources into a trust score.
