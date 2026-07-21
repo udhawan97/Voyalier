@@ -43,6 +43,9 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
   installer guidance remains Apple Silicon macOS, Windows x64, or a local
   browser build from source; desktop installers are still not OS-signed or
   notarized.
+- **The app shell now uses the same Voyalier mark as the documentation.** The
+  browser no longer falls back to a missing favicon or logs a failed asset
+  request during normal startup.
 
 ## [0.5.0] - 2026-07-20 — The traveler-owned planning release
 

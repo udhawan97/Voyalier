@@ -87,6 +87,10 @@ export function Dialog({
       // last pending review is resolved). Read the latest explicit ref after
       // the closing render, then fall back only to a still-connected trigger.
       queueMicrotask(() => {
+        // React Strict Mode replays effects without removing the mounted DOM.
+        // Ignore that development-only cleanup so it cannot steal focus back
+        // from the dialog after the replayed setup focuses it.
+        if (dialog?.isConnected) return;
         const explicit = latestReturnFocusRef.current?.current;
         const target =
           explicit?.isConnected === true

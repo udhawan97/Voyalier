@@ -1,5 +1,14 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { createMockGateway } from "@voyalier/contracts";
+import { StrictMode } from "react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 
+import { App } from "./App";
 import { renderApp } from "./test/helpers";
 
 async function openReview() {
@@ -18,6 +27,17 @@ async function openReview() {
 }
 
 describe("candidate review — keyboard", () => {
+  it("keeps dialog focus during the Strict Mode effect replay", async () => {
+    render(
+      <StrictMode>
+        <App gateway={createMockGateway()} />
+      </StrictMode>,
+    );
+    const { dialog } = await openReview();
+
+    await waitFor(() => expect(document.activeElement).toBe(dialog));
+  });
+
   it("opens at the dialog context and returns to the trigger on Esc", async () => {
     renderApp();
     const { dialog, trigger } = await openReview();

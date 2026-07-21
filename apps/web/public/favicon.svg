@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="6 6 84 84">
+  <style>
+    .ink { fill: #1a1917; }
+    .fold { fill: #46536b; }
+    @media (prefers-color-scheme: dark) {
+      .ink { fill: #f2ede1; }
+      .fold { fill: #93a0b8; }
+    }
+  </style>
+  <polygon class="ink" points="22,18 38,18 58,80 42,80"/>
+  <polygon class="fold" points="42,80 58,80 73.5,32 57.5,32"/>
+  <circle fill="#c34e33" cx="69" cy="21" r="5"/>
+</svg>
