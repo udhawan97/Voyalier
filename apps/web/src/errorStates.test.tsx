@@ -1,4 +1,5 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { createMockGateway } from "@voyalier/contracts";
 
 import { failingGateway, rejectWith, renderApp } from "./test/helpers";
 
@@ -266,6 +267,43 @@ describe("AppError rendered states", () => {
     expect(
       await screen.findByText("Voyalier can't reach its engine"),
     ).toBeInTheDocument();
+  });
+
+  it("keeps shell health aligned with a failed trip load and its recovery", async () => {
+    const base = createMockGateway();
+    let offline = false;
+    const gateway = {
+      ...base,
+      getTrip: (tripId: string) =>
+        offline
+          ? Promise.reject({
+              code: "transport/failure",
+              message: "engine unreachable",
+            })
+          : base.getTrip(tripId),
+    };
+
+    renderApp(gateway);
+    await screen.findByText("Ready");
+    offline = true;
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    );
+
+    await screen.findByText("Offline");
+    expect(
+      screen.getAllByText("Voyalier can't reach its engine").length,
+    ).toBeGreaterThan(0);
+
+    offline = false;
+    const retryButtons = screen.getAllByRole("button", { name: "Retry" });
+    fireEvent.click(retryButtons[retryButtons.length - 1]);
+    await screen.findByRole("heading", {
+      name: "Kyoto autumn journey",
+      level: 1,
+    });
+    await waitFor(() => expect(screen.getByText("Ready")).toBeInTheDocument());
+    expect(screen.queryByText("Offline")).not.toBeInTheDocument();
   });
 
   it("internal/unexpected renders a generic recovery banner", async () => {

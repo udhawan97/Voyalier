@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 
 export type ThemeChoice = "light" | "dark" | "system";
 
@@ -40,16 +40,41 @@ function persistThemeChoice(choice: ThemeChoice): void {
   }
 }
 
+const listeners = new Set<() => void>();
+
+function subscribeTheme(listener: () => void): () => void {
+  listeners.add(listener);
+
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key === STORAGE_KEY) listener();
+  };
+  globalThis.addEventListener?.("storage", handleStorage);
+
+  return () => {
+    listeners.delete(listener);
+    globalThis.removeEventListener?.("storage", handleStorage);
+  };
+}
+
+export function setThemeChoice(next: ThemeChoice): void {
+  persistThemeChoice(next);
+  applyThemeChoice(next);
+  listeners.forEach((listener) => listener());
+}
+
 export function useTheme(): [ThemeChoice, (next: ThemeChoice) => void] {
-  const [choice, setChoiceState] = useState<ThemeChoice>(readThemeChoice);
+  const choice = useSyncExternalStore(
+    subscribeTheme,
+    readThemeChoice,
+    readThemeChoice,
+  );
 
   useEffect(() => {
     applyThemeChoice(choice);
   }, [choice]);
 
   const setChoice = useCallback((next: ThemeChoice) => {
-    persistThemeChoice(next);
-    setChoiceState(next);
+    setThemeChoice(next);
   }, []);
 
   return [choice, setChoice];

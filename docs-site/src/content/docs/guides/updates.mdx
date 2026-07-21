@@ -6,7 +6,7 @@ description: The in-app updater — consented checks, install flow, and on-devic
 Voyalier updates itself from within the app, on your terms. It only ever fetches
 release metadata from GitHub, never anything about you or your trips, and every
 update is cryptographically verified on your device before it installs. You'll
-find all of this in the **Updates** panel on the home screen.
+find all of this in **Settings** → **Updates**.
 
 ## Choosing whether to check automatically
 
@@ -34,7 +34,7 @@ The install flow differs by operating system, but the download always runs in th
 Rust core (never the web view), and the update is **minisign-verified on your
 device** before anything is swapped in.
 
-- **macOS and Linux:** choose **Download and install**. Voyalier downloads the
+- **macOS:** choose **Download and install**. Voyalier downloads the
   update with a progress indicator and stages it, then shows **Update installed** —
   click **Restart Voyalier** to finish. On macOS, update the copy in
   `/Applications`; updating a copy run from Downloads or a mounted disk image can

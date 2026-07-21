@@ -555,6 +555,7 @@ const en = {
   "planning.packing.intro":
     "Suggestions stay suggestions until you add them. Once added, weather updates never change or remove your checklist.",
   "planning.packing.custom": "Custom item",
+  "planning.packing.required": "Enter an item to enable Add.",
   "planning.packing.add": "Add",
   "planning.packing.added": "Added",
   "planning.packing.nameLabel": "Packing item name",
@@ -568,6 +569,7 @@ const en = {
   "planning.items.rail": "Rail",
   "planning.items.transfer": "Transfer",
   "planning.items.name": "Name",
+  "planning.items.nameRequired": "Enter a name before adding this plan.",
   "planning.items.location": "Location (optional)",
   "planning.items.start": "Start (optional)",
   "planning.items.end": "End (optional)",
@@ -1754,6 +1756,7 @@ const es: Record<MessageKey, string> = {
   "planning.packing.intro":
     "Las sugerencias siguen siendo sugerencias hasta que las añadas. Una vez añadidas, las actualizaciones del clima nunca cambiarán ni eliminarán tu lista.",
   "planning.packing.custom": "Artículo personalizado",
+  "planning.packing.required": "Escribe un artículo para activar Añadir.",
   "planning.packing.add": "Añadir",
   "planning.packing.added": "Añadido",
   "planning.packing.nameLabel": "Nombre del artículo",
@@ -1767,6 +1770,7 @@ const es: Record<MessageKey, string> = {
   "planning.items.rail": "Tren",
   "planning.items.transfer": "Traslado",
   "planning.items.name": "Nombre",
+  "planning.items.nameRequired": "Escribe un nombre antes de añadir este plan.",
   "planning.items.location": "Ubicación (opcional)",
   "planning.items.start": "Inicio (opcional)",
   "planning.items.end": "Fin (opcional)",

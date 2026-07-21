@@ -1,11 +1,23 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type {
   AppError,
   AppGateway,
   WorkspaceSearchHit,
 } from "@voyalier/contracts";
 
-import { AnnounceContext, GatewayContext, UpdaterContext } from "./app/context";
+import {
+  AnnounceContext,
+  GatewayContext,
+  TransportHealthContext,
+  UpdaterContext,
+} from "./app/context";
 import { RevalidateProvider, useRevalidateAll } from "./app/revalidate";
 import { t } from "./app/i18n";
 import { localeSnapshot, subscribeLocale } from "./app/locale";
@@ -32,6 +44,57 @@ type View =
   | { name: "search" };
 
 type AppProps = { gateway?: AppGateway; updater?: UpdaterGateway };
+
+const ACTIVE_TRIP_KEY = "voyalier-active-trip";
+
+function readActiveTrip(): string | null {
+  try {
+    const tripId = globalThis.sessionStorage?.getItem(ACTIVE_TRIP_KEY)?.trim();
+    if (
+      tripId &&
+      tripId.length <= 128 &&
+      Array.from(tripId).every((character) => {
+        const code = character.charCodeAt(0);
+        return code >= 32 && code !== 127;
+      })
+    ) {
+      return tripId;
+    }
+  } catch {
+    // Session storage can be unavailable; list view remains the safe default.
+  }
+  return null;
+}
+
+function rememberActiveTrip(tripId: string): void {
+  try {
+    globalThis.sessionStorage?.setItem(ACTIVE_TRIP_KEY, tripId);
+  } catch {
+    // Re-entry is a convenience, never a prerequisite for using the workspace.
+  }
+}
+
+function clearActiveTrip(): void {
+  try {
+    globalThis.sessionStorage?.removeItem(ACTIVE_TRIP_KEY);
+  } catch {
+    // Ignore an unavailable session store.
+  }
+}
+
+function clearTripSectionHash(): void {
+  if (
+    typeof window === "undefined" ||
+    !/^#section-(plan|prepare|discover|ai)$/.test(window.location.hash)
+  ) {
+    return;
+  }
+  window.history.replaceState(
+    window.history.state,
+    "",
+    `${window.location.pathname}${window.location.search}`,
+  );
+}
 
 /**
  * Revalidation has to wrap the workspace, because the workspace revalidates:
@@ -61,17 +124,39 @@ function Workspace({
   );
   const updaterController = useUpdater(updater);
   const revalidateAll = useRevalidateAll();
-  const [view, setView] = useState<View>({ name: "list" });
+  const [view, setView] = useState<View>(() => {
+    const tripId = readActiveTrip();
+    return tripId ? { name: "trip", tripId } : { name: "list" };
+  });
   // Where "Back" from Settings returns to (the view Settings was opened from).
   const [returnView, setReturnView] = useState<View>({ name: "list" });
   const [health, setHealth] = useState<HealthState>("checking");
   const [healthError, setHealthError] = useState<AppError | null>(null);
+  const asyncTransportFailureSeen = useRef(false);
   const [message, setMessage] = useState("");
   // Whether the encrypted vault needs a passphrase before the workspace opens.
   // `null` until the first check completes (treated as "not locked").
   const [locked, setLocked] = useState<boolean | null>(null);
 
   const announce = useCallback((next: string) => setMessage(next), []);
+
+  const transportHealth = useMemo(
+    () => ({
+      reportTransportSuccess: () => {
+        if (!asyncTransportFailureSeen.current) return;
+        asyncTransportFailureSeen.current = false;
+        setHealth("online");
+        setHealthError(null);
+      },
+      reportTransportFailure: (error: AppError) => {
+        if (error.code !== "transport/failure") return;
+        asyncTransportFailureSeen.current = true;
+        setHealth("offline");
+        setHealthError(error);
+      },
+    }),
+    [],
+  );
 
   const checkVault = useCallback(() => {
     gateway.getVaultStatus().then(
@@ -91,10 +176,12 @@ function Workspace({
   const probeHealth = useCallback(() => {
     gateway.health().then(
       () => {
+        asyncTransportFailureSeen.current = false;
         setHealth("online");
         setHealthError(null);
       },
       (caught) => {
+        asyncTransportFailureSeen.current = false;
         setHealth("offline");
         setHealthError(toAppError(caught));
       },
@@ -104,6 +191,15 @@ function Workspace({
   useEffect(() => {
     probeHealth();
   }, [probeHealth]);
+
+  useEffect(() => {
+    if (view.name === "trip") {
+      rememberActiveTrip(view.tripId);
+    } else if (view.name === "list") {
+      clearActiveTrip();
+      clearTripSectionHash();
+    }
+  }, [view]);
 
   const openTrip = useCallback(
     (tripId: string) => setView({ name: "trip", tripId }),
@@ -144,77 +240,79 @@ function Workspace({
 
   return (
     <GatewayContext.Provider value={gateway}>
-      <UpdaterContext.Provider value={updaterController}>
-        <AnnounceContext.Provider value={announce}>
-          <div className="voy-app">
-            <a className="voy-skip" href="#main">
-              {t("a11y.skipToContent")}
-            </a>
-            <Topbar
-              onHome={openList}
-              onSettings={openSettings}
-              onSearch={openSearch}
-              health={health}
-            />
-            <main className="voy-main" id="main">
-              {health === "offline" && healthError ? (
-                <OfflineBanner error={healthError} onRetry={retry} />
-              ) : null}
-              {locked ? (
-                <>
-                  <VaultUnlock onUnlocked={checkVault} />
-                  {/* D2: a locked user can still update — the updater needs zero
+      <TransportHealthContext.Provider value={transportHealth}>
+        <UpdaterContext.Provider value={updaterController}>
+          <AnnounceContext.Provider value={announce}>
+            <div className="voy-app">
+              <a className="voy-skip" href="#main">
+                {t("a11y.skipToContent")}
+              </a>
+              <Topbar
+                onHome={openList}
+                onSettings={openSettings}
+                onSearch={openSearch}
+                health={health}
+              />
+              <main className="voy-main" id="main">
+                {health === "offline" && healthError ? (
+                  <OfflineBanner error={healthError} onRetry={retry} />
+                ) : null}
+                {locked ? (
+                  <>
+                    <VaultUnlock onUnlocked={checkVault} />
+                    {/* D2: a locked user can still update — the updater needs zero
                       trip data, so the panel renders pre-unlock too. */}
-                  <UpdatesPanel />
-                </>
-              ) : view.name === "settings" ? (
-                <SettingsView onBack={leaveSettings} />
-              ) : view.name === "search" ? (
-                <WorkspaceSearch
-                  onBack={openList}
-                  onOpenResult={openSearchResult}
-                />
-              ) : view.name === "list" ? (
-                <TripListView onOpenTrip={openTrip} />
-              ) : (
-                <TripDetailView
-                  key={view.tripId}
-                  tripId={view.tripId}
-                  searchTarget={view.searchTarget}
-                  onBack={openList}
-                  onDeleted={openList}
-                  onOpenSettings={openSettings}
-                />
-              )}
-            </main>
-            {updaterController.justUpdated ? (
-              <div className="voy-toast" role="status">
-                <span>
-                  {t("updates.justUpdated", {
-                    version: updaterController.justUpdated,
-                  })}
-                </span>
-                <button
-                  type="button"
-                  className="voy-toast__close"
-                  onClick={updaterController.dismissJustUpdated}
-                  aria-label={t("updates.dismiss")}
-                >
-                  ×
-                </button>
-              </div>
-            ) : null}
-          </div>
-          <div
-            className="voy-sr-only"
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            {message}
-          </div>
-        </AnnounceContext.Provider>
-      </UpdaterContext.Provider>
+                    <UpdatesPanel />
+                  </>
+                ) : view.name === "settings" ? (
+                  <SettingsView onBack={leaveSettings} />
+                ) : view.name === "search" ? (
+                  <WorkspaceSearch
+                    onBack={openList}
+                    onOpenResult={openSearchResult}
+                  />
+                ) : view.name === "list" ? (
+                  <TripListView onOpenTrip={openTrip} />
+                ) : (
+                  <TripDetailView
+                    key={view.tripId}
+                    tripId={view.tripId}
+                    searchTarget={view.searchTarget}
+                    onBack={openList}
+                    onDeleted={openList}
+                    onOpenSettings={openSettings}
+                  />
+                )}
+              </main>
+              {updaterController.justUpdated ? (
+                <div className="voy-toast" role="status">
+                  <span>
+                    {t("updates.justUpdated", {
+                      version: updaterController.justUpdated,
+                    })}
+                  </span>
+                  <button
+                    type="button"
+                    className="voy-toast__close"
+                    onClick={updaterController.dismissJustUpdated}
+                    aria-label={t("updates.dismiss")}
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : null}
+            </div>
+            <div
+              className="voy-sr-only"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {message}
+            </div>
+          </AnnounceContext.Provider>
+        </UpdaterContext.Provider>
+      </TransportHealthContext.Provider>
     </GatewayContext.Provider>
   );
 }

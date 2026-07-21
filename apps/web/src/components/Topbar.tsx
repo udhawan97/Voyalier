@@ -40,7 +40,7 @@ export function Topbar({
         {onSearch ? (
           <button
             type="button"
-            className="voy-topbar__gear"
+            className="voy-topbar__gear voy-topbar__search"
             onClick={onSearch}
             aria-label={t("topbar.search")}
           >
@@ -60,7 +60,7 @@ export function Topbar({
         {onSettings ? (
           <button
             type="button"
-            className="voy-topbar__gear"
+            className="voy-topbar__gear voy-topbar__settings"
             onClick={onSettings}
             aria-label={t("topbar.settings")}
           >

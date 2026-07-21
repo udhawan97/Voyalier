@@ -2917,6 +2917,19 @@ h3 {
   color: var(--voy-danger);
 }
 
+.voy-field-hint,
+.voy-field-error {
+  font-size: var(--voy-text-sm);
+}
+
+.voy-field-hint {
+  color: var(--voy-ink-muted);
+}
+
+.voy-field-error {
+  color: var(--voy-danger);
+}
+
 /* ===== Recommendations ================================================ */
 
 .voy-recs {
@@ -4159,6 +4172,75 @@ body::before {
 .voy-topbar__gear:hover {
   color: var(--voy-ink);
   border-color: var(--voy-line-strong);
+}
+
+@media (max-width: 640px) {
+  .voy-topbar {
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    width: calc(100% - 0.5rem);
+    min-height: auto;
+    padding: 0.45rem 0 0.6rem;
+  }
+
+  .voy-brand {
+    width: 100%;
+    min-height: 2.75rem;
+    padding-left: 0.25rem;
+  }
+
+  .voy-topbar__right {
+    display: grid;
+    grid-template-columns: 2.75rem minmax(0, 1fr) auto 2.75rem;
+    grid-template-areas:
+      "search health theme settings"
+      "update update update update";
+    gap: 0.25rem;
+    width: 100%;
+    align-items: center;
+  }
+
+  .voy-topbar__search {
+    grid-area: search;
+  }
+
+  .voy-health {
+    grid-area: health;
+    min-width: 0;
+    min-height: 2.75rem;
+    justify-content: center;
+    gap: 0.35rem;
+    padding-inline: 0.35rem;
+    font-size: 0.72rem;
+  }
+
+  .voy-theme {
+    grid-area: theme;
+    gap: 0;
+    padding: 0;
+  }
+
+  .voy-theme__opt {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    justify-content: center;
+    padding: 0.3rem;
+  }
+
+  .voy-topbar__settings {
+    grid-area: settings;
+  }
+
+  .voy-topbar .voy-topbar__gear {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .voy-updatepill {
+    grid-area: update;
+    justify-self: start;
+    min-height: 2.75rem;
+  }
 }
 
 /* ---- Empty-state actions ----------------------------------------------- */

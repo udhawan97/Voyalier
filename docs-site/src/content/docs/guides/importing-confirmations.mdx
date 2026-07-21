@@ -33,6 +33,12 @@ happens to each one:
   confirmed fact on the Blueprint.
 - **Reject** it, and it is discarded.
 
+The review dialog starts at its title and description rather than jumping down
+to the first action. From there, Tab reaches the controls in order; resolving a
+suggestion moves focus to the next card, and finishing the queue returns focus
+to the trip's Blueprint. Escape and **Close** still leave unresolved candidates
+pending.
+
 Because untrusted text can contain misleading instructions, imported content is
 treated as data, not commands: nothing an imported document "says" can mark a
 trip ready, confirm a fact, or trigger an action. Only your review does.

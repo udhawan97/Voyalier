@@ -6,6 +6,47 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-07-21 — The calm-flow reliability release
+
+### Fixed
+
+- **Evidence review now opens at its title instead of halfway through the first
+  suggestion.** Keyboard and screen-reader users get the review context before
+  its actions, confirmation still advances to the next card, and closing after
+  the final decision returns focus to the Blueprint instead of the document
+  body. The extraction and confirmation rules are unchanged.
+- **The engine status now agrees with the work area.** A transport failure from
+  a trip load or mutation changes the topbar to **Offline** as well as showing
+  the recovery message; a successful retry restores **Ready**. Storage,
+  validation, and domain errors remain local rather than being mislabeled as a
+  network outage.
+- **The complete topbar now fits at 320 px.** Brand and controls use a deliberate
+  two-row mobile layout with visible search, health, theme, and Settings actions
+  plus 44 px targets. Desktop spacing and the Quiet Journey visual system stay
+  intact.
+- **Every visible theme control now reflects the same preference.** Switching
+  Light, System, or Dark in the topbar immediately updates the duplicate control
+  in Settings, the root palette, and local persistence; no account or remote
+  synchronization was added.
+- **Blank planning actions now explain what they need.** Custom packing **Add**
+  stays disabled until text is present, while a blank manual plan shows an
+  inline required-name message and moves focus to the field. The traveler still
+  submits every checklist item and plan explicitly.
+- **Reloading an active trip returns to that trip and its selected section.**
+  Voyalier stores only the active trip id in browser session storage; it does not
+  copy trip content, evidence, or search text there. Returning to **All trips**
+  clears both the session hint and a stale section fragment.
+
+### Changed
+
+- **The update guide now points to the actual Settings panel.** Platform and
+  installer guidance remains Apple Silicon macOS, Windows x64, or a local
+  browser build from source; desktop installers are still not OS-signed or
+  notarized.
+- **The app shell now uses the same Voyalier mark as the documentation.** The
+  browser no longer falls back to a missing favicon or logs a failed asset
+  request during normal startup.
+
 ## [0.5.0] - 2026-07-20 — The traveler-owned planning release
 
 ### Added

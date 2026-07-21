@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { AppError } from "@voyalier/contracts";
 
 import { toAppError } from "../gateway";
+import { useTransportHealth } from "./context";
 
 export type AsyncStatus = "loading" | "success" | "error";
 
@@ -33,6 +34,7 @@ export function useAsyncData<T>(
   loader: () => Promise<T>,
   key: string,
 ): AsyncData<T> {
+  const transportHealth = useTransportHealth();
   const loaderRef = useRef(loader);
   useEffect(() => {
     loaderRef.current = loader;
@@ -54,16 +56,19 @@ export function useAsyncData<T>(
     loaderRef.current().then(
       (data) => {
         if (active) {
+          transportHealth.reportTransportSuccess();
           setSettled({ runKey, status: "success", data, error: undefined });
         }
       },
-      (error) => {
+      (caught) => {
         if (active) {
+          const error = toAppError(caught);
+          transportHealth.reportTransportFailure(error);
           setSettled((prev) => ({
             runKey,
             status: "error",
             data: prev.data,
-            error: toAppError(error),
+            error,
           }));
         }
       },
@@ -71,7 +76,7 @@ export function useAsyncData<T>(
     return () => {
       active = false;
     };
-  }, [runKey]);
+  }, [runKey, transportHealth]);
 
   const isCurrent = settled.runKey === runKey;
   return {
@@ -111,6 +116,7 @@ export function useAsyncAction<Args extends unknown[], T>(
   action: (...args: Args) => Promise<T>,
   onSuccess?: (result: T, ...args: Args) => void,
 ): AsyncAction<Args> {
+  const transportHealth = useTransportHealth();
   const actionRef = useRef(action);
   const successRef = useRef(onSuccess);
   useEffect(() => {
@@ -129,31 +135,37 @@ export function useAsyncAction<Args extends unknown[], T>(
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<AppError | undefined>(undefined);
 
-  const run = useCallback(async (...args: Args) => {
-    setError(undefined);
-    setBusy(true);
-    try {
-      const result = await actionRef.current(...args);
-      // A view that navigated away mid-run must not be written to, but its
-      // success handler still owns whatever the run produced.
-      if (mounted.current) {
-        successRef.current?.(result, ...args);
+  const run = useCallback(
+    async (...args: Args) => {
+      setError(undefined);
+      setBusy(true);
+      try {
+        const result = await actionRef.current(...args);
+        // A view that navigated away mid-run must not be written to, but its
+        // success handler still owns whatever the run produced.
+        if (mounted.current) {
+          transportHealth.reportTransportSuccess();
+          successRef.current?.(result, ...args);
+        }
+      } catch (caught) {
+        if (mounted.current) {
+          // Both transports already normalize at their boundary, so a value that
+          // is not an AppError by the time it reaches here came from the view's
+          // own code — a TypeError while building an .ics file is not the local
+          // core being unreachable, which is what the transport default would
+          // have claimed.
+          const error = toAppError(caught, "internal/unexpected");
+          transportHealth.reportTransportFailure(error);
+          setError(error);
+        }
+      } finally {
+        if (mounted.current) {
+          setBusy(false);
+        }
       }
-    } catch (caught) {
-      if (mounted.current) {
-        // Both transports already normalize at their boundary, so a value that
-        // is not an AppError by the time it reaches here came from the view's
-        // own code — a TypeError while building an .ics file is not the local
-        // core being unreachable, which is what the transport default would
-        // have claimed.
-        setError(toAppError(caught, "internal/unexpected"));
-      }
-    } finally {
-      if (mounted.current) {
-        setBusy(false);
-      }
-    }
-  }, []);
+    },
+    [transportHealth],
+  );
 
   return { run, busy, error };
 }
