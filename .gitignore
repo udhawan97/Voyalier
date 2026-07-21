@@ -49,3 +49,6 @@ var/
 
 # Session memory (remember plugin) — local only, never in git
 .remember/
+
+# graphify knowledge graph (build artifact, regenerate with: graphify update .)
+graphify-out/
