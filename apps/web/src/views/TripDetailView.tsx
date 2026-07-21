@@ -504,6 +504,9 @@ export function TripDetailView({
     useScopeKey(tripScope(tripId)),
   );
   const searchTargetConsumed = useRef(false);
+  const sectionHashConsumed = useRef(false);
+  const reviewTriggerRef = useRef<HTMLElement | null>(null);
+  const reviewCompletionFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!data || !searchTarget || searchTargetConsumed.current) return;
@@ -547,6 +550,18 @@ export function TripDetailView({
     return () => {
       if (timer) clearTimeout(timer);
     };
+  }, [data, searchTarget]);
+
+  useEffect(() => {
+    if (!data || searchTarget || sectionHashConsumed.current) return;
+    const id = globalThis.location?.hash.slice(1) ?? "";
+    if (!/^section-(plan|prepare|discover|ai)$/.test(id)) return;
+
+    sectionHashConsumed.current = true;
+    const timer = setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView?.({ block: "start" });
+    }, 0);
+    return () => clearTimeout(timer);
   }, [data, searchTarget]);
 
   const [showImport, setShowImport] = useState(false);
@@ -792,6 +807,9 @@ export function TripDetailView({
 
       {pendingCount > 0 ? (
         <button
+          ref={(node) => {
+            reviewTriggerRef.current = node;
+          }}
           type="button"
           className="voy-pending-entry"
           onClick={() => setReviewCandidates(pending)}
@@ -811,7 +829,14 @@ export function TripDetailView({
       )}
 
       <div className="voy-detail__blueprint" id="section-plan">
-        <h2 id="blueprint-title" className="voy-detail__blueprint-title">
+        <h2
+          ref={(node) => {
+            reviewCompletionFocusRef.current = node;
+          }}
+          id="blueprint-title"
+          className="voy-detail__blueprint-title"
+          tabIndex={-1}
+        >
           {t("detail.blueprint")}
         </h2>
         {confirmedFacts.length > 0 ? (
@@ -999,6 +1024,8 @@ export function TripDetailView({
           candidates={reviewCandidates}
           onClose={() => setReviewCandidates(null)}
           onResolved={() => reload()}
+          returnFocusRef={reviewTriggerRef}
+          completionFocusRef={reviewCompletionFocusRef}
         />
       ) : null}
 

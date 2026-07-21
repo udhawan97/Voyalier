@@ -14,6 +14,45 @@ async function openKyoto() {
 }
 
 describe("traveler-owned planning workflows", () => {
+  it("explains the required text before either blank planning submission", async () => {
+    renderApp(createMockGateway());
+    await openKyoto();
+
+    const packing = await screen.findByRole("region", {
+      name: "Packing checklist",
+    });
+    const customInput = within(packing).getByLabelText("Custom item");
+    const packingForm = customInput.closest("form")!;
+    expect(
+      within(packingForm).getByRole("button", { name: "Add" }),
+    ).toBeDisabled();
+    expect(
+      within(packingForm).getByText("Enter an item to enable Add."),
+    ).toBeVisible();
+
+    fireEvent.change(customInput, { target: { value: "  Museum pass  " } });
+    expect(
+      within(packingForm).getByRole("button", { name: "Add" }),
+    ).toBeEnabled();
+
+    const items = screen.getByRole("region", {
+      name: "Activities & transfers",
+    });
+    const name = within(items).getByLabelText("Name");
+    fireEvent.submit(name.closest("form")!);
+
+    expect(
+      await within(items).findByText("Enter a name before adding this plan."),
+    ).toHaveAttribute("role", "alert");
+    expect(name).toHaveAttribute("aria-invalid", "true");
+    expect(document.activeElement).toBe(name);
+
+    fireEvent.change(name, { target: { value: "Tea ceremony" } });
+    expect(
+      within(items).queryByText("Enter a name before adding this plan."),
+    ).not.toBeInTheDocument();
+  });
+
   it("adds checklist items explicitly and keeps manual activities out of confirmed facts", async () => {
     renderApp(createMockGateway());
     await openKyoto();

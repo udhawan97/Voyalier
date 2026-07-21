@@ -27,6 +27,10 @@ interface DialogProps {
   footer?: ReactNode;
   /** Focus this on open instead of the first focusable element. */
   initialFocusRef?: RefObject<HTMLElement | null>;
+  /** Focus the dialog itself when top-level context matters more than an action. */
+  initialFocus?: "first" | "dialog";
+  /** Explicit return target for triggers that may disappear while open. */
+  returnFocusRef?: RefObject<HTMLElement | null>;
   /** Extra description text tied to aria-describedby. */
   description?: ReactNode;
   size?: "md" | "lg";
@@ -45,29 +49,53 @@ export function Dialog({
   children,
   footer,
   initialFocusRef,
+  initialFocus = "first",
+  returnFocusRef,
   description,
   size = "md",
   labelId,
 }: DialogProps) {
+  const overlayRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const latestReturnFocusRef = useRef(returnFocusRef);
   const autoId = useId();
   const headingId = labelId ?? `${autoId}-title`;
   const descId = description ? `${autoId}-desc` : undefined;
 
   useEffect(() => {
+    latestReturnFocusRef.current = returnFocusRef;
+  }, [returnFocusRef]);
+
+  useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const dialog = dialogRef.current;
     const initial =
-      initialFocusRef?.current ??
-      (dialog ? (focusableWithin(dialog)[0] ?? dialog) : null);
-    initial?.focus();
+      initialFocus === "dialog"
+        ? dialog
+        : (initialFocusRef?.current ??
+          (dialog ? (focusableWithin(dialog)[0] ?? dialog) : null));
+    if (initialFocus === "dialog") overlayRef.current!.scrollTop = 0;
+    initial?.focus({ preventScroll: initialFocus === "dialog" });
+    if (initialFocus === "dialog") overlayRef.current!.scrollTop = 0;
 
     const { overflow } = document.body.style;
     document.body.style.overflow = "hidden";
 
     return () => {
       document.body.style.overflow = overflow;
-      previouslyFocused?.focus?.();
+      // The trigger can disappear while the dialog is open (for example, the
+      // last pending review is resolved). Read the latest explicit ref after
+      // the closing render, then fall back only to a still-connected trigger.
+      queueMicrotask(() => {
+        const explicit = latestReturnFocusRef.current?.current;
+        const target =
+          explicit?.isConnected === true
+            ? explicit
+            : previouslyFocused?.isConnected === true
+              ? previouslyFocused
+              : null;
+        target?.focus();
+      });
     };
     // Run once per open; the trap handler reads live refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -109,7 +137,7 @@ export function Dialog({
   }
 
   return createPortal(
-    <div className="voy-overlay" onMouseDown={handleBackdrop}>
+    <div ref={overlayRef} className="voy-overlay" onMouseDown={handleBackdrop}>
       <div
         ref={dialogRef}
         className={`voy-dialog voy-dialog--${size}`}

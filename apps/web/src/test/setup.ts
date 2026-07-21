@@ -33,5 +33,10 @@ globalThis.IntersectionObserver =
   ImmediateIntersectionObserver as unknown as typeof IntersectionObserver;
 
 afterEach(() => {
+  try {
+    globalThis.sessionStorage?.removeItem("voyalier-active-trip");
+  } catch {
+    // A test may deliberately stub storage as unavailable.
+  }
   vi.unstubAllGlobals();
 });

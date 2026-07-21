@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { AppGateway } from "@voyalier/contracts";
 import { createMockGateway } from "@voyalier/contracts";
 
@@ -69,5 +69,38 @@ describe("App shell", () => {
       await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
     ).toBeInTheDocument();
     expect(await screen.findByText("Ready")).toBeInTheDocument();
+  });
+
+  it("restores the active trip on reload and clears it when returning home", async () => {
+    const gateway = createMockGateway();
+    const first = render(<App gateway={gateway} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    );
+    await screen.findByRole("heading", {
+      name: "Kyoto autumn journey",
+      level: 1,
+    });
+    window.history.replaceState({}, "", "#section-plan");
+    first.unmount();
+
+    const second = render(<App gateway={gateway} />);
+    expect(
+      await screen.findByRole("heading", {
+        name: "Kyoto autumn journey",
+        level: 1,
+      }),
+    ).toBeInTheDocument();
+    expect(window.location.hash).toBe("#section-plan");
+
+    fireEvent.click(screen.getByRole("button", { name: "All trips" }));
+    await screen.findByRole("heading", { name: "Trips", level: 1 });
+    await waitFor(() => expect(window.location.hash).toBe(""));
+    second.unmount();
+
+    render(<App gateway={gateway} />);
+    expect(
+      screen.getByRole("heading", { name: "Trips", level: 1 }),
+    ).toBeInTheDocument();
   });
 });

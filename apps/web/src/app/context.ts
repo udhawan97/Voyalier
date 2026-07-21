@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { AppGateway } from "@voyalier/contracts";
+import type { AppError, AppGateway } from "@voyalier/contracts";
 
 import type { UpdaterController } from "../updater/useUpdater";
 
@@ -21,6 +21,29 @@ export const AnnounceContext = createContext<AnnounceFn>(() => {});
 
 export function useAnnounce(): AnnounceFn {
   return useContext(AnnounceContext);
+}
+
+/**
+ * The shell owns the one truthful view of engine reachability. Shared async
+ * hooks report only normalized transport outcomes here; storage, validation,
+ * and domain failures stay local to the surface that can explain them.
+ */
+export interface TransportHealthReporter {
+  reportTransportSuccess: () => void;
+  reportTransportFailure: (error: AppError) => void;
+}
+
+const NOOP_TRANSPORT_HEALTH: TransportHealthReporter = {
+  reportTransportSuccess: () => {},
+  reportTransportFailure: () => {},
+};
+
+export const TransportHealthContext = createContext<TransportHealthReporter>(
+  NOOP_TRANSPORT_HEALTH,
+);
+
+export function useTransportHealth(): TransportHealthReporter {
+  return useContext(TransportHealthContext);
 }
 
 /**

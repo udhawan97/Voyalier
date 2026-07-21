@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type Ref } from "react";
+import { useEffect, useRef, useState, type Ref, type RefObject } from "react";
 import type { AppError, CandidateFact, FactPayload } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
@@ -219,15 +219,18 @@ export function CandidateReviewDialog({
   candidates,
   onClose,
   onResolved,
+  returnFocusRef,
+  completionFocusRef,
 }: {
   candidates: CandidateFact[];
   onClose: () => void;
   onResolved: () => void;
+  returnFocusRef?: RefObject<HTMLElement | null>;
+  completionFocusRef?: RefObject<HTMLElement | null>;
 }) {
   const [queue, setQueue] = useState<CandidateFact[]>(() => candidates);
   const pendingFocus = useRef<string | null>(null);
   const confirmRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const firstConfirmRef = useRef<HTMLButtonElement>(null);
   const doneRef = useRef<HTMLButtonElement>(null);
 
   // After a resolution shrinks the queue, move focus to the next actionable
@@ -258,7 +261,8 @@ export function CandidateReviewDialog({
       title={t("review.title")}
       onClose={onClose}
       size="lg"
-      initialFocusRef={remaining > 0 ? firstConfirmRef : doneRef}
+      initialFocus="dialog"
+      returnFocusRef={remaining === 0 ? completionFocusRef : returnFocusRef}
       description={remaining > 0 ? t("review.description") : undefined}
       footer={
         <Button
@@ -278,14 +282,13 @@ export function CandidateReviewDialog({
             {plural("review.count", remaining)}
           </p>
           <ul className="voy-review__list">
-            {queue.map((candidate, index) => (
+            {queue.map((candidate) => (
               <ReviewCard
                 key={candidate.id}
                 candidate={candidate}
                 onDone={handleDone}
                 confirmRef={(node) => {
                   confirmRefs.current[candidate.id] = node;
-                  if (index === 0) firstConfirmRef.current = node;
                 }}
               />
             ))}

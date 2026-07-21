@@ -45,6 +45,44 @@ describe("theme", () => {
     );
   });
 
+  it("keeps the topbar and Settings controls synchronized", async () => {
+    const store: Record<string, string> = {};
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => store[key] ?? null,
+      setItem: (key: string, value: string) => {
+        store[key] = value;
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+      clear: () => {},
+    });
+
+    renderApp();
+    fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
+    const groups = await screen.findAllByRole("radiogroup", {
+      name: "Color theme",
+    });
+    expect(groups).toHaveLength(2);
+
+    fireEvent.click(within(groups[0]).getByRole("radio", { name: "Dark" }));
+    for (const group of groups) {
+      expect(
+        within(group).getByRole("radio", { name: "Dark" }),
+      ).toHaveAttribute("aria-checked", "true");
+    }
+    expect(document.documentElement.dataset.theme).toBe("dark");
+
+    fireEvent.click(within(groups[1]).getByRole("radio", { name: "Light" }));
+    for (const group of groups) {
+      expect(
+        within(group).getByRole("radio", { name: "Light" }),
+      ).toHaveAttribute("aria-checked", "true");
+    }
+    expect(document.documentElement.dataset.theme).toBe("light");
+    expect(store["voyalier-theme"]).toBe("light");
+  });
+
   it("ships reduced-motion equivalents in the stylesheet", () => {
     expect(styles).toContain("prefers-reduced-motion");
   });

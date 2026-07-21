@@ -18,14 +18,13 @@ async function openReview() {
 }
 
 describe("candidate review — keyboard", () => {
-  it("moves focus into the dialog and returns it to the trigger on Esc", async () => {
+  it("opens at the dialog context and returns to the trigger on Esc", async () => {
     renderApp();
     const { dialog, trigger } = await openReview();
 
-    const confirmButtons = within(dialog).getAllByRole("button", {
-      name: "Confirm",
-    });
-    await waitFor(() => expect(document.activeElement).toBe(confirmButtons[0]));
+    const overlay = dialog.closest(".voy-overlay") as HTMLElement;
+    await waitFor(() => expect(document.activeElement).toBe(dialog));
+    expect(overlay.scrollTop).toBe(0);
 
     fireEvent.keyDown(dialog, { key: "Escape" });
     expect(
@@ -77,5 +76,36 @@ describe("candidate review — keyboard", () => {
     expect(
       await screen.findByRole("button", { name: /Review 2 suggestions/ }),
     ).toBeInTheDocument();
+  });
+
+  it("returns to stable Blueprint context when the final trigger disappears", async () => {
+    renderApp();
+    const { dialog } = await openReview();
+
+    for (const remaining of [2, 1]) {
+      fireEvent.click(
+        within(dialog).getAllByRole("button", { name: "Confirm" })[0],
+      );
+      await waitFor(() =>
+        expect(
+          within(dialog).getByText(
+            new RegExp(`${remaining} suggestions? to review`),
+          ),
+        ).toBeInTheDocument(),
+      );
+    }
+
+    fireEvent.click(
+      within(dialog).getAllByRole("button", { name: "Confirm" })[0],
+    );
+    await within(dialog).findByText("All caught up");
+    await screen.findByText(
+      "No suggestions waiting. Import a document to find more.",
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+
+    const blueprint = document.getElementById("blueprint-title")!;
+    await waitFor(() => expect(document.activeElement).toBe(blueprint));
+    expect(document.activeElement).not.toBe(document.body);
   });
 });

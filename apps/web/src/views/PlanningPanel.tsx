@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type {
   PackingItem,
   PackingSuggestion,
@@ -38,6 +38,8 @@ export function PlanningPanel({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [customPacking, setCustomPacking] = useState("");
+  const [titleError, setTitleError] = useState(false);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const [savedNotes, setSavedNotes] = useState<Record<string, string>>({});
   const [kind, setKind] = useState<TripItemKind>("activity");
   const [title, setTitle] = useState("");
@@ -61,6 +63,7 @@ export function PlanningPanel({
     setEndAt("");
     setItemNotes("");
     setSelectedSavedPlaceId(null);
+    setTitleError(false);
   }
 
   async function change(key: string, action: () => Promise<unknown>) {
@@ -153,6 +156,7 @@ export function PlanningPanel({
                       setEndAt("");
                       setItemNotes("");
                       setSelectedSavedPlaceId(place.id);
+                      setTitleError(false);
                       announce(
                         t("planning.saved.prefilled", { name: place.name }),
                       );
@@ -237,14 +241,20 @@ export function PlanningPanel({
           <label>
             {t("planning.packing.custom")}
             <input
+              required
+              aria-describedby="custom-packing-hint"
               value={customPacking}
               onChange={(event) => setCustomPacking(event.target.value)}
             />
           </label>
+          <small id="custom-packing-hint" className="voy-field-hint">
+            {t("planning.packing.required")}
+          </small>
           <Button
             type="submit"
             variant="secondary"
             busy={busy === "packing:new"}
+            disabled={!customPacking.trim()}
           >
             {t("planning.packing.add")}
           </Button>
@@ -333,12 +343,17 @@ export function PlanningPanel({
         <p>{t("planning.items.intro")}</p>
         <form
           className="voy-planning__item-form"
+          noValidate
           onSubmit={(event) => {
             event.preventDefault();
-            if (!title.trim()) return;
+            if (!title.trim()) {
+              setTitleError(true);
+              titleInputRef.current?.focus();
+              return;
+            }
             const fields = {
               kind,
-              title,
+              title: title.trim(),
               ...(location.trim() ? { location } : {}),
               ...(startAt ? { startAt } : {}),
               ...(endAt ? { endAt } : {}),
@@ -377,10 +392,28 @@ export function PlanningPanel({
           <label>
             {t("planning.items.name")}
             <input
+              ref={titleInputRef}
               required
+              aria-invalid={titleError || undefined}
+              aria-describedby={
+                titleError ? "trip-item-title-error" : undefined
+              }
               value={title}
-              onChange={(event) => setTitle(event.target.value)}
+              onChange={(event) => {
+                const next = event.target.value;
+                setTitle(next);
+                if (next.trim()) setTitleError(false);
+              }}
             />
+            {titleError ? (
+              <span
+                id="trip-item-title-error"
+                className="voy-field-error"
+                role="alert"
+              >
+                {t("planning.items.nameRequired")}
+              </span>
+            ) : null}
           </label>
           <label>
             {t("planning.items.location")}
@@ -463,6 +496,7 @@ export function PlanningPanel({
                     setEndAt(item.endAt ?? "");
                     setItemNotes(item.notes ?? "");
                     setSelectedSavedPlaceId(item.savedPlaceId ?? null);
+                    setTitleError(false);
                   }}
                 >
                   {t("planning.items.edit")}
