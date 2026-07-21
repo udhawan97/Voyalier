@@ -29,4 +29,5 @@ packages/contracts/parity/**
 **/coverage/**
 **/playwright-report/**
 **/test-results/**
+.playwright-cli/
 node_modules/

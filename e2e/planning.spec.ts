@@ -73,9 +73,7 @@ test("planning persists through the real loopback service and a browser reload",
   await page.getByRole("link", { name: "Plan", exact: true }).click();
   await expect(page).toHaveURL(/#section-plan$/);
 
-  await page
-    .getByRole("button", { name: "Settings", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Data sources & licenses" }),
   ).toBeVisible();

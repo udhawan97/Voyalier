@@ -23,6 +23,7 @@ dist/
 .astro/
 coverage/
 playwright-report/
+.playwright-cli/
 
 # Pack build outputs (see .github/workflows/packs.yml)
 /catalog.json
