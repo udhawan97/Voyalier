@@ -199,4 +199,32 @@ describe("workspace search", () => {
       0,
     );
   });
+
+  // The audit's gap #11: every flight and stay result was headed "Confirmed
+  // fact", spending its one line on the word the interface already prints
+  // beside it instead of naming which fact matched.
+  it("names a confirmed-fact result with the traveler's own data", async () => {
+    const gateway = createMockGateway();
+    renderApp(gateway);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Search workspace" }),
+    );
+    fireEvent.change(screen.getByLabelText("Search all trips"), {
+      target: { value: "FP18" },
+    });
+
+    // The headline names the fact; the raw matched text stays underneath as
+    // the evidence for why it matched.
+    const heading = await screen.findByText("ORD → HND");
+    expect(heading.tagName).toBe("STRONG");
+    const result = heading.closest("button")!;
+    // The source kind is still stated, just no longer as the headline.
+    expect(result.textContent).toContain("Confirmed fact");
+
+    // The gateway carries identifying data, never a product noun.
+    const hits = await gateway.searchWorkspace("FP18");
+    const fact = hits.find((hit) => hit.source === "confirmed_fact")!;
+    expect(fact.label).not.toBe("Confirmed fact");
+    expect(fact.label).toBe("ORD → HND");
+  });
 });

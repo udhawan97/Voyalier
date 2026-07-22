@@ -477,6 +477,29 @@ pub fn fact_search_text(fact: &ConfirmedFact) -> String {
     fact_field_values(fact).join(" ")
 }
 
+/// How this fact identifies itself, using only the traveler's own data.
+///
+/// A search result headed "Confirmed fact" spent its one line saying what the
+/// interface already says beside it, instead of naming which flight or stay
+/// matched. This supplies the name. It returns `None` rather than a fallback
+/// noun, because the noun is prose and prose is the interface's job — this
+/// crate must not ship English that a Spanish reader would then see.
+pub fn fact_identity(fact: &ConfirmedFact) -> Option<String> {
+    let payload = &fact.payload;
+    match fact.fact_type {
+        FactType::FlightSegment => {
+            match (
+                payload.departure_airport_iata.as_deref(),
+                payload.arrival_airport_iata.as_deref(),
+            ) {
+                (Some(from), Some(to)) => Some(format!("{from} → {to}")),
+                _ => payload.flight_number.clone(),
+            }
+        }
+        FactType::LodgingStay => payload.property_name.clone(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -498,6 +521,36 @@ mod tests {
             confirmed_at: "2026-01-01T00:00:00Z".to_owned(),
             source_removed: false,
         }
+    }
+
+    #[test]
+    fn fact_identity_names_the_fact_with_the_traveler_s_own_data() {
+        // A search result headed "Confirmed fact" told the traveler nothing
+        // about *which* fact matched. The identifying data does.
+        let mut flight = fact("fact_2", "unused", "KYT042");
+        flight.fact_type = FactType::FlightSegment;
+        flight.payload.property_name = None;
+        flight.payload.departure_airport_iata = Some("SFO".to_owned());
+        flight.payload.arrival_airport_iata = Some("KIX".to_owned());
+        assert_eq!(fact_identity(&flight).as_deref(), Some("SFO → KIX"));
+
+        // A flight with no route falls back to its number.
+        flight.payload.departure_airport_iata = None;
+        flight.payload.arrival_airport_iata = None;
+        flight.payload.flight_number = Some("FP18".to_owned());
+        assert_eq!(fact_identity(&flight).as_deref(), Some("FP18"));
+
+        // Lodging is named by its property.
+        assert_eq!(
+            fact_identity(&fact("fact_1", "River Paper Inn", "RPI731")).as_deref(),
+            Some("River Paper Inn")
+        );
+
+        // Nothing identifying: None, so the interface supplies its own
+        // localized noun rather than this crate inventing English prose.
+        let mut bare = fact("fact_3", "unused", "X1");
+        bare.payload.property_name = None;
+        assert_eq!(fact_identity(&bare), None);
     }
 
     #[test]
