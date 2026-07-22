@@ -4,7 +4,7 @@
 
 **Goal:** Close the fifteen user-flow gaps reproduced in the 2026-07-21 browser audit of Voyalier 0.5.1, then ship 0.5.2.
 
-**Architecture:** Every fix lands at the narrowest shared level that owns the behaviour: the section nav learns to mount-then-scroll instead of trusting a one-shot anchor jump; planning writes join the existing `useAsyncAction` transport-health contract instead of hand-rolling a third error shape; instant timestamps get one shared formatter separate from the zoneless wall-clock formatter; and the default trip title stops being the only place in the product that spells an arrow in ASCII. No contract shapes change, so no ADR is required — `WorkspaceSearchHit.label` changes its *content* (product noun → the traveler's own identifying data), not its type.
+**Architecture:** Every fix lands at the narrowest shared level that owns the behaviour: the section nav learns to mount-then-scroll instead of trusting a one-shot anchor jump; planning writes join the existing `useAsyncAction` transport-health contract instead of hand-rolling a third error shape; instant timestamps get one shared formatter separate from the zoneless wall-clock formatter; and the default trip title stops being the only place in the product that spells an arrow in ASCII. No contract shapes change, so no ADR is required — `WorkspaceSearchHit.label` changes its _content_ (product noun → the traveler's own identifying data), not its type.
 
 **Tech Stack:** React 19 + TypeScript (`apps/web`), Rust (`voyalier-core`, `voyalier-app`), Vitest + Testing Library, Playwright.
 
@@ -27,6 +27,7 @@
 ### Task 1: Land the section nav where the chip points (gap 1, gap 10)
 
 **Files:**
+
 - Modify: `apps/web/src/components/DeferredSection.tsx`
 - Modify: `apps/web/src/views/TripDetailView.tsx:206-237`
 - Modify: `apps/web/src/styles.css` (`.voy-tripnav__chip`)
@@ -34,9 +35,10 @@
 - Test: `apps/web/src/flowFixes.test.tsx`
 
 **Interfaces:**
+
 - Produces: `MountAllContext` exported from `DeferredSection.tsx` as `{ mountAll: boolean }` via `DeferredMountProvider`; `useMountAllSections(): () => void`.
 
-The audit proved the anchor jump is one-shot: the browser scrolls to the placeholder's position, then placeholders *above* the target mount at full height and push the target ~1,700px further down. Forcing every section to mount before scrolling makes the landing deterministic. The cost — all four groups mount — is paid only when the traveler explicitly navigates, which is exactly when they want those sections.
+The audit proved the anchor jump is one-shot: the browser scrolls to the placeholder's position, then placeholders _above_ the target mount at full height and push the target ~1,700px further down. Forcing every section to mount before scrolling makes the landing deterministic. The cost — all four groups mount — is paid only when the traveler explicitly navigates, which is exactly when they want those sections.
 
 - [ ] **Step 1: Write the failing test** in `flowFixes.test.tsx`
 
@@ -67,8 +69,9 @@ it("lands the section nav on its target even when sections defer", async () => {
 
   fireEvent.click(screen.getByRole("link", { name: "AI" }));
   // The AI section's content must exist (forced mount) and be the scroll target.
-  expect(await screen.findByRole("heading", { name: "Preview an AI request" }))
-    .toBeInTheDocument();
+  expect(
+    await screen.findByRole("heading", { name: "Preview an AI request" }),
+  ).toBeInTheDocument();
   expect(scrolled).toContain("section-ai");
 
   Element.prototype.scrollIntoView = original;
@@ -85,7 +88,12 @@ Expected: FAIL — the AI heading never mounts because the observer never fires.
 
 ```tsx
 import {
-  createContext, useCallback, useContext, useEffect, useRef, useState,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
   type ReactNode,
 } from "react";
 
@@ -139,7 +147,9 @@ function TripSectionNav() {
       (entries) => {
         const visible = entries
           .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+          .sort(
+            (a, b) => a.boundingClientRect.top - b.boundingClientRect.top,
+          )[0];
         if (visible?.target.id) setCurrent(visible.target.id);
       },
       { rootMargin: "-20% 0px -70% 0px" },
@@ -224,11 +234,13 @@ git commit -m "Web+test: land the section nav where the chip points"
 ### Task 2: Report planning failures where they happen (gap 2)
 
 **Files:**
+
 - Modify: `apps/web/src/views/PlanningPanel.tsx:36-80,522-526`
 - Modify: `apps/web/src/app/i18n.ts` (add `planning.retry`)
 - Test: `apps/web/src/planningWorkflows.test.tsx`
 
 **Interfaces:**
+
 - Consumes: `useTransportHealth()` from `apps/web/src/app/context.ts`; `toAppError` from `apps/web/src/gateway/errors.ts`.
 
 `change()` is already the shared runner, so the fix stays inside it: report transport health (so the topbar cannot keep claiming "Ready" while the engine is unreachable), remember which key failed and how to retry it, then render the failure inside the section that owns that key instead of in one trailing slot for all three features.
@@ -242,7 +254,10 @@ it("surfaces a planning failure at its own section with a retry", async () => {
     failingGateway({
       addPackingItem: (input) =>
         fail
-          ? Promise.reject({ code: "transport/failure", message: "unreachable" })
+          ? Promise.reject({
+              code: "transport/failure",
+              message: "unreachable",
+            })
           : createMockGateway().addPackingItem(input),
     }),
   );
@@ -274,9 +289,11 @@ Expected: FAIL — the alert lives outside the packing section and has no Retry.
 
 ```tsx
 const transportHealth = useTransportHealth();
-const [failure, setFailure] = useState<
-  { key: string; message: string; retry: () => void } | null
->(null);
+const [failure, setFailure] = useState<{
+  key: string;
+  message: string;
+  retry: () => void;
+} | null>(null);
 
 async function change(key: string, action: () => Promise<unknown>) {
   setBusy(key);
@@ -309,9 +326,14 @@ Add above the return:
 ```tsx
 /** Which section a change key belongs to, so its failure renders there. */
 function sectionOf(key: string): "saved" | "packing" | "items" {
-  if (key.startsWith("notes:") || key.startsWith("delete-place:")) return "saved";
-  if (key.startsWith("suggestion:") || key.startsWith("packing:") ||
-      key.startsWith("delete-packing:")) return "packing";
+  if (key.startsWith("notes:") || key.startsWith("delete-place:"))
+    return "saved";
+  if (
+    key.startsWith("suggestion:") ||
+    key.startsWith("packing:") ||
+    key.startsWith("delete-packing:")
+  )
+    return "packing";
   return "items";
 }
 
@@ -351,11 +373,13 @@ git commit -m "Web+test: report planning failures where they happen"
 ### Task 3: Stamp retrieved evidence in the viewer's zone (gap 3)
 
 **Files:**
+
 - Modify: `apps/web/src/app/format.ts`
 - Modify: `apps/web/src/views/WeatherOutlook.tsx:27-31`, `TravelAdvice.tsx`, `DestinationFacts.tsx`, `PublicHolidays.tsx`, `AboutPlace.tsx`
 - Test: `apps/web/src/weather.test.tsx`
 
 **Interfaces:**
+
 - Produces: `formatInstant(iso: string): string` in `app/format.ts`.
 
 Two time species live in this codebase and only one was being served. A flight's `2026-10-12T11:05` is a wall-clock value local to its airport and must render verbatim — that is what `formatDateTimeLocal` is for, and it is correct. A snapshot's `2026-07-21T23:34:56Z` is an instant, and the five copied `formatStamp` helpers stripped the `Z` and fed it to the wall-clock formatter, printing UTC with a local clock's face.
@@ -367,8 +391,11 @@ it("stamps a retrieved snapshot in the viewer's timezone", () => {
   // 23:34Z is 18:34 in America/Chicago (CDT). The old helper printed 11:34 PM.
   const stamped = formatInstant("2026-07-21T23:34:56Z");
   const expected = new Intl.DateTimeFormat("en-US", {
-    year: "numeric", month: "short", day: "numeric",
-    hour: "numeric", minute: "2-digit",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   }).format(new Date("2026-07-21T23:34:56Z"));
   expect(stamped.replace(" · ", ", ")).toBe(expected.replace(" at ", ", "));
 });
@@ -432,6 +459,7 @@ git commit -m "Web+test: stamp retrieved evidence in the viewer's zone"
 ### Task 4: Refresh imported documents after an import (gap 4)
 
 **Files:**
+
 - Modify: `apps/web/src/views/TripDetailView.tsx` (import + review success paths)
 - Test: `apps/web/src/documents.test.tsx`
 
@@ -452,11 +480,12 @@ git commit -am "Web+test: refresh imported documents after an import"
 ### Task 5: Return focus when a dialog closes (gap 5, gap 15)
 
 **Files:**
+
 - Modify: `apps/web/src/components/Dialog.tsx:69-106`
 - Modify: `apps/web/src/styles.css` (`.voy-dialog`)
 - Test: `apps/web/src/flowFixes.test.tsx`
 
-Two layers: the trigger can be unmounted by the very action that closed the dialog (real in any build), and StrictMode's replayed mount effect re-captures `previouslyFocused` *after* the dialog moved focus inside itself (dev only). Capture once per open, and add a last-resort target so focus never lands on `<body>`.
+Two layers: the trigger can be unmounted by the very action that closed the dialog (real in any build), and StrictMode's replayed mount effect re-captures `previouslyFocused` _after_ the dialog moved focus inside itself (dev only). Capture once per open, and add a last-resort target so focus never lands on `<body>`.
 
 - [ ] **Step 1: Write the failing test** — create a trip from the empty state, submit, assert `document.activeElement` is not `document.body`.
 - [ ] **Step 2: Run it and watch it fail.**
@@ -479,9 +508,11 @@ In the cleanup, fall back through explicit ref → captured trigger → `#main`:
 ```tsx
 const main = document.getElementById("main");
 const target =
-  explicit?.isConnected === true ? explicit
-  : previouslyFocusedRef.current?.isConnected === true ? previouslyFocusedRef.current
-  : main;
+  explicit?.isConnected === true
+    ? explicit
+    : previouslyFocusedRef.current?.isConnected === true
+      ? previouslyFocusedRef.current
+      : main;
 if (target === main && main) main.setAttribute("tabindex", "-1");
 target?.focus();
 ```
@@ -520,6 +551,7 @@ git commit -am "Web+test: return focus when a dialog closes"
 ### Task 6: Distinguish the settings icon from the theme sun (gap 6)
 
 **Files:**
+
 - Modify: `apps/web/src/components/icons.tsx:222-227`
 
 `GearIcon` is a circle with eight radial ticks; `SunIcon` is a circle with eight radial rays. On the phone topbar the labels drop and the row reads sun, monitor, moon, sun.
@@ -547,6 +579,7 @@ git commit -am "Web: distinguish the settings icon from the theme sun"
 ### Task 7: Name default trips with the display arrow (gap 7)
 
 **Files:**
+
 - Modify: `crates/voyalier-core/src/types.rs:788`
 - Test: `crates/voyalier-core/src/tests.rs:138`
 
@@ -570,6 +603,7 @@ git commit -am "Core+test: name default trips with the display arrow"
 ### Task 8: Clear a field error when the field becomes valid (gap 8)
 
 **Files:**
+
 - Modify: `apps/web/src/views/CreateTripDialog.tsx`
 - Test: `apps/web/src/flowFixes.test.tsx`
 
@@ -603,6 +637,7 @@ git commit -am "Web+test: clear a field error when the field becomes valid"
 ### Task 9: Show one engine-unreachable banner (gap 9)
 
 **Files:**
+
 - Modify: `apps/web/src/views/TripDetailView.tsx` (load-error branch)
 - Modify: `apps/web/src/App.tsx` (pass health down) or read it from context
 - Test: `apps/web/src/errorStates.test.tsx`
@@ -625,11 +660,12 @@ git commit -am "Web+test: show one engine-unreachable banner"
 ### Task 10: Name what a search result actually is (gap 11)
 
 **Files:**
+
 - Modify: `crates/voyalier-app/src/lib.rs:2372-2388`
 - Modify: `apps/web/src/views/WorkspaceSearch.tsx:12-18`
 - Test: `crates/voyalier-app/src/lib.rs` (inline tests)
 
-The snippet showing raw indexed text is *correct* — it is the matching evidence, the same instinct as the review dialog's quoted spans, and it must stay searchable by `2026-10-12`. The defect is the title: every flight and stay was headed "Confirmed fact". Carry the traveler's own identifying data in `label` instead of a product noun; the localized noun already renders on the next line.
+The snippet showing raw indexed text is _correct_ — it is the matching evidence, the same instinct as the review dialog's quoted spans, and it must stay searchable by `2026-10-12`. The defect is the title: every flight and stay was headed "Confirmed fact". Carry the traveler's own identifying data in `label` instead of a product noun; the localized noun already renders on the next line.
 
 - [ ] **Step 1: Write the failing Rust test** — a confirmed flight's hit label is `"SFO → KIX"`, a stay's is its property name.
 - [ ] **Step 2: Run it and watch it fail.** Run: `cargo test -p voyalier-app -- search_workspace`
@@ -657,6 +693,7 @@ git commit -am "App+web+test: name what a search result actually is"
 ### Task 11: Make the conflict card and empty state navigable (gap 12, gap 13, gap 14)
 
 **Files:**
+
 - Modify: `apps/web/src/views/TripDetailView.tsx` (`ScheduleCheck`)
 - Modify: `apps/web/src/views/TripListView.tsx` (empty state, archive)
 - Modify: `apps/web/src/app/i18n.ts`
@@ -680,6 +717,7 @@ git commit -am "Web+test: make conflicts, the sample hint, and archive recoverab
 ### Task 12: Verify the whole gate, then release 0.5.2
 
 **Files:**
+
 - Modify: `package.json`, `Cargo.toml`, `apps/web/package.json`, `apps/desktop/src-tauri/tauri.conf.json`
 - Modify: `CHANGELOG.md`
 - Modify: `README.md` if any claim changed

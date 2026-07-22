@@ -971,8 +971,6 @@ const en = {
     "Confirm or dismiss what Voyalier found in your documents.",
   "detail.offlinePlaceholder":
     "This trip will load once Voyalier can reach its engine.",
-  "detail.offlinePlaceholder":
-    "Este viaje se cargará cuando Voyalier pueda comunicarse con su motor.",
   "detail.nopending": "No suggestions waiting. Import a document to find more.",
   "detail.blueprint": "Blueprint",
   "detail.blueprint.sub": "Your confirmed flights and stays, in order.",
@@ -2166,6 +2164,8 @@ const es: Record<MessageKey, string> = {
   "detail.delete": "Eliminar",
   "detail.pending.desc":
     "Confirma o descarta lo que Voyalier encontró en tus documentos.",
+  "detail.offlinePlaceholder":
+    "Este viaje se cargará cuando Voyalier pueda comunicarse con su motor.",
   "detail.nopending":
     "No hay sugerencias pendientes. Importa un documento para encontrar más.",
   "detail.blueprint": "Blueprint",

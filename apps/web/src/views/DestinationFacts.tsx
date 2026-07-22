@@ -9,7 +9,7 @@ import type {
 } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
-import { describeError, formatDate, formatDateTimeLocal, formatInstant } from "../app/format";
+import { describeError, formatDate, formatInstant } from "../app/format";
 import { t } from "../app/i18n";
 import { APP_LOCALE } from "../app/locale";
 import { SectionTitle } from "../components/primitives";

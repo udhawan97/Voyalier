@@ -118,7 +118,7 @@ export function PlanningPanel({
    * failed packing add produced a red line floating below the activities form,
    * owned by nothing.
    */
-  function FailureNote({ area }: { area: PlanningArea }) {
+  function renderFailure(area: PlanningArea) {
     if (!failure || areaOf(failure.key) !== area) return null;
     return (
       <p role="alert" className="voy-planning__error">
@@ -232,7 +232,7 @@ export function PlanningPanel({
             ))}
           </ul>
         )}
-        <FailureNote area="saved" />
+        {renderFailure("saved")}
       </section>
 
       <section aria-labelledby="packing-checklist-title">
@@ -386,7 +386,7 @@ export function PlanningPanel({
             </li>
           ))}
         </ul>
-        <FailureNote area="packing" />
+        {renderFailure("packing")}
       </section>
 
       <section aria-labelledby="manual-plan-title">
@@ -570,7 +570,7 @@ export function PlanningPanel({
             </li>
           ))}
         </ul>
-        <FailureNote area="items" />
+        {renderFailure("items")}
       </section>
     </div>
   );

@@ -1,7 +1,7 @@
 import type { PlaceSummary } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
-import { describeError, formatDateTimeLocal, formatInstant } from "../app/format";
+import { describeError, formatInstant } from "../app/format";
 import { t } from "../app/i18n";
 import { SectionTitle } from "../components/primitives";
 import { FileTextIcon } from "../components/icons";

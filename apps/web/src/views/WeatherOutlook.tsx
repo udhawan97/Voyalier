@@ -7,7 +7,7 @@ import type {
 } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
-import { describeError, formatDate, formatDateTimeLocal, formatInstant } from "../app/format";
+import { describeError, formatDate, formatInstant } from "../app/format";
 import { t } from "../app/i18n";
 import { useAsyncAction } from "../app/useAsync";
 import { SectionTitle } from "../components/primitives";

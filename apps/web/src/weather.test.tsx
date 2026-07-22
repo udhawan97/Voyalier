@@ -26,7 +26,9 @@ describe("retrieved-evidence timestamps", () => {
     // Vacuous on a UTC runner, where the two genuinely agree — and load-bearing
     // everywhere else, which is where the defect was reproduced.
     if (new Date(iso).getTimezoneOffset() === 0) return;
-    expect(formatInstant(iso)).not.toBe(formatDateTimeLocal("2026-07-21T23:34"));
+    expect(formatInstant(iso)).not.toBe(
+      formatDateTimeLocal("2026-07-21T23:34"),
+    );
   });
 
   it("leaves a zoneless flight time unshifted", () => {
@@ -37,7 +39,6 @@ describe("retrieved-evidence timestamps", () => {
     expect(formatInstant("not a date")).toBe("not a date");
   });
 });
-
 
 /**
  * The weather outlook is fetched on an explicit click, names exactly what
