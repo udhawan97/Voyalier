@@ -6,6 +6,80 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-07-21 — The audited-journey release
+
+A browser audit walked Voyalier's primary flows end to end — first run, import
+and review, planning, preparation, sharing, search, and the trip lifecycle — at
+three widths in both themes, with the engine deliberately killed mid-task. It
+found fifteen gaps and no blockers: nothing lost work or trapped the traveler.
+What it did find was the product being less truthful and less findable than it
+means to be. All fifteen are fixed here.
+
+### Fixed
+
+- **The trip page's jump chips now land where they point.** Clicking "AI" on a
+  freshly opened trip stopped roughly 1,700 px short, inside Prepare, because a
+  native anchor jump is decided once and the deferred sections above the target
+  then mounted and pushed it down. Chips now mount every section, wait for
+  layout to settle, and then scroll, so the first click is exact. Deferral still
+  covers the idle case — it is abandoned only once the traveler has said where
+  they want to go, which means those sections load earlier than before when a
+  chip is used. The chips also gained a current-section state.
+- **A planning action that fails while the engine is unreachable now says so
+  where it happened.** Adding a packing item against a dead engine left the
+  topbar reading "Ready", put a bare red line below every planning card owned by
+  nothing, and offered no retry. Saved places, the packing checklist, and
+  activities now report through the same transport-health path as the rest of
+  the app, and each shows its own failure with a Retry beside the control that
+  caused it. Typed input survived a failure before and still does. The two
+  assist panels report their own failures the old way and were left alone;
+  folding them in would have widened this past what the audit reproduced.
+- **Retrieved evidence is stamped on your clock, not UTC's.** A snapshot fetched
+  at 6:34 PM in Chicago read "Retrieved … 11:34 PM", and an evening import was
+  dated tomorrow. Eight places had each re-derived the same date handling from
+  an RFC3339 instant; they now share one formatter that converts to the viewer's
+  timezone. Flight times are a different kind of value — a departure is local to
+  its airport — and are untouched.
+- **Imported documents appear the moment they are imported.** The panel that
+  exists so you can check what Voyalier read kept its old contents until a
+  reload, even as the suggestion count and readiness updated around it.
+- **Closing a dialog no longer strands the keyboard.** Focus could land on the
+  page body — restarting a keyboard user from the top — when the button that
+  opened the dialog was removed by the same action that closed it.
+- **Long dialogs keep their buttons on screen.** On a phone, the import sheet
+  ran past the bottom of the viewport with Cancel and Import both below the
+  fold; the sheet now scrolls inside itself with the actions pinned.
+- **Settings no longer looks like the light-theme button.** Its icon was a
+  circle with eight radial ticks sitting beside a sun that was a circle with
+  eight radial rays; on a phone, where the labels drop away, the row ended in
+  two suns.
+- **New trips are named with the same arrow the app draws.** The default title
+  was stored as "A -> B" and displayed one line above the route "A → B". Trips
+  created before this update keep the titles they were given: renaming saved
+  data to fix our own punctuation is the worse trade.
+- **A field stops arguing once you have answered it.** After a failed submit,
+  "Enter where the trip starts." stayed under a field already holding a city
+  name until the next submit. Fields that have not been submitted yet still stay
+  quiet while you type.
+- **One banner when the engine is unreachable, not two.** The workspace and the
+  trip view were each rendering the same message and their own Retry.
+- **A search result names the flight or stay it found**, instead of heading
+  every one of them "Confirmed fact". The excerpt below it still shows the raw
+  matched text — that is the evidence for why the result matched, and it has to
+  keep matching a date typed into the search box.
+- **A schedule conflict links to the plans it names**, rather than naming two
+  flights and leaving you to find them.
+- **Archiving a trip offers Undo**, instead of only a reveal toggle at the foot
+  of the list discovered after the card has already vanished.
+- **The made-up-data note sits with the sample trip it describes**, not under
+  the sentence about creating your own.
+
+### Notes
+
+The audit covered the browser surface. The packaged desktop shell, the vault
+passphrase journey, city-pack downloads, and the AI provider flows were not
+exercised and are unchanged here.
+
 ## [0.5.1] - 2026-07-21 — The calm-flow reliability release
 
 ### Fixed
