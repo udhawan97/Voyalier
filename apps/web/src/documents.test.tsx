@@ -113,4 +113,32 @@ describe("imported documents", () => {
     );
     expect(await within(region).findByRole("alert")).toBeInTheDocument();
   });
+
+  // The audit's gap #4: the panel that answers "check what it read" kept its
+  // empty state right after the one action that feeds it. The scope existed and
+  // this panel already subscribed to it; the import path just never bumped it.
+  it("lists a document as soon as it is imported, without a reload", async () => {
+    const documents = await openDocuments();
+    expect(within(documents).queryByText("Ryokan booking")).toBeNull();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Import" })[0]);
+    const dialog = await screen.findByRole("dialog", {
+      name: "Import a document",
+    });
+    fireEvent.change(within(dialog).getByLabelText("Label (optional)"), {
+      target: { value: "Ryokan booking" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Content"), {
+      target: { value: "Confirmation KYT042\nRoute: SFO-KIX" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Import" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Done" }));
+
+    const panel = await screen.findByRole("region", {
+      name: "Imported documents",
+    });
+    expect(
+      await within(panel).findByText("Ryokan booking"),
+    ).toBeInTheDocument();
+  });
 });

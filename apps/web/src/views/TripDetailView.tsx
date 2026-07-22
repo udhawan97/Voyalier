@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   CandidateFact,
   ConfirmedFact,
@@ -25,7 +25,12 @@ import {
 } from "../app/format";
 import { buildIcs, icsFilename } from "../app/ics";
 import { plural, t, type MessageKey, type PluralBase } from "../app/i18n";
-import { tripScope, useRevalidate, useScopeKey } from "../app/revalidate";
+import {
+  documentsScope,
+  tripScope,
+  useRevalidate,
+  useScopeKey,
+} from "../app/revalidate";
 import { useAsyncAction, useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
@@ -567,6 +572,17 @@ export function TripDetailView({
     },
     useScopeKey(tripScope(tripId)),
   );
+  /**
+   * Everything an import changes.
+   *
+   * `reload()` alone refreshes this view's own query, which is why the
+   * candidate count and readiness updated while the documents panel kept
+   * insisting nothing had been imported: it reads its own scope, and nobody
+   * told that scope anything had happened.
+   */
+  const refreshAfterImport = useCallback(() => {
+    revalidate(tripScope(tripId), documentsScope(tripId));
+  }, [revalidate, tripId]);
   const searchTargetConsumed = useRef(false);
   const sectionHashConsumed = useRef(false);
   const reviewTriggerRef = useRef<HTMLElement | null>(null);
@@ -1059,11 +1075,15 @@ export function TripDetailView({
           <ImportDialog
             tripId={tripId}
             onClose={() => setShowImport(false)}
-            onImported={() => reload()}
+            onImported={() => {
+              reload();
+              refreshAfterImport();
+            }}
             onReview={(candidates) => {
               setShowImport(false);
               setReviewCandidates(candidates);
               reload();
+              refreshAfterImport();
             }}
           />
         ) : null}
@@ -1088,7 +1108,10 @@ export function TripDetailView({
           <CandidateReviewDialog
             candidates={reviewCandidates}
             onClose={() => setReviewCandidates(null)}
-            onResolved={() => reload()}
+            onResolved={() => {
+              reload();
+              refreshAfterImport();
+            }}
             returnFocusRef={reviewTriggerRef}
             completionFocusRef={reviewCompletionFocusRef}
           />
