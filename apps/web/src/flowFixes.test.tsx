@@ -228,4 +228,72 @@ describe("User-flow gap fixes", () => {
       ).toBeNull(),
     );
   });
+
+  // Gap #13: the conflict card named both flights and then made the traveler
+  // go find them.
+  it("jumps from a named conflict to the fact it names", async () => {
+    const gateway = createMockGateway();
+    // The seeded trip's only conflict is a lodging gap, which names no facts —
+    // and correctly offers nothing to jump to. Overlap two flights so there is
+    // a conflict that does name them.
+    await gateway.addManualFact({
+      tripId: "trip_kyoto",
+      factType: "flight_segment",
+      payload: {
+        airlineName: "Fictional Air",
+        flightNumber: "FA123",
+        departureAirportIata: "HND",
+        arrivalAirportIata: "ITM",
+        departureLocal: "2026-11-03T13:00",
+        arrivalLocal: "2026-11-03T14:10",
+      },
+    });
+    renderApp(gateway);
+    await openKyoto();
+
+    const schedule = await screen.findByRole("region", {
+      name: /Schedule check/,
+    });
+    const jump = within(schedule).getAllByRole("button")[0];
+    fireEvent.click(jump);
+
+    await waitFor(() =>
+      expect(document.activeElement?.getAttribute("data-search-source")).toBe(
+        "confirmed_fact",
+      ),
+    );
+  });
+
+  // Gap #14: archiving vanished the trip with recovery only via a subtle
+  // toggle at the foot of the list.
+  it("offers an undo right after archiving a trip", async () => {
+    renderApp(createMockGateway());
+    const card = (
+      await screen.findByRole("button", { name: "Open Kyoto autumn journey" })
+    ).closest("article") as HTMLElement;
+    fireEvent.click(within(card).getByRole("button", { name: "Archive" }));
+
+    const undo = await screen.findByRole("button", { name: "Undo" });
+    fireEvent.click(undo);
+
+    expect(
+      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Undo" })).toBeNull(),
+    );
+  });
+
+  // Gap #12: the sample-data disclaimer sat under "create a trip to begin",
+  // reading as though creating a trip made up data.
+  it("attaches the made-up-data note to the sample button", async () => {
+    renderApp(failingGateway({ listTrips: () => Promise.resolve([]) }));
+    const sample = await screen.findByRole("button", {
+      name: "Explore a sample trip",
+    });
+    const hint = screen.getByText(/Made-up data you can delete/);
+
+    // The note belongs to the action it describes, not to the body copy.
+    expect(sample.closest("div")).toContainElement(hint);
+  });
 });

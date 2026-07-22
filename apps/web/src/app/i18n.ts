@@ -138,6 +138,7 @@ const en = {
   "health.online": "Ready",
   "health.offline": "Offline",
   "action.retry": "Retry",
+  "action.undo": "Undo",
   "action.cancel": "Cancel",
   "confirm.arm": "{label} — sure?",
 
@@ -187,6 +188,7 @@ const en = {
   "triplist.announce.created": "Trip created: {title}.",
   "triplist.announce.deleted": "{title} deleted.",
   "triplist.hideArchived": "Hide archived",
+  "triplist.archived": "Archived “{title}”.",
   "triplist.allArchived":
     "No active trips — your trips are archived. Show them below to reopen one.",
   "tripcard.open": "Open {title}",
@@ -1035,6 +1037,7 @@ const en = {
   "schedule.title": "Schedule check",
   "schedule.clear": "No schedule conflicts found in your confirmed plans.",
   "schedule.conflict": "Conflict",
+  "schedule.jumpToFact": "Go to {subject}",
   "schedule.notice": "Notice",
   // The core reports which facts a finding is about and how they are
   // identified; the sentence is built here. A flight number and a property
@@ -1355,6 +1358,7 @@ const es: Record<MessageKey, string> = {
   "health.online": "Listo",
   "health.offline": "Sin conexión",
   "action.retry": "Reintentar",
+  "action.undo": "Deshacer",
   "action.cancel": "Cancelar",
   "confirm.arm": "{label} — ¿estás seguro?",
   "deleteTrip.title": "¿Eliminar este viaje?",
@@ -1401,6 +1405,7 @@ const es: Record<MessageKey, string> = {
   "triplist.announce.created": "Viaje creado: {title}.",
   "triplist.announce.deleted": "{title} eliminado.",
   "triplist.hideArchived": "Ocultar archivados",
+  "triplist.archived": "«{title}» archivado.",
   "triplist.allArchived":
     "No hay viajes activos — tus viajes están archivados. Muéstralos abajo para reabrir uno.",
   "tripcard.open": "Abrir {title}",
@@ -2219,6 +2224,7 @@ const es: Record<MessageKey, string> = {
   "schedule.title": "Revisión de horario",
   "schedule.clear": "No se encontraron conflictos en tus planes confirmados.",
   "schedule.conflict": "Conflicto",
+  "schedule.jumpToFact": "Ir a {subject}",
   "schedule.notice": "Aviso",
   "schedule.label.flight_number": "Vuelo {number}",
   "schedule.label.flight_route": "Vuelo {from}→{to}",

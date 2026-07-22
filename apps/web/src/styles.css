@@ -4512,3 +4512,30 @@ body::before {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* Undo lives with the thing it undoes, not at the foot of the list behind a
+   reveal toggle. */
+.voy-triplist__undo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius);
+  background: var(--voy-surface);
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+}
+
+/* The made-up-data note belongs to the sample action it describes. */
+.voy-empty__sample {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.voy-schedule__jump {
+  margin-left: 0.5rem;
+}

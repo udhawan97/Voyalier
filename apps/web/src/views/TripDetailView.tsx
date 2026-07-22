@@ -483,6 +483,21 @@ function ScheduleCheck({ conflicts }: { conflicts: ItineraryConflict[] }) {
     }
   }
 
+  /**
+   * Put a named fact on screen and in focus.
+   *
+   * The same landing mechanism a search result uses, reused rather than
+   * reinvented: the Blueprint cards already carry the data attributes.
+   */
+  function focusFact(factId: string) {
+    const card = document.querySelector<HTMLElement>(
+      `[data-search-source="confirmed_fact"][data-search-record="${CSS.escape(factId)}"]`,
+    );
+    if (!card) return;
+    card.scrollIntoView?.({ block: "center" });
+    card.focus({ preventScroll: true });
+  }
+
   /** Turn a finding into the sentence a traveler reads. */
   function conflictSentence(conflict: ItineraryConflict): string {
     const [first, second] = conflict.subjects.map(conflictSubject);
@@ -538,6 +553,23 @@ function ScheduleCheck({ conflicts }: { conflicts: ItineraryConflict[] }) {
                   : t("schedule.notice")}
               </span>
               {conflictSentence(conflict)}
+              {/* Naming both facts and then leaving the traveler to scroll back
+                  and find them is half a tool. The conflict knows their ids. */}
+              {conflict.factIds.map((factId, index) => (
+                <button
+                  key={factId}
+                  type="button"
+                  className="voy-linkbtn voy-schedule__jump"
+                  onClick={() => focusFact(factId)}
+                >
+                  {t("schedule.jumpToFact", {
+                    subject:
+                      conflict.subjects[index] !== undefined
+                        ? conflictSubject(conflict.subjects[index])
+                        : String(index + 1),
+                  })}
+                </button>
+              ))}
             </span>
           </li>
         ))}
