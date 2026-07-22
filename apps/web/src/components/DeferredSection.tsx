@@ -1,4 +1,47 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+
+const MountAllContext = createContext(false);
+const MountAllSetterContext = createContext<(() => void) | null>(null);
+
+/**
+ * Lets one control announce "mount every deferred section now".
+ *
+ * Deferral is an idle-time optimisation, and a traveler who clicks a jump chip
+ * has said they want that part of the page. Mounting on demand is what makes
+ * the jump land: sections *above* the target can no longer grow from
+ * placeholder to full height after the browser has already chosen where to
+ * stop scrolling.
+ */
+export function DeferredMountProvider({ children }: { children: ReactNode }) {
+  const [mountAll, setMountAll] = useState(false);
+  const mountAllSections = useCallback(() => setMountAll(true), []);
+  return (
+    <MountAllContext.Provider value={mountAll}>
+      <MountAllSetterContext.Provider value={mountAllSections}>
+        {children}
+      </MountAllSetterContext.Provider>
+    </MountAllContext.Provider>
+  );
+}
+
+/**
+ * Mount every deferred section under the nearest provider.
+ *
+ * A no-op outside a provider, so a section can still be rendered on its own
+ * (a test, or a future screen that has no jump nav) without a crash.
+ */
+export function useMountAllSections(): () => void {
+  const setter = useContext(MountAllSetterContext);
+  return useCallback(() => setter?.(), [setter]);
+}
 
 /**
  * Mount a section only once it is near the viewport.
@@ -28,12 +71,13 @@ export function DeferredSection({
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const mountAll = useContext(MountAllContext);
   const [shown, setShown] = useState(
     () => typeof IntersectionObserver === "undefined",
   );
 
   useEffect(() => {
-    if (shown) return;
+    if (shown || mountAll) return;
     const node = ref.current;
     if (!node) return;
     const observer = new IntersectionObserver(
@@ -48,9 +92,9 @@ export function DeferredSection({
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [shown]);
+  }, [shown, mountAll]);
 
-  if (shown) return <div id={id}>{children}</div>;
+  if (shown || mountAll) return <div id={id}>{children}</div>;
   // Deliberately NOT aria-hidden. This element is the section nav's jump target,
   // and hiding it from assistive tech would make those chips silently fail for
   // screen-reader users while appearing to work for everyone else. It is an

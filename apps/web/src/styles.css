@@ -4425,6 +4425,23 @@ body::before {
   border-color: var(--voy-line-strong);
 }
 
+/* Where you are. Weight and border carry it as well as fill, so the state
+   survives a forced-colors mode that discards the background. */
+.voy-tripnav__chip[aria-current="true"] {
+  color: var(--voy-ink);
+  border-color: var(--voy-ink);
+  background: var(--voy-surface);
+  font-weight: 600;
+}
+
+/* The most-used control on the longest page: comfortable to tap, not merely
+   large enough to pass. */
+@media (pointer: coarse) {
+  .voy-tripnav__chip {
+    padding: 0.55rem 0.9rem;
+  }
+}
+
 /* Keep a jumped-to section clear of the sticky nav above it. These are the
    section wrappers, which exist whether or not the section has mounted. */
 #section-plan,
