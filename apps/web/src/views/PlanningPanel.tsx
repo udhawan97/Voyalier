@@ -7,7 +7,7 @@ import type {
   TripItemKind,
 } from "@voyalier/contracts";
 
-import { useAnnounce, useGateway } from "../app/context";
+import { useAnnounce, useGateway, useTransportHealth } from "../app/context";
 import { describeError, formatDateTimeLocal } from "../app/format";
 import { t, type MessageKey } from "../app/i18n";
 import { Button } from "../components/Button";
@@ -15,6 +15,26 @@ import { ConfirmButton } from "../components/ConfirmButton";
 import { CheckIcon, PlusIcon } from "../components/icons";
 import { SectionTitle } from "../components/primitives";
 import { toAppError } from "../gateway/errors";
+
+/** The three features this panel holds; a failure belongs to exactly one. */
+type PlanningArea = "saved" | "packing" | "items";
+
+type Failure = { key: string; message: string; retry: () => void };
+
+/** Which feature a change key belongs to, so its failure renders there. */
+function areaOf(key: string): PlanningArea {
+  if (key.startsWith("notes:") || key.startsWith("delete-place:")) {
+    return "saved";
+  }
+  if (
+    key.startsWith("suggestion:") ||
+    key.startsWith("packing:") ||
+    key.startsWith("delete-packing:")
+  ) {
+    return "packing";
+  }
+  return "items";
+}
 
 type Props = {
   tripId: string;
@@ -35,8 +55,9 @@ export function PlanningPanel({
 }: Props) {
   const gateway = useGateway();
   const announce = useAnnounce();
+  const transportHealth = useTransportHealth();
   const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<Failure | null>(null);
   const [customPacking, setCustomPacking] = useState("");
   const [titleError, setTitleError] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -68,15 +89,45 @@ export function PlanningPanel({
 
   async function change(key: string, action: () => Promise<unknown>) {
     setBusy(key);
-    setError(null);
+    setFailure(null);
     try {
       await action();
+      // The same contract every other view honours through `useAsyncAction`: a
+      // success is evidence the engine is reachable.
+      transportHealth.reportTransportSuccess();
       onChanged();
     } catch (caught) {
-      setError(describeError(toAppError(caught)).title);
+      const error = toAppError(caught);
+      // Without this the topbar went on reading "Ready" while the engine was
+      // gone, and the app-level banner and its Retry never appeared at all.
+      transportHealth.reportTransportFailure(error);
+      setFailure({
+        key,
+        message: describeError(error).title,
+        retry: () => void change(key, action),
+      });
     } finally {
       setBusy(null);
     }
+  }
+
+  /**
+   * The failure, rendered by the section whose control caused it.
+   *
+   * All three features used to share one error slot after the last card, so a
+   * failed packing add produced a red line floating below the activities form,
+   * owned by nothing.
+   */
+  function FailureNote({ area }: { area: PlanningArea }) {
+    if (!failure || areaOf(failure.key) !== area) return null;
+    return (
+      <p role="alert" className="voy-planning__error">
+        {failure.message}{" "}
+        <Button variant="ghost" onClick={failure.retry}>
+          {t("planning.retry")}
+        </Button>
+      </p>
+    );
   }
 
   const acceptedCodes = new Set(
@@ -181,6 +232,7 @@ export function PlanningPanel({
             ))}
           </ul>
         )}
+        <FailureNote area="saved" />
       </section>
 
       <section aria-labelledby="packing-checklist-title">
@@ -334,6 +386,7 @@ export function PlanningPanel({
             </li>
           ))}
         </ul>
+        <FailureNote area="packing" />
       </section>
 
       <section aria-labelledby="manual-plan-title">
@@ -517,13 +570,8 @@ export function PlanningPanel({
             </li>
           ))}
         </ul>
+        <FailureNote area="items" />
       </section>
-
-      {error ? (
-        <p role="alert" className="voy-planning__error">
-          {error}
-        </p>
-      ) : null}
     </div>
   );
 }

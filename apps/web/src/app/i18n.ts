@@ -550,6 +550,7 @@ const en = {
   "planning.saved.addToPlanLabel": "Add {name} to plan",
   "planning.saved.saveNotesLabel": "Save notes for {name}",
   "planning.remove": "Remove",
+  "planning.retry": "Retry",
   "planning.removeNamed": "Remove {name}",
   "planning.packing.title": "Packing checklist",
   "planning.packing.intro":
@@ -1751,6 +1752,7 @@ const es: Record<MessageKey, string> = {
   "planning.saved.addToPlanLabel": "Añadir {name} al plan",
   "planning.saved.saveNotesLabel": "Guardar notas de {name}",
   "planning.remove": "Quitar",
+  "planning.retry": "Reintentar",
   "planning.removeNamed": "Eliminar {name}",
   "planning.packing.title": "Lista de equipaje",
   "planning.packing.intro":
