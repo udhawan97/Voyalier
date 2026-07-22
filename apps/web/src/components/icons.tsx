@@ -219,9 +219,16 @@ export const FileTextIcon = (p: SVGProps<SVGSVGElement>) => (
   </Base>
 );
 
+/*
+ * A cog, drawn with teeth rather than spokes.
+ *
+ * The previous mark was a circle with eight radial ticks, which is the same
+ * drawing as SunIcon with a smaller radius. On the phone topbar the labels drop
+ * and the controls became: sun, monitor, moon — and then Settings, another sun.
+ */
 export const GearIcon = (p: SVGProps<SVGSVGElement>) => (
   <Base {...p}>
-    <circle cx="12" cy="12" r="3.2" />
-    <path d="M12 2.5v2.2M12 19.3v2.2M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6" />
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.3 14.5a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5v.2a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3h.1a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5 1h.2a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z" />
   </Base>
 );
