@@ -7,7 +7,7 @@ import type {
 } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
-import { describeError, formatDate, formatDateTimeLocal } from "../app/format";
+import { describeError, formatDate, formatDateTimeLocal, formatInstant } from "../app/format";
 import { t } from "../app/i18n";
 import { useAsyncAction } from "../app/useAsync";
 import { SectionTitle } from "../components/primitives";
@@ -21,13 +21,6 @@ function hoursSince(iso: string): number | null {
   const parsed = Date.parse(iso);
   if (Number.isNaN(parsed)) return null;
   return Math.floor((Date.now() - parsed) / 3_600_000);
-}
-
-/** "2026-11-01T09:30:00Z" → "Nov 1, 2026 · 09:30" without timezone games. */
-function formatStamp(iso: string): string {
-  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(iso);
-  if (!match) return iso;
-  return formatDateTimeLocal(`${match[1]}T${match[2]}`);
 }
 
 /** UV and air-quality chips for one day; silent when the readings are absent. */
@@ -268,7 +261,7 @@ export function WeatherOutlook({
             CC BY 4.0
             <span aria-hidden="true"> · </span>
             {t("weather.retrieved", {
-              stamp: formatStamp(snapshot.retrievedAt),
+              stamp: formatInstant(snapshot.retrievedAt),
             })}
           </p>
           {snapshot.alerts.length > 0 ? (

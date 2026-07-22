@@ -2,6 +2,42 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
 
 import { renderApp } from "./test/helpers";
+import { APP_LOCALE, formatDateTimeLocal, formatInstant } from "./app/format";
+
+/**
+ * Retrieved-evidence stamps are *instants* — a moment the fetch happened — and
+ * must be shown on the traveler's own clock. Flight times are a different
+ * species: zoneless wall-clock contract values that must never shift. The audit
+ * found the first being rendered with the formatter built for the second, so a
+ * 6:34 PM fetch in America/Chicago was stamped 11:34 PM.
+ */
+describe("retrieved-evidence timestamps", () => {
+  const iso = "2026-07-21T23:34:56Z";
+
+  it("shows an instant on the viewer's clock", () => {
+    const localClock = new Intl.DateTimeFormat(APP_LOCALE, {
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(new Date(iso));
+    expect(formatInstant(iso)).toContain(localClock);
+  });
+
+  it("does not print the UTC clock face west of UTC", () => {
+    // Vacuous on a UTC runner, where the two genuinely agree — and load-bearing
+    // everywhere else, which is where the defect was reproduced.
+    if (new Date(iso).getTimezoneOffset() === 0) return;
+    expect(formatInstant(iso)).not.toBe(formatDateTimeLocal("2026-07-21T23:34"));
+  });
+
+  it("leaves a zoneless flight time unshifted", () => {
+    expect(formatDateTimeLocal("2026-10-12T11:05")).toContain("11:05");
+  });
+
+  it("returns unparseable input verbatim", () => {
+    expect(formatInstant("not a date")).toBe("not a date");
+  });
+});
+
 
 /**
  * The weather outlook is fetched on an explicit click, names exactly what

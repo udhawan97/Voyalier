@@ -1,20 +1,13 @@
 import type { PublicHolidaysSnapshot } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
-import { describeError, formatDate, formatDateTimeLocal } from "../app/format";
+import { describeError, formatDate, formatDateTimeLocal, formatInstant } from "../app/format";
 import { t } from "../app/i18n";
 import { SectionTitle } from "../components/primitives";
 import { CalendarIcon } from "../components/icons";
 import { useAsyncAction } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
-
-/** "2026-07-17T09:30:00Z" → "Jul 17, 2026 · 09:30" without timezone games. */
-function formatStamp(iso: string): string {
-  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(iso);
-  if (!match) return iso;
-  return formatDateTimeLocal(`${match[1]}T${match[2]}`);
-}
 
 /**
  * The public-holidays panel: the destination country's public holidays that
@@ -39,7 +32,7 @@ export function PublicHolidays({
     () => gateway.fetchPublicHolidays(tripId),
     (fetched) => {
       announce(
-        t("holidays.retrieved", { stamp: formatStamp(fetched.retrievedAt) }),
+        t("holidays.retrieved", { stamp: formatInstant(fetched.retrievedAt) }),
       );
       onFetched();
     },

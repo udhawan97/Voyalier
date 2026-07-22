@@ -1,20 +1,13 @@
 import type { PlaceSummary } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
-import { describeError, formatDateTimeLocal } from "../app/format";
+import { describeError, formatDateTimeLocal, formatInstant } from "../app/format";
 import { t } from "../app/i18n";
 import { SectionTitle } from "../components/primitives";
 import { FileTextIcon } from "../components/icons";
 import { useAsyncAction } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
-
-/** "2026-07-17T09:30:00Z" → "Jul 17, 2026 · 09:30" without timezone games. */
-function formatStamp(iso: string): string {
-  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(iso);
-  if (!match) return iso;
-  return formatDateTimeLocal(`${match[1]}T${match[2]}`);
-}
 
 /**
  * The "about this place" panel: a short encyclopedia summary of the
@@ -39,7 +32,7 @@ export function AboutPlace({
     () => gateway.fetchPlaceSummary(tripId),
     (fetched) => {
       announce(
-        t("about.retrieved", { stamp: formatStamp(fetched.retrievedAt) }),
+        t("about.retrieved", { stamp: formatInstant(fetched.retrievedAt) }),
       );
       onFetched();
     },
