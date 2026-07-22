@@ -317,4 +317,34 @@ describe("AppError rendered states", () => {
     );
     expect(await screen.findByText("Something went wrong")).toBeInTheDocument();
   });
+
+  // The audit's gap #9: with the engine down on load and a trip open, the
+  // app-level banner and the trip view's own load error rendered the identical
+  // message and Retry, stacked. Either one recovered fully; there were just two
+  // of them.
+  it("shows one engine-unreachable banner, not two", async () => {
+    const down = rejectWith({
+      code: "transport/failure",
+      message: "The local core could not be reached.",
+    });
+    // Land on the trip view the way a reload with an active trip does.
+    globalThis.sessionStorage?.setItem("voyalier-active-trip", "trip_kyoto");
+    renderApp(
+      failingGateway({
+        health: down,
+        getTrip: down,
+        listCandidates: down,
+      }),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getAllByText("Voyalier can't reach its engine").length,
+      ).toBeGreaterThan(0),
+    );
+    expect(screen.getAllByText("Voyalier can't reach its engine")).toHaveLength(
+      1,
+    );
+    expect(screen.getAllByRole("button", { name: "Retry" })).toHaveLength(1);
+  });
 });

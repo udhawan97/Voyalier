@@ -759,6 +759,22 @@ export function TripDetailView({
   }
 
   if (status === "error" && !data) {
+    // An unreachable engine is the app's condition, not this trip's, and the
+    // workspace already banners it with a Retry that revalidates everything on
+    // screen. Rendering our own identical banner underneath it gave the
+    // traveler the same sentence twice and two Retry buttons that did
+    // different amounts of work. Every other code still banners here, because
+    // nothing above is saying anything about it.
+    if (error!.code === "transport/failure") {
+      return (
+        <section className="voy-detail">
+          {backButton}
+          <p className="voy-detail__nopending">
+            {t("detail.offlinePlaceholder")}
+          </p>
+        </section>
+      );
+    }
     return (
       <section className="voy-detail">
         {backButton}

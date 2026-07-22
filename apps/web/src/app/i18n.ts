@@ -967,6 +967,10 @@ const en = {
   "detail.delete": "Delete",
   "detail.pending.desc":
     "Confirm or dismiss what Voyalier found in your documents.",
+  "detail.offlinePlaceholder":
+    "This trip will load once Voyalier can reach its engine.",
+  "detail.offlinePlaceholder":
+    "Este viaje se cargará cuando Voyalier pueda comunicarse con su motor.",
   "detail.nopending": "No suggestions waiting. Import a document to find more.",
   "detail.blueprint": "Blueprint",
   "detail.blueprint.sub": "Your confirmed flights and stays, in order.",
