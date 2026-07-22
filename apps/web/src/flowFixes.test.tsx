@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
 
 import { failingGateway, rejectWith, renderApp } from "./test/helpers";
@@ -134,5 +134,44 @@ describe("User-flow gap fixes", () => {
     ).toBeInTheDocument();
     expect(within(region).queryByText(/weather source/)).toBeNull();
     expect(within(region).queryByText(/the advice page/)).toBeNull();
+  });
+
+  // The audit's gap #5: closing a dialog could drop focus on <body>, so a
+  // keyboard user restarted from the top of the page. Two causes — the trigger
+  // is unmounted by the very action that closed the dialog, and StrictMode
+  // replays the mount effect and re-captures a focus target the dialog itself
+  // already owns.
+  it("never strands focus on the body when a dialog closes", async () => {
+    renderApp(createMockGateway());
+    await openKyoto();
+
+    // Cancel: the trigger survives, so focus belongs back on it.
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const editDialog = await screen.findByRole("dialog", { name: "Edit trip" });
+    fireEvent.click(within(editDialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).not.toBe(document.body);
+
+    // Escape closes it too, and must also leave focus somewhere reachable.
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const again = await screen.findByRole("dialog", { name: "Edit trip" });
+    fireEvent.keyDown(again, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).not.toBe(document.body);
+  });
+
+  // Same gap, the harder half: the empty state's Create button unmounts the
+  // moment the trip exists, so the captured trigger is gone by the time focus
+  // should return to it.
+  it("keeps focus reachable when the trigger itself disappears", async () => {
+    renderApp(failingGateway({ listTrips: () => Promise.resolve([]) }));
+    const create = await screen.findAllByRole("button", {
+      name: "Create a trip",
+    });
+    fireEvent.click(create[create.length - 1]);
+    const dialog = await screen.findByRole("dialog", { name: "Create a trip" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).not.toBe(document.body);
   });
 });

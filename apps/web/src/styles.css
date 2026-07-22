@@ -3540,12 +3540,19 @@ h3 {
   }
 
   .voy-dialog {
+    display: block !important;
     max-width: none !important;
     width: auto !important;
     max-height: none !important;
     border: none !important;
     box-shadow: none !important;
     background: none !important;
+  }
+
+  /* Printing a brief must put the whole thing on paper, not one scrollpane's
+     worth of it. */
+  .voy-dialog__body {
+    overflow: visible !important;
   }
 
   .voy-dialog__desc,
@@ -3798,9 +3805,16 @@ h3 {
   animation: voy-fade var(--voy-motion) var(--voy-ease);
 }
 
+/* A long dialog must not push its own actions past the fold. The overlay does
+   scroll, but nothing said so: at 375x812 the import sheet ran 184px past the
+   viewport with Cancel and Import both off-screen. The sheet scrolls inside
+   itself instead, so the footer stays where a thumb expects it. */
 .voy-dialog {
+  display: flex;
+  flex-direction: column;
   width: 100%;
   max-width: 34rem;
+  max-height: calc(100dvh - 2rem);
   background: var(--voy-paper);
   border: 1px solid var(--voy-line-strong);
   border-radius: var(--voy-radius-lg);
@@ -3835,10 +3849,12 @@ h3 {
 
 .voy-dialog__body {
   padding: 1rem 1.6rem 1.4rem;
+  overflow-y: auto;
 }
 
 .voy-dialog__foot {
   display: flex;
+  flex: none;
   justify-content: flex-end;
   gap: 0.6rem;
   padding: 1rem 1.6rem 1.4rem;
