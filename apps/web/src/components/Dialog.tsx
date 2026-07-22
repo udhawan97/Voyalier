@@ -58,6 +58,17 @@ export function Dialog({
   const overlayRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const latestReturnFocusRef = useRef(returnFocusRef);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+
+  // Capture the trigger during render, once, before the mount effect moves
+  // focus inside the dialog. Reading it in the effect meant React Strict Mode's
+  // replayed setup re-captured a focus target the dialog itself already owned,
+  // which poisoned the return path in development.
+  if (previouslyFocusedRef.current === null) {
+    const active = document.activeElement as HTMLElement | null;
+    if (active && active !== document.body)
+      previouslyFocusedRef.current = active;
+  }
   const autoId = useId();
   const headingId = labelId ?? `${autoId}-title`;
   const descId = description ? `${autoId}-desc` : undefined;
@@ -67,7 +78,7 @@ export function Dialog({
   }, [returnFocusRef]);
 
   useEffect(() => {
-    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const previouslyFocused = previouslyFocusedRef.current;
     const dialog = dialogRef.current;
     const initial =
       initialFocus === "dialog"
@@ -92,12 +103,18 @@ export function Dialog({
         // from the dialog after the replayed setup focuses it.
         if (dialog?.isConnected) return;
         const explicit = latestReturnFocusRef.current?.current;
+        // The trigger can be unmounted by the action that closed the dialog —
+        // the empty state's "Create a trip" button stops existing the moment a
+        // trip does. Falling through to nothing left a keyboard user on
+        // <body>, restarting from the top of the page, so main is the floor.
+        const main = document.getElementById("main");
         const target =
           explicit?.isConnected === true
             ? explicit
             : previouslyFocused?.isConnected === true
               ? previouslyFocused
-              : null;
+              : main;
+        if (target && target === main) target.setAttribute("tabindex", "-1");
         target?.focus();
       });
     };

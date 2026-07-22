@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { DocumentSummary } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
-import { describeError, formatDate } from "../app/format";
+import { describeError, formatInstantDate } from "../app/format";
 import { plural, t, type MessageKey } from "../app/i18n";
 import {
   documentsScope,
@@ -15,18 +15,6 @@ import { Button } from "../components/Button";
 import { ConfirmButton } from "../components/ConfirmButton";
 import { FileTextIcon } from "../components/icons";
 import { Empty, SectionTitle, Skeleton } from "../components/primitives";
-
-/**
- * "2026-07-09T15:20:00Z" → "Jul 9, 2026".
- *
- * `formatDate` takes a date-only contract value and returns anything else
- * untouched, which would print the raw timestamp. The clock time carries nothing
- * useful here — when you imported it, to the day, is the whole question.
- */
-function formatImportedOn(timestamp: string): string {
-  const match = /^\d{4}-\d{2}-\d{2}/.exec(timestamp);
-  return match ? formatDate(match[0]) : timestamp;
-}
 
 const KIND_LABEL: Record<string, MessageKey> = {
   pasted_text: "documents.kind.pasted_text",
@@ -108,7 +96,7 @@ function DocumentRow({
             {t(KIND_LABEL[document.kind] ?? "documents.kind.pasted_text")}
             {" · "}
             {t("documents.imported", {
-              date: formatImportedOn(document.importedAt),
+              date: formatInstantDate(document.importedAt),
             })}
             {" · "}
             {plural("documents.size", document.charCount)}

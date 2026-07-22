@@ -2138,14 +2138,25 @@ export function createMockGateway(options?: {
             stored.document.label,
             stored.content,
           );
-        for (const fact of facts.values())
+        for (const fact of facts.values()) {
+          const payload = fact.payload as Record<string, string | undefined>;
+          // Mirrors voyalier-core's fact_identity: the traveler's own
+          // identifying data, empty when the fact has none, never a product
+          // noun — the interface owns that word, localized.
+          const identity =
+            fact.factType === "flight_segment"
+              ? payload.departureAirportIata && payload.arrivalAirportIata
+                ? `${payload.departureAirportIata} → ${payload.arrivalAirportIata}`
+                : (payload.flightNumber ?? "")
+              : (payload.propertyName ?? "");
           add(
             "confirmed_fact",
             fact.tripId,
             fact.id,
-            "Confirmed fact",
+            identity,
             factFieldStrings(fact).join(" "),
           );
+        }
         for (const note of notes.values())
           add("note", note.tripId, note.tripId, "Trip notes", note.body);
         for (const place of savedPlaces.values())

@@ -126,10 +126,16 @@ export function TripListView({
     },
   );
 
+  // What was just archived, so the traveler can put it back without first
+  // discovering the reveal toggle at the foot of the list. Archiving is one
+  // click and makes the card vanish; the way back should be one click too.
+  const [justArchived, setJustArchived] = useState<TripSummary | null>(null);
+
   const archiveAction = useAsyncAction(
     (trip: TripSummary) => gateway.archiveTrip(trip.id),
     (_result, trip) => {
       announce(t("triplist.announce.archived", { title: trip.title }));
+      setJustArchived(trip);
       revalidate(tripsScope);
     },
   );
@@ -138,6 +144,7 @@ export function TripListView({
     (trip: TripSummary) => gateway.unarchiveTrip(trip.id),
     (_result, trip) => {
       announce(t("triplist.announce.unarchived", { title: trip.title }));
+      setJustArchived(null);
       revalidate(tripsScope);
     },
   );
@@ -239,19 +246,38 @@ export function TripListView({
               </Button>
               {/* An empty workspace is a bad place to learn what Voyalier does.
                   The sample lands mid-review, which is the actual idea. */}
-              <Button
-                variant="secondary"
-                onClick={() => sampleAction.run()}
-                busy={sampleAction.busy}
-              >
-                {sampleAction.busy ? t("sample.building") : t("sample.explore")}
-              </Button>
+              <span className="voy-empty__sample">
+                <Button
+                  variant="secondary"
+                  onClick={() => sampleAction.run()}
+                  busy={sampleAction.busy}
+                >
+                  {sampleAction.busy
+                    ? t("sample.building")
+                    : t("sample.explore")}
+                </Button>
+                {/* This describes the sample, not trip creation. Sitting under
+                    the body copy it read as "creating a trip makes up data". */}
+                <span className="voy-empty__hint">{t("sample.hint")}</span>
+              </span>
             </div>
           }
         >
           {t("triplist.empty.body")}
-          <span className="voy-empty__hint">{t("sample.hint")}</span>
         </Empty>
+      ) : null}
+
+      {justArchived ? (
+        <p className="voy-triplist__undo" role="status">
+          {t("triplist.archived", { title: justArchived.title })}{" "}
+          <Button
+            variant="ghost"
+            busy={busyId === justArchived.id}
+            onClick={() => unarchive(justArchived)}
+          >
+            {t("action.undo")}
+          </Button>
+        </p>
       ) : null}
 
       {activeTrips.length > 0 ? (

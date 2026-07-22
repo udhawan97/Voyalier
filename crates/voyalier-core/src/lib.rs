@@ -125,8 +125,8 @@ pub use recommend::{
 };
 pub use search::{
     SEARCH_SUGGESTION_LIMIT, SearchHit, SearchHitSource, SearchableDocument, WorkspaceSearchHit,
-    WorkspaceSearchRecord, WorkspaceSearchSource, fact_search_text, search_trip_corpus,
-    search_workspace_corpus, suggest_search_terms, validate_search_query,
+    WorkspaceSearchRecord, WorkspaceSearchSource, fact_identity, fact_search_text,
+    search_trip_corpus, search_workspace_corpus, suggest_search_terms, validate_search_query,
 };
 pub use suggest::{
     FIELD_SUGGESTION_LIMIT, FieldSuggestion, SuggestionSource, rank_field_suggestions,

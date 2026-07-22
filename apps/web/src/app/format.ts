@@ -89,6 +89,51 @@ export function formatDateTimeLocal(value: string): string {
   return `${formatDate(datePart)} · ${formatTimeLocal(timePart)}`;
 }
 
+/**
+ * Format an RFC3339 *instant* ("2026-07-21T23:34:56Z") on the viewer's own
+ * clock — "Jul 21, 2026 · 6:34 PM" in America/Chicago.
+ *
+ * Deliberately not [[formatDateTimeLocal]]. That one formats a zoneless
+ * contract value — a flight departs at 11:05 local to its airport — and must
+ * never shift it. This one formats a moment in time, where showing the raw UTC
+ * face misstates when the traveler actually fetched their evidence, by a whole
+ * calendar day for an evening fetch west of UTC. The dated, attributed snapshot
+ * is the product's trust story; its date has to be true.
+ *
+ * Unparseable input is returned verbatim, like the other formatters here.
+ */
+export function formatInstant(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  const day = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(
+    2,
+    "0",
+  )}-${String(parsed.getDate()).padStart(2, "0")}`;
+  const clock = new Intl.DateTimeFormat(APP_LOCALE, {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(parsed);
+  return `${formatDateIn(day, APP_LOCALE)} · ${clock}`;
+}
+
+/**
+ * The calendar day an instant fell on, in the viewer's own zone.
+ *
+ * Slicing "2026-07-22T00:46:00Z".slice(0, 10) looks like the same thing and is
+ * not: for anyone west of UTC an evening action is stamped tomorrow. "Imported
+ * Jul 22" on the evening of the 21st is a small lie in a panel whose entire job
+ * is telling the traveler what Voyalier kept and when.
+ */
+export function formatInstantDate(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  const day = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(
+    2,
+    "0",
+  )}-${String(parsed.getDate()).padStart(2, "0")}`;
+  return formatDateIn(day, APP_LOCALE);
+}
+
 export function formatDateRange(startDate: string, endDate: string): string {
   return `${formatDate(startDate)} – ${formatDate(endDate)}`;
 }

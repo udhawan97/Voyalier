@@ -329,4 +329,51 @@ describe("traveler-owned planning workflows", () => {
       );
     }
   });
+
+  // The audit's gap #2: killing the engine mid-action left a bare error line
+  // floating after every planning card, the topbar still claiming "Ready", and
+  // no way to retry. The recovery machinery existed; this panel just never
+  // joined it.
+  it("reports a failed planning write at its own section, with a retry", async () => {
+    let fail = true;
+    // One mock instance: the retry has to land in the same workspace the view
+    // reads back from, or the assertion passes for the wrong reason.
+    const mock = createMockGateway();
+    renderApp({
+      ...mock,
+      addPackingItem: (input) =>
+        fail
+          ? Promise.reject({
+              code: "transport/failure",
+              message: "The local core could not be reached.",
+            })
+          : mock.addPackingItem(input),
+    });
+    await openKyoto();
+
+    const packing = await screen.findByRole("region", {
+      name: "Packing checklist",
+    });
+    const customInput = within(packing).getByLabelText("Custom item");
+    fireEvent.change(customInput, { target: { value: "Rain jacket" } });
+    fireEvent.click(
+      within(customInput.closest("form")!).getByRole("button", { name: "Add" }),
+    );
+
+    // The failure is owned by the section whose control failed.
+    const alert = await within(packing).findByRole("alert");
+    expect(alert).toHaveTextContent(/engine/i);
+    // The typed value survives a failed write.
+    expect((customInput as HTMLInputElement).value).toBe("Rain jacket");
+    // And the app-level status stops claiming everything is fine.
+    expect(await screen.findByText("Offline")).toBeInTheDocument();
+
+    // One click retries the same write once the engine is back.
+    fail = false;
+    fireEvent.click(within(alert).getByRole("button", { name: "Retry" }));
+    expect(await within(packing).findByText("Rain jacket")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(within(packing).queryByRole("alert")).toBeNull(),
+    );
+  });
 });

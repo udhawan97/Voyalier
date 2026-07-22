@@ -9,7 +9,7 @@ import type {
 } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
-import { describeError, formatDateTimeLocal } from "../app/format";
+import { describeError, formatInstant } from "../app/format";
 import { t } from "../app/i18n";
 import { SectionTitle } from "../components/primitives";
 import { GlobeIcon } from "../components/icons";
@@ -23,13 +23,6 @@ function daysSince(iso: string): number | null {
   const parsed = Date.parse(iso);
   if (Number.isNaN(parsed)) return null;
   return Math.floor((Date.now() - parsed) / 86_400_000);
-}
-
-/** "2026-06-30T11:02:00.000+01:00" → "Jun 30, 2026 · 11:02" (verbatim wall clock). */
-function formatSourceStamp(iso: string): string {
-  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(iso);
-  if (!match) return iso;
-  return formatDateTimeLocal(`${match[1]}T${match[2]}`);
 }
 
 /**
@@ -115,13 +108,13 @@ function AdvisoryCard({ entry }: { entry: AdvisoryEntry }) {
         </a>
         <span aria-hidden="true"> · </span>
         {t("advice.retrieved", {
-          stamp: formatSourceStamp(entry.retrievedAt),
+          stamp: formatInstant(entry.retrievedAt),
         })}
         {entry.sourceUpdatedAt ? (
           <>
             <span aria-hidden="true"> · </span>
             {t("advice.sourceUpdated", {
-              stamp: formatSourceStamp(entry.sourceUpdatedAt),
+              stamp: formatInstant(entry.sourceUpdatedAt),
             })}
           </>
         ) : null}

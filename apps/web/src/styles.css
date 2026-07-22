@@ -633,6 +633,7 @@ h3 {
   display: flex;
   flex-wrap: wrap;
   gap: 0.7rem;
+  align-items: flex-start;
   justify-content: center;
 }
 
@@ -3540,12 +3541,19 @@ h3 {
   }
 
   .voy-dialog {
+    display: block !important;
     max-width: none !important;
     width: auto !important;
     max-height: none !important;
     border: none !important;
     box-shadow: none !important;
     background: none !important;
+  }
+
+  /* Printing a brief must put the whole thing on paper, not one scrollpane's
+     worth of it. */
+  .voy-dialog__body {
+    overflow: visible !important;
   }
 
   .voy-dialog__desc,
@@ -3798,9 +3806,18 @@ h3 {
   animation: voy-fade var(--voy-motion) var(--voy-ease);
 }
 
+/* A long dialog must not push its own actions past the fold. The overlay does
+   scroll, but nothing said so: at 375x812 the import sheet ran 184px past the
+   viewport with Cancel and Import both off-screen. The sheet scrolls inside
+   itself instead, so the footer stays where a thumb expects it. */
 .voy-dialog {
+  display: flex;
+  flex-direction: column;
   width: 100%;
   max-width: 34rem;
+  /* Against the overlay's content box, so this keeps tracking its padding
+     rather than restating it and drifting by exactly that much. */
+  max-height: 100%;
   background: var(--voy-paper);
   border: 1px solid var(--voy-line-strong);
   border-radius: var(--voy-radius-lg);
@@ -3835,10 +3852,12 @@ h3 {
 
 .voy-dialog__body {
   padding: 1rem 1.6rem 1.4rem;
+  overflow-y: auto;
 }
 
 .voy-dialog__foot {
   display: flex;
+  flex: none;
   justify-content: flex-end;
   gap: 0.6rem;
   padding: 1rem 1.6rem 1.4rem;
@@ -4249,6 +4268,9 @@ body::before {
   display: flex;
   flex-wrap: wrap;
   gap: 0.6rem;
+  /* Top-aligned, because one action carries a note underneath it and centring
+     would float the other button against that note's height. */
+  align-items: flex-start;
   justify-content: center;
 }
 
@@ -4425,6 +4447,23 @@ body::before {
   border-color: var(--voy-line-strong);
 }
 
+/* Where you are. Weight and border carry it as well as fill, so the state
+   survives a forced-colors mode that discards the background. */
+.voy-tripnav__chip[aria-current="true"] {
+  color: var(--voy-ink);
+  border-color: var(--voy-ink);
+  background: var(--voy-surface);
+  font-weight: 600;
+}
+
+/* The most-used control on the longest page: comfortable to tap, not merely
+   large enough to pass. */
+@media (pointer: coarse) {
+  .voy-tripnav__chip {
+    padding: 0.55rem 0.9rem;
+  }
+}
+
 /* Keep a jumped-to section clear of the sticky nav above it. These are the
    section wrappers, which exist whether or not the section has mounted. */
 #section-plan,
@@ -4478,4 +4517,31 @@ body::before {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* Undo lives with the thing it undoes, not at the foot of the list behind a
+   reveal toggle. */
+.voy-triplist__undo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius);
+  background: var(--voy-surface);
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+}
+
+/* The made-up-data note belongs to the sample action it describes. */
+.voy-empty__sample {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.voy-schedule__jump {
+  margin-left: 0.5rem;
 }

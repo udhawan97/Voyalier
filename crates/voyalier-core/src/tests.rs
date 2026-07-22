@@ -135,7 +135,9 @@ fn validates_trip_inputs_with_contract_rules() {
     })
     .expect("valid input");
 
-    assert_eq!(validated.title, "Chicago -> Kyoto");
+    // The stored default name uses the same arrow the interface draws
+    // everywhere else, so a card never shows "A -> B" above the route "A → B".
+    assert_eq!(validated.title, "Chicago → Kyoto");
     assert_eq!(validated.origin, "Chicago");
 
     let error = validate_create_trip(CreateTripInput {

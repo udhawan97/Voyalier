@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   CandidateFact,
   ConfirmedFact,
@@ -25,12 +25,21 @@ import {
 } from "../app/format";
 import { buildIcs, icsFilename } from "../app/ics";
 import { plural, t, type MessageKey, type PluralBase } from "../app/i18n";
-import { tripScope, useRevalidate, useScopeKey } from "../app/revalidate";
+import {
+  documentsScope,
+  tripScope,
+  useRevalidate,
+  useScopeKey,
+} from "../app/revalidate";
 import { useAsyncAction, useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 import { ConfirmButton } from "../components/ConfirmButton";
-import { DeferredSection } from "../components/DeferredSection";
+import {
+  DeferredMountProvider,
+  DeferredSection,
+  useMountAllSections,
+} from "../components/DeferredSection";
 import {
   AlertIcon,
   ArchiveIcon,
@@ -209,9 +218,9 @@ function FactGroup({
  * The targets are the section *wrappers*, not the headings inside them: those
  * sections are deferred, so their headings do not exist until the section
  * mounts, and a chip pointing at one would do nothing. A wrapper is always
- * there, and jumping to it is what brings the section in. `scroll-margin-top` in
- * CSS keeps the landing spot clear of the sticky nav. Plain anchors — no router,
- * so refresh and back behave exactly as they did.
+ * there. `scroll-margin-top` in CSS keeps the landing spot clear of the sticky
+ * nav. They stay real anchors with real hrefs, so middle-click, copy-link, and
+ * a JS-less render all still behave.
  */
 const TRIP_NAV: { label: MessageKey; target: string }[] = [
   { label: "tripnav.plan", target: "section-plan" },
@@ -221,6 +230,64 @@ const TRIP_NAV: { label: MessageKey; target: string }[] = [
 ];
 
 function TripSectionNav() {
+  const mountAllSections = useMountAllSections();
+  const [current, setCurrent] = useState<string | null>(null);
+
+  // Which section owns the viewport, so a chip can answer "where am I?". The
+  // band is deliberately narrow and high: a section counts as current once its
+  // top reaches the reading area, not when its last pixel leaves.
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort(
+            (a, b) => a.boundingClientRect.top - b.boundingClientRect.top,
+          )[0];
+        if (visible?.target.id) setCurrent(visible.target.id);
+      },
+      { rootMargin: "-20% 0px -70% 0px" },
+    );
+    for (const item of TRIP_NAV) {
+      const node = document.getElementById(item.target);
+      if (node) observer.observe(node);
+    }
+    return () => observer.disconnect();
+  }, []);
+
+  /**
+   * Mount everything, then scroll, then record the hash.
+   *
+   * A native anchor jump is one-shot: the browser picks a stopping point from
+   * the layout it can see, and the deferred sections above the target then
+   * mount and push the target far below it. The traveler clicked "AI" and
+   * landed in the middle of Prepare. Mounting first removes the inflation, and
+   * two frames — one for React to commit, one for layout to settle — is what
+   * makes the landing exact rather than merely closer.
+   */
+  function jump(event: React.MouseEvent<HTMLAnchorElement>, target: string) {
+    // Let the browser own modified clicks (new tab, download, copy link).
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+      return;
+    event.preventDefault();
+    mountAllSections();
+    setCurrent(target);
+    const land = () => {
+      document.getElementById(target)?.scrollIntoView?.({ block: "start" });
+      globalThis.history?.replaceState?.(
+        globalThis.history.state,
+        "",
+        `#${target}`,
+      );
+    };
+    if (typeof requestAnimationFrame === "undefined") {
+      land();
+      return;
+    }
+    requestAnimationFrame(() => requestAnimationFrame(land));
+  }
+
   return (
     <nav className="voy-tripnav" aria-label={t("tripnav.label")}>
       {TRIP_NAV.map((item) => (
@@ -228,6 +295,8 @@ function TripSectionNav() {
           key={item.target}
           className="voy-tripnav__chip"
           href={`#${item.target}`}
+          aria-current={current === item.target ? "true" : undefined}
+          onClick={(event) => jump(event, item.target)}
         >
           {t(item.label)}
         </a>
@@ -414,6 +483,21 @@ function ScheduleCheck({ conflicts }: { conflicts: ItineraryConflict[] }) {
     }
   }
 
+  /**
+   * Put a named fact on screen and in focus.
+   *
+   * The same landing mechanism a search result uses, reused rather than
+   * reinvented: the Blueprint cards already carry the data attributes.
+   */
+  function focusFact(factId: string) {
+    const card = document.querySelector<HTMLElement>(
+      `[data-search-source="confirmed_fact"][data-search-record="${CSS.escape(factId)}"]`,
+    );
+    if (!card) return;
+    card.scrollIntoView?.({ block: "center" });
+    card.focus({ preventScroll: true });
+  }
+
   /** Turn a finding into the sentence a traveler reads. */
   function conflictSentence(conflict: ItineraryConflict): string {
     const [first, second] = conflict.subjects.map(conflictSubject);
@@ -469,6 +553,23 @@ function ScheduleCheck({ conflicts }: { conflicts: ItineraryConflict[] }) {
                   : t("schedule.notice")}
               </span>
               {conflictSentence(conflict)}
+              {/* Naming both facts and then leaving the traveler to scroll back
+                  and find them is half a tool. The conflict knows their ids. */}
+              {conflict.factIds.map((factId, index) => (
+                <button
+                  key={factId}
+                  type="button"
+                  className="voy-linkbtn voy-schedule__jump"
+                  onClick={() => focusFact(factId)}
+                >
+                  {t("schedule.jumpToFact", {
+                    subject:
+                      conflict.subjects[index] !== undefined
+                        ? conflictSubject(conflict.subjects[index])
+                        : String(index + 1),
+                  })}
+                </button>
+              ))}
             </span>
           </li>
         ))}
@@ -503,6 +604,17 @@ export function TripDetailView({
     },
     useScopeKey(tripScope(tripId)),
   );
+  /**
+   * Everything an import changes.
+   *
+   * `reload()` alone refreshes this view's own query, which is why the
+   * candidate count and readiness updated while the documents panel kept
+   * insisting nothing had been imported: it reads its own scope, and nobody
+   * told that scope anything had happened.
+   */
+  const refreshAfterImport = useCallback(() => {
+    revalidate(tripScope(tripId), documentsScope(tripId));
+  }, [revalidate, tripId]);
   const searchTargetConsumed = useRef(false);
   const sectionHashConsumed = useRef(false);
   const reviewTriggerRef = useRef<HTMLElement | null>(null);
@@ -679,6 +791,22 @@ export function TripDetailView({
   }
 
   if (status === "error" && !data) {
+    // An unreachable engine is the app's condition, not this trip's, and the
+    // workspace already banners it with a Retry that revalidates everything on
+    // screen. Rendering our own identical banner underneath it gave the
+    // traveler the same sentence twice and two Retry buttons that did
+    // different amounts of work. Every other code still banners here, because
+    // nothing above is saying anything about it.
+    if (error!.code === "transport/failure") {
+      return (
+        <section className="voy-detail">
+          {backButton}
+          <p className="voy-detail__nopending">
+            {t("detail.offlinePlaceholder")}
+          </p>
+        </section>
+      );
+    }
     return (
       <section className="voy-detail">
         {backButton}
@@ -720,338 +848,347 @@ export function TripDetailView({
     confirmedFacts.length > 0 || data.detail.tripItems.length > 0;
 
   return (
-    <section className="voy-detail" aria-labelledby="detail-heading">
-      {backButton}
+    <DeferredMountProvider>
+      <section className="voy-detail" aria-labelledby="detail-heading">
+        {backButton}
 
-      <header className="voy-detail__head">
-        <div className="voy-detail__headmain">
-          <p className="voy-eyebrow">
-            {tripRoute(trip.origin, trip.destination)}
-          </p>
-          <h1 id="detail-heading">{trip.title}</h1>
-          <p className="voy-detail__dates">
-            {formatDateRange(trip.startDate, trip.endDate)}
-            <span aria-hidden="true"> · </span>
-            <span className="voy-sr-only">{t("detail.status")}</span>
-            <TripStatusBadge status={trip.status} />
-          </p>
-        </div>
-        <div className="voy-detail__actions">
-          <Button
-            variant="primary"
-            icon={<PlusIcon />}
-            onClick={() => setShowImport(true)}
-          >
-            {t("detail.import")}
-          </Button>
-          <Button variant="secondary" onClick={() => setShowAddFact(true)}>
-            {t("detail.addFact")}
-          </Button>
-          <Button variant="ghost" onClick={() => setShowEdit(true)}>
-            {t("detail.edit")}
-          </Button>
-          {hasItinerary ? (
-            <Button variant="ghost" onClick={() => setShowBrief(true)}>
-              {t("detail.shareBrief")}
-            </Button>
-          ) : null}
-          {/* Both confirmed facts and traveler-authored plans are exportable. */}
-          {hasItinerary ? (
+        <header className="voy-detail__head">
+          <div className="voy-detail__headmain">
+            <p className="voy-eyebrow">
+              {tripRoute(trip.origin, trip.destination)}
+            </p>
+            <h1 id="detail-heading">{trip.title}</h1>
+            <p className="voy-detail__dates">
+              {formatDateRange(trip.startDate, trip.endDate)}
+              <span aria-hidden="true"> · </span>
+              <span className="voy-sr-only">{t("detail.status")}</span>
+              <TripStatusBadge status={trip.status} />
+            </p>
+          </div>
+          <div className="voy-detail__actions">
             <Button
-              variant="ghost"
-              onClick={() => exportAction.run()}
-              busy={exportAction.busy}
+              variant="primary"
+              icon={<PlusIcon />}
+              onClick={() => setShowImport(true)}
             >
-              {exportAction.busy ? t("ics.exporting") : t("ics.export")}
+              {t("detail.import")}
             </Button>
-          ) : null}
-          {isArchived ? (
-            <Button
-              variant="ghost"
-              onClick={() => unarchiveAction.run()}
-              busy={unarchiveAction.busy}
-            >
-              {t("detail.unarchive")}
+            <Button variant="secondary" onClick={() => setShowAddFact(true)}>
+              {t("detail.addFact")}
             </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              icon={<ArchiveIcon />}
-              onClick={() => archiveAction.run()}
-              busy={archiveAction.busy}
-            >
-              {t("detail.archive")}
+            <Button variant="ghost" onClick={() => setShowEdit(true)}>
+              {t("detail.edit")}
             </Button>
-          )}
-          <Button variant="ghost" onClick={() => setShowDelete(true)}>
-            {t("detail.delete")}
-          </Button>
-        </div>
-      </header>
+            {hasItinerary ? (
+              <Button variant="ghost" onClick={() => setShowBrief(true)}>
+                {t("detail.shareBrief")}
+              </Button>
+            ) : null}
+            {/* Both confirmed facts and traveler-authored plans are exportable. */}
+            {hasItinerary ? (
+              <Button
+                variant="ghost"
+                onClick={() => exportAction.run()}
+                busy={exportAction.busy}
+              >
+                {exportAction.busy ? t("ics.exporting") : t("ics.export")}
+              </Button>
+            ) : null}
+            {isArchived ? (
+              <Button
+                variant="ghost"
+                onClick={() => unarchiveAction.run()}
+                busy={unarchiveAction.busy}
+              >
+                {t("detail.unarchive")}
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                icon={<ArchiveIcon />}
+                onClick={() => archiveAction.run()}
+                busy={archiveAction.busy}
+              >
+                {t("detail.archive")}
+              </Button>
+            )}
+            <Button variant="ghost" onClick={() => setShowDelete(true)}>
+              {t("detail.delete")}
+            </Button>
+          </div>
+        </header>
 
-      {/* The four header actions used to only announce their failures, so a
+        {/* The four header actions used to only announce their failures, so a
           sighted user saw the button un-busy itself and nothing else. */}
-      {actionError ? (
-        <Banner
-          tone="error"
-          role="alert"
-          title={describeError(actionError).title}
-        >
-          {describeError(actionError).body}
-        </Banner>
-      ) : null}
-
-      <TripSectionNav />
-
-      <TodayPanel tripId={tripId} />
-
-      {pendingCount > 0 ? (
-        <button
-          ref={(node) => {
-            reviewTriggerRef.current = node;
-          }}
-          type="button"
-          className="voy-pending-entry"
-          onClick={() => setReviewCandidates(pending)}
-        >
-          <CountBadge
-            count={pendingCount}
-            label={plural("tripcard.pending", pendingCount)}
-          />
-          <span className="voy-pending-entry__text">
-            <strong>{plural("import.review", pendingCount)}</strong>
-            <span>{t("detail.pending.desc")}</span>
-          </span>
-          <ChevronRightIcon aria-hidden="true" />
-        </button>
-      ) : (
-        <p className="voy-detail__nopending">{t("detail.nopending")}</p>
-      )}
-
-      <div className="voy-detail__blueprint" id="section-plan">
-        <h2
-          ref={(node) => {
-            reviewCompletionFocusRef.current = node;
-          }}
-          id="blueprint-title"
-          className="voy-detail__blueprint-title"
-          tabIndex={-1}
-        >
-          {t("detail.blueprint")}
-        </h2>
-        {confirmedFacts.length > 0 ? (
-          <p className="voy-detail__blueprint-sub">
-            {t("detail.blueprint.sub")}
-          </p>
-        ) : null}
-        {confirmedFacts.length === 0 ? (
-          <Empty
-            title={t("detail.empty.title")}
-            action={
-              <div className="voy-empty__actions">
-                <Button
-                  variant="primary"
-                  icon={<PlusIcon />}
-                  onClick={() => setShowImport(true)}
-                >
-                  {t("detail.importDocument")}
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => setShowAddFact(true)}
-                >
-                  {t("detail.addFact")}
-                </Button>
-              </div>
-            }
+        {actionError ? (
+          <Banner
+            tone="error"
+            role="alert"
+            title={describeError(actionError).title}
           >
-            {t("detail.empty.body")}
-          </Empty>
+            {describeError(actionError).body}
+          </Banner>
+        ) : null}
+
+        <TripSectionNav />
+
+        <TodayPanel tripId={tripId} />
+
+        {pendingCount > 0 ? (
+          <button
+            ref={(node) => {
+              reviewTriggerRef.current = node;
+            }}
+            type="button"
+            className="voy-pending-entry"
+            onClick={() => setReviewCandidates(pending)}
+          >
+            <CountBadge
+              count={pendingCount}
+              label={plural("tripcard.pending", pendingCount)}
+            />
+            <span className="voy-pending-entry__text">
+              <strong>{plural("import.review", pendingCount)}</strong>
+              <span>{t("detail.pending.desc")}</span>
+            </span>
+            <ChevronRightIcon aria-hidden="true" />
+          </button>
         ) : (
-          <>
-            <FactGroup
-              title={t("brief.flights")}
-              icon={<PlaneIcon />}
-              facts={flights}
-              onUnconfirm={unconfirm}
-              unconfirmingId={unconfirmingId}
-            />
-            <FactGroup
-              title={t("brief.stays")}
-              icon={<BedIcon />}
-              facts={stays}
-              onUnconfirm={unconfirm}
-              unconfirmingId={unconfirmingId}
-            />
-          </>
+          <p className="voy-detail__nopending">{t("detail.nopending")}</p>
         )}
-      </div>
 
-      <PlanningPanel
-        tripId={tripId}
-        savedPlaces={data.detail.savedPlaces}
-        suggestions={data.detail.packingList}
-        packingItems={data.detail.packingItems}
-        tripItems={data.detail.tripItems}
-        onChanged={() => revalidate(tripScope(tripId))}
-      />
+        <div className="voy-detail__blueprint" id="section-plan">
+          <h2
+            ref={(node) => {
+              reviewCompletionFocusRef.current = node;
+            }}
+            id="blueprint-title"
+            className="voy-detail__blueprint-title"
+            tabIndex={-1}
+          >
+            {t("detail.blueprint")}
+          </h2>
+          {confirmedFacts.length > 0 ? (
+            <p className="voy-detail__blueprint-sub">
+              {t("detail.blueprint.sub")}
+            </p>
+          ) : null}
+          {confirmedFacts.length === 0 ? (
+            <Empty
+              title={t("detail.empty.title")}
+              action={
+                <div className="voy-empty__actions">
+                  <Button
+                    variant="primary"
+                    icon={<PlusIcon />}
+                    onClick={() => setShowImport(true)}
+                  >
+                    {t("detail.importDocument")}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => setShowAddFact(true)}
+                  >
+                    {t("detail.addFact")}
+                  </Button>
+                </div>
+              }
+            >
+              {t("detail.empty.body")}
+            </Empty>
+          ) : (
+            <>
+              <FactGroup
+                title={t("brief.flights")}
+                icon={<PlaneIcon />}
+                facts={flights}
+                onUnconfirm={unconfirm}
+                unconfirmingId={unconfirmingId}
+              />
+              <FactGroup
+                title={t("brief.stays")}
+                icon={<BedIcon />}
+                facts={stays}
+                onUnconfirm={unconfirm}
+                unconfirmingId={unconfirmingId}
+              />
+            </>
+          )}
+        </div>
 
-      {confirmedFacts.length > 0 || pendingCount > 0 ? (
-        <ReadinessPanel readiness={readiness} />
-      ) : null}
-
-      {hasItinerary ? <ScheduleCheck conflicts={itineraryConflicts} /> : null}
-
-      {/* Everything from here down is below the fold and several of these fetch
-          on mount, so they wait until they are nearly on screen. */}
-      <DeferredSection id="section-prepare">
-        <TravelAdvice
+        <PlanningPanel
           tripId={tripId}
-          panel={data.detail.advisoryPanel}
-          onFetched={() => reload()}
-        />
-
-        <WeatherOutlook
-          tripId={tripId}
-          destination={trip.destination}
-          snapshot={data.detail.weather}
-          packingList={data.detail.packingList}
-          onFetched={() => reload()}
-        />
-
-        <DestinationFacts
-          tripId={tripId}
-          destination={trip.destination}
-          snapshot={data.detail.destinationFacts}
-          countryFacts={data.detail.countryFacts}
-          astro={data.detail.astro}
-          nearestAirports={data.detail.nearestAirports}
-          worldHeritage={data.detail.worldHeritage}
-          tipping={data.detail.tipping}
-          timeDifference={data.detail.timeDifference}
-          onFetched={() => reload()}
-        />
-
-        <PublicHolidays
-          tripId={tripId}
-          destination={trip.destination}
-          snapshot={data.detail.publicHolidays}
-          onFetched={() => reload()}
-        />
-
-        <AboutPlace
-          tripId={tripId}
-          destination={trip.destination}
-          summary={data.detail.placeSummary}
-          onFetched={() => reload()}
-        />
-
-        <TripNotes tripId={tripId} />
-
-        <DocumentsPanel tripId={tripId} />
-
-        <TripSearch tripId={tripId} />
-      </DeferredSection>
-
-      <DeferredSection id="section-discover">
-        <CityPacks tripId={tripId} destination={trip.destination} />
-
-        <Recommendations
-          tripId={tripId}
-          profile={data.detail.interestProfile}
           savedPlaces={data.detail.savedPlaces}
-          onChanged={() => reload()}
+          suggestions={data.detail.packingList}
+          packingItems={data.detail.packingItems}
+          tripItems={data.detail.tripItems}
+          onChanged={() => revalidate(tripScope(tripId))}
         />
 
-        <MapPanel
-          tripId={tripId}
-          center={
-            data.detail.weather
-              ? {
-                  lat: data.detail.weather.latitude,
-                  lon: data.detail.weather.longitude,
-                  name: data.detail.weather.placeName,
-                }
-              : undefined
-          }
-        />
-      </DeferredSection>
+        {confirmedFacts.length > 0 || pendingCount > 0 ? (
+          <ReadinessPanel readiness={readiness} />
+        ) : null}
 
-      {/* AI sits last on purpose: everything above works without it. */}
-      <DeferredSection id="section-ai">
-        <AssistPreview tripId={tripId} onOpenSettings={onOpenSettings} />
+        {hasItinerary ? <ScheduleCheck conflicts={itineraryConflicts} /> : null}
 
-        <AssistDraft
-          tripId={tripId}
-          onDrafted={(candidates) => {
-            setReviewCandidates(candidates);
-            reload();
-          }}
-        />
-      </DeferredSection>
+        {/* Everything from here down is below the fold and several of these fetch
+          on mount, so they wait until they are nearly on screen. */}
+        <DeferredSection id="section-prepare">
+          <TravelAdvice
+            tripId={tripId}
+            panel={data.detail.advisoryPanel}
+            onFetched={() => reload()}
+          />
 
-      {showImport ? (
-        <ImportDialog
-          tripId={tripId}
-          onClose={() => setShowImport(false)}
-          onImported={() => reload()}
-          onReview={(candidates) => {
-            setShowImport(false);
-            setReviewCandidates(candidates);
-            reload();
-          }}
-        />
-      ) : null}
+          <WeatherOutlook
+            tripId={tripId}
+            destination={trip.destination}
+            snapshot={data.detail.weather}
+            packingList={data.detail.packingList}
+            onFetched={() => reload()}
+          />
 
-      {showAddFact ? (
-        <AddFactDialog
-          tripId={tripId}
-          onClose={() => setShowAddFact(false)}
-          onAdded={(fact) => {
-            setShowAddFact(false);
-            announce(
-              t("detail.announce.added", {
-                fact: factTitle(fact.factType, fact.payload),
-              }),
-            );
-            reload();
-          }}
-        />
-      ) : null}
+          <DestinationFacts
+            tripId={tripId}
+            destination={trip.destination}
+            snapshot={data.detail.destinationFacts}
+            countryFacts={data.detail.countryFacts}
+            astro={data.detail.astro}
+            nearestAirports={data.detail.nearestAirports}
+            worldHeritage={data.detail.worldHeritage}
+            tipping={data.detail.tipping}
+            timeDifference={data.detail.timeDifference}
+            onFetched={() => reload()}
+          />
 
-      {reviewCandidates ? (
-        <CandidateReviewDialog
-          candidates={reviewCandidates}
-          onClose={() => setReviewCandidates(null)}
-          onResolved={() => reload()}
-          returnFocusRef={reviewTriggerRef}
-          completionFocusRef={reviewCompletionFocusRef}
-        />
-      ) : null}
+          <PublicHolidays
+            tripId={tripId}
+            destination={trip.destination}
+            snapshot={data.detail.publicHolidays}
+            onFetched={() => reload()}
+          />
 
-      {showDelete ? (
-        <DeleteTripDialog
-          trip={trip}
-          onClose={() => setShowDelete(false)}
-          onDeleted={onDeleted}
-        />
-      ) : null}
+          <AboutPlace
+            tripId={tripId}
+            destination={trip.destination}
+            summary={data.detail.placeSummary}
+            onFetched={() => reload()}
+          />
 
-      {showBrief ? (
-        <BriefDialog tripId={tripId} onClose={() => setShowBrief(false)} />
-      ) : null}
+          <TripNotes tripId={tripId} />
 
-      {showEdit ? (
-        <EditTripDialog
-          trip={trip}
-          onClose={() => setShowEdit(false)}
-          onUpdated={() => {
-            setShowEdit(false);
-            announce(t("detail.announce.updated"));
-            reload();
-          }}
-        />
-      ) : null}
-    </section>
+          <DocumentsPanel tripId={tripId} />
+
+          <TripSearch tripId={tripId} />
+        </DeferredSection>
+
+        <DeferredSection id="section-discover">
+          <CityPacks tripId={tripId} destination={trip.destination} />
+
+          <Recommendations
+            tripId={tripId}
+            profile={data.detail.interestProfile}
+            savedPlaces={data.detail.savedPlaces}
+            onChanged={() => reload()}
+          />
+
+          <MapPanel
+            tripId={tripId}
+            center={
+              data.detail.weather
+                ? {
+                    lat: data.detail.weather.latitude,
+                    lon: data.detail.weather.longitude,
+                    name: data.detail.weather.placeName,
+                  }
+                : undefined
+            }
+          />
+        </DeferredSection>
+
+        {/* AI sits last on purpose: everything above works without it. */}
+        <DeferredSection id="section-ai">
+          <AssistPreview tripId={tripId} onOpenSettings={onOpenSettings} />
+
+          <AssistDraft
+            tripId={tripId}
+            onDrafted={(candidates) => {
+              setReviewCandidates(candidates);
+              reload();
+            }}
+          />
+        </DeferredSection>
+
+        {showImport ? (
+          <ImportDialog
+            tripId={tripId}
+            onClose={() => setShowImport(false)}
+            onImported={() => {
+              reload();
+              refreshAfterImport();
+            }}
+            onReview={(candidates) => {
+              setShowImport(false);
+              setReviewCandidates(candidates);
+              reload();
+              refreshAfterImport();
+            }}
+          />
+        ) : null}
+
+        {showAddFact ? (
+          <AddFactDialog
+            tripId={tripId}
+            onClose={() => setShowAddFact(false)}
+            onAdded={(fact) => {
+              setShowAddFact(false);
+              announce(
+                t("detail.announce.added", {
+                  fact: factTitle(fact.factType, fact.payload),
+                }),
+              );
+              reload();
+            }}
+          />
+        ) : null}
+
+        {reviewCandidates ? (
+          <CandidateReviewDialog
+            candidates={reviewCandidates}
+            onClose={() => setReviewCandidates(null)}
+            onResolved={() => {
+              reload();
+              refreshAfterImport();
+            }}
+            returnFocusRef={reviewTriggerRef}
+            completionFocusRef={reviewCompletionFocusRef}
+          />
+        ) : null}
+
+        {showDelete ? (
+          <DeleteTripDialog
+            trip={trip}
+            onClose={() => setShowDelete(false)}
+            onDeleted={onDeleted}
+          />
+        ) : null}
+
+        {showBrief ? (
+          <BriefDialog tripId={tripId} onClose={() => setShowBrief(false)} />
+        ) : null}
+
+        {showEdit ? (
+          <EditTripDialog
+            trip={trip}
+            onClose={() => setShowEdit(false)}
+            onUpdated={() => {
+              setShowEdit(false);
+              announce(t("detail.announce.updated"));
+              reload();
+            }}
+          />
+        ) : null}
+      </section>
+    </DeferredMountProvider>
   );
 }

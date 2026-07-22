@@ -35,18 +35,19 @@ use voyalier_core::{
     advisory_country, archive_window, assess_trip, build_assist_preview, build_assist_request,
     build_draft_preview, build_key_validation_request, build_packing_list, build_pull_body,
     build_today_view, build_trip_brief, changed_payload_fields, compute_astro_day, country_facts,
-    detect_planned_item_conflicts, entry_from_fcdo, estimate_tokens, fact_search_text, geocode,
-    holidays_within, interpret_key_validation, interpret_pull_response, nearest_airports, new_id,
-    notices_for_country, now_rfc3339, offline_map_download_url, pack_catalog, pack_download_url,
-    parse_air_quality, parse_assist_reply, parse_ca_gac, parse_cdc_notices, parse_climate_normals,
-    parse_de_aa, parse_ecb_rates, parse_fcdo_content, parse_forecast_response, parse_import,
-    parse_lodging_dates_reply, parse_nws_alerts, parse_pack_content, parse_us_state, place_summary,
-    provider_info, public_holidays, rank_field_suggestions, recommend_attributed_places,
-    saved_place_identity, search_cities, search_trip_corpus, search_workspace_corpus,
-    suggest_packs, suggest_search_terms, time_difference, tipping_guidance, validate_api_key,
-    validate_country_slug, validate_create_trip, validate_create_trip_item, validate_fact_payload,
-    validate_model_name, validate_pack_id, validate_packing_label, validate_planning_notes,
-    validate_provider_id, validate_search_query, validate_update_trip, world_heritage_near,
+    detect_planned_item_conflicts, entry_from_fcdo, estimate_tokens, fact_identity,
+    fact_search_text, geocode, holidays_within, interpret_key_validation, interpret_pull_response,
+    nearest_airports, new_id, notices_for_country, now_rfc3339, offline_map_download_url,
+    pack_catalog, pack_download_url, parse_air_quality, parse_assist_reply, parse_ca_gac,
+    parse_cdc_notices, parse_climate_normals, parse_de_aa, parse_ecb_rates, parse_fcdo_content,
+    parse_forecast_response, parse_import, parse_lodging_dates_reply, parse_nws_alerts,
+    parse_pack_content, parse_us_state, place_summary, provider_info, public_holidays,
+    rank_field_suggestions, recommend_attributed_places, saved_place_identity, search_cities,
+    search_trip_corpus, search_workspace_corpus, suggest_packs, suggest_search_terms,
+    time_difference, tipping_guidance, validate_api_key, validate_country_slug,
+    validate_create_trip, validate_create_trip_item, validate_fact_payload, validate_model_name,
+    validate_pack_id, validate_packing_label, validate_planning_notes, validate_provider_id,
+    validate_search_query, validate_update_trip, world_heritage_near,
 };
 use voyalier_core::{
     BACKUP_FORMAT_VERSION, BackupManifest, VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN,
@@ -2370,10 +2371,13 @@ impl AppService {
                 });
             }
             for fact in self.records(&connection).confirmed_facts(&trip.id)? {
-                let label = match fact.fact_type {
-                    FactType::FlightSegment => "Confirmed flight",
-                    FactType::LodgingStay => "Confirmed lodging",
-                };
+                // The traveler's own identifying data, not a product noun. The
+                // interface already prints "Confirmed fact" beside this line,
+                // and saying it twice cost the result its only chance to name
+                // which flight or stay actually matched. Empty when the fact
+                // has nothing identifying: the noun is prose, so the interface
+                // supplies it, localized.
+                let label = fact_identity(&fact).unwrap_or_default();
                 let text = fact_search_text(&fact);
                 owned.push(OwnedWorkspaceSearchRecord {
                     source: WorkspaceSearchSource::ConfirmedFact,
@@ -2382,7 +2386,7 @@ impl AppService {
                     trip_status: trip.status,
                     trip_updated_at: trip.updated_at.clone(),
                     record_id: fact.id,
-                    label: label.to_owned(),
+                    label,
                     text,
                 });
             }

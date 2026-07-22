@@ -9,7 +9,7 @@ import type {
 } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
-import { describeError, formatDate, formatDateTimeLocal } from "../app/format";
+import { describeError, formatDate, formatInstant } from "../app/format";
 import { t } from "../app/i18n";
 import { APP_LOCALE } from "../app/locale";
 import { SectionTitle } from "../components/primitives";
@@ -20,13 +20,6 @@ import { Button } from "../components/Button";
 
 /** Reference currencies the money block quotes the destination against. */
 const REFERENCE_CURRENCIES = ["USD", "EUR", "GBP"] as const;
-
-/** "2026-07-17T09:30:00Z" → "Jul 17, 2026 · 09:30" without timezone games. */
-function formatStamp(iso: string): string {
-  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(iso);
-  if (!match) return iso;
-  return formatDateTimeLocal(`${match[1]}T${match[2]}`);
-}
 
 /** Convert one unit of `from` into `to` via the euro, or null if either is absent. */
 function crossRate(
@@ -325,7 +318,7 @@ export function DestinationFacts({
     () => gateway.fetchDestinationFacts(tripId),
     (fetched) => {
       announce(
-        t("facts.retrieved", { stamp: formatStamp(fetched.retrievedAt) }),
+        t("facts.retrieved", { stamp: formatInstant(fetched.retrievedAt) }),
       );
       onFetched();
     },

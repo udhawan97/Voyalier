@@ -2,18 +2,29 @@ import { useEffect, useRef, useState } from "react";
 import type { WorkspaceSearchHit } from "@voyalier/contracts";
 
 import { useGateway } from "../app/context";
-import { describeError, formatDate } from "../app/format";
+import { describeError, formatInstantDate } from "../app/format";
 import { t, type MessageKey } from "../app/i18n";
 import { useAsyncAction } from "../app/useAsync";
 import { Button } from "../components/Button";
 import { ArrowLeftIcon, SearchIcon } from "../components/icons";
 import { SectionTitle } from "../components/primitives";
 
+/**
+ * What to call a result.
+ *
+ * A confirmed fact carries its own identifying data — "SFO → KIX", a property
+ * name — and that is what names it. The localized noun is only the floor for a
+ * fact with nothing identifying, and for notes, which have no name of their
+ * own. The snippet underneath stays as the raw matched text on purpose: it is
+ * the evidence for *why* this result matched, the same instinct as the review
+ * dialog's quoted spans.
+ */
 function resultLabel(hit: WorkspaceSearchHit): string {
+  if (hit.source === "note") return t("workspaceSearch.label.note");
+  if (hit.label) return hit.label;
   if (hit.source === "confirmed_fact") {
     return t("workspaceSearch.label.confirmedFact");
   }
-  if (hit.source === "note") return t("workspaceSearch.label.note");
   return hit.label;
 }
 
@@ -116,7 +127,7 @@ export function WorkspaceSearch({
                   </span>
                   <span>
                     {t("workspaceSearch.updated", {
-                      date: formatDate(hit.tripUpdatedAt.slice(0, 10)),
+                      date: formatInstantDate(hit.tripUpdatedAt),
                     })}
                   </span>
                   <span>{hit.snippet}</span>
