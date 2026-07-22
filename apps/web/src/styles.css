@@ -633,6 +633,7 @@ h3 {
   display: flex;
   flex-wrap: wrap;
   gap: 0.7rem;
+  align-items: flex-start;
   justify-content: center;
 }
 
@@ -3814,7 +3815,9 @@ h3 {
   flex-direction: column;
   width: 100%;
   max-width: 34rem;
-  max-height: calc(100dvh - 2rem);
+  /* Against the overlay's content box, so this keeps tracking its padding
+     rather than restating it and drifting by exactly that much. */
+  max-height: 100%;
   background: var(--voy-paper);
   border: 1px solid var(--voy-line-strong);
   border-radius: var(--voy-radius-lg);
@@ -4265,6 +4268,9 @@ body::before {
   display: flex;
   flex-wrap: wrap;
   gap: 0.6rem;
+  /* Top-aligned, because one action carries a note underneath it and centring
+     would float the other button against that note's height. */
+  align-items: flex-start;
   justify-content: center;
 }
 

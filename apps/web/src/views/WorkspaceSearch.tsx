@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { WorkspaceSearchHit } from "@voyalier/contracts";
 
 import { useGateway } from "../app/context";
-import { describeError, formatDate } from "../app/format";
+import { describeError, formatInstantDate } from "../app/format";
 import { t, type MessageKey } from "../app/i18n";
 import { useAsyncAction } from "../app/useAsync";
 import { Button } from "../components/Button";
@@ -127,7 +127,7 @@ export function WorkspaceSearch({
                   </span>
                   <span>
                     {t("workspaceSearch.updated", {
-                      date: formatDate(hit.tripUpdatedAt.slice(0, 10)),
+                      date: formatInstantDate(hit.tripUpdatedAt),
                     })}
                   </span>
                   <span>{hit.snippet}</span>

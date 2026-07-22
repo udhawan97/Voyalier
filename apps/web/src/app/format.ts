@@ -116,6 +116,24 @@ export function formatInstant(value: string): string {
   return `${formatDateIn(day, APP_LOCALE)} · ${clock}`;
 }
 
+/**
+ * The calendar day an instant fell on, in the viewer's own zone.
+ *
+ * Slicing "2026-07-22T00:46:00Z".slice(0, 10) looks like the same thing and is
+ * not: for anyone west of UTC an evening action is stamped tomorrow. "Imported
+ * Jul 22" on the evening of the 21st is a small lie in a panel whose entire job
+ * is telling the traveler what Voyalier kept and when.
+ */
+export function formatInstantDate(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  const day = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(
+    2,
+    "0",
+  )}-${String(parsed.getDate()).padStart(2, "0")}`;
+  return formatDateIn(day, APP_LOCALE);
+}
+
 export function formatDateRange(startDate: string, endDate: string): string {
   return `${formatDate(startDate)} – ${formatDate(endDate)}`;
 }

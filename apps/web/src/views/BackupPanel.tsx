@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useAnnounce } from "../app/context";
 import { t } from "../app/i18n";
-import { formatDate } from "../app/format";
+import { formatDate, formatInstantDate } from "../app/format";
 import { type BackupGateway, selectBackup } from "../backup";
 import { Button } from "../components/Button";
 import { SectionTitle } from "../components/primitives";
@@ -209,7 +209,7 @@ export function BackupPanel({
                 // The manifest stamps an RFC3339 instant; formatDate takes a
                 // calendar date and passes anything else through verbatim,
                 // which would show the traveler a raw timestamp.
-                date: formatDate(preview.createdAt.slice(0, 10)),
+                date: formatInstantDate(preview.createdAt),
               });
               setNotice(message);
               announce(message);

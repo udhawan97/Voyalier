@@ -2,7 +2,13 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
 
 import { renderApp } from "./test/helpers";
-import { APP_LOCALE, formatDateTimeLocal, formatInstant } from "./app/format";
+import {
+  APP_LOCALE,
+  formatDate,
+  formatDateTimeLocal,
+  formatInstant,
+  formatInstantDate,
+} from "./app/format";
 
 /**
  * Retrieved-evidence stamps are *instants* — a moment the fetch happened — and
@@ -37,6 +43,24 @@ describe("retrieved-evidence timestamps", () => {
 
   it("returns unparseable input verbatim", () => {
     expect(formatInstant("not a date")).toBe("not a date");
+    expect(formatInstantDate("not a date")).toBe("not a date");
+  });
+
+  it("dates an instant by the viewer's calendar, not UTC's", () => {
+    // 00:46Z on the 22nd is still the evening of the 21st in America/Chicago.
+    // Slicing the ISO string — which is what four panels did — stamps tomorrow.
+    const evening = "2026-07-22T00:46:00Z";
+    const localDay = new Intl.DateTimeFormat(APP_LOCALE, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }).format(new Date(evening));
+    expect(formatInstantDate(evening)).toBe(localDay);
+    if (new Date(evening).getTimezoneOffset() !== 0) {
+      expect(formatInstantDate(evening)).not.toBe(
+        formatDate(evening.slice(0, 10)),
+      );
+    }
   });
 });
 
