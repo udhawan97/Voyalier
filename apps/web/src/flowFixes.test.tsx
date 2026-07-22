@@ -174,4 +174,58 @@ describe("User-flow gap fixes", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(document.activeElement).not.toBe(document.body);
   });
+
+  // The audit's gap #8: after a failed submit, a field kept its red error while
+  // holding a perfectly valid value, until the next submit.
+  it("clears a field error as soon as that field becomes valid", async () => {
+    renderApp(failingGateway({ listTrips: () => Promise.resolve([]) }));
+    const buttons = await screen.findAllByRole("button", {
+      name: "Create a trip",
+    });
+    fireEvent.click(buttons[buttons.length - 1]);
+    const dialog = await screen.findByRole("dialog", { name: "Create a trip" });
+
+    // Submitting empty is what raises them in the first place.
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Create trip" }),
+    );
+    expect(
+      await within(dialog).findByText("Enter where the trip starts."),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByText("Add both a start and end date."),
+    ).toBeInTheDocument();
+
+    // Fixing one field clears that field, and only that field.
+    fireEvent.change(within(dialog).getByLabelText("From"), {
+      target: { value: "San Francisco" },
+    });
+    await waitFor(() =>
+      expect(
+        within(dialog).queryByText("Enter where the trip starts."),
+      ).toBeNull(),
+    );
+    expect(
+      within(dialog).getByText("Enter where the trip goes."),
+    ).toBeInTheDocument();
+
+    // Dates clear only once both are present and in order.
+    fireEvent.change(within(dialog).getByLabelText("Start date"), {
+      target: { value: "2026-10-19" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("End date"), {
+      target: { value: "2026-10-12" },
+    });
+    expect(
+      within(dialog).getByText("Add both a start and end date."),
+    ).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("End date"), {
+      target: { value: "2026-10-26" },
+    });
+    await waitFor(() =>
+      expect(
+        within(dialog).queryByText("Add both a start and end date."),
+      ).toBeNull(),
+    );
+  });
 });

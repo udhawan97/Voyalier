@@ -52,6 +52,26 @@ export function CreateTripDialog({
     return next;
   }
 
+  /**
+   * Drop a field's error the moment that field becomes valid.
+   *
+   * Only fields that have already failed re-check: validating a field the
+   * traveler has not finished filling in for the first time is nagging, not
+   * help. Once one has argued back, though, it has to stop arguing as soon as
+   * it is answered — holding "Enter where the trip starts." above the words
+   * "San Francisco" until the next submit reads as a bug in the form.
+   */
+  function clearIfFixed(field: keyof FieldErrors, valid: boolean) {
+    setErrors((current) =>
+      current[field] && valid ? { ...current, [field]: undefined } : current,
+    );
+  }
+
+  function withinLimit(value: string): boolean {
+    const trimmed = value.trim();
+    return trimmed.length > 0 && trimmed.length <= 120;
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setFormError(null);
@@ -130,7 +150,10 @@ export function CreateTripDialog({
           label={t("createTrip.origin.label")}
           inputRef={originRef}
           value={origin}
-          onChange={setOrigin}
+          onChange={(value) => {
+            setOrigin(value);
+            clearIfFixed("origin", withinLimit(value));
+          }}
           fetchSuggestions={fetchPlaceSuggestions}
           error={errors.origin}
           required
@@ -141,7 +164,10 @@ export function CreateTripDialog({
           id="trip-destination"
           label={t("createTrip.destination.label")}
           value={destination}
-          onChange={setDestination}
+          onChange={(value) => {
+            setDestination(value);
+            clearIfFixed("destination", withinLimit(value));
+          }}
           fetchSuggestions={fetchPlaceSuggestions}
           error={errors.destination}
           required
@@ -155,7 +181,14 @@ export function CreateTripDialog({
               label={t("createTrip.startDate")}
               type="date"
               value={startDate}
-              onChange={(event) => setStartDate(event.target.value)}
+              onChange={(event) => {
+                const next = event.target.value;
+                setStartDate(next);
+                clearIfFixed(
+                  "dates",
+                  Boolean(next && endDate && next <= endDate),
+                );
+              }}
               required
               aria-invalid={errors.dates ? true : undefined}
               aria-describedby={errors.dates ? "trip-dates-error" : undefined}
@@ -165,7 +198,14 @@ export function CreateTripDialog({
               label={t("createTrip.endDate")}
               type="date"
               value={endDate}
-              onChange={(event) => setEndDate(event.target.value)}
+              onChange={(event) => {
+                const next = event.target.value;
+                setEndDate(next);
+                clearIfFixed(
+                  "dates",
+                  Boolean(startDate && next && startDate <= next),
+                );
+              }}
               required
               aria-invalid={errors.dates ? true : undefined}
               aria-describedby={errors.dates ? "trip-dates-error" : undefined}
