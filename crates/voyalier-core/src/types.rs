@@ -785,7 +785,9 @@ pub fn validate_create_trip(input: CreateTripInput) -> Result<ValidatedTripInput
         .title
         .map(|title| title.trim().to_owned())
         .filter(|title| !title.is_empty())
-        .unwrap_or_else(|| format!("{origin} -> {destination}"));
+        // The same arrow the interface draws for a route. An ASCII one here put
+        // "A -> B" as a trip's title one line above its own route line, "A → B".
+        .unwrap_or_else(|| format!("{origin} → {destination}"));
 
     Ok(ValidatedTripInput {
         title,
