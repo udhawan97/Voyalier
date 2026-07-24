@@ -9,11 +9,11 @@
     "preview": "astro preview"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.41.3",
+    "@astrojs/starlight": "^0.41.4",
     "@pagefind/default-ui": "^1.5.2",
     "@voyalier/brand": "workspace:*",
     "@voyalier/ui": "workspace:*",
-    "astro": "^7.1.1"
+    "astro": "^7.1.3"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.6",
