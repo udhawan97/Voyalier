@@ -6,6 +6,43 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-28 — The visa preparation release
+
+### Added
+
+- **Voyalier now helps you actually apply for a visa, without ever telling you
+  what the rules are.** `readiness.rs` has held its entry-requirements item at a
+  permanent "Not checked" since Phase 1, because `AGENTS.md` forbids claiming
+  authority over visas — which left the highest-friction task in a trip entirely
+  outside the product. The new Visa section takes the other half of the problem:
+  not the rules, which governments publish and change, but the execution, which
+  nobody publishes and everybody gets wrong. For a route it has curated, it walks
+  you through the application step by step — what the authority calls each thing,
+  what that means in plain language, which documents it takes, and the specific
+  ways people trip. Canada's visitor visa is curated first, both paths, with your
+  ticks and notes saved per trip so you can close the app mid-application and come
+  back to where you were.
+
+  The split is absolute and enforced by a test: every factual claim about a
+  requirement is a link to the authority, and every sentence Voyalier writes is a
+  translation or a caution. It never states a fee, a processing time, or an
+  eligibility outcome. Entry paths are quoted, carrying the authority's name and
+  the date the list was read; where Canada publishes conditions rather than an
+  answer, you get the official link and no guess. The most valuable thing in the
+  guide is a question it refuses to answer — Canada lets citizens of _some_
+  visa-required countries skip the visa entirely for a far cheaper electronic
+  authorization, the eligible list is short and it moves, and step one puts that
+  in front of you with the list attached rather than resolving it for you.
+
+  What was left out: every destination except Canada, travelling parties, and any
+  live refresh of the curated data. That last one is not a shortcut — IRCC
+  publishes no machine-readable feed and `canada.ca` refuses automated fetches, so
+  curated-and-stamped is the only honest shape, and the guide says when it was
+  last read. Your nationality and your notes are encrypted at rest alongside your
+  confirmations. Readiness is deliberately unchanged: the entry-requirements item
+  still asserts nothing and still cannot clear your trip, and it now reports your
+  own tally attributed to you in the same sentence.
+
 ## [0.5.2] - 2026-07-21 — The audited-journey release
 
 A browser audit walked Voyalier's primary flows end to end — first run, import

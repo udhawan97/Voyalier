@@ -1,7 +1,7 @@
 # Visa preparation cockpit — design
 
 **Date:** 2026-07-28
-**Status:** Approved, not yet built
+**Status:** Built and shipped in 0.6.0 (2026-07-28)
 **Fills:** the hole `crates/voyalier-core/src/readiness.rs` names in its own header — _"that sourced
 readiness is a later milestone and must be quoted from identified sources, never inferred here or by
 a model."_
@@ -33,13 +33,13 @@ sentence Voyalier authors is either a translation or a caution.**
 
 ## Decisions
 
-| Question           | Decision                                                                          |
-| ------------------ | --------------------------------------------------------------------------------- |
-| How assertive?     | Pointer + preparation cockpit. Requirements are links, never assertions.          |
-| Coverage           | Destination curated deeply once; nationality selects path and biometrics pointer. |
-| Persistence        | Full per-trip cockpit — nationality, checkboxes, and notes persist.               |
-| Readiness coupling | `EntryRequirements` stays `NotChecked` forever; gains a self-report sub-line.     |
-| Placement          | Its own trip-detail nav section, with a step rail inside it.                      |
+| Question           | Decision                                                                      |
+| ------------------ | ----------------------------------------------------------------------------- |
+| How assertive?     | Pointer + preparation cockpit. Requirements are links, never assertions.      |
+| Coverage           | Destination curated deeply once; nationality selects the path.                |
+| Persistence        | Full per-trip cockpit — nationality, checkboxes, and notes persist.           |
+| Readiness coupling | `EntryRequirements` stays `NotChecked` forever; gains a self-report sub-line. |
+| Placement          | Its own trip-detail nav section, with a step rail inside it.                  |
 
 ### Why curated-and-bundled, not fetched
 
@@ -113,12 +113,13 @@ records so a ticked box can never read as confirmed evidence:
 
 ```sql
 CREATE TABLE visa_prep (
-  trip_id          TEXT PRIMARY KEY REFERENCES trips(id) ON DELETE CASCADE,
+  id               TEXT PRIMARY KEY,
+  trip_id          TEXT NOT NULL UNIQUE REFERENCES trips(id) ON DELETE CASCADE,
   nationality_iso2 TEXT,                      -- sealed
   updated_at       TEXT NOT NULL
 );
 
-CREATE TABLE visa_prep_item (
+CREATE TABLE visa_prep_items (
   id          TEXT PRIMARY KEY,
   trip_id     TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
   document_id TEXT NOT NULL,                  -- a curated VisaDocument.id
@@ -140,11 +141,11 @@ never.
 
 ### `packages/contracts` — three methods
 
-| Method                | Verb  | Path                                             | Command                  |
-| --------------------- | ----- | ------------------------------------------------ | ------------------------ |
-| `getVisaPrep`         | `GET` | `/api/v1/trips/{tripId}/visa`                    | `get_visa_prep`          |
-| `setVisaNationality`  | `PUT` | `/api/v1/trips/{tripId}/visa/nationality`        | `set_visa_nationality`   |
-| `setVisaItemProgress` | `PUT` | `/api/v1/trips/{tripId}/visa/items/{documentId}` | `set_visa_item_progress` |
+| Method                | Verb  | Path                                                 | Command                  |
+| --------------------- | ----- | ---------------------------------------------------- | ------------------------ |
+| `getVisaPrep`         | `GET` | `/api/v1/trips/{tripId}/visa`                        | `get_visa_prep`          |
+| `setVisaNationality`  | `PUT` | `/api/v1/trips/{tripId}/visa/nationality`            | `set_visa_nationality`   |
+| `setVisaItemProgress` | `PUT` | `/api/v1/trips/{tripId}/visa/items/{visaDocumentId}` | `set_visa_item_progress` |
 
 Each lands in all eight required places: `AppService`, the Axum route, the Tauri command,
 `contracts/src/index.ts`, `contracts/src/mock.ts`, `gateway/http.ts`, `gateway/tauri.ts`, and a
@@ -202,9 +203,16 @@ Curated links: IRCC's visa-or-eTA check tool, the eTA-X eligibility list, Guide 
 IMM 5484, the photo specification, the biometrics page, and the processing-times tool. Every URL is
 verified by hand at authoring time and stamped `curated_as_of: "2026-07-28"`.
 
-Biometrics pointers are curated for the fifteen highest-volume nationalities (IN, NG, PH, CN, BR,
-PK, MX, VN, ID, TR, EG, BD, LK, NP, ZA) with a generic "find your visa application centre" link for
-everyone else.
+**Amended during the build:** per-nationality biometrics pointers were dropped. IRCC publishes one
+visa-application-centre finder covering every country rather than per-country pages, so the fifteen
+curated rows would all have resolved to the same URL — a distinction the source does not make.
+
+**Also amended:** `visa_prep` carries an `id` column despite `trip_id` being its natural key.
+`migrate_encrypt_sensitive_columns` re-seals legacy rows by `SELECT id, <column>`, so every sealed
+table needs one; matching `trip_notes` costs a column where teaching that helper per-table keys would
+cost a branch on every future sealed table. The item route's path placeholder is
+`{visaDocumentId}`, not `{documentId}` — the manifest already uses the latter for an imported source
+document.
 
 ## Testing
 
