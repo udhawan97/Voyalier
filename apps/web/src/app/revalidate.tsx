@@ -16,6 +16,7 @@ import {
  * - `"trips"` — the trip list
  * - `` `trip:${id}` `` — one trip's detail and its pending candidates
  * - `` `documents:${id}` `` — one trip's imported documents
+ * - `` `visa:${id}` `` — one trip's visa preparation
  */
 export type Scope = string;
 
@@ -25,6 +26,8 @@ export const tripsScope: Scope = "trips";
 export const tripScope = (tripId: string): Scope => `trip:${tripId}`;
 /** One trip's imported documents. */
 export const documentsScope = (tripId: string): Scope => `documents:${tripId}`;
+/** One trip's visa preparation. */
+export const visaScope = (tripId: string): Scope => `visa:${tripId}`;
 
 type Listener = () => void;
 

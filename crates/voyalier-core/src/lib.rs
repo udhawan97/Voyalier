@@ -35,6 +35,7 @@ mod tipping;
 mod today;
 mod types;
 mod vault;
+mod visa;
 mod weather;
 
 pub use advice::{
@@ -80,7 +81,7 @@ pub use facts::{
     CountryFacts, CurrencyRate, DestinationFactsSnapshot, EmergencyNumbers, TimeDifference,
     country_facts, cross_rate, parse_ecb_rates, time_difference,
 };
-pub use gazetteer::{CitySuggestion, search_cities};
+pub use gazetteer::{CitySuggestion, resolve_country_code, search_cities};
 pub use heritage::{HeritageSite, world_heritage_near};
 // The Nager endpoint and its per-year addressing stay internal: which URL
 // answers for a country and year is this module's knowledge. `public_holidays`
@@ -135,6 +136,11 @@ pub use tipping::tipping_guidance;
 pub use today::{TodayItem, TodayItemKind, TodayView, TripPhase, TripPhaseState, build_today_view};
 pub use types::*;
 pub use vault::{VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, derive_key, open, seal};
+pub use visa::{
+    EntryPath, EntryPathQuote, MAX_VISA_NOTE_CHARS, SetVisaItemProgressInput,
+    SetVisaNationalityInput, VisaDocument, VisaJourney, VisaPrep, VisaPrepItem, VisaSelfReport,
+    VisaStep, entry_path, validate_nationality, validate_visa_note, visa_journey,
+};
 pub use weather::{
     GeocodedPlace, WeatherCoverage, WeatherDay, WeatherSnapshot, describe_weather_code, geocode,
     parse_forecast_response, parse_geocoding_response,

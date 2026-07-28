@@ -28,13 +28,14 @@ use voyalier_core::{
     PackSuggestion, PackingItem, PersonaWeights, PlaceSummary, ProviderConfig, ProviderId,
     PublicHolidaysSnapshot, Recommendation, RedactionPolicy, SEARCH_SUGGESTION_LIMIT,
     SavePlaceInput, SavedPlace, SearchHit, SearchableDocument, SetInterestProfileInput,
-    SourceDocument, SourceState, SourceStatus, SuggestionSource, TodayView, Trip, TripAssessment,
-    TripBrief, TripDetail, TripItem, TripNotes, TripStatus, TripSummary, UpdatePackingItemInput,
-    UpdateSavedPlaceInput, UpdateTripInput, UpdateTripItemInput, WarningCode, WeatherAlert,
-    WeatherSnapshot, WorkspaceSearchHit, WorkspaceSearchRecord, WorkspaceSearchSource,
-    advisory_country, archive_window, assess_trip, build_assist_preview, build_assist_request,
-    build_draft_preview, build_key_validation_request, build_packing_list, build_pull_body,
-    build_today_view, build_trip_brief, changed_payload_fields, compute_astro_day, country_facts,
+    SetVisaItemProgressInput, SetVisaNationalityInput, SourceDocument, SourceState, SourceStatus,
+    SuggestionSource, TodayView, Trip, TripAssessment, TripBrief, TripDetail, TripItem, TripNotes,
+    TripStatus, TripSummary, UpdatePackingItemInput, UpdateSavedPlaceInput, UpdateTripInput,
+    UpdateTripItemInput, VisaPrep, VisaSelfReport, WarningCode, WeatherAlert, WeatherSnapshot,
+    WorkspaceSearchHit, WorkspaceSearchRecord, WorkspaceSearchSource, advisory_country,
+    archive_window, assess_trip, build_assist_preview, build_assist_request, build_draft_preview,
+    build_key_validation_request, build_packing_list, build_pull_body, build_today_view,
+    build_trip_brief, changed_payload_fields, compute_astro_day, country_facts,
     detect_planned_item_conflicts, entry_from_fcdo, estimate_tokens, fact_identity,
     fact_search_text, geocode, holidays_within, interpret_key_validation, interpret_pull_response,
     nearest_airports, new_id, notices_for_country, now_rfc3339, offline_map_download_url,
@@ -1131,12 +1132,14 @@ impl AppService {
         let interest_profile = self.records(&connection).interest_profile(trip_id)?;
         let saved_places = self.records(&connection).saved_places(trip_id)?;
         let packing_items = self.records(&connection).packing_items(trip_id)?;
+        let visa_self_report = self.visa_self_report(&connection, &trip)?;
         Ok(TripDetail {
             trip,
             confirmed_facts,
             pending_candidate_count,
             itinerary_conflicts,
             readiness,
+            visa_self_report,
             advisory_panel,
             weather,
             packing_list,
@@ -3375,6 +3378,156 @@ impl AppService {
 
     /// Replace a trip's notes. Clearing them removes the row rather than storing
     /// an empty string, so "no notes" is one state and not two.
+    /// A trip's visa preparation: the curated journey for the stored passport,
+    /// plus the traveler's own progress.
+    ///
+    /// The two are returned together so a caller cannot pair a journey with
+    /// another trip's checkboxes. Nothing here decides whether a visa is needed
+    /// -- per ADR-0006 the entry path is quoted from the destination authority
+    /// with its source and date, and an uncurated or conditional pair yields no
+    /// journey rather than a guess.
+    pub fn get_visa_prep(&self, trip_id: &str) -> Result<VisaPrep, AppError> {
+        let connection = self.connection()?;
+        let records = self.records(&connection);
+        let trip = records.trip(trip_id)?;
+        let items = records.visa_prep_items(trip_id)?;
+        let Some(nationality_iso2) = records.visa_nationality(trip_id)? else {
+            return Ok(VisaPrep {
+                trip_id: trip_id.to_owned(),
+                nationality_iso2: None,
+                suggested_nationality_iso2: records.latest_visa_nationality()?,
+                entry_path: None,
+                journey: None,
+                items,
+            });
+        };
+
+        let destination = self.destination_country(&connection, &trip)?;
+        let (entry_path, journey) = match destination {
+            Some(ref code) => (
+                Some(voyalier_core::entry_path(code, &nationality_iso2)),
+                voyalier_core::visa_journey(code, &nationality_iso2),
+            ),
+            // Without a resolved destination country there is nothing to quote,
+            // and inventing one would be the exact overreach ADR-0006 forbids.
+            None => (None, None),
+        };
+
+        Ok(VisaPrep {
+            trip_id: trip_id.to_owned(),
+            nationality_iso2: Some(nationality_iso2),
+            suggested_nationality_iso2: None,
+            entry_path,
+            journey,
+            items,
+        })
+    }
+
+    /// The traveler's own visa-prep tally for the readiness line, or `None` when
+    /// no journey resolves. Counts steps whose documents are all ticked, so it
+    /// matches what the cockpit shows rather than counting documents twice.
+    fn visa_self_report(
+        &self,
+        connection: &Connection,
+        trip: &Trip,
+    ) -> Result<Option<VisaSelfReport>, AppError> {
+        let records = self.records(connection);
+        let Some(nationality) = records.visa_nationality(&trip.id)? else {
+            return Ok(None);
+        };
+        let Some(destination) = self.destination_country(connection, trip)? else {
+            return Ok(None);
+        };
+        let Some(journey) = voyalier_core::visa_journey(&destination, &nationality) else {
+            return Ok(None);
+        };
+        let checked: std::collections::HashSet<String> = records
+            .visa_prep_items(&trip.id)?
+            .into_iter()
+            .filter(|item| item.checked)
+            .map(|item| item.document_id)
+            .collect();
+        let done = journey
+            .steps
+            .iter()
+            .filter(|step| {
+                !step.documents.is_empty()
+                    && step
+                        .documents
+                        .iter()
+                        .all(|document| checked.contains(&document.id))
+            })
+            .count();
+        Ok(Some(VisaSelfReport {
+            done: u32::try_from(done).unwrap_or(u32::MAX),
+            total: u32::try_from(journey.steps.len()).unwrap_or(u32::MAX),
+        }))
+    }
+
+    /// The destination's country code: the geocoded snapshot when the traveler
+    /// has fetched one, else the bundled gazetteer so the cockpit works offline.
+    fn destination_country(
+        &self,
+        connection: &Connection,
+        trip: &Trip,
+    ) -> Result<Option<String>, AppError> {
+        if let Some(snapshot) = load_destination_facts_snapshot(connection, &trip.id)? {
+            return Ok(Some(snapshot.country_code));
+        }
+        Ok(voyalier_core::resolve_country_code(&trip.destination))
+    }
+
+    /// Set the passport a trip's visa preparation is resolved against.
+    pub fn set_visa_nationality(
+        &self,
+        input: SetVisaNationalityInput,
+    ) -> Result<VisaPrep, AppError> {
+        let nationality_iso2 = voyalier_core::validate_nationality(&input.nationality_iso2)?;
+        {
+            let connection = self.connection()?;
+            let records = self.records(&connection);
+            records.trip(&input.trip_id)?;
+            records.upsert_visa_nationality(
+                &new_id("visa-prep"),
+                &input.trip_id,
+                &nationality_iso2,
+                &now_rfc3339(),
+            )?;
+        }
+        self.get_visa_prep(&input.trip_id)
+    }
+
+    /// Record one checklist tick or note.
+    ///
+    /// Following ADR-0005 a row exists only after an explicit action, so
+    /// clearing both the tick and the note removes it rather than leaving an
+    /// empty row behind -- "untouched" stays one state instead of two.
+    pub fn set_visa_item_progress(
+        &self,
+        input: SetVisaItemProgressInput,
+    ) -> Result<VisaPrep, AppError> {
+        let note = input.note.as_deref().map(str::trim).unwrap_or_default();
+        voyalier_core::validate_visa_note(note)?;
+        {
+            let connection = self.connection()?;
+            let records = self.records(&connection);
+            records.trip(&input.trip_id)?;
+            if !input.checked && note.is_empty() {
+                records.delete_visa_prep_item(&input.trip_id, &input.document_id)?;
+            } else {
+                records.upsert_visa_prep_item(
+                    &new_id("visa"),
+                    &input.trip_id,
+                    &input.document_id,
+                    input.checked,
+                    (!note.is_empty()).then_some(note),
+                    &now_rfc3339(),
+                )?;
+            }
+        }
+        self.get_visa_prep(&input.trip_id)
+    }
+
     pub fn set_trip_notes(&self, trip_id: &str, body: &str) -> Result<TripNotes, AppError> {
         if body.chars().count() > MAX_NOTES_CHARS {
             return Err(AppError::new(
@@ -4215,6 +4368,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "saved_place_folded_identity",
         run: migrate_saved_place_folded_identity,
     },
+    Migration {
+        to: 12,
+        name: "visa_preparation",
+        run: migrate_visa_preparation,
+    },
 ];
 
 /// The version a fully migrated database carries. Stamped into a backup's
@@ -4260,6 +4418,44 @@ fn migrate(connection: &Connection) -> Result<(), AppError> {
 /// Add traveler-owned planning records. These tables intentionally sit beside,
 /// rather than inside, the evidence tables so a saved idea or manual activity
 /// can never be mistaken for a confirmed fact.
+/// Traveler-owned visa preparation. Following ADR-0005 these sit beside the
+/// evidence tables rather than inside them: a ticked checklist row is the
+/// traveler saying so, and must never read as a confirmed fact or clear
+/// readiness. `nationality_iso2` and `note` are sealed (see `SEALED_COLUMNS`) --
+/// nationality is personal data and notes carry application numbers.
+fn migrate_visa_preparation(connection: &Connection) -> Result<(), AppError> {
+    connection
+        .execute_batch(
+            // `id` is not the natural key here -- one row per trip is -- but
+            // migrate_encrypt_sensitive_columns re-seals legacy rows by
+            // `SELECT id, <column>`, so every sealed table carries one. Matching
+            // trip_notes costs a column; teaching that helper per-table keys
+            // would cost a branch on every future sealed table.
+            "CREATE TABLE IF NOT EXISTS visa_prep (
+                id TEXT PRIMARY KEY,
+                trip_id TEXT NOT NULL UNIQUE REFERENCES trips(id) ON DELETE CASCADE,
+                nationality_iso2 TEXT,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS visa_prep_items (
+                id TEXT PRIMARY KEY,
+                trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                document_id TEXT NOT NULL,
+                checked INTEGER NOT NULL DEFAULT 0,
+                note TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE (trip_id, document_id)
+            );
+
+            CREATE INDEX IF NOT EXISTS visa_prep_items_trip
+                ON visa_prep_items(trip_id);",
+        )
+        .map_err(storage_error)?;
+    Ok(())
+}
+
 fn migrate_traveler_planning(connection: &Connection) -> Result<(), AppError> {
     connection
         .execute_batch(
@@ -8919,6 +9115,149 @@ mod tests {
     /// list — before, the list only drove the legacy migration and each SELECT
     /// re-decided sealing by hand, so a forgotten open returned "v1:<base64>" to
     /// the UI with nothing objecting.
+    /// A trip bound for Canada, so the curated journey has something to resolve
+    /// against without a network fetch.
+    fn canada_trip_input() -> CreateTripInput {
+        CreateTripInput {
+            title: None,
+            origin: "Mumbai".to_owned(),
+            destination: "Toronto, Canada".to_owned(),
+            start_date: "2027-04-01".to_owned(),
+            end_date: "2027-04-10".to_owned(),
+        }
+    }
+
+    #[test]
+    fn visa_preparation_resolves_a_journey_and_keeps_progress() {
+        let database = temp_database("visa-prep");
+        let service = open_test_service(&database).expect("service");
+        let trip = service.create_trip(canada_trip_input()).expect("trip");
+
+        // Nothing is assumed before a passport is picked.
+        let empty = service.get_visa_prep(&trip.id).expect("empty");
+        assert_eq!(empty.nationality_iso2, None);
+        assert!(empty.journey.is_none());
+        assert!(empty.entry_path.is_none());
+        assert!(empty.items.is_empty());
+
+        let prep = service
+            .set_visa_nationality(SetVisaNationalityInput {
+                trip_id: trip.id.clone(),
+                nationality_iso2: "in".to_owned(),
+            })
+            .expect("nationality");
+        // Normalized on the way in, so storage never holds a code the resolver
+        // would then refuse to read.
+        assert_eq!(prep.nationality_iso2.as_deref(), Some("IN"));
+        let journey = prep.journey.expect("India needs a visa for Canada");
+        assert_eq!(journey.steps.len(), 8);
+        assert_eq!(journey.destination_iso2, "CA");
+        // The quote carries its source, never a bare assertion.
+        let quote = prep.entry_path.expect("quote");
+        assert_eq!(quote.path, voyalier_core::EntryPath::VisaRequired);
+        assert!(quote.source_url.starts_with("https://"));
+        assert!(!quote.curated_as_of.is_empty());
+
+        let ticked = service
+            .set_visa_item_progress(SetVisaItemProgressInput {
+                trip_id: trip.id.clone(),
+                document_id: "ca.trv.funds.statements".to_owned(),
+                checked: true,
+                note: Some("  asked HDFC 12 Jul  ".to_owned()),
+            })
+            .expect("tick");
+        assert_eq!(ticked.items.len(), 1);
+        assert!(ticked.items[0].checked);
+        assert_eq!(ticked.items[0].note.as_deref(), Some("asked HDFC 12 Jul"));
+
+        // ADR-0005: clearing both fields removes the row rather than leaving an
+        // empty tick behind, so "untouched" stays one state.
+        let cleared = service
+            .set_visa_item_progress(SetVisaItemProgressInput {
+                trip_id: trip.id.clone(),
+                document_id: "ca.trv.funds.statements".to_owned(),
+                checked: false,
+                note: None,
+            })
+            .expect("clear");
+        assert!(cleared.items.is_empty());
+
+        drop(service);
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn visa_preparation_refuses_bad_input_and_follows_the_trip() {
+        let database = temp_database("visa-prep-guards");
+        let service = open_test_service(&database).expect("service");
+        let trip = service.create_trip(canada_trip_input()).expect("trip");
+
+        for bad in ["", "I", "IND", "12"] {
+            let error = service
+                .set_visa_nationality(SetVisaNationalityInput {
+                    trip_id: trip.id.clone(),
+                    nationality_iso2: bad.to_owned(),
+                })
+                .expect_err("invalid nationality");
+            assert_eq!(error.code, ErrorCode::ValidationInvalidInput);
+        }
+
+        service
+            .set_visa_nationality(SetVisaNationalityInput {
+                trip_id: trip.id.clone(),
+                nationality_iso2: "IN".to_owned(),
+            })
+            .expect("nationality");
+        let long = "x".repeat(voyalier_core::MAX_VISA_NOTE_CHARS + 1);
+        let error = service
+            .set_visa_item_progress(SetVisaItemProgressInput {
+                trip_id: trip.id.clone(),
+                document_id: "ca.trv.funds.statements".to_owned(),
+                checked: true,
+                note: Some(long),
+            })
+            .expect_err("note too long");
+        assert_eq!(error.code, ErrorCode::ValidationInvalidInput);
+
+        // A second trip prefills the picker from the first, but never applies it
+        // -- the trip may not be for the same traveler.
+        let second = service.create_trip(canada_trip_input()).expect("second");
+        let prep = service.get_visa_prep(&second.id).expect("second prep");
+        assert_eq!(prep.nationality_iso2, None);
+        assert_eq!(prep.suggested_nationality_iso2.as_deref(), Some("IN"));
+
+        // Deleting the trip takes its preparation with it.
+        service.delete_trip(&trip.id).expect("delete");
+        assert!(service.get_visa_prep(&trip.id).is_err());
+
+        drop(service);
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn visa_preparation_stays_silent_without_a_resolvable_destination() {
+        let database = temp_database("visa-prep-unknown");
+        let service = open_test_service(&database).expect("service");
+        // Kyoto is not curated: the traveler gets their passport back and
+        // nothing invented about Japanese entry rules.
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        let prep = service
+            .set_visa_nationality(SetVisaNationalityInput {
+                trip_id: trip.id.clone(),
+                nationality_iso2: "IN".to_owned(),
+            })
+            .expect("nationality");
+        assert_eq!(prep.nationality_iso2.as_deref(), Some("IN"));
+        assert!(prep.journey.is_none());
+        assert_eq!(
+            prep.entry_path.expect("quote").path,
+            voyalier_core::EntryPath::Unknown
+        );
+
+        drop(service);
+        cleanup_database(database);
+    }
+
     #[test]
     fn sealed_columns_round_trip_through_the_vault() {
         let database = temp_database("sealed-columns");
@@ -8995,6 +9334,21 @@ mod tests {
             })
             .expect("trip item");
 
+        service
+            .set_visa_nationality(SetVisaNationalityInput {
+                trip_id: trip.id.clone(),
+                nationality_iso2: "IN".to_owned(),
+            })
+            .expect("nationality");
+        service
+            .set_visa_item_progress(SetVisaItemProgressInput {
+                trip_id: trip.id.clone(),
+                document_id: "ca.trv.funds.statements".to_owned(),
+                checked: true,
+                note: Some("HDFC statements requested 12 Jul".to_owned()),
+            })
+            .expect("visa progress");
+
         let connection = service.connection().expect("connection");
         for (table, column) in SEALED_COLUMNS {
             let stored: Vec<String> = {
@@ -9036,6 +9390,12 @@ mod tests {
         assert_eq!(
             detail.trip_items[0].location.as_deref(),
             Some("12 Secret Lane")
+        );
+        let visa = service.get_visa_prep(&trip.id).expect("visa prep");
+        assert_eq!(visa.nationality_iso2.as_deref(), Some("IN"));
+        assert_eq!(
+            visa.items[0].note.as_deref(),
+            Some("HDFC statements requested 12 Jul")
         );
 
         drop(service);

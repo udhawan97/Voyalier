@@ -999,6 +999,71 @@ fn actual_field_set(outcome: &crate::parser::ParserOutcome) -> BTreeSet<String> 
         .collect()
 }
 
+#[test]
+fn parity_visa_journeys_match_the_contract() {
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/contracts/parity/visa.json");
+    let raw = fs::read_to_string(&path).expect("parity/visa.json");
+    let mut golden: Value = serde_json::from_str(&raw).expect("valid json");
+    // ADR-0004, same rule as the other goldens: regeneration is deliberate and
+    // panics afterwards so the diff gets read, never to turn a red test green.
+    let regenerate = std::env::var("VOYALIER_REGENERATE_GOLDEN").is_ok();
+
+    let cases = golden["cases"].as_array().expect("cases array").clone();
+    assert_eq!(
+        cases.len() as u64,
+        golden["caseCount"].as_u64().expect("caseCount"),
+        "caseCount must be bumped in visa.json and in both tests when a case is added"
+    );
+
+    let mut regenerated = Vec::with_capacity(cases.len());
+    for case in &cases {
+        let name = case["name"].as_str().expect("name");
+        let destination = case["destination"].as_str().expect("destination");
+        let nationality = case["nationality"].as_str().expect("nationality");
+
+        // Structure only. The curated prose is rendered verbatim by the
+        // interface, so pinning it here would be churn rather than parity.
+        let journey = crate::visa_journey(destination, nationality);
+        let actual = serde_json::json!({
+            "entryPath": crate::entry_path(destination, nationality),
+            "routeLabel": journey.as_ref().map(|journey| journey.route_label.clone()),
+            "stepIds": journey.as_ref().map(|journey| {
+                journey.steps.iter().map(|step| step.id.clone()).collect::<Vec<_>>()
+            }),
+            "ordinals": journey.as_ref().map(|journey| {
+                journey.steps.iter().map(|step| step.ordinal).collect::<Vec<_>>()
+            }),
+            "documentIds": journey.as_ref().map(|journey| {
+                journey
+                    .steps
+                    .iter()
+                    .flat_map(|step| step.documents.iter().map(|document| document.id.clone()))
+                    .collect::<Vec<_>>()
+            }),
+        });
+
+        if regenerate {
+            let mut updated = case.clone();
+            updated["expected"] = actual;
+            regenerated.push(updated);
+            continue;
+        }
+        assert_eq!(
+            actual, case["expected"],
+            "visa journey disagrees for {name:?}"
+        );
+    }
+
+    if regenerate {
+        golden["cases"] = Value::Array(regenerated);
+        let mut serialized = serde_json::to_string_pretty(&golden).expect("serialize");
+        serialized.push('\n');
+        fs::write(&path, serialized).expect("write golden");
+        panic!("regenerated parity/visa.json -- read the diff, then rerun without the env var");
+    }
+}
+
 fn assert_schema<T: serde::Serialize>(schemas: &SchemaSet, schema_name: &str, value: &T) {
     let json = serde_json::to_value(value).expect("json");
     schemas

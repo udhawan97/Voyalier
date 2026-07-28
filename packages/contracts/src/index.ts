@@ -45,6 +45,12 @@ export interface TripDetail {
    */
   astro: AstroDay[];
   /**
+   * The traveler's own visa-preparation tally, for the entry-requirements
+   * readiness line. Absent until they pick a passport and a journey resolves.
+   * Never feeds the rollup — see ADR-0006.
+   */
+  visaSelfReport?: VisaSelfReport;
+  /**
    * The airports nearest the destination, by great-circle distance from the
    * snapshot's coordinates. Bundled and offline; empty without a snapshot.
    */
@@ -446,6 +452,8 @@ export const MAX_LOCATION_LEN = 120;
 /** The most an imported document may hold. */
 export const MAX_DOCUMENT_CHARS = 1_000_000;
 /** The longest in-trip search query accepted. */
+/** Traveler notes on one visa document. Counted with {@link countChars}. */
+export const MAX_VISA_NOTE_CHARS = 2_000;
 export const MAX_QUERY_LEN = 200;
 /** The longest custom AI instruction accepted. */
 export const MAX_AI_PROMPT_LEN = 6000;
@@ -1172,6 +1180,98 @@ export interface AddManualFactInput {
   factType: FactType;
   payload: FactPayload;
 }
+/**
+ * Visa **preparation**, never visa advice. Per ADR-0006 every factual claim
+ * about a requirement is a link, and every sentence Voyalier authors is a
+ * translation of the authority's own term or a caution about a common
+ * execution mistake. Nothing here decides whether a traveler needs a visa.
+ */
+export type EntryPath =
+  "visaRequired" | "electronicAuthorization" | "exempt" | "unknown";
+/** An entry path with where it was read from and when. Quoted, never derived. */
+export interface EntryPathQuote {
+  path: EntryPath;
+  sourceName: string;
+  sourceUrl: string;
+  curatedAsOf: string;
+  /** Content language of the curated prose, so the interface can mark it up. */
+  language: string;
+}
+export interface VisaDocument {
+  /** Stable across curation edits — traveler progress is keyed on it. */
+  id: string;
+  label: string;
+  plainExplanation: string;
+  /** The specific ways people get this document wrong. */
+  gotchas: string[];
+  links: SourceLink[];
+}
+export interface VisaStep {
+  id: string;
+  /** 1-based, contiguous within a journey. */
+  ordinal: number;
+  title: string;
+  /** What the authority calls this, when its term differs from plain language. */
+  authorityTerm?: string;
+  plainExplanation: string;
+  documents: VisaDocument[];
+  links: SourceLink[];
+}
+export interface VisaJourney {
+  destinationIso2: string;
+  nationalityIso2: string;
+  routeLabel: string;
+  entryPath: EntryPathQuote;
+  steps: VisaStep[];
+  curatedAsOf: string;
+  language: string;
+}
+/**
+ * One traveler-owned tick or note. Following ADR-0005 a row exists only after an
+ * explicit action — the curated checklist is computed output and never stores
+ * itself, exactly as `PackingSuggestion` never becomes a `PackingItem` on its own.
+ */
+/**
+ * The traveler's own tally of visa preparation, attributed to them in the copy
+ * that renders it. Voyalier has verified none of it.
+ */
+export interface VisaSelfReport {
+  done: number;
+  total: number;
+}
+export interface VisaPrepItem {
+  documentId: string;
+  checked: boolean;
+  note?: string;
+  updatedAt: string;
+}
+/** The resolved journey and the traveler's progress, always fetched together. */
+export interface VisaPrep {
+  tripId: string;
+  nationalityIso2?: string;
+  /**
+   * The passport this trip would prefill with, from the traveler's most recent
+   * choice on another trip. A suggestion for the picker only — never applied on
+   * their behalf, because a trip may not be for them.
+   */
+  suggestedNationalityIso2?: string;
+  /** Absent until a nationality is set. */
+  entryPath?: EntryPathQuote;
+  /** Absent when the pair is uncurated, conditional, or needs nothing. */
+  journey?: VisaJourney;
+  items: VisaPrepItem[];
+}
+export interface SetVisaNationalityInput {
+  tripId: string;
+  /** ISO-3166-1 alpha-2, uppercase. */
+  nationalityIso2: string;
+}
+export interface SetVisaItemProgressInput {
+  tripId: string;
+  documentId: string;
+  checked: boolean;
+  note?: string;
+}
 export interface AppGateway {
   health(): Promise<HealthResponse>;
   createTrip(input: CreateTripInput): Promise<Trip>;
@@ -1246,6 +1346,14 @@ export interface AppGateway {
   createTripItem(input: CreateTripItemInput): Promise<TripItem>;
   updateTripItem(input: UpdateTripItemInput): Promise<TripItem>;
   deleteTripItem(tripItemId: string): Promise<void>;
+  /**
+   * The curated journey for the stored nationality plus this trip's saved
+   * progress. Returned together so the interface cannot pair a journey with
+   * another trip's checkboxes.
+   */
+  getVisaPrep(tripId: string): Promise<VisaPrep>;
+  setVisaNationality(input: SetVisaNationalityInput): Promise<VisaPrep>;
+  setVisaItemProgress(input: SetVisaItemProgressInput): Promise<VisaPrep>;
   listAdviceCountries(): Promise<FcdoCountry[]>;
   fetchAdvisories(input: FetchAdvisoriesInput): Promise<AdvisoryPanel>;
   fetchWeather(tripId: string): Promise<WeatherSnapshot>;

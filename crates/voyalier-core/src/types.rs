@@ -14,6 +14,7 @@ use crate::holidays::PublicHolidaysSnapshot;
 use crate::packing::PackingSuggestion;
 use crate::place_summary::PlaceSummary;
 use crate::planning::{InterestProfile, PackingItem, SavedPlace, TripItem};
+use crate::visa::VisaSelfReport;
 use crate::weather::WeatherSnapshot;
 
 pub const MAX_LOCATION_LEN: usize = 120;
@@ -110,6 +111,11 @@ pub struct TripDetail {
     /// snapshot's coordinates. Empty without a destination-facts snapshot.
     #[serde(default)]
     pub astro: Vec<AstroDay>,
+    /// The traveler's own visa-preparation tally, for the entry-requirements
+    /// readiness line. Absent until they pick a passport and a journey resolves.
+    /// Never feeds the rollup — see ADR-0006.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub visa_self_report: Option<VisaSelfReport>,
     /// The airports nearest the destination, by great-circle distance from the
     /// snapshot's coordinates. Bundled and offline; empty without a snapshot.
     #[serde(default)]

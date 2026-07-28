@@ -53,3 +53,4 @@ var/
 
 # graphify knowledge graph (build artifact, regenerate with: graphify update .)
 graphify-out/
+.superpowers/

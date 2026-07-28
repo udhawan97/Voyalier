@@ -144,9 +144,74 @@ pub fn search_cities(query: &str, limit: usize) -> Vec<CitySuggestion> {
         .collect()
 }
 
+/// The ISO-3166-1 alpha-2 code for a free-text destination, resolved offline
+/// from the bundled tables.
+///
+/// Trips store destinations as the traveler typed them ("Toronto", "Toronto,
+/// Canada", "Canada"), and visa preparation needs a country before it can
+/// resolve anything. The stored destination-facts snapshot carries an
+/// authoritative code, but that is behind a consent-gated fetch — falling back
+/// to the bundled gazetteer keeps the cockpit working offline, which is the
+/// whole premise of the product.
+///
+/// Tries the most specific segment as a country first ("Toronto, Canada" is
+/// Canada, not wherever a city called Toronto is biggest), then the first
+/// segment as a city.
+pub fn resolve_country_code(destination: &str) -> Option<String> {
+    let segments: Vec<&str> = destination
+        .split(',')
+        .map(str::trim)
+        .filter(|segment| !segment.is_empty())
+        .collect();
+    let (first, _) = (segments.first()?, ());
+
+    for segment in segments.iter().rev() {
+        if let Some(code) = country_code_for_name(segment) {
+            return Some(code);
+        }
+    }
+    search_cities(first, 1)
+        .first()
+        .map(|city| city.country_code.clone())
+}
+
+/// A country's code from its English name, or from an already-valid code.
+fn country_code_for_name(name: &str) -> Option<String> {
+    let needle = name.trim();
+    if needle.len() == 2 && needle.bytes().all(|byte| byte.is_ascii_alphabetic()) {
+        let upper = needle.to_ascii_uppercase();
+        if countries().contains_key(upper.as_str()) {
+            return Some(upper);
+        }
+    }
+    let lowered = needle.to_lowercase();
+    countries()
+        .iter()
+        .find(|(_, country)| country.to_lowercase() == lowered)
+        .map(|(code, _)| (*code).to_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn resolves_a_destination_country_offline() {
+        // The specific segment wins over the city lookup.
+        assert_eq!(
+            resolve_country_code("Toronto, Canada").as_deref(),
+            Some("CA")
+        );
+        assert_eq!(resolve_country_code("Canada").as_deref(), Some("CA"));
+        assert_eq!(resolve_country_code("CA").as_deref(), Some("CA"));
+        assert_eq!(resolve_country_code("canada").as_deref(), Some("CA"));
+        // City-only destinations still resolve.
+        assert_eq!(resolve_country_code("Vancouver").as_deref(), Some("CA"));
+        // Nothing invented for nonsense or blanks.
+        assert_eq!(resolve_country_code(""), None);
+        assert_eq!(resolve_country_code("   "), None);
+        assert_eq!(resolve_country_code("Zzzznowhere"), None);
+    }
 
     #[test]
     fn suggests_cities_by_prefix_biggest_first() {

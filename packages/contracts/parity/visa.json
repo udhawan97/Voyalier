@@ -1,0 +1,160 @@
+{
+  "caseCount": 6,
+  "cases": [
+    {
+      "destination": "CA",
+      "expected": {
+        "documentIds": [
+          "ca.trv.passport.current",
+          "ca.trv.passport.old",
+          "ca.trv.photo.digital",
+          "ca.trv.funds.statements",
+          "ca.trv.funds.sponsor",
+          "ca.trv.funds.income",
+          "ca.trv.ties.employment",
+          "ca.trv.ties.other",
+          "ca.trv.ties.purpose",
+          "ca.trv.forms.imm5257",
+          "ca.trv.forms.imm5645",
+          "ca.trv.forms.checklist",
+          "ca.trv.submit.account",
+          "ca.trv.submit.biometrics",
+          "ca.trv.decision.requests",
+          "ca.trv.decision.passport"
+        ],
+        "entryPath": {
+          "curatedAsOf": "2026-07-28",
+          "language": "en",
+          "path": "visaRequired",
+          "sourceName": "Immigration, Refugees and Citizenship Canada",
+          "sourceUrl": "https://www.canada.ca/en/immigration-refugees-citizenship/services/visit-canada/entry-requirements-country.html"
+        },
+        "ordinals": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8
+        ],
+        "routeLabel": "Visitor visa (temporary resident visa)",
+        "stepIds": [
+          "ca.trv.01-need",
+          "ca.trv.02-passport",
+          "ca.trv.03-photo",
+          "ca.trv.04-funds",
+          "ca.trv.05-ties",
+          "ca.trv.06-forms",
+          "ca.trv.07-submit",
+          "ca.trv.08-decision"
+        ]
+      },
+      "name": "visa-required-nationality",
+      "nationality": "IN"
+    },
+    {
+      "destination": "CA",
+      "expected": {
+        "documentIds": [
+          "ca.eta.passport.current",
+          "ca.eta.apply.form"
+        ],
+        "entryPath": {
+          "curatedAsOf": "2026-07-28",
+          "language": "en",
+          "path": "electronicAuthorization",
+          "sourceName": "Immigration, Refugees and Citizenship Canada",
+          "sourceUrl": "https://www.canada.ca/en/immigration-refugees-citizenship/services/visit-canada/entry-requirements-country.html"
+        },
+        "ordinals": [
+          1,
+          2,
+          3
+        ],
+        "routeLabel": "Electronic travel authorization (eTA)",
+        "stepIds": [
+          "ca.eta.01-need",
+          "ca.eta.02-passport",
+          "ca.eta.03-apply"
+        ]
+      },
+      "name": "eta-eligible-nationality",
+      "nationality": "JP"
+    },
+    {
+      "destination": "CA",
+      "expected": {
+        "documentIds": null,
+        "entryPath": {
+          "curatedAsOf": "2026-07-28",
+          "language": "en",
+          "path": "exempt",
+          "sourceName": "Immigration, Refugees and Citizenship Canada",
+          "sourceUrl": "https://www.canada.ca/en/immigration-refugees-citizenship/services/visit-canada/entry-requirements-country.html"
+        },
+        "ordinals": null,
+        "routeLabel": null,
+        "stepIds": null
+      },
+      "name": "exempt-nationality",
+      "nationality": "US"
+    },
+    {
+      "destination": "CA",
+      "expected": {
+        "documentIds": null,
+        "entryPath": {
+          "curatedAsOf": "2026-07-28",
+          "language": "en",
+          "path": "unknown",
+          "sourceName": "Immigration, Refugees and Citizenship Canada",
+          "sourceUrl": "https://www.canada.ca/en/immigration-refugees-citizenship/services/visit-canada/check-visa-eta.html"
+        },
+        "ordinals": null,
+        "routeLabel": null,
+        "stepIds": null
+      },
+      "name": "conditions-published-not-an-answer",
+      "nationality": "MX"
+    },
+    {
+      "destination": "FR",
+      "expected": {
+        "documentIds": null,
+        "entryPath": {
+          "curatedAsOf": "2026-07-28",
+          "language": "en",
+          "path": "unknown",
+          "sourceName": "Immigration, Refugees and Citizenship Canada",
+          "sourceUrl": "https://www.canada.ca/en/immigration-refugees-citizenship/services/visit-canada/check-visa-eta.html"
+        },
+        "ordinals": null,
+        "routeLabel": null,
+        "stepIds": null
+      },
+      "name": "uncurated-destination",
+      "nationality": "IN"
+    },
+    {
+      "destination": "CA",
+      "expected": {
+        "documentIds": null,
+        "entryPath": {
+          "curatedAsOf": "2026-07-28",
+          "language": "en",
+          "path": "unknown",
+          "sourceName": "Immigration, Refugees and Citizenship Canada",
+          "sourceUrl": "https://www.canada.ca/en/immigration-refugees-citizenship/services/visit-canada/check-visa-eta.html"
+        },
+        "ordinals": null,
+        "routeLabel": null,
+        "stepIds": null
+      },
+      "name": "malformed-nationality-code",
+      "nationality": "IND"
+    }
+  ],
+  "note": "Curated visa journeys, asserted from crates/voyalier-core/src/tests.rs and apps/web/src/parity.test.ts. Pins structure -- entry-path quotes, step ids and ordinals, document ids -- and deliberately not the curated prose: the interface renders that verbatim from core, so pinning it here would turn every copy edit into golden churn without catching anything. Adding a case fails both sides until caseCount is bumped in this file and in both tests. Regenerate expectations with VOYALIER_REGENERATE_GOLDEN=1 and read the diff."
+}

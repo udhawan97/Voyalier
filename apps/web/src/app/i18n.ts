@@ -1032,6 +1032,43 @@ const en = {
     "Requirements depend on your nationality and change often. Confirm them at an official government source before you travel — Voyalier links to official sources and never asserts or clears entry rules.",
   "readiness.linkOnly.health_notices":
     "Vaccination and health advice depends on your destination and health, and changes often. Check an official source before you travel — Voyalier links to official sources and never gives medical advice.",
+  "visa.title": "Visa & entry preparation",
+  "visa.disclaimer":
+    "Voyalier does not decide whether you need a visa and has not verified anything here. Every requirement below links to the official source — confirm there before you pay, book, or travel.",
+  "visa.unavailable": "Visa preparation is unavailable for this trip.",
+  "visa.pickNationality":
+    "Enter the country code of the passport you will travel on to see the steps for your route.",
+  "visa.nationalityLabel": "Passport country code",
+  "visa.nationalitySave": "Save",
+  "visa.nationalitySaved": "Passport country saved.",
+  "visa.nationalityHelp":
+    "Two letters, ISO-3166-1 alpha-2 — IN for India, NG for Nigeria, GB for the United Kingdom.",
+  "visa.nationalitySuggested":
+    "Prefilled from your last trip. Change it if this trip is for someone else, then save.",
+  "visa.noDestination":
+    "Voyalier could not work out which country this trip goes to, so it has nothing to look up. Editing the destination to include the country will resolve it.",
+  "visa.quotedFrom": "Quoted from",
+  "visa.curatedAsOf": "read on",
+  "visa.confirmAtSource": "Confirm your own case at the official source",
+  "visa.noJourney": "No step-by-step guide for this route yet",
+  "visa.noJourneyDetail":
+    "Either this route needs nothing, or the authority publishes conditions rather than a single answer. Voyalier will not guess which — check your own case at the official source.",
+  "visa.path.visaRequired": "A visa is published as required for this passport",
+  "visa.path.electronicAuthorization":
+    "An electronic authorization is published for this passport",
+  "visa.path.exempt": "Neither is published for this passport",
+  "visa.path.unknown": "Not curated — check the official source",
+  "visa.progress":
+    "You marked {done} of {total} steps complete. Voyalier has not verified any of them.",
+  "visa.stepLabel": "Step {ordinal} · {title}",
+  "visa.stepDone": "Done",
+  "visa.authorityCallsIt": "The authority calls this",
+  "visa.watchOut": "Watch out:",
+  "visa.noteLabel": "Your note (private, encrypted at rest)",
+  "visa.noteTooLong": "That note is too long to store.",
+  "readiness.selfReported":
+    "You marked {done} of {total} visa prep steps done. Voyalier has not verified any of them.",
+  "tripnav.visa": "Visa",
   "schedule.title": "Schedule check",
   "schedule.clear": "No schedule conflicts found in your confirmed plans.",
   "schedule.conflict": "Conflict",
@@ -2221,6 +2258,44 @@ const es: Record<MessageKey, string> = {
     "Los requisitos dependen de tu nacionalidad y cambian con frecuencia. Confírmalos en una fuente gubernamental oficial antes de viajar; Voyalier enlaza a fuentes oficiales y nunca afirma ni autoriza reglas de entrada.",
   "readiness.linkOnly.health_notices":
     "Los consejos de vacunación y salud dependen de tu destino y estado de salud, y cambian con frecuencia. Consulta una fuente oficial antes de viajar; Voyalier enlaza a fuentes oficiales y nunca ofrece asesoría médica.",
+  "visa.title": "Visado y preparación de entrada",
+  "visa.disclaimer":
+    "Voyalier no decide si necesitas un visado y no ha verificado nada de lo que aparece aquí. Cada requisito enlaza a la fuente oficial: confírmalo allí antes de pagar, reservar o viajar.",
+  "visa.unavailable":
+    "La preparación de visado no está disponible para este viaje.",
+  "visa.pickNationality":
+    "Introduce el código de país del pasaporte con el que viajarás para ver los pasos de tu ruta.",
+  "visa.nationalityLabel": "Código de país del pasaporte",
+  "visa.nationalitySave": "Guardar",
+  "visa.nationalitySaved": "País del pasaporte guardado.",
+  "visa.nationalityHelp":
+    "Dos letras, ISO-3166-1 alfa-2: IN para India, NG para Nigeria, GB para el Reino Unido.",
+  "visa.nationalitySuggested":
+    "Rellenado con el de tu último viaje. Cámbialo si este viaje es para otra persona y guarda.",
+  "visa.noDestination":
+    "Voyalier no pudo determinar a qué país va este viaje, así que no tiene nada que consultar. Editar el destino para incluir el país lo resolverá.",
+  "visa.quotedFrom": "Citado de",
+  "visa.curatedAsOf": "consultado el",
+  "visa.confirmAtSource": "Confirma tu caso en la fuente oficial",
+  "visa.noJourney": "Aún no hay una guía paso a paso para esta ruta",
+  "visa.noJourneyDetail":
+    "O esta ruta no requiere nada, o la autoridad publica condiciones en lugar de una única respuesta. Voyalier no lo adivinará: consulta tu caso en la fuente oficial.",
+  "visa.path.visaRequired": "Se publica que este pasaporte requiere visado",
+  "visa.path.electronicAuthorization":
+    "Se publica una autorización electrónica para este pasaporte",
+  "visa.path.exempt": "No se publica ninguno de los dos para este pasaporte",
+  "visa.path.unknown": "Sin curar: consulta la fuente oficial",
+  "visa.progress":
+    "Marcaste {done} de {total} pasos como completados. Voyalier no ha verificado ninguno.",
+  "visa.stepLabel": "Paso {ordinal} · {title}",
+  "visa.stepDone": "Hecho",
+  "visa.authorityCallsIt": "La autoridad lo llama",
+  "visa.watchOut": "Atención:",
+  "visa.noteLabel": "Tu nota (privada, cifrada en reposo)",
+  "visa.noteTooLong": "Esa nota es demasiado larga para guardarla.",
+  "readiness.selfReported":
+    "Marcaste {done} de {total} pasos de preparación de visado como hechos. Voyalier no ha verificado ninguno.",
+  "tripnav.visa": "Visado",
   "schedule.title": "Revisión de horario",
   "schedule.clear": "No se encontraron conflictos en tus planes confirmados.",
   "schedule.conflict": "Conflicto",

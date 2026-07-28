@@ -30,6 +30,8 @@ const SAMPLES: Record<string, string> = {
   tripId: "trip_1",
   packId: "pack_1",
   documentId: "doc_1",
+  // A curated visa document id, which is not an imported source document id.
+  visaDocumentId: "ca.trv.funds.statements",
   factId: "fact_1",
   candidateId: "cand_1",
   provider: "openai",
@@ -94,6 +96,11 @@ const ARGS: Record<keyof AppGateway, unknown[]> = {
   readOfflineMapRange: ["trip_1", "pack_1", 0, 1],
   getRecommendations: ["trip_1", {}],
   setInterestProfile: [{ tripId: "trip_1" }],
+  getVisaPrep: ["trip_1"],
+  setVisaNationality: [{ tripId: "trip_1", nationalityIso2: "IN" }],
+  setVisaItemProgress: [
+    { tripId: "trip_1", documentId: "ca.trv.funds.statements", checked: true },
+  ],
   savePlace: [{ tripId: "trip_1", recommendation: {} }],
   updateSavedPlace: [{ savedPlaceId: "place_1", notes: "" }],
   deleteSavedPlace: ["place_1"],

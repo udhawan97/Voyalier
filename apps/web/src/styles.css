@@ -1039,6 +1039,242 @@ h3 {
   line-height: 1.5;
 }
 
+.voy-readiness__self-report {
+  font-size: 0.85rem;
+  color: var(--voy-ink-muted);
+  line-height: 1.5;
+  font-style: italic;
+}
+
+/* ===== Visa & entry preparation ======================================== */
+
+.voy-visa {
+  margin-top: 2.6rem;
+  padding-top: 1.8rem;
+  border-top: 1px solid var(--voy-line);
+}
+
+/* The product's position, not a dismissible notice — it reads as a standing
+   statement rather than an alert the traveler can resolve. */
+.voy-visa__disclaimer {
+  margin: 0.6rem 0 1.4rem;
+  padding: 0.85rem 1rem;
+  border-left: 3px solid var(--voy-vermilion);
+  background: var(--voy-tint-vermilion);
+  border-radius: 0 var(--voy-radius-sm) var(--voy-radius-sm) 0;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.voy-visa__hint,
+.voy-visa__help {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: var(--voy-ink-muted);
+  line-height: 1.5;
+}
+
+.voy-visa__nationality {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1.2rem;
+}
+
+.voy-visa__nationality label {
+  font-size: 0.88rem;
+  font-weight: var(--voy-w-medium);
+}
+
+.voy-visa__nationality .voy-input {
+  width: 5rem;
+  text-transform: uppercase;
+}
+
+.voy-visa__nationality .voy-visa__help,
+.voy-visa__nationality .voy-error {
+  flex-basis: 100%;
+  margin-top: 0;
+}
+
+.voy-visa__quote {
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-sm);
+  background: var(--voy-paper-raised);
+  margin-bottom: 1.2rem;
+}
+
+.voy-visa__route {
+  margin: 0;
+  font-weight: var(--voy-w-medium);
+}
+
+.voy-visa__attribution {
+  margin: 0.25rem 0 0;
+  font-size: 0.82rem;
+  color: var(--voy-ink-muted);
+}
+
+.voy-visa__progress {
+  margin: 0 0 1rem;
+  font-size: 0.88rem;
+  color: var(--voy-ink-muted);
+}
+
+/* The step rail sits beside the open step on wide screens and stacks below
+   the heading on narrow ones. */
+.voy-visa__cockpit {
+  display: grid;
+  grid-template-columns: minmax(12rem, 17rem) 1fr;
+  gap: 1.4rem;
+  align-items: start;
+}
+
+@media (width <= 48rem) {
+  .voy-visa__cockpit {
+    grid-template-columns: 1fr;
+  }
+}
+
+.voy-visa__rail {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  border-right: 1px solid var(--voy-line);
+}
+
+@media (width <= 48rem) {
+  .voy-visa__rail {
+    border-right: none;
+    border-bottom: 1px solid var(--voy-line);
+    padding-bottom: 0.6rem;
+  }
+}
+
+.voy-visa__rail-step {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  padding: 0.45rem 0.6rem;
+  border: none;
+  border-left: 3px solid transparent;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 0 var(--voy-radius-sm) var(--voy-radius-sm) 0;
+}
+
+.voy-visa__rail-step:hover {
+  background: var(--voy-paper-sunken);
+}
+
+.voy-visa__rail-step[aria-current="step"] {
+  border-left-color: var(--voy-indigo);
+  background: var(--voy-tint-indigo);
+  font-weight: var(--voy-w-medium);
+}
+
+.voy-visa__rail-ordinal {
+  color: var(--voy-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.voy-visa__rail-state {
+  margin-left: auto;
+  font-size: 0.78rem;
+  color: var(--voy-success);
+}
+
+.voy-visa__step-title {
+  margin: 0 0 0.2rem;
+  font-size: 1.02rem;
+}
+
+.voy-visa__authority-term {
+  margin: 0 0 0.5rem;
+  font-size: 0.82rem;
+  color: var(--voy-ink-muted);
+}
+
+.voy-visa__plain {
+  margin: 0 0 1rem;
+  line-height: 1.6;
+}
+
+.voy-visa__doc {
+  padding: 0.8rem 0;
+  border-top: 1px solid var(--voy-line);
+}
+
+.voy-visa__doc-check {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.voy-visa__doc-label {
+  font-weight: var(--voy-w-medium);
+}
+
+.voy-visa__doc-plain {
+  margin: 0.25rem 0 0 1.55rem;
+  font-size: 0.88rem;
+  color: var(--voy-ink-muted);
+  line-height: 1.55;
+}
+
+/* A caution, not an error. Marked with a rule as well as a color so it does
+   not depend on hue alone. */
+.voy-visa__gotcha {
+  margin: 0.4rem 0 0 1.55rem;
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--voy-vermilion);
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+.voy-visa__doc-note {
+  display: block;
+  margin: 0.6rem 0 0.25rem 1.55rem;
+  font-size: 0.8rem;
+  color: var(--voy-ink-muted);
+}
+
+.voy-visa__doc textarea.voy-input {
+  margin-left: 1.55rem;
+  width: calc(100% - 1.55rem);
+}
+
+.voy-visa__links {
+  list-style: none;
+  margin: 0.55rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+}
+
+.voy-visa__links a {
+  font-size: 0.85rem;
+  color: var(--voy-indigo);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.voy-visa__links a:hover {
+  color: var(--voy-ink);
+}
+
 /* ===== Official travel advice ========================================== */
 
 .voy-advice {

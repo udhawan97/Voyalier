@@ -30,7 +30,7 @@ use serde::de::DeserializeOwned;
 use voyalier_core::{
     AppError, CandidateFact, CandidateStatus, ConfirmedFact, DocumentContent, ErrorCode,
     InterestProfile, PackingItem, PersonaWeights, SavedPlace, SourceDocument, Trip, TripItem,
-    TripItemKind, TripNotes, TripSummary, saved_place_identity,
+    TripItemKind, TripNotes, TripSummary, VisaPrepItem, saved_place_identity,
 };
 
 use crate::{DocumentText, Vault, storage_error};
@@ -57,6 +57,11 @@ pub(crate) const SEALED_COLUMNS: &[(&str, &str)] = &[
     ("trip_items", "title"),
     ("trip_items", "location"),
     ("trip_items", "notes"),
+    // A passport nationality is personal data, and a note on a visa document
+    // will carry the application number the rest of the product works to keep
+    // out of briefs and AI requests.
+    ("visa_prep", "nationality_iso2"),
+    ("visa_prep_items", "note"),
 ];
 
 const TRIP_COLUMNS: &str =
@@ -415,6 +420,149 @@ impl<'a> Records<'a> {
     }
 
     // ---- notes -----------------------------------------------------------
+
+    /// The stored passport nationality for a trip, opened. `None` means the
+    /// traveler has not picked one yet — the normal first state.
+    pub(crate) fn visa_nationality(&self, trip_id: &str) -> Result<Option<String>, AppError> {
+        let sealed: Option<Option<String>> = self
+            .connection
+            .query_row(
+                "SELECT nationality_iso2 FROM visa_prep WHERE trip_id = ?1",
+                params![trip_id],
+                |row| row.get("nationality_iso2"),
+            )
+            .optional()
+            .map_err(storage_error)?;
+        match sealed.flatten() {
+            Some(value) => Ok(Some(self.vault.open_field(&value)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// The most recently set nationality across every trip, opened.
+    ///
+    /// A passport does not change per trip, so a new trip prefills from the last
+    /// one rather than asking again. Nationality is sealed, so this cannot be a
+    /// `WHERE` — it reads the newest row and opens it.
+    pub(crate) fn latest_visa_nationality(&self) -> Result<Option<String>, AppError> {
+        let sealed: Option<Option<String>> = self
+            .connection
+            .query_row(
+                "SELECT nationality_iso2 FROM visa_prep
+                 WHERE nationality_iso2 IS NOT NULL
+                 ORDER BY updated_at DESC LIMIT 1",
+                [],
+                |row| row.get("nationality_iso2"),
+            )
+            .optional()
+            .map_err(storage_error)?;
+        match sealed.flatten() {
+            Some(value) => Ok(Some(self.vault.open_field(&value)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Store a trip's passport nationality, sealing it.
+    pub(crate) fn upsert_visa_nationality(
+        &self,
+        id: &str,
+        trip_id: &str,
+        nationality_iso2: &str,
+        updated_at: &str,
+    ) -> Result<(), AppError> {
+        self.connection
+            .execute(
+                "INSERT INTO visa_prep (id, trip_id, nationality_iso2, updated_at)
+                 VALUES (?1, ?2, ?3, ?4)
+                 ON CONFLICT(trip_id) DO UPDATE SET nationality_iso2 = ?3, updated_at = ?4",
+                // nationality_iso2 is sealed: see SEALED_COLUMNS.
+                params![
+                    id,
+                    trip_id,
+                    self.vault.seal_field(nationality_iso2)?,
+                    updated_at
+                ],
+            )
+            .map_err(storage_error)?;
+        Ok(())
+    }
+
+    /// A trip's visa checklist progress, notes opened, oldest first.
+    pub(crate) fn visa_prep_items(&self, trip_id: &str) -> Result<Vec<VisaPrepItem>, AppError> {
+        let mut statement = self
+            .connection
+            .prepare(
+                "SELECT document_id, checked, note, updated_at FROM visa_prep_items
+                 WHERE trip_id = ?1 ORDER BY created_at, document_id",
+            )
+            .map_err(storage_error)?;
+        let rows = statement
+            .query_map(params![trip_id], |row| {
+                Ok((
+                    row.get::<_, String>("document_id")?,
+                    row.get::<_, i64>("checked")?,
+                    row.get::<_, Option<String>>("note")?,
+                    row.get::<_, String>("updated_at")?,
+                ))
+            })
+            .map_err(storage_error)?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(storage_error)?;
+
+        rows.into_iter()
+            .map(|(document_id, checked, note, updated_at)| {
+                Ok(VisaPrepItem {
+                    document_id,
+                    checked: checked != 0,
+                    note: note
+                        .map(|value| self.vault.open_field(&value))
+                        .transpose()?,
+                    updated_at,
+                })
+            })
+            .collect()
+    }
+
+    /// Record one tick or note, sealing the note.
+    pub(crate) fn upsert_visa_prep_item(
+        &self,
+        id: &str,
+        trip_id: &str,
+        document_id: &str,
+        checked: bool,
+        note: Option<&str>,
+        now: &str,
+    ) -> Result<(), AppError> {
+        let sealed = note.map(|value| self.vault.seal_field(value)).transpose()?;
+        self.connection
+            .execute(
+                "INSERT INTO visa_prep_items
+                    (id, trip_id, document_id, checked, note, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)
+                 ON CONFLICT(trip_id, document_id) DO UPDATE SET
+                    checked = ?4, note = ?5, updated_at = ?6",
+                // note is sealed: see SEALED_COLUMNS.
+                params![id, trip_id, document_id, i64::from(checked), sealed, now],
+            )
+            .map_err(storage_error)?;
+        Ok(())
+    }
+
+    /// Drop one checklist row. Clearing both the tick and the note removes the
+    /// row rather than storing an empty one, so "untouched" is one state.
+    pub(crate) fn delete_visa_prep_item(
+        &self,
+        trip_id: &str,
+        document_id: &str,
+    ) -> Result<(), AppError> {
+        self.connection
+            .execute(
+                "DELETE FROM visa_prep_items WHERE trip_id = ?1 AND document_id = ?2",
+                params![trip_id, document_id],
+            )
+            .map_err(storage_error)?;
+        Ok(())
+    }
 
     /// A trip's notes, body opened. Absent notes are an empty body, not an
     /// error — "nothing written yet" is the normal first state.
