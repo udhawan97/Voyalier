@@ -35,6 +35,8 @@ import type {
   Recommendation,
   InterestProfile,
   SetInterestProfileInput,
+  SetVisaItemProgressInput,
+  SetVisaNationalityInput,
   SavePlaceInput,
   SavedPlace,
   UpdateSavedPlaceInput,
@@ -56,6 +58,7 @@ import type {
   TripDetail,
   TripNotes,
   TripSummary,
+  VisaPrep,
   UpdateTripInput,
   VaultStatus,
   DestinationFactsSnapshot,
@@ -216,6 +219,15 @@ export function createTauriGateway(
 
     setInterestProfile: (input: SetInterestProfileInput) =>
       call<InterestProfile>("set_interest_profile", input),
+
+    getVisaPrep: (tripId: string) =>
+      call<VisaPrep>("get_visa_prep", { tripId }),
+
+    setVisaNationality: (input: SetVisaNationalityInput) =>
+      call<VisaPrep>("set_visa_nationality", input),
+
+    setVisaItemProgress: (input: SetVisaItemProgressInput) =>
+      call<VisaPrep>("set_visa_item_progress", input),
 
     savePlace: (input: SavePlaceInput) => call<SavedPlace>("save_place", input),
 

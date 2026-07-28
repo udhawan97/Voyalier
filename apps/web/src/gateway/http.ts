@@ -35,6 +35,8 @@ import type {
   Recommendation,
   InterestProfile,
   SetInterestProfileInput,
+  SetVisaItemProgressInput,
+  SetVisaNationalityInput,
   SavePlaceInput,
   SavedPlace,
   UpdateSavedPlaceInput,
@@ -56,6 +58,7 @@ import type {
   TripDetail,
   TripNotes,
   TripSummary,
+  VisaPrep,
   UpdateTripInput,
   VaultStatus,
   DestinationFactsSnapshot,
@@ -296,6 +299,23 @@ export function createHttpGateway(
       request<InterestProfile>(
         "PUT",
         `/api/v1/trips/${enc(input.tripId)}/interest-profile`,
+        input,
+      ),
+
+    getVisaPrep: (tripId: string) =>
+      request<VisaPrep>("GET", `/api/v1/trips/${enc(tripId)}/visa`),
+
+    setVisaNationality: (input: SetVisaNationalityInput) =>
+      request<VisaPrep>(
+        "PUT",
+        `/api/v1/trips/${enc(input.tripId)}/visa/nationality`,
+        input,
+      ),
+
+    setVisaItemProgress: (input: SetVisaItemProgressInput) =>
+      request<VisaPrep>(
+        "PUT",
+        `/api/v1/trips/${enc(input.tripId)}/visa/items/${enc(input.documentId)}`,
         input,
       ),
 

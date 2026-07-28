@@ -14,7 +14,8 @@ use voyalier_core::{
     AddManualFactInput, AddPackingItemInput, AppError, CandidateFact, CandidateStatus,
     ConfirmCandidateInput, ConfirmedFact, CreateTripInput, CreateTripItemInput, ErrorCode,
     HealthResponse, ImportDocumentInput, PersonaWeights, SavePlaceInput, SetInterestProfileInput,
-    UpdatePackingItemInput, UpdateSavedPlaceInput, UpdateTripInput, UpdateTripItemInput,
+    SetVisaItemProgressInput, SetVisaNationalityInput, UpdatePackingItemInput,
+    UpdateSavedPlaceInput, UpdateTripInput, UpdateTripItemInput,
 };
 
 #[derive(Debug, Serialize)]
@@ -229,6 +230,15 @@ pub fn app(service: AppService) -> Router {
             "/api/v1/trips/{trip_id}/interest-profile",
             put(set_interest_profile),
         )
+        .route("/api/v1/trips/{trip_id}/visa", get(get_visa_prep))
+        .route(
+            "/api/v1/trips/{trip_id}/visa/nationality",
+            put(set_visa_nationality),
+        )
+        .route(
+            "/api/v1/trips/{trip_id}/visa/items/{visa_document_id}",
+            put(set_visa_item_progress),
+        )
         .route("/api/v1/trips/{trip_id}/saved-places", post(save_place))
         .route(
             "/api/v1/saved-places/{saved_place_id}",
@@ -399,6 +409,37 @@ async fn set_interest_profile(
 ) -> Result<impl IntoResponse, ApiError> {
     ensure_path_trip_matches(&trip_id, &input.trip_id)?;
     Ok(Json(service.set_interest_profile(input)?))
+}
+
+async fn get_visa_prep(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.get_visa_prep(&trip_id)?))
+}
+
+async fn set_visa_nationality(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+    Json(input): Json<SetVisaNationalityInput>,
+) -> Result<impl IntoResponse, ApiError> {
+    ensure_path_trip_matches(&trip_id, &input.trip_id)?;
+    Ok(Json(service.set_visa_nationality(input)?))
+}
+
+async fn set_visa_item_progress(
+    State(service): State<AppService>,
+    Path((trip_id, visa_document_id)): Path<(String, String)>,
+    Json(input): Json<SetVisaItemProgressInput>,
+) -> Result<impl IntoResponse, ApiError> {
+    ensure_path_trip_matches(&trip_id, &input.trip_id)?;
+    if visa_document_id != input.document_id {
+        return Err(ApiError::from(AppError::new(
+            ErrorCode::ValidationInvalidInput,
+            "document id in the path and the body disagree",
+        )));
+    }
+    Ok(Json(service.set_visa_item_progress(input)?))
 }
 
 async fn save_place(
@@ -2057,6 +2098,8 @@ mod tests {
         path.replace("{tripId}", "trip_1")
             .replace("{packId}", "pack_1")
             .replace("{documentId}", "doc_1")
+            // A curated visa document id, not an imported source document id.
+            .replace("{visaDocumentId}", "ca.trv.funds.statements")
             .replace("{factId}", "fact_1")
             .replace("{candidateId}", "cand_1")
             .replace("{savedPlaceId}", "place_1")

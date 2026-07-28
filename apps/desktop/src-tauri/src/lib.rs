@@ -11,9 +11,10 @@ use voyalier_core::{
     InterestProfile, KeyValidation, LocalAiStatus, LocalModelPullResult, OfflineMapArchive,
     OfflineMapChunk, PackInfo, PackSuggestion, PackingItem, PersonaWeights, PlaceSummary,
     ProviderConfig, PublicHolidaysSnapshot, Recommendation, SavePlaceInput, SavedPlace, SearchHit,
-    SetInterestProfileInput, TodayView, Trip, TripBrief, TripDetail, TripItem, TripNotes,
-    TripSummary, UpdatePackingItemInput, UpdateSavedPlaceInput, UpdateTripInput,
-    UpdateTripItemInput, VaultStatus, WeatherSnapshot, WorkspaceSearchHit,
+    SetInterestProfileInput, SetVisaItemProgressInput, SetVisaNationalityInput, TodayView, Trip,
+    TripBrief, TripDetail, TripItem, TripNotes, TripSummary, UpdatePackingItemInput,
+    UpdateSavedPlaceInput, UpdateTripInput, UpdateTripItemInput, VaultStatus, VisaPrep,
+    WeatherSnapshot, WorkspaceSearchHit,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -416,6 +417,27 @@ fn set_interest_profile(
     service: State<'_, AppService>,
 ) -> Result<InterestProfile, AppError> {
     service.set_interest_profile(input)
+}
+
+#[tauri::command]
+fn get_visa_prep(trip_id: String, service: State<'_, AppService>) -> Result<VisaPrep, AppError> {
+    service.get_visa_prep(&trip_id)
+}
+
+#[tauri::command]
+fn set_visa_nationality(
+    input: SetVisaNationalityInput,
+    service: State<'_, AppService>,
+) -> Result<VisaPrep, AppError> {
+    service.set_visa_nationality(input)
+}
+
+#[tauri::command]
+fn set_visa_item_progress(
+    input: SetVisaItemProgressInput,
+    service: State<'_, AppService>,
+) -> Result<VisaPrep, AppError> {
+    service.set_visa_item_progress(input)
 }
 
 #[tauri::command]
@@ -1072,6 +1094,9 @@ fn builder<R: tauri::Runtime>(
             read_offline_map_range,
             get_recommendations,
             set_interest_profile,
+            get_visa_prep,
+            set_visa_nationality,
+            set_visa_item_progress,
             save_place,
             update_saved_place,
             delete_saved_place,
