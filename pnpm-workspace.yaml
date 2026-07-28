@@ -6,6 +6,10 @@ allowBuilds:
   esbuild: true
 overrides:
   svgo: 4.0.2
+  # GHSA-r28c-9q8g-f849: postcss <=8.5.17 discloses arbitrary .map files via
+  # sourceMappingURL auto-loading. Reached only transitively, through
+  # docs-site > starlight > astro > vite, so the pin is the whole fix.
+  postcss: ">=8.5.18"
 minimumReleaseAgeExclude:
   - prettier@3.9.5
   - vite@8.1.4
