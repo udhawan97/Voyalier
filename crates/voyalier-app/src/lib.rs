@@ -31,23 +31,24 @@ use voyalier_core::{
     SetVisaItemProgressInput, SetVisaNationalityInput, SourceDocument, SourceState, SourceStatus,
     SuggestionSource, TodayView, Trip, TripAssessment, TripBrief, TripDetail, TripItem, TripNotes,
     TripStatus, TripSummary, UpdatePackingItemInput, UpdateSavedPlaceInput, UpdateTripInput,
-    UpdateTripItemInput, VisaPrep, WarningCode, WeatherAlert, WeatherSnapshot, WorkspaceSearchHit,
-    WorkspaceSearchRecord, WorkspaceSearchSource, advisory_country, archive_window, assess_trip,
-    build_assist_preview, build_assist_request, build_draft_preview, build_key_validation_request,
-    build_packing_list, build_pull_body, build_today_view, build_trip_brief,
-    changed_payload_fields, compute_astro_day, country_facts, detect_planned_item_conflicts,
-    entry_from_fcdo, estimate_tokens, fact_identity, fact_search_text, geocode, holidays_within,
-    interpret_key_validation, interpret_pull_response, nearest_airports, new_id,
-    notices_for_country, now_rfc3339, offline_map_download_url, pack_catalog, pack_download_url,
-    parse_air_quality, parse_assist_reply, parse_ca_gac, parse_cdc_notices, parse_climate_normals,
-    parse_de_aa, parse_ecb_rates, parse_fcdo_content, parse_forecast_response, parse_import,
-    parse_lodging_dates_reply, parse_nws_alerts, parse_pack_content, parse_us_state, place_summary,
-    provider_info, public_holidays, rank_field_suggestions, recommend_attributed_places,
-    saved_place_identity, search_cities, search_trip_corpus, search_workspace_corpus,
-    suggest_packs, suggest_search_terms, time_difference, tipping_guidance, validate_api_key,
-    validate_country_slug, validate_create_trip, validate_create_trip_item, validate_fact_payload,
-    validate_model_name, validate_pack_id, validate_packing_label, validate_planning_notes,
-    validate_provider_id, validate_search_query, validate_update_trip, world_heritage_near,
+    UpdateTripItemInput, VisaPrep, VisaSelfReport, WarningCode, WeatherAlert, WeatherSnapshot,
+    WorkspaceSearchHit, WorkspaceSearchRecord, WorkspaceSearchSource, advisory_country,
+    archive_window, assess_trip, build_assist_preview, build_assist_request, build_draft_preview,
+    build_key_validation_request, build_packing_list, build_pull_body, build_today_view,
+    build_trip_brief, changed_payload_fields, compute_astro_day, country_facts,
+    detect_planned_item_conflicts, entry_from_fcdo, estimate_tokens, fact_identity,
+    fact_search_text, geocode, holidays_within, interpret_key_validation, interpret_pull_response,
+    nearest_airports, new_id, notices_for_country, now_rfc3339, offline_map_download_url,
+    pack_catalog, pack_download_url, parse_air_quality, parse_assist_reply, parse_ca_gac,
+    parse_cdc_notices, parse_climate_normals, parse_de_aa, parse_ecb_rates, parse_fcdo_content,
+    parse_forecast_response, parse_import, parse_lodging_dates_reply, parse_nws_alerts,
+    parse_pack_content, parse_us_state, place_summary, provider_info, public_holidays,
+    rank_field_suggestions, recommend_attributed_places, saved_place_identity, search_cities,
+    search_trip_corpus, search_workspace_corpus, suggest_packs, suggest_search_terms,
+    time_difference, tipping_guidance, validate_api_key, validate_country_slug,
+    validate_create_trip, validate_create_trip_item, validate_fact_payload, validate_model_name,
+    validate_pack_id, validate_packing_label, validate_planning_notes, validate_provider_id,
+    validate_search_query, validate_update_trip, world_heritage_near,
 };
 use voyalier_core::{
     BACKUP_FORMAT_VERSION, BackupManifest, VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN,
@@ -1131,12 +1132,14 @@ impl AppService {
         let interest_profile = self.records(&connection).interest_profile(trip_id)?;
         let saved_places = self.records(&connection).saved_places(trip_id)?;
         let packing_items = self.records(&connection).packing_items(trip_id)?;
+        let visa_self_report = self.visa_self_report(&connection, &trip)?;
         Ok(TripDetail {
             trip,
             confirmed_facts,
             pending_candidate_count,
             itinerary_conflicts,
             readiness,
+            visa_self_report,
             advisory_panel,
             weather,
             packing_list,
@@ -3418,6 +3421,47 @@ impl AppService {
             journey,
             items,
         })
+    }
+
+    /// The traveler's own visa-prep tally for the readiness line, or `None` when
+    /// no journey resolves. Counts steps whose documents are all ticked, so it
+    /// matches what the cockpit shows rather than counting documents twice.
+    fn visa_self_report(
+        &self,
+        connection: &Connection,
+        trip: &Trip,
+    ) -> Result<Option<VisaSelfReport>, AppError> {
+        let records = self.records(connection);
+        let Some(nationality) = records.visa_nationality(&trip.id)? else {
+            return Ok(None);
+        };
+        let Some(destination) = self.destination_country(connection, trip)? else {
+            return Ok(None);
+        };
+        let Some(journey) = voyalier_core::visa_journey(&destination, &nationality) else {
+            return Ok(None);
+        };
+        let checked: std::collections::HashSet<String> = records
+            .visa_prep_items(&trip.id)?
+            .into_iter()
+            .filter(|item| item.checked)
+            .map(|item| item.document_id)
+            .collect();
+        let done = journey
+            .steps
+            .iter()
+            .filter(|step| {
+                !step.documents.is_empty()
+                    && step
+                        .documents
+                        .iter()
+                        .all(|document| checked.contains(&document.id))
+            })
+            .count();
+        Ok(Some(VisaSelfReport {
+            done: u32::try_from(done).unwrap_or(u32::MAX),
+            total: u32::try_from(journey.steps.len()).unwrap_or(u32::MAX),
+        }))
     }
 
     /// The destination's country code: the geocoded snapshot when the traveler

@@ -45,6 +45,12 @@ export interface TripDetail {
    */
   astro: AstroDay[];
   /**
+   * The traveler's own visa-preparation tally, for the entry-requirements
+   * readiness line. Absent until they pick a passport and a journey resolves.
+   * Never feeds the rollup — see ADR-0006.
+   */
+  visaSelfReport?: VisaSelfReport;
+  /**
    * The airports nearest the destination, by great-circle distance from the
    * snapshot's coordinates. Bundled and offline; empty without a snapshot.
    */
@@ -1225,6 +1231,14 @@ export interface VisaJourney {
  * explicit action — the curated checklist is computed output and never stores
  * itself, exactly as `PackingSuggestion` never becomes a `PackingItem` on its own.
  */
+/**
+ * The traveler's own tally of visa preparation, attributed to them in the copy
+ * that renders it. Voyalier has verified none of it.
+ */
+export interface VisaSelfReport {
+  done: number;
+  total: number;
+}
 export interface VisaPrepItem {
   documentId: string;
   checked: boolean;

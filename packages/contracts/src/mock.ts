@@ -2008,6 +2008,27 @@ export function createMockGateway(options?: {
                   pack.tripId === tripId && pack.packId === place.packId,
               ),
             })),
+          ...(() => {
+            // Mirrors the real service: steps whose documents are all ticked,
+            // so the readiness line matches what the cockpit shows.
+            const prep = readVisaPrep(tripId);
+            if (!prep.journey) return {};
+            const ticked = new Set(
+              prep.items
+                .filter((item) => item.checked)
+                .map((i) => i.documentId),
+            );
+            return {
+              visaSelfReport: {
+                done: prep.journey.steps.filter(
+                  (step) =>
+                    step.documents.length > 0 &&
+                    step.documents.every((document) => ticked.has(document.id)),
+                ).length,
+                total: prep.journey.steps.length,
+              },
+            };
+          })(),
           packingItems: [...packingItems.values()]
             .filter((item) => item.tripId === tripId)
             .sort(

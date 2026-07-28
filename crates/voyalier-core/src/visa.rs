@@ -114,6 +114,19 @@ pub struct VisaPrepItem {
     pub updated_at: String,
 }
 
+/// The traveler's own tally of visa preparation, for the readiness line.
+///
+/// Attributed to them in the copy that renders it, never to Voyalier: per
+/// ADR-0006 the entry-requirements readiness item stays `NotChecked` forever and
+/// stays out of the overall rollup. This exists so the item can report what the
+/// traveler said without ever implying Voyalier agrees.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VisaSelfReport {
+    pub done: u32,
+    pub total: u32,
+}
+
 /// The resolved journey and the traveler's progress, returned together so a
 /// caller cannot pair a journey with another trip's checkboxes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

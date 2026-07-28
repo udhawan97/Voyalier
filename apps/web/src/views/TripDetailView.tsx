@@ -9,6 +9,7 @@ import type {
   ReadinessItem,
   ReadinessStatus,
   ReadinessSummary,
+  VisaSelfReport,
   WorkspaceSearchHit,
 } from "@voyalier/contracts";
 
@@ -71,6 +72,7 @@ import { CityPacks } from "./CityPacks";
 import { MapPanel } from "./MapPanel";
 import { Recommendations } from "./Recommendations";
 import { PlanningPanel } from "./PlanningPanel";
+import { VisaPanel } from "./VisaPanel";
 import { DeleteTripDialog } from "./DeleteTripDialog";
 import { EditTripDialog } from "./EditTripDialog";
 import { ImportDialog } from "./ImportDialog";
@@ -225,6 +227,7 @@ function FactGroup({
 const TRIP_NAV: { label: MessageKey; target: string }[] = [
   { label: "tripnav.plan", target: "section-plan" },
   { label: "tripnav.prepare", target: "section-prepare" },
+  { label: "tripnav.visa", target: "section-visa" },
   { label: "tripnav.discover", target: "section-discover" },
   { label: "tripnav.ai", target: "section-ai" },
 ];
@@ -374,7 +377,13 @@ function readinessDetail(item: ReadinessItem): string {
  * alone; the entry item reads "Check yourself" because Voyalier never asserts
  * or clears entry rules.
  */
-function ReadinessPanel({ readiness }: { readiness: ReadinessSummary }) {
+function ReadinessPanel({
+  readiness,
+  selfReport,
+}: {
+  readiness: ReadinessSummary;
+  selfReport?: VisaSelfReport;
+}) {
   return (
     <section className="voy-readiness" aria-labelledby="readiness-title">
       <div className="voy-readiness__head">
@@ -409,6 +418,16 @@ function ReadinessPanel({ readiness }: { readiness: ReadinessSummary }) {
               <span className="voy-readiness__detail">
                 {readinessDetail(item)}
               </span>
+              {/* The traveler's own count, attributed to them in the same
+                  sentence. The item's status stays NotChecked and stays out of
+                  the overall rollup — ADR-0006. */}
+              {item.id === "entry_requirements" && selfReport ? (
+                <span className="voy-readiness__self-report">
+                  {t("readiness.selfReported")
+                    .replace("{done}", String(selfReport.done))
+                    .replace("{total}", String(selfReport.total))}
+                </span>
+              ) : null}
               {item.links && item.links.length > 0 ? (
                 <ul className="voy-readiness__links">
                   {item.links.map((link) => (
@@ -667,7 +686,7 @@ export function TripDetailView({
   useEffect(() => {
     if (!data || searchTarget || sectionHashConsumed.current) return;
     const id = globalThis.location?.hash.slice(1) ?? "";
-    if (!/^section-(plan|prepare|discover|ai)$/.test(id)) return;
+    if (!/^section-(plan|prepare|visa|discover|ai)$/.test(id)) return;
 
     sectionHashConsumed.current = true;
     const timer = setTimeout(() => {
@@ -1026,7 +1045,10 @@ export function TripDetailView({
         />
 
         {confirmedFacts.length > 0 || pendingCount > 0 ? (
-          <ReadinessPanel readiness={readiness} />
+          <ReadinessPanel
+            readiness={readiness}
+            selfReport={data.detail.visaSelfReport}
+          />
         ) : null}
 
         {hasItinerary ? <ScheduleCheck conflicts={itineraryConflicts} /> : null}
@@ -1080,6 +1102,10 @@ export function TripDetailView({
           <DocumentsPanel tripId={tripId} />
 
           <TripSearch tripId={tripId} />
+        </DeferredSection>
+
+        <DeferredSection id="section-visa">
+          <VisaPanel tripId={tripId} />
         </DeferredSection>
 
         <DeferredSection id="section-discover">

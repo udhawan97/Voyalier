@@ -138,8 +138,8 @@ pub use types::*;
 pub use vault::{VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, derive_key, open, seal};
 pub use visa::{
     EntryPath, EntryPathQuote, MAX_VISA_NOTE_CHARS, SetVisaItemProgressInput,
-    SetVisaNationalityInput, VisaDocument, VisaJourney, VisaPrep, VisaPrepItem, VisaStep,
-    entry_path, validate_nationality, validate_visa_note, visa_journey,
+    SetVisaNationalityInput, VisaDocument, VisaJourney, VisaPrep, VisaPrepItem, VisaSelfReport,
+    VisaStep, entry_path, validate_nationality, validate_visa_note, visa_journey,
 };
 pub use weather::{
     GeocodedPlace, WeatherCoverage, WeatherDay, WeatherSnapshot, describe_weather_code, geocode,

@@ -33,13 +33,13 @@ sentence Voyalier authors is either a translation or a caution.**
 
 ## Decisions
 
-| Question                       | Decision                                                                         |
-| ------------------------------ | -------------------------------------------------------------------------------- |
-| How assertive?                 | Pointer + preparation cockpit. Requirements are links, never assertions.          |
-| Coverage                       | Destination curated deeply once; nationality selects path and biometrics pointer. |
-| Persistence                    | Full per-trip cockpit — nationality, checkboxes, and notes persist.               |
-| Readiness coupling             | `EntryRequirements` stays `NotChecked` forever; gains a self-report sub-line.     |
-| Placement                      | Its own trip-detail nav section, with a step rail inside it.                      |
+| Question           | Decision                                                                          |
+| ------------------ | --------------------------------------------------------------------------------- |
+| How assertive?     | Pointer + preparation cockpit. Requirements are links, never assertions.          |
+| Coverage           | Destination curated deeply once; nationality selects path and biometrics pointer. |
+| Persistence        | Full per-trip cockpit — nationality, checkboxes, and notes persist.               |
+| Readiness coupling | `EntryRequirements` stays `NotChecked` forever; gains a self-report sub-line.     |
+| Placement          | Its own trip-detail nav section, with a step rail inside it.                      |
 
 ### Why curated-and-bundled, not fetched
 
@@ -140,11 +140,11 @@ never.
 
 ### `packages/contracts` — three methods
 
-| Method                | Verb  | Path                                            | Command                  |
-| --------------------- | ----- | ----------------------------------------------- | ------------------------ |
-| `getVisaPrep`         | `GET` | `/api/v1/trips/{tripId}/visa`                   | `get_visa_prep`          |
-| `setVisaNationality`  | `PUT` | `/api/v1/trips/{tripId}/visa/nationality`       | `set_visa_nationality`   |
-| `setVisaItemProgress` | `PUT` | `/api/v1/trips/{tripId}/visa/items/{documentId}`| `set_visa_item_progress` |
+| Method                | Verb  | Path                                             | Command                  |
+| --------------------- | ----- | ------------------------------------------------ | ------------------------ |
+| `getVisaPrep`         | `GET` | `/api/v1/trips/{tripId}/visa`                    | `get_visa_prep`          |
+| `setVisaNationality`  | `PUT` | `/api/v1/trips/{tripId}/visa/nationality`        | `set_visa_nationality`   |
+| `setVisaItemProgress` | `PUT` | `/api/v1/trips/{tripId}/visa/items/{documentId}` | `set_visa_item_progress` |
 
 Each lands in all eight required places: `AppService`, the Axum route, the Tauri command,
 `contracts/src/index.ts`, `contracts/src/mock.ts`, `gateway/http.ts`, `gateway/tauri.ts`, and a
@@ -173,7 +173,7 @@ Route: visitor visa (temporary resident visa) from outside Canada. Eight steps. 
 **high-value** are the ones that save real money or a refusal; they are the reason the feature earns
 its keep.
 
-1. **Do you even need one?** — **high-value.** IRCC lets citizens of *some* visa-required countries
+1. **Do you even need one?** — **high-value.** IRCC lets citizens of _some_ visa-required countries
    skip the visa for a far cheaper eTA if they have held a Canadian visa in the last ten years or
    hold a valid US non-immigrant visa. The eligible list is short and it moves (Indonesia and
    Malaysia were added 2026-05-26). Voyalier asks the question and links the list. It never answers
@@ -182,7 +182,7 @@ its keep.
 3. **Photo** — **high-value.** IRCC's digital photo specification is not the Indian passport photo
    specification; dimensions and head height differ. Reused photos get applications returned.
 4. **Prove you can pay** — IRCC's term is "proof of means of financial support". Plainly: show the
-   money has *been* there, not that it *is* there. No fixed amount is published for visitors.
+   money has _been_ there, not that it _is_ there. No fixed amount is published for visitors.
    Documents: 4–6 months of bank-stamped statements; sponsor's statements and letter if someone else
    is paying; income proof tying the balance to something recurring. Gotcha: a large deposit just
    before applying needs an explanation letter or it counts against you, and an invitation letter is
@@ -190,7 +190,7 @@ its keep.
 5. **Prove you'll come back** — employment letter, leave approval, property, family, enrolment.
    Framed as the question the officer is actually asking: what pulls you home?
 6. **Fill the forms** — **high-value.** IMM 5257 plus IMM 5645 family information. IMM 5257 must be
-   opened in Adobe Reader and *Validate* pressed to generate the barcode; filled in a browser it
+   opened in Adobe Reader and _Validate_ pressed to generate the barcode; filled in a browser it
    silently produces a form IRCC rejects.
 7. **Submit, pay, biometrics** — **high-value.** IRCC account, fees, then the visa application
    centre. Biometrics last ten years, so an earlier Canadian application may mean skipping the
