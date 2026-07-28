@@ -43,6 +43,16 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
   still asserts nothing and still cannot clear your trip, and it now reports your
   own tally attributed to you in the same sentence.
 
+### Fixed
+
+- **A workspace with an empty optional field no longer refuses to open.** The
+  pass that seals legacy plaintext on startup read every sealed column as a
+  string, so a NULL in a nullable one failed the whole open with a storage
+  error — not the panel, the workspace. Visa preparation made it easy to reach,
+  because ticking a document without writing a note leaves the note empty, but
+  it was already reachable through a manual activity saved without a location.
+  Nulls are now skipped, since there is nothing there to seal.
+
 ## [0.5.2] - 2026-07-21 — The audited-journey release
 
 A browser audit walked Voyalier's primary flows end to end — first run, import

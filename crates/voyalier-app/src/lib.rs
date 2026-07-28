@@ -769,6 +769,13 @@ fn read_vault_wrap(connection: &Connection) -> Result<Option<VaultWrap>, AppErro
 /// Seal any legacy plaintext values in the vault's sensitive columns once the
 /// vault is active. Idempotent: already-sealed rows (tagged) are skipped. Safe to
 /// re-run (e.g. after unlocking a passphrase vault).
+///
+/// Sealed columns are read as `Option<String>`, because several of them are
+/// nullable — `trip_items.location`, `trip_items.notes`, and both visa-prep
+/// columns. Reading those as `String` made a NULL an `AppError` from
+/// `open_path`, so one manual plan without a location, or one ticked visa
+/// document without a note, refused to open the workspace at all. A NULL is
+/// nothing to seal, so it is skipped rather than repaired.
 fn migrate_encrypt_sensitive_columns(
     connection: &Connection,
     vault: &Vault,
@@ -783,10 +790,13 @@ fn migrate_encrypt_sensitive_columns(
                 .map_err(storage_error)?;
             let rows = statement
                 .query_map([], |row| {
-                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                    Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
                 })
                 .map_err(storage_error)?;
             collect_rows(rows)?
+                .into_iter()
+                .filter_map(|(id, value): (String, Option<String>)| value.map(|value| (id, value)))
+                .collect()
         };
         for (id, value) in legacy {
             if value.starts_with(VAULT_PREFIX) {
@@ -9255,6 +9265,81 @@ mod tests {
         );
 
         drop(service);
+        cleanup_database(database);
+    }
+
+    /// A NULL in a nullable sealed column must not stop the workspace opening.
+    ///
+    /// Found by running the real server rather than the suite: ticking a visa
+    /// document without writing a note leaves `note` NULL, and the re-seal pass
+    /// read every sealed column as `String`. The result was
+    /// `storage/failure: Invalid column type Null` from `open_path` -- the whole
+    /// workspace refused to open, not just the panel. `trip_items.location` and
+    /// `trip_items.notes` are nullable and sealed too, so the same bug was
+    /// already reachable through a manual plan with no location; the visa
+    /// columns only made it the common case.
+    #[test]
+    fn a_null_in_a_sealed_column_still_opens_the_workspace() {
+        let database = temp_database("sealed-null");
+        // One store across both opens: the data key lives there, so a fresh one
+        // would fail to open sealed data for reasons unrelated to this test.
+        let secrets = Arc::new(MemorySecretStore::default());
+        {
+            let service =
+                AppService::open_path_with_deps(&database, Arc::new(UreqFetcher), secrets.clone())
+                    .expect("service");
+            let trip = service.create_trip(canada_trip_input()).expect("trip");
+            service
+                .set_visa_nationality(SetVisaNationalityInput {
+                    trip_id: trip.id.clone(),
+                    nationality_iso2: "IN".to_owned(),
+                })
+                .expect("nationality");
+            // Ticked, deliberately unnoted: `note` stays NULL.
+            service
+                .set_visa_item_progress(SetVisaItemProgressInput {
+                    trip_id: trip.id.clone(),
+                    document_id: "ca.trv.funds.statements".to_owned(),
+                    checked: true,
+                    note: None,
+                })
+                .expect("tick");
+            service
+                .create_trip_item(CreateTripItemInput {
+                    trip_id: trip.id.clone(),
+                    kind: voyalier_core::TripItemKind::Activity,
+                    title: "Walk the ravine".to_owned(),
+                    location: None,
+                    start_at: None,
+                    end_at: None,
+                    notes: None,
+                    saved_place_id: None,
+                })
+                .expect("trip item");
+
+            let connection = service.connection().expect("connection");
+            let nulls: i64 = connection
+                .query_row(
+                    "SELECT COUNT(*) FROM visa_prep_items WHERE note IS NULL",
+                    [],
+                    |row| row.get(0),
+                )
+                .expect("count");
+            assert_eq!(nulls, 1, "the fixture must actually leave a NULL behind");
+        }
+
+        // Reopening runs the re-seal pass over every sealed column again.
+        let reopened = AppService::open_path_with_deps(&database, Arc::new(UreqFetcher), secrets)
+            .expect("reopen with a NULL present");
+        let trips = reopened.list_trips().expect("trips");
+        assert_eq!(trips.len(), 1);
+        let visa = reopened
+            .get_visa_prep(&trips[0].trip.id)
+            .expect("visa prep still readable");
+        assert!(visa.items[0].checked);
+        assert_eq!(visa.items[0].note, None);
+
+        drop(reopened);
         cleanup_database(database);
     }
 
