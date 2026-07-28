@@ -283,6 +283,24 @@
       "command": "delete_trip_item"
     },
     {
+      "method": "getVisaPrep",
+      "verb": "GET",
+      "path": "/api/v1/trips/{tripId}/visa",
+      "command": "get_visa_prep"
+    },
+    {
+      "method": "setVisaNationality",
+      "verb": "PUT",
+      "path": "/api/v1/trips/{tripId}/visa/nationality",
+      "command": "set_visa_nationality"
+    },
+    {
+      "method": "setVisaItemProgress",
+      "verb": "PUT",
+      "path": "/api/v1/trips/{tripId}/visa/items/{documentId}",
+      "command": "set_visa_item_progress"
+    },
+    {
       "method": "listAdviceCountries",
       "verb": "GET",
       "path": "/api/v1/advice/countries",

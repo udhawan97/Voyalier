@@ -1,12 +1,14 @@
 import packing from "../parity/packing.json";
 import prompts from "../parity/prompts.json";
 import readinessLinks from "../parity/readiness-links.json";
+import visaParity from "../parity/visa.json";
 
 import {
   MAX_AI_PROMPT_LEN,
   MAX_LOCATION_LEN,
   MAX_NOTES_CHARS,
   MAX_QUERY_LEN,
+  MAX_VISA_NOTE_CHARS,
   countChars,
   normalizePlace,
   savedPlaceIdentity,
@@ -63,6 +65,11 @@ import type {
   UpdateSavedPlaceInput,
   PackingItem,
   UpdatePackingItemInput,
+  SetVisaItemProgressInput,
+  SetVisaNationalityInput,
+  VisaJourney,
+  VisaPrep,
+  VisaPrepItem,
   TripItem,
   UpdateTripItemInput,
   SetProviderKeyInput,
@@ -1584,6 +1591,73 @@ async function sha256(content: string): Promise<string> {
     .join("");
 }
 
+/**
+ * A renderable journey built from `parity/visa.json`, so the mock and the golden
+ * carry one declaration of the step and document ids rather than two. The prose
+ * is synthetic — the real copy is curated in `voyalier-core` and rendered
+ * verbatim, and duplicating it here would be transcription that silently rots.
+ */
+function mockVisaJourney(
+  destinationIso2: string,
+  nationalityIso2: string,
+): VisaJourney | undefined {
+  const found = visaParity.cases.find(
+    (entry) =>
+      entry.destination === destinationIso2 &&
+      entry.nationality === nationalityIso2,
+  );
+  const expected = found?.expected as
+    | {
+        routeLabel: string | null;
+        stepIds: string[] | null;
+        ordinals: number[] | null;
+        documentIds: string[] | null;
+        entryPath: VisaPrep["entryPath"];
+      }
+    | undefined;
+  if (!expected?.stepIds || !expected.routeLabel || !expected.entryPath) {
+    return undefined;
+  }
+  const documentIds = expected.documentIds ?? [];
+  return {
+    destinationIso2,
+    nationalityIso2,
+    routeLabel: expected.routeLabel,
+    entryPath: expected.entryPath,
+    curatedAsOf: expected.entryPath.curatedAsOf,
+    language: expected.entryPath.language,
+    steps: expected.stepIds.map((id, index) => ({
+      id,
+      ordinal: expected.ordinals?.[index] ?? index + 1,
+      title: `Mock step ${index + 1}`,
+      plainExplanation: `Mock explanation for ${id}.`,
+      links: [
+        { label: "Mock official page", url: "https://www.canada.ca/en/mock" },
+      ],
+      // Documents are dealt out across steps so every id in the golden is
+      // reachable from the interface without inventing a second structure.
+      documents: documentIds
+        .filter(
+          (documentId) =>
+            documentIds.indexOf(documentId) % expected.stepIds!.length ===
+            index,
+        )
+        .map((documentId) => ({
+          id: documentId,
+          label: `Mock document ${documentId}`,
+          plainExplanation: `Mock explanation for ${documentId}.`,
+          gotchas: [`Mock caution for ${documentId}.`],
+          links: [
+            {
+              label: "Mock official page",
+              url: "https://www.canada.ca/en/mock",
+            },
+          ],
+        })),
+    })),
+  };
+}
+
 export function createMockGateway(options?: {
   latencyMs?: number;
   failOn?: Partial<Record<keyof AppGateway, ErrorCode>>;
@@ -1637,6 +1711,10 @@ export function createMockGateway(options?: {
   const interestProfiles = new Map<string, InterestProfile>();
   const savedPlaces = new Map<string, SavedPlace>();
   const packingItems = new Map<string, PackingItem>();
+  /** tripId -> ISO-3166-1 alpha-2 of the traveler's passport. */
+  const visaNationalities = new Map<string, string>();
+  /** `${tripId}:${documentId}` -> the traveler's tick and note. */
+  const visaItems = new Map<string, VisaPrepItem>();
   const tripItems = new Map<string, TripItem>();
 
   function recommendationsFor(
@@ -1713,6 +1791,30 @@ export function createMockGateway(options?: {
     const id = `${prefix}_mock_${String(sequence).padStart(4, "0")}`;
     sequence += 1;
     return id;
+  }
+
+  function readVisaPrep(tripId: string): VisaPrep {
+    requireTrip(tripId);
+    const nationalityIso2 = visaNationalities.get(tripId);
+    const items = [...visaItems.entries()]
+      .filter(([key]) => key.startsWith(`${tripId}:`))
+      .map(([, item]) => clone(item));
+    if (!nationalityIso2) return { tripId, items };
+    // Mock trips are Canada-bound unless their destination says otherwise; the
+    // real gateway resolves this from the destination-facts snapshot, falling
+    // back to the bundled gazetteer.
+    const journey = mockVisaJourney("CA", nationalityIso2);
+    const entryPath =
+      journey?.entryPath ??
+      (visaParity.cases.find((entry) => entry.nationality === nationalityIso2)
+        ?.expected as VisaPrep["entryPath"] | undefined);
+    return {
+      tripId,
+      nationalityIso2,
+      ...(entryPath ? { entryPath } : {}),
+      ...(journey ? { journey } : {}),
+      items,
+    };
   }
 
   async function execute<T>(
@@ -2993,6 +3095,46 @@ export function createMockGateway(options?: {
           throw appError("validation/invalid_input", "trip item not found");
       }),
 
+    getVisaPrep: (tripId: string) =>
+      execute("getVisaPrep", () => readVisaPrep(tripId)),
+
+    setVisaNationality: (input: SetVisaNationalityInput) =>
+      execute("setVisaNationality", () => {
+        requireTrip(input.tripId);
+        const code = input.nationalityIso2.trim().toUpperCase();
+        if (!/^[A-Z]{2}$/.test(code)) {
+          throw appError(
+            "validation/invalid_input",
+            "nationality must be an ISO-3166-1 alpha-2 code",
+          );
+        }
+        visaNationalities.set(input.tripId, code);
+        return readVisaPrep(input.tripId);
+      }),
+
+    setVisaItemProgress: (input: SetVisaItemProgressInput) =>
+      execute("setVisaItemProgress", () => {
+        requireTrip(input.tripId);
+        const note = input.note?.trim() ?? "";
+        if (countChars(note) > MAX_VISA_NOTE_CHARS) {
+          throw appError("validation/invalid_input", "note is too long");
+        }
+        const key = `${input.tripId}:${input.documentId}`;
+        // ADR-0005: a row exists only after an explicit action, and clearing
+        // both fields removes it rather than leaving an empty tick behind.
+        if (!input.checked && !note) {
+          visaItems.delete(key);
+        } else {
+          visaItems.set(key, {
+            documentId: input.documentId,
+            checked: input.checked,
+            ...(note ? { note } : {}),
+            updatedAt: timestamp(),
+          });
+        }
+        return readVisaPrep(input.tripId);
+      }),
+
     listAdviceCountries: () =>
       execute("listAdviceCountries", () => MOCK_ADVICE_COUNTRIES.map(clone)),
 
@@ -3245,6 +3387,10 @@ export function createMockGateway(options?: {
         }
         for (const [id, item] of packingItems) {
           if (item.tripId === tripId) packingItems.delete(id);
+        }
+        visaNationalities.delete(tripId);
+        for (const key of [...visaItems.keys()]) {
+          if (key.startsWith(`${tripId}:`)) visaItems.delete(key);
         }
         for (const [id, item] of tripItems) {
           if (item.tripId === tripId) tripItems.delete(id);

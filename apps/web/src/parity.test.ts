@@ -4,6 +4,7 @@ import savedPlaceIdentityGolden from "@voyalier/contracts/parity/saved-place-ide
 import assessTripGolden from "@voyalier/contracts/parity/assess-trip.json";
 import packingGolden from "@voyalier/contracts/parity/packing.json";
 import tripFactsGolden from "@voyalier/contracts/parity/trip-facts.json";
+import visaGolden from "@voyalier/contracts/parity/visa.json";
 import type {
   ConfirmedFact,
   PublicHoliday,
@@ -190,6 +191,65 @@ describe("parity: packing list", () => {
  * duplicates, and the mock only filtered — so overlapping per-year fetches
  * could show a holiday twice, in whatever order the feed used.
  */
+/**
+ * Curated visa journeys, pinned by structure rather than prose.
+ *
+ * The interface renders the curated copy verbatim from the core, so pinning it
+ * here would turn every copy edit into golden churn without catching anything.
+ * What must agree is the shape: which entry path a nationality quotes, which
+ * steps exist in which order, and which document ids traveler progress is keyed
+ * on — rename one of those and stored ticks silently detach from their document.
+ * `voyalier-core`'s `parity_visa_journeys_match_the_contract` holds Rust to the
+ * same file.
+ */
+describe("parity: visa journeys", () => {
+  const cases = visaGolden.cases;
+
+  it("covers every golden case", () => {
+    expect(cases).toHaveLength(6);
+    expect(cases).toHaveLength(visaGolden.caseCount);
+  });
+
+  it.each(cases)(
+    "quotes an attributed entry path for: $name",
+    ({ expected }) => {
+      // Every path, including unknown, carries where it was read from and when.
+      expect(expected.entryPath.sourceName).not.toHaveLength(0);
+      expect(expected.entryPath.sourceUrl).toMatch(
+        /^https:\/\/www\.canada\.ca\//,
+      );
+      expect(expected.entryPath.curatedAsOf).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(expected.entryPath.language).toBe("en");
+    },
+  );
+
+  it.each(cases)(
+    "agrees with the core's journey shape for: $name",
+    ({ expected }) => {
+      const hasJourney = expected.stepIds !== null;
+      // A journey exists exactly when the quoted path calls for one. Exempt and
+      // unknown travelers get official links and nothing invented.
+      expect(hasJourney).toBe(
+        expected.entryPath.path === "visaRequired" ||
+          expected.entryPath.path === "electronicAuthorization",
+      );
+      if (!hasJourney) {
+        expect(expected.routeLabel).toBeNull();
+        expect(expected.documentIds).toBeNull();
+        return;
+      }
+      // Ordinals are contiguous from 1, and document ids are unique because
+      // traveler progress is keyed on them.
+      expect(expected.ordinals).toEqual(
+        expected.stepIds!.map((_, index) => index + 1),
+      );
+      expect(new Set(expected.documentIds!).size).toBe(
+        expected.documentIds!.length,
+      );
+    },
+  );
+});
+
 describe("parity: trip facts", () => {
   const timeDifference = tripFactsGolden.timeDifference.cases;
   const holidays = tripFactsGolden.holidaysWithin.cases;

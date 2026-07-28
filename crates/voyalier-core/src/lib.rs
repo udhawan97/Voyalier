@@ -81,7 +81,7 @@ pub use facts::{
     CountryFacts, CurrencyRate, DestinationFactsSnapshot, EmergencyNumbers, TimeDifference,
     country_facts, cross_rate, parse_ecb_rates, time_difference,
 };
-pub use gazetteer::{CitySuggestion, search_cities};
+pub use gazetteer::{CitySuggestion, resolve_country_code, search_cities};
 pub use heritage::{HeritageSite, world_heritage_near};
 // The Nager endpoint and its per-year addressing stay internal: which URL
 // answers for a country and year is this module's knowledge. `public_holidays`
