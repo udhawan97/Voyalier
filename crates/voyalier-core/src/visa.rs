@@ -16,7 +16,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::types::SourceLink;
+use crate::types::{AppError, ErrorCode, SourceLink};
 
 /// When the curated tables below were last read against their sources by hand.
 /// Shown to the traveler beside every quoted entry path.
@@ -94,6 +94,86 @@ pub struct VisaJourney {
     pub steps: Vec<VisaStep>,
     pub curated_as_of: String,
     pub language: String,
+}
+
+/// Traveler notes on one visa document. Unicode characters, not bytes.
+pub const MAX_VISA_NOTE_CHARS: usize = 2_000;
+
+/// One traveler-owned tick or note.
+///
+/// Following ADR-0005 a row exists only after an explicit action: the curated
+/// checklist is computed output and never stores itself, exactly as a
+/// `PackingSuggestion` never becomes a `PackingItem` on its own.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VisaPrepItem {
+    pub document_id: String,
+    pub checked: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    pub updated_at: String,
+}
+
+/// The resolved journey and the traveler's progress, returned together so a
+/// caller cannot pair a journey with another trip's checkboxes.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VisaPrep {
+    pub trip_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nationality_iso2: Option<String>,
+    /// The passport this trip would prefill with, from the traveler's most
+    /// recent choice on another trip. A suggestion for the picker only -- never
+    /// applied on their behalf, because a trip may not be for them.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggested_nationality_iso2: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entry_path: Option<EntryPathQuote>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub journey: Option<VisaJourney>,
+    pub items: Vec<VisaPrepItem>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetVisaNationalityInput {
+    pub trip_id: String,
+    pub nationality_iso2: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetVisaItemProgressInput {
+    pub trip_id: String,
+    pub document_id: String,
+    pub checked: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+/// Normalize and check a nationality code, so storage never holds a code the
+/// resolver would then refuse to read.
+pub fn validate_nationality(code: &str) -> Result<String, AppError> {
+    let normalized = code.trim().to_ascii_uppercase();
+    if is_iso2(&normalized) {
+        Ok(normalized)
+    } else {
+        Err(AppError::new(
+            ErrorCode::ValidationInvalidInput,
+            "nationality must be an ISO-3166-1 alpha-2 code",
+        ))
+    }
+}
+
+/// Check a traveler's note against the shared limit, counting characters.
+pub fn validate_visa_note(note: &str) -> Result<(), AppError> {
+    if note.chars().count() > MAX_VISA_NOTE_CHARS {
+        return Err(AppError::new(
+            ErrorCode::ValidationInvalidInput,
+            "note is too long",
+        ));
+    }
+    Ok(())
 }
 
 // ---- Canada: sources ------------------------------------------------------

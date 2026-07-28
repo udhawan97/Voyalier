@@ -1235,6 +1235,12 @@ export interface VisaPrepItem {
 export interface VisaPrep {
   tripId: string;
   nationalityIso2?: string;
+  /**
+   * The passport this trip would prefill with, from the traveler's most recent
+   * choice on another trip. A suggestion for the picker only — never applied on
+   * their behalf, because a trip may not be for them.
+   */
+  suggestedNationalityIso2?: string;
   /** Absent until a nationality is set. */
   entryPath?: EntryPathQuote;
   /** Absent when the pair is uncurated, conditional, or needs nothing. */

@@ -143,6 +143,14 @@ mod tests {
             "saved_places",
             "packing_items",
             "trip_items",
+            // Visa preparation is traveler-owned on the same grounds. A passport
+            // does not change when a destination does, and the checklist ticks
+            // are the traveler's own record of work they actually did -- a
+            // corrected destination typo must not silently discard it. Ticks key
+            // on destination-prefixed document ids, so they simply stop
+            // resolving until the destination comes back.
+            "visa_prep",
+            "visa_prep_items",
         ]
         .into_iter()
         .collect();

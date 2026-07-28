@@ -1049,7 +1049,10 @@ fn parity_visa_journeys_match_the_contract() {
             regenerated.push(updated);
             continue;
         }
-        assert_eq!(actual, case["expected"], "visa journey disagrees for {name:?}");
+        assert_eq!(
+            actual, case["expected"],
+            "visa journey disagrees for {name:?}"
+        );
     }
 
     if regenerate {

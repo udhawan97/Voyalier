@@ -198,7 +198,10 @@ mod tests {
     #[test]
     fn resolves_a_destination_country_offline() {
         // The specific segment wins over the city lookup.
-        assert_eq!(resolve_country_code("Toronto, Canada").as_deref(), Some("CA"));
+        assert_eq!(
+            resolve_country_code("Toronto, Canada").as_deref(),
+            Some("CA")
+        );
         assert_eq!(resolve_country_code("Canada").as_deref(), Some("CA"));
         assert_eq!(resolve_country_code("CA").as_deref(), Some("CA"));
         assert_eq!(resolve_country_code("canada").as_deref(), Some("CA"));
