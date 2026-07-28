@@ -200,6 +200,19 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   compile-checked plural bases). English and Spanish now ship with an immediate,
   locally persisted System/English/Español preference. Complete.)_
 
+- ✓ Visa and entry preparation (0.6.0): a per-trip cockpit that quotes a
+  destination's published entry path with its source and curation date, then
+  walks a curated route step by step — what the authority calls each thing, what
+  it means plainly, which documents it takes, and the specific ways people trip.
+  ADR-0006 binds the split: every factual claim about a requirement is a link,
+  every authored sentence is a translation or a caution, and a test fails the
+  build if curated prose quotes a fee or a processing time. Entry paths are
+  quoted rather than derived; conditional or uncurated pairs yield official links
+  and no journey. Nationality and traveler notes are sealed. Readiness is
+  unchanged: entry requirements stays NotChecked, stays out of the rollup, and
+  gains only a self-reported tally attributed to the traveler. Canada first, both
+  routes; more destinations are curation work, not engineering.
+
 ## Later
 
 Licensed live inventory, encrypted sync, group collaboration, monitoring, silent/automatic email ingestion (inbox scanning, as opposed to the shipped explicit paste-or-.eml import), and mobile experiences.

@@ -41,6 +41,10 @@ export default defineConfig({
               link: "/guides/readiness-and-advice/",
             },
             {
+              label: "Visa and entry preparation",
+              link: "/guides/visa-preparation/",
+            },
+            {
               label: "Offline packs, recommendations, and maps",
               link: "/guides/offline-packs-and-maps/",
             },
