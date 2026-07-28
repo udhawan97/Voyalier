@@ -35,6 +35,7 @@ mod tipping;
 mod today;
 mod types;
 mod vault;
+mod visa;
 mod weather;
 
 pub use advice::{
@@ -135,6 +136,9 @@ pub use tipping::tipping_guidance;
 pub use today::{TodayItem, TodayItemKind, TodayView, TripPhase, TripPhaseState, build_today_view};
 pub use types::*;
 pub use vault::{VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, derive_key, open, seal};
+pub use visa::{
+    EntryPath, EntryPathQuote, VisaDocument, VisaJourney, VisaStep, entry_path, visa_journey,
+};
 pub use weather::{
     GeocodedPlace, WeatherCoverage, WeatherDay, WeatherSnapshot, describe_weather_code, geocode,
     parse_forecast_response, parse_geocoding_response,
