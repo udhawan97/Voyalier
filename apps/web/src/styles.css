@@ -676,7 +676,9 @@ h3 {
 
 .voy-triplist__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+  /* min() so the floor yields to the container: a bare 19rem minimum never
+     shrinks below 304px, which overflowed the document at 320px. */
+  grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr));
   gap: 1.1rem;
 }
 
@@ -1074,28 +1076,52 @@ h3 {
   line-height: 1.5;
 }
 
+/* The picker is a standard `Field` plus its submit, so the label, hint, error,
+   aria-invalid and aria-describedby wiring all come from the shared primitive.
+   It used to hand-roll the row and print errors through a class that was never
+   given a colour. */
 .voy-visa__nationality {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-end;
   gap: 0.6rem;
   margin-bottom: 1.2rem;
 }
 
-.voy-visa__nationality label {
-  font-size: 0.88rem;
-  font-weight: var(--voy-w-medium);
+/* `display: contents` so the field's own parts join this row rather than
+   stacking inside a block: the label and hint take a line each, and Save stays
+   beside the two-character input it submits instead of being pushed to the far
+   end of the field's box. The error follows the input by `order`, so it lands
+   under the control it is about. */
+.voy-visa__nationality .voy-field {
+  display: contents;
+}
+
+.voy-visa__nationality .voy-field__label {
+  order: 1;
+  flex-basis: 100%;
+}
+
+.voy-visa__nationality .voy-field__hint {
+  order: 2;
+  flex-basis: 100%;
+  margin: 0;
 }
 
 .voy-visa__nationality .voy-input {
+  order: 3;
   width: 5rem;
   text-transform: uppercase;
 }
 
-.voy-visa__nationality .voy-visa__help,
-.voy-visa__nationality .voy-error {
+.voy-visa__nationality .voy-btn {
+  order: 4;
+}
+
+.voy-visa__nationality .voy-field__error {
+  order: 5;
   flex-basis: 100%;
-  margin-top: 0;
+  margin: 0;
 }
 
 .voy-visa__quote {
@@ -1277,12 +1303,6 @@ h3 {
 
 /* ===== Official travel advice ========================================== */
 
-.voy-advice {
-  margin-top: 2.6rem;
-  padding-top: 1.8rem;
-  border-top: 1px solid var(--voy-line);
-}
-
 .voy-advice__title {
   font-size: 1.4rem;
   font-family: var(--voy-font-display);
@@ -1459,19 +1479,7 @@ h3 {
 
 /* ===== Weather outlook ================================================= */
 
-.voy-weather {
-  margin-top: 2.6rem;
-  padding-top: 1.8rem;
-  border-top: 1px solid var(--voy-line);
-}
-
 /* ===== Destination facts (sky / money / practical) ==================== */
-
-.voy-facts {
-  margin-top: 2.6rem;
-  padding-top: 1.8rem;
-  border-top: 1px solid var(--voy-line);
-}
 
 .voy-facts__grid {
   display: grid;
@@ -3518,12 +3526,6 @@ h3 {
 
 /* ===== Trip search ===================================================== */
 
-.voy-search {
-  margin-top: 2.6rem;
-  padding-top: 1.8rem;
-  border-top: 1px solid var(--voy-line);
-}
-
 .voy-search__title {
   font-size: 1.4rem;
   font-family: var(--voy-font-display);
@@ -4089,6 +4091,20 @@ h3 {
 .voy-dialog__body {
   padding: 1rem 1.6rem 1.4rem;
   overflow-y: auto;
+  /* Reserve the track so content does not reflow the first time an overlay
+     scrollbar appears. */
+  scrollbar-gutter: stable;
+}
+
+/* Content continues past the bottom edge. Drawn only when measured, so it never
+   claims there is more to read when the dialog fits. */
+.voy-dialog__body[data-overflowing="true"] {
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0,
+    #000 calc(100% - 2.4rem),
+    color-mix(in srgb, #000 15%, transparent) 100%
+  );
 }
 
 .voy-dialog__foot {
@@ -4702,8 +4718,24 @@ body::before {
 
 /* Keep a jumped-to section clear of the sticky nav above it. These are the
    section wrappers, which exist whether or not the section has mounted. */
+/* One separator for every panel in Prepare.
+
+   This used to be copy-pasted into each panel's own class, so the four added
+   later -- public holidays, about this place, notes, imported documents -- ran
+   together with no rule and no space while their neighbours had both. A rule on
+   the section's children cannot be forgotten by the next panel. */
+#section-prepare > section {
+  margin-top: 2.6rem;
+  padding-top: 1.8rem;
+  border-top: 1px solid var(--voy-line);
+}
+
+/* Every jump target, so a landing clears the sticky nav above it. #section-visa
+   was left out when the visa cockpit shipped, so its chip put the section title
+   underneath the nav bar. */
 #section-plan,
 #section-prepare,
+#section-visa,
 #section-discover,
 #section-ai {
   scroll-margin-top: 4rem;

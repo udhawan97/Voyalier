@@ -48,6 +48,17 @@ async function pickPassport(region: HTMLElement, code = "IN") {
 }
 
 /**
+ * Open a step that actually asks for documents.
+ *
+ * A journey opens on its orientation step, which is links and no documents —
+ * so anything about ticking or noting has to move off it first.
+ */
+async function openAskableStep(region: HTMLElement) {
+  fireEvent.click(within(region).getByRole("button", { name: /Mock step 2/ }));
+  await within(region).findByText(/Step 2/);
+}
+
+/**
  * ADR-0006 is the contract this panel exists to keep: Voyalier points at
  * authorities and never speaks for them. These tests are mostly about what the
  * panel refuses to say.
@@ -108,6 +119,7 @@ describe("visa preparation", () => {
     const gateway = createMockGateway();
     const region = await openVisa(gateway);
     await pickPassport(region);
+    await openAskableStep(region);
 
     const checkbox = within(region).getAllByRole("checkbox")[0];
     expect(checkbox).not.toBeChecked();
@@ -126,6 +138,7 @@ describe("visa preparation", () => {
     const gateway = createMockGateway();
     const region = await openVisa(gateway);
     await pickPassport(region);
+    await openAskableStep(region);
 
     const note = within(region).getAllByLabelText(
       /Your note \(private, encrypted at rest\)/,
@@ -164,9 +177,100 @@ describe("visa preparation", () => {
     expect(within(region).queryByText(/Step 1/)).toBeNull();
   });
 
+  it("reaches its own total once every document is ticked", async () => {
+    const gateway = createMockGateway();
+    await gateway.setVisaNationality({
+      tripId: "trip_kyoto",
+      nationalityIso2: "IN",
+    });
+    const prep = await gateway.getVisaPrep("trip_kyoto");
+    const journey = prep.journey!;
+    // The premise: a real journey opens with an orientation step that asks for
+    // nothing. If the fixture ever loses it this test stops proving anything.
+    expect(journey.steps.some((step) => step.documents.length === 0)).toBe(
+      true,
+    );
+
+    for (const document of journey.steps.flatMap((step) => step.documents)) {
+      await gateway.setVisaItemProgress({
+        tripId: "trip_kyoto",
+        documentId: document.id,
+        checked: true,
+      });
+    }
+
+    const region = await openVisa(gateway);
+    await within(region).findByText(/Step 1/);
+
+    // A step with nothing to tick can never be ticked, so counting it in the
+    // denominator left the journey reading "7 of 8" with every box checked and
+    // no remaining action anywhere in the panel.
+    const askable = journey.steps.filter((step) => step.documents.length > 0);
+    expect(within(region).getByText(/You marked/)).toHaveTextContent(
+      `You marked ${askable.length} of ${askable.length} steps complete`,
+    );
+  });
+
+  it("moves focus into the step it opens", async () => {
+    const region = await openVisa();
+    await pickPassport(region);
+
+    fireEvent.click(
+      within(region).getByRole("button", { name: /Mock step 5/ }),
+    );
+
+    // Where the rail stacks above the detail — every narrow viewport — the tap
+    // otherwise changed something 100px below the fold and nothing moved.
+    await waitFor(() =>
+      expect(
+        within(region).getByRole("heading", { name: /Step 5/ }),
+      ).toHaveFocus(),
+    );
+  });
+
+  it("marks the passport field invalid and names the rule it broke", async () => {
+    const region = await openVisa();
+    const field = within(region).getByLabelText("Passport country code");
+    fireEvent.change(field, { target: { value: "I" } });
+    fireEvent.click(within(region).getByRole("button", { name: "Save" }));
+
+    const error = await within(region).findByRole("alert");
+    // Not the multi-field banner title. "Check the highlighted fields" pointed
+    // at a highlight this form had no way to draw.
+    expect(error).toHaveTextContent(/two letters/i);
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field.getAttribute("aria-describedby")).toContain(error.id);
+  });
+
+  it("answers when Save is pressed with nothing typed", async () => {
+    const region = await openVisa();
+    fireEvent.click(within(region).getByRole("button", { name: "Save" }));
+
+    // It used to return silently, so a real button did nothing observable.
+    const error = await within(region).findByRole("alert");
+    expect(error).toHaveTextContent(/two letters/i);
+    expect(
+      within(region).getByLabelText("Passport country code"),
+    ).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("builds the no-journey state without nesting blocks inside a paragraph", async () => {
+    const region = await openVisa();
+    fireEvent.change(within(region).getByLabelText("Passport country code"), {
+      target: { value: "MX" },
+    });
+    fireEvent.click(within(region).getByRole("button", { name: "Save" }));
+    await within(region).findByText(/No step-by-step guide for this route yet/);
+
+    // React only warns about this; the DOM it builds is genuinely invalid, and
+    // would not survive being parsed rather than constructed.
+    expect(region.querySelector("p p, p ul, p div")).toBeNull();
+  });
+
   it("reports the traveler's own tally on readiness without clearing it", async () => {
     const region = await openVisa();
     await pickPassport(region);
+    await openAskableStep(region);
     fireEvent.click(within(region).getAllByRole("checkbox")[0]);
 
     const readiness = await screen.findByRole("region", { name: "Readiness" });
@@ -179,6 +283,41 @@ describe("visa preparation", () => {
     expect(readiness).toHaveTextContent(
       /Voyalier has not verified any of them/,
     );
+  });
+
+  /**
+   * The destination decides the answer, so editing it has to reach this panel.
+   *
+   * Measured on the running product: changing Tokyo to Toronto updated the trip
+   * heading and left the cockpit reading "No step-by-step guide for this route
+   * yet" while the engine already held an eight-step journey. Only a reload
+   * revealed it. The edit handler called reload(), which re-runs the detail
+   * view's own query; this panel reads its own scope and was never told.
+   */
+  it("refetches when the trip's destination changes", async () => {
+    const base = createMockGateway();
+    let visaReads = 0;
+    const gateway = {
+      ...base,
+      getVisaPrep: (tripId: string) => {
+        visaReads += 1;
+        return base.getVisaPrep(tripId);
+      },
+    };
+    const region = await openVisa(gateway as typeof base);
+    await pickPassport(region);
+    const before = visaReads;
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog", { name: "Edit trip" });
+    fireEvent.change(within(dialog).getByLabelText(/^To/), {
+      target: { value: "Toronto" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Save changes" }),
+    );
+
+    await waitFor(() => expect(visaReads).toBeGreaterThan(before));
   });
 
   it("has no accessibility violations with a journey open", async () => {

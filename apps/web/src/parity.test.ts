@@ -212,8 +212,19 @@ describe("parity: visa journeys", () => {
 
   it.each(cases)(
     "quotes an attributed entry path for: $name",
-    ({ expected }) => {
-      // Every path, including unknown, carries where it was read from and when.
+    ({ destination, expected }) => {
+      // No quote is a legitimate answer, and exactly one thing means it: nothing
+      // is curated for this destination, so there is no authority to name. It
+      // used to borrow the only authority there was, which put Canada in front
+      // of travelers flying anywhere else (ADR-0006, amended 2026-07-29).
+      if (expected.entryPath === null) {
+        expect(destination).not.toBe("CA");
+        expect(expected.stepIds).toBeNull();
+        return;
+      }
+      // Otherwise every path, including unknown, carries where it was read from
+      // and when — and the authority named governs the destination quoted.
+      expect(destination).toBe("CA");
       expect(expected.entryPath.sourceName).not.toHaveLength(0);
       expect(expected.entryPath.sourceUrl).toMatch(
         /^https:\/\/www\.canada\.ca\//,
@@ -228,10 +239,11 @@ describe("parity: visa journeys", () => {
     ({ expected }) => {
       const hasJourney = expected.stepIds !== null;
       // A journey exists exactly when the quoted path calls for one. Exempt and
-      // unknown travelers get official links and nothing invented.
+      // unknown travelers get official links and nothing invented; an uncurated
+      // destination has no quote to call for one at all.
       expect(hasJourney).toBe(
-        expected.entryPath.path === "visaRequired" ||
-          expected.entryPath.path === "electronicAuthorization",
+        expected.entryPath?.path === "visaRequired" ||
+          expected.entryPath?.path === "electronicAuthorization",
       );
       if (!hasJourney) {
         expect(expected.routeLabel).toBeNull();

@@ -296,4 +296,34 @@ describe("User-flow gap fixes", () => {
     // The note belongs to the action it describes, not to the body copy.
     expect(sample.closest("div")).toContainElement(hint);
   });
+
+  /**
+   * A rejected submission has to put the traveler where the problem is.
+   *
+   * The errors appeared and were announced, but focus stayed on the button that
+   * had just refused, so a keyboard user had to shift-tab back past the whole
+   * form to find the first one. The planning form already does this — the e2e
+   * suite asserts it there — so the product had two answers to one moment.
+   */
+  it("moves focus to the first invalid field when a trip cannot be created", async () => {
+    renderApp(createMockGateway());
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: "Create a trip" }))[0],
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Create a trip" });
+
+    // A real click focuses the button first. Without this the dialog's own
+    // initial focus is still on From and the test proves nothing.
+    const submit = within(dialog).getByRole("button", { name: "Create trip" });
+    submit.focus();
+    expect(submit).toHaveFocus();
+    fireEvent.click(submit);
+
+    await waitFor(() =>
+      expect(within(dialog).getByLabelText(/^From/)).toHaveFocus(),
+    );
+    expect(
+      within(dialog).getByText("Enter where the trip starts."),
+    ).toBeInTheDocument();
+  });
 });

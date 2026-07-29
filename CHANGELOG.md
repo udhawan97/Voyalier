@@ -6,7 +6,26 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-07-29 — Audited user-flow repairs
+
 ### Fixed
+
+- **The visa panel was quoting Canada's immigration service for trips that had
+  nothing to do with Canada.** A London → Tokyo trip with an Indian passport was
+  shown "Not curated — check the official source", attributed to Immigration,
+  Refugees and Citizenship Canada, with a canada.ca link labelled as the official
+  source for the traveller's case. Canada is the only destination curated so far,
+  and the function that quotes an entry path had no way to say "no authority",
+  so Canada's stood in for every other country on earth. It now says nothing
+  where it knows nothing: no authority named, no link offered, and a sentence
+  telling you to check your destination's own immigration service. This is the
+  clearest breach of the product's own contract found so far — Voyalier pointing
+  at a government with no connection to the journey — and ADR-0006 has been
+  amended in place to say that an uncurated destination yields no quote at all.
+
+  What this does not do is add destinations. A trip to anywhere but Canada still
+  gets no curated journey; it now gets an honest absence instead of a misleading
+  pointer.
 
 - **The visa section works on the desktop app.** It never had. Every command the
   desktop shell exposes takes a single argument named `input`, and one of the
@@ -22,6 +41,59 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
   included this command. What was left out: the manifest still does not generate
   the two transports it describes, so a new method is still written out in several
   places. That is a larger change and it needs its own decision record.
+
+- **A visa journey could never be finished.** With all sixteen documents ticked
+  the panel read "You marked 7 of 8 steps complete" permanently, and nothing
+  anywhere could close the gap: a journey opens with an orientation step that
+  asks whether you need the route at all, which has links and nothing to tick,
+  and it was being counted in the total it could never contribute to. Steps with
+  nothing to tick now leave both halves of the fraction, so the journey reaches
+  its own total. The tradeoff is that the total no longer matches the number of
+  steps in the rail; the alternative was inventing an acknowledgement control for
+  a step that asks for nothing.
+
+- **On a phone, tapping a step in the visa rail did nothing you could see.** The
+  rail sits beside the step on a wide screen and stacks above it on a narrow one,
+  where the content it changed was about 100px below the fold — the page did not
+  move and focus did not move, so the only feedback was a highlight on the row
+  you had just touched. Selecting a step now moves focus into it, which brings it
+  into view and announces it to a screen reader in the same gesture.
+
+- **Reloading a trip section, or opening a shared link to one, landed nearly four
+  screens away from it.** Deferred sections above the target mounted after the
+  browser had already chosen where to stop, pushing the target down; a cold load
+  of `#section-ai` stopped 3,520px short with the navigation confidently marking
+  a different section as current. The jump chips were fixed for this a release
+  ago and the reload path was not; both now use one mechanism. Leaving a trip
+  from the visa section also left a dead `#section-visa` in the address bar, and
+  that section's own chip landed its title underneath the sticky navigation.
+
+- **Correcting a trip's destination left the visa panel answering for the old
+  one.** The heading updated and the cockpit went on saying the route had no
+  guide while the engine already held an eight-step journey for the new
+  destination — visible only after a manual reload.
+
+- **Errors in the visa panel were invisible and told you to look for something
+  that was not there.** A one-letter passport code produced "Check the
+  highlighted fields", copy written for multi-field dialogs, rendered in ordinary
+  body text through a style rule that never existed, beside a field with no
+  highlight. The passport picker now uses the same field component as the rest of
+  the product, so its error is marked, coloured, announced, and tied to the input
+  — and it names the rule it is enforcing. Pressing Save with the field empty did
+  nothing at all; it now answers.
+
+- **After a successful Retry the trip still said the engine was unreachable.**
+  The header read Ready, the workspace banner was gone, and a banner underneath
+  went on insisting otherwise with no Retry and no way to dismiss it. Failures
+  from an unreachable engine now expire when the engine answers again. While it
+  is down, the trip no longer repeats the workspace's message word for word.
+
+- **Smaller things found in the same pass.** The trip list scrolled sideways on a
+  320px screen, clipping its own cards. Four panels in Prepare ran together with
+  no separator while their neighbours had one. Review suggestions opened with its
+  Confirm buttons 826px below the fold, no scrollbar, and only a Close button
+  visible; the dialog now shows that it continues. A rejected Create-a-trip
+  submission left keyboard focus on the button that had just refused.
 
 - **A passport you have already entered is offered to your next trip.** It was
   meant to be, and is on a real workspace, but the in-memory workspace the tests

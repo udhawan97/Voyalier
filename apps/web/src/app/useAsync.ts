@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { AppError } from "@voyalier/contracts";
 
 import { toAppError } from "../gateway";
-import { useTransportHealth } from "./context";
+import { useTransportHealth, useTransportRecovery } from "./context";
 
 export type AsyncStatus = "loading" | "success" | "error";
 
@@ -143,7 +143,35 @@ export function useAsyncAction<Args extends unknown[], T>(
   const latest = useRef(0);
 
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<AppError | undefined>(undefined);
+  /** The failure, and how many recoveries had happened when it was recorded. */
+  const [failure, setFailure] = useState<
+    { error: AppError; recoveries: number } | undefined
+  >(undefined);
+
+  /**
+   * A transport failure stops being true once the engine answers again.
+   *
+   * Derived rather than cleared, so no effect has to write state: the failure
+   * is kept with the recovery count it was recorded at, and a later count means
+   * it has been disproved. It used to survive until the next `run`, so a
+   * traveler who archived a trip with the engine down, restarted it and pressed
+   * Retry got a topbar reading Ready above a banner still insisting the engine
+   * could not be reached — with no Retry of its own and no way to dismiss it.
+   *
+   * Only `transport/failure` expires. Every other code is about the request
+   * itself and is not disproved by the engine coming back.
+   */
+  const recoveries = useTransportRecovery();
+  const recoveriesRef = useRef(recoveries);
+  useEffect(() => {
+    recoveriesRef.current = recoveries;
+  });
+  const error =
+    failure &&
+    (failure.error.code !== "transport/failure" ||
+      recoveries <= failure.recoveries)
+      ? failure.error
+      : undefined;
 
   const run = useCallback(
     async (...args: Args) => {
@@ -152,7 +180,7 @@ export function useAsyncAction<Args extends unknown[], T>(
       /** Still the run whose result the view should see. */
       const current = () => mounted.current && latest.current === runId;
 
-      setError(undefined);
+      setFailure(undefined);
       setBusy(true);
       try {
         const result = await actionRef.current(...args);
@@ -171,7 +199,7 @@ export function useAsyncAction<Args extends unknown[], T>(
           // have claimed.
           const error = toAppError(caught, "internal/unexpected");
           transportHealth.reportTransportFailure(error);
-          setError(error);
+          setFailure({ error, recoveries: recoveriesRef.current });
         }
       } finally {
         // A superseded run leaves `busy` alone: the run that superseded it is

@@ -47,6 +47,27 @@ export function useTransportHealth(): TransportHealthReporter {
 }
 
 /**
+ * How many times the engine has answered since the app started.
+ *
+ * A counter rather than a flag, because what consumers need is the *edge*: a
+ * failure they are still showing has been disproved. `useAsyncAction` used to
+ * hold its error until the next run, so a traveler who retried successfully got
+ * a topbar reading Ready above a banner still insisting the engine was
+ * unreachable.
+ *
+ * Deliberately separate from the reporter above, whose object identity has to
+ * stay stable — `useAsyncData` keys an effect on it, and folding a changing
+ * number into it would refetch every panel on screen on every recovery.
+ * Defaults to 0 and never moves without a provider, which is the honest answer
+ * for a hook rendered on its own.
+ */
+export const TransportRecoveryContext = createContext(0);
+
+export function useTransportRecovery(): number {
+  return useContext(TransportRecoveryContext);
+}
+
+/**
  * The App-level updater state machine, provided once at the root so the panel
  * (and later the topbar pill) share one controller — auto-check and staged
  * state must not be duplicated per mount.

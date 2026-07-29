@@ -32,8 +32,11 @@ Voyalier ships **visa preparation**, not visa advice.
   split is the binding constraint and is enforceable by review: a curated string that asserts a fee,
   a processing time, an eligibility outcome, or an amount of money is a defect.
 - **Entry paths are quoted, not derived.** `EntryPathQuote` carries the authority's name, the page
-  the list was read from, and a `curated_as_of` stamp. `EntryPath::Unknown` is a first-class result;
-  an uncurated pair yields official links and no journey. Nothing guesses a fallback.
+  the list was read from, and a `curated_as_of` stamp. `EntryPath::Unknown` is a first-class result:
+  for a curated destination that publishes conditions rather than an answer, the traveller gets that
+  destination's official links and no journey. An **uncurated destination** yields no quote at all —
+  there is no authority to name, and naming one anyway is the fallback this bullet forbids. See the
+  2026-07-29 amendment.
 - **High-value branches are asked, never answered.** Where an authority publishes a cheaper
   alternative path with moving eligibility — Canada's eTA-X list is the motivating case — Voyalier
   raises the question prominently and links the list. Raising it is worth more than the whole rest
@@ -61,3 +64,23 @@ should be added deliberately.
 
 Curated content carries a `language` tag and is English-only at first. The interface marks it up so
 a non-English reader is not misled about what has been translated.
+
+## Amendment (2026-07-29): an uncurated destination yields no quote
+
+The original wording said "an uncurated pair yields official links and no journey" without
+distinguishing an uncurated **pair** from an uncurated **destination**, and `entry_path` was
+implemented to satisfy the sentence literally: every branch returned a quote, and the only curated
+destination's authority filled in for the rest. A browser audit of 0.6.0 found a London → Tokyo trip
+attributed to Immigration, Refugees and Citizenship Canada and linking canada.ca as "the official
+source" — Voyalier speaking for an authority with no connection to the traveller's route, which is
+the precise thing this ADR exists to prevent.
+
+`entry_path` now returns `Option<EntryPathQuote>`, and an uncurated destination returns `None`, so an
+`EntryPathQuote` cannot be constructed without a real authority behind it. The two branches that keep
+their quote both have a curated destination and remain correct: a nationality whose conditions the
+authority publishes rather than answers, and a malformed nationality code — in both, the named
+authority genuinely governs the trip.
+
+`VisaPrep.entryPath` was already optional, so the wire contract is unchanged and no version of it is
+broken. The interface gains a state that says an authority has not been curated for this destination,
+and offers no link where it has none to offer.
