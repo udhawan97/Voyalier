@@ -2,6 +2,7 @@ import {
   useEffect,
   useId,
   useRef,
+  useState,
   type ReactNode,
   type RefObject,
 } from "react";
@@ -57,8 +58,39 @@ export function Dialog({
 }: DialogProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const latestReturnFocusRef = useRef(returnFocusRef);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const [overflowing, setOverflowing] = useState(false);
+
+  /**
+   * Whether the body has content past its own bottom edge, and still does.
+   *
+   * Re-measured on resize and on scroll, because a dialog's content changes
+   * while it is open — resolving a suggestion removes a whole card — and the
+   * hint must stop once there is nothing more to reach.
+   */
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return;
+    const measure = () =>
+      setOverflowing(
+        body.scrollHeight - body.clientHeight - body.scrollTop > 8,
+      );
+    measure();
+    body.addEventListener("scroll", measure, { passive: true });
+    // Absent in some test environments; the hint is an enhancement, never a
+    // prerequisite for reaching the content.
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? undefined
+        : new ResizeObserver(measure);
+    observer?.observe(body);
+    return () => {
+      body.removeEventListener("scroll", measure);
+      observer?.disconnect();
+    };
+  }, []);
 
   // Capture the trigger during render, once, before the mount effect moves
   // focus inside the dialog. Reading it in the effect meant React Strict Mode's
@@ -189,7 +221,19 @@ export function Dialog({
             {description}
           </p>
         ) : null}
-        <div className="voy-dialog__body">{children}</div>
+        {/* `data-overflowing` is what draws the "there is more below" edge. It
+            has to be measured rather than assumed: on macOS the scrollbar is an
+            overlay that appears only while scrolling, so a review dialog opened
+            with 2,241px of evidence in a 600px window showed no scrollbar, no
+            edge, and only a Close button — while the Confirm the traveler came
+            for sat 826px further down. */}
+        <div
+          ref={bodyRef}
+          className="voy-dialog__body"
+          data-overflowing={overflowing ? "true" : undefined}
+        >
+          {children}
+        </div>
         {footer ? <footer className="voy-dialog__foot">{footer}</footer> : null}
       </div>
     </div>,

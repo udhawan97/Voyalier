@@ -72,12 +72,32 @@ export function CreateTripDialog({
     return trimmed.length > 0 && trimmed.length <= 120;
   }
 
+  /**
+   * Put the traveler on the first thing that needs fixing.
+   *
+   * The messages appeared and were announced, but focus stayed on the button
+   * that had just refused, so a keyboard user had to walk backwards through the
+   * whole form to reach the first one. Ordered by the form's reading order, not
+   * by the shape of the error object.
+   */
+  function focusFirstInvalid(found: FieldErrors) {
+    const first =
+      (found.origin && "trip-origin") ||
+      (found.destination && "trip-destination") ||
+      (found.dates && "trip-start");
+    if (!first) return;
+    document.getElementById(first)?.focus();
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setFormError(null);
     const found = validate();
     setErrors(found);
-    if (Object.keys(found).length > 0) return;
+    if (Object.keys(found).length > 0) {
+      focusFirstInvalid(found);
+      return;
+    }
 
     setSubmitting(true);
     const input: CreateTripInput = {
@@ -100,7 +120,9 @@ export function CreateTripDialog({
           mapped.field === "origin" || mapped.field === "destination"
             ? mapped.field
             : "dates";
-        setErrors({ [key]: mapped.message });
+        const rejected = { [key]: mapped.message } as FieldErrors;
+        setErrors(rejected);
+        focusFirstInvalid(rejected);
       } else {
         setFormError(appError);
       }
