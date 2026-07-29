@@ -1,3 +1,5 @@
+import routes from "@voyalier/contracts/parity/routes.json";
+
 import type {
   DocumentContent,
   DocumentSummary,
@@ -84,6 +86,29 @@ export interface TauriGatewayOptions {
  * the snake_case contract name and takes exactly one arg named `input`. Invoke
  * rejections normalize to transport/failure unless they are already AppErrors.
  */
+/**
+ * The snake_case command for a gateway method, from `parity/routes.json`.
+ *
+ * ADR-0011: the manifest already declares it, and it was then restated here as
+ * an untyped string. `generate_handler_registers_every_declared_command` holds
+ * the manifest to what the desktop shell actually registers, so deriving from
+ * it is what makes that guard reach this file.
+ */
+const COMMANDS = new Map(
+  (routes.shared as { method: string; command: string }[]).map((row) => [
+    row.method,
+    row.command,
+  ]),
+);
+
+function command(method: keyof AppGateway): string {
+  const name = COMMANDS.get(method);
+  if (!name) {
+    throw new Error(`parity/routes.json declares no command for ${method}`);
+  }
+  return name;
+}
+
 export function createTauriGateway(
   options: TauriGatewayOptions = {},
 ): AppGateway {
@@ -108,98 +133,109 @@ export function createTauriGateway(
   }
 
   return {
-    health: () => call<HealthResponse>("health", {}),
+    health: () => call<HealthResponse>(command("health"), {}),
 
-    createTrip: (input: CreateTripInput) => call<Trip>("create_trip", input),
+    createTrip: (input: CreateTripInput) =>
+      call<Trip>(command("createTrip"), input),
 
-    listTrips: () => call<TripSummary[]>("list_trips", {}),
+    listTrips: () => call<TripSummary[]>(command("listTrips"), {}),
 
-    getTrip: (tripId: string) => call<TripDetail>("get_trip", { tripId }),
+    getTrip: (tripId: string) =>
+      call<TripDetail>(command("getTrip"), { tripId }),
 
     updateTrip: (tripId: string, input: UpdateTripInput) =>
-      call<Trip>("update_trip", { tripId, patch: input }),
+      call<Trip>(command("updateTrip"), { tripId, patch: input }),
 
-    archiveTrip: (tripId: string) => call<Trip>("archive_trip", { tripId }),
+    archiveTrip: (tripId: string) =>
+      call<Trip>(command("archiveTrip"), { tripId }),
 
-    unarchiveTrip: (tripId: string) => call<Trip>("unarchive_trip", { tripId }),
+    unarchiveTrip: (tripId: string) =>
+      call<Trip>(command("unarchiveTrip"), { tripId }),
 
     getTripBrief: (tripId: string) =>
-      call<TripBrief>("get_trip_brief", { tripId }),
+      call<TripBrief>(command("getTripBrief"), { tripId }),
 
-    getToday: (tripId: string) => call<TodayView>("get_today", { tripId }),
+    getToday: (tripId: string) =>
+      call<TodayView>(command("getToday"), { tripId }),
 
-    getVaultStatus: () => call<VaultStatus>("get_vault_status", {}),
+    getVaultStatus: () => call<VaultStatus>(command("getVaultStatus"), {}),
 
     setVaultPassphrase: (passphrase: string) =>
-      call<VaultStatus>("set_vault_passphrase", { passphrase }),
+      call<VaultStatus>(command("setVaultPassphrase"), { passphrase }),
 
     unlockVault: (passphrase: string) =>
-      call<VaultStatus>("unlock_vault", { passphrase }),
+      call<VaultStatus>(command("unlockVault"), { passphrase }),
 
     removeVaultPassphrase: (passphrase: string) =>
-      call<VaultStatus>("remove_vault_passphrase", { passphrase }),
+      call<VaultStatus>(command("removeVaultPassphrase"), { passphrase }),
 
-    detectLocalAi: () => call<LocalAiStatus>("detect_local_ai", {}),
+    detectLocalAi: () => call<LocalAiStatus>(command("detectLocalAi"), {}),
 
     pullLocalModel: (model: string) =>
-      call<LocalModelPullResult>("pull_local_model", { model }),
+      call<LocalModelPullResult>(command("pullLocalModel"), { model }),
 
-    listProviders: () => call<ProviderConfig[]>("list_providers", {}),
+    listProviders: () => call<ProviderConfig[]>(command("listProviders"), {}),
 
     setProviderKey: (input: SetProviderKeyInput) =>
-      call<ProviderConfig>("set_provider_key", input),
+      call<ProviderConfig>(command("setProviderKey"), input),
 
     validateProviderKey: (input: SetProviderKeyInput) =>
-      call<KeyValidation>("validate_provider_key", input),
+      call<KeyValidation>(command("validateProviderKey"), input),
 
     clearProviderKey: (provider: ProviderId) =>
-      call<ProviderConfig>("clear_provider_key", { provider }),
+      call<ProviderConfig>(command("clearProviderKey"), { provider }),
 
     setProviderModel: (input: SetProviderModelInput) =>
-      call<ProviderConfig>("set_provider_model", input),
+      call<ProviderConfig>(command("setProviderModel"), input),
 
     previewAssist: (tripId: string, provider: ProviderId) =>
-      call<AssistRequestPreview>("preview_assist", { tripId, provider }),
+      call<AssistRequestPreview>(command("previewAssist"), {
+        tripId,
+        provider,
+      }),
 
     runAssist: (tripId: string, provider: ProviderId) =>
-      call<AssistReply>("run_assist", { tripId, provider }),
+      call<AssistReply>(command("runAssist"), { tripId, provider }),
 
     previewAssistDraft: (tripId: string, kind: AssistDraftKind) =>
-      call<AssistRequestPreview>("preview_assist_draft", { tripId, kind }),
+      call<AssistRequestPreview>(command("previewAssistDraft"), {
+        tripId,
+        kind,
+      }),
 
     runAssistDraft: (tripId: string, kind: AssistDraftKind) =>
-      call<AssistDraftResult>("run_assist_draft", { tripId, kind }),
+      call<AssistDraftResult>(command("runAssistDraft"), { tripId, kind }),
 
     listAssistActivity: (tripId: string) =>
-      call<AssistActivityEntry[]>("list_assist_activity", { tripId }),
+      call<AssistActivityEntry[]>(command("listAssistActivity"), { tripId }),
 
-    getAiPrompts: () => call<AiPromptSettings>("get_ai_prompts", {}),
+    getAiPrompts: () => call<AiPromptSettings>(command("getAiPrompts"), {}),
 
     setAiPrompt: (kind: AiPromptKind, text: string | null) =>
-      call<AiPromptSettings>("set_ai_prompt", { kind, text }),
+      call<AiPromptSettings>(command("setAiPrompt"), { kind, text }),
 
-    listPacks: () => call<PackInfo[]>("list_packs", {}),
+    listPacks: () => call<PackInfo[]>(command("listPacks"), {}),
 
     suggestPacks: (tripId: string) =>
-      call<PackSuggestion[]>("suggest_packs", { tripId }),
+      call<PackSuggestion[]>(command("suggestPacks"), { tripId }),
 
     suggestFieldValues: (input: SuggestFieldValuesInput) =>
-      call<FieldSuggestion[]>("suggest_field_values", input),
+      call<FieldSuggestion[]>(command("suggestFieldValues"), input),
 
     suggestPlaces: (query: string) =>
-      call<FieldSuggestion[]>("suggest_places", { query }),
+      call<FieldSuggestion[]>(command("suggestPlaces"), { query }),
 
     downloadPack: (tripId: string, packId: string) =>
-      call<DownloadedPack>("download_pack", { tripId, packId }),
+      call<DownloadedPack>(command("downloadPack"), { tripId, packId }),
 
     listDownloadedPacks: (tripId: string) =>
-      call<DownloadedPack[]>("list_downloaded_packs", { tripId }),
+      call<DownloadedPack[]>(command("listDownloadedPacks"), { tripId }),
 
     deleteDownloadedPack: (tripId: string, packId: string) =>
-      call<void>("delete_downloaded_pack", { tripId, packId }),
+      call<void>(command("deleteDownloadedPack"), { tripId, packId }),
 
     getOfflineMap: (tripId: string) =>
-      call<OfflineMapArchive | null>("get_offline_map", { tripId }),
+      call<OfflineMapArchive | null>(command("getOfflineMap"), { tripId }),
 
     readOfflineMapRange: (
       tripId: string,
@@ -207,7 +243,7 @@ export function createTauriGateway(
       offset: number,
       length: number,
     ) =>
-      call<OfflineMapChunk>("read_offline_map_range", {
+      call<OfflineMapChunk>(command("readOfflineMapRange"), {
         tripId,
         packId,
         offset,
@@ -215,110 +251,119 @@ export function createTauriGateway(
       }),
 
     getRecommendations: (tripId: string, weights: PersonaWeights) =>
-      call<Recommendation[]>("get_recommendations", { tripId, weights }),
+      call<Recommendation[]>(command("getRecommendations"), {
+        tripId,
+        weights,
+      }),
 
     setInterestProfile: (input: SetInterestProfileInput) =>
-      call<InterestProfile>("set_interest_profile", input),
+      call<InterestProfile>(command("setInterestProfile"), input),
 
     getVisaPrep: (tripId: string) =>
-      call<VisaPrep>("get_visa_prep", { tripId }),
+      call<VisaPrep>(command("getVisaPrep"), { tripId }),
 
     setVisaNationality: (input: SetVisaNationalityInput) =>
-      call<VisaPrep>("set_visa_nationality", input),
+      call<VisaPrep>(command("setVisaNationality"), input),
 
     setVisaItemProgress: (input: SetVisaItemProgressInput) =>
-      call<VisaPrep>("set_visa_item_progress", input),
+      call<VisaPrep>(command("setVisaItemProgress"), input),
 
-    savePlace: (input: SavePlaceInput) => call<SavedPlace>("save_place", input),
+    savePlace: (input: SavePlaceInput) =>
+      call<SavedPlace>(command("savePlace"), input),
 
     updateSavedPlace: (input: UpdateSavedPlaceInput) =>
-      call<SavedPlace>("update_saved_place", input),
+      call<SavedPlace>(command("updateSavedPlace"), input),
 
     deleteSavedPlace: (savedPlaceId: string) =>
-      call<void>("delete_saved_place", { savedPlaceId }),
+      call<void>(command("deleteSavedPlace"), { savedPlaceId }),
 
     addPackingItem: (input: AddPackingItemInput) =>
-      call<PackingItem>("add_packing_item", input),
+      call<PackingItem>(command("addPackingItem"), input),
 
     updatePackingItem: (input: UpdatePackingItemInput) =>
-      call<PackingItem>("update_packing_item", input),
+      call<PackingItem>(command("updatePackingItem"), input),
 
     deletePackingItem: (packingItemId: string) =>
-      call<void>("delete_packing_item", { packingItemId }),
+      call<void>(command("deletePackingItem"), { packingItemId }),
 
     createTripItem: (input: CreateTripItemInput) =>
-      call<TripItem>("create_trip_item", input),
+      call<TripItem>(command("createTripItem"), input),
 
     updateTripItem: (input: UpdateTripItemInput) =>
-      call<TripItem>("update_trip_item", input),
+      call<TripItem>(command("updateTripItem"), input),
 
     deleteTripItem: (tripItemId: string) =>
-      call<void>("delete_trip_item", { tripItemId }),
+      call<void>(command("deleteTripItem"), { tripItemId }),
 
-    listAdviceCountries: () => call<FcdoCountry[]>("list_advice_countries", {}),
+    listAdviceCountries: () =>
+      call<FcdoCountry[]>(command("listAdviceCountries"), {}),
 
     fetchAdvisories: (input: FetchAdvisoriesInput) =>
-      call<AdvisoryPanel>("fetch_advisories", input),
+      call<AdvisoryPanel>(command("fetchAdvisories"), input),
 
     fetchWeather: (tripId: string) =>
-      call<WeatherSnapshot>("fetch_weather", { tripId }),
+      call<WeatherSnapshot>(command("fetchWeather"), { tripId }),
 
     fetchDestinationFacts: (tripId: string) =>
-      call<DestinationFactsSnapshot>("fetch_destination_facts", { tripId }),
+      call<DestinationFactsSnapshot>(command("fetchDestinationFacts"), {
+        tripId,
+      }),
 
     fetchPublicHolidays: (tripId: string) =>
-      call<PublicHolidaysSnapshot>("fetch_public_holidays", { tripId }),
+      call<PublicHolidaysSnapshot>(command("fetchPublicHolidays"), { tripId }),
 
     fetchPlaceSummary: (tripId: string) =>
-      call<PlaceSummary>("fetch_place_summary", { tripId }),
+      call<PlaceSummary>(command("fetchPlaceSummary"), { tripId }),
 
     searchTrip: (tripId: string, query: string) =>
-      call<SearchHit[]>("search_trip", { tripId, query }),
+      call<SearchHit[]>(command("searchTrip"), { tripId, query }),
 
     searchWorkspace: (query: string) =>
-      call<WorkspaceSearchHit[]>("search_workspace", { query }),
+      call<WorkspaceSearchHit[]>(command("searchWorkspace"), { query }),
 
     suggestSearchTerms: (tripId: string, query: string) =>
-      call<string[]>("suggest_search_terms", { tripId, query }),
+      call<string[]>(command("suggestSearchTerms"), { tripId, query }),
 
-    deleteTrip: (tripId: string) => call<void>("delete_trip", { tripId }),
+    deleteTrip: (tripId: string) =>
+      call<void>(command("deleteTrip"), { tripId }),
 
     importDocument: (input: ImportDocumentInput) =>
-      call<ImportResult>("import_document", input),
+      call<ImportResult>(command("importDocument"), input),
 
     getTripNotes: (tripId: string) =>
-      call<TripNotes>("get_trip_notes", { tripId }),
+      call<TripNotes>(command("getTripNotes"), { tripId }),
 
     setTripNotes: (tripId: string, body: string) =>
-      call<TripNotes>("set_trip_notes", { tripId, body }),
+      call<TripNotes>(command("setTripNotes"), { tripId, body }),
 
     listDocuments: (tripId: string) =>
-      call<DocumentSummary[]>("list_documents", { tripId }),
+      call<DocumentSummary[]>(command("listDocuments"), { tripId }),
 
     getDocument: (documentId: string) =>
-      call<DocumentContent>("get_document", { documentId }),
+      call<DocumentContent>(command("getDocument"), { documentId }),
 
     deleteDocument: (documentId: string) =>
-      call<void>("delete_document", { documentId }),
+      call<void>(command("deleteDocument"), { documentId }),
 
     listCandidates: (tripId: string, status?: CandidateStatus) =>
       call<CandidateFact[]>(
-        "list_candidates",
+        command("listCandidates"),
         status === undefined ? { tripId } : { tripId, status },
       ),
 
     confirmCandidate: (input: ConfirmCandidateInput) =>
       call<{ candidate: CandidateFact; confirmedFact: ConfirmedFact }>(
-        "confirm_candidate",
+        command("confirmCandidate"),
         input,
       ),
 
     rejectCandidate: (candidateId: string) =>
-      call<CandidateFact>("reject_candidate", { candidateId }),
+      call<CandidateFact>(command("rejectCandidate"), { candidateId }),
 
     addManualFact: (input: AddManualFactInput) =>
-      call<ConfirmedFact>("add_manual_fact", input),
+      call<ConfirmedFact>(command("addManualFact"), input),
 
-    unconfirmFact: (factId: string) => call<void>("unconfirm_fact", { factId }),
+    unconfirmFact: (factId: string) =>
+      call<void>(command("unconfirmFact"), { factId }),
   };
 }
