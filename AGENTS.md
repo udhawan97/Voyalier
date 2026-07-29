@@ -77,7 +77,7 @@ credential-string grep in `security-hygiene.yml`.
 - Add fixtures and tests for every parsing, ranking, readiness, or redaction behavior.
 - Do not add a framework or hosted service without documenting licensing, privacy, offline behavior, and replacement cost.
 - Preserve reduced-motion, keyboard, screen-reader, contrast, and 200% zoom behavior.
-- Version is hand-synced across four files — root `package.json`, workspace `Cargo.toml`, `apps/web/package.json`, `apps/desktop/src-tauri/tauri.conf.json`. Treat them as one edit.
+- Version is hand-synced across five files — root `package.json`, workspace `Cargo.toml`, `apps/web/package.json`, `apps/desktop/src-tauri/tauri.conf.json`, and `Cargo.lock`, which pins all four crates. Treat them as one edit. Bumping `Cargo.toml` alone leaves the lock stale, and every `--locked` command in `check.sh` then refuses to run at all; run `cargo update --workspace` after the bump. It re-records `voyalier-desktop` too — that crate is a workspace member even though it sits outside the default members.
 - `CHANGELOG.md` follows Keep a Changelog. Entries are user-facing prose — a bolded lead sentence, then the tradeoff and what was left out — not one-line bullets.
 - ADRs are `docs/architecture/ADR-NNNN-kebab-slug.md`, zero-padded, amendable in place. Open one before contract, transport, storage, or provider changes.
 - Implementation plans land in `docs/superpowers/plans/YYYY-MM-DD-slug.md` and are committed _before_ the work.
