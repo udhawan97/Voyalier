@@ -3,7 +3,7 @@ import type { WorkspaceSearchHit } from "@voyalier/contracts";
 
 import { useGateway } from "../app/context";
 import { describeError, formatInstantDate } from "../app/format";
-import { t, type MessageKey } from "../app/i18n";
+import { searchSourceKey, t } from "../app/i18n";
 import { useAsyncAction } from "../app/useAsync";
 import { Button } from "../components/Button";
 import { ArrowLeftIcon, SearchIcon } from "../components/icons";
@@ -115,9 +115,7 @@ export function WorkspaceSearch({
                   <strong>{resultLabel(hit)}</strong>
                   <span>
                     <span>{hit.tripTitle}</span> ·{" "}
-                    <span>
-                      {t(`workspaceSearch.source.${hit.source}` as MessageKey)}
-                    </span>
+                    <span>{t(searchSourceKey(hit.source))}</span>
                     {hit.tripStatus === "archived" ? (
                       <>
                         {" · "}

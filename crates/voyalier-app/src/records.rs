@@ -33,7 +33,7 @@ use voyalier_core::{
     TripItemKind, TripNotes, TripSummary, VisaPrepItem, saved_place_identity,
 };
 
-use crate::{DocumentText, Vault, storage_error};
+use crate::{DocumentText, Vault, sealed::Sealed, storage_error};
 
 /// The sensitive text columns the vault seals: the parsed confirmed-fact payload
 /// AND the original imported document text it was extracted from — both carry
@@ -215,10 +215,9 @@ impl<'a> Records<'a> {
                     candidate.parser_run_id,
                     to_sql_enum(candidate.fact_type)?,
                     // payload and field_spans are sealed: see SEALED_COLUMNS.
-                    self.vault.seal_field(&to_sql_json(&candidate.payload)?)?,
+                    self.vault.seal(&to_sql_json(&candidate.payload)?)?,
                     to_sql_enum(candidate.method)?,
-                    self.vault
-                        .seal_field(&to_sql_json(&candidate.field_spans)?)?,
+                    self.vault.seal(&to_sql_json(&candidate.field_spans)?)?,
                     to_sql_json(&candidate.warnings)?,
                     to_sql_enum(candidate.status)?,
                     candidate.created_at,
@@ -280,7 +279,7 @@ impl<'a> Records<'a> {
                     confirmed.trip_id,
                     to_sql_enum(confirmed.fact_type)?,
                     // The payload carries confirmation codes and traveler names.
-                    self.vault.seal_field(&to_sql_json(&confirmed.payload)?)?,
+                    self.vault.seal(&to_sql_json(&confirmed.payload)?)?,
                     to_sql_enum(confirmed.method)?,
                     confirmed.candidate_id,
                     to_sql_json(&confirmed.corrected_fields)?,
@@ -312,15 +311,14 @@ impl<'a> Records<'a> {
             )
             .map_err(storage_error)?;
         let sealed = statement
-            .query_map(params![trip_id], |row| row.get::<_, String>("payload"))
+            .query_map(params![trip_id], |row| row.get::<_, Sealed>("payload"))
             .map_err(storage_error)?
             .collect::<rusqlite::Result<Vec<_>>>()
             .map_err(storage_error)?;
 
         let mut values = Vec::new();
         for sealed_payload in sealed {
-            let payload: serde_json::Value =
-                from_sql_json(&self.vault.open_field(&sealed_payload)?)?;
+            let payload: serde_json::Value = from_sql_json(&self.vault.open(&sealed_payload)?)?;
             if let Some(text) = payload.get(field).and_then(serde_json::Value::as_str) {
                 let text = text.trim();
                 if !text.is_empty() {
@@ -351,7 +349,7 @@ impl<'a> Records<'a> {
                 Ok((
                     row.get::<_, String>("id")?,
                     row.get::<_, String>("label")?,
-                    row.get::<_, String>("raw_content")?,
+                    row.get::<_, Sealed>("raw_content")?,
                 ))
             })
             .map_err(storage_error)?
@@ -359,7 +357,7 @@ impl<'a> Records<'a> {
             .map_err(storage_error)?;
 
         raws.into_iter()
-            .map(|(id, label, sealed)| Ok((id, label, self.vault.open_field(&sealed)?)))
+            .map(|(id, label, sealed)| Ok((id, label, self.vault.open(&sealed)?)))
             .collect()
     }
 
@@ -384,7 +382,7 @@ impl<'a> Records<'a> {
                     document.char_count,
                     document.imported_at,
                     // raw_content is sealed: see SEALED_COLUMNS.
-                    self.vault.seal_field(content)?
+                    self.vault.seal(content)?
                 ],
             )
             .map_err(storage_error)?;
@@ -403,7 +401,7 @@ impl<'a> Records<'a> {
                     "SELECT {DOCUMENT_COLUMNS}, raw_content FROM source_documents WHERE id = ?1"
                 ),
                 params![document_id],
-                |row| Ok((raw_document(row)?, row.get::<_, String>("raw_content")?)),
+                |row| Ok((raw_document(row)?, row.get::<_, Sealed>("raw_content")?)),
             )
             .optional()
             .map_err(storage_error)?
@@ -415,7 +413,7 @@ impl<'a> Records<'a> {
             })?;
         Ok(DocumentContent {
             document: open_document(document)?,
-            content: self.vault.open_field(&sealed)?,
+            content: self.vault.open(&sealed)?,
         })
     }
 
@@ -424,7 +422,7 @@ impl<'a> Records<'a> {
     /// The stored passport nationality for a trip, opened. `None` means the
     /// traveler has not picked one yet — the normal first state.
     pub(crate) fn visa_nationality(&self, trip_id: &str) -> Result<Option<String>, AppError> {
-        let sealed: Option<Option<String>> = self
+        let sealed: Option<Option<Sealed>> = self
             .connection
             .query_row(
                 "SELECT nationality_iso2 FROM visa_prep WHERE trip_id = ?1",
@@ -434,7 +432,7 @@ impl<'a> Records<'a> {
             .optional()
             .map_err(storage_error)?;
         match sealed.flatten() {
-            Some(value) => Ok(Some(self.vault.open_field(&value)?)),
+            Some(value) => Ok(Some(self.vault.open(&value)?)),
             None => Ok(None),
         }
     }
@@ -445,7 +443,7 @@ impl<'a> Records<'a> {
     /// one rather than asking again. Nationality is sealed, so this cannot be a
     /// `WHERE` — it reads the newest row and opens it.
     pub(crate) fn latest_visa_nationality(&self) -> Result<Option<String>, AppError> {
-        let sealed: Option<Option<String>> = self
+        let sealed: Option<Option<Sealed>> = self
             .connection
             .query_row(
                 "SELECT nationality_iso2 FROM visa_prep
@@ -457,7 +455,7 @@ impl<'a> Records<'a> {
             .optional()
             .map_err(storage_error)?;
         match sealed.flatten() {
-            Some(value) => Ok(Some(self.vault.open_field(&value)?)),
+            Some(value) => Ok(Some(self.vault.open(&value)?)),
             None => Ok(None),
         }
     }
@@ -476,12 +474,7 @@ impl<'a> Records<'a> {
                  VALUES (?1, ?2, ?3, ?4)
                  ON CONFLICT(trip_id) DO UPDATE SET nationality_iso2 = ?3, updated_at = ?4",
                 // nationality_iso2 is sealed: see SEALED_COLUMNS.
-                params![
-                    id,
-                    trip_id,
-                    self.vault.seal_field(nationality_iso2)?,
-                    updated_at
-                ],
+                params![id, trip_id, self.vault.seal(nationality_iso2)?, updated_at],
             )
             .map_err(storage_error)?;
         Ok(())
@@ -501,7 +494,7 @@ impl<'a> Records<'a> {
                 Ok((
                     row.get::<_, String>("document_id")?,
                     row.get::<_, i64>("checked")?,
-                    row.get::<_, Option<String>>("note")?,
+                    row.get::<_, Option<Sealed>>("note")?,
                     row.get::<_, String>("updated_at")?,
                 ))
             })
@@ -514,9 +507,7 @@ impl<'a> Records<'a> {
                 Ok(VisaPrepItem {
                     document_id,
                     checked: checked != 0,
-                    note: note
-                        .map(|value| self.vault.open_field(&value))
-                        .transpose()?,
+                    note: note.map(|value| self.vault.open(&value)).transpose()?,
                     updated_at,
                 })
             })
@@ -533,7 +524,7 @@ impl<'a> Records<'a> {
         note: Option<&str>,
         now: &str,
     ) -> Result<(), AppError> {
-        let sealed = note.map(|value| self.vault.seal_field(value)).transpose()?;
+        let sealed = note.map(|value| self.vault.seal(value)).transpose()?;
         self.connection
             .execute(
                 "INSERT INTO visa_prep_items
@@ -567,7 +558,7 @@ impl<'a> Records<'a> {
     /// A trip's notes, body opened. Absent notes are an empty body, not an
     /// error — "nothing written yet" is the normal first state.
     pub(crate) fn trip_notes(&self, trip_id: &str) -> Result<TripNotes, AppError> {
-        let stored: Option<(String, String)> = self
+        let stored: Option<(Sealed, String)> = self
             .connection
             .query_row(
                 "SELECT body, updated_at FROM trip_notes WHERE trip_id = ?1",
@@ -579,7 +570,7 @@ impl<'a> Records<'a> {
         match stored {
             Some((sealed, updated_at)) => Ok(TripNotes {
                 trip_id: trip_id.to_owned(),
-                body: self.vault.open_field(&sealed)?,
+                body: self.vault.open(&sealed)?,
                 updated_at: Some(updated_at),
             }),
             None => Ok(TripNotes {
@@ -605,7 +596,7 @@ impl<'a> Records<'a> {
                  VALUES (?1, ?2, ?3, ?4)
                  ON CONFLICT(trip_id) DO UPDATE SET body = ?3, updated_at = ?4",
                 // body is sealed: see SEALED_COLUMNS.
-                params![id, trip_id, self.vault.seal_field(body)?, updated_at],
+                params![id, trip_id, self.vault.seal(body)?, updated_at],
             )
             .map_err(storage_error)?;
         Ok(())
@@ -716,7 +707,7 @@ impl<'a> Records<'a> {
                     row.get::<_, String>(10)?,
                     row.get::<_, String>(11)?,
                     row.get::<_, i64>(12)?,
-                    row.get::<_, String>(13)?,
+                    row.get::<_, Sealed>(13)?,
                     row.get::<_, String>(14)?,
                     row.get::<_, String>(15)?,
                 ))
@@ -755,7 +746,7 @@ impl<'a> Records<'a> {
                 license,
                 reasons: from_sql_json(&reasons)?,
                 wildcard: wildcard != 0,
-                notes: self.vault.open_field(&notes)?,
+                notes: self.vault.open(&notes)?,
                 created_at,
                 updated_at,
             })
@@ -787,7 +778,7 @@ impl<'a> Records<'a> {
                     place.license,
                     to_sql_json(&place.reasons)?,
                     i64::from(place.wildcard),
-                    self.vault.seal_field(&place.notes)?,
+                    self.vault.seal(&place.notes)?,
                     place.created_at,
                     place.updated_at,
                 ],
@@ -806,7 +797,7 @@ impl<'a> Records<'a> {
             .connection
             .execute(
                 "UPDATE saved_places SET notes=?2, updated_at=?3 WHERE id=?1",
-                params![saved_place_id, self.vault.seal_field(notes)?, updated_at],
+                params![saved_place_id, self.vault.seal(notes)?, updated_at],
             )
             .map_err(storage_error)?;
         require_changed(changed, "saved place")
@@ -836,7 +827,7 @@ impl<'a> Records<'a> {
                 Ok((
                     row.get::<_, String>(0)?,
                     row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
+                    row.get::<_, Sealed>(2)?,
                     row.get::<_, i64>(3)?,
                     row.get::<_, Option<String>>(4)?,
                     row.get::<_, String>(5)?,
@@ -850,7 +841,7 @@ impl<'a> Records<'a> {
             Ok(PackingItem {
                 id,
                 trip_id,
-                label: self.vault.open_field(&label)?,
+                label: self.vault.open(&label)?,
                 checked: checked != 0,
                 suggestion_code,
                 created_at,
@@ -864,7 +855,7 @@ impl<'a> Records<'a> {
         self.connection.execute(
             "INSERT INTO packing_items (id, trip_id, label, checked, suggestion_code, created_at, updated_at)
              VALUES (?1,?2,?3,?4,?5,?6,?7)",
-            params![item.id, item.trip_id, self.vault.seal_field(&item.label)?, i64::from(item.checked),
+            params![item.id, item.trip_id, self.vault.seal(&item.label)?, i64::from(item.checked),
                 item.suggestion_code, item.created_at, item.updated_at],
         ).map_err(storage_error)?;
         Ok(())
@@ -877,7 +868,7 @@ impl<'a> Records<'a> {
                 "UPDATE packing_items SET label=?2, checked=?3, updated_at=?4 WHERE id=?1",
                 params![
                     item.id,
-                    self.vault.seal_field(&item.label)?,
+                    self.vault.seal(&item.label)?,
                     i64::from(item.checked),
                     item.updated_at
                 ],
@@ -906,11 +897,11 @@ impl<'a> Records<'a> {
                     row.get::<_, String>(0)?,
                     row.get::<_, String>(1)?,
                     row.get::<_, String>(2)?,
-                    row.get::<_, String>(3)?,
-                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, Sealed>(3)?,
+                    row.get::<_, Option<Sealed>>(4)?,
                     row.get::<_, Option<String>>(5)?,
                     row.get::<_, Option<String>>(6)?,
-                    row.get::<_, Option<String>>(7)?,
+                    row.get::<_, Option<Sealed>>(7)?,
                     row.get::<_, Option<String>>(8)?,
                     row.get::<_, String>(9)?,
                     row.get::<_, String>(10)?,
@@ -935,15 +926,11 @@ impl<'a> Records<'a> {
                 id,
                 trip_id,
                 kind: from_sql_enum::<TripItemKind>(&kind)?,
-                title: self.vault.open_field(&title)?,
-                location: location
-                    .map(|value| self.vault.open_field(&value))
-                    .transpose()?,
+                title: self.vault.open(&title)?,
+                location: location.map(|value| self.vault.open(&value)).transpose()?,
                 start_at,
                 end_at,
-                notes: notes
-                    .map(|value| self.vault.open_field(&value))
-                    .transpose()?,
+                notes: notes.map(|value| self.vault.open(&value)).transpose()?,
                 saved_place_id,
                 created_at,
                 updated_at,
@@ -957,10 +944,10 @@ impl<'a> Records<'a> {
             "INSERT INTO trip_items (id, trip_id, kind, title, location, start_at, end_at, notes,
                                      saved_place_id, created_at, updated_at)
              VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
-            params![item.id, item.trip_id, to_sql_enum(item.kind)?, self.vault.seal_field(&item.title)?,
-                item.location.as_deref().map(|value| self.vault.seal_field(value)).transpose()?,
+            params![item.id, item.trip_id, to_sql_enum(item.kind)?, self.vault.seal(&item.title)?,
+                item.location.as_deref().map(|value| self.vault.seal(value)).transpose()?,
                 item.start_at, item.end_at,
-                item.notes.as_deref().map(|value| self.vault.seal_field(value)).transpose()?,
+                item.notes.as_deref().map(|value| self.vault.seal(value)).transpose()?,
                 item.saved_place_id, item.created_at, item.updated_at],
         ).map_err(storage_error)?;
         Ok(())
@@ -975,16 +962,16 @@ impl<'a> Records<'a> {
                 params![
                     item.id,
                     to_sql_enum(item.kind)?,
-                    self.vault.seal_field(&item.title)?,
+                    self.vault.seal(&item.title)?,
                     item.location
                         .as_deref()
-                        .map(|value| self.vault.seal_field(value))
+                        .map(|value| self.vault.seal(value))
                         .transpose()?,
                     item.start_at,
                     item.end_at,
                     item.notes
                         .as_deref()
-                        .map(|value| self.vault.seal_field(value))
+                        .map(|value| self.vault.seal(value))
                         .transpose()?,
                     item.saved_place_id,
                     item.updated_at
@@ -1009,9 +996,9 @@ impl<'a> Records<'a> {
             document_id: raw.document_id,
             parser_run_id: raw.parser_run_id,
             fact_type: from_sql_enum(&raw.fact_type)?,
-            payload: from_sql_json(&self.vault.open_field(&raw.payload)?)?,
+            payload: from_sql_json(&self.vault.open(&raw.payload)?)?,
             method: from_sql_enum(&raw.method)?,
-            field_spans: from_sql_json(&self.vault.open_field(&raw.field_spans)?)?,
+            field_spans: from_sql_json(&self.vault.open(&raw.field_spans)?)?,
             warnings: from_sql_json(&raw.warnings)?,
             status: from_sql_enum(&raw.status)?,
             created_at: raw.created_at,
@@ -1024,7 +1011,7 @@ impl<'a> Records<'a> {
             id: raw.id,
             trip_id: raw.trip_id,
             fact_type: from_sql_enum(&raw.fact_type)?,
-            payload: from_sql_json(&self.vault.open_field(&raw.payload)?)?,
+            payload: from_sql_json(&self.vault.open(&raw.payload)?)?,
             method: from_sql_enum(&raw.method)?,
             candidate_id: raw.candidate_id,
             corrected_fields: from_sql_json(&raw.corrected_fields)?,
@@ -1066,9 +1053,9 @@ struct RawCandidate {
     document_id: String,
     parser_run_id: String,
     fact_type: String,
-    payload: String,
+    payload: Sealed,
     method: String,
-    field_spans: String,
+    field_spans: Sealed,
     warnings: String,
     status: String,
     created_at: String,
@@ -1079,7 +1066,7 @@ struct RawConfirmed {
     id: String,
     trip_id: String,
     fact_type: String,
-    payload: String,
+    payload: Sealed,
     method: String,
     candidate_id: Option<String>,
     corrected_fields: String,

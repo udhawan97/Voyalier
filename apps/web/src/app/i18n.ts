@@ -1,3 +1,10 @@
+import type {
+  PackingCode,
+  PackingReasonCode,
+  TripItemKind,
+  WorkspaceSearchSource,
+} from "@voyalier/contracts";
+
 import { APP_LOCALE } from "./locale";
 
 /**
@@ -2477,6 +2484,27 @@ const es: Record<MessageKey, string> = {
   "updates.justUpdated": "Actualizado a Voyalier {version}.",
   "updates.dismiss": "Descartar",
 };
+
+/**
+ * Keys whose tail is a code the contract owns, not one this file invents.
+ *
+ * These were built inline and cast — `` t(`packing.${code}` as MessageKey) `` —
+ * which compiles for any string and renders the raw key to the traveler when
+ * the code has no entry. Adding a `PackingCode` in the contract was therefore a
+ * silent runtime defect in two languages.
+ *
+ * A template built from a union is assignable to `MessageKey` only when *every*
+ * member of that union has a catalog entry, so the same addition is now a build
+ * failure pointing at the missing string. The union comes from the contract, so
+ * there is no second list here to keep in step.
+ */
+export const packingKey = (code: PackingCode): MessageKey => `packing.${code}`;
+export const packingReasonKey = (code: PackingReasonCode): MessageKey =>
+  `packing.reason.${code}`;
+export const tripItemKindKey = (kind: TripItemKind): MessageKey =>
+  `planning.items.${kind}`;
+export const searchSourceKey = (source: WorkspaceSearchSource): MessageKey =>
+  `workspaceSearch.source.${source}`;
 
 // Distributes over the MessageKey union, keeping only keys with a `.one`
 // plural form and stripping the suffix — so `PluralBase` is exactly the set of

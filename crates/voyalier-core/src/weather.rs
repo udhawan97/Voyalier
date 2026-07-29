@@ -345,6 +345,33 @@ pub fn describe_weather_code(code: u8) -> &'static str {
     }
 }
 
+/// Fetch and parse the daily forecast for an already-geocoded place.
+///
+/// Which daily variables Voyalier asks for is part of knowing what
+/// [`parse_forecast_response`] can read back, so the two belong together — the
+/// request and the reader cannot drift into disagreeing about a column.
+pub fn forecast(
+    place: &GeocodedPlace,
+    trip_start_date: &str,
+    trip_end_date: &str,
+    retrieved_at: &str,
+    fetch: impl FnOnce(&str) -> Result<String, AppError>,
+) -> Result<WeatherSnapshot, AppError> {
+    let url = format!(
+        "https://api.open-meteo.com/v1/forecast?latitude={:.5}&longitude={:.5}\
+         &daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max\
+         &timezone=auto&forecast_days=16",
+        place.latitude, place.longitude
+    );
+    parse_forecast_response(
+        place,
+        &fetch(&url)?,
+        trip_start_date,
+        trip_end_date,
+        retrieved_at,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

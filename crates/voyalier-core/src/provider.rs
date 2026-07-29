@@ -179,9 +179,13 @@ fn provider_validation_endpoint(id: ProviderId) -> Option<&'static str> {
     }
 }
 
-/// The auth headers to send when validating `id`'s key. The key is placed only
-/// in the returned header value.
-fn provider_validation_headers(id: ProviderId, key: &str) -> Vec<(String, String)> {
+/// The auth headers `id` expects, with the key placed only in a header value.
+///
+/// Shared with `assist`, which needs the same headers for the chat call. Both
+/// modules document that they own "which pairs with which provider", and for a
+/// while they owned it independently — two `match` arms that had to be edited
+/// together whenever a provider changed its scheme.
+pub(crate) fn provider_auth_headers(id: ProviderId, key: &str) -> Vec<(String, String)> {
     match id {
         ProviderId::OpenAi => vec![("Authorization".to_owned(), format!("Bearer {key}"))],
         ProviderId::Anthropic => vec![
@@ -226,7 +230,7 @@ pub fn build_key_validation_request(
     let key = validate_api_key(key)?;
     Ok(KeyValidationRequest {
         url,
-        headers: provider_validation_headers(id, &key),
+        headers: provider_auth_headers(id, &key),
     })
 }
 

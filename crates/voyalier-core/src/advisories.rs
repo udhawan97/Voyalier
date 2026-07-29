@@ -721,6 +721,54 @@ pub fn notices_for_country(notices: &[HealthNotice], country_name: &str) -> Vec<
         .collect()
 }
 
+/// Fetch and parse the US State Department's advisory for a curated country.
+pub fn us_state_advisory(
+    country: &AdvisoryCountry,
+    country_name: &str,
+    retrieved_at: &str,
+    fetch: impl FnOnce(&str) -> Result<String, AppError>,
+) -> Result<Option<AdvisoryEntry>, AppError> {
+    let body = fetch("https://cadataapi.state.gov/api/TravelAdvisories")?;
+    parse_us_state(country, country_name, &body, retrieved_at)
+}
+
+/// Fetch and parse Global Affairs Canada's advisory for a curated country.
+pub fn ca_gac_advisory(
+    country: &AdvisoryCountry,
+    country_name: &str,
+    retrieved_at: &str,
+    fetch: impl FnOnce(&str) -> Result<String, AppError>,
+) -> Result<Option<AdvisoryEntry>, AppError> {
+    let body = fetch("https://data.international.gc.ca/travel-voyage/index-alpha-eng.json")?;
+    parse_ca_gac(country, country_name, &body, retrieved_at)
+}
+
+/// Fetch and parse the Auswärtiges Amt's advisory for a curated country.
+pub fn de_aa_advisory(
+    country: &AdvisoryCountry,
+    country_name: &str,
+    retrieved_at: &str,
+    fetch: impl FnOnce(&str) -> Result<String, AppError>,
+) -> Result<Option<AdvisoryEntry>, AppError> {
+    let body = fetch("https://www.auswaertiges-amt.de/opendata/travelwarning")?;
+    parse_de_aa(country, country_name, &body, retrieved_at)
+}
+
+/// Fetch the CDC notice feed and keep the ones naming this country.
+///
+/// The feed is global, so the narrowing belongs beside the parser that knows
+/// its shape rather than at whichever call site happens to need it.
+pub fn cdc_health_notices(
+    country_name: &str,
+    fetch: impl FnOnce(&str) -> Result<String, AppError>,
+) -> Result<Vec<HealthNotice>, AppError> {
+    let body = fetch("https://wwwnc.cdc.gov/travel/rss/notices.xml")?;
+    Ok(notices_for_country(
+        &parse_cdc_notices(&body)?,
+        country_name,
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

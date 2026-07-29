@@ -6,6 +6,43 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+### Changed
+
+- **Four pieces of the codebase now fail the build where they used to fail a
+  test, or fail nothing at all.** None of this changes what Voyalier does. It
+  changes what can go wrong without anyone noticing, which is what the last two
+  releases kept getting caught by.
+
+  Encrypted fields are now a type rather than a rule to remember. Which columns
+  are encrypted was already declared in one place, but reading one and forgetting
+  to decrypt it produced a screenful of ciphertext and was caught, eventually, by
+  a test — and only for columns a fixture happened to touch. Reading one now
+  produces a value the code cannot render until it has gone through the vault.
+  The other direction, writing plaintext where encryption was expected, is
+  honestly still only caught by that test; ADR-0007 records why, rather than
+  claiming the tidier result.
+
+  Each remote source's address moved next to the code that reads its reply. Ten
+  URLs sat in a different layer from the parsers that understood them, including
+  the four government advisory feeds — where a deliberate gate exists so that no
+  arbitrary string can become a request, and the request was then assembled
+  somewhere the gate could not see. Two copies of the AI provider authentication
+  headers became one.
+
+  Message keys built from a contract code are now checked at build time. Adding a
+  new packing suggestion or search result type used to compile cleanly and show
+  the traveler a raw key like `packing.laundry` in both languages.
+
+  The offline workspace the tests run against is now held to the contract's own
+  field list. It found a second field nobody had noticed was missing — the
+  authority's own term for a visa step, which the panel renders and no test had
+  ever seen. Eight fields are documented as deliberately absent, each with a
+  reason, which is a list the codebase did not previously have.
+
+  What was left out: `AppService` is still one object with ninety-five methods,
+  and adding a gateway method still means writing it out in nine places. Both are
+  larger changes that need their own decision records.
+
 ## [0.6.1] - 2026-07-29 — Audited user-flow repairs
 
 ### Fixed

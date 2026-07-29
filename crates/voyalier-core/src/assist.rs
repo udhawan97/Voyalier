@@ -13,7 +13,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::brief::{RedactionPolicy, TripBrief, build_trip_brief};
-use crate::provider::{ProviderId, provider_info};
+use crate::provider::{ProviderId, provider_auth_headers, provider_info};
 use crate::types::{AppError, ConfirmedFact, ErrorCode, FactPayload, Trip};
 
 /// The on-device Ollama chat endpoint.
@@ -219,14 +219,11 @@ pub fn build_assist_request(
         ),
         ProviderId::OpenAi => (
             build_openai_chat_body(&model, system_prompt, user_content),
-            vec![("Authorization".to_owned(), format!("Bearer {key}"))],
+            provider_auth_headers(id, key),
         ),
         ProviderId::Anthropic => (
             build_anthropic_messages_body(&model, system_prompt, user_content),
-            vec![
-                ("x-api-key".to_owned(), key.to_owned()),
-                ("anthropic-version".to_owned(), ANTHROPIC_VERSION.to_owned()),
-            ],
+            provider_auth_headers(id, key),
         ),
     };
 

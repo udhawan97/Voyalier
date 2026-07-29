@@ -55,6 +55,15 @@ export function DataSources() {
                     </h4>
                     <p>
                       <strong>{t("dataSources.use")}</strong>{" "}
+                      {/*
+                       * Cast, where the packing and search keys are bound to a
+                       * contract union: the register is a JSON import, so
+                       * `source.id` widens to `string` and there is no union to
+                       * build a template type from. Declaring one here would be
+                       * a second copy of the register. The guard is instead
+                       * `i18n.test.ts`, which walks the register and holds
+                       * every id's three keys to existing in both catalogs.
+                       */}
                       {t(`dataSources.${source.id}.use` as MessageKey)}
                     </p>
                     <p>
