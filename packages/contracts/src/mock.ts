@@ -1799,7 +1799,15 @@ export function createMockGateway(options?: {
     const items = [...visaItems.entries()]
       .filter(([key]) => key.startsWith(`${tripId}:`))
       .map(([, item]) => clone(item));
-    if (!nationalityIso2) return { tripId, items };
+    if (!nationalityIso2) {
+      // A passport does not change per trip, so a trip without one prefills
+      // from the traveler's most recent choice on another trip. A suggestion
+      // for the picker only, never applied on their behalf.
+      const suggestedNationalityIso2 = [...visaNationalities.values()].at(-1);
+      return suggestedNationalityIso2
+        ? { tripId, suggestedNationalityIso2, items }
+        : { tripId, items };
+    }
     // Mock trips are Canada-bound unless their destination says otherwise; the
     // real gateway resolves this from the destination-facts snapshot, falling
     // back to the bundled gazetteer.
@@ -3129,6 +3137,10 @@ export function createMockGateway(options?: {
             "nationality must be an ISO-3166-1 alpha-2 code",
           );
         }
+        // The prefill suggestion reads the most recently set passport, so
+        // recency has to survive an update: a Map keeps a re-set key in its
+        // original position, where the real gateway orders by `updated_at`.
+        visaNationalities.delete(input.tripId);
         visaNationalities.set(input.tripId, code);
         return readVisaPrep(input.tripId);
       }),
