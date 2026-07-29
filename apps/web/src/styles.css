@@ -3559,6 +3559,13 @@ h3 {
   font-size: 0.92rem;
 }
 
+/* A failed search, which must not read like the muted "nothing found" note. */
+.voy-search__error {
+  margin: 1rem 0 0;
+  color: var(--voy-danger);
+  font-size: 0.92rem;
+}
+
 .voy-search__results {
   list-style: none;
   margin: 1.1rem 0 0;
