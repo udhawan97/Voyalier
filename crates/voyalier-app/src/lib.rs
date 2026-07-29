@@ -61,6 +61,7 @@ const MAX_OFFLINE_MAP_RANGE: u32 = 4 * 1024 * 1024;
 
 /// One imported document as `(id, label, decrypted text)`.
 mod records;
+mod sealed;
 mod snapshots;
 
 use records::{Records, SEALED_COLUMNS, ensure_candidate_pending};
@@ -650,51 +651,6 @@ impl Vault {
             locked: state.protected && state.key.is_none(),
         }
     }
-
-    /// Seal a plaintext field. Inactive → plaintext passthrough; locked → error.
-    fn seal_field(&self, plaintext: &str) -> Result<String, AppError> {
-        let state = self.snapshot();
-        let Some(key) = state.key else {
-            return if state.protected {
-                Err(vault_locked_error())
-            } else {
-                Ok(plaintext.to_owned())
-            };
-        };
-        let mut nonce = [0u8; VAULT_NONCE_LEN];
-        getrandom::getrandom(&mut nonce).map_err(|_| nonce_error())?;
-        let sealed = vault_seal(&key, &nonce, plaintext.as_bytes())?;
-        Ok(format!("{VAULT_PREFIX}{}", BASE64.encode(sealed)))
-    }
-
-    /// Open a stored field. Untagged (legacy plaintext) values pass through;
-    /// tagged values require the key (locked → error until unlock).
-    fn open_field(&self, stored: &str) -> Result<String, AppError> {
-        let Some(encoded) = stored.strip_prefix(VAULT_PREFIX) else {
-            return Ok(stored.to_owned());
-        };
-        let state = self.snapshot();
-        let Some(key) = state.key else {
-            return Err(if state.protected {
-                vault_locked_error()
-            } else {
-                AppError::new(
-                    ErrorCode::StorageFailure,
-                    "this data is encrypted but the vault key is unavailable",
-                )
-            });
-        };
-        let bytes = BASE64
-            .decode(encoded)
-            .map_err(|_| AppError::new(ErrorCode::StorageFailure, "corrupt encrypted field"))?;
-        let opened = vault_open(&key, &bytes)?;
-        String::from_utf8(opened).map_err(|_| {
-            AppError::new(
-                ErrorCode::StorageFailure,
-                "decrypted data was not valid text",
-            )
-        })
-    }
 }
 
 fn decode_key(encoded: &str) -> Option<[u8; VAULT_KEY_LEN]> {
@@ -802,7 +758,7 @@ fn migrate_encrypt_sensitive_columns(
             if value.starts_with(VAULT_PREFIX) {
                 continue;
             }
-            let sealed = vault.seal_field(&value)?;
+            let sealed = vault.seal(&value)?;
             connection
                 .execute(
                     &format!("UPDATE {table} SET {column} = ?1 WHERE id = ?2"),

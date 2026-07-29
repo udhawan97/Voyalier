@@ -41,11 +41,27 @@ Introduce a crate-private `Sealed` newtype over the stored representation of a s
 - The only constructor is `Vault::seal`, and the only reader is `Vault::open`. Both replace
   the current `seal_field` / `open_field`.
 - `Sealed` implements `FromSql` and `ToSql`, so a sealed column is read as `Sealed` and bound
-  as `Sealed`. Reading one into a `String` no longer type-checks; binding a `String` where the
-  column expects `Sealed` no longer type-checks.
+  as `Sealed`.
 - `SEALED_COLUMNS` stays exactly as it is. It still drives
-  `migrate_encrypt_sensitive_columns` and the round-trip test. What changes is that it is no
-  longer the only thing standing between a new column and a leak.
+  `migrate_encrypt_sensitive_columns` and the round-trip test.
+
+### What this does and does not enforce
+
+The two directions are not symmetric, and the difference was measured rather than assumed.
+
+**Reading is enforced.** A sealed column arrives from rusqlite as `Sealed`, and every domain
+type it feeds — `PackingItem.label`, `TripItem.title`, `TripNotes.body`, the parsed
+`FactPayload` — needs a `String`. The only way across is `Vault::open`, so the compiler now
+forces the round trip. Deleting an `open` call is a compile error (`expected String, found
+Sealed`), where it previously returned `v1:<base64>` to the interface and waited for a test to
+notice. This is the direction the module doc worried about, and it is now closed.
+
+**Writing is not enforced.** `params![...]` is positional and accepts any `ToSql`, so binding
+a plaintext `&str` where a sealed column is expected still compiles. Verified by removing a
+`seal` call from a write path: it built clean. Closing this would mean giving each insert a
+typed row struct instead of a `params!` list, which is a larger change with its own tradeoffs.
+`sealed_columns_round_trip_through_the_vault` remains the guard for the write direction, and
+the ADR claims nothing more for the type than it delivers.
 
 It is deliberately **not** generic. Every sealed column is text; a type parameter with one
 instantiation would be scaffolding for a second one that does not exist.
@@ -53,9 +69,9 @@ instantiation would be scaffolding for a second one that does not exist.
 ## Consequences
 
 - A read path that forgets to open is a compile error, not a `v1:` string rendered to the
-  traveler. A write path that forgets to seal cannot bind its parameter.
-- The round-trip test keeps its job and loses its weight: it becomes a backstop against the
-  paths the type cannot reach, rather than the only thing enforcing the rule.
+  traveler.
+- The round-trip test keeps both halves of its job but loses weight on one: it is now a
+  backstop on the read side and still the only guard on the write side.
 - **The type does not reach raw SQL in `lib.rs`.** Roughly 45 sites there use rusqlite
   directly, and one of them could still name a sealed column and ask for a `String`. Today
   none do — the raw SQL that touches sealed tables only names unsealed columns — and the
