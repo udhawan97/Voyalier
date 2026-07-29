@@ -8,6 +8,33 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Changed
 
+- **The engine's largest file became eleven readable ones, and the two clients
+  stopped repeating what the route list already said.** Nothing here changes what
+  Voyalier does; both changes are about the next person to open the code.
+
+  The file holding almost all of the engine's behaviour was 10,099 lines, with
+  ninety-five operations in one block and the tests for all of them underneath.
+  Reading anything meant scrolling past six unrelated subsystems — the trip
+  operations alone were split across a two-thousand-line gap. It is now eleven
+  files named for what they do, and the public surface is provably identical
+  before and after. What did **not** happen is the obvious version: splitting the
+  engine into several objects. Both the browser and desktop apps depend on
+  exactly one, and giving them six to learn instead would have made the seam
+  worse to use in exchange for tidier files.
+
+  The browser and desktop clients now read each operation's address from the
+  shared route list instead of repeating it. That list already existed and was
+  already checked against the real server in both directions; it just was not
+  being used. Changing an address is now one edit rather than two that have to
+  agree.
+
+  Deliberately not done, and written up rather than left implied: generating
+  those clients from the route list. It would delete more typing than either
+  change above, and it would switch off the type checking that currently
+  verifies all seventy-one operations against the contract — and on the engine
+  side it would blind two of the checks that keep the browser and desktop apps
+  honest with each other, because those checks work by reading the source.
+
 - **Four pieces of the codebase now fail the build where they used to fail a
   test, or fail nothing at all.** None of this changes what Voyalier does. It
   changes what can go wrong without anyone noticing, which is what the last two
@@ -39,9 +66,10 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
   ever seen. Eight fields are documented as deliberately absent, each with a
   reason, which is a list the codebase did not previously have.
 
-  What was left out: `AppService` is still one object with ninety-five methods,
-  and adding a gateway method still means writing it out in nine places. Both are
-  larger changes that need their own decision records.
+  What was left out at the time: the engine was still one 10,099-line file, and
+  adding an operation still meant writing it out in ten places. Both were taken
+  up next, in the entry above — the first fully, the second only as far as it
+  could go without giving up a check that is currently earning its keep.
 
 ## [0.6.1] - 2026-07-29 — Audited user-flow repairs
 

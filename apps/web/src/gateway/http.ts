@@ -1,3 +1,5 @@
+import routes from "@voyalier/contracts/parity/routes.json";
+
 import type {
   DocumentContent,
   DocumentSummary,
@@ -79,6 +81,21 @@ export interface HttpGatewayOptions {
 type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 /**
+ * Every shared route, keyed by gateway method.
+ *
+ * ADR-0011: the manifest was already the one declaration of verb and path, and
+ * both were then restated here as literals. Reading it instead removes the
+ * hand-maintained link — what keeps this honest is the Rust side, where
+ * `the_router_declares_exactly_the_manifest` holds the manifest to the router
+ * in both directions.
+ */
+const MANIFEST = new Map(
+  (routes.shared as { method: string; verb: string; path: string }[]).map(
+    (row) => [row.method, row],
+  ),
+);
+
+/**
  * Talks to the loopback Axum API over same-origin fetch. Routes mirror
  * crates/voyalier-server exactly. Non-2xx bodies are AppError; 204s carry no
  * body; network failures normalize to transport/failure.
@@ -125,156 +142,165 @@ export function createHttpGateway(
     return payload as T;
   }
 
+  /**
+   * The verb and path for a gateway method, from `parity/routes.json`.
+   *
+   * ADR-0011: the manifest already declares both, so this is the only place
+   * either is written. `params` fills the `{placeholder}` segments by name —
+   * which argument fills which is the one genuinely per-method fact, so it
+   * stays at the call site. An unfilled placeholder throws rather than sending
+   * a literal `{tripId}` to the server, and `routeParity.test.ts` drives every
+   * method, so a bad binding fails there.
+   */
+  function route(
+    method: keyof AppGateway,
+    params: Record<string, string> = {},
+    query: Record<string, string | undefined> = {},
+  ): [Method, string] {
+    const row = MANIFEST.get(method);
+    if (!row) {
+      throw new Error(`parity/routes.json declares no route for ${method}`);
+    }
+    const path = row.path.replace(/\{(\w+)\}/g, (_match, name: string) => {
+      const value = params[name];
+      if (value === undefined) {
+        throw new Error(`${method}: nothing bound to path parameter {${name}}`);
+      }
+      return enc(value);
+    });
+    const search = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined) search.set(key, value);
+    }
+    const suffix = search.toString();
+    return [row.verb as Method, suffix ? `${path}?${suffix}` : path];
+  }
+
   return {
-    health: () => request<HealthResponse>("GET", "/api/health"),
+    health: () => request<HealthResponse>(...route("health")),
 
     createTrip: (input: CreateTripInput) =>
-      request<Trip>("POST", "/api/v1/trips", input),
+      request<Trip>(...route("createTrip"), input),
 
-    listTrips: () => request<TripSummary[]>("GET", "/api/v1/trips"),
+    listTrips: () => request<TripSummary[]>(...route("listTrips")),
 
     getTrip: (tripId: string) =>
-      request<TripDetail>("GET", `/api/v1/trips/${enc(tripId)}`),
+      request<TripDetail>(...route("getTrip", { tripId })),
 
     updateTrip: (tripId: string, input: UpdateTripInput) =>
-      request<Trip>("PATCH", `/api/v1/trips/${enc(tripId)}`, input),
+      request<Trip>(...route("updateTrip", { tripId }), input),
 
     archiveTrip: (tripId: string) =>
-      request<Trip>("POST", `/api/v1/trips/${enc(tripId)}/archive`),
+      request<Trip>(...route("archiveTrip", { tripId })),
 
     unarchiveTrip: (tripId: string) =>
-      request<Trip>("POST", `/api/v1/trips/${enc(tripId)}/unarchive`),
+      request<Trip>(...route("unarchiveTrip", { tripId })),
 
     getTripBrief: (tripId: string) =>
-      request<TripBrief>("GET", `/api/v1/trips/${enc(tripId)}/brief`),
+      request<TripBrief>(...route("getTripBrief", { tripId })),
 
     getToday: (tripId: string) =>
-      request<TodayView>("GET", `/api/v1/trips/${enc(tripId)}/today`),
+      request<TodayView>(...route("getToday", { tripId })),
 
-    getVaultStatus: () => request<VaultStatus>("GET", "/api/v1/vault"),
+    getVaultStatus: () => request<VaultStatus>(...route("getVaultStatus")),
 
     setVaultPassphrase: (passphrase: string) =>
-      request<VaultStatus>("POST", "/api/v1/vault/passphrase", { passphrase }),
+      request<VaultStatus>(...route("setVaultPassphrase"), { passphrase }),
 
     unlockVault: (passphrase: string) =>
-      request<VaultStatus>("POST", "/api/v1/vault/unlock", { passphrase }),
+      request<VaultStatus>(...route("unlockVault"), { passphrase }),
 
     removeVaultPassphrase: (passphrase: string) =>
-      request<VaultStatus>("POST", "/api/v1/vault/remove-passphrase", {
+      request<VaultStatus>(...route("removeVaultPassphrase"), {
         passphrase,
       }),
 
-    detectLocalAi: () => request<LocalAiStatus>("GET", "/api/v1/local-ai"),
+    detectLocalAi: () => request<LocalAiStatus>(...route("detectLocalAi")),
 
     pullLocalModel: (model: string) =>
-      request<LocalModelPullResult>("POST", "/api/v1/local-ai/pull", { model }),
+      request<LocalModelPullResult>(...route("pullLocalModel"), { model }),
 
-    listProviders: () => request<ProviderConfig[]>("GET", "/api/v1/providers"),
+    listProviders: () => request<ProviderConfig[]>(...route("listProviders")),
 
     setProviderKey: (input: SetProviderKeyInput) =>
       request<ProviderConfig>(
-        "POST",
-        `/api/v1/providers/${enc(input.provider)}/key`,
+        ...route("setProviderKey", { provider: input.provider }),
         { key: input.key },
       ),
 
     validateProviderKey: (input: SetProviderKeyInput) =>
       request<KeyValidation>(
-        "POST",
-        `/api/v1/providers/${enc(input.provider)}/validate`,
+        ...route("validateProviderKey", { provider: input.provider }),
         { key: input.key },
       ),
 
     clearProviderKey: (provider: ProviderId) =>
-      request<ProviderConfig>(
-        "DELETE",
-        `/api/v1/providers/${enc(provider)}/key`,
-      ),
+      request<ProviderConfig>(...route("clearProviderKey", { provider })),
 
     setProviderModel: (input: SetProviderModelInput) =>
       request<ProviderConfig>(
-        "POST",
-        `/api/v1/providers/${enc(input.provider)}/model`,
+        ...route("setProviderModel", { provider: input.provider }),
         { model: input.model },
       ),
 
     previewAssist: (tripId: string, provider: ProviderId) =>
       request<AssistRequestPreview>(
-        "GET",
-        `/api/v1/trips/${enc(tripId)}/assist-preview?provider=${enc(provider)}`,
+        ...route("previewAssist", { tripId }, { provider: provider }),
       ),
 
     runAssist: (tripId: string, provider: ProviderId) =>
-      request<AssistReply>("POST", `/api/v1/trips/${enc(tripId)}/assist`, {
+      request<AssistReply>(...route("runAssist", { tripId }), {
         provider,
       }),
 
     previewAssistDraft: (tripId: string, kind: AssistDraftKind) =>
       request<AssistRequestPreview>(
-        "GET",
-        `/api/v1/trips/${enc(tripId)}/assist-draft-preview?kind=${enc(kind)}`,
+        ...route("previewAssistDraft", { tripId }, { kind: kind }),
       ),
 
     runAssistDraft: (tripId: string, kind: AssistDraftKind) =>
-      request<AssistDraftResult>(
-        "POST",
-        `/api/v1/trips/${enc(tripId)}/assist-draft`,
-        { kind },
-      ),
+      request<AssistDraftResult>(...route("runAssistDraft", { tripId }), {
+        kind,
+      }),
 
     listAssistActivity: (tripId: string) =>
       request<AssistActivityEntry[]>(
-        "GET",
-        `/api/v1/trips/${enc(tripId)}/assist-activity`,
+        ...route("listAssistActivity", { tripId }),
       ),
 
-    getAiPrompts: () => request<AiPromptSettings>("GET", "/api/v1/ai/prompts"),
+    getAiPrompts: () => request<AiPromptSettings>(...route("getAiPrompts")),
 
     setAiPrompt: (kind: AiPromptKind, text: string | null) =>
-      request<AiPromptSettings>("POST", "/api/v1/ai/prompts", { kind, text }),
+      request<AiPromptSettings>(...route("setAiPrompt"), { kind, text }),
 
-    listPacks: () => request<PackInfo[]>("GET", "/api/v1/packs"),
+    listPacks: () => request<PackInfo[]>(...route("listPacks")),
 
     suggestPacks: (tripId: string) =>
-      request<PackSuggestion[]>(
-        "GET",
-        `/api/v1/trips/${enc(tripId)}/pack-suggestions`,
-      ),
+      request<PackSuggestion[]>(...route("suggestPacks", { tripId })),
 
     suggestFieldValues: (input: SuggestFieldValuesInput) =>
       request<FieldSuggestion[]>(
-        "GET",
-        `/api/v1/trips/${enc(input.tripId)}/field-suggestions?field=${enc(
-          input.field,
-        )}&q=${enc(input.query)}`,
+        ...route(
+          "suggestFieldValues",
+          { tripId: input.tripId },
+          { field: input.field, q: input.query },
+        ),
       ),
 
     suggestPlaces: (query: string) =>
-      request<FieldSuggestion[]>(
-        "GET",
-        `/api/v1/places/suggest?q=${enc(query)}`,
-      ),
+      request<FieldSuggestion[]>(...route("suggestPlaces", {}, { q: query })),
 
     downloadPack: (tripId: string, packId: string) =>
-      request<DownloadedPack>(
-        "POST",
-        `/api/v1/trips/${enc(tripId)}/packs/${enc(packId)}`,
-      ),
+      request<DownloadedPack>(...route("downloadPack", { tripId, packId })),
 
     listDownloadedPacks: (tripId: string) =>
-      request<DownloadedPack[]>("GET", `/api/v1/trips/${enc(tripId)}/packs`),
+      request<DownloadedPack[]>(...route("listDownloadedPacks", { tripId })),
 
     deleteDownloadedPack: (tripId: string, packId: string) =>
-      request<void>(
-        "DELETE",
-        `/api/v1/trips/${enc(tripId)}/packs/${enc(packId)}`,
-      ),
+      request<void>(...route("deleteDownloadedPack", { tripId, packId })),
 
     getOfflineMap: (tripId: string) =>
-      request<OfflineMapArchive | null>(
-        "GET",
-        `/api/v1/trips/${enc(tripId)}/offline-map`,
-      ),
+      request<OfflineMapArchive | null>(...route("getOfflineMap", { tripId })),
 
     readOfflineMapRange: (
       tripId: string,
@@ -282,199 +308,174 @@ export function createHttpGateway(
       offset: number,
       length: number,
     ) =>
-      request<OfflineMapChunk>(
-        "POST",
-        `/api/v1/trips/${enc(tripId)}/offline-map/range`,
-        { packId, offset, length },
-      ),
+      request<OfflineMapChunk>(...route("readOfflineMapRange", { tripId }), {
+        packId,
+        offset,
+        length,
+      }),
 
     getRecommendations: (tripId: string, weights: PersonaWeights) =>
       request<Recommendation[]>(
-        "POST",
-        `/api/v1/trips/${enc(tripId)}/recommendations`,
+        ...route("getRecommendations", { tripId }),
         weights,
       ),
 
     setInterestProfile: (input: SetInterestProfileInput) =>
       request<InterestProfile>(
-        "PUT",
-        `/api/v1/trips/${enc(input.tripId)}/interest-profile`,
+        ...route("setInterestProfile", { tripId: input.tripId }),
         input,
       ),
 
     getVisaPrep: (tripId: string) =>
-      request<VisaPrep>("GET", `/api/v1/trips/${enc(tripId)}/visa`),
+      request<VisaPrep>(...route("getVisaPrep", { tripId })),
 
     setVisaNationality: (input: SetVisaNationalityInput) =>
       request<VisaPrep>(
-        "PUT",
-        `/api/v1/trips/${enc(input.tripId)}/visa/nationality`,
+        ...route("setVisaNationality", { tripId: input.tripId }),
         input,
       ),
 
     setVisaItemProgress: (input: SetVisaItemProgressInput) =>
       request<VisaPrep>(
-        "PUT",
-        `/api/v1/trips/${enc(input.tripId)}/visa/items/${enc(input.documentId)}`,
+        ...route("setVisaItemProgress", {
+          tripId: input.tripId,
+          visaDocumentId: input.documentId,
+        }),
         input,
       ),
 
     savePlace: (input: SavePlaceInput) =>
       request<SavedPlace>(
-        "POST",
-        `/api/v1/trips/${enc(input.tripId)}/saved-places`,
+        ...route("savePlace", { tripId: input.tripId }),
         input,
       ),
 
     updateSavedPlace: (input: UpdateSavedPlaceInput) =>
       request<SavedPlace>(
-        "PATCH",
-        `/api/v1/saved-places/${enc(input.savedPlaceId)}`,
+        ...route("updateSavedPlace", { savedPlaceId: input.savedPlaceId }),
         input,
       ),
 
     deleteSavedPlace: (savedPlaceId: string) =>
-      request<void>("DELETE", `/api/v1/saved-places/${enc(savedPlaceId)}`),
+      request<void>(...route("deleteSavedPlace", { savedPlaceId })),
 
     addPackingItem: (input: AddPackingItemInput) =>
       request<PackingItem>(
-        "POST",
-        `/api/v1/trips/${enc(input.tripId)}/packing-items`,
+        ...route("addPackingItem", { tripId: input.tripId }),
         input,
       ),
 
     updatePackingItem: (input: UpdatePackingItemInput) =>
       request<PackingItem>(
-        "PATCH",
-        `/api/v1/packing-items/${enc(input.packingItemId)}`,
+        ...route("updatePackingItem", { packingItemId: input.packingItemId }),
         input,
       ),
 
     deletePackingItem: (packingItemId: string) =>
-      request<void>("DELETE", `/api/v1/packing-items/${enc(packingItemId)}`),
+      request<void>(...route("deletePackingItem", { packingItemId })),
 
     createTripItem: (input: CreateTripItemInput) =>
       request<TripItem>(
-        "POST",
-        `/api/v1/trips/${enc(input.tripId)}/trip-items`,
+        ...route("createTripItem", { tripId: input.tripId }),
         input,
       ),
 
     updateTripItem: (input: UpdateTripItemInput) =>
       request<TripItem>(
-        "PATCH",
-        `/api/v1/trip-items/${enc(input.tripItemId)}`,
+        ...route("updateTripItem", { tripItemId: input.tripItemId }),
         input,
       ),
 
     deleteTripItem: (tripItemId: string) =>
-      request<void>("DELETE", `/api/v1/trip-items/${enc(tripItemId)}`),
+      request<void>(...route("deleteTripItem", { tripItemId })),
 
     listAdviceCountries: () =>
-      request<FcdoCountry[]>("GET", "/api/v1/advice/countries"),
+      request<FcdoCountry[]>(...route("listAdviceCountries")),
 
     fetchAdvisories: (input: FetchAdvisoriesInput) =>
       request<AdvisoryPanel>(
-        "POST",
-        `/api/v1/trips/${enc(input.tripId)}/advisories`,
+        ...route("fetchAdvisories", { tripId: input.tripId }),
         { countrySlug: input.countrySlug },
       ),
 
     fetchWeather: (tripId: string) =>
-      request<WeatherSnapshot>("POST", `/api/v1/trips/${enc(tripId)}/weather`),
+      request<WeatherSnapshot>(...route("fetchWeather", { tripId })),
 
     fetchDestinationFacts: (tripId: string) =>
       request<DestinationFactsSnapshot>(
-        "POST",
-        `/api/v1/trips/${enc(tripId)}/destination-facts`,
+        ...route("fetchDestinationFacts", { tripId }),
       ),
 
     fetchPublicHolidays: (tripId: string) =>
       request<PublicHolidaysSnapshot>(
-        "POST",
-        `/api/v1/trips/${enc(tripId)}/holidays`,
+        ...route("fetchPublicHolidays", { tripId }),
       ),
 
     fetchPlaceSummary: (tripId: string) =>
-      request<PlaceSummary>("POST", `/api/v1/trips/${enc(tripId)}/summary`),
+      request<PlaceSummary>(...route("fetchPlaceSummary", { tripId })),
 
     searchTrip: (tripId: string, query: string) =>
-      request<SearchHit[]>(
-        "GET",
-        `/api/v1/trips/${enc(tripId)}/search?q=${enc(query)}`,
-      ),
+      request<SearchHit[]>(...route("searchTrip", { tripId }, { q: query })),
 
     searchWorkspace: (query: string) =>
       request<WorkspaceSearchHit[]>(
-        "GET",
-        `/api/v1/workspace/search?q=${enc(query)}`,
+        ...route("searchWorkspace", {}, { q: query }),
       ),
 
     suggestSearchTerms: (tripId: string, query: string) =>
       request<string[]>(
-        "GET",
-        `/api/v1/trips/${enc(tripId)}/search-suggestions?q=${enc(query)}`,
+        ...route("suggestSearchTerms", { tripId }, { q: query }),
       ),
 
     deleteTrip: (tripId: string) =>
-      request<void>("DELETE", `/api/v1/trips/${enc(tripId)}`),
+      request<void>(...route("deleteTrip", { tripId })),
 
     importDocument: (input: ImportDocumentInput) =>
       request<ImportResult>(
-        "POST",
-        `/api/v1/trips/${enc(input.tripId)}/documents`,
+        ...route("importDocument", { tripId: input.tripId }),
         input,
       ),
 
     getTripNotes: (tripId: string) =>
-      request<TripNotes>("GET", `/api/v1/trips/${enc(tripId)}/notes`),
+      request<TripNotes>(...route("getTripNotes", { tripId })),
 
     setTripNotes: (tripId: string, body: string) =>
-      request<TripNotes>("POST", `/api/v1/trips/${enc(tripId)}/notes`, {
+      request<TripNotes>(...route("setTripNotes", { tripId }), {
         body,
       }),
 
     listDocuments: (tripId: string) =>
-      request<DocumentSummary[]>(
-        "GET",
-        `/api/v1/trips/${enc(tripId)}/documents`,
-      ),
+      request<DocumentSummary[]>(...route("listDocuments", { tripId })),
 
     getDocument: (documentId: string) =>
-      request<DocumentContent>("GET", `/api/v1/documents/${enc(documentId)}`),
+      request<DocumentContent>(...route("getDocument", { documentId })),
 
     deleteDocument: (documentId: string) =>
-      request<void>("DELETE", `/api/v1/documents/${enc(documentId)}`),
+      request<void>(...route("deleteDocument", { documentId })),
 
     listCandidates: (tripId: string, status?: CandidateStatus) =>
+      // `status` is optional, and `route` drops an undefined query value rather
+      // than sending `?status=undefined`.
       request<CandidateFact[]>(
-        "GET",
-        `/api/v1/trips/${enc(tripId)}/candidates${
-          status ? `?status=${enc(status)}` : ""
-        }`,
+        ...route("listCandidates", { tripId }, { status }),
       ),
 
     confirmCandidate: (input: ConfirmCandidateInput) =>
       request<{ candidate: CandidateFact; confirmedFact: ConfirmedFact }>(
-        "POST",
-        `/api/v1/candidates/${enc(input.candidateId)}/confirm`,
+        ...route("confirmCandidate", { candidateId: input.candidateId }),
         input,
       ),
 
     rejectCandidate: (candidateId: string) =>
-      request<CandidateFact>(
-        "POST",
-        `/api/v1/candidates/${enc(candidateId)}/reject`,
-      ),
+      request<CandidateFact>(...route("rejectCandidate", { candidateId })),
 
     addManualFact: (input: AddManualFactInput) =>
       request<ConfirmedFact>(
-        "POST",
-        `/api/v1/trips/${enc(input.tripId)}/facts`,
+        ...route("addManualFact", { tripId: input.tripId }),
         input,
       ),
 
     unconfirmFact: (factId: string) =>
-      request<void>("DELETE", `/api/v1/facts/${enc(factId)}`),
+      request<void>(...route("unconfirmFact", { factId })),
   };
 }

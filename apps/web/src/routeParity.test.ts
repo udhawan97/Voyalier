@@ -158,6 +158,22 @@ describe("route parity: the manifest covers the whole gateway", () => {
   });
 });
 
+/**
+ * Since ADR-0011 these two suites are weaker than they read.
+ *
+ * They used to compare a literal in the gateway against the manifest. The
+ * gateways now derive verb, path, and command from the manifest, so this
+ * compares a derivation against its own source — close to tautological on the
+ * happy path.
+ *
+ * They are kept because they still catch what a derivation can get wrong: a
+ * placeholder bound to the wrong argument name (`route` throws), a method
+ * pointed at the wrong manifest row, and a call that fires twice or not at all.
+ * What they no longer carry is proof that the paths are the ones the server
+ * serves — `the_router_declares_exactly_the_manifest` in voyalier-server and
+ * `generate_handler_registers_every_declared_command` in voyalier-desktop hold
+ * that end, in both directions, and `gateway.live.test.ts` drives the real one.
+ */
 describe("route parity: http.ts against the manifest", () => {
   it.each(SHARED)("$method → $verb $path", async (route) => {
     const calls: { verb: string; pathname: string }[] = [];
