@@ -1630,6 +1630,10 @@ function mockVisaJourney(
       id,
       ordinal: expected.ordinals?.[index] ?? index + 1,
       title: `Mock step ${index + 1}`,
+      // The real journeys carry the authority's own term where it differs from
+      // plain language, and the panel renders it beside the title. Set on the
+      // later steps only, so both branches — with and without — are exercised.
+      ...(index > 0 ? { authorityTerm: `Mock authority term ${index}` } : {}),
       plainExplanation: `Mock explanation for ${id}.`,
       links: [
         { label: "Mock official page", url: "https://www.canada.ca/en/mock" },
