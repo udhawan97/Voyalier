@@ -66,9 +66,10 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
   ever seen. Eight fields are documented as deliberately absent, each with a
   reason, which is a list the codebase did not previously have.
 
-  What was left out: `AppService` is still one object with ninety-five methods,
-  and adding a gateway method still means writing it out in nine places. Both are
-  larger changes that need their own decision records.
+  What was left out at the time: the engine was still one 10,099-line file, and
+  adding an operation still meant writing it out in ten places. Both were taken
+  up next, in the entry above — the first fully, the second only as far as it
+  could go without giving up a check that is currently earning its keep.
 
 ## [0.6.1] - 2026-07-29 — Audited user-flow repairs
 
