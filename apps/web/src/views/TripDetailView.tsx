@@ -312,16 +312,27 @@ function TripSectionNav({ skipHash }: { skipHash: boolean }) {
     [mountAllSections],
   );
 
-  // A reload, a bookmark, or a shared link names a section in the URL. Once
-  // only: after that the traveler owns the scroll position. Deferred out of the
-  // effect body because `goToSection` sets state, and an effect that does that
-  // synchronously cascades a render before the first paint.
+  /**
+   * A reload, a bookmark, or a shared link names a section in the URL.
+   *
+   * Once only: after that the traveler owns the scroll position. Deferred out of
+   * the effect body because `goToSection` sets state, and an effect that does
+   * that synchronously cascades a render before the first paint.
+   *
+   * The once-only guard is checked inside the callback, not before scheduling.
+   * Strict Mode mounts, tears down and remounts: claiming the hash up front made
+   * the teardown cancel the only timer and the remount decline to schedule
+   * another, so in development the link silently did nothing at all.
+   */
   useEffect(() => {
-    if (skipHash || hashConsumed.current) return;
+    if (skipHash) return;
     const hash = globalThis.location?.hash ?? "";
     if (!isTripSectionHash(hash)) return;
-    hashConsumed.current = true;
-    const timer = setTimeout(() => goToSection(hash.slice(1), false), 0);
+    const timer = setTimeout(() => {
+      if (hashConsumed.current) return;
+      hashConsumed.current = true;
+      goToSection(hash.slice(1), false);
+    }, 0);
     return () => clearTimeout(timer);
   }, [skipHash, goToSection]);
 

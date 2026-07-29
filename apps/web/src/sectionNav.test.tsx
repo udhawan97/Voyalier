@@ -1,6 +1,8 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
 
+import { App } from "./App";
 import { renderApp } from "./test/helpers";
 
 /**
@@ -99,7 +101,15 @@ describe("Trip section navigation", () => {
     window.location.hash = "#section-ai";
 
     const scroll = captureScrollTargets();
-    renderApp(createMockGateway());
+    // Strict Mode on purpose. The first version of this fix claimed the hash
+    // before scheduling its scroll, so the strict teardown cancelled the only
+    // timer and the remount declined to schedule another — the link did nothing
+    // at all in development, and a plain render never showed it.
+    render(
+      <StrictMode>
+        <App gateway={createMockGateway()} />
+      </StrictMode>,
+    );
     await screen.findByRole("heading", {
       name: "Kyoto autumn journey",
       level: 1,
@@ -122,6 +132,11 @@ describe("Trip section navigation", () => {
 
   // Gap #10: the chips never said where the traveler was.
   it("marks the chip for the section being viewed", async () => {
+    // Deliberately blind the observer. The shared setup's stub reports every
+    // section as intersecting at once, and jsdom gives them all a top of 0, so
+    // which one the nav calls current is decided by an unstable sort — this
+    // test is about the click, not about scroll tracking.
+    stubDeferredSections();
     renderApp(createMockGateway());
     await openKyoto();
 
