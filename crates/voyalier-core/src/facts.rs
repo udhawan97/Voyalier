@@ -663,6 +663,14 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     },
 ];
 
+/// Fetch today's ECB reference rates.
+pub fn ecb_rates(
+    fetch: impl FnOnce(&str) -> Result<String, AppError>,
+) -> Result<(String, Vec<CurrencyRate>), AppError> {
+    let body = fetch("https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml")?;
+    parse_ecb_rates(&body)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

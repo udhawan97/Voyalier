@@ -39,21 +39,23 @@ mod visa;
 mod weather;
 
 pub use advice::{
-    FCDO_COUNTRIES, FcdoCountry, TravelAdviceSnapshot, parse_fcdo_content, validate_country_slug,
+    FCDO_COUNTRIES, FcdoCountry, TravelAdviceSnapshot, parse_fcdo_content, travel_advice,
+    validate_country_slug,
 };
 // The curated `ADVISORY_COUNTRIES` table stays internal: `advisory_country` is
 // the only door to a fetch URL, the same way `validate_country_slug` is for the
 // FCDO list.
 pub use advisories::{
     AdvisoryCountry, AdvisoryEntry, AdvisoryPanel, AdvisorySource, HealthNotice, SourceState,
-    SourceStatus, advisory_country, entry_from_fcdo, notices_for_country, parse_ca_gac,
-    parse_cdc_notices, parse_de_aa, parse_us_state,
+    SourceStatus, advisory_country, ca_gac_advisory, cdc_health_notices, de_aa_advisory,
+    entry_from_fcdo, notices_for_country, parse_ca_gac, parse_cdc_notices, parse_de_aa,
+    parse_us_state, us_state_advisory,
 };
 // Per-provider endpoints, model defaults, body builders, and reply parsers stay
 // internal: which of each pairs with which provider is `assist`'s knowledge.
 // `build_assist_request` + `parse_assist_reply` are the way in.
 pub use airports::{AirportSize, NearbyAirport, nearest_airports};
-pub use alerts::{WeatherAlert, parse_nws_alerts};
+pub use alerts::{WeatherAlert, nws_alerts, parse_nws_alerts};
 pub use assist::{
     ASSIST_SYSTEM_PROMPT, AssistActivityEntry, AssistReply, AssistRequest, AssistRequestPreview,
     MAX_AI_PROMPT_LEN, build_assist_preview, build_assist_request, estimate_tokens,
@@ -72,14 +74,15 @@ pub use backup::{
 };
 pub use brief::{BriefTripItem, RedactionPolicy, TripBrief, build_trip_brief};
 pub use climate::{
-    AirQualityDay, ClimateNormals, archive_window, parse_air_quality, parse_climate_normals,
+    AirQualityDay, ClimateNormals, air_quality, archive_window, climate_normals, parse_air_quality,
+    parse_climate_normals,
 };
 // `extract_email_body` is deliberately not re-exported: it must only be reached
 // through `parse_import`, which bounds the raw input before the extractor walks
 // an untrusted MIME tree.
 pub use facts::{
     CountryFacts, CurrencyRate, DestinationFactsSnapshot, EmergencyNumbers, TimeDifference,
-    country_facts, cross_rate, parse_ecb_rates, time_difference,
+    country_facts, cross_rate, ecb_rates, parse_ecb_rates, time_difference,
 };
 pub use gazetteer::{CitySuggestion, resolve_country_code, search_cities};
 pub use heritage::{HeritageSite, world_heritage_near};
@@ -142,8 +145,8 @@ pub use visa::{
     VisaStep, entry_path, validate_nationality, validate_visa_note, visa_journey,
 };
 pub use weather::{
-    GeocodedPlace, WeatherCoverage, WeatherDay, WeatherSnapshot, describe_weather_code, geocode,
-    parse_forecast_response, parse_geocoding_response,
+    GeocodedPlace, WeatherCoverage, WeatherDay, WeatherSnapshot, describe_weather_code, forecast,
+    geocode, parse_forecast_response, parse_geocoding_response,
 };
 
 #[cfg(test)]

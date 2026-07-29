@@ -260,6 +260,47 @@ pub fn parse_air_quality(
     Ok(days)
 }
 
+/// Fetch the archive window and fold it into normals for the trip's own dates.
+///
+/// One request for the whole span beats one per year; which span that is comes
+/// from [`archive_window`], which is why it and the URL belong side by side.
+pub fn climate_normals(
+    latitude: f64,
+    longitude: f64,
+    trip_start: &str,
+    trip_end: &str,
+    years: u32,
+    fetch: impl FnOnce(&str) -> Result<String, AppError>,
+) -> Result<Option<ClimateNormals>, AppError> {
+    let (start, end) = archive_window(trip_start, trip_end, years)?;
+    let url = format!(
+        "https://archive-api.open-meteo.com/v1/archive?latitude={latitude:.5}&longitude={longitude:.5}\
+         &start_date={start}&end_date={end}\
+         &daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto"
+    );
+    parse_climate_normals(&fetch(&url)?, trip_start, trip_end)
+}
+
+/// Fetch the air-quality window for a place.
+///
+/// `pm2_5_max` and `us_aqi_max` are not daily variables in this API — asking
+/// for them fails the whole request. UV is daily; the rest is hourly and
+/// [`parse_air_quality`] folds it into days. That pairing is exactly why the
+/// query string belongs beside the parser.
+pub fn air_quality(
+    latitude: f64,
+    longitude: f64,
+    trip_start: &str,
+    trip_end: &str,
+    fetch: impl FnOnce(&str) -> Result<String, AppError>,
+) -> Result<Vec<AirQualityDay>, AppError> {
+    let url = format!(
+        "https://air-quality-api.open-meteo.com/v1/air-quality?latitude={latitude:.5}&longitude={longitude:.5}\
+         &daily=uv_index_max&hourly=us_aqi,pm2_5&timezone=auto&forecast_days=7"
+    );
+    parse_air_quality(&fetch(&url)?, trip_start, trip_end)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

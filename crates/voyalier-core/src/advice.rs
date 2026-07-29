@@ -274,6 +274,25 @@ pub fn parse_fcdo_content(
     })
 }
 
+/// Fetch and parse the FCDO's advice for a curated country.
+///
+/// Which endpoint answers, and how a slug addresses it, is this module's
+/// knowledge — the same knowledge [`validate_country_slug`] gates. Building the
+/// URL at the call site put that interpolation in a crate that cannot see the
+/// table the gate consulted, so the gate stopped being the only door to a fetch
+/// URL. The application layer supplies only what the core cannot: the fetch.
+pub fn travel_advice(
+    country: &FcdoCountry,
+    retrieved_at: &str,
+    fetch: impl FnOnce(&str) -> Result<String, AppError>,
+) -> Result<TravelAdviceSnapshot, AppError> {
+    let url = format!(
+        "https://www.gov.uk/api/content/foreign-travel-advice/{}",
+        country.slug
+    );
+    parse_fcdo_content(country, &fetch(&url)?, retrieved_at)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

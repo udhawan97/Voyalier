@@ -101,6 +101,19 @@ pub fn parse_nws_alerts(json: &str) -> Result<Vec<WeatherAlert>, AppError> {
     Ok(alerts)
 }
 
+/// Fetch the active NWS alerts for a point.
+///
+/// The NWS only covers the United States. Deciding whether to ask is the
+/// caller's, because only it knows the place's country; how to ask is here.
+pub fn nws_alerts(
+    latitude: f64,
+    longitude: f64,
+    fetch: impl FnOnce(&str) -> Result<String, AppError>,
+) -> Result<Vec<WeatherAlert>, AppError> {
+    let url = format!("https://api.weather.gov/alerts/active?point={latitude:.4},{longitude:.4}");
+    parse_nws_alerts(&fetch(&url)?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

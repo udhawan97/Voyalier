@@ -33,22 +33,21 @@ use voyalier_core::{
     TripStatus, TripSummary, UpdatePackingItemInput, UpdateSavedPlaceInput, UpdateTripInput,
     UpdateTripItemInput, VisaPrep, VisaSelfReport, WarningCode, WeatherAlert, WeatherSnapshot,
     WorkspaceSearchHit, WorkspaceSearchRecord, WorkspaceSearchSource, advisory_country,
-    archive_window, assess_trip, build_assist_preview, build_assist_request, build_draft_preview,
+    air_quality, assess_trip, build_assist_preview, build_assist_request, build_draft_preview,
     build_key_validation_request, build_packing_list, build_pull_body, build_today_view,
-    build_trip_brief, changed_payload_fields, compute_astro_day, country_facts,
-    detect_planned_item_conflicts, entry_from_fcdo, estimate_tokens, fact_identity,
-    fact_search_text, geocode, holidays_within, interpret_key_validation, interpret_pull_response,
-    nearest_airports, new_id, notices_for_country, now_rfc3339, offline_map_download_url,
-    pack_catalog, pack_download_url, parse_air_quality, parse_assist_reply, parse_ca_gac,
-    parse_cdc_notices, parse_climate_normals, parse_de_aa, parse_ecb_rates, parse_fcdo_content,
-    parse_forecast_response, parse_import, parse_lodging_dates_reply, parse_nws_alerts,
-    parse_pack_content, parse_us_state, place_summary, provider_info, public_holidays,
-    rank_field_suggestions, recommend_attributed_places, saved_place_identity, search_cities,
-    search_trip_corpus, search_workspace_corpus, suggest_packs, suggest_search_terms,
-    time_difference, tipping_guidance, validate_api_key, validate_country_slug,
-    validate_create_trip, validate_create_trip_item, validate_fact_payload, validate_model_name,
-    validate_pack_id, validate_packing_label, validate_planning_notes, validate_provider_id,
-    validate_search_query, validate_update_trip, world_heritage_near,
+    build_trip_brief, ca_gac_advisory, cdc_health_notices, changed_payload_fields, climate_normals,
+    compute_astro_day, country_facts, de_aa_advisory, detect_planned_item_conflicts, ecb_rates,
+    entry_from_fcdo, estimate_tokens, fact_identity, fact_search_text, forecast, geocode,
+    holidays_within, interpret_key_validation, interpret_pull_response, nearest_airports, new_id,
+    now_rfc3339, nws_alerts, offline_map_download_url, pack_catalog, pack_download_url,
+    parse_assist_reply, parse_import, parse_lodging_dates_reply, parse_pack_content, place_summary,
+    provider_info, public_holidays, rank_field_suggestions, recommend_attributed_places,
+    saved_place_identity, search_cities, search_trip_corpus, search_workspace_corpus,
+    suggest_packs, suggest_search_terms, time_difference, tipping_guidance, travel_advice,
+    us_state_advisory, validate_api_key, validate_country_slug, validate_create_trip,
+    validate_create_trip_item, validate_fact_payload, validate_model_name, validate_pack_id,
+    validate_packing_label, validate_planning_notes, validate_provider_id, validate_search_query,
+    validate_update_trip, world_heritage_near,
 };
 use voyalier_core::{
     BACKUP_FORMAT_VERSION, BackupManifest, VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN,
@@ -2203,31 +2202,13 @@ impl AppService {
         // one government being down would hide the other three. `Ok(None)`
         // means that government publishes nothing for this country; `Err` means
         // we could not read it this time and fall back to what is stored.
-        let uk = self
-            .fetcher
-            .fetch_text(&format!(
-                "https://www.gov.uk/api/content/foreign-travel-advice/{}",
-                fcdo.slug
-            ))
-            .and_then(|body| parse_fcdo_content(fcdo, &body, &retrieved_at))
+        let get = |url: &str| self.fetcher.fetch_text(url);
+        let uk = travel_advice(fcdo, &retrieved_at, get)
             .map(|snapshot| Some(entry_from_fcdo(&snapshot)));
-        let us = self
-            .fetcher
-            .fetch_text("https://cadataapi.state.gov/api/TravelAdvisories")
-            .and_then(|body| parse_us_state(country, fcdo.name, &body, &retrieved_at));
-        let ca = self
-            .fetcher
-            .fetch_text("https://data.international.gc.ca/travel-voyage/index-alpha-eng.json")
-            .and_then(|body| parse_ca_gac(country, fcdo.name, &body, &retrieved_at));
-        let de = self
-            .fetcher
-            .fetch_text("https://www.auswaertiges-amt.de/opendata/travelwarning")
-            .and_then(|body| parse_de_aa(country, fcdo.name, &body, &retrieved_at));
-        let notices = self
-            .fetcher
-            .fetch_text("https://wwwnc.cdc.gov/travel/rss/notices.xml")
-            .and_then(|body| parse_cdc_notices(&body))
-            .map(|all| notices_for_country(&all, fcdo.name));
+        let us = us_state_advisory(country, fcdo.name, &retrieved_at, get);
+        let ca = ca_gac_advisory(country, fcdo.name, &retrieved_at, get);
+        let de = de_aa_advisory(country, fcdo.name, &retrieved_at, get);
+        let notices = cdc_health_notices(fcdo.name, get);
 
         let connection = self.connection()?;
         let previous = load_advisory_panel(&connection, trip_id)?;
@@ -2463,21 +2444,16 @@ impl AppService {
                 .map_err(weather_network_failure)
         })?;
 
-        let forecast_url = format!(
-            "https://api.open-meteo.com/v1/forecast?latitude={:.5}&longitude={:.5}\
-             &daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max\
-             &timezone=auto&forecast_days=16",
-            place.latitude, place.longitude
-        );
-        let mut snapshot = parse_forecast_response(
+        let mut snapshot = forecast(
             &place,
-            &self
-                .fetcher
-                .fetch_text(&forecast_url)
-                .map_err(weather_network_failure)?,
             &trip.start_date,
             &trip.end_date,
             &now_rfc3339(),
+            |url| {
+                self.fetcher
+                    .fetch_text(url)
+                    .map_err(weather_network_failure)
+            },
         )?;
 
         // The forecast is what the user clicked for; the layers below are
@@ -2534,39 +2510,33 @@ impl AppService {
     /// history. `None` when the source is unreachable or the history is too
     /// thin to call anything typical.
     fn fetch_climate_normals(&self, place: &GeocodedPlace, trip: &Trip) -> Option<ClimateNormals> {
-        let (start, end) = archive_window(&trip.start_date, &trip.end_date, NORMALS_YEARS).ok()?;
-        // One request for the whole span beats one per year: the core filters
-        // it down to the trip's own month-days.
-        let url = format!(
-            "https://archive-api.open-meteo.com/v1/archive?latitude={:.5}&longitude={:.5}\
-             &start_date={start}&end_date={end}\
-             &daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto",
-            place.latitude, place.longitude
-        );
-        let body = self.fetcher.fetch_text(&url).ok()?;
-        parse_climate_normals(&body, &trip.start_date, &trip.end_date).ok()?
+        climate_normals(
+            place.latitude,
+            place.longitude,
+            &trip.start_date,
+            &trip.end_date,
+            NORMALS_YEARS,
+            |url| self.fetcher.fetch_text(url),
+        )
+        .ok()?
     }
 
     fn fetch_air_quality(&self, place: &GeocodedPlace, trip: &Trip) -> Option<Vec<AirQualityDay>> {
-        // `pm2_5_max` and `us_aqi_max` are not daily variables in this API —
-        // asking for them fails the whole request. UV is daily; the rest is
-        // hourly and the core folds it into days.
-        let url = format!(
-            "https://air-quality-api.open-meteo.com/v1/air-quality?latitude={:.5}&longitude={:.5}\
-             &daily=uv_index_max&hourly=us_aqi,pm2_5&timezone=auto&forecast_days=7",
-            place.latitude, place.longitude
-        );
-        let body = self.fetcher.fetch_text(&url).ok()?;
-        parse_air_quality(&body, &trip.start_date, &trip.end_date).ok()
+        air_quality(
+            place.latitude,
+            place.longitude,
+            &trip.start_date,
+            &trip.end_date,
+            |url| self.fetcher.fetch_text(url),
+        )
+        .ok()
     }
 
     fn fetch_nws_alerts(&self, place: &GeocodedPlace) -> Option<Vec<WeatherAlert>> {
-        let url = format!(
-            "https://api.weather.gov/alerts/active?point={:.4},{:.4}",
-            place.latitude, place.longitude
-        );
-        let body = self.fetcher.fetch_text(&url).ok()?;
-        parse_nws_alerts(&body).ok()
+        nws_alerts(place.latitude, place.longitude, |url| {
+            self.fetcher.fetch_text(url)
+        })
+        .ok()
     }
 
     /// Fetch the destination's practical facts on one click: a geocode (name,
@@ -2592,11 +2562,7 @@ impl AppService {
 
         // The ECB feed is a small daily file; a failure here leaves the card
         // with the place and its country facts but no rates.
-        let (rate_date, currency_rates) = match self
-            .fetcher
-            .fetch_text("https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml")
-            .and_then(|body| parse_ecb_rates(&body))
-        {
+        let (rate_date, currency_rates) = match ecb_rates(|url| self.fetcher.fetch_text(url)) {
             Ok((date, rates)) => (date, rates),
             Err(_) => (String::new(), Vec::new()),
         };
