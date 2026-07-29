@@ -123,13 +123,7 @@
       "destination": "FR",
       "expected": {
         "documentIds": null,
-        "entryPath": {
-          "curatedAsOf": "2026-07-28",
-          "language": "en",
-          "path": "unknown",
-          "sourceName": "Immigration, Refugees and Citizenship Canada",
-          "sourceUrl": "https://www.canada.ca/en/immigration-refugees-citizenship/services/visit-canada/check-visa-eta.html"
-        },
+        "entryPath": null,
         "ordinals": null,
         "routeLabel": null,
         "stepIds": null

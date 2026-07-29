@@ -237,16 +237,30 @@ fn is_iso2(code: &str) -> bool {
     code.len() == 2 && code.bytes().all(|byte| byte.is_ascii_uppercase())
 }
 
-/// The entry path a destination publishes for a nationality.
+/// The entry path a destination publishes for a nationality, or `None` when
+/// nothing is curated for that destination.
 ///
 /// Canada's own framing is an exception list: the eTA-eligible and exempt
 /// nationalities are enumerated, and its guidance states that citizens of
 /// countries not on those lists need a visitor visa. Defaulting a valid,
 /// unlisted code to `VisaRequired` therefore quotes that structure rather than
 /// inferring past it — and it is the safe direction, costing a traveler a check
-/// rather than a denied boarding. Invalid codes, uncurated destinations, and
-/// nationalities Canada publishes conditions for all yield `Unknown`.
-pub fn entry_path(destination_iso2: &str, nationality_iso2: &str) -> EntryPathQuote {
+/// rather than a denied boarding.
+///
+/// `None` and `Unknown` are different answers and the distinction is the whole
+/// point of the return type. `Unknown` says a named authority governs this trip
+/// and does not publish a single answer for this passport; `None` says Voyalier
+/// has no authority to name at all. Collapsing the second into the first is what
+/// let Canada's authority stand in for every other destination on earth — see
+/// the 2026-07-29 amendment to ADR-0006.
+pub fn entry_path(destination_iso2: &str, nationality_iso2: &str) -> Option<EntryPathQuote> {
+    // Canada is the only curated destination. Quoting IRCC for anywhere else
+    // would put a government with no connection to the trip in front of the
+    // traveler, under the words "the official source".
+    if destination_iso2 != "CA" {
+        return None;
+    }
+
     let unknown = |url: &str| EntryPathQuote {
         path: EntryPath::Unknown,
         source_name: IRCC.to_owned(),
@@ -255,11 +269,11 @@ pub fn entry_path(destination_iso2: &str, nationality_iso2: &str) -> EntryPathQu
         language: LANGUAGE.to_owned(),
     };
 
-    if destination_iso2 != "CA" || !is_iso2(nationality_iso2) {
-        return unknown(CA_CHECK);
-    }
-    if CA_CONDITIONAL.contains(&nationality_iso2) {
-        return unknown(CA_CHECK);
+    // Both of these are still Canada's trip to answer for, so IRCC is still the
+    // authority to name: a code we cannot read, and one whose conditions IRCC
+    // publishes rather than resolves, both land on its own eligibility checker.
+    if !is_iso2(nationality_iso2) || CA_CONDITIONAL.contains(&nationality_iso2) {
+        return Some(unknown(CA_CHECK));
     }
 
     let path = if CA_EXEMPT.contains(&nationality_iso2) {
@@ -270,13 +284,13 @@ pub fn entry_path(destination_iso2: &str, nationality_iso2: &str) -> EntryPathQu
         EntryPath::VisaRequired
     };
 
-    EntryPathQuote {
+    Some(EntryPathQuote {
         path,
         source_name: IRCC.to_owned(),
         source_url: CA_BY_COUNTRY.to_owned(),
         curated_as_of: CURATED_AS_OF.to_owned(),
         language: LANGUAGE.to_owned(),
-    }
+    })
 }
 
 /// What biometrics are, and where to give them.
@@ -297,7 +311,7 @@ fn biometrics_links() -> Vec<SourceLink> {
 /// pair is not curated or the destination publishes conditions rather than an
 /// answer.
 pub fn visa_journey(destination_iso2: &str, nationality_iso2: &str) -> Option<VisaJourney> {
-    let quote = entry_path(destination_iso2, nationality_iso2);
+    let quote = entry_path(destination_iso2, nationality_iso2)?;
     match quote.path {
         EntryPath::VisaRequired => Some(canada_visitor_visa(nationality_iso2, quote)),
         EntryPath::ElectronicAuthorization => Some(canada_eta(nationality_iso2, quote)),
@@ -776,7 +790,7 @@ mod tests {
         let table = include_str!("data/countries.tsv");
         for line in table.lines().filter(|line| !line.is_empty()) {
             let code = line.split('\t').next().expect("tsv rows carry a code");
-            let quote = entry_path("CA", code);
+            let quote = entry_path("CA", code).expect("Canada is curated");
             // Resolution is total: a code either gets a path or an honest Unknown.
             assert_eq!(quote.curated_as_of, CURATED_AS_OF);
             assert_eq!(quote.language, LANGUAGE);
@@ -809,19 +823,47 @@ mod tests {
     }
 
     #[test]
+    fn an_uncurated_destination_names_no_authority() {
+        // ADR-0006, amended 2026-07-29. Canada is the only curated destination,
+        // and it must not stand in as the authority for every other one: a
+        // London -> Tokyo trip was told to confirm its case at canada.ca.
+        for destination in ["JP", "FR", "GB", "", "CAN", "ca"] {
+            assert!(
+                entry_path(destination, "IN").is_none(),
+                "{destination} is not curated, so there is no authority to name"
+            );
+        }
+
+        // A curated destination still answers for every nationality, including
+        // the ones it publishes conditions for and codes it cannot read at all:
+        // there, IRCC really does govern the trip.
+        for nationality in ["IN", "US", "MX", "", "i", "IND", "I1"] {
+            let quote = entry_path("CA", nationality).expect("Canada is curated");
+            assert_eq!(quote.source_name, IRCC);
+            assert!(quote.source_url.starts_with("https://www.canada.ca/"));
+        }
+    }
+
+    #[test]
     fn exempt_and_unknown_yield_no_journey() {
-        assert_eq!(entry_path("CA", "US").path, EntryPath::Exempt);
+        let path = |nationality| {
+            entry_path("CA", nationality)
+                .expect("Canada is curated")
+                .path
+        };
+
+        assert_eq!(path("US"), EntryPath::Exempt);
         assert!(visa_journey("CA", "US").is_none());
 
         // Conditions published rather than an answer: never resolved for them.
-        assert_eq!(entry_path("CA", "MX").path, EntryPath::Unknown);
+        assert_eq!(path("MX"), EntryPath::Unknown);
         assert!(visa_journey("CA", "MX").is_none());
 
-        // Uncurated destination, and malformed codes.
-        assert_eq!(entry_path("FR", "IN").path, EntryPath::Unknown);
+        // Uncurated destination: no quote at all, so no journey either.
+        assert!(entry_path("FR", "IN").is_none());
         assert!(visa_journey("FR", "IN").is_none());
         for malformed in ["", "i", "in", "IND", "I1"] {
-            assert_eq!(entry_path("CA", malformed).path, EntryPath::Unknown);
+            assert_eq!(path(malformed), EntryPath::Unknown);
         }
     }
 

@@ -3414,8 +3414,13 @@ impl AppService {
 
         let destination = self.destination_country(&connection, &trip)?;
         let (entry_path, journey) = match destination {
+            // Core now answers `None` for an uncurated destination too, so the
+            // two ways of having no authority to quote — we could not work out
+            // the country, and we have not curated the country we did work out
+            // — arrive here as the same absence rather than one of them wearing
+            // Canada's name (ADR-0006, amended 2026-07-29).
             Some(ref code) => (
-                Some(voyalier_core::entry_path(code, &nationality_iso2)),
+                voyalier_core::entry_path(code, &nationality_iso2),
                 voyalier_core::visa_journey(code, &nationality_iso2),
             ),
             // Without a resolved destination country there is nothing to quote,
@@ -9259,10 +9264,11 @@ mod tests {
             .expect("nationality");
         assert_eq!(prep.nationality_iso2.as_deref(), Some("IN"));
         assert!(prep.journey.is_none());
-        assert_eq!(
-            prep.entry_path.expect("quote").path,
-            voyalier_core::EntryPath::Unknown
-        );
+        // "Nothing invented" has to include the attribution. This used to hand
+        // back an Unknown quote wearing Canada's authority and canada.ca's URL,
+        // which the interface then printed as "the official source" for a trip
+        // to Japan (ADR-0006, amended 2026-07-29).
+        assert!(prep.entry_path.is_none());
 
         drop(service);
         cleanup_database(database);
