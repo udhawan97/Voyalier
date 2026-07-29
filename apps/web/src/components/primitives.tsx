@@ -147,7 +147,11 @@ export function Empty({
         </div>
       ) : null}
       <p className="voy-empty__title">{title}</p>
-      {children ? <p className="voy-empty__body">{children}</p> : null}
+      {/* A div, not a p: callers pass paragraphs and link lists, and a <p>
+          wrapper made that invalid markup that only survives because React
+          constructs it rather than parsing it. Text-only callers are
+          unaffected — the class carries the styling either way. */}
+      {children ? <div className="voy-empty__body">{children}</div> : null}
       {action ? <div className="voy-empty__action">{action}</div> : null}
     </div>
   );

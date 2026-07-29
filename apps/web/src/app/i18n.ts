@@ -1045,6 +1045,10 @@ const en = {
     "Two letters, ISO-3166-1 alpha-2 — IN for India, NG for Nigeria, GB for the United Kingdom.",
   "visa.nationalitySuggested":
     "Prefilled from your last trip. Change it if this trip is for someone else, then save.",
+  "visa.nationalityInvalid":
+    "Use two letters, ISO-3166-1 alpha-2 — IN, NG, GB.",
+  "visa.noAuthority":
+    "Voyalier has not curated an authority for this destination, so it has nothing to quote and no official page to point you at. Check your destination's own immigration service.",
   "visa.noDestination":
     "Voyalier could not work out which country this trip goes to, so it has nothing to look up. Editing the destination to include the country will resolve it.",
   "visa.quotedFrom": "Quoted from",
@@ -2272,6 +2276,9 @@ const es: Record<MessageKey, string> = {
     "Dos letras, ISO-3166-1 alfa-2: IN para India, NG para Nigeria, GB para el Reino Unido.",
   "visa.nationalitySuggested":
     "Rellenado con el de tu último viaje. Cámbialo si este viaje es para otra persona y guarda.",
+  "visa.nationalityInvalid": "Usa dos letras, ISO-3166-1 alfa-2: IN, NG, GB.",
+  "visa.noAuthority":
+    "Voyalier no ha curado ninguna autoridad para este destino, así que no tiene nada que citar ni ninguna página oficial que indicarte. Consulta el servicio de inmigración de tu destino.",
   "visa.noDestination":
     "Voyalier no pudo determinar a qué país va este viaje, así que no tiene nada que consultar. Editar el destino para incluir el país lo resolverá.",
   "visa.quotedFrom": "Citado de",

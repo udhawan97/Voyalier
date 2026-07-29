@@ -1074,28 +1074,26 @@ h3 {
   line-height: 1.5;
 }
 
+/* The picker is a standard `Field` plus its submit, so the label, hint, error,
+   aria-invalid and aria-describedby wiring all come from the shared primitive.
+   It used to hand-roll the row and print errors through a class that was never
+   given a colour. */
 .voy-visa__nationality {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-end;
   gap: 0.6rem;
   margin-bottom: 1.2rem;
 }
 
-.voy-visa__nationality label {
-  font-size: 0.88rem;
-  font-weight: var(--voy-w-medium);
+.voy-visa__nationality .voy-field {
+  flex: 0 1 24rem;
+  min-width: 0;
 }
 
 .voy-visa__nationality .voy-input {
   width: 5rem;
   text-transform: uppercase;
-}
-
-.voy-visa__nationality .voy-visa__help,
-.voy-visa__nationality .voy-error {
-  flex-basis: 100%;
-  margin-top: 0;
 }
 
 .voy-visa__quote {

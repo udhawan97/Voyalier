@@ -1635,12 +1635,17 @@ function mockVisaJourney(
         { label: "Mock official page", url: "https://www.canada.ca/en/mock" },
       ],
       // Documents are dealt out across steps so every id in the golden is
-      // reachable from the interface without inventing a second structure.
+      // reachable from the interface without inventing a second structure —
+      // but never to the first step. A curated journey opens by asking whether
+      // the traveler needs this route at all, which is links and no documents,
+      // and a fake that deals evenly hides every bug that depends on a step
+      // having nothing to tick.
       documents: documentIds
         .filter(
           (documentId) =>
-            documentIds.indexOf(documentId) % expected.stepIds!.length ===
-            index,
+            index > 0 &&
+            documentIds.indexOf(documentId) % (expected.stepIds!.length - 1) ===
+              index - 1,
         )
         .map((documentId) => ({
           id: documentId,
@@ -1806,8 +1811,11 @@ export function createMockGateway(options?: {
     const journey = mockVisaJourney("CA", nationalityIso2);
     const entryPath =
       journey?.entryPath ??
-      (visaParity.cases.find((entry) => entry.nationality === nationalityIso2)
-        ?.expected as VisaPrep["entryPath"] | undefined);
+      (
+        visaParity.cases.find((entry) => entry.nationality === nationalityIso2)
+          ?.expected as { entryPath?: VisaPrep["entryPath"] } | undefined
+      )?.entryPath ??
+      undefined;
     return {
       tripId,
       nationalityIso2,
