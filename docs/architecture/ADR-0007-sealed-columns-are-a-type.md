@@ -1,0 +1,85 @@
+# ADR-0007: Sealed columns are a type, not a list to remember
+
+- Status: Accepted
+- Date: 2026-07-29
+
+## Context
+
+`SEALED_COLUMNS` (`crates/voyalier-app/src/records.rs`) is the single declaration of which
+columns the vault encrypts at rest, and `records.rs` exists so that sealing happens where the
+columns are read and written rather than being remembered at each `SELECT`. Its module doc is
+explicit that there is no `seal`/`open` escape hatch, and the visibility backs that up:
+`Vault::seal_field` and `Vault::open_field` are private `fn`, and every call site is inside
+`records.rs`.
+
+That is real encapsulation, and it holds today. What it does not do is make a mistake
+_impossible_ — only unlikely and, eventually, detected:
+
+- Sealing is hand-written per field, at roughly 35 sites. A read calls `open_field`, a write
+  calls `seal_field`, and the `Option` columns repeat a `.map(...).transpose()?` at each of
+  their sites. Nothing relates a column in `SEALED_COLUMNS` to the code that touches it.
+- The value is a `String` on both sides of the vault. Ciphertext and plaintext have the same
+  type, so a forgotten `open_field` compiles and returns `v1:<base64>` to the interface, and a
+  forgotten `seal_field` compiles and writes the traveler's text in the clear.
+- The guard is `sealed_columns_round_trip_through_the_vault`, which runs after the fact and
+  only for columns a fixture happens to exercise. It knows this about itself: it asserts its
+  own fixture coverage, failing with "the fixture must exercise every sealed column". A guard
+  that has to check it is being given work is a guard standing in for a missing constraint.
+
+The recurring cost is not hypothetical. `latest_visa_nationality` documents that a sealed
+column cannot be filtered on, so it reads the newest row and opens it; `update_packing_item`
+and `update_trip_item` read and decrypt every row of a trip to modify one. Those are correct
+consequences of sealing, and they are easier to reason about when sealing is visible in the
+types rather than in call-site discipline.
+
+## Decision
+
+Introduce a crate-private `Sealed` newtype over the stored representation of a sealed column.
+
+- `Sealed` wraps a `String` with a **private** field. `records.rs` can hold one and pass it
+  around; it cannot build one from a plaintext `String`.
+- The only constructor is `Vault::seal`, and the only reader is `Vault::open`. Both replace
+  the current `seal_field` / `open_field`.
+- `Sealed` implements `FromSql` and `ToSql`, so a sealed column is read as `Sealed` and bound
+  as `Sealed`. Reading one into a `String` no longer type-checks; binding a `String` where the
+  column expects `Sealed` no longer type-checks.
+- `SEALED_COLUMNS` stays exactly as it is. It still drives
+  `migrate_encrypt_sensitive_columns` and the round-trip test. What changes is that it is no
+  longer the only thing standing between a new column and a leak.
+
+It is deliberately **not** generic. Every sealed column is text; a type parameter with one
+instantiation would be scaffolding for a second one that does not exist.
+
+## Consequences
+
+- A read path that forgets to open is a compile error, not a `v1:` string rendered to the
+  traveler. A write path that forgets to seal cannot bind its parameter.
+- The round-trip test keeps its job and loses its weight: it becomes a backstop against the
+  paths the type cannot reach, rather than the only thing enforcing the rule.
+- **The type does not reach raw SQL in `lib.rs`.** Roughly 45 sites there use rusqlite
+  directly, and one of them could still name a sealed column and ask for a `String`. Today
+  none do — the raw SQL that touches sealed tables only names unsealed columns — and the
+  existing test remains the guard for that. Closing it properly means moving those tables into
+  `Records`, which is a larger change with its own tradeoffs and is not decided here.
+- `Option` columns keep their `.map(...).transpose()?`, but the intent now lives in the type
+  rather than in a comment beside it.
+- Sealed columns still cannot be filtered, sorted, or joined on. That is a property of
+  encrypting at rest, not of this change, and the read-then-open patterns that follow from it
+  stay.
+
+## Alternatives considered
+
+**Leave it as it is.** Defensible: the encapsulation holds, the test has caught what it was
+built to catch, and no leak has shipped. Rejected because the cost of the type is small and
+one-time, while the cost of the discipline is paid at every new column — and the sealed set
+has grown twice in two releases (planning in 0.5.0, visa in 0.6.0).
+
+**Enforce by lint or textual test** — extend the existing source-scanning tests to reject a
+`row.get::<_, String>` naming a sealed column. Rejected as the primary mechanism: it is the
+same after-the-fact shape as the current test, and it is defeated by any indirection. It
+remains available as a supplement for the raw-SQL sites the type cannot reach.
+
+**Seal transparently inside a custom rusqlite type that opens on read.** Rejected: it would
+make a locked vault a `rusqlite::Error` deep inside a row closure, which is exactly the
+error-smuggling `records.rs` was created to remove — its module doc names that as one of the
+two reasons it exists.
