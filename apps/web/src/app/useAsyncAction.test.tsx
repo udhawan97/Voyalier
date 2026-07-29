@@ -92,6 +92,58 @@ describe("useAsyncAction", () => {
     expect(result.current.error).toBeUndefined();
   });
 
+  it("lets the newest run win, whatever order they settle in", async () => {
+    // The failure this prevents is silent: both runs succeed, so nothing
+    // errors and nothing looks stale — the view just shows the older answer.
+    const releases: ((value: string) => void)[] = [];
+    const onSuccess = vi.fn();
+    const { result } = renderHook(() =>
+      useAsyncAction(
+        (label: string) =>
+          new Promise<string>((resolve) => {
+            releases.push(() => resolve(label));
+          }),
+        onSuccess,
+      ),
+    );
+
+    act(() => void result.current.run("first"));
+    act(() => void result.current.run("second"));
+
+    // The older request answers last, which is exactly the case a mount guard
+    // cannot see.
+    await act(async () => {
+      releases[1]("second");
+      releases[0]("first");
+    });
+
+    expect(onSuccess).toHaveBeenCalledTimes(1);
+    expect(onSuccess).toHaveBeenCalledWith("second", "second");
+  });
+
+  it("keeps busy latched while a superseding run is still going", async () => {
+    const releases: ((value: string) => void)[] = [];
+    const { result } = renderHook(() =>
+      useAsyncAction(
+        (label: string) =>
+          new Promise<string>((resolve) => {
+            releases.push(() => resolve(label));
+          }),
+      ),
+    );
+
+    act(() => void result.current.run("first"));
+    act(() => void result.current.run("second"));
+    await waitFor(() => expect(result.current.busy).toBe(true));
+
+    // The superseded run finishing is not the view finishing waiting.
+    await act(async () => releases[0]("first"));
+    expect(result.current.busy).toBe(true);
+
+    await act(async () => releases[1]("second"));
+    await waitFor(() => expect(result.current.busy).toBe(false));
+  });
+
   it("does not write state after the view unmounts", async () => {
     let release: (value: string) => void = () => {};
     const onSuccess = vi.fn();
