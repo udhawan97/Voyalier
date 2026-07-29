@@ -25,6 +25,19 @@ async function openVisa(gateway?: AppGateway) {
   return region;
 }
 
+/** The visa region of another trip, from an already-rendered workspace. */
+async function openVisaFor(tripName: string) {
+  fireEvent.click(
+    await screen.findByRole("button", { name: `Open ${tripName}` }),
+  );
+  await screen.findByRole("heading", { name: tripName, level: 1 });
+  const region = await screen.findByRole("region", {
+    name: "Visa & entry preparation",
+  });
+  await within(region).findByLabelText("Passport country code");
+  return region;
+}
+
 /** Pick a passport and wait for the journey to resolve. */
 async function pickPassport(region: HTMLElement, code = "IN") {
   fireEvent.change(within(region).getByLabelText("Passport country code"), {
@@ -64,6 +77,24 @@ describe("visa preparation", () => {
     expect(within(region).getByRole("note")).toHaveTextContent(
       /has not verified anything here/,
     );
+  });
+
+  it("offers the last passport to a new trip without adopting it", async () => {
+    const region = await openVisa();
+    await pickPassport(region, "IN");
+
+    fireEvent.click(screen.getByRole("button", { name: "All trips" }));
+    await screen.findByRole("heading", { name: "Trips", level: 1 });
+    const lisbon = await openVisaFor("Lisbon spring draft");
+
+    // A passport does not change per trip, so the picker starts where the
+    // traveler left off rather than asking again.
+    expect(within(lisbon).getByLabelText("Passport country code")).toHaveValue(
+      "IN",
+    );
+    // Offered, not applied: a trip may not be for them, so nothing resolves
+    // until they save it themselves.
+    expect(within(lisbon).queryByText(/Step 1/)).toBeNull();
   });
 
   it("quotes the entry path with its source and the date it was read", async () => {

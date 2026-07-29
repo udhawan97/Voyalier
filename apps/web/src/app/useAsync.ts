@@ -110,7 +110,9 @@ export interface AsyncAction<Args extends unknown[]> {
  * non-gateway code.
  *
  * `onSuccess` receives the result and the original arguments — that is where a
- * view puts its own state update and its announcement.
+ * view puts its own state update and its announcement. It fires only for the
+ * most recent run, so a view can call `run` on every keystroke without
+ * threading a request id of its own.
  */
 export function useAsyncAction<Args extends unknown[], T>(
   action: (...args: Args) => Promise<T>,
@@ -131,6 +133,14 @@ export function useAsyncAction<Args extends unknown[], T>(
       mounted.current = false;
     };
   }, []);
+
+  // Overlapping runs settle in the order the transport answers, not the order
+  // they were started, so the slower *older* run was winning. Two clicks on
+  // Recommendations with the sliders moved between them wrote the earlier list
+  // and then persisted the earlier weights onto the saved place — silently,
+  // because both runs succeeded. Views that noticed rebuilt this counter on top
+  // of the hook; it belongs here, once.
+  const latest = useRef(0);
 
   const [busy, setBusy] = useState(false);
   /** The failure, and how many recoveries had happened when it was recorded. */
@@ -165,18 +175,23 @@ export function useAsyncAction<Args extends unknown[], T>(
 
   const run = useCallback(
     async (...args: Args) => {
+      const runId = latest.current + 1;
+      latest.current = runId;
+      /** Still the run whose result the view should see. */
+      const current = () => mounted.current && latest.current === runId;
+
       setFailure(undefined);
       setBusy(true);
       try {
         const result = await actionRef.current(...args);
-        // A view that navigated away mid-run must not be written to, but its
-        // success handler still owns whatever the run produced.
-        if (mounted.current) {
+        // A view that navigated away mid-run must not be written to, and
+        // neither must one whose result a later run has already superseded.
+        if (current()) {
           transportHealth.reportTransportSuccess();
           successRef.current?.(result, ...args);
         }
       } catch (caught) {
-        if (mounted.current) {
+        if (current()) {
           // Both transports already normalize at their boundary, so a value that
           // is not an AppError by the time it reaches here came from the view's
           // own code — a TypeError while building an .ics file is not the local
@@ -187,7 +202,9 @@ export function useAsyncAction<Args extends unknown[], T>(
           setFailure({ error, recoveries: recoveriesRef.current });
         }
       } finally {
-        if (mounted.current) {
+        // A superseded run leaves `busy` alone: the run that superseded it is
+        // still going, and the view is still waiting on something.
+        if (current()) {
           setBusy(false);
         }
       }

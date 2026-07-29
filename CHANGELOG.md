@@ -27,6 +27,21 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
   gets no curated journey; it now gets an honest absence instead of a misleading
   pointer.
 
+- **The visa section works on the desktop app.** It never had. Every command the
+  desktop shell exposes takes a single argument named `input`, and one of the
+  eighty-one — the one that loads your visa preparation — asked for its trip id a
+  different way, so the desktop app asked and the shell refused, every time. The
+  browser build was unaffected, which is why it survived a release: the parity
+  guards compared command _names_ across the two shells and found nothing wrong,
+  because nothing was wrong with the names.
+
+  The guard now drives every command the way the app really calls it and checks
+  which argument comes back unbound, and it reads the command list from the shared
+  route manifest rather than a list kept by hand — the hand-kept list had never
+  included this command. What was left out: the manifest still does not generate
+  the two transports it describes, so a new method is still written out in several
+  places. That is a larger change and it needs its own decision record.
+
 - **A visa journey could never be finished.** With all sixteen documents ticked
   the panel read "You marked 7 of 8 steps complete" permanently, and nothing
   anywhere could close the gap: a journey opens with an orientation step that
@@ -79,6 +94,21 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
   Confirm buttons 826px below the fold, no scrollbar, and only a Close button
   visible; the dialog now shows that it continues. A rejected Create-a-trip
   submission left keyboard focus on the button that had just refused.
+
+- **A passport you have already entered is offered to your next trip.** It was
+  meant to be, and is on a real workspace, but the in-memory workspace the tests
+  run against never filled the field in — so the behaviour had no test and the
+  prefill silently did nothing in mock mode. It is a suggestion in the picker
+  only; Voyalier still never files a passport against a trip you have not
+  confirmed, because the trip may not be for you.
+
+- **Two quick actions in a row no longer let the older one win.** Asking for
+  recommendations, moving the interest sliders, and asking again could leave the
+  first answer on screen if it was the slower of the two — and saving a place from
+  it then stored the sliders you had already moved away from. Nothing failed and
+  nothing looked stale, which is why it went unnoticed. Overlapping actions are
+  now settled in the order they were started rather than the order the answers
+  arrive.
 
 ## [0.6.0] - 2026-07-28 — The visa preparation release
 

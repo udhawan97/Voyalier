@@ -420,8 +420,8 @@ fn set_interest_profile(
 }
 
 #[tauri::command]
-fn get_visa_prep(trip_id: String, service: State<'_, AppService>) -> Result<VisaPrep, AppError> {
-    service.get_visa_prep(&trip_id)
+fn get_visa_prep(input: TripIdInput, service: State<'_, AppService>) -> Result<VisaPrep, AppError> {
+    service.get_visa_prep(&input.trip_id)
 }
 
 #[tauri::command]
@@ -1719,5 +1719,48 @@ mod tests {
             manifest.counts.shared,
             manifest.counts.desktop_only
         );
+    }
+
+    /// ADR-0002: every command takes exactly one argument named `input`, and
+    /// `tauri.ts` invokes all of them as `invoke(command, { input })`.
+    ///
+    /// A command that names its argument anything else still registers, still
+    /// matches the manifest by name, and still passes every guard above — it
+    /// just rejects every call the web package makes. `get_visa_prep` shipped
+    /// that way: one command in eighty-one, and the visa panel was dead on the
+    /// desktop while the name-only checks stayed green.
+    ///
+    /// Sending no envelope at all is what separates the two failures. Tauri
+    /// names the argument it could not bind, so a conforming command complains
+    /// about `input` and a non-conforming one names its own parameter. Driving
+    /// it from the manifest rather than a hand-written list is the point: a
+    /// curated list only ever covers what someone remembered to add.
+    #[test]
+    fn every_shared_command_binds_its_argument_to_input() {
+        let manifest = load_route_manifest();
+        let database = temp_database("envelope");
+        let app = test_app(&database);
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .expect("webview");
+
+        for route in &manifest.shared {
+            let Err(error) = invoke_with_body(&webview, &route.command, json!({})) else {
+                continue;
+            };
+            // An `AppError` payload means the argument bound and the command
+            // body ran; only Tauri's own argument binding answers with a string.
+            let Some(reported) = error.as_str() else {
+                continue;
+            };
+            assert!(
+                reported.contains("`input`"),
+                "`{}` ({}) does not take its argument as `input`: {reported}",
+                route.command,
+                route.method
+            );
+        }
+
+        cleanup_database(database);
     }
 }
