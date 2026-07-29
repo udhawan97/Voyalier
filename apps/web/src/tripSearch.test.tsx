@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
 
 import { setLocalePreference } from "./app/locale";
-import { renderApp } from "./test/helpers";
+import { failingGateway, rejectWith, renderApp } from "./test/helpers";
 
 async function openSearch() {
   fireEvent.click(
@@ -59,6 +59,46 @@ describe("trip search", () => {
         within(search).getByText(/No matches for “zeppelin”/),
       ).toBeInTheDocument(),
     );
+  });
+
+  it("says the search failed instead of claiming the trip has no matches", async () => {
+    renderApp(
+      failingGateway({
+        searchTrip: rejectWith({
+          code: "transport/failure",
+          message: "engine unreachable",
+        }),
+      }),
+    );
+    const search = await openSearch();
+
+    fireEvent.change(searchInput(search), { target: { value: "paper" } });
+
+    // A failed search must be stated as a failure. Reporting "no matches" would
+    // tell the traveler their own documents don't contain something they do.
+    expect(await within(search).findByRole("alert")).toHaveTextContent(
+      "Voyalier can't reach its engine",
+    );
+    expect(within(search).queryByText(/No matches for/)).toBeNull();
+  });
+
+  it("keeps suggestions best-effort when only the typeahead fails", async () => {
+    renderApp(
+      failingGateway({
+        suggestSearchTerms: rejectWith({
+          code: "transport/failure",
+          message: "engine unreachable",
+        }),
+      }),
+    );
+    const search = await openSearch();
+
+    fireEvent.change(searchInput(search), { target: { value: "paper" } });
+
+    // The results are the substance; losing the autofill chips is not a failure
+    // worth interrupting the search with.
+    await within(search).findByRole("list", { name: "Search results" });
+    expect(within(search).queryByRole("alert")).toBeNull();
   });
 
   it("offers a suggestion that autofills the search", async () => {

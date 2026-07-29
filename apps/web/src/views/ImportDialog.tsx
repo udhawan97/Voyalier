@@ -1,9 +1,11 @@
 import { useRef, useState } from "react";
-import type {
-  AppError,
-  CandidateFact,
-  DocumentKind,
-  ImportResult,
+import {
+  MAX_DOCUMENT_CHARS,
+  countChars,
+  type AppError,
+  type CandidateFact,
+  type DocumentKind,
+  type ImportResult,
 } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
@@ -15,8 +17,6 @@ import { Button } from "../components/Button";
 import { ChoiceGroup } from "../components/ChoiceGroup";
 import { Dialog } from "../components/Dialog";
 import { TextArea, TextField } from "../components/fields";
-
-const MAX_CHARS = 1_000_000;
 
 /** Map a filename extension to the import format it most likely is. */
 function kindForFilename(name: string): DocumentKind {
@@ -50,8 +50,8 @@ export function ImportDialog({
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const charCount = [...content].length; // code points, matching the contract
-  const over = charCount > MAX_CHARS;
+  const charCount = countChars(content);
+  const over = charCount > MAX_DOCUMENT_CHARS;
 
   // Read a local file's text on-device (no upload) and prime the form: infer the
   // format from the extension, default the label to the filename, and drop the
@@ -67,7 +67,7 @@ export function ImportDialog({
       setFieldError(t("import.file.unreadable"));
       return;
     }
-    if ([...text].length > MAX_CHARS) {
+    if (countChars(text) > MAX_DOCUMENT_CHARS) {
       setFieldError(t("import.file.tooLarge"));
       return;
     }
@@ -268,7 +268,7 @@ export function ImportDialog({
         >
           {t("import.charcount", {
             count: charCount.toLocaleString(APP_LOCALE),
-            max: MAX_CHARS.toLocaleString(APP_LOCALE),
+            max: MAX_DOCUMENT_CHARS.toLocaleString(APP_LOCALE),
           })}
         </p>
       </form>

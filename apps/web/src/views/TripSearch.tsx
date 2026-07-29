@@ -1,13 +1,14 @@
 import { useEffect, useId, useRef, useState } from "react";
-import type { SearchHit } from "@voyalier/contracts";
+import { MAX_QUERY_LEN, type SearchHit } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
+import { describeError } from "../app/format";
 import { plural, t } from "../app/i18n";
+import { useAsyncAction } from "../app/useAsync";
 import { SectionTitle } from "../components/primitives";
 import { Button } from "../components/Button";
 import { BedIcon, PlaneIcon, SearchIcon } from "../components/icons";
 
-const MAX_QUERY = 200;
 const MIN_QUERY = 2;
 const DEBOUNCE_MS = 200;
 
@@ -61,33 +62,55 @@ export function TripSearch({ tripId }: { tripId: string }) {
     };
   }, []);
 
-  async function runSearch(raw: string) {
+  /**
+   * The search failing is not the same as the trip having nothing to show, so it
+   * runs through the shared action: a rejection lands in `action.error` and is
+   * stated, instead of being caught into an empty list that renders as "No
+   * matches" — which told the traveler their own documents lacked a word they
+   * had read in them.
+   *
+   * The typeahead stays best-effort. Losing the autofill chips is not worth
+   * interrupting a search that worked.
+   */
+  const action = useAsyncAction(
+    async (...args: [query: string, requestId: number]) => {
+      const [query] = args;
+      const [hits, terms] = await Promise.all([
+        gateway.searchTrip(tripId, query),
+        gateway.suggestSearchTerms(tripId, query).catch(() => [] as string[]),
+      ]);
+      return { hits, terms };
+    },
+    ({ hits, terms }, query, requestId) => {
+      // The hook drops a superseded *run*, but clearing the box starts no run at
+      // all — so an older query that lands afterwards is still "current" to the
+      // hook and would repopulate results. This id is what discards it.
+      if (requestId !== requestRef.current) return;
+      setResults(hits);
+      // Don't suggest a term the user has already fully typed.
+      setSuggestions(
+        terms.filter((term) => term.toLowerCase() !== query.toLowerCase()),
+      );
+      announce(
+        hits.length === 0
+          ? t("search.announce.none", { query })
+          : plural("search.matches", hits.length, { query }),
+      );
+    },
+  );
+
+  function runSearch(raw: string) {
     const trimmed = raw.trim();
     // Invalidate any in-flight request on every call, including the too-short
     // path — otherwise an older query that lands after the box is cleared would
     // repopulate results and announce a stale count.
-    const requestId = requestRef.current + 1;
-    requestRef.current = requestId;
+    requestRef.current += 1;
     if (trimmed.length < MIN_QUERY) {
       setResults(null);
       setSuggestions([]);
       return;
     }
-    const [hits, terms] = await Promise.all([
-      gateway.searchTrip(tripId, trimmed).catch(() => [] as SearchHit[]),
-      gateway.suggestSearchTerms(tripId, trimmed).catch(() => [] as string[]),
-    ]);
-    if (requestId !== requestRef.current) return; // a newer query superseded this
-    setResults(hits);
-    // Don't suggest a term the user has already fully typed.
-    setSuggestions(
-      terms.filter((term) => term.toLowerCase() !== trimmed.toLowerCase()),
-    );
-    announce(
-      hits.length === 0
-        ? t("search.announce.none", { query: trimmed })
-        : plural("search.matches", hits.length, { query: trimmed }),
-    );
+    void action.run(trimmed, requestRef.current);
   }
 
   function handleChange(next: string) {
@@ -136,12 +159,18 @@ export function TripSearch({ tripId }: { tripId: string }) {
           type="search"
           role="searchbox"
           value={query}
-          maxLength={MAX_QUERY}
+          maxLength={MAX_QUERY_LEN}
           placeholder={t("search.placeholder")}
           autoComplete="off"
           onChange={(event) => handleChange(event.target.value)}
         />
       </div>
+
+      {action.error ? (
+        <p className="voy-search__error" role="alert">
+          {describeError(action.error).title}
+        </p>
+      ) : null}
 
       {suggestions.length > 0 ? (
         <div className="voy-search__suggestions">

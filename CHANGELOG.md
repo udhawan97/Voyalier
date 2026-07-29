@@ -6,6 +6,38 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-07-29 — Honest search, readable engine
+
+### Fixed
+
+- **"Find in this trip" reported that your documents held no match when what had
+  actually happened was that the search never ran.** Both of the panel's requests
+  were caught into empty lists, so an engine that could not be reached produced
+  the same sentence as a real empty result — "No matches for 'paper' in your
+  documents or confirmed plans." Voyalier was making a claim about the traveler's
+  own files on the strength of a request that never completed, which is the one
+  thing that panel exists to be trusted about.
+
+  The same search at workspace scope already got this right, through the shared
+  action helper that normalizes and surfaces failures. The two scopes of one
+  feature disagreed about whether a failure counts as a failure, and the per-trip
+  one was the half that stayed quiet. It now says the engine could not be
+  reached, and the "no matches" line is reachable only from a search that
+  answered.
+
+  Kept deliberately: the autofill suggestions stay best-effort. A typeahead that
+  fails while the search itself succeeds is not worth interrupting the traveler
+  with, so that half still degrades silently — now pinned by a test, so the
+  silence is a decision rather than the old blanket catch.
+
+  Also closed here, though nobody would have seen it yet: three screens carried
+  their own copies of limits the contract already declares — the search box
+  length, the import size, and the AI instruction length, one of them labelled
+  "Mirror of the backend's". Those numbers are checked against the engine in both
+  languages, so changing one would have updated the engine, the contract and the
+  check, and quietly left three inputs enforcing the old value. They now read the
+  contract's number.
+
 ### Changed
 
 - **The engine's largest file became eleven readable ones, and the two clients
