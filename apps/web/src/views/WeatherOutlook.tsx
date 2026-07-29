@@ -8,7 +8,7 @@ import type {
 
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError, formatDate, formatInstant } from "../app/format";
-import { t } from "../app/i18n";
+import { packingKey, packingReasonKey, t } from "../app/i18n";
 import { useAsyncAction } from "../app/useAsync";
 import { SectionTitle } from "../components/primitives";
 import { CloudSunIcon } from "../components/icons";
@@ -130,10 +130,10 @@ function PackingList({ list }: { list: PackingSuggestion[] }) {
         {list.map((item) => (
           <li key={item.code}>
             <span className="voy-weather__packing-what">
-              {t(`packing.${item.code}`)}
+              {t(packingKey(item.code))}
             </span>
             <span className="voy-weather__packing-why">
-              {t(`packing.reason.${item.reason.code}`, {
+              {t(packingReasonKey(item.reason.code), {
                 value: item.reason.value ?? 0,
               })}
             </span>

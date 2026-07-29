@@ -9,7 +9,7 @@ import type {
 
 import { useAnnounce, useGateway, useTransportHealth } from "../app/context";
 import { describeError, formatDateTimeLocal } from "../app/format";
-import { t, type MessageKey } from "../app/i18n";
+import { packingKey, packingReasonKey, t, tripItemKindKey } from "../app/i18n";
 import { Button } from "../components/Button";
 import { ConfirmButton } from "../components/ConfirmButton";
 import { CheckIcon, PlusIcon } from "../components/icons";
@@ -247,12 +247,11 @@ export function PlanningPanel({
               return (
                 <li key={suggestion.code}>
                   <span>
-                    {t(`packing.${suggestion.code}` as MessageKey)}
+                    {t(packingKey(suggestion.code))}
                     <small>
-                      {t(
-                        `packing.reason.${suggestion.reason.code}` as MessageKey,
-                        { value: suggestion.reason.value ?? "" },
-                      )}
+                      {t(packingReasonKey(suggestion.reason.code), {
+                        value: suggestion.reason.value ?? "",
+                      })}
                     </small>
                   </span>
                   <Button
@@ -263,7 +262,7 @@ export function PlanningPanel({
                       change(`suggestion:${suggestion.code}`, () =>
                         gateway.addPackingItem({
                           tripId,
-                          label: t(`packing.${suggestion.code}` as MessageKey),
+                          label: t(packingKey(suggestion.code)),
                           suggestionCode: suggestion.code,
                         }),
                       )
@@ -527,7 +526,7 @@ export function PlanningPanel({
               <div>
                 <strong>{item.title}</strong>
                 <p>
-                  {t(`planning.items.${item.kind}` as MessageKey)}
+                  {t(tripItemKindKey(item.kind))}
                   {item.location ? ` · ${item.location}` : ""}
                   {item.startAt
                     ? ` · ${formatDateTimeLocal(item.startAt)}`
