@@ -16,6 +16,7 @@ import {
   AnnounceContext,
   GatewayContext,
   TransportHealthContext,
+  TransportRecoveryContext,
   UpdaterContext,
 } from "./app/context";
 import { RevalidateProvider, useRevalidateAll } from "./app/revalidate";
@@ -27,7 +28,7 @@ import { useUpdater } from "./updater/useUpdater";
 import { OfflineBanner } from "./components/OfflineBanner";
 import { Topbar, type HealthState } from "./components/Topbar";
 import { SettingsView } from "./views/SettingsView";
-import { TripDetailView } from "./views/TripDetailView";
+import { TripDetailView, isTripSectionHash } from "./views/TripDetailView";
 import { TripListView } from "./views/TripListView";
 import { UpdatesPanel } from "./views/UpdatesPanel";
 import { VaultUnlock } from "./views/VaultUnlock";
@@ -83,12 +84,11 @@ function clearActiveTrip(): void {
 }
 
 function clearTripSectionHash(): void {
-  if (
-    typeof window === "undefined" ||
-    !/^#section-(plan|prepare|discover|ai)$/.test(window.location.hash)
-  ) {
+  // The predicate lives with the nav that owns those ids. A hand-written copy
+  // here missed `#section-visa` when the visa cockpit landed, so leaving a trip
+  // from that section left a dead hash in the address bar.
+  if (typeof window === "undefined" || !isTripSectionHash(window.location.hash))
     return;
-  }
   window.history.replaceState(
     window.history.state,
     "",
@@ -133,6 +133,9 @@ function Workspace({
   const [health, setHealth] = useState<HealthState>("checking");
   const [healthError, setHealthError] = useState<AppError | null>(null);
   const asyncTransportFailureSeen = useRef(false);
+  // Bumped whenever the engine answers. Views holding a transport failure watch
+  // it so a recovery clears what it just disproved.
+  const [recoveries, setRecoveries] = useState(0);
   const [message, setMessage] = useState("");
   // Whether the encrypted vault needs a passphrase before the workspace opens.
   // `null` until the first check completes (treated as "not locked").
@@ -147,6 +150,7 @@ function Workspace({
         asyncTransportFailureSeen.current = false;
         setHealth("online");
         setHealthError(null);
+        setRecoveries((count) => count + 1);
       },
       reportTransportFailure: (error: AppError) => {
         if (error.code !== "transport/failure") return;
@@ -179,6 +183,7 @@ function Workspace({
         asyncTransportFailureSeen.current = false;
         setHealth("online");
         setHealthError(null);
+        setRecoveries((count) => count + 1);
       },
       (caught) => {
         asyncTransportFailureSeen.current = false;
@@ -241,77 +246,79 @@ function Workspace({
   return (
     <GatewayContext.Provider value={gateway}>
       <TransportHealthContext.Provider value={transportHealth}>
-        <UpdaterContext.Provider value={updaterController}>
-          <AnnounceContext.Provider value={announce}>
-            <div className="voy-app">
-              <a className="voy-skip" href="#main">
-                {t("a11y.skipToContent")}
-              </a>
-              <Topbar
-                onHome={openList}
-                onSettings={openSettings}
-                onSearch={openSearch}
-                health={health}
-              />
-              <main className="voy-main" id="main">
-                {health === "offline" && healthError ? (
-                  <OfflineBanner error={healthError} onRetry={retry} />
-                ) : null}
-                {locked ? (
-                  <>
-                    <VaultUnlock onUnlocked={checkVault} />
-                    {/* D2: a locked user can still update — the updater needs zero
+        <TransportRecoveryContext.Provider value={recoveries}>
+          <UpdaterContext.Provider value={updaterController}>
+            <AnnounceContext.Provider value={announce}>
+              <div className="voy-app">
+                <a className="voy-skip" href="#main">
+                  {t("a11y.skipToContent")}
+                </a>
+                <Topbar
+                  onHome={openList}
+                  onSettings={openSettings}
+                  onSearch={openSearch}
+                  health={health}
+                />
+                <main className="voy-main" id="main">
+                  {health === "offline" && healthError ? (
+                    <OfflineBanner error={healthError} onRetry={retry} />
+                  ) : null}
+                  {locked ? (
+                    <>
+                      <VaultUnlock onUnlocked={checkVault} />
+                      {/* D2: a locked user can still update — the updater needs zero
                       trip data, so the panel renders pre-unlock too. */}
-                    <UpdatesPanel />
-                  </>
-                ) : view.name === "settings" ? (
-                  <SettingsView onBack={leaveSettings} />
-                ) : view.name === "search" ? (
-                  <WorkspaceSearch
-                    onBack={openList}
-                    onOpenResult={openSearchResult}
-                  />
-                ) : view.name === "list" ? (
-                  <TripListView onOpenTrip={openTrip} />
-                ) : (
-                  <TripDetailView
-                    key={view.tripId}
-                    tripId={view.tripId}
-                    searchTarget={view.searchTarget}
-                    onBack={openList}
-                    onDeleted={openList}
-                    onOpenSettings={openSettings}
-                  />
-                )}
-              </main>
-              {updaterController.justUpdated ? (
-                <div className="voy-toast" role="status">
-                  <span>
-                    {t("updates.justUpdated", {
-                      version: updaterController.justUpdated,
-                    })}
-                  </span>
-                  <button
-                    type="button"
-                    className="voy-toast__close"
-                    onClick={updaterController.dismissJustUpdated}
-                    aria-label={t("updates.dismiss")}
-                  >
-                    ×
-                  </button>
-                </div>
-              ) : null}
-            </div>
-            <div
-              className="voy-sr-only"
-              role="status"
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              {message}
-            </div>
-          </AnnounceContext.Provider>
-        </UpdaterContext.Provider>
+                      <UpdatesPanel />
+                    </>
+                  ) : view.name === "settings" ? (
+                    <SettingsView onBack={leaveSettings} />
+                  ) : view.name === "search" ? (
+                    <WorkspaceSearch
+                      onBack={openList}
+                      onOpenResult={openSearchResult}
+                    />
+                  ) : view.name === "list" ? (
+                    <TripListView onOpenTrip={openTrip} />
+                  ) : (
+                    <TripDetailView
+                      key={view.tripId}
+                      tripId={view.tripId}
+                      searchTarget={view.searchTarget}
+                      onBack={openList}
+                      onDeleted={openList}
+                      onOpenSettings={openSettings}
+                    />
+                  )}
+                </main>
+                {updaterController.justUpdated ? (
+                  <div className="voy-toast" role="status">
+                    <span>
+                      {t("updates.justUpdated", {
+                        version: updaterController.justUpdated,
+                      })}
+                    </span>
+                    <button
+                      type="button"
+                      className="voy-toast__close"
+                      onClick={updaterController.dismissJustUpdated}
+                      aria-label={t("updates.dismiss")}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+              <div
+                className="voy-sr-only"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+              >
+                {message}
+              </div>
+            </AnnounceContext.Provider>
+          </UpdaterContext.Provider>
+        </TransportRecoveryContext.Provider>
       </TransportHealthContext.Provider>
     </GatewayContext.Provider>
   );

@@ -31,6 +31,7 @@ import {
   tripScope,
   useRevalidate,
   useScopeKey,
+  visaScope,
 } from "../app/revalidate";
 import { useAsyncAction, useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
@@ -232,9 +233,23 @@ const TRIP_NAV: { label: MessageKey; target: string }[] = [
   { label: "tripnav.ai", target: "section-ai" },
 ];
 
-function TripSectionNav() {
+/**
+ * Whether a hash names one of this page's sections.
+ *
+ * Exported because the workspace has to recognise the same hashes to clear them
+ * on the way home, and it used to keep its own hand-written pattern — which was
+ * never updated when the visa section landed, so leaving a trip from there left
+ * a dead `#section-visa` in the address bar.
+ */
+export function isTripSectionHash(hash: string): boolean {
+  const id = hash.startsWith("#") ? hash.slice(1) : hash;
+  return TRIP_NAV.some((item) => item.target === id);
+}
+
+function TripSectionNav({ skipHash }: { skipHash: boolean }) {
   const mountAllSections = useMountAllSections();
   const [current, setCurrent] = useState<string | null>(null);
+  const hashConsumed = useRef(false);
 
   // Which section owns the viewport, so a chip can answer "where am I?". The
   // band is deliberately narrow and high: a section counts as current once its
@@ -260,7 +275,7 @@ function TripSectionNav() {
   }, []);
 
   /**
-   * Mount everything, then scroll, then record the hash.
+   * Mount everything, then scroll, then say where we are.
    *
    * A native anchor jump is one-shot: the browser picks a stopping point from
    * the layout it can see, and the deferred sections above the target then
@@ -268,27 +283,54 @@ function TripSectionNav() {
    * landed in the middle of Prepare. Mounting first removes the inflation, and
    * two frames — one for React to commit, one for layout to settle — is what
    * makes the landing exact rather than merely closer.
+   *
+   * One function, because a click and a URL are the same request and were
+   * failing the same way: the load path had its own bare `setTimeout(0)` and
+   * landed a cold `/#section-ai` some 3,500px short, with the nav marking
+   * whichever section the browser happened to stop in.
    */
+  const goToSection = useCallback(
+    (target: string, writeHash: boolean) => {
+      mountAllSections();
+      setCurrent(target);
+      const land = () => {
+        document.getElementById(target)?.scrollIntoView?.({ block: "start" });
+        if (writeHash) {
+          globalThis.history?.replaceState?.(
+            globalThis.history.state,
+            "",
+            `#${target}`,
+          );
+        }
+      };
+      if (typeof requestAnimationFrame === "undefined") {
+        land();
+        return;
+      }
+      requestAnimationFrame(() => requestAnimationFrame(land));
+    },
+    [mountAllSections],
+  );
+
+  // A reload, a bookmark, or a shared link names a section in the URL. Once
+  // only: after that the traveler owns the scroll position. Deferred out of the
+  // effect body because `goToSection` sets state, and an effect that does that
+  // synchronously cascades a render before the first paint.
+  useEffect(() => {
+    if (skipHash || hashConsumed.current) return;
+    const hash = globalThis.location?.hash ?? "";
+    if (!isTripSectionHash(hash)) return;
+    hashConsumed.current = true;
+    const timer = setTimeout(() => goToSection(hash.slice(1), false), 0);
+    return () => clearTimeout(timer);
+  }, [skipHash, goToSection]);
+
   function jump(event: React.MouseEvent<HTMLAnchorElement>, target: string) {
     // Let the browser own modified clicks (new tab, download, copy link).
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
       return;
     event.preventDefault();
-    mountAllSections();
-    setCurrent(target);
-    const land = () => {
-      document.getElementById(target)?.scrollIntoView?.({ block: "start" });
-      globalThis.history?.replaceState?.(
-        globalThis.history.state,
-        "",
-        `#${target}`,
-      );
-    };
-    if (typeof requestAnimationFrame === "undefined") {
-      land();
-      return;
-    }
-    requestAnimationFrame(() => requestAnimationFrame(land));
+    goToSection(target, true);
   }
 
   return (
@@ -634,8 +676,18 @@ export function TripDetailView({
   const refreshAfterImport = useCallback(() => {
     revalidate(tripScope(tripId), documentsScope(tripId));
   }, [revalidate, tripId]);
+  /**
+   * Everything a trip edit changes.
+   *
+   * The destination decides the visa answer, and that panel reads its own
+   * scope: correcting Tokyo to Toronto updated the heading and left the cockpit
+   * saying the route had no guide while the engine already held an eight-step
+   * one. Same shape as `refreshAfterImport` — name the scopes, do not hope.
+   */
+  const refreshAfterEdit = useCallback(() => {
+    revalidate(tripScope(tripId), visaScope(tripId));
+  }, [revalidate, tripId]);
   const searchTargetConsumed = useRef(false);
-  const sectionHashConsumed = useRef(false);
   const reviewTriggerRef = useRef<HTMLElement | null>(null);
   const reviewCompletionFocusRef = useRef<HTMLElement | null>(null);
 
@@ -681,18 +733,6 @@ export function TripDetailView({
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, [data, searchTarget]);
-
-  useEffect(() => {
-    if (!data || searchTarget || sectionHashConsumed.current) return;
-    const id = globalThis.location?.hash.slice(1) ?? "";
-    if (!/^section-(plan|prepare|visa|discover|ai)$/.test(id)) return;
-
-    sectionHashConsumed.current = true;
-    const timer = setTimeout(() => {
-      document.getElementById(id)?.scrollIntoView?.({ block: "start" });
-    }, 0);
-    return () => clearTimeout(timer);
   }, [data, searchTarget]);
 
   const [showImport, setShowImport] = useState(false);
@@ -938,8 +978,13 @@ export function TripDetailView({
         </header>
 
         {/* The four header actions used to only announce their failures, so a
-          sighted user saw the button un-busy itself and nothing else. */}
-        {actionError ? (
+          sighted user saw the button un-busy itself and nothing else.
+
+          An unreachable engine is the exception, for the same reason the load
+          path above skips it: the workspace is already saying that sentence,
+          with the Retry that actually recovers. Printing it again here gave the
+          traveler the identical paragraph twice, one copy of it inert. */}
+        {actionError && actionError.code !== "transport/failure" ? (
           <Banner
             tone="error"
             role="alert"
@@ -949,7 +994,7 @@ export function TripDetailView({
           </Banner>
         ) : null}
 
-        <TripSectionNav />
+        <TripSectionNav skipHash={Boolean(searchTarget)} />
 
         <TodayPanel tripId={tripId} />
 
@@ -1211,6 +1256,7 @@ export function TripDetailView({
               setShowEdit(false);
               announce(t("detail.announce.updated"));
               reload();
+              refreshAfterEdit();
             }}
           />
         ) : null}

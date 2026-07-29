@@ -4700,8 +4700,12 @@ body::before {
 
 /* Keep a jumped-to section clear of the sticky nav above it. These are the
    section wrappers, which exist whether or not the section has mounted. */
+/* Every jump target, so a landing clears the sticky nav above it. #section-visa
+   was left out when the visa cockpit shipped, so its chip put the section title
+   underneath the nav bar. */
 #section-plan,
 #section-prepare,
+#section-visa,
 #section-discover,
 #section-ai {
   scroll-margin-top: 4rem;

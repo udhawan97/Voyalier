@@ -254,6 +254,41 @@ describe("visa preparation", () => {
     );
   });
 
+  /**
+   * The destination decides the answer, so editing it has to reach this panel.
+   *
+   * Measured on the running product: changing Tokyo to Toronto updated the trip
+   * heading and left the cockpit reading "No step-by-step guide for this route
+   * yet" while the engine already held an eight-step journey. Only a reload
+   * revealed it. The edit handler called reload(), which re-runs the detail
+   * view's own query; this panel reads its own scope and was never told.
+   */
+  it("refetches when the trip's destination changes", async () => {
+    const base = createMockGateway();
+    let visaReads = 0;
+    const gateway = {
+      ...base,
+      getVisaPrep: (tripId: string) => {
+        visaReads += 1;
+        return base.getVisaPrep(tripId);
+      },
+    };
+    const region = await openVisa(gateway as typeof base);
+    await pickPassport(region);
+    const before = visaReads;
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog", { name: "Edit trip" });
+    fireEvent.change(within(dialog).getByLabelText(/^To/), {
+      target: { value: "Toronto" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Save changes" }),
+    );
+
+    await waitFor(() => expect(visaReads).toBeGreaterThan(before));
+  });
+
   it("has no accessibility violations with a journey open", async () => {
     const region = await openVisa();
     await pickPassport(region);

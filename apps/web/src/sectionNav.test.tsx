@@ -48,6 +48,13 @@ async function openKyoto() {
 }
 
 describe("Trip section navigation", () => {
+  // The hash and the restored trip are real browser state, so a test that sets
+  // them has to put them back whether or not it reached its own cleanup.
+  afterEach(() => {
+    window.location.hash = "";
+    sessionStorage.clear();
+  });
+
   // The audit's gap #1: clicking "AI" on a fresh trip left the traveler in the
   // middle of Prepare, because the deferred sections above the target mounted
   // mid-jump and pushed it ~1,700px further down.
@@ -72,6 +79,44 @@ describe("Trip section navigation", () => {
     await waitFor(() => expect(scroll.ids).toContain("section-ai"));
     // And it never lands on a section the traveler did not ask for.
     expect(scroll.ids).not.toContain("section-prepare");
+    scroll.restore();
+  });
+
+  /**
+   * The same failure on the path a reload takes.
+   *
+   * Measured on the running product: a cold load of `/#section-ai` stopped with
+   * the AI section 3,520px below the fold and the nav marking Prepare current,
+   * because the effect scrolled against the placeholder layout and every
+   * section above the target then mounted and pushed it down. The chips were
+   * fixed for this in 0.5.2; the load path kept a bare setTimeout(0).
+   */
+  it("lands on the section named in the URL on a cold load", async () => {
+    stubDeferredSections();
+    // A reload restores the trip from session storage, so the workspace opens
+    // straight onto the trip page with the hash still in the address bar.
+    sessionStorage.setItem("voyalier-active-trip", "trip_kyoto");
+    window.location.hash = "#section-ai";
+
+    const scroll = captureScrollTargets();
+    renderApp(createMockGateway());
+    await screen.findByRole("heading", {
+      name: "Kyoto autumn journey",
+      level: 1,
+    });
+
+    expect(
+      await screen.findByRole("heading", { name: "Preview an AI request" }),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(scroll.ids).toContain("section-ai"));
+    // And the nav agrees with the address bar, rather than marking whichever
+    // section the browser happened to stop in.
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "AI" })).toHaveAttribute(
+        "aria-current",
+        "true",
+      ),
+    );
     scroll.restore();
   });
 

@@ -347,4 +347,96 @@ describe("AppError rendered states", () => {
     );
     expect(screen.getAllByRole("button", { name: "Retry" })).toHaveLength(1);
   });
+
+  /**
+   * A gateway whose engine can be pulled out from under the app.
+   *
+   * Failing one method is not the same condition: everything else keeps
+   * succeeding and reports the transport healthy again, which is correct. The
+   * state these two tests are about is the engine being gone, so every call
+   * goes with it.
+   */
+  function unpluggableGateway() {
+    const base = createMockGateway();
+    const state = { offline: false };
+    const gateway = new Proxy(base, {
+      get(target, property, receiver) {
+        const value = Reflect.get(target, property, receiver);
+        if (typeof value !== "function") return value;
+        return (...args: unknown[]) =>
+          state.offline
+            ? Promise.reject({
+                code: "transport/failure",
+                message: "engine unreachable",
+              })
+            : (value as (...rest: unknown[]) => unknown).apply(target, args);
+      },
+    });
+    return { gateway, state };
+  }
+
+  async function openKyotoTrip() {
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    );
+    await screen.findByRole("heading", {
+      name: "Kyoto autumn journey",
+      level: 1,
+    });
+  }
+
+  /**
+   * The same duplicate, on the path an *action* takes.
+   *
+   * The load path grew the guard above; the action banner a few lines below it
+   * in the same view never did. Archiving with the engine down printed the
+   * identical sentence twice — once with a Retry and once without.
+   */
+  it("shows one engine-unreachable banner when an action fails too", async () => {
+    const { gateway, state } = unpluggableGateway();
+    renderApp(gateway);
+    await openKyotoTrip();
+
+    state.offline = true;
+    fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+
+    await screen.findByText("Offline");
+    // Scoped to the banner component on purpose. Individual panels below still
+    // report their own load failure in their own line, which is them saying
+    // what *they* could not fetch; the defect was the trip repeating the
+    // workspace's banner, verbatim and without its Retry.
+    const banners = screen
+      .getAllByText("Voyalier can't reach its engine")
+      .filter((node) => node.closest(".voy-banner"));
+    expect(banners).toHaveLength(1);
+  });
+
+  /**
+   * Retry has to clear what it just disproved.
+   *
+   * Measured on the running product: after a successful Retry the topbar read
+   * Ready and the workspace banner was gone, while the trip still carried
+   * "Voyalier can't reach its engine" with no Retry and no way to dismiss it.
+   * `useAsyncAction` only clears its error when the next run starts, and
+   * nothing connected a recovered transport to that state.
+   */
+  it("clears an action's transport error once the engine answers again", async () => {
+    const { gateway, state } = unpluggableGateway();
+    renderApp(gateway);
+    await openKyotoTrip();
+
+    state.offline = true;
+    fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+    await screen.findByText("Offline");
+
+    state.offline = false;
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    await waitFor(() => expect(screen.getByText("Ready")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Voyalier can't reach its engine"),
+      ).not.toBeInTheDocument(),
+    );
+  });
 });
