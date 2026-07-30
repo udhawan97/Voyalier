@@ -40,7 +40,14 @@ describe("destination facts", () => {
     expect(golden.length).toBeGreaterThan(0);
     // The window is bracketed by the sunrise and sunset printed beside it, so a
     // reader is never shown a golden hour that starts before the sun is up.
-    expect(golden[0]).toHaveTextContent("Golden hour 05:20–05:53 and 17:37–18:10");
+    expect(golden[0]).toHaveTextContent(
+      "Golden hour 05:20–05:53 and 17:37–18:10",
+    );
+  });
+
+  it("names the language a traveler will meet", async () => {
+    const facts = await fetchFacts();
+    expect(within(facts).getByText("Language Japanese")).toBeInTheDocument();
   });
 
   it("shows indicative currency rates, dated and labelled", async () => {

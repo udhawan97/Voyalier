@@ -982,6 +982,7 @@ export function mockCountryFacts(iso2: string): CountryFacts | undefined {
   return {
     iso2: "JP",
     name: "Japan",
+    languages: ["Japanese"],
     currencyCode: "JPY",
     plugTypes: ["A", "B"],
     voltageV: 100,

@@ -188,6 +188,11 @@ function Practical({ facts }: { facts: CountryFacts }) {
       </h3>
       <ul className="voy-facts__practical">
         <li>
+          {t("facts.practical.languages", {
+            languages: facts.languages.join(", "),
+          })}
+        </li>
+        <li>
           {t("facts.practical.plug", {
             types: facts.plugTypes.join(" / "),
             voltage: facts.voltageV,

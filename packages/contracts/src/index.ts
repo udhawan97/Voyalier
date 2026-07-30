@@ -212,6 +212,11 @@ export interface EmergencyNumbers {
 export interface CountryFacts {
   iso2: string;
   name: string;
+  /**
+   * Official languages in the order the country lists them, or — where it
+   * declares none in law — the language its government works in. English names.
+   */
+  languages: string[];
   currencyCode: string;
   /** Plug type letters (A–N). */
   plugTypes: string[];

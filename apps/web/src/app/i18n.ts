@@ -786,6 +786,7 @@ const en = {
     "No published reference rate for {currency}. Check locally before you travel.",
   // Practical: convenience facts; the card links out rather than asserting.
   "facts.practical.title": "Practical",
+  "facts.practical.languages": "Language {languages}",
   "facts.practical.plug": "Plugs {types} · {voltage} V · {frequency} Hz",
   "facts.practical.driveLeft": "Drives on the left",
   "facts.practical.driveRight": "Drives on the right",
@@ -2037,6 +2038,7 @@ const es: Record<MessageKey, string> = {
   "facts.money.noRate":
     "No hay tasa de referencia publicada para {currency}. Verifícalo localmente antes de viajar.",
   "facts.practical.title": "Información práctica",
+  "facts.practical.languages": "Idioma {languages}",
   "facts.practical.plug": "Enchufes {types} · {voltage} V · {frequency} Hz",
   "facts.practical.driveLeft": "Conducción por la izquierda",
   "facts.practical.driveRight": "Conducción por la derecha",
