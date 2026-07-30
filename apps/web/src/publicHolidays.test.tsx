@@ -51,4 +51,43 @@ describe("public holidays", () => {
     const edited = await gateway.getTrip(trip.id);
     expect(edited.publicHolidays).toBeUndefined();
   });
+
+  it("says nobody publishes a school calendar rather than saying there is none", async () => {
+    const panel = await openHolidays();
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Fetch public holidays" }),
+    );
+    // Japan is genuinely outside the school-holiday source's 36 countries.
+    // Reporting "no school holidays during your trip" would be a claim about
+    // Japanese schools that Voyalier is in no position to make.
+    expect(
+      await within(panel).findByText(
+        /No school-holiday calendar is published for Japan/,
+      ),
+    ).toBeInTheDocument();
+    expect(within(panel).queryByText("School holidays")).toBeNull();
+  });
+
+  it("lists a school holiday the trip falls inside, with its region", async () => {
+    const gateway = createMockGateway();
+    const trip = await gateway.createTrip({
+      origin: "Chicago",
+      destination: "Berlin",
+      startDate: "2027-07-10",
+      endDate: "2027-07-17",
+    });
+    await gateway.fetchPublicHolidays(trip.id);
+    const detail = await gateway.getTrip(trip.id);
+
+    // A one-week July trip sits *inside* a six-week summer break. Containment
+    // would report nothing here — overlap is the whole rule.
+    expect(detail.publicHolidays?.schoolHolidaysCovered).toBe(true);
+    expect(detail.publicHolidays?.schoolHolidays).toHaveLength(1);
+    expect(detail.publicHolidays?.schoolHolidays[0]?.name).toBe(
+      "Summer Holidays",
+    );
+    expect(detail.publicHolidays?.schoolHolidays[0]?.subdivisions).toEqual([
+      "DE-BE",
+    ]);
+  });
 });

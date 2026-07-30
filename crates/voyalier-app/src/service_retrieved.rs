@@ -346,10 +346,23 @@ impl AppService {
             |url| self.fetcher.fetch_text(url),
         );
 
+        // School terms, from a second source that covers fewer countries. It is
+        // asked for the same year span, and an uncovered country costs no
+        // request — the coverage list answers before the network does.
+        let covered = school_holidays_covered(&place.country_code);
+        let school = school_holidays(
+            &place.country_code,
+            &format!("{}-01-01", year_of(&trip.start_date)),
+            &format!("{}-12-31", year_of(&trip.end_date)),
+            |url| self.fetcher.fetch_text(url),
+        );
+
         let snapshot = PublicHolidaysSnapshot {
             country_code: place.country_code.clone(),
             country_name: place.country.clone(),
             holidays,
+            school_holidays: school,
+            school_holidays_covered: covered,
             retrieved_at: now_rfc3339(),
         };
 
@@ -357,18 +370,23 @@ impl AppService {
         connection
             .execute(
                 "INSERT INTO public_holidays_snapshots
-                 (trip_id, country_code, country_name, holidays, retrieved_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5)
+                 (trip_id, country_code, country_name, holidays, school_holidays,
+                  school_holidays_covered, retrieved_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
                  ON CONFLICT(trip_id) DO UPDATE SET
                    country_code = excluded.country_code,
                    country_name = excluded.country_name,
                    holidays = excluded.holidays,
+                   school_holidays = excluded.school_holidays,
+                   school_holidays_covered = excluded.school_holidays_covered,
                    retrieved_at = excluded.retrieved_at",
                 params![
                     trip_id,
                     snapshot.country_code,
                     snapshot.country_name,
                     json_to_sql(&snapshot.holidays)?,
+                    json_to_sql(&snapshot.school_holidays)?,
+                    snapshot.school_holidays_covered,
                     snapshot.retrieved_at,
                 ],
             )

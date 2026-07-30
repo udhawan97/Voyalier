@@ -42,12 +42,13 @@ use voyalier_core::{
     matching_airports, nearest_airports, new_id, now_rfc3339, nws_alerts, offline_map_download_url,
     pack_catalog, pack_download_url, parse_assist_reply, parse_import, parse_lodging_dates_reply,
     parse_pack_content, place_summary, provider_info, public_holidays, rank_field_suggestions,
-    recommend_attributed_places, saved_place_identity, search_cities, search_trip_corpus,
-    search_workspace_corpus, suggest_packs, suggest_search_terms, time_difference,
-    tipping_guidance, travel_advice, us_state_advisory, validate_api_key, validate_country_slug,
-    validate_create_trip, validate_create_trip_item, validate_fact_payload, validate_model_name,
-    validate_pack_id, validate_packing_label, validate_planning_notes, validate_provider_id,
-    validate_search_query, validate_update_trip, world_heritage_near,
+    recommend_attributed_places, saved_place_identity, school_holidays, school_holidays_covered,
+    school_holidays_within, search_cities, search_trip_corpus, search_workspace_corpus,
+    suggest_packs, suggest_search_terms, time_difference, tipping_guidance, travel_advice,
+    us_state_advisory, validate_api_key, validate_country_slug, validate_create_trip,
+    validate_create_trip_item, validate_fact_payload, validate_model_name, validate_pack_id,
+    validate_packing_label, validate_planning_notes, validate_provider_id, validate_search_query,
+    validate_update_trip, world_heritage_near,
 };
 use voyalier_core::{
     BACKUP_FORMAT_VERSION, BackupManifest, VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN,
@@ -1505,6 +1506,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "visa_preparation",
         run: migrate_visa_preparation,
     },
+    Migration {
+        to: 13,
+        name: "school_holidays",
+        run: migrate_school_holidays,
+    },
 ];
 
 /// The version a fully migrated database carries. Stamped into a backup's
@@ -1971,6 +1977,56 @@ fn migrate_facts_origin(connection: &Connection) -> Result<(), AppError> {
         .map_err(storage_error)
 }
 
+/// Add the school-holiday columns to `public_holidays_snapshots`.
+///
+/// Additive and retry-safe. An existing snapshot keeps its public holidays and
+/// reads as "school holidays not covered" until the traveler fetches again,
+/// which is the honest state: nothing was ever asked of the school-holiday
+/// source for that row, so claiming it found nothing would be a fabrication.
+fn migrate_school_holidays(connection: &Connection) -> Result<(), AppError> {
+    let columns = {
+        let mut statement = connection
+            .prepare("PRAGMA table_info(public_holidays_snapshots)")
+            .map_err(storage_error)?;
+        let names = statement
+            .query_map([], |row| row.get::<_, String>(1))
+            .map_err(storage_error)?
+            .collect::<rusqlite::Result<Vec<String>>>()
+            .map_err(storage_error)?;
+        names
+    };
+    if columns.iter().any(|name| name == "school_holidays") {
+        return Ok(());
+    }
+    // An empty column list means the table is not there at all — a database
+    // stamped past v8 without having run it. Altering a missing table would
+    // fail the whole chain, so this step creates what it needs rather than
+    // depending on an earlier step having run.
+    if columns.is_empty() {
+        return connection
+            .execute_batch(
+                "CREATE TABLE IF NOT EXISTS public_holidays_snapshots (
+                    trip_id TEXT PRIMARY KEY REFERENCES trips(id) ON DELETE CASCADE,
+                    country_code TEXT NOT NULL,
+                    country_name TEXT NOT NULL,
+                    holidays TEXT NOT NULL DEFAULT '[]',
+                    school_holidays TEXT NOT NULL DEFAULT '[]',
+                    school_holidays_covered INTEGER NOT NULL DEFAULT 0,
+                    retrieved_at TEXT NOT NULL
+                );",
+            )
+            .map_err(storage_error);
+    }
+    connection
+        .execute_batch(
+            "ALTER TABLE public_holidays_snapshots
+               ADD COLUMN school_holidays TEXT NOT NULL DEFAULT '[]';
+             ALTER TABLE public_holidays_snapshots
+               ADD COLUMN school_holidays_covered INTEGER NOT NULL DEFAULT 0;",
+        )
+        .map_err(storage_error)
+}
+
 /// Create the `public_holidays_snapshots` table for databases that predate the
 /// holidays panel. Purely additive — nothing to backfill.
 fn migrate_public_holidays(connection: &Connection) -> Result<(), AppError> {
@@ -2391,6 +2447,13 @@ fn load_destination_facts_snapshot(
 
 /// The distinct calendar years a trip's date window touches, for per-year
 /// holiday lookups. Malformed dates yield no years rather than a guess.
+/// The four-digit year of an ISO date, or the empty string when unparseable —
+/// which yields a range the source will simply return nothing for, rather than
+/// a panic or a silently wrong window.
+fn year_of(date: &str) -> &str {
+    date.get(0..4).filter(|year| year.len() == 4).unwrap_or("")
+}
+
 fn trip_years(start_date: &str, end_date: &str) -> Vec<i32> {
     let year = |date: &str| date.get(0..4).and_then(|value| value.parse::<i32>().ok());
     match (year(start_date), year(end_date)) {
@@ -2406,7 +2469,8 @@ fn load_public_holidays_snapshot(
 ) -> Result<Option<PublicHolidaysSnapshot>, AppError> {
     connection
         .query_row(
-            "SELECT country_code, country_name, holidays, retrieved_at
+            "SELECT country_code, country_name, holidays, school_holidays,
+                    school_holidays_covered, retrieved_at
              FROM public_holidays_snapshots WHERE trip_id = ?1",
             params![trip_id],
             |row| {
@@ -2414,7 +2478,9 @@ fn load_public_holidays_snapshot(
                     country_code: row.get(0)?,
                     country_name: row.get(1)?,
                     holidays: sql_to_json(row.get::<_, String>(2)?)?,
-                    retrieved_at: row.get(3)?,
+                    school_holidays: sql_to_json(row.get::<_, String>(3)?)?,
+                    school_holidays_covered: row.get(4)?,
+                    retrieved_at: row.get(5)?,
                 })
             },
         )

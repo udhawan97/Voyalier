@@ -1195,6 +1195,43 @@ export function mockTimeDifference(
  * per-year fetches could show a holiday twice, in feed order. ISO dates compare
  * in date order as strings, so no parsing is needed.
  */
+/**
+ * Mock school-holiday coverage, keyed on the destination.
+ *
+ * Coverage is a real property of the source — it publishes 36 countries and
+ * Japan is not one of them — so the mock reproduces the *distinction* rather
+ * than pretending every destination is covered. A trip to a covered country
+ * gets one long period, which is also the case the overlap rule exists for.
+ */
+function mockSchoolHolidays(
+  destination: string,
+  tripStart: string,
+): Pick<PublicHolidaysSnapshot, "schoolHolidays" | "schoolHolidaysCovered"> {
+  const covered: Record<string, string> = {
+    berlin: "DE-BE",
+    munich: "DE-BY",
+    madrid: "ES-MD",
+    paris: "FR-75",
+  };
+  const subdivision = covered[destination.trim().toLowerCase()];
+  if (!subdivision) return { schoolHolidays: [], schoolHolidaysCovered: false };
+  // Six weeks straddling the trip's first day: a window a short trip sits
+  // inside rather than contains.
+  const year = tripStart.slice(0, 4);
+  return {
+    schoolHolidaysCovered: true,
+    schoolHolidays: [
+      {
+        startDate: `${year}-06-29`,
+        endDate: `${year}-08-07`,
+        name: "Summer Holidays",
+        nationwide: false,
+        subdivisions: [subdivision],
+      },
+    ],
+  };
+}
+
 export function mockHolidaysWithin(
   holidays: PublicHoliday[],
   start: string,
@@ -3498,9 +3535,15 @@ export function createMockGateway(options?: {
         // A fixture: one holiday on the first trip day (always in-window) and
         // one a year later (out of window), so the read-time filter is exercised.
         const outside = `${Number(trip.startDate.slice(0, 4)) + 1}-01-01`;
+        // Which country the destination is in decides school-holiday coverage,
+        // as it does in the engine. Japan is genuinely not published by the
+        // school-holiday source, so the Kyoto fixture exercises the "not
+        // covered" branch and a European destination exercises the other.
+        const school = mockSchoolHolidays(trip.destination, trip.startDate);
         const snapshot: PublicHolidaysSnapshot = {
           countryCode: "JP",
           countryName: "Japan",
+          ...school,
           holidays: [
             {
               date: trip.startDate,

@@ -1575,6 +1575,56 @@ fn fetch_place_summary_stores_and_derives_on_detail() {
 }
 
 #[test]
+fn migration_v13_adds_school_holidays_however_it_finds_the_table() {
+    // The ordinary path: a real v12 database has the table from v8.
+    let existing = Connection::open_in_memory().expect("memory db");
+    existing
+        .execute_batch(
+            r#"CREATE TABLE trips (id TEXT PRIMARY KEY);
+               CREATE TABLE public_holidays_snapshots (
+                 trip_id TEXT PRIMARY KEY,
+                 country_code TEXT NOT NULL,
+                 country_name TEXT NOT NULL,
+                 holidays TEXT NOT NULL DEFAULT '[]',
+                 retrieved_at TEXT NOT NULL
+               );
+               INSERT INTO public_holidays_snapshots
+                 VALUES ('trip-1','JP','Japan','[]','2026-07-30T00:00:00Z');
+               PRAGMA user_version = 12;"#,
+        )
+        .expect("pre-v13 shape");
+    migrate(&existing).expect("migrate to v13");
+
+    // An existing row survives and reads as "not covered" -- nothing was ever
+    // asked of the school-holiday source for it, so it must not claim a result.
+    let snapshot = load_public_holidays_snapshot(&existing, "trip-1")
+        .expect("load")
+        .expect("row");
+    assert!(snapshot.school_holidays.is_empty());
+    assert!(!snapshot.school_holidays_covered);
+
+    // And the path that broke first: a database stamped past v8 that never ran
+    // it, so there is no table to alter. The step must not fail the chain.
+    let missing = Connection::open_in_memory().expect("memory db");
+    missing
+        .execute_batch(r#"CREATE TABLE trips (id TEXT PRIMARY KEY); PRAGMA user_version = 12;"#)
+        .expect("tableless v12");
+    migrate(&missing).expect("migrate a tableless database");
+    assert!(
+        load_public_holidays_snapshot(&missing, "trip-1")
+            .expect("load")
+            .is_none()
+    );
+
+    // Retry-safe: running the whole chain again changes nothing.
+    migrate(&existing).expect("re-migrate");
+    assert_eq!(
+        user_version(&existing).expect("version"),
+        target_schema_version()
+    );
+}
+
+#[test]
 fn migration_v9_adds_the_place_summaries_table() {
     let connection = Connection::open_in_memory().expect("memory db");
     connection

@@ -43,6 +43,7 @@ describe("data source register", () => {
         "nager-date",
         "wikimedia",
         "openfreemap",
+        "openholidays",
         "overture",
         "wikivoyage",
         "protomaps-osm",

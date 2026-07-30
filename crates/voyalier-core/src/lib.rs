@@ -95,7 +95,9 @@ pub use heritage::{HeritageSite, world_heritage_near};
 // answers for a country and year is this module's knowledge. `public_holidays`
 // is the way in; `parse_nager_holidays` remains exported for the fixture tests.
 pub use holidays::{
-    PublicHoliday, PublicHolidaysSnapshot, holidays_within, parse_nager_holidays, public_holidays,
+    PublicHoliday, PublicHolidaysSnapshot, SCHOOL_HOLIDAY_COUNTRIES, SchoolHoliday,
+    holidays_within, parse_nager_holidays, parse_openholidays_school, public_holidays,
+    school_holidays, school_holidays_covered, school_holidays_within,
 };
 pub use itinerary::{detect_itinerary_conflicts, detect_planned_item_conflicts};
 pub use local_ai::{

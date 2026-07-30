@@ -117,6 +117,23 @@ export interface PublicHoliday {
   /** National (`true`) versus regional / subdivision-only (`false`). */
   global: boolean;
 }
+/**
+ * One school-holiday period at the destination. A period, not a day: school
+ * holidays run for weeks, so a trip "during" one overlaps it, never contains it.
+ */
+export interface SchoolHoliday {
+  /** ISO `YYYY-MM-DD`, inclusive. */
+  startDate: string;
+  /** ISO `YYYY-MM-DD`, inclusive. */
+  endDate: string;
+  /** English name ("Summer Holidays"), or the local name where that is all
+   * the source publishes. */
+  name: string;
+  /** Whether the period covers the whole country. */
+  nationwide: boolean;
+  /** Subdivision codes when it is regional ("DE-BY"); empty when nationwide. */
+  subdivisions: string[];
+}
 /** A dated snapshot of the destination country's public holidays. */
 export interface PublicHolidaysSnapshot {
   /** ISO-3166-1 alpha-2 of the destination country. */
@@ -125,6 +142,14 @@ export interface PublicHolidaysSnapshot {
   countryName: string;
   /** Public holidays (on `TripDetail`, already narrowed to the travel window). */
   holidays: PublicHoliday[];
+  /**
+   * School-holiday periods overlapping the travel window. Empty both when none
+   * overlap and when the country is not covered — `schoolHolidaysCovered` is
+   * what tells those apart, and the interface must not merge them.
+   */
+  schoolHolidays: SchoolHoliday[];
+  /** Whether the school-holiday source publishes this country at all. */
+  schoolHolidaysCovered: boolean;
   retrievedAt: string;
 }
 /** How large an airport is, as OurAirports classifies it. */

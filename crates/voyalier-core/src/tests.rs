@@ -56,6 +56,7 @@ fn data_source_register_has_unique_rows_and_a_pinned_count() {
             "open-meteo",
             "openai",
             "openfreemap",
+            "openholidays",
             "ourairports",
             "overture",
             "protomaps-osm",

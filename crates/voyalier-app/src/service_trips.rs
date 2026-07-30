@@ -114,6 +114,13 @@ impl AppService {
             load_public_holidays_snapshot(&connection, trip_id)?.map(|snapshot| {
                 PublicHolidaysSnapshot {
                     holidays: holidays_within(&snapshot.holidays, &trip.start_date, &trip.end_date),
+                    // Overlap, not containment: a six-week summer break is
+                    // never *inside* a one-week trip.
+                    school_holidays: school_holidays_within(
+                        &snapshot.school_holidays,
+                        &trip.start_date,
+                        &trip.end_date,
+                    ),
                     ..snapshot
                 }
             });

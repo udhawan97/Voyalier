@@ -660,6 +660,11 @@ const en = {
   "dataSources.nager-date.network": "Fetched only when you request holidays",
   "dataSources.nager-date.authority":
     "Informational calendar data; never entry or closure authority",
+  "dataSources.openholidays.use": "School holidays",
+  "dataSources.openholidays.network":
+    "Fetched only when you request holidays, and only for the 36 countries it publishes",
+  "dataSources.openholidays.authority":
+    "Informational calendar data; never entry or closure authority",
   "dataSources.wikimedia.use": "Destination summaries",
   "dataSources.wikimedia.network":
     "Fetched only when you request an about-place summary",
@@ -818,6 +823,12 @@ const en = {
   "holidays.retrieved": "Retrieved {stamp}",
   "holidays.nameLocal": "{name} ({localName})",
   "holidays.regional": "· regional",
+  "holidays.school.title": "School holidays",
+  "holidays.school.range": "{start} – {end}",
+  "holidays.school.regional": "({where})",
+  "holidays.school.none": "No school holidays in {country} during your dates.",
+  "holidays.school.uncovered":
+    "No school-holiday calendar is published for {country}.",
   "holidays.none": "No public holidays fall in {country} during your trip.",
   "holidays.consent":
     "Fetching sends your destination name (“{destination}”) to open-meteo.com to place it in a country, then asks Nager.Date for that country’s public holidays. Nothing else about your trip leaves it.",
@@ -1928,6 +1939,11 @@ const es: Record<MessageKey, string> = {
     "Se obtiene solo cuando solicitas días festivos",
   "dataSources.nager-date.authority":
     "Datos de calendario informativos; nunca son autoridad de entrada o cierres",
+  "dataSources.openholidays.use": "Vacaciones escolares",
+  "dataSources.openholidays.network":
+    "Se obtiene solo cuando solicitas días festivos, y solo para los 36 países que publica",
+  "dataSources.openholidays.authority":
+    "Datos de calendario informativos; nunca son autoridad de entrada o cierres",
   "dataSources.wikimedia.use": "Resúmenes de destinos",
   "dataSources.wikimedia.network":
     "Se obtiene solo cuando solicitas un resumen del lugar",
@@ -2076,6 +2092,13 @@ const es: Record<MessageKey, string> = {
   "holidays.retrieved": "Obtenido el {stamp}",
   "holidays.nameLocal": "{name} ({localName})",
   "holidays.regional": "· regional",
+  "holidays.school.title": "Vacaciones escolares",
+  "holidays.school.range": "{start} – {end}",
+  "holidays.school.regional": "({where})",
+  "holidays.school.none":
+    "No hay vacaciones escolares en {country} durante tus fechas.",
+  "holidays.school.uncovered":
+    "No se publica un calendario escolar para {country}.",
   "holidays.none": "No hay días festivos en {country} durante tu viaje.",
   "holidays.consent":
     "Al obtenerlos, se envía el nombre de tu destino (“{destination}”) a open-meteo.com para ubicarlo en un país y luego se solicita a Nager.Date los días festivos de ese país. Nada más sobre tu viaje sale de aquí.",
