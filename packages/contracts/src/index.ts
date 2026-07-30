@@ -56,6 +56,12 @@ export interface TripDetail {
    */
   nearestAirports: NearbyAirport[];
   /**
+   * An offline carbon estimate for the trip's confirmed flights, derived on read
+   * from their airport codes. Absent when the trip has no confirmed flight at
+   * all — which is not the same as an estimate of zero.
+   */
+  flightEmissions?: FlightEmissions;
+  /**
    * How far the destination clock runs ahead of (or behind) the trip's origin,
    * derived on read from the snapshot's two offsets. Present only once the
    * origin has been geocoded.
@@ -130,6 +136,29 @@ export interface NearbyAirport {
   /** Great-circle distance from the destination, kilometres. */
   distanceKm: number;
   size: AirportSize;
+}
+/**
+ * A trip's estimated flight emissions, and how much of the trip it covers.
+ *
+ * One average factor, not haul bands: DESNZ defines domestic/short/long haul by
+ * territory relative to the UK, and the bundled airport table carries no
+ * country, so this uses the row DESNZ publishes for flights between non-UK
+ * destinations. Always presented as an estimate.
+ */
+export interface FlightEmissions {
+  /** Estimated kilograms of CO₂-equivalent, one passenger, counted legs only. */
+  kgCo2e: number;
+  /** Total great-circle distance of the counted legs, kilometres. */
+  distanceKm: number;
+  /** Confirmed flights included in the estimate. */
+  countedFlights: number;
+  /**
+   * Confirmed flights left out because their airport codes were missing or
+   * unknown. Non-zero means the total is a floor and must be labelled partial.
+   */
+  unresolvedFlights: number;
+  /** The DESNZ conversion-factor year behind the estimate. */
+  factorYear: number;
 }
 /** One UNESCO World Heritage site near the destination. */
 export interface HeritageSite {

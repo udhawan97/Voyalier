@@ -3268,6 +3268,55 @@ fn suggest_field_values_draws_on_confirmed_facts_and_pack_places() {
 }
 
 #[test]
+fn trip_detail_estimates_carbon_from_confirmed_flights_only() {
+    let database = temp_database("trip-carbon");
+    let service = open_test_service(&database).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+    // No flights yet: absent, which is a different answer from zero.
+    assert!(
+        service
+            .get_trip(&trip.id)
+            .expect("detail")
+            .flight_emissions
+            .is_none()
+    );
+
+    service
+        .add_manual_fact(AddManualFactInput {
+            trip_id: trip.id.clone(),
+            fact_type: FactType::FlightSegment,
+            payload: FactPayload {
+                departure_airport_iata: Some("ORD".to_owned()),
+                arrival_airport_iata: Some("KIX".to_owned()),
+                ..FactPayload::default()
+            },
+        })
+        .expect("flight");
+    // A stay must not count as an unresolvable flight.
+    service
+        .add_manual_fact(AddManualFactInput {
+            trip_id: trip.id.clone(),
+            fact_type: FactType::LodgingStay,
+            payload: FactPayload {
+                property_name: Some("River Paper Inn".to_owned()),
+                ..FactPayload::default()
+            },
+        })
+        .expect("stay");
+
+    let estimate = service
+        .get_trip(&trip.id)
+        .expect("detail")
+        .flight_emissions
+        .expect("estimate");
+    assert_eq!(estimate.counted_flights, 1);
+    assert_eq!(estimate.unresolved_flights, 0);
+    assert!(estimate.kg_co2e > 0);
+    cleanup_database(database);
+}
+
+#[test]
 fn suggest_field_values_finds_airports_by_code_or_by_name() {
     let database = temp_database("suggest-airports");
     let service = open_test_service(&database).expect("service");

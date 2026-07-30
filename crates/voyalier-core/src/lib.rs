@@ -13,6 +13,7 @@ mod astro;
 mod backup;
 mod brief;
 mod climate;
+mod co2;
 mod email;
 mod facts;
 mod gazetteer;
@@ -80,6 +81,7 @@ pub use climate::{
     AirQualityDay, ClimateNormals, air_quality, archive_window, climate_normals, parse_air_quality,
     parse_climate_normals,
 };
+pub use co2::{FACTOR_YEAR, FlightEmissions, estimate_flight_emissions};
 // `extract_email_body` is deliberately not re-exported: it must only be reached
 // through `parse_import`, which bounds the raw input before the extractor walks
 // an untrusted MIME tree.

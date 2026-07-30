@@ -975,6 +975,18 @@ const en = {
   "detail.announce.updated": "Trip updated.",
   "detail.announce.unarchived": "Trip unarchived.",
   "detail.addFact": "Add flight or stay",
+  "detail.carbon.estimate.one":
+    "About {kg} kg CO₂e for {count} flight · {km} km",
+  "detail.carbon.estimate.other":
+    "About {kg} kg CO₂e for {count} flights · {km} km",
+  "detail.carbon.basis":
+    "Rough estimate: great-circle distance at UK DESNZ {year} average-passenger factors. Real emissions depend on the aircraft, the routing, the cabin, and how full the flight is.",
+  "detail.carbon.partial.one":
+    "{count} flight is not included — its airport codes are missing or unrecognised, so the total is a floor.",
+  "detail.carbon.partial.other":
+    "{count} flights are not included — their airport codes are missing or unrecognised, so the total is a floor.",
+  "detail.carbon.none":
+    "No carbon estimate: these flights carry no airport codes Voyalier recognises.",
   "detail.shareBrief": "Share brief",
   "detail.archive": "Archive",
   "detail.delete": "Delete",
@@ -2215,6 +2227,18 @@ const es: Record<MessageKey, string> = {
   "detail.announce.updated": "Viaje actualizado.",
   "detail.announce.unarchived": "Viaje desarchivado.",
   "detail.addFact": "Añadir vuelo o estancia",
+  "detail.carbon.estimate.one":
+    "Unos {kg} kg de CO₂e para {count} vuelo · {km} km",
+  "detail.carbon.estimate.other":
+    "Unos {kg} kg de CO₂e para {count} vuelos · {km} km",
+  "detail.carbon.basis":
+    "Estimación aproximada: distancia de círculo máximo con los factores medios por pasajero de DESNZ (Reino Unido) {year}. Las emisiones reales dependen de la aeronave, la ruta, la cabina y la ocupación.",
+  "detail.carbon.partial.one":
+    "{count} vuelo no está incluido: le faltan los códigos de aeropuerto o no se reconocen, así que el total es un mínimo.",
+  "detail.carbon.partial.other":
+    "{count} vuelos no están incluidos: les faltan los códigos de aeropuerto o no se reconocen, así que el total es un mínimo.",
+  "detail.carbon.none":
+    "Sin estimación de carbono: estos vuelos no llevan códigos de aeropuerto que Voyalier reconozca.",
   "detail.shareBrief": "Compartir resumen",
   "detail.archive": "Archivar",
   "detail.delete": "Eliminar",

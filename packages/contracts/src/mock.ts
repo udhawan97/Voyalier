@@ -40,6 +40,7 @@ import type {
   TripNotes,
   FcdoCountry,
   FetchAdvisoriesInput,
+  FlightEmissions,
   FlightSegmentPayload,
   HealthResponse,
   ImportDocumentInput,
@@ -1035,6 +1036,63 @@ function mockAstro(snapshot: DestinationFactsSnapshot, trip: Trip): AstroDay[] {
 }
 
 /**
+ * The mock's flight-emissions estimate, mirroring the engine's rules rather than
+ * its arithmetic: one factor for every leg, unresolvable legs counted rather
+ * than dropped, and no estimate at all when there is no confirmed flight.
+ *
+ * Coordinates for the fixture airports only — the engine has three thousand.
+ */
+const MOCK_AIRPORT_COORDS: Readonly<Record<string, [number, number]>> = {
+  CDG: [49.0128, 2.55],
+  HND: [35.5523, 139.7798],
+  ITM: [34.7855, 135.4383],
+  KIX: [34.4342, 135.2328],
+  LHR: [51.4706, -0.4619],
+  ORD: [41.9786, -87.9048],
+};
+/** DESNZ 2026, international to/from non-UK, average passenger, with RF. */
+const MOCK_KG_CO2E_PER_PASSENGER_KM = 0.14253;
+
+function mockFlightEmissions(
+  confirmedFacts: ConfirmedFact[],
+): FlightEmissions | undefined {
+  const legs = confirmedFacts.filter(
+    (fact) => fact.factType === "flight_segment",
+  );
+  if (legs.length === 0) return undefined;
+
+  let distance = 0;
+  let counted = 0;
+  let unresolved = 0;
+  for (const leg of legs) {
+    const payload = leg.payload as FlightSegmentPayload;
+    const from = MOCK_AIRPORT_COORDS[payload.departureAirportIata ?? ""];
+    const to = MOCK_AIRPORT_COORDS[payload.arrivalAirportIata ?? ""];
+    if (!from || !to || from === to) {
+      unresolved += 1;
+      continue;
+    }
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    const [lat1, lon1] = from;
+    const [lat2, lon2] = to;
+    const a =
+      Math.sin(toRad(lat2 - lat1) / 2) ** 2 +
+      Math.cos(toRad(lat1)) *
+        Math.cos(toRad(lat2)) *
+        Math.sin(toRad(lon2 - lon1) / 2) ** 2;
+    distance += 2 * 6371 * Math.asin(Math.sqrt(a));
+    counted += 1;
+  }
+  return {
+    kgCo2e: Math.round(distance * MOCK_KG_CO2E_PER_PASSENGER_KM),
+    distanceKm: Math.round(distance),
+    countedFlights: counted,
+    unresolvedFlights: unresolved,
+    factorYear: 2026,
+  };
+}
+
+/**
  * A few airports the fixture trips actually use, for the airport-code fields.
  *
  * Matched on code then name, mirroring the engine's tiering. The real table has
@@ -2004,6 +2062,7 @@ export function createMockGateway(options?: {
           ? mockCountryFacts(destFacts.countryCode)
           : undefined;
         const astro = destFacts ? mockAstro(destFacts, trip) : [];
+        const flightEmissions = mockFlightEmissions(confirmedFacts);
         const nearestAirports = destFacts ? mockNearestAirports() : [];
         const worldHeritage = destFacts ? mockWorldHeritage() : [];
         // Resolved from the country code, mirroring Rust — the fixture is Japan.
@@ -2049,6 +2108,7 @@ export function createMockGateway(options?: {
           ...(countryFacts ? { countryFacts: clone(countryFacts) } : {}),
           astro,
           nearestAirports,
+          ...(flightEmissions ? { flightEmissions } : {}),
           worldHeritage,
           ...(tipping ? { tipping } : {}),
           ...(timeDifference ? { timeDifference } : {}),

@@ -3922,6 +3922,19 @@ h3 {
   margin-bottom: 2.2rem;
 }
 
+.voy-detail__carbon {
+  margin: -0.5rem 0 1.5rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--voy-ink-muted);
+}
+
+.voy-detail__carbon-figure {
+  font-weight: var(--voy-w-strong);
+  color: var(--voy-ink);
+  font-variant-numeric: tabular-nums;
+}
+
 .voy-factgroup__title {
   display: flex;
   align-items: center;

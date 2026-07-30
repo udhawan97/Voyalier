@@ -8,6 +8,7 @@ use uuid::Uuid;
 use crate::advisories::AdvisoryPanel;
 use crate::airports::NearbyAirport;
 use crate::astro::AstroDay;
+use crate::co2::FlightEmissions;
 use crate::facts::{CountryFacts, DestinationFactsSnapshot, TimeDifference};
 use crate::heritage::HeritageSite;
 use crate::holidays::PublicHolidaysSnapshot;
@@ -120,6 +121,12 @@ pub struct TripDetail {
     /// snapshot's coordinates. Bundled and offline; empty without a snapshot.
     #[serde(default)]
     pub nearest_airports: Vec<NearbyAirport>,
+    /// An offline carbon estimate for the trip's confirmed flights, derived on
+    /// read from their airport codes. Absent when the trip has no confirmed
+    /// flight at all — which is not the same as an estimate of zero. Derived,
+    /// never read back.
+    #[serde(default, skip_deserializing, skip_serializing_if = "Option::is_none")]
+    pub flight_emissions: Option<FlightEmissions>,
     /// How far the destination clock runs ahead of (or behind) the trip's
     /// origin, derived on read from the snapshot's two stored offsets. Present
     /// only once the origin has been geocoded. Derived, never read back.

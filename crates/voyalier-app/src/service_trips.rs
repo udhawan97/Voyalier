@@ -117,6 +117,18 @@ impl AppService {
                     ..snapshot
                 }
             });
+        // The carbon estimate is derived from the confirmed flights themselves,
+        // not from the destination snapshot — a trip with no facts fetch still
+        // gets one, and it needs no network or stored row of its own.
+        let flight_emissions =
+            estimate_flight_emissions(confirmed_facts.iter().filter_map(|fact| {
+                (fact.fact_type == FactType::FlightSegment).then(|| {
+                    (
+                        fact.payload.departure_airport_iata.as_deref(),
+                        fact.payload.arrival_airport_iata.as_deref(),
+                    )
+                })
+            }));
         let interest_profile = self.records(&connection).interest_profile(trip_id)?;
         let saved_places = self.records(&connection).saved_places(trip_id)?;
         let packing_items = self.records(&connection).packing_items(trip_id)?;
@@ -135,6 +147,7 @@ impl AppService {
             country_facts,
             astro,
             nearest_airports,
+            flight_emissions,
             time_difference,
             public_holidays,
             world_heritage,
