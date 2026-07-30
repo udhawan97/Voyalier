@@ -927,6 +927,11 @@ export interface DownloadedPack {
   name: string;
   region: string;
   placeCount: number;
+  /**
+   * Practical amenities in the pack. Counted from the stored contents on read,
+   * so a pack downloaded before the amenities layer shipped reports zero.
+   */
+  amenityCount: number;
   articleCount: number;
   downloadedAt: string;
   offlineMapReady: boolean;

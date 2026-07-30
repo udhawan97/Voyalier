@@ -129,6 +129,8 @@ export function CityPacks({
           <span className="voy-packs__count">
             {plural("packs.places", mine.placeCount)}
             {", "}
+            {plural("packs.amenities", mine.amenityCount)}
+            {", "}
             {plural("packs.notes", mine.articleCount)}
             {" · "}
             {t("packs.offline")}

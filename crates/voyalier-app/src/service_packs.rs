@@ -165,6 +165,7 @@ impl AppService {
             .map_err(|error| AppError::new(ErrorCode::PackDownloadFailed, error.message))?;
         let content = parse_pack_content(pack_id, &body)?;
         let place_count = content.places.len() as u32;
+        let amenity_count = content.amenities.len() as u32;
         let article_count = content.articles.len() as u32;
         let offline_map_ready = if let Some(descriptor) = &content.offline_map {
             if !offline_map_is_ready(&self.database_path, pack_id, descriptor) {
@@ -220,6 +221,7 @@ impl AppService {
             name: info.name,
             region: info.region,
             place_count,
+            amenity_count,
             article_count,
             downloaded_at,
             offline_map_ready,
@@ -242,17 +244,28 @@ impl AppService {
             .query_map(params![trip_id], |row| {
                 let pack_id: String = row.get(0)?;
                 let content: String = row.get(6)?;
-                let offline_map_ready = serde_json::from_str::<PackContent>(&content)
-                    .ok()
-                    .and_then(|content| content.offline_map)
+                let parsed = serde_json::from_str::<PackContent>(&content).ok();
+                let offline_map_ready = parsed
+                    .as_ref()
+                    .and_then(|content| content.offline_map.as_ref())
                     .is_some_and(|descriptor| {
-                        offline_map_is_ready(&self.database_path, &pack_id, &descriptor)
+                        offline_map_is_ready(&self.database_path, &pack_id, descriptor)
                     });
+                // Counted off the stored content rather than kept in its own
+                // column: the content is already parsed here, so a derived count
+                // needs no migration and cannot drift from what it counts. A
+                // pack downloaded before the amenities layer shipped counts zero,
+                // which is what it has.
+                let amenity_count = parsed
+                    .as_ref()
+                    .map(|content| content.amenities.len() as u32)
+                    .unwrap_or(0);
                 Ok(DownloadedPack {
                     pack_id,
                     name: row.get(1)?,
                     region: row.get(2)?,
                     place_count: row.get(3)?,
+                    amenity_count,
                     article_count: row.get(4)?,
                     downloaded_at: row.get(5)?,
                     offline_map_ready,

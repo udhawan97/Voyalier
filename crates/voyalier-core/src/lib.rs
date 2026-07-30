@@ -108,11 +108,11 @@ pub use packing::{
     PackingCode, PackingReason, PackingReasonCode, PackingSuggestion, build_packing_list,
 };
 pub use packs::{
-    BoundingBox, DownloadedPack, MAX_OFFLINE_MAP_BYTES, OfflineMapArchive, OfflineMapChunk,
-    OfflineMapDescriptor, PACK_RELEASE_TAG, PackArticle, PackContent, PackInfo, PackLayerLicense,
-    PackMatchKind, PackPlace, PackSuggestion, normalize_place, offline_map_download_url,
-    pack_catalog, pack_download_url, parse_pack_content, saved_place_identity, suggest_packs,
-    validate_pack_id,
+    AmenityKind, BoundingBox, DownloadedPack, MAX_OFFLINE_MAP_BYTES, OfflineMapArchive,
+    OfflineMapChunk, OfflineMapDescriptor, PACK_RELEASE_TAG, PackAmenity, PackArticle, PackContent,
+    PackInfo, PackLayerLicense, PackMatchKind, PackPlace, PackSuggestion, normalize_place,
+    offline_map_download_url, pack_catalog, pack_download_url, parse_pack_content,
+    saved_place_identity, suggest_packs, validate_pack_id,
 };
 // The parser trait, its implementations, and `NormalizedDocument` stay internal:
 // which parser handles which `DocumentKind` is this module's knowledge, not its

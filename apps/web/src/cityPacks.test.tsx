@@ -15,6 +15,20 @@ async function openPacks(tripButton = "Open Kyoto autumn journey") {
  * required seed cities with their per-layer licenses.
  */
 describe("City packs", () => {
+  it("discloses the amenities layer beside the other two", async () => {
+    const packs = await createMockGateway().listPacks();
+    // Three layers, and the new one carries its own manifest row rather than
+    // hiding inside "places" — that row is what a traveler reads before
+    // committing to a download.
+    for (const pack of packs) {
+      expect(pack.layers.map((layer) => layer.layer)).toEqual([
+        "places",
+        "amenities",
+        "articles",
+      ]);
+    }
+  });
+
   it("mirrors the core's catalog-wide offline map availability", async () => {
     const packs = await createMockGateway().listPacks();
     // Asserted as "all of them" on both sides. The old shape was a list of four
@@ -65,7 +79,9 @@ describe("City packs", () => {
     const layers = within(maui).getByRole("list", {
       name: "Maui data layers",
     });
-    expect(within(layers).getByText(/Overture Maps/)).toBeInTheDocument();
+    // Two permissive Overture rows — places and amenities — and one share-alike
+    // Wikivoyage row. Credit stays per layer rather than one blanket notice.
+    expect(within(layers).getAllByText(/Overture Maps/)).toHaveLength(2);
     expect(within(layers).getByText(/CC-BY-SA-3\.0/)).toBeInTheDocument();
   });
 
