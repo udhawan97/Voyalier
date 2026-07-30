@@ -822,6 +822,7 @@ const MOCK_PACKS: PackInfo[] = [
     region: "Hawaii, USA",
     bbox: { west: -158.31, south: 21.24, east: -157.62, north: 21.75 },
     wikivoyageArticle: "Oahu",
+    offlineMapAvailable: true,
     layers: packLayers(),
   },
   {
@@ -830,6 +831,7 @@ const MOCK_PACKS: PackInfo[] = [
     region: "Hawaii, USA",
     bbox: { west: -156.71, south: 20.57, east: -155.98, north: 21.04 },
     wikivoyageArticle: "Maui",
+    offlineMapAvailable: true,
     layers: packLayers(),
   },
   {
@@ -838,6 +840,7 @@ const MOCK_PACKS: PackInfo[] = [
     region: "Hawaii, USA",
     bbox: { west: -159.79, south: 21.85, east: -159.29, north: 22.24 },
     wikivoyageArticle: "Kauai",
+    offlineMapAvailable: true,
     layers: packLayers(),
   },
   {
@@ -846,6 +849,7 @@ const MOCK_PACKS: PackInfo[] = [
     region: "Hawaii, USA",
     bbox: { west: -156.11, south: 18.87, east: -154.79, north: 20.29 },
     wikivoyageArticle: "Hawaii (Big Island)",
+    offlineMapAvailable: true,
     layers: packLayers(),
   },
   {

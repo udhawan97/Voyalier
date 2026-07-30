@@ -104,7 +104,11 @@ fn pack(id: &str, name: &str, region: &str, article: &str, bbox: BoundingBox) ->
         region: region.to_owned(),
         bbox,
         wikivoyage_article: article.to_owned(),
-        offline_map_available: matches!(id, "us-nashville" | "jp-kyoto" | "jp-tokyo" | "fr-paris"),
+        // Every catalog pack carries a basemap. The publisher reads this flag
+        // off the dumped catalog to decide what to build, and steps the zoom
+        // down per pack until the archive fits under `MAX_OFFLINE_MAP_BYTES`, so
+        // a large bounding box costs detail rather than failing the run.
+        offline_map_available: true,
         layers: vec![places_layer(), articles_layer()],
     }
 }
@@ -668,13 +672,12 @@ mod tests {
                 .count(),
             4
         );
-        assert_eq!(
-            catalog
-                .iter()
-                .filter(|info| info.offline_map_available)
-                .map(|info| info.id.as_str())
-                .collect::<Vec<_>>(),
-            vec!["us-nashville", "jp-kyoto", "jp-tokyo", "fr-paris"]
+        // Every pack offers an offline basemap. Asserted as "all of them"
+        // rather than as a list, because the list was the thing that had to be
+        // remembered when a pack was added — and was not.
+        assert!(
+            catalog.iter().all(|info| info.offline_map_available),
+            "every pack must disclose an offline map"
         );
     }
 

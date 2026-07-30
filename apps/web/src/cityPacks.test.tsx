@@ -15,11 +15,12 @@ async function openPacks(tripButton = "Open Kyoto autumn journey") {
  * required seed cities with their per-layer licenses.
  */
 describe("City packs", () => {
-  it("mirrors the core's four catalog-enabled offline maps", async () => {
+  it("mirrors the core's catalog-wide offline map availability", async () => {
     const packs = await createMockGateway().listPacks();
-    expect(
-      packs.filter((pack) => pack.offlineMapAvailable).map((pack) => pack.id),
-    ).toEqual(["us-nashville", "jp-kyoto", "jp-tokyo", "fr-paris"]);
+    // Asserted as "all of them" on both sides. The old shape was a list of four
+    // ids repeated here and in Rust, which is exactly the kind of pair that
+    // drifts when a pack is added.
+    expect(packs.every((pack) => pack.offlineMapAvailable)).toBe(true);
   });
 
   it("does not read the catalog until asked", async () => {
