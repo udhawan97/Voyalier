@@ -23,9 +23,16 @@ can still browse the full catalog below.
 ## Browse and download
 
 The **Offline city data** panel lists the available packs — Nashville, the four
-Hawaiian islands as separate packs, and more. Each pack keeps two layers with
-their own licenses: Overture **places** (permissive) and Wikivoyage **prose**
-(share-alike), shown with per-layer attribution.
+Hawaiian islands as separate packs, and more. Each pack keeps three layers with
+their own licenses: Overture **places** and Overture **amenities** (both
+permissive) and Wikivoyage **prose** (share-alike), shown with per-layer
+attribution.
+
+The amenities layer is the practical one — cash machines, pharmacies, public
+toilets, viewpoints, and hospitals — kept separate from ordinary places so you
+can find them on purpose. There is no drinking-water layer: no open source
+publishes public taps in a form that could be trusted not to point you at a
+decorative fountain.
 
 **Download for this trip** pulls a pack's contents from the project's releases and
 stores them locally with the trip. The click is your consent, and the fetch is
@@ -55,9 +62,7 @@ data) and plots your destination plus the downloaded pack's recommended places.
 The map library is a large download, so it is fetched only on that first click —
 if you never open a map, you never download it.
 
-Nashville, Kyoto, Tokyo, and Paris packs can also include a verified PMTiles
-archive. Its size varies by city and the pack panel says so before download.
-Once present, map tile reads stay on-device through bounded byte-range requests;
-if the archive is missing or fails verification, the explicit online OpenFreeMap
-path remains the fallback. Other city packs still use that fallback and are not
-labelled as offline-map capable.
+Every catalog pack can include a verified PMTiles archive. Its size varies by
+city and the pack panel says so before download. Once present, map tile reads
+stay on-device through bounded byte-range requests; if the archive is missing or
+fails verification, the explicit online OpenFreeMap path remains the fallback.

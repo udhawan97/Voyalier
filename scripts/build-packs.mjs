@@ -93,8 +93,13 @@ async function fetchPlaces(bbox) {
         lon: Number(row.lon),
       }));
   } catch (error) {
-    const first = String(error.message).split("\n")[0];
-    console.warn(`    ! places unavailable (${first}); writing 0 places`);
+    // Print the whole failure, not its first line. Truncating it is why every
+    // published pack has carried zero places since at least 2026-07-20 without
+    // anyone being able to see why: the run stays green, and the one line that
+    // survives is the command rather than DuckDB's reason for refusing it.
+    console.warn(
+      `    ! places unavailable; writing 0 places\n${error.stderr || ""}${error.stdout || ""}${error.message}`,
+    );
     return [];
   }
 }

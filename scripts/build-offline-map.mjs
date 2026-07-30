@@ -89,13 +89,28 @@ export async function extractVerified(
   // archive cap. The chosen zoom is recorded in the descriptor.
   for (const requestedMaxZoom of [15, 14, 13]) {
     await deps.rm(archivePath, { force: true });
-    await deps.run(deps.pmtilesBin, [
-      "extract",
-      sourceUrl,
-      archivePath,
-      `--bbox=${bounds.join(",")}`,
-      `--maxzoom=${requestedMaxZoom}`,
-    ]);
+    try {
+      await deps.run(deps.pmtilesBin, [
+        "extract",
+        sourceUrl,
+        archivePath,
+        `--bbox=${bounds.join(",")}`,
+        `--maxzoom=${requestedMaxZoom}`,
+      ]);
+    } catch (error) {
+      // Protomaps prunes its daily planet builds after a couple of weeks, so a
+      // pinned build date eventually 404s and every pack fails on the first
+      // one. There is no `latest` alias to pin instead, so the least this can
+      // do is say which knob is stale rather than surface a Go stack trace.
+      if (String(error.stdout ?? error.message).includes("HTTP error: 404")) {
+        throw new Error(
+          `${sourceUrl} is gone — Protomaps prunes daily planet builds after ` +
+            `about two weeks. Re-run with a recent PROTOMAPS_BUILD ` +
+            `(the workflow's protomaps_build input).`,
+        );
+      }
+      throw error;
+    }
     await deps.run(deps.pmtilesBin, ["verify", archivePath]);
     const { stdout } = await deps.run(deps.pmtilesBin, [
       "show",

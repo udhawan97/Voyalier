@@ -20,8 +20,12 @@ on:
         default: "2025-01-22.0"
         type: string
       protomaps_build:
-        description: Exact Protomaps planet build date (YYYYMMDD)
-        default: "20260715"
+        # Protomaps prunes daily planet builds after about two weeks, and there
+        # is no `latest` alias to pin instead. This default therefore goes stale
+        # on its own: check https://build.protomaps.com/<YYYYMMDD>.pmtiles
+        # resolves before a publish, and pass a recent date if it does not.
+        description: Exact Protomaps planet build date (YYYYMMDD) — must be recent; builds are pruned
+        default: "20260729"
         type: string
 
 permissions:
