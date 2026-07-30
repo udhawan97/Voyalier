@@ -1988,12 +1988,11 @@ fn migrate_school_holidays(connection: &Connection) -> Result<(), AppError> {
         let mut statement = connection
             .prepare("PRAGMA table_info(public_holidays_snapshots)")
             .map_err(storage_error)?;
-        let names = statement
+        statement
             .query_map([], |row| row.get::<_, String>(1))
             .map_err(storage_error)?
             .collect::<rusqlite::Result<Vec<String>>>()
-            .map_err(storage_error)?;
-        names
+            .map_err(storage_error)?
     };
     if columns.iter().any(|name| name == "school_holidays") {
         return Ok(());
