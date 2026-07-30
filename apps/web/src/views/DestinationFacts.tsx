@@ -97,6 +97,16 @@ function Sky({ days }: { days: AstroDay[] }) {
                       sunset: day.sunset ?? "—",
                     })}
             </span>
+            {day.goldenHour ? (
+              <span className="voy-facts__day-golden">
+                {t("facts.sky.golden", {
+                  morningStart: day.goldenHour.morningStart,
+                  morningEnd: day.goldenHour.morningEnd,
+                  eveningStart: day.goldenHour.eveningStart,
+                  eveningEnd: day.goldenHour.eveningEnd,
+                })}
+              </span>
+            ) : null}
             <span className="voy-facts__day-moon">
               {t("facts.sky.moon", {
                 phase: t(`moon.${day.moon.name}`),

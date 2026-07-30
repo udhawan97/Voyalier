@@ -1012,6 +1012,14 @@ function mockAstro(snapshot: DestinationFactsSnapshot, trip: Trip): AstroDay[] {
       sunset: dusk[offset],
       dayLengthMinutes: 770,
       polar: "normal",
+      // Anchored on this day's own sunrise and sunset, as the engine does, so
+      // the mock cannot teach the UI a window that contradicts them.
+      goldenHour: {
+        morningStart: spring[offset],
+        morningEnd: ["05:53", "05:52", "05:51"][offset] ?? "05:51",
+        eveningStart: ["17:37", "17:38", "17:39"][offset] ?? "17:39",
+        eveningEnd: dusk[offset],
+      },
       moon: {
         ageDays: 14.6 + offset,
         illuminationPct: [98, 95, 90][offset] ?? 90,

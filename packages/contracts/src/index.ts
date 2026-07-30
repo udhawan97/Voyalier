@@ -161,7 +161,25 @@ export interface AstroDay {
   /** Minutes of daylight: 0 on a polar night, 1440 on a polar day. */
   dayLengthMinutes?: number;
   polar: PolarState;
+  /**
+   * The day's two low-sun windows, when it has them. Absent on a polar night
+   * (no sun), on a polar day (the low-sun period straddles local midnight and
+   * belongs to no one civil day), and on a high-latitude `normal` day where the
+   * sun rises but never climbs out of the golden band.
+   */
+  goldenHour?: GoldenHour;
   moon: MoonPhase;
+}
+/**
+ * The morning and evening low-sun windows of one local day, `HH:MM` local. The
+ * outer bounds are that day's own sunrise and sunset, so they never disagree
+ * with the sun times shown beside them.
+ */
+export interface GoldenHour {
+  morningStart: string;
+  morningEnd: string;
+  eveningStart: string;
+  eveningEnd: string;
 }
 /** The eight named lunar phases, new to waning crescent. */
 export type MoonPhaseName =

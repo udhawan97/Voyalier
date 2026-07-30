@@ -774,6 +774,8 @@ const en = {
   "facts.sky.dayLength": "{hours}h {minutes}m of daylight",
   "facts.polar.day": "Midnight sun — the sun does not set",
   "facts.polar.night": "Polar night — the sun does not rise",
+  "facts.sky.golden":
+    "Golden hour {morningStart}–{morningEnd} and {eveningStart}–{eveningEnd}",
   "facts.sky.moon": "{phase} · {pct}% lit",
   // Money: a reference rate, never a card or ATM rate.
   "facts.money.title": "Money",
@@ -2025,6 +2027,8 @@ const es: Record<MessageKey, string> = {
   "facts.sky.dayLength": "{hours}h {minutes}m de luz solar",
   "facts.polar.day": "Sol de medianoche: el sol no se pone",
   "facts.polar.night": "Noche polar: el sol no sale",
+  "facts.sky.golden":
+    "Hora dorada {morningStart}–{morningEnd} y {eveningStart}–{eveningEnd}",
   "facts.sky.moon": "{phase} · {pct}% iluminada",
   "facts.money.title": "Dinero",
   "facts.money.rate": "1 {from} = {value} {to}",

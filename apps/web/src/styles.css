@@ -1523,6 +1523,12 @@ h3 {
   font-variant-numeric: tabular-nums;
 }
 
+.voy-facts__day-golden {
+  color: var(--voy-ink-muted);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .voy-facts__day-moon {
   color: var(--voy-ink-muted);
   font-size: 0.82rem;
