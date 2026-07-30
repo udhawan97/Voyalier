@@ -6,6 +6,77 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+### Added
+
+- **Seven things the roadmap had been calling high-confidence for a fortnight, and
+  the one it turned out to be wrong about.** The selection rule was that each had
+  to land on a seam that already exists, so none of them added a gateway method
+  and the route manifest did not move — which is what let seven features share one
+  branch instead of seven.
+
+  Four are offline and derived from data already in the app. **Golden hour** is
+  the same sunrise solve at a six-degree solar altitude, anchored on each day's
+  own sunrise and sunset so a window can never contradict the times printed
+  beside it; three separate days carry none, and the polar state tells them apart.
+  **Languages** joins the country-facts card, which had been telling travelers the
+  plug, the voltage and the emergency number without saying what language any of
+  it would be in. **Airport codes** now autocomplete on the code _or_ the airport
+  name, because nobody memorises "CDG". And a **flight carbon estimate** sits
+  under the Blueprint's flights, computed from their airport codes.
+
+  The carbon estimate is where the roadmap was wrong. It assumed haul bands —
+  domestic, short, long — and reading the UK government's published factors showed
+  those bands are defined by _territory_ relative to the UK, not by distance.
+  Banding by kilometres would have been our threshold wearing their name, so this
+  carries the single factor they publish for flights between non-UK destinations
+  and says so. A leg whose airport codes are missing or unknown is counted rather
+  than skipped, and the panel then says the total is a floor: silently dropping
+  two of a trip's four legs would have produced a number that reads as the whole
+  trip while being half of it.
+
+  **Offline maps now cover every city pack** rather than four of sixteen, and
+  **packs carry a third layer** of practical amenities — cash machines,
+  pharmacies, toilets, viewpoints, hospitals — with its own row in the licence
+  manifest. Reading Overture's actual taxonomy to build that layer killed one item
+  outright: its "fountain" is decorative and its "drinking water dispenser" is a
+  wholesaler of water coolers, so there is no drinking-water pin until a source
+  publishes a real one. Packs already downloaded keep working; they simply have no
+  amenities to show.
+
+  **School holidays** join the holidays panel from a second source covering 36
+  countries. Two things about them are deliberate. They are date _ranges_, so a
+  trip is "during" one by overlapping it — a one-week July trip sits inside a
+  six-week summer break, and asking for containment would report nothing to
+  exactly the traveler most affected. And because that source covers fewer
+  countries than the public-holiday one, the panel distinguishes "no school
+  holidays during your dates" from "nobody publishes a school calendar for this
+  country". Telling someone bound for Japan that Japanese schools are in session
+  is not something Voyalier knows.
+
+- **Japan is the second destination with a curated entry path.** ADR-0006 said the
+  second one would be the test of whether the abstraction held. It held, and
+  corrected three things that only a second authority could have shown.
+
+  Japan publishes no electronic authorization at all — its online visa service is
+  a channel for the same visa, and eligibility keys on where the applicant
+  _lives_, not their nationality, so it is a link inside the journey rather than a
+  door of its own. Eighteen of the seventy-four exempt entries condition the
+  exemption on a passport type or a prior registration; Voyalier cannot see which
+  passport someone holds, so all eighteen resolve to "check your own case" with
+  the ministry's own table and no journey. Answering "exempt" there is what would
+  put a traveler at a gate without a visa. And the "read on" date is now per
+  destination, because re-reading one authority says nothing about the other.
+
+  What did not change is the split. Every factual claim about a requirement is
+  still a link, every authored sentence is still a translation or a caution, and
+  the test that fails the build on a quoted fee or processing time now runs over
+  both destinations. Two guard tests that said "canada.ca" now resolve the domain
+  per destination — trivially satisfied while one existed, and the actual guard
+  against a Japanese step citing a Canadian page now that two do.
+
+  Left out on purpose: more destinations. Each is a fresh reading of a fresh
+  authority, and two in one branch would halve the attention each got.
+
 ## [0.6.2] - 2026-07-29 — Honest search, readable engine
 
 ### Fixed
