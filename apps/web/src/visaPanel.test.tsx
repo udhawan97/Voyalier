@@ -101,9 +101,13 @@ describe("visa preparation", () => {
     const region = await openVisa();
     await pickPassport(region);
 
-    // Never a bare assertion: the authority and the curation date travel with it.
+    // Never a bare assertion: the authority and the curation date travel with
+    // it — and the authority is the one that governs *this* destination. The
+    // fixture trip goes to Kyoto, so it must be Japan's ministry quoted here;
+    // this read "Immigration, Refugees and Citizenship Canada" while Canada was
+    // the only curated destination.
     expect(within(region).getByText(/Quoted from/)).toHaveTextContent(
-      /Immigration, Refugees and Citizenship Canada/,
+      /Ministry of Foreign Affairs of Japan/,
     );
     expect(within(region).getByText(/read on/)).toHaveTextContent(
       /\d{4}-\d{2}-\d{2}/,

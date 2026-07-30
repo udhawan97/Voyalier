@@ -204,9 +204,15 @@ describe("parity: packing list", () => {
  */
 describe("parity: visa journeys", () => {
   const cases = visaGolden.cases;
+  // The destinations with curated journeys, and the one official domain each
+  // may cite. Mirrors official_domain_and_prefix in crates/voyalier-core.
+  const CURATED_DOMAINS = {
+    CA: "https://www.canada.ca/",
+    JP: "https://www.mofa.go.jp/",
+  } as const;
 
   it("covers every golden case", () => {
-    expect(cases).toHaveLength(6);
+    expect(cases).toHaveLength(9);
     expect(cases).toHaveLength(visaGolden.caseCount);
   });
 
@@ -218,17 +224,21 @@ describe("parity: visa journeys", () => {
       // used to borrow the only authority there was, which put Canada in front
       // of travelers flying anywhere else (ADR-0006, amended 2026-07-29).
       if (expected.entryPath === null) {
-        expect(destination).not.toBe("CA");
+        expect(CURATED_DOMAINS).not.toHaveProperty(destination);
         expect(expected.stepIds).toBeNull();
         return;
       }
       // Otherwise every path, including unknown, carries where it was read from
-      // and when — and the authority named governs the destination quoted.
-      expect(destination).toBe("CA");
+      // and when — and the authority named governs the destination quoted. Each
+      // destination is held to its *own* domain, so a Japanese journey linking
+      // canada.ca fails here rather than reading as attributed.
+      expect(CURATED_DOMAINS).toHaveProperty(destination);
       expect(expected.entryPath.sourceName).not.toHaveLength(0);
-      expect(expected.entryPath.sourceUrl).toMatch(
-        /^https:\/\/www\.canada\.ca\//,
-      );
+      expect(
+        expected.entryPath.sourceUrl.startsWith(
+          CURATED_DOMAINS[destination as keyof typeof CURATED_DOMAINS],
+        ),
+      ).toBe(true);
       expect(expected.entryPath.curatedAsOf).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(expected.entryPath.language).toBe("en");
     },

@@ -3804,9 +3804,15 @@ fn visa_preparation_refuses_bad_input_and_follows_the_trip() {
 fn visa_preparation_stays_silent_without_a_resolvable_destination() {
     let database = temp_database("visa-prep-unknown");
     let service = open_test_service(&database).expect("service");
-    // Kyoto is not curated: the traveler gets their passport back and
-    // nothing invented about Japanese entry rules.
-    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    // Rome is not curated: the traveler gets their passport back and nothing
+    // invented about Italian entry rules. (Kyoto used to stand here, and is now
+    // curated -- see the assertion at the bottom.)
+    let trip = service
+        .create_trip(CreateTripInput {
+            destination: "Rome".to_owned(),
+            ..valid_trip_input()
+        })
+        .expect("trip");
     let prep = service
         .set_visa_nationality(SetVisaNationalityInput {
             trip_id: trip.id.clone(),
@@ -3818,8 +3824,22 @@ fn visa_preparation_stays_silent_without_a_resolvable_destination() {
     // "Nothing invented" has to include the attribution. This used to hand
     // back an Unknown quote wearing Canada's authority and canada.ca's URL,
     // which the interface then printed as "the official source" for a trip
-    // to Japan (ADR-0006, amended 2026-07-29).
+    // somewhere else entirely (ADR-0006, amended 2026-07-29).
     assert!(prep.entry_path.is_none());
+
+    // And the other half of the same rule: a destination that *is* curated
+    // resolves against its own authority, never a borrowed one.
+    let kyoto = service.create_trip(valid_trip_input()).expect("kyoto trip");
+    let japan = service
+        .set_visa_nationality(SetVisaNationalityInput {
+            trip_id: kyoto.id.clone(),
+            nationality_iso2: "IN".to_owned(),
+        })
+        .expect("nationality");
+    let quote = japan.entry_path.expect("Japan is curated");
+    assert_eq!(quote.source_name, "Ministry of Foreign Affairs of Japan");
+    assert!(quote.source_url.starts_with("https://www.mofa.go.jp/"));
+    assert!(japan.journey.is_some(), "India needs a visa for Japan");
 
     drop(service);
     cleanup_database(database);

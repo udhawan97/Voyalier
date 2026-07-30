@@ -1743,6 +1743,19 @@ async function sha256(content: string): Promise<string> {
  * is synthetic — the real copy is curated in `voyalier-core` and rendered
  * verbatim, and duplicating it here would be transcription that silently rots.
  */
+/**
+ * Which country a mock destination is in, for the visa cockpit.
+ *
+ * The engine resolves this from the destination-facts snapshot or the bundled
+ * gazetteer. The mock only needs enough to keep both curated destinations
+ * reachable — and to keep answering "somewhere uncurated" for everywhere else,
+ * which is the branch that must not borrow an authority.
+ */
+function mockDestinationCountry(destination: string): string {
+  const japanese = ["kyoto", "tokyo", "osaka"];
+  return japanese.includes(destination.trim().toLowerCase()) ? "JP" : "CA";
+}
+
 function mockVisaJourney(
   destinationIso2: string,
   nationalityIso2: string,
@@ -1949,7 +1962,8 @@ export function createMockGateway(options?: {
   }
 
   function readVisaPrep(tripId: string): VisaPrep {
-    requireTrip(tripId);
+    const trip = requireTrip(tripId);
+    const destinationIso2 = mockDestinationCountry(trip.destination);
     const nationalityIso2 = visaNationalities.get(tripId);
     const items = [...visaItems.entries()]
       .filter(([key]) => key.startsWith(`${tripId}:`))
@@ -1963,15 +1977,21 @@ export function createMockGateway(options?: {
         ? { tripId, suggestedNationalityIso2, items }
         : { tripId, items };
     }
-    // Mock trips are Canada-bound unless their destination says otherwise; the
-    // real gateway resolves this from the destination-facts snapshot, falling
+    // Which country the destination is in decides which authority answers; the
+    // real gateway resolves it from the destination-facts snapshot, falling
     // back to the bundled gazetteer.
-    const journey = mockVisaJourney("CA", nationalityIso2);
+    const journey = mockVisaJourney(destinationIso2, nationalityIso2);
     const entryPath =
       journey?.entryPath ??
       (
-        visaParity.cases.find((entry) => entry.nationality === nationalityIso2)
-          ?.expected as { entryPath?: VisaPrep["entryPath"] } | undefined
+        visaParity.cases.find(
+          (entry) =>
+            // Both halves matter. Matching on nationality alone would let
+            // Japan's quote answer for a Canada-bound trip once a second
+            // destination existed.
+            entry.destination === destinationIso2 &&
+            entry.nationality === nationalityIso2,
+        )?.expected as { entryPath?: VisaPrep["entryPath"] } | undefined
       )?.entryPath ??
       undefined;
     return {
