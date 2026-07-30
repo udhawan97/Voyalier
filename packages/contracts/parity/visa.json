@@ -1,5 +1,5 @@
 {
-  "caseCount": 6,
+  "caseCount": 9,
   "cases": [
     {
       "destination": "CA",
@@ -148,6 +148,81 @@
       },
       "name": "malformed-nationality-code",
       "nationality": "IND"
+    },
+    {
+      "destination": "JP",
+      "expected": {
+        "documentIds": [
+          "jp.sts.passport.current",
+          "jp.sts.form.application",
+          "jp.sts.purpose.itinerary",
+          "jp.sts.purpose.invitation",
+          "jp.sts.purpose.guarantee",
+          "jp.sts.where.mission"
+        ],
+        "entryPath": {
+          "curatedAsOf": "2026-07-30",
+          "language": "en",
+          "path": "visaRequired",
+          "sourceName": "Ministry of Foreign Affairs of Japan",
+          "sourceUrl": "https://www.mofa.go.jp/j_info/visit/visa/index.html"
+        },
+        "ordinals": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "routeLabel": "Short-term stay visa (Japan)",
+        "stepIds": [
+          "jp.sts.01-door",
+          "jp.sts.02-passport",
+          "jp.sts.03-form",
+          "jp.sts.04-purpose",
+          "jp.sts.05-where",
+          "jp.sts.06-after"
+        ]
+      },
+      "name": "Japan: a nationality that needs a visa",
+      "nationality": "IN"
+    },
+    {
+      "destination": "JP",
+      "expected": {
+        "documentIds": null,
+        "entryPath": {
+          "curatedAsOf": "2026-07-30",
+          "language": "en",
+          "path": "exempt",
+          "sourceName": "Ministry of Foreign Affairs of Japan",
+          "sourceUrl": "https://www.mofa.go.jp/j_info/visit/visa/short/novisa.html"
+        },
+        "ordinals": null,
+        "routeLabel": null,
+        "stepIds": null
+      },
+      "name": "Japan: an unconditionally exempt nationality",
+      "nationality": "GB"
+    },
+    {
+      "destination": "JP",
+      "expected": {
+        "documentIds": null,
+        "entryPath": {
+          "curatedAsOf": "2026-07-30",
+          "language": "en",
+          "path": "unknown",
+          "sourceName": "Ministry of Foreign Affairs of Japan",
+          "sourceUrl": "https://www.mofa.go.jp/j_info/visit/visa/short/novisa.html"
+        },
+        "ordinals": null,
+        "routeLabel": null,
+        "stepIds": null
+      },
+      "name": "Japan: an exemption MOFA conditions on passport type",
+      "nationality": "TH"
     }
   ],
   "note": "Curated visa journeys, asserted from crates/voyalier-core/src/tests.rs and apps/web/src/parity.test.ts. Pins structure -- entry-path quotes, step ids and ordinals, document ids -- and deliberately not the curated prose: the interface renders that verbatim from core, so pinning it here would turn every copy edit into golden churn without catching anything. Adding a case fails both sides until caseCount is bumped in this file and in both tests. Regenerate expectations with VOYALIER_REGENERATE_GOLDEN=1 and read the diff."

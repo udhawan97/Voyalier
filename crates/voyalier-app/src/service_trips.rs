@@ -114,9 +114,30 @@ impl AppService {
             load_public_holidays_snapshot(&connection, trip_id)?.map(|snapshot| {
                 PublicHolidaysSnapshot {
                     holidays: holidays_within(&snapshot.holidays, &trip.start_date, &trip.end_date),
+                    // Overlap, not containment: a six-week summer break is
+                    // never *inside* a one-week trip.
+                    school_holidays: school_holidays_within(
+                        &snapshot.school_holidays,
+                        &trip.start_date,
+                        &trip.end_date,
+                    ),
                     ..snapshot
                 }
             });
+        // The carbon estimate is derived from the confirmed flights themselves,
+        // not from the destination snapshot — a trip with no facts fetch still
+        // gets one, and it needs no network or stored row of its own.
+        let flight_emissions = estimate_flight_emissions(
+            confirmed_facts
+                .iter()
+                .filter(|fact| fact.fact_type == FactType::FlightSegment)
+                .map(|fact| {
+                    (
+                        fact.payload.departure_airport_iata.as_deref(),
+                        fact.payload.arrival_airport_iata.as_deref(),
+                    )
+                }),
+        );
         let interest_profile = self.records(&connection).interest_profile(trip_id)?;
         let saved_places = self.records(&connection).saved_places(trip_id)?;
         let packing_items = self.records(&connection).packing_items(trip_id)?;
@@ -135,6 +156,7 @@ impl AppService {
             country_facts,
             astro,
             nearest_airports,
+            flight_emissions,
             time_difference,
             public_holidays,
             world_heritage,

@@ -84,3 +84,36 @@ authority genuinely governs the trip.
 `VisaPrep.entryPath` was already optional, so the wire contract is unchanged and no version of it is
 broken. The interface gains a state that says an authority has not been curated for this destination,
 and offers no link where it has none to offer.
+
+## Amendment (2026-07-30): Japan, and what the second destination proved
+
+The 2026-07-28 decision called the second destination journey "the test of whether the abstraction
+holds". It holds, with three corrections that only a second authority could have surfaced.
+
+**An entry path is not a fixed set of doors.** Canada publishes a visa route and an electronic
+authorization; Japan publishes a visa route and no electronic authorization at all. JAPAN eVISA is
+an online channel for the _same_ short-term-stay visa, and its eligibility is keyed on the
+applicant's country of **residence** rather than their nationality. Mapping it onto
+`EntryPath::ElectronicAuthorization` would have told a traveller they had a route they do not have,
+so it is a link inside the visa-required journey. `EntryPath` describes what an authority publishes,
+not a menu every destination must fill in.
+
+**Conditional exemption is the common case, not the exception.** Canada's conditional list has one
+entry. Eighteen of the seventy-four entries on Japan's exemption table condition the exemption on a
+passport type, on registering a passport with a mission beforehand, or on a passport's vintage.
+Voyalier cannot see which passport a traveller holds, so every one of them resolves to
+`EntryPath::Unknown` with the authority's own table and no journey. Answering "exempt" here is the
+failure mode that puts someone at a boarding gate without a visa, and it is the reason `Unknown`
+exists as a first-class result rather than an error.
+
+**"Curated as of" is per destination.** A single shared date would have aged Japan's table every
+time Canada's was re-read, and vice versa. Each destination carries its own.
+
+Two invariants the tests previously stated in terms of Canada are now stated per destination: a
+journey's links must stay on that destination's own official domain, and its document ids must carry
+that destination's own prefix. Those were satisfied trivially while one destination existed; they
+are the guard against cross-contamination — a Japanese step citing canada.ca — now that two do.
+
+Nothing about the split changes. Every factual claim about a requirement is still a link, every
+authored sentence is still a translation or a caution, and the test that fails the build on a quoted
+fee or processing time now runs over both destinations rather than one.

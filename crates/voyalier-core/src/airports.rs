@@ -115,6 +115,83 @@ pub fn nearest_airports(latitude: f64, longitude: f64, limit: usize) -> Vec<Near
         .collect()
 }
 
+/// One airport from the bundled list, identified rather than located relative
+/// to a query point. Borrowed statics — the table is compiled in.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AirportLocation {
+    pub iata: &'static str,
+    pub name: &'static str,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub size: AirportSize,
+}
+
+/// The bundled airport with this IATA code, case-insensitively.
+pub fn airport_by_iata(code: &str) -> Option<AirportLocation> {
+    let wanted = code.trim();
+    if wanted.len() != 3 {
+        return None;
+    }
+    airports()
+        .iter()
+        .find(|airport| airport.iata.eq_ignore_ascii_case(wanted))
+        .map(|airport| AirportLocation {
+            iata: airport.iata,
+            name: airport.name,
+            latitude: airport.lat,
+            longitude: airport.lon,
+            size: airport.size,
+        })
+}
+
+/// Airports matching a typed query, best match first, capped at `limit`.
+///
+/// Ranked in four tiers — exact code, code prefix, name prefix, name substring
+/// — because a traveler either knows the code or knows the airport, and the two
+/// should not compete. Within a tier the order is by IATA code, so the list is
+/// stable rather than dependent on the table's row order.
+///
+/// A blank query returns nothing: an airport field with three thousand entries
+/// behind it should stay quiet until the traveler has said something.
+pub fn matching_airports(query: &str, limit: usize) -> Vec<AirportLocation> {
+    let needle = query.trim().to_lowercase();
+    if needle.is_empty() || limit == 0 {
+        return Vec::new();
+    }
+
+    let mut tiered: Vec<(u8, &'static Airport)> = airports()
+        .iter()
+        .filter_map(|airport| {
+            let code = airport.iata.to_lowercase();
+            let name = airport.name.to_lowercase();
+            let tier = if code == needle {
+                0
+            } else if code.starts_with(&needle) {
+                1
+            } else if name.starts_with(&needle) {
+                2
+            } else if name.contains(&needle) {
+                3
+            } else {
+                return None;
+            };
+            Some((tier, airport))
+        })
+        .collect();
+    tiered.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.iata.cmp(b.1.iata)));
+    tiered
+        .into_iter()
+        .take(limit)
+        .map(|(_, airport)| AirportLocation {
+            iata: airport.iata,
+            name: airport.name,
+            latitude: airport.lat,
+            longitude: airport.lon,
+            size: airport.size,
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -149,6 +226,41 @@ mod tests {
         // limit is honoured and never exceeds the dataset.
         assert_eq!(nearest_airports(35.0, 135.0, 0).len(), 0);
         assert!(nearest_airports(35.0, 135.0, 100_000).len() < 4000);
+    }
+
+    #[test]
+    fn matches_airports_by_code_and_by_name() {
+        // An exact code wins, even though other codes start with those letters.
+        let exact = matching_airports("kix", 5);
+        assert_eq!(exact[0].iata, "KIX");
+        assert_eq!(exact[0].name, "Kansai International Airport");
+
+        // A name query finds the airport whose code the traveler does not know
+        // -- the whole point of the field, since nobody memorises "CDG".
+        let by_name = matching_airports("charles de gaulle", 5);
+        assert_eq!(by_name[0].iata, "CDG");
+
+        // A code prefix ranks ahead of a name that merely contains the letters.
+        let prefix = matching_airports("LHR", 5);
+        assert_eq!(prefix[0].iata, "LHR");
+
+        // Bounded, blank-safe, and never a panic on an unknown query.
+        assert!(matching_airports("hanedaa", 5).is_empty());
+        assert!(matching_airports("", 5).is_empty());
+        assert!(matching_airports("a", 3).len() <= 3);
+    }
+
+    #[test]
+    fn looks_an_airport_up_by_its_iata_code() {
+        let haneda = airport_by_iata("HND").expect("haneda");
+        assert_eq!(haneda.name, "Tokyo Haneda International Airport");
+        assert!((haneda.latitude - 35.55).abs() < 0.1);
+        assert!((haneda.longitude - 139.78).abs() < 0.1);
+
+        // Case-insensitive, because a traveler types what is on their ticket.
+        assert_eq!(airport_by_iata("hnd").map(|a| a.iata), Some("HND"));
+        assert!(airport_by_iata("ZZZ").is_none());
+        assert!(airport_by_iata("").is_none());
     }
 
     #[test]

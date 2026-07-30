@@ -51,7 +51,7 @@ impl BoundingBox {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PackLayerLicense {
-    /// "places" or "articles".
+    /// "places", "amenities", or "articles".
     pub layer: String,
     pub source: String,
     /// SPDX-style identifier where one exists.
@@ -74,14 +74,29 @@ pub struct PackInfo {
     /// archive. This lets the download UI disclose the extra payload up front.
     #[serde(default)]
     pub offline_map_available: bool,
-    /// Per-layer licenses (always a permissive places layer + a share-alike
-    /// articles layer).
+    /// Per-layer licenses (two permissive Overture layers -- places and
+    /// amenities -- plus a share-alike articles layer).
     pub layers: Vec<PackLayerLicense>,
 }
 
 fn places_layer() -> PackLayerLicense {
     PackLayerLicense {
         layer: "places".to_owned(),
+        source: "Overture Maps".to_owned(),
+        license: "CDLA-Permissive-2.0".to_owned(),
+        attribution: "© Overture Maps Foundation".to_owned(),
+    }
+}
+
+/// The practical-amenities layer.
+///
+/// Same source and licence as the places layer, and still its own row: the
+/// manifest lists what a pack *contains*, and a traveler deciding whether to
+/// download one should see that toilets and pharmacies are in there rather than
+/// have them hidden inside "places".
+fn amenities_layer() -> PackLayerLicense {
+    PackLayerLicense {
+        layer: "amenities".to_owned(),
         source: "Overture Maps".to_owned(),
         license: "CDLA-Permissive-2.0".to_owned(),
         attribution: "© Overture Maps Foundation".to_owned(),
@@ -104,8 +119,12 @@ fn pack(id: &str, name: &str, region: &str, article: &str, bbox: BoundingBox) ->
         region: region.to_owned(),
         bbox,
         wikivoyage_article: article.to_owned(),
-        offline_map_available: matches!(id, "us-nashville" | "jp-kyoto" | "jp-tokyo" | "fr-paris"),
-        layers: vec![places_layer(), articles_layer()],
+        // Every catalog pack carries a basemap. The publisher reads this flag
+        // off the dumped catalog to decide what to build, and steps the zoom
+        // down per pack until the archive fits under `MAX_OFFLINE_MAP_BYTES`, so
+        // a large bounding box costs detail rather than failing the run.
+        offline_map_available: true,
+        layers: vec![places_layer(), amenities_layer(), articles_layer()],
     }
 }
 
@@ -280,6 +299,41 @@ pub struct PackPlace {
     pub lon: f64,
 }
 
+/// What a pack amenity is, normalized off the source's own taxonomy.
+///
+/// A small closed set rather than the source's category string, so the
+/// interface never has to learn a two-thousand-row taxonomy, and so a taxonomy
+/// change is one mapping edit instead of a UI change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AmenityKind {
+    /// Cash machine.
+    Atm,
+    Pharmacy,
+    /// Public toilet or restroom.
+    Toilet,
+    /// A named viewpoint or lookout.
+    Viewpoint,
+    /// Hospital or emergency room.
+    Hospital,
+}
+
+/// One practical amenity inside a downloaded pack (from the amenities layer).
+///
+/// Deliberately **no drinking-water kind**. The source's taxonomy has no public
+/// drinking fountain: its `fountain` is decorative and sits under attractions,
+/// and its `drinking_water_dispenser` is a business-to-business supplier of
+/// water coolers. Either would have put the wrong pin on a thirsty traveler's
+/// map, so the kind is absent until a source publishes the real thing.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackAmenity {
+    pub name: String,
+    pub kind: AmenityKind,
+    pub lat: f64,
+    pub lon: f64,
+}
+
 /// One travel-notes article inside a downloaded pack (from the Wikivoyage layer).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -314,6 +368,11 @@ pub struct PackContent {
     pub pack_id: String,
     #[serde(default)]
     pub places: Vec<PackPlace>,
+    /// Practical amenities. `default` is load-bearing rather than tidy: every
+    /// pack already published carries two layers, and a traveler who downloaded
+    /// one before this shipped must still be able to open it.
+    #[serde(default)]
+    pub amenities: Vec<PackAmenity>,
     #[serde(default)]
     pub articles: Vec<PackArticle>,
     #[serde(default)]
@@ -329,6 +388,8 @@ pub struct DownloadedPack {
     pub name: String,
     pub region: String,
     pub place_count: u32,
+    #[serde(default)]
+    pub amenity_count: u32,
     pub article_count: u32,
     pub downloaded_at: String,
     #[serde(default)]
@@ -668,13 +729,12 @@ mod tests {
                 .count(),
             4
         );
-        assert_eq!(
-            catalog
-                .iter()
-                .filter(|info| info.offline_map_available)
-                .map(|info| info.id.as_str())
-                .collect::<Vec<_>>(),
-            vec!["us-nashville", "jp-kyoto", "jp-tokyo", "fr-paris"]
+        // Every pack offers an offline basemap. Asserted as "all of them"
+        // rather than as a list, because the list was the thing that had to be
+        // remembered when a pack was added — and was not.
+        assert!(
+            catalog.iter().all(|info| info.offline_map_available),
+            "every pack must disclose an offline map"
         );
     }
 
@@ -688,14 +748,16 @@ mod tests {
             assert!(!info.region.is_empty());
             assert!(!info.wikivoyage_article.is_empty());
             assert!(info.bbox.is_valid(), "bad bbox for {}", info.id);
-            // Exactly the permissive places layer + the share-alike prose layer.
+            // Two permissive Overture layers + the share-alike prose layer.
             let layers: HashSet<&str> = info.layers.iter().map(|l| l.layer.as_str()).collect();
-            assert!(layers.contains("places"), "no places layer for {}", info.id);
-            assert!(
-                layers.contains("articles"),
-                "no articles layer for {}",
-                info.id
-            );
+            for required in ["places", "amenities", "articles"] {
+                assert!(
+                    layers.contains(required),
+                    "no {required} layer for {}",
+                    info.id
+                );
+            }
+            assert_eq!(layers.len(), 3, "unexpected layer set for {}", info.id);
             let articles = info
                 .layers
                 .iter()
@@ -842,6 +904,25 @@ mod tests {
         assert_eq!(content.articles.len(), 1);
         assert!(content.offline_map.is_none());
         assert_eq!(content.places[0].name, "Ryman Auditorium");
+        // The body above is a two-layer pack, the shape every pack published
+        // before the amenities layer has. It must still open: those packs are
+        // sitting in travelers' databases and on the release right now.
+        assert!(content.amenities.is_empty());
+
+        // A three-layer body carries them, normalized off the source taxonomy.
+        let with_amenities = r#"{
+            "packId": "us-nashville",
+            "places": [],
+            "amenities": [{ "name": "Corner Pharmacy", "kind": "pharmacy",
+                            "lat": 36.16, "lon": -86.78 },
+                          { "name": "Riverfront Lookout", "kind": "viewpoint",
+                            "lat": 36.17, "lon": -86.77 }],
+            "articles": []
+        }"#;
+        let three = parse_pack_content("us-nashville", with_amenities).expect("content");
+        assert_eq!(three.amenities.len(), 2);
+        assert_eq!(three.amenities[0].kind, AmenityKind::Pharmacy);
+        assert_eq!(three.amenities[1].kind, AmenityKind::Viewpoint);
 
         // A body for a different pack is refused.
         assert_eq!(

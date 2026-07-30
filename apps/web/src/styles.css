@@ -1523,6 +1523,12 @@ h3 {
   font-variant-numeric: tabular-nums;
 }
 
+.voy-facts__day-golden {
+  color: var(--voy-ink-muted);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .voy-facts__day-moon {
   color: var(--voy-ink-muted);
   font-size: 0.82rem;
@@ -1612,6 +1618,15 @@ h3 {
 
 .voy-facts__fetch {
   margin-top: 0.4rem;
+}
+
+.voy-holidays__subtitle {
+  margin: 1rem 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: var(--voy-w-strong);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--voy-ink-muted);
 }
 
 .voy-holidays__list {
@@ -3914,6 +3929,19 @@ h3 {
 
 .voy-factgroup {
   margin-bottom: 2.2rem;
+}
+
+.voy-detail__carbon {
+  margin: -0.5rem 0 1.5rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--voy-ink-muted);
+}
+
+.voy-detail__carbon-figure {
+  font-weight: var(--voy-w-strong);
+  color: var(--voy-ink);
+  font-variant-numeric: tabular-nums;
 }
 
 .voy-factgroup__title {

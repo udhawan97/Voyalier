@@ -18,9 +18,16 @@ use serde::{Deserialize, Serialize};
 
 use crate::types::{AppError, ErrorCode, SourceLink};
 
-/// When the curated tables below were last read against their sources by hand.
+/// When Canada's curated tables were last read against IRCC by hand.
 /// Shown to the traveler beside every quoted entry path.
 const CURATED_AS_OF: &str = "2026-07-28";
+
+/// When Japan's curated tables were last read against MOFA by hand.
+///
+/// Per destination rather than shared: a re-read of one authority says nothing
+/// about the other, and one date covering both would age Japan's table every
+/// time Canada's was checked.
+const JP_CURATED_AS_OF: &str = "2026-07-30";
 
 /// Content language of the curated prose, so the interface can mark it up rather
 /// than let a non-English reader assume it was translated.
@@ -225,6 +232,51 @@ const CA_EXEMPT: &[&str] = &["US"];
 /// `Unknown` and the traveler is sent to the official check.
 const CA_CONDITIONAL: &[&str] = &["MX"];
 
+// ---- Japan: sources ------------------------------------------------------
+
+const MOFA: &str = "Ministry of Foreign Affairs of Japan";
+const JP_VISA_INDEX: &str = "https://www.mofa.go.jp/j_info/visit/visa/index.html";
+const JP_NOVISA: &str = "https://www.mofa.go.jp/j_info/visit/visa/short/novisa.html";
+const JP_SHORT_OTHER: &str = "https://www.mofa.go.jp/j_info/visit/visa/short/other_visa.html";
+const JP_PROCEDURE_CHART: &str = "https://www.mofa.go.jp/j_info/visit/visa/process/short.html";
+const JP_CRITERIA: &str = "https://www.mofa.go.jp/j_info/visit/visa/procedure/issuance.html";
+const JP_EVISA: &str = "https://www.mofa.go.jp/j_info/visit/visa/visaonline.html";
+const JP_FORM: &str = "https://www.mofa.go.jp/files/000124525.pdf";
+const JP_ITINERARY: &str = "https://www.mofa.go.jp/files/000262548.pdf";
+const JP_GUARANTEE: &str = "https://www.mofa.go.jp/files/000262545.pdf";
+const JP_INVITATION: &str = "https://www.mofa.go.jp/files/000137089.pdf";
+const JP_MISSIONS: &str = "https://www.mofa.go.jp/about/emb_cons/over/index.html";
+const JP_FEES: &str = "https://www.mofa.go.jp/j_info/visit/visa/procedure/pagewe_000001_00391.html";
+const JP_PROCESSING: &str = "https://www.mofa.go.jp/j_info/visit/visa/procedure/day.html";
+
+/// Nationalities and regions Japan publishes as exempt from a short-stay visa
+/// **without attaching a condition**.
+///
+/// Fifty-six of the seventy-four entries on MOFA's table. The stay length
+/// differs across them — fifteen days, thirty, ninety — but that is a limit on
+/// the stay rather than a condition on the exemption, so those entries belong
+/// here. So do the entries carrying MOFA's note 8, which governs *extending* a
+/// stay past ninety days and likewise does not condition the exemption itself.
+const JP_EXEMPT: &[&str] = &[
+    "AD", "AR", "AT", "AU", "BE", "BG", "BN", "BS", "CA", "CH", "CL", "CR", "CY", "CZ", "DE", "DK",
+    "DO", "EE", "ES", "FI", "FR", "GB", "GR", "GT", "HN", "HR", "HU", "IE", "IL", "IS", "IT", "KR",
+    "LI", "LT", "LU", "LV", "MC", "MK", "MT", "MU", "MX", "NL", "NO", "NZ", "PL", "PT", "RO", "SE",
+    "SG", "SI", "SK", "SM", "SR", "SV", "TN", "US",
+];
+
+/// Nationalities and regions whose exemption Japan publishes **with a
+/// condition** — a passport type, a prior registration, or a passport vintage.
+///
+/// The remaining eighteen entries on the table. Each resolves to
+/// [`EntryPath::Unknown`]: Voyalier cannot see which passport a traveler holds,
+/// and answering "exempt" for someone whose passport does not meet the
+/// condition is the failure that would put them at a boarding gate without a
+/// visa. They get MOFA's own page and no journey.
+const JP_CONDITIONAL: &[&str] = &[
+    "AE", "BB", "BR", "HK", "ID", "LS", "MO", "ME", "MY", "PA", "PE", "PY", "QA", "RS", "TH", "TR",
+    "TW", "UY",
+];
+
 fn link(label: &str, url: &str) -> SourceLink {
     SourceLink {
         label: label.to_owned(),
@@ -254,13 +306,18 @@ fn is_iso2(code: &str) -> bool {
 /// let Canada's authority stand in for every other destination on earth — see
 /// the 2026-07-29 amendment to ADR-0006.
 pub fn entry_path(destination_iso2: &str, nationality_iso2: &str) -> Option<EntryPathQuote> {
-    // Canada is the only curated destination. Quoting IRCC for anywhere else
-    // would put a government with no connection to the trip in front of the
-    // traveler, under the words "the official source".
-    if destination_iso2 != "CA" {
-        return None;
+    match destination_iso2 {
+        "CA" => canada_entry_path(nationality_iso2),
+        "JP" => japan_entry_path(nationality_iso2),
+        // Anywhere else is uncurated. Quoting one of these authorities for a
+        // destination it does not govern would put a government with no
+        // connection to the trip in front of the traveler, under the words "the
+        // official source".
+        _ => None,
     }
+}
 
+fn canada_entry_path(nationality_iso2: &str) -> Option<EntryPathQuote> {
     let unknown = |url: &str| EntryPathQuote {
         path: EntryPath::Unknown,
         source_name: IRCC.to_owned(),
@@ -293,6 +350,42 @@ pub fn entry_path(destination_iso2: &str, nationality_iso2: &str) -> Option<Entr
     })
 }
 
+/// Japan's published door for a nationality.
+///
+/// MOFA's structure is the same shape as Canada's — an enumerated exemption
+/// table, with its visa pages stating that everyone else needs one — so an
+/// unlisted code resolves to `VisaRequired`, which quotes that structure rather
+/// than inferring past it, and errs toward a traveler making one extra check
+/// rather than toward a denied boarding.
+///
+/// Japan publishes **no electronic authorization**. JAPAN eVISA is an online
+/// channel for the same short-stay visa and is keyed on the applicant's country
+/// of *residence*, not their nationality, so it is a link inside the
+/// visa-required journey and never an [`EntryPath::ElectronicAuthorization`].
+fn japan_entry_path(nationality_iso2: &str) -> Option<EntryPathQuote> {
+    let quote = |path: EntryPath, url: &str| EntryPathQuote {
+        path,
+        source_name: MOFA.to_owned(),
+        source_url: url.to_owned(),
+        curated_as_of: JP_CURATED_AS_OF.to_owned(),
+        language: LANGUAGE.to_owned(),
+    };
+
+    // A code we cannot read, and one whose exemption MOFA conditions on a
+    // passport type or a prior registration, are both still Japan's trip to
+    // answer for — so MOFA stays the named authority and its own table is where
+    // the traveler is sent.
+    if !is_iso2(nationality_iso2) || JP_CONDITIONAL.contains(&nationality_iso2) {
+        return Some(quote(EntryPath::Unknown, JP_NOVISA));
+    }
+
+    if JP_EXEMPT.contains(&nationality_iso2) {
+        Some(quote(EntryPath::Exempt, JP_NOVISA))
+    } else {
+        Some(quote(EntryPath::VisaRequired, JP_VISA_INDEX))
+    }
+}
+
 /// What biometrics are, and where to give them.
 ///
 /// The design called for per-nationality application-centre pointers, but IRCC
@@ -312,10 +405,185 @@ fn biometrics_links() -> Vec<SourceLink> {
 /// answer.
 pub fn visa_journey(destination_iso2: &str, nationality_iso2: &str) -> Option<VisaJourney> {
     let quote = entry_path(destination_iso2, nationality_iso2)?;
-    match quote.path {
-        EntryPath::VisaRequired => Some(canada_visitor_visa(nationality_iso2, quote)),
-        EntryPath::ElectronicAuthorization => Some(canada_eta(nationality_iso2, quote)),
-        EntryPath::Exempt | EntryPath::Unknown => None,
+    match (destination_iso2, quote.path) {
+        ("CA", EntryPath::VisaRequired) => Some(canada_visitor_visa(nationality_iso2, quote)),
+        ("CA", EntryPath::ElectronicAuthorization) => Some(canada_eta(nationality_iso2, quote)),
+        ("JP", EntryPath::VisaRequired) => Some(japan_short_term_stay(nationality_iso2, quote)),
+        _ => None,
+    }
+}
+
+/// Japan's six-step short-term-stay visa route, applied for from abroad.
+///
+/// Step 5 carries the two mistakes that cost the most: applying to the wrong
+/// mission, and expecting to sort it out on arrival. Neither is a requirement
+/// Voyalier is asserting — both are MOFA's own published procedure, restated
+/// plainly, with the page beside them.
+fn japan_short_term_stay(nationality_iso2: &str, quote: EntryPathQuote) -> VisaJourney {
+    let steps = vec![
+        step(
+            "jp.sts.01-door",
+            1,
+            "Check which door is yours",
+            Some("short-term stay"),
+            "Short-term stay covers tourism, business, and visiting friends or relatives, with no \
+             paid work. Japan publishes a table of the countries and regions it exempts from a \
+             visa for this; for several of them the exemption depends on the kind of passport you \
+             hold, or on registering it with a Japanese mission first. Read your own row before \
+             you assume either way.",
+            Vec::new(),
+            vec![
+                link("MOFA — Exemption of visa (short-term stay)", JP_NOVISA),
+                link("MOFA — Visa", JP_VISA_INDEX),
+                link(
+                    "MOFA — Procedure chart for short-term stay",
+                    JP_PROCEDURE_CHART,
+                ),
+            ],
+        ),
+        step(
+            "jp.sts.02-passport",
+            2,
+            "Your passport",
+            None,
+            "Japan's published criteria start here: a valid passport, and the right to return to \
+             the country you are a national or a resident of. Settle this before the rest, because \
+             the form is filled in from it.",
+            vec![document(
+                "jp.sts.passport.current",
+                "A valid passport",
+                "The biographic page is what the application is built from.",
+                &[
+                    "Renewing mid-application means redoing parts of it. If your passport is near \
+                     expiry, renew before you apply rather than after.",
+                ],
+                vec![link("MOFA — Criteria of visa issuance", JP_CRITERIA)],
+            )],
+            vec![link("MOFA — Criteria of visa issuance", JP_CRITERIA)],
+        ),
+        step(
+            "jp.sts.03-form",
+            3,
+            "The form and the photograph",
+            Some("visa application form"),
+            "MOFA publishes the form itself, in several languages. Fill it in and print it rather \
+             than writing over a scan, and take the photograph specification your mission \
+             publishes to the photographer rather than asking for a passport photo.",
+            vec![document(
+                "jp.sts.form.application",
+                "Visa application form",
+                "MOFA's own form, with your photograph attached to it.",
+                &[
+                    "Requirements are set by the mission that will receive your application, so \
+                     check its page as well as this one — they do differ.",
+                ],
+                vec![link("MOFA — Visa application form (PDF)", JP_FORM)],
+            )],
+            vec![link("MOFA — Visa application documents", JP_SHORT_OTHER)],
+        ),
+        step(
+            "jp.sts.04-purpose",
+            4,
+            "What the trip actually is",
+            None,
+            "This is where you show the trip is what you say it is. MOFA publishes a form for the \
+             itinerary; where someone in Japan is receiving you, it publishes forms for them too. \
+             Which of these you need depends on why you are going, and the mission's page is what \
+             says which.",
+            vec![
+                document(
+                    "jp.sts.purpose.itinerary",
+                    "Travel itinerary",
+                    "Day by day: where you will be, and what you are there for.",
+                    &[
+                        "An itinerary that does not line up with your bookings or your dates is \
+                         worse than a sparse one.",
+                    ],
+                    vec![link("MOFA — Travel itinerary (PDF)", JP_ITINERARY)],
+                ),
+                document(
+                    "jp.sts.purpose.invitation",
+                    "Letter of invitation, if someone in Japan is receiving you",
+                    "Written by the person or organisation inviting you, on MOFA's form.",
+                    &[
+                        "The inviting party sends these to you, not to the ministry or the \
+                         mission — keep a copy of everything they send.",
+                    ],
+                    vec![link("MOFA — Letter of invitation (PDF)", JP_INVITATION)],
+                ),
+                document(
+                    "jp.sts.purpose.guarantee",
+                    "Letter of guarantee, where one is asked for",
+                    "A named guarantor in Japan, on MOFA's form.",
+                    &[
+                        "Being invited and being guaranteed are different roles, and a trip may \
+                         need both or neither.",
+                    ],
+                    vec![link("MOFA — Letter of guarantee (PDF)", JP_GUARANTEE)],
+                ),
+            ],
+            vec![link("MOFA — Visa application documents", JP_SHORT_OTHER)],
+        ),
+        step(
+            "jp.sts.05-where",
+            5,
+            "Where you apply",
+            Some("the Diplomatic Mission with jurisdiction over your place of residence"),
+            "Not the nearest Japanese mission — the one whose jurisdiction covers where you live. \
+             Applications go to it, to an accredited agency or visa application centre it names, \
+             or online where that is offered. Two things worth knowing before you plan around it: \
+             a Japanese visa cannot be obtained on arrival, and it cannot be applied for from \
+             inside Japan. Online application is offered to people *resident* in a specific list \
+             of countries, which is not the same as being a national of one, so check the list \
+             against where you live.",
+            vec![document(
+                "jp.sts.where.mission",
+                "Your mission's own document list",
+                "The embassy, consulate-general, or consular office with jurisdiction over your \
+                 residence publishes what it wants and how it wants it delivered.",
+                &[
+                    "Its list overrides the general one. Where the two differ, the mission's is \
+                     the one being applied to your file.",
+                ],
+                vec![
+                    link("MOFA — Embassies and consulates", JP_MISSIONS),
+                    link("MOFA — JAPAN eVISA", JP_EVISA),
+                ],
+            )],
+            vec![
+                link("MOFA — Embassies and consulates", JP_MISSIONS),
+                link("MOFA — JAPAN eVISA", JP_EVISA),
+                link("MOFA — Visa fees", JP_FEES),
+                link("MOFA — Visa processing time", JP_PROCESSING),
+            ],
+        ),
+        step(
+            "jp.sts.06-after",
+            6,
+            "After it is issued",
+            Some("landing permission"),
+            "A visa is one of the requirements for entering Japan, and it is not by itself \
+             permission to enter. Landing permission is granted at the port of entry by an \
+             immigration officer, and what it lets you do while you are there is the status of \
+             residence written on it. This matters for a second reason: people often say \"visa\" \
+             when they mean status of residence, and those are handled by different bodies, so \
+             the answer you find depends on which one you are actually asking about.",
+            Vec::new(),
+            vec![
+                link("MOFA — Visa", JP_VISA_INDEX),
+                link("MOFA — Criteria of visa issuance", JP_CRITERIA),
+            ],
+        ),
+    ];
+
+    VisaJourney {
+        destination_iso2: "JP".to_owned(),
+        nationality_iso2: nationality_iso2.to_owned(),
+        route_label: "Short-term stay visa (Japan)".to_owned(),
+        entry_path: quote,
+        steps,
+        curated_as_of: JP_CURATED_AS_OF.to_owned(),
+        language: LANGUAGE.to_owned(),
     }
 }
 
@@ -715,10 +983,13 @@ mod tests {
     use super::*;
 
     /// Every curated journey, for rules that must hold across all of them.
+    /// Every curated journey, so the guard tests below cover each destination
+    /// rather than only the first one that was written.
     fn journeys() -> Vec<VisaJourney> {
-        ["IN", "GB", "NG", "JP"]
+        [("CA", "IN"), ("CA", "GB"), ("CA", "NG"), ("CA", "JP")]
             .iter()
-            .filter_map(|nationality| visa_journey("CA", nationality))
+            .chain([("JP", "CN"), ("JP", "IN"), ("JP", "NG")].iter())
+            .filter_map(|(destination, nationality)| visa_journey(destination, nationality))
             .collect()
     }
 
@@ -734,14 +1005,30 @@ mod tests {
             .collect()
     }
 
+    /// The one domain and the one id prefix a destination's curation may use.
+    ///
+    /// Keyed per destination rather than shared, so a Japanese step that links
+    /// canada.ca — or a Canadian document id on a Japanese step — fails here.
+    /// That cross-contamination is the exact thing ADR-0006 exists to stop, and
+    /// it is the mistake a second destination makes possible for the first time.
+    fn official_domain_and_prefix(destination_iso2: &str) -> (&'static str, &'static str) {
+        match destination_iso2 {
+            "CA" => ("https://www.canada.ca/", "ca."),
+            "JP" => ("https://www.mofa.go.jp/", "jp."),
+            other => panic!("no official domain recorded for {other}"),
+        }
+    }
+
     #[test]
     fn every_curated_link_is_a_well_formed_official_url() {
         for journey in journeys() {
-            assert!(journey.entry_path.source_url.starts_with("https://"));
+            let (domain, _) = official_domain_and_prefix(&journey.destination_iso2);
+            assert!(journey.entry_path.source_url.starts_with(domain));
             for link in all_links(&journey) {
                 assert!(
-                    link.url.starts_with("https://www.canada.ca/"),
-                    "off-domain or insecure curated link: {}",
+                    link.url.starts_with(domain),
+                    "off-domain or insecure curated link in {}: {}",
+                    journey.route_label,
                     link.url
                 );
                 assert!(!link.label.is_empty(), "unlabelled link: {}", link.url);
@@ -768,10 +1055,11 @@ mod tests {
     #[test]
     fn document_ids_are_unique_and_destination_prefixed() {
         for journey in journeys() {
+            let (_, prefix) = official_domain_and_prefix(&journey.destination_iso2);
             let mut seen = Vec::new();
             for document in journey.steps.iter().flat_map(|step| &step.documents) {
                 assert!(
-                    document.id.starts_with("ca."),
+                    document.id.starts_with(prefix),
                     "document id must be destination-prefixed: {}",
                     document.id
                 );
@@ -824,24 +1112,117 @@ mod tests {
 
     #[test]
     fn an_uncurated_destination_names_no_authority() {
-        // ADR-0006, amended 2026-07-29. Canada is the only curated destination,
-        // and it must not stand in as the authority for every other one: a
-        // London -> Tokyo trip was told to confirm its case at canada.ca.
-        for destination in ["JP", "FR", "GB", "", "CAN", "ca"] {
+        // ADR-0006, amended 2026-07-29 and again 2026-07-30. A curated
+        // destination must not stand in as the authority for any other one: a
+        // London -> Tokyo trip was once told to confirm its case at canada.ca.
+        for destination in ["FR", "GB", "", "CAN", "ca", "jp"] {
             assert!(
                 entry_path(destination, "IN").is_none(),
                 "{destination} is not curated, so there is no authority to name"
             );
         }
 
-        // A curated destination still answers for every nationality, including
-        // the ones it publishes conditions for and codes it cannot read at all:
-        // there, IRCC really does govern the trip.
+        // Each curated destination answers for every nationality — including
+        // the ones it publishes conditions for and codes it cannot read at all
+        // — and names its *own* authority when it does.
         for nationality in ["IN", "US", "MX", "", "i", "IND", "I1"] {
-            let quote = entry_path("CA", nationality).expect("Canada is curated");
-            assert_eq!(quote.source_name, IRCC);
-            assert!(quote.source_url.starts_with("https://www.canada.ca/"));
+            let canada = entry_path("CA", nationality).expect("Canada is curated");
+            assert_eq!(canada.source_name, IRCC);
+            assert!(canada.source_url.starts_with("https://www.canada.ca/"));
+
+            let japan = entry_path("JP", nationality).expect("Japan is curated");
+            assert_eq!(japan.source_name, MOFA);
+            assert!(japan.source_url.starts_with("https://www.mofa.go.jp/"));
         }
+    }
+
+    #[test]
+    fn japan_quotes_mofas_table_including_its_conditional_rows() {
+        // The three doors MOFA actually publishes. There is no electronic
+        // authorization anywhere in them: JAPAN eVISA is a channel for the same
+        // visa, keyed on residence rather than nationality.
+        assert_eq!(
+            entry_path("JP", "GB").expect("uk").path,
+            EntryPath::Exempt,
+            "the UK is on MOFA's exemption table"
+        );
+        assert_eq!(
+            entry_path("JP", "CN").expect("china").path,
+            EntryPath::VisaRequired,
+            "a country absent from the table needs a visa"
+        );
+        // Thailand's exemption is conditional on holding an ICAO ePassport, and
+        // Voyalier cannot see which passport a traveler holds. Answering
+        // "exempt" here is what would put someone at a gate without a visa.
+        assert_eq!(
+            entry_path("JP", "TH").expect("thailand").path,
+            EntryPath::Unknown
+        );
+        assert_eq!(
+            entry_path("JP", "TW").expect("taiwan").path,
+            EntryPath::Unknown
+        );
+
+        for nationality in JP_EXEMPT {
+            assert_eq!(
+                entry_path("JP", nationality).expect("exempt").path,
+                EntryPath::Exempt,
+                "{nationality} is on the unconditional side of the table"
+            );
+            assert!(
+                visa_journey("JP", nationality).is_none(),
+                "{nationality} needs no journey"
+            );
+        }
+        for nationality in JP_CONDITIONAL {
+            assert_eq!(
+                entry_path("JP", nationality).expect("conditional").path,
+                EntryPath::Unknown,
+                "{nationality} carries a condition MOFA publishes"
+            );
+            assert!(visa_journey("JP", nationality).is_none());
+        }
+
+        // MOFA publishes seventy-four exempt countries and regions. The split
+        // between conditional and unconditional is ours; the total is theirs,
+        // so it is pinned — a row lost while re-reading the table shows up here.
+        assert_eq!(JP_EXEMPT.len() + JP_CONDITIONAL.len(), 74);
+        for code in JP_EXEMPT.iter().chain(JP_CONDITIONAL) {
+            assert!(is_iso2(code), "not an ISO2 code: {code}");
+            assert!(
+                !(JP_EXEMPT.contains(code) && JP_CONDITIONAL.contains(code)),
+                "{code} cannot be both"
+            );
+        }
+    }
+
+    #[test]
+    fn japan_visa_required_gets_the_short_term_stay_route() {
+        let journey = visa_journey("JP", "CN").expect("China is visa-required for Japan");
+        assert_eq!(journey.destination_iso2, "JP");
+        assert_eq!(journey.steps.len(), 6);
+        assert_eq!(journey.curated_as_of, JP_CURATED_AS_OF);
+
+        // The two mistakes that cost the most are named where they happen.
+        let where_step = &journey.steps[4];
+        assert!(
+            where_step
+                .plain_explanation
+                .contains("cannot be obtained on arrival")
+        );
+        assert!(
+            where_step
+                .plain_explanation
+                .contains("jurisdiction covers where you live")
+        );
+
+        // eVISA is a link inside the journey, never an entry path of its own.
+        assert!(all_links(&journey).iter().any(|link| link.url == JP_EVISA));
+        assert_ne!(
+            journey.entry_path.path,
+            EntryPath::ElectronicAuthorization,
+            "Japan publishes no electronic authorization"
+        );
     }
 
     #[test]

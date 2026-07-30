@@ -56,6 +56,12 @@ export interface TripDetail {
    */
   nearestAirports: NearbyAirport[];
   /**
+   * An offline carbon estimate for the trip's confirmed flights, derived on read
+   * from their airport codes. Absent when the trip has no confirmed flight at
+   * all — which is not the same as an estimate of zero.
+   */
+  flightEmissions?: FlightEmissions;
+  /**
    * How far the destination clock runs ahead of (or behind) the trip's origin,
    * derived on read from the snapshot's two offsets. Present only once the
    * origin has been geocoded.
@@ -111,6 +117,23 @@ export interface PublicHoliday {
   /** National (`true`) versus regional / subdivision-only (`false`). */
   global: boolean;
 }
+/**
+ * One school-holiday period at the destination. A period, not a day: school
+ * holidays run for weeks, so a trip "during" one overlaps it, never contains it.
+ */
+export interface SchoolHoliday {
+  /** ISO `YYYY-MM-DD`, inclusive. */
+  startDate: string;
+  /** ISO `YYYY-MM-DD`, inclusive. */
+  endDate: string;
+  /** English name ("Summer Holidays"), or the local name where that is all
+   * the source publishes. */
+  name: string;
+  /** Whether the period covers the whole country. */
+  nationwide: boolean;
+  /** Subdivision codes when it is regional ("DE-BY"); empty when nationwide. */
+  subdivisions: string[];
+}
 /** A dated snapshot of the destination country's public holidays. */
 export interface PublicHolidaysSnapshot {
   /** ISO-3166-1 alpha-2 of the destination country. */
@@ -119,6 +142,14 @@ export interface PublicHolidaysSnapshot {
   countryName: string;
   /** Public holidays (on `TripDetail`, already narrowed to the travel window). */
   holidays: PublicHoliday[];
+  /**
+   * School-holiday periods overlapping the travel window. Empty both when none
+   * overlap and when the country is not covered — `schoolHolidaysCovered` is
+   * what tells those apart, and the interface must not merge them.
+   */
+  schoolHolidays: SchoolHoliday[];
+  /** Whether the school-holiday source publishes this country at all. */
+  schoolHolidaysCovered: boolean;
   retrievedAt: string;
 }
 /** How large an airport is, as OurAirports classifies it. */
@@ -130,6 +161,29 @@ export interface NearbyAirport {
   /** Great-circle distance from the destination, kilometres. */
   distanceKm: number;
   size: AirportSize;
+}
+/**
+ * A trip's estimated flight emissions, and how much of the trip it covers.
+ *
+ * One average factor, not haul bands: DESNZ defines domestic/short/long haul by
+ * territory relative to the UK, and the bundled airport table carries no
+ * country, so this uses the row DESNZ publishes for flights between non-UK
+ * destinations. Always presented as an estimate.
+ */
+export interface FlightEmissions {
+  /** Estimated kilograms of CO₂-equivalent, one passenger, counted legs only. */
+  kgCo2e: number;
+  /** Total great-circle distance of the counted legs, kilometres. */
+  distanceKm: number;
+  /** Confirmed flights included in the estimate. */
+  countedFlights: number;
+  /**
+   * Confirmed flights left out because their airport codes were missing or
+   * unknown. Non-zero means the total is a floor and must be labelled partial.
+   */
+  unresolvedFlights: number;
+  /** The DESNZ conversion-factor year behind the estimate. */
+  factorYear: number;
 }
 /** One UNESCO World Heritage site near the destination. */
 export interface HeritageSite {
@@ -161,7 +215,25 @@ export interface AstroDay {
   /** Minutes of daylight: 0 on a polar night, 1440 on a polar day. */
   dayLengthMinutes?: number;
   polar: PolarState;
+  /**
+   * The day's two low-sun windows, when it has them. Absent on a polar night
+   * (no sun), on a polar day (the low-sun period straddles local midnight and
+   * belongs to no one civil day), and on a high-latitude `normal` day where the
+   * sun rises but never climbs out of the golden band.
+   */
+  goldenHour?: GoldenHour;
   moon: MoonPhase;
+}
+/**
+ * The morning and evening low-sun windows of one local day, `HH:MM` local. The
+ * outer bounds are that day's own sunrise and sunset, so they never disagree
+ * with the sun times shown beside them.
+ */
+export interface GoldenHour {
+  morningStart: string;
+  morningEnd: string;
+  eveningStart: string;
+  eveningEnd: string;
 }
 /** The eight named lunar phases, new to waning crescent. */
 export type MoonPhaseName =
@@ -194,6 +266,11 @@ export interface EmergencyNumbers {
 export interface CountryFacts {
   iso2: string;
   name: string;
+  /**
+   * Official languages in the order the country lists them, or — where it
+   * declares none in law — the language its government works in. English names.
+   */
+  languages: string[];
   currencyCode: string;
   /** Plug type letters (A–N). */
   plugTypes: string[];
@@ -850,6 +927,11 @@ export interface DownloadedPack {
   name: string;
   region: string;
   placeCount: number;
+  /**
+   * Practical amenities in the pack. Counted from the stored contents on read,
+   * so a pack downloaded before the amenities layer shipped reports zero.
+   */
+  amenityCount: number;
   articleCount: number;
   downloadedAt: string;
   offlineMapReady: boolean;
@@ -889,7 +971,12 @@ export interface PackSuggestion {
 }
 /** Where a field-value suggestion came from, so the UI can label it honestly. */
 export type SuggestionSource =
-  "catalog" | "pack_place" | "confirmed_fact" | "trip_history" | "gazetteer";
+  | "catalog"
+  | "pack_place"
+  | "confirmed_fact"
+  | "trip_history"
+  | "gazetteer"
+  | "airport";
 /** One suggested value for a form field, from local data only. */
 export interface FieldSuggestion {
   value: string;
@@ -897,8 +984,12 @@ export interface FieldSuggestion {
   /** A short human note ("from a previous stay"), when useful. */
   detail?: string;
 }
-/** Lodging fields that support local suggestions. */
-export type SuggestableField = "address" | "propertyName";
+/**
+ * Fields that support local suggestions: the two lodging fields, and the two
+ * flight airport codes (matched on code *or* airport name).
+ */
+export type SuggestableField =
+  "address" | "propertyName" | "departureAirportIata" | "arrivalAirportIata";
 export interface SuggestFieldValuesInput {
   tripId: string;
   field: SuggestableField;

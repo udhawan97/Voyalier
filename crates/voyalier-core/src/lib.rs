@@ -13,6 +13,7 @@ mod astro;
 mod backup;
 mod brief;
 mod climate;
+mod co2;
 mod email;
 mod facts;
 mod gazetteer;
@@ -54,7 +55,10 @@ pub use advisories::{
 // Per-provider endpoints, model defaults, body builders, and reply parsers stay
 // internal: which of each pairs with which provider is `assist`'s knowledge.
 // `build_assist_request` + `parse_assist_reply` are the way in.
-pub use airports::{AirportSize, NearbyAirport, nearest_airports};
+pub use airports::{
+    AirportLocation, AirportSize, NearbyAirport, airport_by_iata, matching_airports,
+    nearest_airports,
+};
 pub use alerts::{WeatherAlert, nws_alerts, parse_nws_alerts};
 pub use assist::{
     ASSIST_SYSTEM_PROMPT, AssistActivityEntry, AssistReply, AssistRequest, AssistRequestPreview,
@@ -77,6 +81,7 @@ pub use climate::{
     AirQualityDay, ClimateNormals, air_quality, archive_window, climate_normals, parse_air_quality,
     parse_climate_normals,
 };
+pub use co2::{FACTOR_YEAR, FlightEmissions, estimate_flight_emissions};
 // `extract_email_body` is deliberately not re-exported: it must only be reached
 // through `parse_import`, which bounds the raw input before the extractor walks
 // an untrusted MIME tree.
@@ -90,7 +95,9 @@ pub use heritage::{HeritageSite, world_heritage_near};
 // answers for a country and year is this module's knowledge. `public_holidays`
 // is the way in; `parse_nager_holidays` remains exported for the fixture tests.
 pub use holidays::{
-    PublicHoliday, PublicHolidaysSnapshot, holidays_within, parse_nager_holidays, public_holidays,
+    PublicHoliday, PublicHolidaysSnapshot, SCHOOL_HOLIDAY_COUNTRIES, SchoolHoliday,
+    holidays_within, parse_nager_holidays, parse_openholidays_school, public_holidays,
+    school_holidays, school_holidays_covered, school_holidays_within,
 };
 pub use itinerary::{detect_itinerary_conflicts, detect_planned_item_conflicts};
 pub use local_ai::{
@@ -101,11 +108,11 @@ pub use packing::{
     PackingCode, PackingReason, PackingReasonCode, PackingSuggestion, build_packing_list,
 };
 pub use packs::{
-    BoundingBox, DownloadedPack, MAX_OFFLINE_MAP_BYTES, OfflineMapArchive, OfflineMapChunk,
-    OfflineMapDescriptor, PACK_RELEASE_TAG, PackArticle, PackContent, PackInfo, PackLayerLicense,
-    PackMatchKind, PackPlace, PackSuggestion, normalize_place, offline_map_download_url,
-    pack_catalog, pack_download_url, parse_pack_content, saved_place_identity, suggest_packs,
-    validate_pack_id,
+    AmenityKind, BoundingBox, DownloadedPack, MAX_OFFLINE_MAP_BYTES, OfflineMapArchive,
+    OfflineMapChunk, OfflineMapDescriptor, PACK_RELEASE_TAG, PackAmenity, PackArticle, PackContent,
+    PackInfo, PackLayerLicense, PackMatchKind, PackPlace, PackSuggestion, normalize_place,
+    offline_map_download_url, pack_catalog, pack_download_url, parse_pack_content,
+    saved_place_identity, suggest_packs, validate_pack_id,
 };
 // The parser trait, its implementations, and `NormalizedDocument` stay internal:
 // which parser handles which `DocumentKind` is this module's knowledge, not its

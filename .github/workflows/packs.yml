@@ -59,8 +59,10 @@ jobs:
           OVERTURE_RELEASE: ${{ inputs.overture_release }}
         run: node scripts/build-packs.mjs catalog.json
 
-      - name: Test the offline-map publisher
-        run: node --test scripts/build-offline-map.test.mjs
+      - name: Test the pack publishers
+        # Also run by scripts/check.sh on every push; kept here so a manual
+        # publish never runs a publisher this job has not just exercised.
+        run: node --test scripts/build-offline-map.test.mjs scripts/build-packs.test.mjs
 
       - name: Install pinned PMTiles CLI
         shell: bash

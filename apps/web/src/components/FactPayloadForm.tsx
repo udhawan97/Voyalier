@@ -21,8 +21,12 @@ interface FactPayloadFormProps {
   tripId: string;
 }
 
-// Lodging fields that get local suggestions (pack place names + prior stays).
-const SUGGESTED_FIELDS = new Set<string>(["propertyName", "address"]);
+// Fields that get local suggestions, per fact type. Lodging draws on pack place
+// names and prior stays; flights on the bundled offline airport list.
+const SUGGESTED_FIELDS: Partial<Record<FactType, ReadonlySet<string>>> = {
+  lodging_stay: new Set(["propertyName", "address"]),
+  flight_segment: new Set(["departureAirportIata", "arrivalAirportIata"]),
+};
 
 /** Editable field grid for a fact payload — shared by add-fact and edit-in-review. */
 export function FactPayloadForm({
@@ -44,7 +48,14 @@ export function FactPayloadForm({
         });
         return results.map((suggestion) => ({
           value: suggestion.value,
-          detail: t(`suggest.source.${suggestion.source}`),
+          // Airports carry the airport's name, which is the only readable part
+          // of a row whose value is three letters. Every other source's detail
+          // is untranslated English from the engine, so those keep the
+          // localized source label instead.
+          detail:
+            suggestion.source === "airport" && suggestion.detail
+              ? suggestion.detail
+              : t(`suggest.source.${suggestion.source}`),
         }));
       },
     [gateway, tripId],
@@ -53,7 +64,7 @@ export function FactPayloadForm({
   return (
     <div className="voy-payload-form">
       {fieldsForType(factType).map((key) =>
-        factType === "lodging_stay" && SUGGESTED_FIELDS.has(key) ? (
+        SUGGESTED_FIELDS[factType]?.has(key) ? (
           <Combobox
             key={key}
             id={`${idPrefix}-${key}`}

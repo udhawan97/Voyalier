@@ -22,6 +22,9 @@ const SYNODIC_MONTH: f64 = 29.530_588_67;
 const MOON_EPOCH_JD: f64 = 2_451_550.1;
 /// Standard solar altitude at sunrise/sunset, accounting for refraction, deg.
 const SUN_ALTITUDE_DEG: f64 = -0.833;
+/// Solar altitude bounding the golden hour, deg. Above this the sun is high
+/// enough that the low, warm light photographers plan around has gone.
+const GOLDEN_ALTITUDE_DEG: f64 = 6.0;
 
 /// Whether the sun rises and sets at all on this day.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -50,7 +53,31 @@ pub struct AstroDay {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub day_length_minutes: Option<u32>,
     pub polar: PolarState,
+    /// The day's two low-sun windows, when it has them.
+    ///
+    /// Absent for three different reasons, which [`AstroDay::polar`] tells
+    /// apart: on a polar night the sun never rises; on a polar day it never
+    /// sets, so any low-sun period straddles local midnight and belongs to no
+    /// single civil day; and on a `Normal` day at high latitude the sun can
+    /// rise without ever climbing past [`GOLDEN_ALTITUDE_DEG`], which leaves no
+    /// *distinct* window to name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub golden_hour: Option<GoldenHour>,
     pub moon: MoonPhase,
+}
+
+/// The morning and evening low-sun windows of one local day.
+///
+/// The outer bounds are the day's own sunrise and sunset rather than a second
+/// solve, so a window can never disagree with the sun times printed beside it.
+/// All four times are local `HH:MM`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GoldenHour {
+    pub morning_start: String,
+    pub morning_end: String,
+    pub evening_start: String,
+    pub evening_end: String,
 }
 
 /// The eight named lunar phases, in order from new to waning crescent.
@@ -76,6 +103,21 @@ pub struct MoonPhase {
     /// Illuminated fraction as a percentage, 0..100.
     pub illumination_pct: u8,
     pub name: MoonPhaseName,
+}
+
+/// Where the sun stands relative to one altitude over a whole day.
+///
+/// The sunrise equation's cosine falls outside ±1 when no crossing exists, and
+/// the two ways it can do that mean opposite things — sun never that high
+/// versus sun never that low. Naming them keeps the polar-day and polar-night
+/// branches from being told apart by the sign of a cosine.
+enum SunAltitude {
+    /// The sun never climbs to this altitude.
+    AlwaysBelow,
+    /// The sun never drops to this altitude.
+    AlwaysAbove,
+    /// It crosses, this many degrees of hour angle either side of transit.
+    Crosses(f64),
 }
 
 fn invalid_date() -> AppError {
@@ -128,42 +170,71 @@ pub fn compute_astro_day(
     let declination = (l_rad.sin() * (23.4397_f64).to_radians().sin()).asin();
 
     let lat_rad = latitude.to_radians();
-    let cos_omega = (SUN_ALTITUDE_DEG.to_radians().sin() - lat_rad.sin() * declination.sin())
-        / (lat_rad.cos() * declination.cos());
+    let hour_angle = |altitude_deg: f64| {
+        let cos_omega = (altitude_deg.to_radians().sin() - lat_rad.sin() * declination.sin())
+            / (lat_rad.cos() * declination.cos());
+        if cos_omega > 1.0 {
+            SunAltitude::AlwaysBelow
+        } else if cos_omega < -1.0 {
+            SunAltitude::AlwaysAbove
+        } else {
+            SunAltitude::Crosses(cos_omega.acos().to_degrees())
+        }
+    };
 
-    if cos_omega > 1.0 {
-        return Ok(AstroDay {
-            date: date.to_owned(),
-            sunrise: None,
-            sunset: None,
-            day_length_minutes: Some(0),
-            polar: PolarState::PolarNight,
-            moon,
-        });
-    }
-    if cos_omega < -1.0 {
-        return Ok(AstroDay {
-            date: date.to_owned(),
-            sunrise: None,
-            sunset: None,
-            day_length_minutes: Some(1440),
-            polar: PolarState::PolarDay,
-            moon,
-        });
-    }
+    let omega = match hour_angle(SUN_ALTITUDE_DEG) {
+        SunAltitude::AlwaysBelow => {
+            return Ok(AstroDay {
+                date: date.to_owned(),
+                sunrise: None,
+                sunset: None,
+                day_length_minutes: Some(0),
+                polar: PolarState::PolarNight,
+                golden_hour: None,
+                moon,
+            });
+        }
+        SunAltitude::AlwaysAbove => {
+            return Ok(AstroDay {
+                date: date.to_owned(),
+                sunrise: None,
+                sunset: None,
+                day_length_minutes: Some(1440),
+                polar: PolarState::PolarDay,
+                golden_hour: None,
+                moon,
+            });
+        }
+        SunAltitude::Crosses(value) => value,
+    };
 
-    let omega = cos_omega.acos().to_degrees();
     let rise = transit - omega / 360.0;
     let set = transit + omega / 360.0;
     // Day length is 2ω in degrees → minutes (360° = 1440 min).
     let day_length = (2.0 * omega / 360.0 * 1440.0).round() as u32;
+    let sunrise = to_local_hm(rise, utc_offset_minutes);
+    let sunset = to_local_hm(set, utc_offset_minutes);
+
+    // A day that never lifts the sun past the golden altitude has no distinct
+    // window to name. `AlwaysAbove` cannot occur here — the sun demonstrably
+    // reached a *lower* altitude a few lines up, so it is folded in with it.
+    let golden_hour = match hour_angle(GOLDEN_ALTITUDE_DEG) {
+        SunAltitude::Crosses(golden) => Some(GoldenHour {
+            morning_start: sunrise.clone(),
+            morning_end: to_local_hm(transit - golden / 360.0, utc_offset_minutes),
+            evening_start: to_local_hm(transit + golden / 360.0, utc_offset_minutes),
+            evening_end: sunset.clone(),
+        }),
+        SunAltitude::AlwaysBelow | SunAltitude::AlwaysAbove => None,
+    };
 
     Ok(AstroDay {
         date: date.to_owned(),
-        sunrise: Some(to_local_hm(rise, utc_offset_minutes)),
-        sunset: Some(to_local_hm(set, utc_offset_minutes)),
+        sunrise: Some(sunrise),
+        sunset: Some(sunset),
         day_length_minutes: Some(day_length),
         polar: PolarState::Normal,
+        golden_hour,
         moon,
     })
 }
@@ -248,6 +319,54 @@ mod tests {
         assert_eq!(summer.day_length_minutes, Some(1440));
 
         assert!(compute_astro_day(35.0, 135.0, "not-a-date", 0).is_err());
+    }
+
+    #[test]
+    fn brackets_golden_hour_inside_the_day_it_belongs_to() {
+        let kyoto = compute_astro_day(35.0116, 135.7681, "2026-11-03", 9 * 60).expect("kyoto");
+        let golden = kyoto.golden_hour.as_ref().expect("kyoto has a golden hour");
+
+        // The windows are anchored on the day's own sun times, not recomputed
+        // from a different equation that could disagree with them.
+        assert_eq!(
+            Some(golden.morning_start.as_str()),
+            kyoto.sunrise.as_deref()
+        );
+        assert_eq!(Some(golden.evening_end.as_str()), kyoto.sunset.as_deref());
+
+        let minutes = |t: &str| {
+            let (h, m) = t.split_once(':').expect("hh:mm");
+            h.parse::<i32>().unwrap() * 60 + m.parse::<i32>().unwrap()
+        };
+        let morning = minutes(&golden.morning_end) - minutes(&golden.morning_start);
+        let evening = minutes(&golden.evening_end) - minutes(&golden.evening_start);
+        assert!(morning > 0 && evening > 0, "{golden:?}");
+        // Symmetric about solar noon, so the two windows are the same length.
+        assert!((morning - evening).abs() <= 1, "{morning} vs {evening}");
+        // The sun climbs 6.8 degrees at roughly 12 degrees an hour at this
+        // latitude and date, so both windows land near half an hour.
+        assert!((25..=45).contains(&morning), "morning {morning} min");
+        // And they do not overlap: morning ends well before evening begins.
+        assert!(minutes(&golden.morning_end) < minutes(&golden.evening_start));
+    }
+
+    #[test]
+    fn withholds_golden_hour_when_the_sun_never_climbs_out_of_it() {
+        // Tromso in late January: the sun rises, so this is not a polar night,
+        // but it never reaches 6 degrees. There is no *distinct* golden hour to
+        // report, and inventing one that spans the whole short day would be a
+        // worse answer than none.
+        let low = compute_astro_day(69.6492, 18.9553, "2026-01-25", 60).expect("tromso");
+        assert_eq!(low.polar, PolarState::Normal);
+        assert!(low.sunrise.is_some());
+        assert_eq!(low.golden_hour, None);
+
+        // A polar night has no sun at all, and a polar day never sets, so
+        // neither carries a window either.
+        let night = compute_astro_day(69.6492, 18.9553, "2026-12-21", 60).expect("night");
+        assert_eq!(night.golden_hour, None);
+        let day = compute_astro_day(69.6492, 18.9553, "2026-06-21", 2 * 60).expect("day");
+        assert_eq!(day.golden_hour, None);
     }
 
     #[test]

@@ -27,10 +27,27 @@ describe("destination facts", () => {
 
   it("shows sun times and the moon phase, computed offline", async () => {
     const facts = await fetchFacts();
-    // The first trip day's sunrise (inside "05:20 – 18:10") and its moon phase.
-    expect(within(facts).getByText(/05:20/)).toBeInTheDocument();
+    // The first trip day's sun times. Matched whole rather than on the sunrise
+    // alone, because the golden-hour line beside it starts at the same minute.
+    expect(within(facts).getByText("05:20 – 18:10")).toBeInTheDocument();
     // Each day carries its moon; several are full in the fixture.
     expect(within(facts).getAllByText(/Full moon/i).length).toBeGreaterThan(0);
+  });
+
+  it("shows each day's golden hour inside that day's own sun times", async () => {
+    const facts = await fetchFacts();
+    const golden = within(facts).getAllByText(/Golden hour/i);
+    expect(golden.length).toBeGreaterThan(0);
+    // The window is bracketed by the sunrise and sunset printed beside it, so a
+    // reader is never shown a golden hour that starts before the sun is up.
+    expect(golden[0]).toHaveTextContent(
+      "Golden hour 05:20–05:53 and 17:37–18:10",
+    );
+  });
+
+  it("names the language a traveler will meet", async () => {
+    const facts = await fetchFacts();
+    expect(within(facts).getByText("Language Japanese")).toBeInTheDocument();
   });
 
   it("shows indicative currency rates, dated and labelled", async () => {

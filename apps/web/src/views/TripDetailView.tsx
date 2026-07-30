@@ -3,6 +3,7 @@ import type {
   CandidateFact,
   ConfirmedFact,
   FactLabel,
+  FlightEmissions,
   ItineraryConflict,
   ReadinessCheck,
   ReadinessFindingCode,
@@ -232,6 +233,50 @@ const TRIP_NAV: { label: MessageKey; target: string }[] = [
   { label: "tripnav.discover", target: "section-discover" },
   { label: "tripnav.ai", target: "section-ai" },
 ];
+
+/**
+ * The trip's flight carbon estimate, under the flights it was computed from.
+ *
+ * Three states, because the difference between them matters: an estimate over
+ * every flight, an estimate that had to skip some, and no estimate at all. The
+ * middle one is the reason `unresolvedFlights` exists — a total covering two of
+ * a trip's four legs would otherwise read as the whole trip's footprint.
+ */
+function CarbonEstimate({ estimate }: { estimate?: FlightEmissions }) {
+  if (!estimate) return null;
+  const { countedFlights, unresolvedFlights } = estimate;
+  return (
+    <p className="voy-detail__carbon">
+      {countedFlights > 0 ? (
+        <>
+          <span className="voy-detail__carbon-figure">
+            {plural("detail.carbon.estimate", countedFlights, {
+              kg: estimate.kgCo2e,
+              km: estimate.distanceKm,
+            })}
+          </span>{" "}
+          <span className="voy-detail__carbon-basis">
+            {/* As a string: the interpolator group-separates numbers, and a
+                year is a label rather than a quantity — "DESNZ 2,026". */}
+            {t("detail.carbon.basis", { year: String(estimate.factorYear) })}
+          </span>
+        </>
+      ) : (
+        <span className="voy-detail__carbon-basis">
+          {t("detail.carbon.none")}
+        </span>
+      )}
+      {unresolvedFlights > 0 && countedFlights > 0 ? (
+        <>
+          {" "}
+          <span className="voy-detail__carbon-basis">
+            {plural("detail.carbon.partial", unresolvedFlights)}
+          </span>
+        </>
+      ) : null}
+    </p>
+  );
+}
 
 /**
  * Whether a hash names one of this page's sections.
@@ -1080,6 +1125,7 @@ export function TripDetailView({
                 onUnconfirm={unconfirm}
                 unconfirmingId={unconfirmingId}
               />
+              <CarbonEstimate estimate={data.detail.flightEmissions} />
               <FactGroup
                 title={t("brief.stays")}
                 icon={<BedIcon />}

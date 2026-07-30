@@ -1,6 +1,6 @@
 //! Practical destination facts: today's reference exchange rates and the
-//! bundled per-country table (currency, plug, voltage, driving side, calling
-//! code, emergency number).
+//! bundled per-country table (languages, currency, plug, voltage, driving side,
+//! calling code, emergency number).
 //!
 //! IO-free. The rates parser reads the European Central Bank's daily reference
 //! feed; the country table is compiled in from public sources. These are
@@ -45,6 +45,13 @@ pub struct EmergencyNumbers {
 pub struct CountryFacts {
     pub iso2: &'static str,
     pub name: &'static str,
+    /// The country's official languages, in the order it lists them.
+    ///
+    /// Where a country declares none in law, this carries the language its
+    /// government actually works in — the fact a traveler needs is which
+    /// language they will meet, not which one is codified. English names, so a
+    /// reader who does not have the language can still read the row.
+    pub languages: &'static [&'static str],
     /// ISO 4217 currency code.
     pub currency_code: &'static str,
     /// Plug type letters (A–N), as used by the IEC world plug standard.
@@ -230,6 +237,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "AU",
         name: "Australia",
+        languages: &["English"],
         currency_code: "AUD",
         plug_types: &["I"],
         voltage_v: 230,
@@ -241,6 +249,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "AT",
         name: "Austria",
+        languages: &["German"],
         currency_code: "EUR",
         plug_types: &["C", "F"],
         voltage_v: 230,
@@ -252,6 +261,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "BE",
         name: "Belgium",
+        languages: &["Dutch", "French", "German"],
         currency_code: "EUR",
         plug_types: &["C", "E"],
         voltage_v: 230,
@@ -263,6 +273,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "BR",
         name: "Brazil",
+        languages: &["Portuguese"],
         currency_code: "BRL",
         plug_types: &["C", "N"],
         voltage_v: 127,
@@ -274,6 +285,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "CA",
         name: "Canada",
+        languages: &["English", "French"],
         currency_code: "CAD",
         plug_types: &["A", "B"],
         voltage_v: 120,
@@ -285,6 +297,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "CN",
         name: "China",
+        languages: &["Standard Chinese"],
         currency_code: "CNY",
         plug_types: &["A", "C", "I"],
         voltage_v: 220,
@@ -296,6 +309,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "HR",
         name: "Croatia",
+        languages: &["Croatian"],
         currency_code: "EUR",
         plug_types: &["C", "F"],
         voltage_v: 230,
@@ -307,6 +321,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "DK",
         name: "Denmark",
+        languages: &["Danish"],
         currency_code: "DKK",
         plug_types: &["C", "E", "F", "K"],
         voltage_v: 230,
@@ -318,6 +333,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "EG",
         name: "Egypt",
+        languages: &["Arabic"],
         currency_code: "EGP",
         plug_types: &["C", "F"],
         voltage_v: 220,
@@ -329,6 +345,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "FI",
         name: "Finland",
+        languages: &["Finnish", "Swedish"],
         currency_code: "EUR",
         plug_types: &["C", "F"],
         voltage_v: 230,
@@ -340,6 +357,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "FR",
         name: "France",
+        languages: &["French"],
         currency_code: "EUR",
         plug_types: &["C", "E"],
         voltage_v: 230,
@@ -351,6 +369,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "DE",
         name: "Germany",
+        languages: &["German"],
         currency_code: "EUR",
         plug_types: &["C", "F"],
         voltage_v: 230,
@@ -362,6 +381,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "GR",
         name: "Greece",
+        languages: &["Greek"],
         currency_code: "EUR",
         plug_types: &["C", "F"],
         voltage_v: 230,
@@ -373,6 +393,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "IS",
         name: "Iceland",
+        languages: &["Icelandic"],
         currency_code: "ISK",
         plug_types: &["C", "F"],
         voltage_v: 230,
@@ -384,6 +405,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "IN",
         name: "India",
+        languages: &["Hindi", "English"],
         currency_code: "INR",
         plug_types: &["C", "D", "M"],
         voltage_v: 230,
@@ -395,6 +417,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "ID",
         name: "Indonesia",
+        languages: &["Indonesian"],
         currency_code: "IDR",
         plug_types: &["C", "F"],
         voltage_v: 230,
@@ -406,6 +429,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "IE",
         name: "Ireland",
+        languages: &["Irish", "English"],
         currency_code: "EUR",
         plug_types: &["G"],
         voltage_v: 230,
@@ -417,6 +441,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "IT",
         name: "Italy",
+        languages: &["Italian"],
         currency_code: "EUR",
         plug_types: &["C", "F", "L"],
         voltage_v: 230,
@@ -428,6 +453,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "JP",
         name: "Japan",
+        languages: &["Japanese"],
         currency_code: "JPY",
         plug_types: &["A", "B"],
         voltage_v: 100,
@@ -444,6 +470,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "MY",
         name: "Malaysia",
+        languages: &["Malay"],
         currency_code: "MYR",
         plug_types: &["G"],
         voltage_v: 240,
@@ -455,6 +482,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "MX",
         name: "Mexico",
+        languages: &["Spanish"],
         currency_code: "MXN",
         plug_types: &["A", "B"],
         voltage_v: 127,
@@ -466,6 +494,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "MA",
         name: "Morocco",
+        languages: &["Arabic", "Amazigh"],
         currency_code: "MAD",
         plug_types: &["C", "E"],
         voltage_v: 220,
@@ -477,6 +506,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "NL",
         name: "Netherlands",
+        languages: &["Dutch"],
         currency_code: "EUR",
         plug_types: &["C", "F"],
         voltage_v: 230,
@@ -488,6 +518,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "NZ",
         name: "New Zealand",
+        languages: &["English", "Maori", "New Zealand Sign Language"],
         currency_code: "NZD",
         plug_types: &["I"],
         voltage_v: 230,
@@ -499,6 +530,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "NO",
         name: "Norway",
+        languages: &["Norwegian"],
         currency_code: "NOK",
         plug_types: &["C", "F"],
         voltage_v: 230,
@@ -510,6 +542,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "PE",
         name: "Peru",
+        languages: &["Spanish", "Quechua", "Aymara"],
         currency_code: "PEN",
         plug_types: &["A", "B", "C"],
         voltage_v: 220,
@@ -521,6 +554,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "PL",
         name: "Poland",
+        languages: &["Polish"],
         currency_code: "PLN",
         plug_types: &["C", "E"],
         voltage_v: 230,
@@ -532,6 +566,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "PT",
         name: "Portugal",
+        languages: &["Portuguese"],
         currency_code: "EUR",
         plug_types: &["C", "F"],
         voltage_v: 230,
@@ -543,6 +578,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "SG",
         name: "Singapore",
+        languages: &["English", "Malay", "Standard Chinese", "Tamil"],
         currency_code: "SGD",
         plug_types: &["G"],
         voltage_v: 230,
@@ -554,6 +590,20 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "ZA",
         name: "South Africa",
+        languages: &[
+            "Afrikaans",
+            "English",
+            "isiNdebele",
+            "isiXhosa",
+            "isiZulu",
+            "Sepedi",
+            "Sesotho",
+            "Setswana",
+            "siSwati",
+            "Tshivenda",
+            "Xitsonga",
+            "South African Sign Language",
+        ],
         currency_code: "ZAR",
         plug_types: &["C", "D", "M", "N"],
         voltage_v: 230,
@@ -565,6 +615,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "KR",
         name: "South Korea",
+        languages: &["Korean"],
         currency_code: "KRW",
         plug_types: &["C", "F"],
         voltage_v: 220,
@@ -576,6 +627,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "ES",
         name: "Spain",
+        languages: &["Spanish"],
         currency_code: "EUR",
         plug_types: &["C", "F"],
         voltage_v: 230,
@@ -587,6 +639,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "SE",
         name: "Sweden",
+        languages: &["Swedish"],
         currency_code: "SEK",
         plug_types: &["C", "F"],
         voltage_v: 230,
@@ -598,6 +651,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "CH",
         name: "Switzerland",
+        languages: &["German", "French", "Italian", "Romansh"],
         currency_code: "CHF",
         plug_types: &["C", "J"],
         voltage_v: 230,
@@ -609,6 +663,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "TH",
         name: "Thailand",
+        languages: &["Thai"],
         currency_code: "THB",
         plug_types: &["A", "B", "C", "O"],
         voltage_v: 230,
@@ -620,6 +675,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "TR",
         name: "Turkey",
+        languages: &["Turkish"],
         currency_code: "TRY",
         plug_types: &["C", "F"],
         voltage_v: 230,
@@ -631,6 +687,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "AE",
         name: "United Arab Emirates",
+        languages: &["Arabic"],
         currency_code: "AED",
         plug_types: &["C", "D", "G"],
         voltage_v: 230,
@@ -642,6 +699,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "US",
         name: "United States",
+        languages: &["English"],
         currency_code: "USD",
         plug_types: &["A", "B"],
         voltage_v: 120,
@@ -653,6 +711,7 @@ pub const COUNTRY_FACTS: &[CountryFacts] = &[
     CountryFacts {
         iso2: "VN",
         name: "Vietnam",
+        languages: &["Vietnamese"],
         currency_code: "VND",
         plug_types: &["A", "C", "F"],
         voltage_v: 220,
@@ -729,6 +788,41 @@ mod tests {
         // None rather than a wrong country.
         assert!(gb.is_none() || gb.unwrap().voltage_v == 230);
         assert!(country_facts("ZZ").is_none());
+    }
+
+    #[test]
+    fn carries_every_country_a_language() {
+        // A blank languages list would render as an empty row rather than as a
+        // missing fact, so the table is required to be complete.
+        for facts in COUNTRY_FACTS {
+            assert!(
+                !facts.languages.is_empty(),
+                "no languages for {}",
+                facts.iso2
+            );
+            assert!(
+                facts.languages.iter().all(|name| !name.trim().is_empty()),
+                "blank language for {}",
+                facts.iso2
+            );
+        }
+
+        // Multilingual countries carry every official language rather than the
+        // first or the largest -- the point of the row is to say a place has
+        // more than one.
+        assert_eq!(
+            country_facts("CH").expect("switzerland").languages,
+            &["German", "French", "Italian", "Romansh"]
+        );
+        assert_eq!(
+            country_facts("BE").expect("belgium").languages,
+            &["Dutch", "French", "German"]
+        );
+        assert_eq!(country_facts("JP").expect("japan").languages, &["Japanese"]);
+        // South Africa publishes twelve, including a sign language.
+        let za = country_facts("ZA").expect("south africa");
+        assert_eq!(za.languages.len(), 12);
+        assert!(za.languages.contains(&"South African Sign Language"));
     }
 
     #[test]

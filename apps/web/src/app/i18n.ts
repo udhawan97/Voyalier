@@ -502,6 +502,7 @@ const en = {
   "suggest.source.pack_place": "from a city pack",
   "suggest.source.catalog": "city pack",
   "suggest.source.gazetteer": "city",
+  "suggest.source.airport": "airport",
 
   "packs.title": "Offline city data",
   "packs.intro":
@@ -659,6 +660,11 @@ const en = {
   "dataSources.nager-date.network": "Fetched only when you request holidays",
   "dataSources.nager-date.authority":
     "Informational calendar data; never entry or closure authority",
+  "dataSources.openholidays.use": "School holidays",
+  "dataSources.openholidays.network":
+    "Fetched only when you request holidays, and only for the 36 countries it publishes",
+  "dataSources.openholidays.authority":
+    "Informational calendar data; never entry or closure authority",
   "dataSources.wikimedia.use": "Destination summaries",
   "dataSources.wikimedia.network":
     "Fetched only when you request an about-place summary",
@@ -774,6 +780,8 @@ const en = {
   "facts.sky.dayLength": "{hours}h {minutes}m of daylight",
   "facts.polar.day": "Midnight sun — the sun does not set",
   "facts.polar.night": "Polar night — the sun does not rise",
+  "facts.sky.golden":
+    "Golden hour {morningStart}–{morningEnd} and {eveningStart}–{eveningEnd}",
   "facts.sky.moon": "{phase} · {pct}% lit",
   // Money: a reference rate, never a card or ATM rate.
   "facts.money.title": "Money",
@@ -784,6 +792,7 @@ const en = {
     "No published reference rate for {currency}. Check locally before you travel.",
   // Practical: convenience facts; the card links out rather than asserting.
   "facts.practical.title": "Practical",
+  "facts.practical.languages": "Language {languages}",
   "facts.practical.plug": "Plugs {types} · {voltage} V · {frequency} Hz",
   "facts.practical.driveLeft": "Drives on the left",
   "facts.practical.driveRight": "Drives on the right",
@@ -814,6 +823,12 @@ const en = {
   "holidays.retrieved": "Retrieved {stamp}",
   "holidays.nameLocal": "{name} ({localName})",
   "holidays.regional": "· regional",
+  "holidays.school.title": "School holidays",
+  "holidays.school.range": "{start} – {end}",
+  "holidays.school.regional": "({where})",
+  "holidays.school.none": "No school holidays in {country} during your dates.",
+  "holidays.school.uncovered":
+    "No school-holiday calendar is published for {country}.",
   "holidays.none": "No public holidays fall in {country} during your trip.",
   "holidays.consent":
     "Fetching sends your destination name (“{destination}”) to open-meteo.com to place it in a country, then asks Nager.Date for that country’s public holidays. Nothing else about your trip leaves it.",
@@ -954,6 +969,8 @@ const en = {
   "review.count.other": "{count} suggestions to review",
   "packs.places.one": "{count} place",
   "packs.places.other": "{count} places",
+  "packs.amenities.one": "{count} amenity",
+  "packs.amenities.other": "{count} amenities",
   "packs.notes.one": "{count} note",
   "packs.notes.other": "{count} notes",
   "packs.offline": "offline",
@@ -971,6 +988,18 @@ const en = {
   "detail.announce.updated": "Trip updated.",
   "detail.announce.unarchived": "Trip unarchived.",
   "detail.addFact": "Add flight or stay",
+  "detail.carbon.estimate.one":
+    "About {kg} kg CO₂e for {count} flight · {km} km",
+  "detail.carbon.estimate.other":
+    "About {kg} kg CO₂e for {count} flights · {km} km",
+  "detail.carbon.basis":
+    "Rough estimate: great-circle distance at UK DESNZ {year} average-passenger factors. Real emissions depend on the aircraft, the routing, the cabin, and how full the flight is.",
+  "detail.carbon.partial.one":
+    "{count} flight is not included — its airport codes are missing or unrecognised, so the total is a floor.",
+  "detail.carbon.partial.other":
+    "{count} flights are not included — their airport codes are missing or unrecognised, so the total is a floor.",
+  "detail.carbon.none":
+    "No carbon estimate: these flights carry no airport codes Voyalier recognises.",
   "detail.shareBrief": "Share brief",
   "detail.archive": "Archive",
   "detail.delete": "Delete",
@@ -1752,6 +1781,7 @@ const es: Record<MessageKey, string> = {
   "suggest.source.pack_place": "de un paquete de ciudad",
   "suggest.source.catalog": "paquete de ciudad",
   "suggest.source.gazetteer": "ciudad",
+  "suggest.source.airport": "aeropuerto",
   "packs.title": "Datos de la ciudad sin conexión",
   "packs.intro":
     "Descarga los lugares y las notas de viaje de una ciudad para usarlos sin conexión. El paquete se descarga desde GitHub y se guarda en este dispositivo para este viaje; no se envía nada sobre tu viaje. Cada paquete combina lugares de Overture con una capa independiente de notas de Wikivoyage, cada una con su propia licencia.",
@@ -1911,6 +1941,11 @@ const es: Record<MessageKey, string> = {
     "Se obtiene solo cuando solicitas días festivos",
   "dataSources.nager-date.authority":
     "Datos de calendario informativos; nunca son autoridad de entrada o cierres",
+  "dataSources.openholidays.use": "Vacaciones escolares",
+  "dataSources.openholidays.network":
+    "Se obtiene solo cuando solicitas días festivos, y solo para los 36 países que publica",
+  "dataSources.openholidays.authority":
+    "Datos de calendario informativos; nunca son autoridad de entrada o cierres",
   "dataSources.wikimedia.use": "Resúmenes de destinos",
   "dataSources.wikimedia.network":
     "Se obtiene solo cuando solicitas un resumen del lugar",
@@ -2025,6 +2060,8 @@ const es: Record<MessageKey, string> = {
   "facts.sky.dayLength": "{hours}h {minutes}m de luz solar",
   "facts.polar.day": "Sol de medianoche: el sol no se pone",
   "facts.polar.night": "Noche polar: el sol no sale",
+  "facts.sky.golden":
+    "Hora dorada {morningStart}–{morningEnd} y {eveningStart}–{eveningEnd}",
   "facts.sky.moon": "{phase} · {pct}% iluminada",
   "facts.money.title": "Dinero",
   "facts.money.rate": "1 {from} = {value} {to}",
@@ -2033,6 +2070,7 @@ const es: Record<MessageKey, string> = {
   "facts.money.noRate":
     "No hay tasa de referencia publicada para {currency}. Verifícalo localmente antes de viajar.",
   "facts.practical.title": "Información práctica",
+  "facts.practical.languages": "Idioma {languages}",
   "facts.practical.plug": "Enchufes {types} · {voltage} V · {frequency} Hz",
   "facts.practical.driveLeft": "Conducción por la izquierda",
   "facts.practical.driveRight": "Conducción por la derecha",
@@ -2056,6 +2094,13 @@ const es: Record<MessageKey, string> = {
   "holidays.retrieved": "Obtenido el {stamp}",
   "holidays.nameLocal": "{name} ({localName})",
   "holidays.regional": "· regional",
+  "holidays.school.title": "Vacaciones escolares",
+  "holidays.school.range": "{start} – {end}",
+  "holidays.school.regional": "({where})",
+  "holidays.school.none":
+    "No hay vacaciones escolares en {country} durante tus fechas.",
+  "holidays.school.uncovered":
+    "No se publica un calendario escolar para {country}.",
   "holidays.none": "No hay días festivos en {country} durante tu viaje.",
   "holidays.consent":
     "Al obtenerlos, se envía el nombre de tu destino (“{destination}”) a open-meteo.com para ubicarlo en un país y luego se solicita a Nager.Date los días festivos de ese país. Nada más sobre tu viaje sale de aquí.",
@@ -2191,6 +2236,8 @@ const es: Record<MessageKey, string> = {
   "review.count.other": "{count} sugerencias para revisar",
   "packs.places.one": "{count} lugar",
   "packs.places.other": "{count} lugares",
+  "packs.amenities.one": "{count} servicio",
+  "packs.amenities.other": "{count} servicios",
   "packs.notes.one": "{count} nota",
   "packs.notes.other": "{count} notas",
   "packs.offline": "sin conexión",
@@ -2207,6 +2254,18 @@ const es: Record<MessageKey, string> = {
   "detail.announce.updated": "Viaje actualizado.",
   "detail.announce.unarchived": "Viaje desarchivado.",
   "detail.addFact": "Añadir vuelo o estancia",
+  "detail.carbon.estimate.one":
+    "Unos {kg} kg de CO₂e para {count} vuelo · {km} km",
+  "detail.carbon.estimate.other":
+    "Unos {kg} kg de CO₂e para {count} vuelos · {km} km",
+  "detail.carbon.basis":
+    "Estimación aproximada: distancia de círculo máximo con los factores medios por pasajero de DESNZ (Reino Unido) {year}. Las emisiones reales dependen de la aeronave, la ruta, la cabina y la ocupación.",
+  "detail.carbon.partial.one":
+    "{count} vuelo no está incluido: le faltan los códigos de aeropuerto o no se reconocen, así que el total es un mínimo.",
+  "detail.carbon.partial.other":
+    "{count} vuelos no están incluidos: les faltan los códigos de aeropuerto o no se reconocen, así que el total es un mínimo.",
+  "detail.carbon.none":
+    "Sin estimación de carbono: estos vuelos no llevan códigos de aeropuerto que Voyalier reconozca.",
   "detail.shareBrief": "Compartir resumen",
   "detail.archive": "Archivar",
   "detail.delete": "Eliminar",

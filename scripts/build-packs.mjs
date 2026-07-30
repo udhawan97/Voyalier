@@ -20,6 +20,7 @@
 import { execFile } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 const run = promisify(execFile);
@@ -98,6 +99,39 @@ async function fetchPlaces(bbox) {
   }
 }
 
+// Overture place categories that make up the amenities layer, mapped onto the
+// small closed set voyalier-core defines. Category codes are verbatim from
+// Overture's published taxonomy (overture_categories.csv) rather than guessed —
+// a filter that matches nothing would ship an empty layer silently.
+//
+// There is deliberately no drinking-water kind: Overture's `fountain` is
+// decorative and sits under attractions, and `drinking_water_dispenser` is a
+// business-to-business supplier of water coolers. Neither is a public tap.
+const AMENITY_CATEGORIES = new Map([
+  ["atms", "atm"],
+  ["pharmacy", "pharmacy"],
+  ["public_toilet", "toilet"],
+  ["public_restrooms", "toilet"],
+  ["lookout", "viewpoint"],
+  ["hospital", "hospital"],
+  ["emergency_room", "hospital"],
+]);
+
+/** Split the queried places into the places layer and the amenities layer. */
+export function partitionAmenities(rows) {
+  const places = [];
+  const amenities = [];
+  for (const row of rows) {
+    const kind = AMENITY_CATEGORIES.get(row.category);
+    if (kind) {
+      amenities.push({ name: row.name, kind, lat: row.lat, lon: row.lon });
+    } else {
+      places.push(row);
+    }
+  }
+  return { places, amenities };
+}
+
 async function main() {
   const catalogPath = process.argv[2];
   const catalog = JSON.parse(
@@ -111,13 +145,17 @@ async function main() {
 
   for (const pack of catalog) {
     console.log(`• ${pack.id} (${pack.name})`);
-    const [article, places] = await Promise.all([
+    const [article, queried] = await Promise.all([
       fetchArticle(pack.wikivoyageArticle),
       fetchPlaces(pack.bbox),
     ]);
+    // One query, two layers: an amenity is a place with a category the traveler
+    // needs to find on purpose, so it moves rather than being duplicated.
+    const { places, amenities } = partitionAmenities(queried);
     const content = {
       packId: pack.id,
       places,
+      amenities,
       articles: article.text ? [article] : [],
     };
     await writeFile(
@@ -125,13 +163,15 @@ async function main() {
       JSON.stringify(content),
     );
     console.log(
-      `    ${places.length} places, ${content.articles.length} article(s)`,
+      `    ${places.length} places, ${amenities.length} amenities, ` +
+        `${content.articles.length} article(s)`,
     );
     manifestPacks.push({
       id: pack.id,
       name: pack.name,
       region: pack.region,
       placeCount: places.length,
+      amenityCount: amenities.length,
       articleCount: content.articles.length,
       layers: pack.layers,
     });
@@ -149,7 +189,14 @@ async function main() {
   console.log(`\nWrote ${manifestPacks.length} packs + manifest to ${OUT_DIR}`);
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+// Only build when run as a script. Importing it — which the tests beside it do
+// — must not start a run against S3, the pattern build-offline-map.mjs uses.
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}

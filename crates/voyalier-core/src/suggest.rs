@@ -26,6 +26,8 @@ pub enum SuggestionSource {
     TripHistory,
     /// A city from the bundled offline gazetteer (GeoNames).
     Gazetteer,
+    /// An airport from the bundled offline list (OurAirports).
+    Airport,
 }
 
 /// One suggested value for a form field, with its provenance.

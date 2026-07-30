@@ -40,6 +40,7 @@ import type {
   TripNotes,
   FcdoCountry,
   FetchAdvisoriesInput,
+  FlightEmissions,
   FlightSegmentPayload,
   HealthResponse,
   ImportDocumentInput,
@@ -719,6 +720,12 @@ function packLayers(): PackInfo["layers"] {
       attribution: "© Overture Maps Foundation",
     },
     {
+      layer: "amenities",
+      source: "Overture Maps",
+      license: "CDLA-Permissive-2.0",
+      attribution: "© Overture Maps Foundation",
+    },
+    {
       layer: "articles",
       source: "Wikivoyage",
       license: "CC-BY-SA-3.0",
@@ -821,6 +828,7 @@ const MOCK_PACKS: PackInfo[] = [
     region: "Hawaii, USA",
     bbox: { west: -158.31, south: 21.24, east: -157.62, north: 21.75 },
     wikivoyageArticle: "Oahu",
+    offlineMapAvailable: true,
     layers: packLayers(),
   },
   {
@@ -829,6 +837,7 @@ const MOCK_PACKS: PackInfo[] = [
     region: "Hawaii, USA",
     bbox: { west: -156.71, south: 20.57, east: -155.98, north: 21.04 },
     wikivoyageArticle: "Maui",
+    offlineMapAvailable: true,
     layers: packLayers(),
   },
   {
@@ -837,6 +846,7 @@ const MOCK_PACKS: PackInfo[] = [
     region: "Hawaii, USA",
     bbox: { west: -159.79, south: 21.85, east: -159.29, north: 22.24 },
     wikivoyageArticle: "Kauai",
+    offlineMapAvailable: true,
     layers: packLayers(),
   },
   {
@@ -845,6 +855,7 @@ const MOCK_PACKS: PackInfo[] = [
     region: "Hawaii, USA",
     bbox: { west: -156.11, south: 18.87, east: -154.79, north: 20.29 },
     wikivoyageArticle: "Hawaii (Big Island)",
+    offlineMapAvailable: true,
     layers: packLayers(),
   },
   {
@@ -982,6 +993,7 @@ export function mockCountryFacts(iso2: string): CountryFacts | undefined {
   return {
     iso2: "JP",
     name: "Japan",
+    languages: ["Japanese"],
     currencyCode: "JPY",
     plugTypes: ["A", "B"],
     voltageV: 100,
@@ -1012,6 +1024,14 @@ function mockAstro(snapshot: DestinationFactsSnapshot, trip: Trip): AstroDay[] {
       sunset: dusk[offset],
       dayLengthMinutes: 770,
       polar: "normal",
+      // Anchored on this day's own sunrise and sunset, as the engine does, so
+      // the mock cannot teach the UI a window that contradicts them.
+      goldenHour: {
+        morningStart: spring[offset],
+        morningEnd: ["05:53", "05:52", "05:51"][offset] ?? "05:51",
+        eveningStart: ["17:37", "17:38", "17:39"][offset] ?? "17:39",
+        eveningEnd: dusk[offset],
+      },
       moon: {
         ageDays: 14.6 + offset,
         illuminationPct: [98, 95, 90][offset] ?? 90,
@@ -1023,6 +1043,101 @@ function mockAstro(snapshot: DestinationFactsSnapshot, trip: Trip): AstroDay[] {
   // check rather than silently ignoring it.
   void snapshot.countryCode;
   return days;
+}
+
+/**
+ * The mock's flight-emissions estimate, mirroring the engine's rules rather than
+ * its arithmetic: one factor for every leg, unresolvable legs counted rather
+ * than dropped, and no estimate at all when there is no confirmed flight.
+ *
+ * Coordinates for the fixture airports only — the engine has three thousand.
+ */
+const MOCK_AIRPORT_COORDS: Readonly<Record<string, [number, number]>> = {
+  CDG: [49.0128, 2.55],
+  HND: [35.5523, 139.7798],
+  ITM: [34.7855, 135.4383],
+  KIX: [34.4342, 135.2328],
+  LHR: [51.4706, -0.4619],
+  ORD: [41.9786, -87.9048],
+};
+/** DESNZ 2026, international to/from non-UK, average passenger, with RF. */
+const MOCK_KG_CO2E_PER_PASSENGER_KM = 0.14253;
+
+function mockFlightEmissions(
+  confirmedFacts: ConfirmedFact[],
+): FlightEmissions | undefined {
+  const legs = confirmedFacts.filter(
+    (fact) => fact.factType === "flight_segment",
+  );
+  if (legs.length === 0) return undefined;
+
+  let distance = 0;
+  let counted = 0;
+  let unresolved = 0;
+  for (const leg of legs) {
+    const payload = leg.payload as FlightSegmentPayload;
+    const from = MOCK_AIRPORT_COORDS[payload.departureAirportIata ?? ""];
+    const to = MOCK_AIRPORT_COORDS[payload.arrivalAirportIata ?? ""];
+    if (!from || !to || from === to) {
+      unresolved += 1;
+      continue;
+    }
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    const [lat1, lon1] = from;
+    const [lat2, lon2] = to;
+    const a =
+      Math.sin(toRad(lat2 - lat1) / 2) ** 2 +
+      Math.cos(toRad(lat1)) *
+        Math.cos(toRad(lat2)) *
+        Math.sin(toRad(lon2 - lon1) / 2) ** 2;
+    distance += 2 * 6371 * Math.asin(Math.sqrt(a));
+    counted += 1;
+  }
+  return {
+    kgCo2e: Math.round(distance * MOCK_KG_CO2E_PER_PASSENGER_KM),
+    distanceKm: Math.round(distance),
+    countedFlights: counted,
+    unresolvedFlights: unresolved,
+    factorYear: 2026,
+  };
+}
+
+/**
+ * A few airports the fixture trips actually use, for the airport-code fields.
+ *
+ * Matched on code then name, mirroring the engine's tiering. The real table has
+ * three thousand rows; a mock only has to teach the UI the same *rule*, which is
+ * that typing an airport's name finds it even though the field stores a code.
+ */
+const MOCK_AIRPORTS: ReadonlyArray<{ iata: string; name: string }> = [
+  { iata: "CDG", name: "Paris Charles de Gaulle Airport" },
+  { iata: "HND", name: "Tokyo Haneda International Airport" },
+  { iata: "ITM", name: "Osaka Itami International Airport" },
+  { iata: "KIX", name: "Kansai International Airport" },
+  { iata: "LHR", name: "London Heathrow Airport" },
+  { iata: "ORD", name: "Chicago O'Hare International Airport" },
+];
+
+function mockAirportSuggestions(query: string): FieldSuggestion[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return [];
+  const tier = ({ iata, name }: { iata: string; name: string }) => {
+    const code = iata.toLowerCase();
+    const label = name.toLowerCase();
+    if (code === needle) return 0;
+    if (code.startsWith(needle)) return 1;
+    if (label.startsWith(needle)) return 2;
+    if (label.includes(needle)) return 3;
+    return -1;
+  };
+  return MOCK_AIRPORTS.filter((airport) => tier(airport) >= 0)
+    .sort((a, b) => tier(a) - tier(b) || a.iata.localeCompare(b.iata))
+    .slice(0, MOCK_FIELD_SUGGESTION_LIMIT)
+    .map((airport) => ({
+      value: airport.iata,
+      source: "airport" as const,
+      detail: airport.name,
+    }));
 }
 
 /**
@@ -1086,6 +1201,43 @@ export function mockTimeDifference(
  * per-year fetches could show a holiday twice, in feed order. ISO dates compare
  * in date order as strings, so no parsing is needed.
  */
+/**
+ * Mock school-holiday coverage, keyed on the destination.
+ *
+ * Coverage is a real property of the source — it publishes 36 countries and
+ * Japan is not one of them — so the mock reproduces the *distinction* rather
+ * than pretending every destination is covered. A trip to a covered country
+ * gets one long period, which is also the case the overlap rule exists for.
+ */
+function mockSchoolHolidays(
+  destination: string,
+  tripStart: string,
+): Pick<PublicHolidaysSnapshot, "schoolHolidays" | "schoolHolidaysCovered"> {
+  const covered: Record<string, string> = {
+    berlin: "DE-BE",
+    munich: "DE-BY",
+    madrid: "ES-MD",
+    paris: "FR-75",
+  };
+  const subdivision = covered[destination.trim().toLowerCase()];
+  if (!subdivision) return { schoolHolidays: [], schoolHolidaysCovered: false };
+  // Six weeks straddling the trip's first day: a window a short trip sits
+  // inside rather than contains.
+  const year = tripStart.slice(0, 4);
+  return {
+    schoolHolidaysCovered: true,
+    schoolHolidays: [
+      {
+        startDate: `${year}-06-29`,
+        endDate: `${year}-08-07`,
+        name: "Summer Holidays",
+        nationwide: false,
+        subdivisions: [subdivision],
+      },
+    ],
+  };
+}
+
 export function mockHolidaysWithin(
   holidays: PublicHoliday[],
   start: string,
@@ -1597,6 +1749,19 @@ async function sha256(content: string): Promise<string> {
  * is synthetic — the real copy is curated in `voyalier-core` and rendered
  * verbatim, and duplicating it here would be transcription that silently rots.
  */
+/**
+ * Which country a mock destination is in, for the visa cockpit.
+ *
+ * The engine resolves this from the destination-facts snapshot or the bundled
+ * gazetteer. The mock only needs enough to keep both curated destinations
+ * reachable — and to keep answering "somewhere uncurated" for everywhere else,
+ * which is the branch that must not borrow an authority.
+ */
+function mockDestinationCountry(destination: string): string {
+  const japanese = ["kyoto", "tokyo", "osaka"];
+  return japanese.includes(destination.trim().toLowerCase()) ? "JP" : "CA";
+}
+
 function mockVisaJourney(
   destinationIso2: string,
   nationalityIso2: string,
@@ -1803,7 +1968,8 @@ export function createMockGateway(options?: {
   }
 
   function readVisaPrep(tripId: string): VisaPrep {
-    requireTrip(tripId);
+    const trip = requireTrip(tripId);
+    const destinationIso2 = mockDestinationCountry(trip.destination);
     const nationalityIso2 = visaNationalities.get(tripId);
     const items = [...visaItems.entries()]
       .filter(([key]) => key.startsWith(`${tripId}:`))
@@ -1817,15 +1983,21 @@ export function createMockGateway(options?: {
         ? { tripId, suggestedNationalityIso2, items }
         : { tripId, items };
     }
-    // Mock trips are Canada-bound unless their destination says otherwise; the
-    // real gateway resolves this from the destination-facts snapshot, falling
+    // Which country the destination is in decides which authority answers; the
+    // real gateway resolves it from the destination-facts snapshot, falling
     // back to the bundled gazetteer.
-    const journey = mockVisaJourney("CA", nationalityIso2);
+    const journey = mockVisaJourney(destinationIso2, nationalityIso2);
     const entryPath =
       journey?.entryPath ??
       (
-        visaParity.cases.find((entry) => entry.nationality === nationalityIso2)
-          ?.expected as { entryPath?: VisaPrep["entryPath"] } | undefined
+        visaParity.cases.find(
+          (entry) =>
+            // Both halves matter. Matching on nationality alone would let
+            // Japan's quote answer for a Canada-bound trip once a second
+            // destination existed.
+            entry.destination === destinationIso2 &&
+            entry.nationality === nationalityIso2,
+        )?.expected as { entryPath?: VisaPrep["entryPath"] } | undefined
       )?.entryPath ??
       undefined;
     return {
@@ -1957,6 +2129,7 @@ export function createMockGateway(options?: {
           ? mockCountryFacts(destFacts.countryCode)
           : undefined;
         const astro = destFacts ? mockAstro(destFacts, trip) : [];
+        const flightEmissions = mockFlightEmissions(confirmedFacts);
         const nearestAirports = destFacts ? mockNearestAirports() : [];
         const worldHeritage = destFacts ? mockWorldHeritage() : [];
         // Resolved from the country code, mirroring Rust — the fixture is Japan.
@@ -2002,6 +2175,7 @@ export function createMockGateway(options?: {
           ...(countryFacts ? { countryFacts: clone(countryFacts) } : {}),
           astro,
           nearestAirports,
+          ...(flightEmissions ? { flightEmissions } : {}),
           worldHeritage,
           ...(tipping ? { tipping } : {}),
           ...(timeDifference ? { timeDifference } : {}),
@@ -2759,13 +2933,30 @@ export function createMockGateway(options?: {
     suggestFieldValues: (input: SuggestFieldValuesInput) =>
       execute("suggestFieldValues", () => {
         requireTrip(input.tripId);
-        if (input.field !== "address" && input.field !== "propertyName") {
+        if (
+          input.field !== "address" &&
+          input.field !== "propertyName" &&
+          input.field !== "departureAirportIata" &&
+          input.field !== "arrivalAirportIata"
+        ) {
           throw appError(
             "validation/invalid_input",
-            "suggestions are only available for lodging address and property name",
+            "suggestions are only available for lodging address and property name, " +
+              "and for the two flight airport codes",
             { field: "field" },
           );
         }
+
+        // Airports match on the code *or* the airport name, and carry the name
+        // as their detail — the same two-key rule the engine applies, over a
+        // handful of fixture airports rather than the bundled three thousand.
+        if (
+          input.field === "departureAirportIata" ||
+          input.field === "arrivalAirportIata"
+        ) {
+          return mockAirportSuggestions(input.query);
+        }
+
         const candidates: FieldSuggestion[] = [];
 
         // Values confirmed on THIS trip only. A locked vault omits this source,
@@ -2851,6 +3042,7 @@ export function createMockGateway(options?: {
           name: info.name,
           region: info.region,
           placeCount: 12,
+          amenityCount: 4,
           articleCount: 1,
           downloadedAt: timestamp(),
           offlineMapReady: false,
@@ -2865,6 +3057,7 @@ export function createMockGateway(options?: {
           name: entry.name,
           region: entry.region,
           placeCount: entry.placeCount,
+          amenityCount: entry.amenityCount,
           articleCount: entry.articleCount,
           downloadedAt: entry.downloadedAt,
           offlineMapReady: entry.offlineMapReady,
@@ -2881,6 +3074,7 @@ export function createMockGateway(options?: {
             name: pack.name,
             region: pack.region,
             placeCount: pack.placeCount,
+            amenityCount: pack.amenityCount,
             articleCount: pack.articleCount,
             downloadedAt: pack.downloadedAt,
             offlineMapReady: pack.offlineMapReady,
@@ -3370,9 +3564,15 @@ export function createMockGateway(options?: {
         // A fixture: one holiday on the first trip day (always in-window) and
         // one a year later (out of window), so the read-time filter is exercised.
         const outside = `${Number(trip.startDate.slice(0, 4)) + 1}-01-01`;
+        // Which country the destination is in decides school-holiday coverage,
+        // as it does in the engine. Japan is genuinely not published by the
+        // school-holiday source, so the Kyoto fixture exercises the "not
+        // covered" branch and a European destination exercises the other.
+        const school = mockSchoolHolidays(trip.destination, trip.startDate);
         const snapshot: PublicHolidaysSnapshot = {
           countryCode: "JP",
           countryName: "Japan",
+          ...school,
           holidays: [
             {
               date: trip.startDate,

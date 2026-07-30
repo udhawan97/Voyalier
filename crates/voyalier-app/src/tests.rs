@@ -1575,6 +1575,56 @@ fn fetch_place_summary_stores_and_derives_on_detail() {
 }
 
 #[test]
+fn migration_v13_adds_school_holidays_however_it_finds_the_table() {
+    // The ordinary path: a real v12 database has the table from v8.
+    let existing = Connection::open_in_memory().expect("memory db");
+    existing
+        .execute_batch(
+            r#"CREATE TABLE trips (id TEXT PRIMARY KEY);
+               CREATE TABLE public_holidays_snapshots (
+                 trip_id TEXT PRIMARY KEY,
+                 country_code TEXT NOT NULL,
+                 country_name TEXT NOT NULL,
+                 holidays TEXT NOT NULL DEFAULT '[]',
+                 retrieved_at TEXT NOT NULL
+               );
+               INSERT INTO public_holidays_snapshots
+                 VALUES ('trip-1','JP','Japan','[]','2026-07-30T00:00:00Z');
+               PRAGMA user_version = 12;"#,
+        )
+        .expect("pre-v13 shape");
+    migrate(&existing).expect("migrate to v13");
+
+    // An existing row survives and reads as "not covered" -- nothing was ever
+    // asked of the school-holiday source for it, so it must not claim a result.
+    let snapshot = load_public_holidays_snapshot(&existing, "trip-1")
+        .expect("load")
+        .expect("row");
+    assert!(snapshot.school_holidays.is_empty());
+    assert!(!snapshot.school_holidays_covered);
+
+    // And the path that broke first: a database stamped past v8 that never ran
+    // it, so there is no table to alter. The step must not fail the chain.
+    let missing = Connection::open_in_memory().expect("memory db");
+    missing
+        .execute_batch(r#"CREATE TABLE trips (id TEXT PRIMARY KEY); PRAGMA user_version = 12;"#)
+        .expect("tableless v12");
+    migrate(&missing).expect("migrate a tableless database");
+    assert!(
+        load_public_holidays_snapshot(&missing, "trip-1")
+            .expect("load")
+            .is_none()
+    );
+
+    // Retry-safe: running the whole chain again changes nothing.
+    migrate(&existing).expect("re-migrate");
+    assert_eq!(
+        user_version(&existing).expect("version"),
+        target_schema_version()
+    );
+}
+
+#[test]
 fn migration_v9_adds_the_place_summaries_table() {
     let connection = Connection::open_in_memory().expect("memory db");
     connection
@@ -3268,6 +3318,97 @@ fn suggest_field_values_draws_on_confirmed_facts_and_pack_places() {
 }
 
 #[test]
+fn trip_detail_estimates_carbon_from_confirmed_flights_only() {
+    let database = temp_database("trip-carbon");
+    let service = open_test_service(&database).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+    // No flights yet: absent, which is a different answer from zero.
+    assert!(
+        service
+            .get_trip(&trip.id)
+            .expect("detail")
+            .flight_emissions
+            .is_none()
+    );
+
+    service
+        .add_manual_fact(AddManualFactInput {
+            trip_id: trip.id.clone(),
+            fact_type: FactType::FlightSegment,
+            payload: FactPayload {
+                departure_airport_iata: Some("ORD".to_owned()),
+                arrival_airport_iata: Some("KIX".to_owned()),
+                ..FactPayload::default()
+            },
+        })
+        .expect("flight");
+    // A stay must not count as an unresolvable flight.
+    service
+        .add_manual_fact(AddManualFactInput {
+            trip_id: trip.id.clone(),
+            fact_type: FactType::LodgingStay,
+            payload: FactPayload {
+                property_name: Some("River Paper Inn".to_owned()),
+                ..FactPayload::default()
+            },
+        })
+        .expect("stay");
+
+    let estimate = service
+        .get_trip(&trip.id)
+        .expect("detail")
+        .flight_emissions
+        .expect("estimate");
+    assert_eq!(estimate.counted_flights, 1);
+    assert_eq!(estimate.unresolved_flights, 0);
+    assert!(estimate.kg_co2e > 0);
+    cleanup_database(database);
+}
+
+#[test]
+fn suggest_field_values_finds_airports_by_code_or_by_name() {
+    let database = temp_database("suggest-airports");
+    let service = open_test_service(&database).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+    // A code the traveler read off their ticket.
+    let by_code = service
+        .suggest_field_values(&trip.id, "departureAirportIata", "kix")
+        .expect("code suggestions");
+    assert_eq!(by_code[0].value, "KIX");
+    assert_eq!(by_code[0].source, SuggestionSource::Airport);
+    // The name rides along as the detail, because "KIX" alone is unreadable.
+    assert_eq!(
+        by_code[0].detail.as_deref(),
+        Some("Kansai International Airport")
+    );
+
+    // And the airport a traveler knows by name but not by code -- the case that
+    // would be lost if these were ranked against the stored value alone.
+    let by_name = service
+        .suggest_field_values(&trip.id, "arrivalAirportIata", "haneda")
+        .expect("name suggestions");
+    assert_eq!(by_name[0].value, "HND");
+
+    // Bounded, and quiet until the traveler has typed something.
+    assert!(
+        service
+            .suggest_field_values(&trip.id, "departureAirportIata", "")
+            .expect("blank query")
+            .is_empty()
+    );
+    assert!(
+        service
+            .suggest_field_values(&trip.id, "departureAirportIata", "a")
+            .expect("broad query")
+            .len()
+            <= FIELD_SUGGESTION_LIMIT
+    );
+    cleanup_database(database);
+}
+
+#[test]
 fn suggest_field_values_skips_confirmed_source_when_the_vault_is_locked() {
     let database = temp_database("suggest-fields-locked");
     let secrets = Arc::new(MemorySecretStore::default());
@@ -3663,9 +3804,15 @@ fn visa_preparation_refuses_bad_input_and_follows_the_trip() {
 fn visa_preparation_stays_silent_without_a_resolvable_destination() {
     let database = temp_database("visa-prep-unknown");
     let service = open_test_service(&database).expect("service");
-    // Kyoto is not curated: the traveler gets their passport back and
-    // nothing invented about Japanese entry rules.
-    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    // Rome is not curated: the traveler gets their passport back and nothing
+    // invented about Italian entry rules. (Kyoto used to stand here, and is now
+    // curated -- see the assertion at the bottom.)
+    let trip = service
+        .create_trip(CreateTripInput {
+            destination: "Rome".to_owned(),
+            ..valid_trip_input()
+        })
+        .expect("trip");
     let prep = service
         .set_visa_nationality(SetVisaNationalityInput {
             trip_id: trip.id.clone(),
@@ -3677,8 +3824,22 @@ fn visa_preparation_stays_silent_without_a_resolvable_destination() {
     // "Nothing invented" has to include the attribution. This used to hand
     // back an Unknown quote wearing Canada's authority and canada.ca's URL,
     // which the interface then printed as "the official source" for a trip
-    // to Japan (ADR-0006, amended 2026-07-29).
+    // somewhere else entirely (ADR-0006, amended 2026-07-29).
     assert!(prep.entry_path.is_none());
+
+    // And the other half of the same rule: a destination that *is* curated
+    // resolves against its own authority, never a borrowed one.
+    let kyoto = service.create_trip(valid_trip_input()).expect("kyoto trip");
+    let japan = service
+        .set_visa_nationality(SetVisaNationalityInput {
+            trip_id: kyoto.id.clone(),
+            nationality_iso2: "IN".to_owned(),
+        })
+        .expect("nationality");
+    let quote = japan.entry_path.expect("Japan is curated");
+    assert_eq!(quote.source_name, "Ministry of Foreign Affairs of Japan");
+    assert!(quote.source_url.starts_with("https://www.mofa.go.jp/"));
+    assert!(japan.journey.is_some(), "India needs a visa for Japan");
 
     drop(service);
     cleanup_database(database);
