@@ -44,16 +44,35 @@ impl AppService {
         field: &str,
         query: &str,
     ) -> Result<Vec<FieldSuggestion>, AppError> {
-        if !matches!(field, "address" | "propertyName") {
+        if !matches!(
+            field,
+            "address" | "propertyName" | "departureAirportIata" | "arrivalAirportIata"
+        ) {
             return Err(AppError::with_detail(
                 ErrorCode::ValidationInvalidInput,
-                "suggestions are only available for lodging address and property name",
+                "suggestions are only available for lodging address and property name, \
+                 and for the two flight airport codes",
                 "field",
                 "field",
             ));
         }
         let connection = self.connection()?;
         self.records(&connection).trip(trip_id)?;
+
+        // The airport fields are matched on two keys — the code and the airport
+        // name — so they cannot go through `rank_field_suggestions`, which ranks
+        // a query against the stored value alone and would drop every match a
+        // traveler found by typing "heathrow". Core ranks and caps them instead,
+        // where the two-key rule is written down.
+        if matches!(field, "departureAirportIata" | "arrivalAirportIata") {
+            return Ok(matching_airports(query, FIELD_SUGGESTION_LIMIT)
+                .into_iter()
+                .map(|airport| {
+                    FieldSuggestion::new(airport.iata, SuggestionSource::Airport)
+                        .with_detail(airport.name)
+                })
+                .collect());
+        }
 
         let mut candidates: Vec<FieldSuggestion> = Vec::new();
 

@@ -912,7 +912,12 @@ export interface PackSuggestion {
 }
 /** Where a field-value suggestion came from, so the UI can label it honestly. */
 export type SuggestionSource =
-  "catalog" | "pack_place" | "confirmed_fact" | "trip_history" | "gazetteer";
+  | "catalog"
+  | "pack_place"
+  | "confirmed_fact"
+  | "trip_history"
+  | "gazetteer"
+  | "airport";
 /** One suggested value for a form field, from local data only. */
 export interface FieldSuggestion {
   value: string;
@@ -920,8 +925,12 @@ export interface FieldSuggestion {
   /** A short human note ("from a previous stay"), when useful. */
   detail?: string;
 }
-/** Lodging fields that support local suggestions. */
-export type SuggestableField = "address" | "propertyName";
+/**
+ * Fields that support local suggestions: the two lodging fields, and the two
+ * flight airport codes (matched on code *or* airport name).
+ */
+export type SuggestableField =
+  "address" | "propertyName" | "departureAirportIata" | "arrivalAirportIata";
 export interface SuggestFieldValuesInput {
   tripId: string;
   field: SuggestableField;

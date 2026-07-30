@@ -502,6 +502,7 @@ const en = {
   "suggest.source.pack_place": "from a city pack",
   "suggest.source.catalog": "city pack",
   "suggest.source.gazetteer": "city",
+  "suggest.source.airport": "airport",
 
   "packs.title": "Offline city data",
   "packs.intro":
@@ -1755,6 +1756,7 @@ const es: Record<MessageKey, string> = {
   "suggest.source.pack_place": "de un paquete de ciudad",
   "suggest.source.catalog": "paquete de ciudad",
   "suggest.source.gazetteer": "ciudad",
+  "suggest.source.airport": "aeropuerto",
   "packs.title": "Datos de la ciudad sin conexión",
   "packs.intro":
     "Descarga los lugares y las notas de viaje de una ciudad para usarlos sin conexión. El paquete se descarga desde GitHub y se guarda en este dispositivo para este viaje; no se envía nada sobre tu viaje. Cada paquete combina lugares de Overture con una capa independiente de notas de Wikivoyage, cada una con su propia licencia.",

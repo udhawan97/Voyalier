@@ -1035,6 +1035,44 @@ function mockAstro(snapshot: DestinationFactsSnapshot, trip: Trip): AstroDay[] {
 }
 
 /**
+ * A few airports the fixture trips actually use, for the airport-code fields.
+ *
+ * Matched on code then name, mirroring the engine's tiering. The real table has
+ * three thousand rows; a mock only has to teach the UI the same *rule*, which is
+ * that typing an airport's name finds it even though the field stores a code.
+ */
+const MOCK_AIRPORTS: ReadonlyArray<{ iata: string; name: string }> = [
+  { iata: "CDG", name: "Paris Charles de Gaulle Airport" },
+  { iata: "HND", name: "Tokyo Haneda International Airport" },
+  { iata: "ITM", name: "Osaka Itami International Airport" },
+  { iata: "KIX", name: "Kansai International Airport" },
+  { iata: "LHR", name: "London Heathrow Airport" },
+  { iata: "ORD", name: "Chicago O'Hare International Airport" },
+];
+
+function mockAirportSuggestions(query: string): FieldSuggestion[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return [];
+  const tier = ({ iata, name }: { iata: string; name: string }) => {
+    const code = iata.toLowerCase();
+    const label = name.toLowerCase();
+    if (code === needle) return 0;
+    if (code.startsWith(needle)) return 1;
+    if (label.startsWith(needle)) return 2;
+    if (label.includes(needle)) return 3;
+    return -1;
+  };
+  return MOCK_AIRPORTS.filter((airport) => tier(airport) >= 0)
+    .sort((a, b) => tier(a) - tier(b) || a.iata.localeCompare(b.iata))
+    .slice(0, MOCK_FIELD_SUGGESTION_LIMIT)
+    .map((airport) => ({
+      value: airport.iata,
+      source: "airport" as const,
+      detail: airport.name,
+    }));
+}
+
+/**
  * The mock's nearest airports for the Kyoto fixture — the same shape and the
  * same three codes the core returns for those coordinates, so the mock never
  * teaches the UI a different answer than the service would.
@@ -2768,13 +2806,30 @@ export function createMockGateway(options?: {
     suggestFieldValues: (input: SuggestFieldValuesInput) =>
       execute("suggestFieldValues", () => {
         requireTrip(input.tripId);
-        if (input.field !== "address" && input.field !== "propertyName") {
+        if (
+          input.field !== "address" &&
+          input.field !== "propertyName" &&
+          input.field !== "departureAirportIata" &&
+          input.field !== "arrivalAirportIata"
+        ) {
           throw appError(
             "validation/invalid_input",
-            "suggestions are only available for lodging address and property name",
+            "suggestions are only available for lodging address and property name, " +
+              "and for the two flight airport codes",
             { field: "field" },
           );
         }
+
+        // Airports match on the code *or* the airport name, and carry the name
+        // as their detail — the same two-key rule the engine applies, over a
+        // handful of fixture airports rather than the bundled three thousand.
+        if (
+          input.field === "departureAirportIata" ||
+          input.field === "arrivalAirportIata"
+        ) {
+          return mockAirportSuggestions(input.query);
+        }
+
         const candidates: FieldSuggestion[] = [];
 
         // Values confirmed on THIS trip only. A locked vault omits this source,

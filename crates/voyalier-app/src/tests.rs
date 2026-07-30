@@ -3268,6 +3268,48 @@ fn suggest_field_values_draws_on_confirmed_facts_and_pack_places() {
 }
 
 #[test]
+fn suggest_field_values_finds_airports_by_code_or_by_name() {
+    let database = temp_database("suggest-airports");
+    let service = open_test_service(&database).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+    // A code the traveler read off their ticket.
+    let by_code = service
+        .suggest_field_values(&trip.id, "departureAirportIata", "kix")
+        .expect("code suggestions");
+    assert_eq!(by_code[0].value, "KIX");
+    assert_eq!(by_code[0].source, SuggestionSource::Airport);
+    // The name rides along as the detail, because "KIX" alone is unreadable.
+    assert_eq!(
+        by_code[0].detail.as_deref(),
+        Some("Kansai International Airport")
+    );
+
+    // And the airport a traveler knows by name but not by code -- the case that
+    // would be lost if these were ranked against the stored value alone.
+    let by_name = service
+        .suggest_field_values(&trip.id, "arrivalAirportIata", "haneda")
+        .expect("name suggestions");
+    assert_eq!(by_name[0].value, "HND");
+
+    // Bounded, and quiet until the traveler has typed something.
+    assert!(
+        service
+            .suggest_field_values(&trip.id, "departureAirportIata", "")
+            .expect("blank query")
+            .is_empty()
+    );
+    assert!(
+        service
+            .suggest_field_values(&trip.id, "departureAirportIata", "a")
+            .expect("broad query")
+            .len()
+            <= FIELD_SUGGESTION_LIMIT
+    );
+    cleanup_database(database);
+}
+
+#[test]
 fn suggest_field_values_skips_confirmed_source_when_the_vault_is_locked() {
     let database = temp_database("suggest-fields-locked");
     let secrets = Arc::new(MemorySecretStore::default());
