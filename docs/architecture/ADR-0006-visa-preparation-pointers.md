@@ -117,3 +117,44 @@ are the guard against cross-contamination — a Japanese step citing canada.ca �
 Nothing about the split changes. Every factual claim about a requirement is still a link, every
 authored sentence is still a translation or a caution, and the test that fails the build on a quoted
 fee or processing time now runs over both destinations rather than one.
+
+## Amendment (2026-07-31): four more authorities, and the invariant that had to give
+
+Four destinations were curated in one pass, against verified readings of each authority's own pages.
+Only one of the four resolves a route, and that ratio is the finding.
+
+**Australia resolves.** The Department of Home Affairs publishes two enumerated lists — 34 passports
+for the subclass 601 ETA, 36 for the subclass 651 eVisitor, overlapping on 24 — and no rule for
+which to prefer where both apply. That ambiguity turns out not to matter: both are electronic
+authorizations obtained before travel, so the _path_ is the same answer either way, and the path is
+what `EntryPath` quotes. Which instrument to use is left to the department's own pages, linked from
+step 1. Three entries stay `Unknown` because eligibility turns on a passport **class** Voyalier
+cannot see — a British Overseas Citizen is on neither list, Taiwan's entry excludes official and
+diplomatic passports, and the eVisitor list requires a Vatican passport to state Vatican nationality.
+
+**New Zealand, Korea and the United States name an authority and resolve nothing.** Each publishes a
+list clean enough to parse, and each gates that list on something a nationality cannot answer:
+
+- New Zealand's 60-entry waiver excludes anyone travelling for medical treatment whatever their
+  passport, caps stays at six months in any twelve, and still turns on funds, onward travel, and
+  being judged a genuine visitor.
+- Korea requires K-ETA by law and then suspends it under a temporary exemption the Ministry of
+  Justice has renewed one year at a time since 2023, currently to 2026-12-31 — so the same passport
+  needs one for a January 2027 trip and not for a December 2026 one, with no published successor
+  policy, and the authority deliberately does not enumerate who is covered.
+- The United States publishes the Visa Waiver Program's 42 designations exactly, and every one is
+  conditional: the 2015 Act disqualifies by _travel history_, an e-passport is required, arriving on
+  a non-signatory carrier voids the waiver, and DHS attaches its own footnotes to the Netherlands,
+  Taiwan and the United Kingdom.
+
+Reading a list is not the same as answering the question the list is part of. The United Kingdom
+pattern from 0.7.0 generalises, and `authority_without_a_route` is now the shape three destinations
+share rather than a special case.
+
+**The invariant that gave.** Tests in both languages asserted that a journey exists _exactly_ when
+the path is `visaRequired` or `electronicAuthorization`. Australia breaks the converse honestly:
+Home Affairs routes every unlisted passport to the subclass 600 visitor visa, so the path resolves
+to `visaRequired` — but that route is not curated step by step, and quoting the department's page
+with no journey is the documented behaviour for an uncurated route. The assertion is now one-way: a
+journey may exist **only** where the path calls for one. Keeping it two-way would have forced either
+inventing steps or downgrading a true path to `Unknown`, and both are worse than saying less.

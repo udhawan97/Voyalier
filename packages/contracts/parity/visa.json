@@ -1,5 +1,5 @@
 {
-  "caseCount": 9,
+  "caseCount": 15,
   "cases": [
     {
       "destination": "CA",
@@ -223,6 +223,126 @@
       },
       "name": "Japan: an exemption MOFA conditions on passport type",
       "nationality": "TH"
+    },
+    {
+      "destination": "AU",
+      "expected": {
+        "documentIds": [
+          "au.eauth.passport.current"
+        ],
+        "entryPath": {
+          "curatedAsOf": "2026-07-31",
+          "language": "en",
+          "path": "electronicAuthorization",
+          "sourceName": "Department of Home Affairs (Australia)",
+          "sourceUrl": "https://immi.homeaffairs.gov.au/visas/getting-a-visa/visa-listing/electronic-travel-authority-601"
+        },
+        "ordinals": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "routeLabel": "Electronic authorization (ETA or eVisitor)",
+        "stepIds": [
+          "au.eauth.01-which",
+          "au.eauth.02-passport",
+          "au.eauth.03-circumstances",
+          "au.eauth.04-apply"
+        ]
+      },
+      "name": "electronic-authorization-nationality",
+      "nationality": "DE"
+    },
+    {
+      "destination": "AU",
+      "expected": {
+        "documentIds": null,
+        "entryPath": {
+          "curatedAsOf": "2026-07-31",
+          "language": "en",
+          "path": "visaRequired",
+          "sourceName": "Department of Home Affairs (Australia)",
+          "sourceUrl": "https://immi.homeaffairs.gov.au/visas/getting-a-visa/visa-listing/visitor-600/tourist-stream-overseas"
+        },
+        "ordinals": null,
+        "routeLabel": null,
+        "stepIds": null
+      },
+      "name": "visa-required-nationality-without-a-curated-route",
+      "nationality": "IN"
+    },
+    {
+      "destination": "AU",
+      "expected": {
+        "documentIds": null,
+        "entryPath": {
+          "curatedAsOf": "2026-07-31",
+          "language": "en",
+          "path": "unknown",
+          "sourceName": "Department of Home Affairs (Australia)",
+          "sourceUrl": "https://immi.homeaffairs.gov.au/visas/getting-a-visa/visa-finder"
+        },
+        "ordinals": null,
+        "routeLabel": null,
+        "stepIds": null
+      },
+      "name": "passport-class-condition-yields-unknown",
+      "nationality": "GB"
+    },
+    {
+      "destination": "NZ",
+      "expected": {
+        "documentIds": null,
+        "entryPath": {
+          "curatedAsOf": "2026-07-31",
+          "language": "en",
+          "path": "unknown",
+          "sourceName": "Immigration New Zealand",
+          "sourceUrl": "https://www.immigration.govt.nz/visit/what-you-need-to-visit-new-zealand/visa-waiver-countries-and-territories/"
+        },
+        "ordinals": null,
+        "routeLabel": null,
+        "stepIds": null
+      },
+      "name": "authority-named-without-a-route",
+      "nationality": "GB"
+    },
+    {
+      "destination": "US",
+      "expected": {
+        "documentIds": null,
+        "entryPath": {
+          "curatedAsOf": "2026-07-31",
+          "language": "en",
+          "path": "unknown",
+          "sourceName": "U.S. Department of State — Bureau of Consular Affairs",
+          "sourceUrl": "https://travel.state.gov/content/travel/en/us-visas/tourism-visit/visa-waiver-program.html"
+        },
+        "ordinals": null,
+        "routeLabel": null,
+        "stepIds": null
+      },
+      "name": "authority-named-without-a-route",
+      "nationality": "DE"
+    },
+    {
+      "destination": "KR",
+      "expected": {
+        "documentIds": null,
+        "entryPath": {
+          "curatedAsOf": "2026-07-31",
+          "language": "en",
+          "path": "unknown",
+          "sourceName": "Korea Immigration Service (Ministry of Justice)",
+          "sourceUrl": "https://www.k-eta.go.kr/portal/apply/index.do"
+        },
+        "ordinals": null,
+        "routeLabel": null,
+        "stepIds": null
+      },
+      "name": "authority-named-without-a-route",
+      "nationality": "JP"
     }
   ],
   "note": "Curated visa journeys, asserted from crates/voyalier-core/src/tests.rs and apps/web/src/parity.test.ts. Pins structure -- entry-path quotes, step ids and ordinals, document ids -- and deliberately not the curated prose: the interface renders that verbatim from core, so pinning it here would turn every copy edit into golden churn without catching anything. Adding a case fails both sides until caseCount is bumped in this file and in both tests. Regenerate expectations with VOYALIER_REGENERATE_GOLDEN=1 and read the diff."

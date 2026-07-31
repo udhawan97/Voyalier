@@ -37,6 +37,62 @@ const GB_CHECK: &str = "https://www.gov.uk/check-uk-visa";
 /// than let a non-English reader assume it was translated.
 const LANGUAGE: &str = "en";
 
+// ---- Australia: sources ---------------------------------------------------
+
+const HOME_AFFAIRS: &str = "Department of Home Affairs (Australia)";
+const AU_CURATED_AS_OF: &str = "2026-07-31";
+const AU_ETA: &str = "https://immi.homeaffairs.gov.au/visas/getting-a-visa/visa-listing/electronic-travel-authority-601";
+const AU_EVISITOR: &str =
+    "https://immi.homeaffairs.gov.au/visas/getting-a-visa/visa-listing/evisitor-651";
+const AU_VISITOR_600: &str = "https://immi.homeaffairs.gov.au/visas/getting-a-visa/visa-listing/visitor-600/tourist-stream-overseas";
+const AU_VISA_FINDER: &str = "https://immi.homeaffairs.gov.au/visas/getting-a-visa/visa-finder";
+
+/// Passports Home Affairs lists for the subclass 601 ETA **or** the subclass
+/// 651 eVisitor, minus the entries whose eligibility turns on something a
+/// passport's country code cannot express.
+///
+/// The department publishes two separate lists — 34 ETA entries and 36 eVisitor
+/// entries, overlapping on 24 — and no rule for which to prefer where both
+/// apply. That does not matter here: both are electronic authorizations applied
+/// for before travel, so the *path* is the same answer either way, and it is
+/// the path this quotes. Which of the two instruments to use is left to the
+/// department's own pages, linked from the journey.
+const AU_ELECTRONIC_ELIGIBLE: &[&str] = &[
+    "AD", "AT", "BE", "BG", "BN", "CA", "CH", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GR",
+    "HK", "HR", "HU", "IE", "IS", "IT", "JP", "LI", "LT", "LU", "LV", "MC", "MT", "MY", "NL", "NO",
+    "PL", "PT", "RO", "SE", "SG", "SI", "SK", "SM", "US",
+];
+
+/// Entries whose eligibility Home Affairs conditions on a passport *class* or
+/// endorsement, which Voyalier cannot see.
+///
+/// - **GB** — the ETA list names only "British Citizen" and "British National
+///   (Overseas)"; eVisitor names only "British Citizen" and explicitly refuses
+///   British Dependent Territories Citizen, British Overseas Citizen, British
+///   Protected Person and British Subject passports. A British Overseas Citizen
+///   is on neither list and needs a visitor visa.
+/// - **TW** — listed "excluding official or diplomatic passports".
+/// - **VA** — eVisitor requires the passport to indicate Vatican nationality.
+/// - **KR** — listed by Home Affairs as "South Korea"; kept resolvable is fine,
+///   but the ETA app is the only channel, so it stays in the eligible list
+///   above rather than here.
+const AU_CONDITIONAL: &[&str] = &["GB", "TW", "VA"];
+
+// ---- New Zealand, Korea, United States: authorities without a route -------
+
+const INZ: &str = "Immigration New Zealand";
+const NZ_CURATED_AS_OF: &str = "2026-07-31";
+const NZ_WAIVER: &str = "https://www.immigration.govt.nz/visit/what-you-need-to-visit-new-zealand/visa-waiver-countries-and-territories/";
+
+const KIS: &str = "Korea Immigration Service (Ministry of Justice)";
+const KR_CURATED_AS_OF: &str = "2026-07-31";
+const KR_CHECK: &str = "https://www.k-eta.go.kr/portal/apply/index.do";
+
+const US_STATE: &str = "U.S. Department of State — Bureau of Consular Affairs";
+const US_CURATED_AS_OF: &str = "2026-07-31";
+const US_VISA_CHECK: &str =
+    "https://travel.state.gov/content/travel/en/us-visas/tourism-visit/visa-waiver-program.html";
+
 /// Which door a traveler goes through, as published by the destination.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -314,6 +370,10 @@ pub fn entry_path(destination_iso2: &str, nationality_iso2: &str) -> Option<Entr
         "CA" => canada_entry_path(nationality_iso2),
         "JP" => japan_entry_path(nationality_iso2),
         "GB" => united_kingdom_entry_path(nationality_iso2),
+        "AU" => australia_entry_path(nationality_iso2),
+        "NZ" => authority_without_a_route(INZ, NZ_WAIVER, NZ_CURATED_AS_OF),
+        "KR" => authority_without_a_route(KIS, KR_CHECK, KR_CURATED_AS_OF),
+        "US" => authority_without_a_route(US_STATE, US_VISA_CHECK, US_CURATED_AS_OF),
         // Anywhere else is uncurated. Quoting one of these authorities for a
         // destination it does not govern would put a government with no
         // connection to the trip in front of the traveler, under the words "the
@@ -346,6 +406,74 @@ fn united_kingdom_entry_path(nationality_iso2: &str) -> Option<EntryPathQuote> {
         curated_as_of: GB_CURATED_AS_OF.to_owned(),
         language: LANGUAGE.to_owned(),
     })
+}
+
+/// A destination that is curated as an authority but resolves no route.
+///
+/// The United Kingdom was the first of these and the pattern generalised on the
+/// second reading. Three more destinations landed here on 2026-07-31, each for
+/// its own published reason rather than for want of research:
+///
+/// - **New Zealand** publishes a clean 60-entry waiver list — and gates it on
+///   riders a nationality cannot answer: a medical-treatment visit needs a
+///   visa whatever the passport, the waiver caps stays at six months in any
+///   twelve, and entry still turns on funds, onward travel, and being judged a
+///   genuine visitor. Ten of the sixty entries are further conditioned on
+///   citizenship or passport class.
+/// - **Korea** requires K-ETA by law, then suspends it under a temporary
+///   exemption the Ministry of Justice has renewed one year at a time since
+///   2023, currently to 2026-12-31. The same passport therefore needs a K-ETA
+///   for a January 2027 trip and not for a December 2026 one, with no published
+///   successor policy to key the flip on — and the authority deliberately does
+///   not enumerate who is covered.
+/// - **The United States** publishes the Visa Waiver Program list exactly, and
+///   every entry on it is conditional: the 2015 Act disqualifies travelers by
+///   *travel history*, an e-passport is required, and arriving on a non-signatory
+///   carrier voids the waiver. None of those are facts about a nationality.
+///
+/// In each case the authority is real, named, and the right place to send
+/// someone. What Voyalier must not do is turn a list it can read into an answer
+/// the list does not give.
+fn authority_without_a_route(
+    source_name: &str,
+    source_url: &str,
+    curated_as_of: &str,
+) -> Option<EntryPathQuote> {
+    Some(EntryPathQuote {
+        path: EntryPath::Unknown,
+        source_name: source_name.to_owned(),
+        source_url: source_url.to_owned(),
+        curated_as_of: curated_as_of.to_owned(),
+        language: LANGUAGE.to_owned(),
+    })
+}
+
+/// Australia's published door for a nationality.
+///
+/// Home Affairs' structure matches Canada's and Japan's: enumerated lists for
+/// the two electronic authorizations, and a residual visitor visa (subclass
+/// 600) whose own eligibility criteria name no nationality at all — the
+/// department's visa finder routes every unlisted passport to exactly that. So
+/// an unlisted code resolving to `VisaRequired` quotes the structure rather
+/// than inferring past it.
+fn australia_entry_path(nationality_iso2: &str) -> Option<EntryPathQuote> {
+    let quote = |path: EntryPath, url: &str| EntryPathQuote {
+        path,
+        source_name: HOME_AFFAIRS.to_owned(),
+        source_url: url.to_owned(),
+        curated_as_of: AU_CURATED_AS_OF.to_owned(),
+        language: LANGUAGE.to_owned(),
+    };
+
+    if !is_iso2(nationality_iso2) || AU_CONDITIONAL.contains(&nationality_iso2) {
+        return Some(quote(EntryPath::Unknown, AU_VISA_FINDER));
+    }
+
+    if AU_ELECTRONIC_ELIGIBLE.contains(&nationality_iso2) {
+        Some(quote(EntryPath::ElectronicAuthorization, AU_ETA))
+    } else {
+        Some(quote(EntryPath::VisaRequired, AU_VISITOR_600))
+    }
 }
 
 fn canada_entry_path(nationality_iso2: &str) -> Option<EntryPathQuote> {
@@ -440,6 +568,9 @@ pub fn visa_journey(destination_iso2: &str, nationality_iso2: &str) -> Option<Vi
         ("CA", EntryPath::VisaRequired) => Some(canada_visitor_visa(nationality_iso2, quote)),
         ("CA", EntryPath::ElectronicAuthorization) => Some(canada_eta(nationality_iso2, quote)),
         ("JP", EntryPath::VisaRequired) => Some(japan_short_term_stay(nationality_iso2, quote)),
+        ("AU", EntryPath::ElectronicAuthorization) => {
+            Some(australia_electronic_authorization(nationality_iso2, quote))
+        }
         _ => None,
     }
 }
@@ -1009,6 +1140,106 @@ fn canada_eta(nationality_iso2: &str, quote: EntryPathQuote) -> VisaJourney {
     }
 }
 
+/// Australia's electronic-authorization route, for a passport on either of the
+/// department's two lists.
+///
+/// Step 1 exists because Home Affairs publishes two instruments for overlapping
+/// sets of passports and no rule for choosing between them — twenty-four
+/// nationalities appear on both. Voyalier will not invent that rule, so the
+/// step names both and hands over the department's own pages.
+///
+/// Step 3 carries the two diversions Home Affairs states in its own words on
+/// both pages, because each one turns a cheap online application into the wrong
+/// application: a criminal conviction in any country, and travel involving
+/// health-care or hospital environments, are sent to the subclass 600 visitor
+/// visa instead. Someone who applies electronically anyway can be refused entry
+/// on arrival.
+fn australia_electronic_authorization(
+    nationality_iso2: &str,
+    quote: EntryPathQuote,
+) -> VisaJourney {
+    let steps = vec![
+        step(
+            "au.eauth.01-which",
+            1,
+            "Find out which of the two applies to you",
+            Some("ETA (subclass 601) / eVisitor (subclass 651)"),
+            "Australia runs two electronic authorizations, and many passports appear on both \
+             lists. They are applied for in different places — the ETA through the department's \
+             own phone app, the eVisitor through its online portal — so check your passport \
+             against both lists before starting.",
+            Vec::new(),
+            vec![
+                link("Home Affairs — ETA (subclass 601)", AU_ETA),
+                link("Home Affairs — eVisitor (subclass 651)", AU_EVISITOR),
+            ],
+        ),
+        step(
+            "au.eauth.02-passport",
+            2,
+            "Your passport",
+            None,
+            "The authorization is attached electronically to one passport. Applying with a \
+             passport you are about to replace means applying again on the new one. If you hold \
+             more than one passport, the department asks you to declare the others.",
+            vec![document(
+                "au.eauth.passport.current",
+                "The passport you will actually travel on",
+                "The one you will present at the airport, not one you are about to renew.",
+                &[
+                    "An Australian citizen who also holds an eligible passport cannot apply for \
+                     an ETA at all.",
+                    "Both authorizations are applied for from outside Australia.",
+                ],
+                vec![link("Home Affairs — ETA (subclass 601)", AU_ETA)],
+            )],
+            vec![link("Home Affairs — ETA (subclass 601)", AU_ETA)],
+        ),
+        step(
+            "au.eauth.03-circumstances",
+            3,
+            "Check whether your circumstances send you elsewhere",
+            None,
+            "The department diverts some travelers off both electronic routes and onto the \
+             visitor visa, in its own words: a criminal conviction in any country, and travel \
+             that involves entering health-care or hospital environments. Arriving on an \
+             electronic authorization when one of these applies risks being refused entry.",
+            Vec::new(),
+            vec![
+                link("Home Affairs — eVisitor (subclass 651)", AU_EVISITOR),
+                link(
+                    "Home Affairs — Visitor visa (subclass 600), tourist stream",
+                    AU_VISITOR_600,
+                ),
+            ],
+        ),
+        step(
+            "au.eauth.04-apply",
+            4,
+            "Apply through the department's own channel",
+            None,
+            "Apply on the department's own site or its own app. Look-alike sites rank well in \
+             search results and forward the same application for a markup.",
+            Vec::new(),
+            vec![
+                link("Home Affairs — ETA (subclass 601)", AU_ETA),
+                link("Home Affairs — eVisitor (subclass 651)", AU_EVISITOR),
+                link("Home Affairs — Explore visa options", AU_VISA_FINDER),
+            ],
+        ),
+    ];
+
+    VisaJourney {
+        destination_iso2: "AU".to_owned(),
+        nationality_iso2: nationality_iso2.to_owned(),
+        route_label: "Electronic authorization (ETA or eVisitor)".to_owned(),
+        entry_path: quote,
+        steps,
+        curated_as_of: AU_CURATED_AS_OF.to_owned(),
+        language: LANGUAGE.to_owned(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1020,8 +1251,115 @@ mod tests {
         [("CA", "IN"), ("CA", "GB"), ("CA", "NG"), ("CA", "JP")]
             .iter()
             .chain([("JP", "CN"), ("JP", "IN"), ("JP", "NG")].iter())
+            .chain([("AU", "DE"), ("AU", "US"), ("AU", "JP")].iter())
             .filter_map(|(destination, nationality)| visa_journey(destination, nationality))
             .collect()
+    }
+
+    #[test]
+    fn australia_resolves_its_two_electronic_lists_to_one_path() {
+        // On the ETA list only.
+        for nationality in ["US", "JP", "CA", "MY", "SG"] {
+            let quote = entry_path("AU", nationality).expect("australia is curated");
+            assert_eq!(
+                quote.path,
+                EntryPath::ElectronicAuthorization,
+                "{nationality} should reach an electronic authorization"
+            );
+            assert_eq!(quote.source_name, HOME_AFFAIRS);
+        }
+        // On the eVisitor list only.
+        for nationality in [
+            "BG", "HR", "CY", "CZ", "EE", "HU", "LV", "LT", "PL", "RO", "SK", "SI",
+        ] {
+            assert_eq!(
+                entry_path("AU", nationality).expect("curated").path,
+                EntryPath::ElectronicAuthorization
+            );
+        }
+        // On both.
+        assert_eq!(
+            entry_path("AU", "DE").expect("curated").path,
+            EntryPath::ElectronicAuthorization
+        );
+    }
+
+    #[test]
+    fn australia_sends_a_passport_class_condition_to_unknown() {
+        // A British Overseas Citizen is on neither list, and Voyalier cannot
+        // see which class of British passport a traveler holds.
+        for nationality in ["GB", "TW", "VA"] {
+            let quote = entry_path("AU", nationality).expect("curated");
+            assert_eq!(quote.path, EntryPath::Unknown, "{nationality}");
+            assert!(visa_journey("AU", nationality).is_none());
+        }
+    }
+
+    #[test]
+    fn australia_sends_an_unlisted_passport_to_the_visitor_visa() {
+        for nationality in ["IN", "NG", "CN", "BR"] {
+            assert_eq!(
+                entry_path("AU", nationality).expect("curated").path,
+                EntryPath::VisaRequired,
+                "{nationality}"
+            );
+        }
+        // No journey is curated for that route yet — the path is quoted and the
+        // department's own page is handed over, which is the documented
+        // behaviour for an uncurated route, not a gap in the destination.
+        assert!(visa_journey("AU", "IN").is_none());
+    }
+
+    #[test]
+    fn australia_never_reports_a_nationality_as_exempt() {
+        // Home Affairs publishes no visa-free entry for any nationality except
+        // New Zealand citizens, who are handled at the border rather than by a
+        // published list. Nothing here may resolve to Exempt.
+        for nationality in ["NZ", "US", "GB", "DE", "IN"] {
+            assert_ne!(
+                entry_path("AU", nationality).expect("curated").path,
+                EntryPath::Exempt,
+                "{nationality}"
+            );
+        }
+    }
+
+    /// The three destinations curated as authorities that resolve no route.
+    /// Each publishes a readable list; each gates it on something a passport
+    /// code cannot answer, so reading the list is not the same as answering.
+    #[test]
+    fn a_named_authority_without_a_route_never_resolves_a_path() {
+        for (destination, authority) in [("NZ", INZ), ("KR", KIS), ("US", US_STATE)] {
+            for nationality in ["GB", "DE", "US", "IN", "NG", "JP", "zz", ""] {
+                let quote = entry_path(destination, nationality)
+                    .unwrap_or_else(|| panic!("{destination} must name an authority"));
+                assert_eq!(
+                    quote.path,
+                    EntryPath::Unknown,
+                    "{destination}/{nationality} resolved a path"
+                );
+                assert_eq!(quote.source_name, authority);
+                assert!(!quote.curated_as_of.is_empty());
+                assert!(quote.source_url.starts_with("https://"));
+                assert!(
+                    visa_journey(destination, nationality).is_none(),
+                    "{destination}/{nationality} produced a journey"
+                );
+            }
+        }
+    }
+
+    /// The distinction the return type exists for: `None` says no authority is
+    /// named at all, and must not be confused with a named authority that
+    /// resolves nothing.
+    #[test]
+    fn an_uncurated_destination_still_names_no_authority() {
+        for destination in ["FR", "IT", "BR", "ZA"] {
+            assert!(
+                entry_path(destination, "GB").is_none(),
+                "{destination} is not curated and must name no authority"
+            );
+        }
     }
 
     fn all_links(journey: &VisaJourney) -> Vec<&SourceLink> {
@@ -1046,6 +1384,7 @@ mod tests {
         match destination_iso2 {
             "CA" => ("https://www.canada.ca/", "ca."),
             "JP" => ("https://www.mofa.go.jp/", "jp."),
+            "AU" => ("https://immi.homeaffairs.gov.au/", "au."),
             other => panic!("no official domain recorded for {other}"),
         }
     }

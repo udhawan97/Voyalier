@@ -221,10 +221,18 @@ describe("parity: visa journeys", () => {
   const CURATED_DOMAINS = {
     CA: "https://www.canada.ca/",
     JP: "https://www.mofa.go.jp/",
+    AU: "https://immi.homeaffairs.gov.au/",
+    // Curated as authorities that resolve no route: each publishes a readable
+    // list and gates it on something a passport code cannot answer, so they
+    // name a source and never a path. They still belong here — an authority
+    // without a route is curated, and must be held to its own domain.
+    NZ: "https://www.immigration.govt.nz/",
+    KR: "https://www.k-eta.go.kr/",
+    US: "https://travel.state.gov/",
   } as const;
 
   it("covers every golden case", () => {
-    expect(cases).toHaveLength(9);
+    expect(cases).toHaveLength(15);
     expect(cases).toHaveLength(visaGolden.caseCount);
   });
 
@@ -260,13 +268,24 @@ describe("parity: visa journeys", () => {
     "agrees with the core's journey shape for: $name",
     ({ expected }) => {
       const hasJourney = expected.stepIds !== null;
-      // A journey exists exactly when the quoted path calls for one. Exempt and
-      // unknown travelers get official links and nothing invented; an uncurated
-      // destination has no quote to call for one at all.
-      expect(hasJourney).toBe(
-        expected.entryPath?.path === "visaRequired" ||
-          expected.entryPath?.path === "electronicAuthorization",
-      );
+      // One direction only, and the direction is the safety-critical one: a
+      // journey may exist *only* where the quoted path calls for one. Exempt
+      // and unknown travelers get official links and nothing invented; an
+      // uncurated destination has no quote to call for one at all.
+      //
+      // The converse does not hold, and Australia is why. Home Affairs routes
+      // every unlisted passport to the subclass 600 visitor visa, so the path
+      // resolves to visaRequired honestly — but that route is not curated
+      // step-by-step yet, and quoting the department's own page with no
+      // journey is the documented behaviour for an uncurated route. Requiring
+      // a journey here would push toward either inventing steps or downgrading
+      // a true path to unknown, and both are worse than saying less.
+      if (hasJourney) {
+        expect(
+          expected.entryPath?.path === "visaRequired" ||
+            expected.entryPath?.path === "electronicAuthorization",
+        ).toBe(true);
+      }
       if (!hasJourney) {
         expect(expected.routeLabel).toBeNull();
         expect(expected.documentIds).toBeNull();
