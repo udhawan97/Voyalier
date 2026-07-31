@@ -38,6 +38,7 @@ const SAMPLES: Record<string, string> = {
   savedPlaceId: "place_1",
   packingItemId: "packing_1",
   tripItemId: "item_1",
+  resourceId: "res_1",
 };
 
 function resolvePath(path: string): string {
@@ -118,6 +119,18 @@ const ARGS: Record<keyof AppGateway, unknown[]> = {
   fetchDestinationFacts: ["trip_1"],
   fetchPublicHolidays: ["trip_1"],
   fetchPlaceSummary: ["trip_1"],
+  listResources: ["trip_1"],
+  createResource: [
+    { tripId: "trip_1", kind: "link", url: "https://a.example" },
+  ],
+  updateResource: [{ resourceId: "res_1", title: "t" }],
+  deleteResource: ["res_1"],
+  fetchResourceDetails: ["res_1"],
+  getResearchSettings: [],
+  setResearchSettings: [{ autoFetchDetails: true }],
+  listChatMessages: ["trip_1"],
+  sendChatMessage: ["trip_1", "hello"],
+  clearChat: ["trip_1"],
   searchTrip: ["trip_1", "q"],
   searchWorkspace: ["q"],
   suggestSearchTerms: ["trip_1", "q"],

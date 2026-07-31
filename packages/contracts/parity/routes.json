@@ -337,6 +337,66 @@
       "command": "fetch_place_summary"
     },
     {
+      "method": "listResources",
+      "verb": "GET",
+      "path": "/api/v1/trips/{tripId}/resources",
+      "command": "list_resources"
+    },
+    {
+      "method": "createResource",
+      "verb": "POST",
+      "path": "/api/v1/trips/{tripId}/resources",
+      "command": "create_resource"
+    },
+    {
+      "method": "updateResource",
+      "verb": "PATCH",
+      "path": "/api/v1/resources/{resourceId}",
+      "command": "update_resource"
+    },
+    {
+      "method": "deleteResource",
+      "verb": "DELETE",
+      "path": "/api/v1/resources/{resourceId}",
+      "command": "delete_resource"
+    },
+    {
+      "method": "fetchResourceDetails",
+      "verb": "POST",
+      "path": "/api/v1/resources/{resourceId}/fetch",
+      "command": "fetch_resource_details"
+    },
+    {
+      "method": "getResearchSettings",
+      "verb": "GET",
+      "path": "/api/v1/research/settings",
+      "command": "get_research_settings"
+    },
+    {
+      "method": "setResearchSettings",
+      "verb": "POST",
+      "path": "/api/v1/research/settings",
+      "command": "set_research_settings"
+    },
+    {
+      "method": "listChatMessages",
+      "verb": "GET",
+      "path": "/api/v1/trips/{tripId}/chat",
+      "command": "list_chat_messages"
+    },
+    {
+      "method": "sendChatMessage",
+      "verb": "POST",
+      "path": "/api/v1/trips/{tripId}/chat",
+      "command": "send_chat_message"
+    },
+    {
+      "method": "clearChat",
+      "verb": "DELETE",
+      "path": "/api/v1/trips/{tripId}/chat",
+      "command": "clear_chat"
+    },
+    {
       "method": "searchTrip",
       "verb": "GET",
       "path": "/api/v1/trips/{tripId}/search",
@@ -440,7 +500,7 @@
     "updater_relaunch"
   ],
   "counts": {
-    "shared": 71,
+    "shared": 81,
     "desktopOnly": 10
   }
 }

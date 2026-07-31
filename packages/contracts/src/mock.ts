@@ -7,6 +7,7 @@ import {
   MAX_AI_PROMPT_LEN,
   MAX_LOCATION_LEN,
   MAX_NOTES_CHARS,
+  MAX_CHAT_MESSAGE_CHARS,
   MAX_QUERY_LEN,
   MAX_VISA_NOTE_CHARS,
   countChars,
@@ -17,6 +18,8 @@ import {
 import type {
   AddManualFactInput,
   AddPackingItemInput,
+  AdvisoryEntry,
+  AdvisoryPanel,
   AiPrompt,
   AiPromptKind,
   AiPromptSettings,
@@ -26,86 +29,92 @@ import type {
   AssistDraftKind,
   AssistReply,
   AssistRequestPreview,
+  AstroDay,
   CandidateFact,
   CandidateStatus,
+  ChatGrounding,
+  ChatMessage,
   ConfirmCandidateInput,
   ConfirmedFact,
+  CountryFacts,
+  CreateResourceInput,
   CreateTripInput,
   CreateTripItemInput,
-  DownloadedPack,
-  ErrorCode,
-  FactPayload,
+  DestinationFactsSnapshot,
   DocumentContent,
   DocumentSummary,
-  TripNotes,
+  DownloadedPack,
+  ErrorCode,
+  FactLabel,
+  FactPayload,
   FcdoCountry,
   FetchAdvisoriesInput,
+  FieldSuggestion,
   FlightEmissions,
   FlightSegmentPayload,
   HealthResponse,
+  HeritageSite,
+  HighStakesTopic,
   ImportDocumentInput,
   ImportResult,
+  InterestProfile,
   ItineraryConflict,
   KeyValidation,
   LocalAiStatus,
   LocalModelPullResult,
-  FieldSuggestion,
   LodgingStayPayload,
+  NearbyAirport,
   PackInfo,
+  PackingItem,
+  PackingSuggestion,
   PackMatchKind,
   PackSuggestion,
-  SuggestFieldValuesInput,
   PersonaWeights,
+  PlaceSummary,
   ProviderConfig,
   ProviderId,
-  Recommendation,
-  InterestProfile,
-  SetInterestProfileInput,
-  SavePlaceInput,
-  SavedPlace,
-  UpdateSavedPlaceInput,
-  PackingItem,
-  UpdatePackingItemInput,
-  SetVisaItemProgressInput,
-  SetVisaNationalityInput,
-  VisaJourney,
-  VisaPrep,
-  VisaPrepItem,
-  TripItem,
-  UpdateTripItemInput,
-  SetProviderKeyInput,
-  SetProviderModelInput,
-  TodayItem,
-  TodayView,
-  TripPhase,
+  PublicHoliday,
+  PublicHolidaysSnapshot,
   ReadinessCheck,
   ReadinessFindingCode,
   ReadinessItem,
   ReadinessStatus,
   ReadinessSummary,
+  Recommendation,
+  ResearchSettings,
+  Resource,
+  SavedPlace,
+  SavePlaceInput,
   SearchHit,
-  WorkspaceSearchHit,
+  SetInterestProfileInput,
+  SetProviderKeyInput,
+  SetProviderModelInput,
+  SetResearchSettingsInput,
+  SetVisaItemProgressInput,
+  SetVisaNationalityInput,
   SourceDocument,
-  AdvisoryEntry,
-  AdvisoryPanel,
-  AstroDay,
-  CountryFacts,
-  DestinationFactsSnapshot,
-  FactLabel,
-  PlaceSummary,
-  PublicHoliday,
-  PublicHolidaysSnapshot,
-  HeritageSite,
-  NearbyAirport,
-  PackingSuggestion,
+  SuggestFieldValuesInput,
   TimeDifference,
+  TodayItem,
+  TodayView,
   Trip,
   TripBrief,
-  WeatherSnapshot,
   TripDetail,
+  TripItem,
+  TripNotes,
+  TripPhase,
   TripSummary,
+  UpdatePackingItemInput,
+  UpdateResourceInput,
+  UpdateSavedPlaceInput,
   UpdateTripInput,
+  UpdateTripItemInput,
   VaultStatus,
+  VisaJourney,
+  VisaPrep,
+  VisaPrepItem,
+  WeatherSnapshot,
+  WorkspaceSearchHit,
 } from "./index";
 
 interface StoredDocument {
@@ -1350,6 +1359,133 @@ function countOccurrences(haystack: string, needle: string): number {
   return count;
 }
 
+/**
+ * The key two links are the same resource under. Mirrors `resource_url_identity`
+ * in voyalier-core: fold what addresses a visitor, keep what addresses a page.
+ */
+function resourceUrlIdentity(raw: string): string {
+  const trimmed = raw.trim();
+  const split = trimmed.indexOf("://");
+  if (split < 0) return trimmed.toLowerCase();
+  const scheme = trimmed.slice(0, split).toLowerCase();
+  const rest = trimmed.slice(split + 3).split("#")[0] ?? "";
+  const slash = rest.indexOf("/");
+  const authorityRaw = slash < 0 ? rest : rest.slice(0, slash);
+  const pathAndQuery = slash < 0 ? "" : rest.slice(slash);
+  const questionMark = pathAndQuery.indexOf("?");
+  const path =
+    questionMark < 0 ? pathAndQuery : pathAndQuery.slice(0, questionMark);
+  const query =
+    questionMark < 0 ? undefined : pathAndQuery.slice(questionMark + 1);
+  let authority = authorityRaw.toLowerCase();
+  const defaultPort = scheme === "https" ? ":443" : ":80";
+  if (authority.endsWith(defaultPort))
+    authority = authority.slice(0, -defaultPort.length);
+  const kept = (query ?? "")
+    .split("&")
+    .filter((pair) => pair.length > 0 && !isTrackingParam(pair));
+  const base = `${scheme}://${authority}${path.replace(/\/+$/, "")}`;
+  return kept.length > 0 ? `${base}?${kept.join("&")}` : base;
+}
+
+function isTrackingParam(pair: string): boolean {
+  const key = (pair.split("=")[0] ?? "").toLowerCase();
+  return (
+    key.startsWith("utm_") ||
+    [
+      "fbclid",
+      "gclid",
+      "dclid",
+      "msclkid",
+      "mc_cid",
+      "mc_eid",
+      "igshid",
+      "ref_src",
+      "ref_url",
+    ].includes(key)
+  );
+}
+
+/** Mirrors `derived_link_title`: a readable name instead of a bare address. */
+function derivedLinkTitle(url: string): string {
+  const split = url.indexOf("://");
+  const rest = (split < 0 ? url : url.slice(split + 3)).split(/[#?]/)[0] ?? "";
+  const slash = rest.indexOf("/");
+  const authority = slash < 0 ? rest : rest.slice(0, slash);
+  const path = slash < 0 ? "" : rest.slice(slash);
+  const host = (authority.split(":")[0] ?? "").toLowerCase();
+  const bare = host.startsWith("www.") ? host.slice(4) : host;
+  const segments = path.split("/").filter((segment) => segment.length > 0);
+  const last = segments[segments.length - 1];
+  return last === undefined ? bare : `${bare} — ${last}`;
+}
+
+function resourceTitle(
+  raw: string | undefined,
+  url: string | undefined,
+  fileName: string | undefined,
+): string {
+  const trimmed = (raw ?? "").trim();
+  if (trimmed.length > 0) return trimmed;
+  if (url !== undefined) return derivedLinkTitle(url);
+  return fileName ?? "";
+}
+
+function requireResourceUrl(raw: string | undefined): string {
+  const trimmed = (raw ?? "").trim();
+  if (trimmed.length === 0)
+    throw appError("validation/invalid_input", "a link needs a web address", {
+      field: "url",
+    });
+  const scheme = trimmed.slice(0, trimmed.indexOf("://")).toLowerCase();
+  if (scheme !== "http" && scheme !== "https")
+    throw appError(
+      "validation/invalid_input",
+      "only http and https links can be saved",
+      { field: "url" },
+    );
+  return trimmed;
+}
+
+function requireFileName(raw: string | undefined): string {
+  const trimmed = (raw ?? "").trim();
+  if (trimmed.length === 0)
+    throw appError("validation/invalid_input", "a file needs a name", {
+      field: "fileName",
+    });
+  return trimmed;
+}
+
+function normalizeTags(raw: string[]): string[] {
+  const tags: string[] = [];
+  for (const tag of raw) {
+    const normalized = tag.trim().toLowerCase();
+    if (normalized.length > 0 && !tags.includes(normalized))
+      tags.push(normalized);
+  }
+  return tags;
+}
+
+/** Mirrors `high_stakes_topics`: whole-word matches, stable topic order. */
+function mockHighStakesTopics(message: string): HighStakesTopic[] {
+  const words = message
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length > 0);
+  const table: [HighStakesTopic, string[]][] = [
+    ["entry", ["visa", "visas", "passport", "passports", "immigration"]],
+    ["health", ["vaccine", "vaccines", "vaccination", "vaccinations"]],
+    ["safety", ["safe", "unsafe", "safety", "dangerous", "crime"]],
+    ["prices", ["price", "prices", "cost", "costs", "fare", "fares"]],
+  ];
+  const topics: HighStakesTopic[] = [];
+  for (const [topic, terms] of table) {
+    if (words.some((word) => terms.includes(word)) && !topics.includes(topic))
+      topics.push(topic);
+  }
+  return topics;
+}
+
 function snippetAround(original: string, needle: string): string {
   const lowered = original.toLowerCase();
   const start = lowered.indexOf(needle);
@@ -1890,6 +2026,9 @@ export function createMockGateway(options?: {
   /** `${tripId}:${documentId}` -> the traveler's tick and note. */
   const visaItems = new Map<string, VisaPrepItem>();
   const tripItems = new Map<string, TripItem>();
+  const resources = new Map<string, Resource>();
+  const chatThreads = new Map<string, ChatMessage[]>();
+  let autoFetchDetails = false;
 
   function recommendationsFor(
     tripId: string,
@@ -2300,6 +2439,190 @@ export function createMockGateway(options?: {
         return clone(restored);
       }),
 
+    listResources: (tripId: string) =>
+      execute("listResources", () => {
+        requireTrip(tripId);
+        return [...resources.values()]
+          .filter((resource) => resource.tripId === tripId)
+          .map(clone);
+      }),
+
+    createResource: (input: CreateResourceInput) =>
+      execute("createResource", () => {
+        requireTrip(input.tripId);
+        const url =
+          input.kind === "link" ? requireResourceUrl(input.url) : undefined;
+        const fileName =
+          input.kind === "file" ? requireFileName(input.fileName) : undefined;
+        if (url) {
+          // Saving the same page twice returns the original, matching the
+          // partial unique index the real store enforces.
+          const identity = resourceUrlIdentity(url);
+          const existing = [...resources.values()].find(
+            (resource) =>
+              resource.tripId === input.tripId &&
+              resource.url !== undefined &&
+              resourceUrlIdentity(resource.url) === identity,
+          );
+          if (existing) return clone(existing);
+        }
+        const now = timestamp();
+        const resource: Resource = {
+          id: nextId("res"),
+          tripId: input.tripId,
+          kind: input.kind,
+          url,
+          fileName,
+          title: resourceTitle(input.title, url, fileName),
+          note: (input.note ?? "").trim(),
+          tags: normalizeTags(input.tags ?? []),
+          createdAt: now,
+          updatedAt: now,
+        };
+        resources.set(resource.id, resource);
+        return clone(resource);
+      }),
+
+    updateResource: (input: UpdateResourceInput) =>
+      execute("updateResource", () => {
+        const existing = resources.get(input.resourceId);
+        if (!existing)
+          throw appError("validation/invalid_input", "resource not found", {
+            field: "resourceId",
+          });
+        const title = input.title.trim();
+        if (title.length === 0)
+          throw appError("validation/invalid_input", "title is required", {
+            field: "title",
+          });
+        const updated: Resource = {
+          ...existing,
+          title,
+          note: (input.note ?? "").trim(),
+          tags: normalizeTags(input.tags ?? []),
+          updatedAt: timestamp(),
+        };
+        resources.set(updated.id, updated);
+        return clone(updated);
+      }),
+
+    deleteResource: (resourceId: string) =>
+      execute("deleteResource", () => {
+        if (!resources.delete(resourceId))
+          throw appError("validation/invalid_input", "resource not found");
+      }),
+
+    fetchResourceDetails: (resourceId: string) =>
+      execute("fetchResourceDetails", () => {
+        if (!autoFetchDetails)
+          throw appError(
+            "validation/invalid_input",
+            "fetching page details is turned off",
+            { field: "autoFetchDetails" },
+          );
+        const existing = resources.get(resourceId);
+        if (!existing)
+          throw appError("validation/invalid_input", "resource not found", {
+            field: "resourceId",
+          });
+        if (existing.url === undefined)
+          throw appError(
+            "validation/invalid_input",
+            "only a link has a page to fetch",
+            { field: "resourceId" },
+          );
+        const fetchedTitle = `${existing.title} — saved page`;
+        const updated: Resource = {
+          ...existing,
+          snapshot: {
+            title: fetchedTitle,
+            description: "A page kept for reading, fetched on request.",
+            text: `Readable text captured from ${existing.url}.`,
+            fetchedAt: timestamp(),
+            contentHash: `sha256-mock-${existing.id}`,
+            truncated: false,
+          },
+          updatedAt: timestamp(),
+        };
+        resources.set(updated.id, updated);
+        return clone(updated);
+      }),
+
+    getResearchSettings: () =>
+      execute("getResearchSettings", () => ({ autoFetchDetails })),
+
+    setResearchSettings: (input: SetResearchSettingsInput) =>
+      execute("setResearchSettings", () => {
+        autoFetchDetails = input.autoFetchDetails;
+        return { autoFetchDetails };
+      }),
+
+    listChatMessages: (tripId: string) =>
+      execute("listChatMessages", () => {
+        requireTrip(tripId);
+        return (chatThreads.get(tripId) ?? []).map(clone);
+      }),
+
+    sendChatMessage: (tripId: string, message: string) =>
+      execute("sendChatMessage", () => {
+        requireTrip(tripId);
+        const text = message.trim();
+        if (text.length === 0)
+          throw appError("validation/invalid_input", "a message is required", {
+            field: "message",
+          });
+        if (countChars(text) > MAX_CHAT_MESSAGE_CHARS)
+          throw appError(
+            "validation/invalid_input",
+            `a message must be at most ${MAX_CHAT_MESSAGE_CHARS} characters`,
+            { field: "message" },
+          );
+        const thread = chatThreads.get(tripId) ?? [];
+        const pointers = mockHighStakesTopics(text);
+        // Grounding cites the trip's own kept research, the same corpus the
+        // real retrieval draws on.
+        const grounding: ChatGrounding[] = [...resources.values()]
+          .filter((resource) => resource.tripId === tripId)
+          .slice(0, 2)
+          .map((resource) => ({
+            source: "resource" as const,
+            recordId: resource.id,
+            label: resource.title,
+          }));
+        const itineraryFacts = [...facts.values()].filter(
+          (fact) => fact.tripId === tripId,
+        ).length;
+        thread.push({
+          id: nextId("chat"),
+          tripId,
+          role: "user",
+          text,
+          createdAt: timestamp(),
+          grounding: [],
+          pointers,
+          itineraryFacts: 0,
+        });
+        const reply: ChatMessage = {
+          id: nextId("chat"),
+          tripId,
+          role: "assistant",
+          text: "Working from your saved plans and research on this device. Check anything that matters against its source.",
+          createdAt: timestamp(),
+          grounding,
+          pointers,
+          itineraryFacts,
+        };
+        thread.push(reply);
+        chatThreads.set(tripId, thread);
+        return clone(reply);
+      }),
+
+    clearChat: (tripId: string) =>
+      execute("clearChat", () => {
+        requireTrip(tripId);
+        chatThreads.delete(tripId);
+      }),
+
     searchTrip: (tripId: string, query: string) =>
       execute("searchTrip", () => {
         requireTrip(tripId);
@@ -2338,6 +2661,38 @@ export function createMockGateway(options?: {
               recordId: stored.document.id,
               label: stored.document.label,
               snippet: first ? snippetAround(stored.content, first) : "",
+              score: occurrences,
+            },
+            matched,
+          });
+        }
+
+        for (const resource of resources.values()) {
+          if (resource.tripId !== tripId) continue;
+          // The title is searched with the text: the traveler or the page
+          // chose those words, unlike a product-owned noun.
+          const text = [
+            resource.note,
+            ...resource.tags,
+            resource.snapshot?.description ?? "",
+            resource.snapshot?.text ?? "",
+          ]
+            .filter((part) => part.length > 0)
+            .join(" ");
+          const { matched, occurrences, first } = scoreHaystack(
+            `${resource.title} ${text}`.toLowerCase(),
+            tokens,
+          );
+          if (matched === 0) continue;
+          ranked.push({
+            hit: {
+              source: "resource",
+              recordId: resource.id,
+              label: resource.title,
+              snippet:
+                first && text.toLowerCase().includes(first)
+                  ? snippetAround(text, first)
+                  : "",
               score: occurrences,
             },
             matched,

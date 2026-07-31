@@ -13,6 +13,10 @@ import type {
 } from "@voyalier/contracts";
 import {
   MAX_AI_PROMPT_LEN,
+  MAX_CHAT_MESSAGE_CHARS,
+  MAX_RESOURCE_NOTE_CHARS,
+  MAX_RESOURCE_TITLE_CHARS,
+  MAX_RESOURCE_URL_CHARS,
   MAX_DOCUMENT_CHARS,
   MAX_LOCATION_LEN,
   MAX_NOTES_CHARS,
@@ -48,12 +52,20 @@ describe("parity: validation limits", () => {
       maxNotesChars: MAX_NOTES_CHARS,
       maxQueryLen: MAX_QUERY_LEN,
       maxAiPromptLen: MAX_AI_PROMPT_LEN,
+      maxChatMessageChars: MAX_CHAT_MESSAGE_CHARS,
+      maxResourceTitleChars: MAX_RESOURCE_TITLE_CHARS,
+      maxResourceNoteChars: MAX_RESOURCE_NOTE_CHARS,
+      maxResourceUrlChars: MAX_RESOURCE_URL_CHARS,
     }).toEqual({
       maxLocationLen: limits.maxLocationLen,
       maxDocumentChars: limits.maxDocumentChars,
       maxNotesChars: limits.maxNotesChars,
       maxQueryLen: limits.maxQueryLen,
       maxAiPromptLen: limits.maxAiPromptLen,
+      maxChatMessageChars: limits.maxChatMessageChars,
+      maxResourceTitleChars: limits.maxResourceTitleChars,
+      maxResourceNoteChars: limits.maxResourceNoteChars,
+      maxResourceUrlChars: limits.maxResourceUrlChars,
     });
   });
 
