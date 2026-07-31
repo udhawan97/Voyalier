@@ -9,7 +9,7 @@ use crate::advisories::AdvisoryPanel;
 use crate::airports::NearbyAirport;
 use crate::astro::AstroDay;
 use crate::co2::FlightEmissions;
-use crate::facts::{CountryFacts, DestinationFactsSnapshot, TimeDifference};
+use crate::facts::{ClockChange, CountryFacts, DestinationFactsSnapshot, TimeDifference};
 use crate::heritage::HeritageSite;
 use crate::holidays::PublicHolidaysSnapshot;
 use crate::packing::PackingSuggestion;
@@ -132,6 +132,12 @@ pub struct TripDetail {
     /// only once the origin has been geocoded. Derived, never read back.
     #[serde(default, skip_deserializing, skip_serializing_if = "Option::is_none")]
     pub time_difference: Option<TimeDifference>,
+    /// Days inside the trip window when the destination's or the origin's
+    /// clocks move, derived on read from the snapshot's stored IANA zones.
+    /// Empty when neither place changes, and for snapshots written before the
+    /// zones were stored. Derived, never read back.
+    #[serde(default, skip_deserializing)]
+    pub clock_changes: Vec<ClockChange>,
     /// The destination country's public holidays that fall during the trip,
     /// derived on read from the stored snapshot. Present only once fetched;
     /// carries an empty `holidays` list when none land in the window.

@@ -93,8 +93,8 @@ pub use co2::{FACTOR_YEAR, FlightEmissions, estimate_flight_emissions};
 // through `parse_import`, which bounds the raw input before the extractor walks
 // an untrusted MIME tree.
 pub use facts::{
-    CountryFacts, CurrencyRate, DestinationFactsSnapshot, EmergencyNumbers, TimeDifference,
-    country_facts, cross_rate, ecb_rates, parse_ecb_rates, time_difference,
+    ClockChange, CountryFacts, CurrencyRate, DestinationFactsSnapshot, EmergencyNumbers,
+    TimeDifference, country_facts, cross_rate, ecb_rates, parse_ecb_rates, time_difference,
 };
 pub use gazetteer::{CitySuggestion, resolve_country_code, search_cities};
 pub use heritage::{HeritageSite, world_heritage_near};
