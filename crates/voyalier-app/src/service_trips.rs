@@ -108,6 +108,33 @@ impl AppService {
                 snapshot.utc_offset_minutes,
             ))
         });
+        // Both ends of the trip can move their clocks mid-stay, and the gap
+        // above is anchored to the start date, so the change is stated rather
+        // than folded into that one number. Destination first: it is the one a
+        // traveler is standing in when it happens.
+        let clock_changes = destination_facts
+            .as_ref()
+            .map(|snapshot| {
+                let mut changes = clock_changes_for(
+                    &snapshot.timezone,
+                    &trip.start_date,
+                    &trip.end_date,
+                    &snapshot.place_name,
+                );
+                if let (Some(zone), Some(place)) = (
+                    snapshot.origin_timezone.as_deref(),
+                    snapshot.origin_place.as_deref(),
+                ) {
+                    changes.extend(clock_changes_for(
+                        zone,
+                        &trip.start_date,
+                        &trip.end_date,
+                        place,
+                    ));
+                }
+                changes
+            })
+            .unwrap_or_default();
         // Public holidays, narrowed to the trip window on read — a date edit
         // re-filters the stored snapshot without a re-fetch.
         let public_holidays =
@@ -158,6 +185,7 @@ impl AppService {
             nearest_airports,
             flight_emissions,
             time_difference,
+            clock_changes,
             public_holidays,
             world_heritage,
             place_summary,

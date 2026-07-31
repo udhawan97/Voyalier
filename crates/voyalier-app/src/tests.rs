@@ -12,6 +12,119 @@ use voyalier_core::{
     CandidateStatus, DocumentKind, FactPayload, FactType, HighStakesTopic, ResourceKind,
 };
 
+/// The defect this repairs: the destination-facts snapshot resolved one UTC
+/// offset on the trip's *start date* and fed it to every astro day, so a trip
+/// spanning a DST transition rendered its later days an hour wrong.
+#[test]
+fn offsets_follow_the_zone_across_a_spring_forward() {
+    // Europe/Paris moves +01:00 → +02:00 on the last Sunday in March 2027.
+    assert_eq!(offset_minutes_for("Europe/Paris", "2027-03-26"), 60);
+    assert_eq!(offset_minutes_for("Europe/Paris", "2027-03-30"), 120);
+}
+
+#[test]
+fn offsets_follow_the_zone_across_a_fall_back() {
+    // America/New_York moves −04:00 → −05:00 on the first Sunday in November.
+    assert_eq!(offset_minutes_for("America/New_York", "2027-11-05"), -240);
+    assert_eq!(offset_minutes_for("America/New_York", "2027-11-09"), -300);
+}
+
+/// The user-visible symptom, end to end: sun times after a transition were
+/// computed with the offset resolved on the trip's *first* day.
+#[test]
+fn sun_times_after_a_transition_use_the_new_offset() {
+    let paris = |timezone: &str| DestinationFactsSnapshot {
+        place_name: "Paris".to_owned(),
+        place_region: "Île-de-France".to_owned(),
+        latitude: 48.8566,
+        longitude: 2.3522,
+        // What the old code stored and reused all trip: +01:00, true only until
+        // the 28th.
+        utc_offset_minutes: 60,
+        timezone: timezone.to_owned(),
+        country_code: "FR".to_owned(),
+        rate_date: String::new(),
+        currency_rates: Vec::new(),
+        retrieved_at: "2027-03-01T00:00:00Z".to_owned(),
+        origin_place: None,
+        origin_utc_offset_minutes: None,
+        origin_timezone: None,
+    };
+    let trip = Trip {
+        id: "trip-dst".to_owned(),
+        title: "Spring".to_owned(),
+        origin: "Chicago".to_owned(),
+        destination: "Paris".to_owned(),
+        start_date: "2027-03-26".to_owned(),
+        end_date: "2027-03-30".to_owned(),
+        status: TripStatus::Draft,
+        created_at: "2027-03-01T00:00:00Z".to_owned(),
+        updated_at: "2027-03-01T00:00:00Z".to_owned(),
+    };
+
+    let sunrise_on = |snapshot: &DestinationFactsSnapshot, date: &str| {
+        derive_astro(snapshot, &trip)
+            .into_iter()
+            .find(|day| day.date == date)
+            .and_then(|day| day.sunrise)
+            .expect("a sunrise in Paris in March")
+    };
+
+    // Before the transition both agree — the stored offset is still true.
+    let zoned = paris("Europe/Paris");
+    let legacy = paris("");
+    assert_eq!(
+        sunrise_on(&zoned, "2027-03-27"),
+        sunrise_on(&legacy, "2027-03-27")
+    );
+
+    // After it they must not. Paris sunrise jumps past 07:00 local the moment
+    // the clocks move; the old behaviour kept reporting it in the 06:00 hour.
+    let after = sunrise_on(&zoned, "2027-03-29");
+    assert!(
+        after.as_str() > "07:00",
+        "sunrise after the change: {after}"
+    );
+    let stale = sunrise_on(&legacy, "2027-03-29");
+    assert!(stale.as_str() < "07:00", "legacy fallback: {stale}");
+    assert_ne!(after, stale);
+}
+
+#[test]
+fn a_window_without_a_transition_reports_no_clock_change() {
+    assert!(clock_changes_for("Europe/Paris", "2027-06-01", "2027-06-10", "Paris").is_empty());
+}
+
+#[test]
+fn a_window_with_a_transition_names_the_day_it_falls_on() {
+    let changes = clock_changes_for("Europe/Paris", "2027-03-26", "2027-03-30", "Paris");
+    assert_eq!(changes.len(), 1);
+    assert_eq!(changes[0].date, "2027-03-28");
+    assert_eq!(changes[0].minutes_gained(), 60);
+    assert_eq!(changes[0].place, "Paris");
+}
+
+#[test]
+fn a_zone_that_does_not_observe_dst_never_reports_a_change() {
+    // Asia/Tokyo has held +09:00 since 1951; a year-long window must be quiet.
+    assert!(clock_changes_for("Asia/Tokyo", "2027-01-01", "2027-12-31", "Tokyo").is_empty());
+}
+
+#[test]
+fn an_unknown_or_blank_zone_yields_no_changes_rather_than_an_error() {
+    // A missing clock change is a quiet omission; a wrong one puts a traveler
+    // at an airport an hour late. Old rows carry no zone at all.
+    assert!(clock_changes_for("Mars/Olympus", "2027-03-26", "2027-03-30", "Paris").is_empty());
+    assert!(clock_changes_for("", "2027-03-26", "2027-03-30", "Paris").is_empty());
+    assert_eq!(offset_minutes_for("Mars/Olympus", "2027-03-26"), 0);
+}
+
+#[test]
+fn a_reversed_or_unparseable_window_yields_nothing() {
+    assert!(clock_changes_for("Europe/Paris", "2027-03-30", "2027-03-26", "Paris").is_empty());
+    assert!(clock_changes_for("Europe/Paris", "not-a-date", "2027-03-30", "Paris").is_empty());
+}
+
 #[test]
 fn persists_trips_across_restarts() {
     let database = temp_database("persistence");
