@@ -58,6 +58,14 @@ A traveler-owned checklist entry, added explicitly from a suggestion or written
 by the traveler. Later weather refreshes never alter or delete it.
 _Avoid_: Packing suggestion, requirement
 
+## Research
+
+**Resource**:
+A link or file the traveler deliberately keeps with a trip for reading,
+together with their own note and tags. It is reading material, not evidence:
+it never yields candidate facts and never affects readiness.
+_Avoid_: Bookmark, attachment, source document
+
 ## Distribution and trust
 
 **City pack**:
