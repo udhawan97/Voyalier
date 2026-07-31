@@ -12,6 +12,7 @@ mod assist_draft;
 mod astro;
 mod backup;
 mod brief;
+mod chat;
 mod climate;
 mod co2;
 mod email;
@@ -29,6 +30,7 @@ mod planning;
 mod provider;
 mod readiness;
 mod recommend;
+mod resource;
 mod search;
 mod source;
 mod suggest;
@@ -77,6 +79,11 @@ pub use backup::{
     BACKUP_FORMAT_VERSION, BACKUP_MAGIC, BackupManifest, OpenedBackup, open_backup, seal_backup,
 };
 pub use brief::{BriefTripItem, RedactionPolicy, TripBrief, build_trip_brief};
+pub use chat::{
+    CHAT_SYSTEM_PROMPT, ChatContext, ChatGrounding, ChatMessage, ChatPrompt, ChatRole,
+    HighStakesTopic, MAX_CHAT_CONTEXT_RECORDS, MAX_CHAT_EXCERPT_CHARS, MAX_CHAT_HISTORY_MESSAGES,
+    MAX_CHAT_MESSAGE_CHARS, build_chat_prompt, high_stakes_topics, validate_chat_message,
+};
 pub use climate::{
     AirQualityDay, ClimateNormals, air_quality, archive_window, climate_normals, parse_air_quality,
     parse_climate_normals,
@@ -134,10 +141,20 @@ pub use recommend::{
     AttributedPackPlace, PersonaWeights, Recommendation, recommend_attributed_places,
     recommend_places,
 };
+// The markup reader's internals stay private: `extract_readable_page` is the
+// only door, so nothing can strip tags without also bounding the result.
+pub use resource::{
+    CreateResourceInput, MAX_RESOURCE_NOTE_CHARS, MAX_RESOURCE_TAG_CHARS, MAX_RESOURCE_TAGS,
+    MAX_RESOURCE_TITLE_CHARS, MAX_RESOURCE_URL_CHARS, MAX_SNAPSHOT_TEXT_CHARS, ReadablePage,
+    Resource, ResourceKind, ResourceSnapshot, UpdateResourceInput, extract_readable_page,
+    resource_url_identity, validate_create_resource, validate_resource_url,
+    validate_update_resource,
+};
 pub use search::{
-    SEARCH_SUGGESTION_LIMIT, SearchHit, SearchHitSource, SearchableDocument, WorkspaceSearchHit,
-    WorkspaceSearchRecord, WorkspaceSearchSource, fact_identity, fact_search_text,
-    search_trip_corpus, search_workspace_corpus, suggest_search_terms, validate_search_query,
+    SEARCH_SUGGESTION_LIMIT, SearchHit, SearchHitSource, SearchableDocument, SearchableResource,
+    WorkspaceSearchHit, WorkspaceSearchRecord, WorkspaceSearchSource, fact_identity,
+    fact_search_text, search_trip_corpus, search_workspace_corpus, suggest_search_terms,
+    validate_search_query,
 };
 pub use suggest::{
     FIELD_SUGGESTION_LIMIT, FieldSuggestion, SuggestionSource, rank_field_suggestions,

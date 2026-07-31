@@ -23,6 +23,9 @@ pub const SEARCH_SUGGESTION_LIMIT: usize = 8;
 pub enum SearchHitSource {
     Document,
     ConfirmedFact,
+    /// Research the traveler kept to read. Separate from `Document` on purpose:
+    /// one is evidence that was parsed, the other is reading that never is.
+    Resource,
 }
 
 /// One ranked hit with enough provenance to open the underlying record.
@@ -61,6 +64,7 @@ pub enum WorkspaceSearchSource {
     Note,
     SavedPlace,
     TripItem,
+    Resource,
 }
 
 /// One locally opened record offered to the deterministic workspace search.
@@ -147,13 +151,27 @@ fn score_haystack<'t>(haystack: &str, tokens: &'t [String]) -> (u32, u32, Option
     (matched, occurrences, earliest.map(|(_, token)| token))
 }
 
-/// Search documents and confirmed facts for a validated query. Relaxed: a record
-/// matches if it contains ANY query word. Ranked by how many distinct query
-/// words it covers, then by total occurrences, then stable by id.
+/// One kept link or file offered to the trip scan.
+///
+/// Shaped like [`SearchableDocument`] and named apart from it deliberately:
+/// "document" is imported evidence in this product's language, and a resource
+/// is the thing that never is.
+pub struct SearchableResource<'a> {
+    pub id: &'a str,
+    pub title: &'a str,
+    /// The traveler's note and tags plus any fetched page text, already joined
+    /// by the app layer.
+    pub text: &'a str,
+}
+
+/// Search documents, confirmed facts, and kept resources for a validated query.
+/// Relaxed: a record matches if it contains ANY query word. Ranked by how many
+/// distinct query words it covers, then by total occurrences, then stable by id.
 pub fn search_trip_corpus(
     query: &str,
     documents: &[SearchableDocument<'_>],
     facts: &[ConfirmedFact],
+    resources: &[SearchableResource<'_>],
 ) -> Vec<SearchHit> {
     let tokens = query_tokens(query);
     if tokens.is_empty() {
@@ -216,6 +234,35 @@ pub fn search_trip_corpus(
         }
     }
 
+    for resource in resources {
+        // The title is searched with the text: unlike a fact's derived label or
+        // the product's word for "notes", a resource title is what the traveler
+        // (or the page) actually called it.
+        let combined = format!("{} {}", resource.title, resource.text);
+        let haystack = combined.to_lowercase();
+        let (matched, occurrences, first_token) = score_haystack(&haystack, &tokens);
+        if matched == 0 {
+            continue;
+        }
+        let text_lower = resource.text.to_lowercase();
+        let snippet = first_token
+            .filter(|token| text_lower.contains(token))
+            .map(|token| snippet_around_first_match(resource.text, &text_lower, token))
+            .unwrap_or_default();
+        ranked.push((
+            SearchHit {
+                source: SearchHitSource::Resource,
+                fact_type: None,
+                subject: None,
+                record_id: resource.id.to_owned(),
+                label: resource.title.to_owned(),
+                snippet,
+                score: occurrences,
+            },
+            matched,
+        ));
+    }
+
     ranked.sort_by(|(left, left_matched), (right, right_matched)| {
         right_matched
             .cmp(left_matched)
@@ -241,6 +288,7 @@ pub fn search_workspace_corpus(
                 WorkspaceSearchSource::Document
                     | WorkspaceSearchSource::SavedPlace
                     | WorkspaceSearchSource::TripItem
+                    | WorkspaceSearchSource::Resource
             );
             let combined = if searches_source_label {
                 format!("{} {}", record.label, record.text)
@@ -584,7 +632,7 @@ mod tests {
             label: "Hotel email",
             content: "Dear guest, the airport Shuttle leaves every 30 minutes from door 4.",
         }];
-        let hits = search_trip_corpus("shuttle", &documents, &[]);
+        let hits = search_trip_corpus("shuttle", &documents, &[], &[]);
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].source, SearchHitSource::Document);
         assert_eq!(hits[0].record_id, "doc_1");
@@ -601,7 +649,7 @@ mod tests {
             content: "inn inn inn",
         }];
         let facts = [fact("fact_1", "River Paper Inn", "RPI731")];
-        let hits = search_trip_corpus("inn", &documents, &facts);
+        let hits = search_trip_corpus("inn", &documents, &facts, &[]);
         assert_eq!(hits.len(), 2);
         // Document has three occurrences, fact one — document ranks first.
         assert_eq!(hits[0].record_id, "doc_1");
@@ -611,8 +659,60 @@ mod tests {
     }
 
     #[test]
+    fn finds_research_resources_and_marks_them_as_their_own_kind_of_hit() {
+        let resources = [SearchableResource {
+            id: "res_1",
+            title: "Kyoto cherry blossom timing",
+            text: "Peak bloom is usually the first week of April.",
+        }];
+        let hits = search_trip_corpus("bloom", &[], &[], &resources);
+
+        assert_eq!(hits.len(), 1);
+        // Not a Document: a resource is reading material, and the interface has
+        // to be able to say so rather than filing it beside imported evidence.
+        assert_eq!(hits[0].source, SearchHitSource::Resource);
+        assert_eq!(hits[0].record_id, "res_1");
+        assert_eq!(hits[0].label, "Kyoto cherry blossom timing");
+        assert!(hits[0].snippet.contains("Peak bloom"));
+    }
+
+    #[test]
+    fn matches_a_resource_by_its_title_because_the_traveler_chose_those_words() {
+        let resources = [SearchableResource {
+            id: "res_1",
+            title: "Shinkansen fare guide",
+            text: "",
+        }];
+        let hits = search_trip_corpus("shinkansen", &[], &[], &resources);
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].record_id, "res_1");
+    }
+
+    #[test]
+    fn ranks_a_resource_workspace_hit_with_its_trip_provenance() {
+        let hits = search_workspace_corpus(
+            "onsen",
+            &[WorkspaceSearchRecord {
+                source: WorkspaceSearchSource::Resource,
+                trip_id: "trip_1",
+                trip_title: "Japan",
+                trip_status: TripStatus::Active,
+                trip_updated_at: "2026-01-02T00:00:00Z",
+                record_id: "res_1",
+                label: "Onsen etiquette",
+                text: "Tattoo policies vary by bathhouse.",
+            }],
+        );
+
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].source, WorkspaceSearchSource::Resource);
+        assert_eq!(hits[0].trip_id, "trip_1");
+        assert_eq!(hits[0].label, "Onsen etiquette");
+    }
+
+    #[test]
     fn no_matches_yields_empty_not_error() {
-        let hits = search_trip_corpus("zeppelin", &[], &[]);
+        let hits = search_trip_corpus("zeppelin", &[], &[], &[]);
         assert!(hits.is_empty());
     }
 
@@ -624,7 +724,7 @@ mod tests {
             label: "Japanese note",
             content: &content,
         }];
-        let hits = search_trip_corpus("京都", &documents, &[]);
+        let hits = search_trip_corpus("京都", &documents, &[], &[]);
         assert_eq!(hits.len(), 1);
         assert!(hits[0].snippet.contains("京都"));
         assert!(hits[0].snippet.starts_with('…') && hits[0].snippet.ends_with('…'));
@@ -644,7 +744,7 @@ mod tests {
         };
         // The exact phrase "airport shuttle" is in neither as a phrase-with-count,
         // but relaxed per-word matching still finds both.
-        let hits = search_trip_corpus("airport shuttle", &[both, one], &[]);
+        let hits = search_trip_corpus("airport shuttle", &[both, one], &[], &[]);
         assert_eq!(hits.len(), 2);
         // The doc covering BOTH words ranks first over the one with a single word.
         assert_eq!(hits[0].record_id, "doc_both");
@@ -697,7 +797,7 @@ mod tests {
                 content,
             })
             .collect();
-        let hits = search_trip_corpus("match", &documents, &[]);
+        let hits = search_trip_corpus("match", &documents, &[], &[]);
         assert_eq!(hits.len(), 20);
     }
 

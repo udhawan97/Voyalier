@@ -246,7 +246,7 @@ pub fn parse_assist_reply(id: ProviderId, body: &str) -> Result<String, AppError
 }
 
 /// Render the redacted brief as the plain-text itinerary the model would receive.
-fn format_itinerary(brief: &TripBrief) -> String {
+pub(crate) fn format_itinerary(brief: &TripBrief) -> String {
     let mut out = String::new();
     out.push_str(&format!("Trip: {}\n", brief.title));
     out.push_str(&format!(

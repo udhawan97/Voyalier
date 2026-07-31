@@ -20,7 +20,7 @@ impl AppService {
             .map(|(id, label, content)| SearchableDocument { id, label, content })
             .collect();
         let facts = self.records(&connection).confirmed_facts(trip_id)?;
-        Ok(search_trip_corpus(&query, &searchable, &facts))
+        Ok(search_trip_corpus(&query, &searchable, &facts, &[]))
     }
 
     /// Search traveler-visible local records across every trip. Pending parser
