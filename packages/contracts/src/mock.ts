@@ -2118,9 +2118,10 @@ export function createMockGateway(options?: {
       // from the traveler's most recent choice on another trip. A suggestion
       // for the picker only, never applied on their behalf.
       const suggestedNationalityIso2 = [...visaNationalities.values()].at(-1);
+      // No passport chosen means no country whose missions to name.
       return suggestedNationalityIso2
-        ? { tripId, suggestedNationalityIso2, items }
-        : { tripId, items };
+        ? { tripId, suggestedNationalityIso2, items, missions: [] }
+        : { tripId, items, missions: [] };
     }
     // Which country the destination is in decides which authority answers; the
     // real gateway resolves it from the destination-facts snapshot, falling
@@ -2145,6 +2146,21 @@ export function createMockGateway(options?: {
       ...(entryPath ? { entryPath } : {}),
       ...(journey ? { journey } : {}),
       items,
+      // The fixture's trip is to Japan; the mock carries one Canadian mission
+      // so the panel and its "confirm with your own ministry" pointer render.
+      missions:
+        nationalityIso2 === "CA"
+          ? [
+              {
+                sendingCountry: "CA",
+                hostCountry: "JP",
+                kind: "embassy" as const,
+                city: "Akasaka",
+                latitude: 35.6736,
+                longitude: 139.7284,
+              },
+            ]
+          : [],
     };
   }
 
@@ -2318,6 +2334,16 @@ export function createMockGateway(options?: {
           worldHeritage,
           ...(tipping ? { tipping } : {}),
           ...(timeDifference ? { timeDifference } : {}),
+          // Empty because it genuinely is, for both of this fixture's zones —
+          // this mirrors Rust here rather than standing in for it. Asia/Tokyo
+          // has held +09:00 since 1951, and America/Chicago falls back on
+          // 2026-11-01, two days before the fixture trip starts on the 3rd.
+          // Move those dates and this must stop being a constant.
+          clockChanges: [],
+          // The fixture trip runs 2026-11-03 to 2026-11-12; the nearest
+          // bundled eclipses are 2026-08-28 and 2027-02-06, so this is the
+          // true answer for it rather than a stub.
+          skyEvents: [],
           ...(publicHolidays ? { publicHolidays } : {}),
           ...(placeSummaries.has(tripId)
             ? { placeSummary: clone(placeSummaries.get(tripId)!) }
@@ -3894,6 +3920,7 @@ export function createMockGateway(options?: {
           latitude: 35.0116,
           longitude: 135.7681,
           utcOffsetMinutes: 540,
+          timezone: "Asia/Tokyo",
           countryCode: "JP",
           rateDate: "2026-07-17",
           currencyRates: [
@@ -3906,7 +3933,11 @@ export function createMockGateway(options?: {
           // The origin resolves too (Chicago-like, −300): +540 destination is
           // then 840 min (14h) ahead, so the card shows a real time difference.
           ...(trip.origin.trim()
-            ? { originPlace: trip.origin, originUtcOffsetMinutes: -300 }
+            ? {
+                originPlace: trip.origin,
+                originUtcOffsetMinutes: -300,
+                originTimezone: "America/Chicago",
+              }
             : {}),
         };
         destinationFactsSnapshots.set(tripId, snapshot);

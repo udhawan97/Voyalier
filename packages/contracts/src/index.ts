@@ -68,6 +68,19 @@ export interface TripDetail {
    */
   timeDifference?: TimeDifference;
   /**
+   * Days inside the trip window when the destination's or the origin's clocks
+   * move. Empty when neither changes, and for snapshots stored before the IANA
+   * zones were kept. `timeDifference` above is anchored to the trip's start
+   * date, so a change here is what tells a traveler that gap does not hold for
+   * the whole stay.
+   */
+  clockChanges: ClockChange[];
+  /**
+   * Eclipses falling inside the trip window, from a bundled NASA table. Needs
+   * no snapshot and no fetch — a function of the trip's dates alone.
+   */
+  skyEvents: SkyEvent[];
+  /**
    * The destination country's public holidays that fall during the trip,
    * narrowed to the travel window on read. Present only once fetched; its
    * `holidays` list is empty when none land in the window.
@@ -105,6 +118,37 @@ export interface TimeDifference {
    * hours, so sub-hour zones stay exact.
    */
   offsetMinutes: number;
+}
+export type SkyEventKind = "solarEclipse" | "lunarEclipse";
+/** One dated eclipse, with the broad band NASA publishes it as visible from. */
+export interface SkyEvent {
+  /**
+   * ISO `YYYY-MM-DD`, as the catalogue gives it — a Terrestrial/Universal Time
+   * calendar date. Near the date line a local calendar date can differ by one,
+   * so this is the event's date and not the traveler's.
+   */
+  date: string;
+  kind: SkyEventKind;
+  /** The catalogue's own phrasing, e.g. "Total solar eclipse". */
+  label: string;
+  /**
+   * NASA's "Geographic Region of Eclipse Visibility", verbatim — a coarse band
+   * where *some* phase is visible, not a local-circumstances calculation.
+   * Never render this as "visible from your destination".
+   */
+  region: string;
+}
+/** A day inside the trip window when a place's clocks move. */
+export interface ClockChange {
+  /** ISO `YYYY-MM-DD`: the first local day that runs on the new offset. */
+  date: string;
+  fromOffsetMinutes: number;
+  toOffsetMinutes: number;
+  /**
+   * Whose clocks move — the destination or the trip's origin, named so a
+   * traveler knows which end of the trip it happens at.
+   */
+  place: string;
 }
 /** One public holiday at the destination. */
 export interface PublicHoliday {
@@ -286,8 +330,20 @@ export interface DestinationFactsSnapshot {
   placeRegion: string;
   latitude: number;
   longitude: number;
-  /** Minutes east of UTC at the destination, for local sun times. */
+  /**
+   * Minutes east of UTC at the destination **on the trip's start date** — the
+   * fallback for snapshots stored before `timezone` was kept, and the anchor
+   * the time difference is measured at. Not a fact about the whole trip: a
+   * window spanning a DST transition has two offsets.
+   */
   utcOffsetMinutes: number;
+  /**
+   * The destination's IANA zone id (`Europe/Paris`). Empty on snapshots stored
+   * before it was kept, which is why readers fall back to `utcOffsetMinutes`.
+   */
+  timezone: string;
+  /** The origin's IANA zone id, when the origin geocoded. */
+  originTimezone?: string;
   /** ISO-3166-1 alpha-2, the key into the bundled country-facts table. */
   countryCode: string;
   /** The ECB reference date the rates carry, verbatim. */
@@ -1471,6 +1527,33 @@ export interface VisaPrep {
   /** Absent when the pair is uncurated, conditional, or needs nothing. */
   journey?: VisaJourney;
   items: VisaPrepItem[];
+  /**
+   * The traveler's own country's missions in the destination country, from a
+   * bundled Wikidata extract. A pointer and nothing more — render it beside
+   * the sending country's own mission list, because closure is recorded
+   * unevenly and an address read in an emergency must be confirmed with the
+   * ministry that keeps it. Empty means absent from the extract, not absent
+   * from the world.
+   */
+  missions: Mission[];
+}
+export type MissionKind =
+  "embassy" | "consulateGeneral" | "consulate" | "highCommission";
+/** One diplomatic mission a country keeps in another country. */
+export interface Mission {
+  /** ISO-3166-1 alpha-2 of the country whose mission this is. */
+  sendingCountry: string;
+  /** ISO-3166-1 alpha-2 of the country it sits in. */
+  hostCountry: string;
+  kind: MissionKind;
+  /**
+   * The city as Wikidata records it — sometimes a district rather than the
+   * city proper, because the location is the finest-grained admin unit held.
+   * Empty when nothing usable was recorded.
+   */
+  city: string;
+  latitude: number;
+  longitude: number;
 }
 export interface SetVisaNationalityInput {
   tripId: string;

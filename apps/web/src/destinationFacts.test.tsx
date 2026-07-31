@@ -1,5 +1,6 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
+import type { ClockChange } from "@voyalier/contracts";
 
 import { renderApp } from "./test/helpers";
 
@@ -24,6 +25,50 @@ describe("destination facts", () => {
     await within(facts).findByRole("heading", { name: "Sky" });
     return facts;
   }
+
+  /**
+   * The fixture's zone is Asia/Tokyo, which has not moved since 1951, so a
+   * clock change has to be injected to exercise the rendering at all. That is
+   * the honest shape: the mock mirrors its own fixture rather than pretending
+   * to a transition the zone does not have.
+   */
+  async function fetchFactsWithClockChange(change: ClockChange | undefined) {
+    const gateway = createMockGateway();
+    const getTrip = gateway.getTrip.bind(gateway);
+    gateway.getTrip = async (id: string) => ({
+      ...(await getTrip(id)),
+      clockChanges: change ? [change] : [],
+    });
+    renderApp(gateway);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    );
+    const facts = await screen.findByRole("region", {
+      name: "Destination facts",
+    });
+    fireEvent.click(
+      within(facts).getByRole("button", { name: "Fetch destination facts" }),
+    );
+    await within(facts).findByRole("heading", { name: "Sky" });
+    return facts;
+  }
+
+  it("names the day the clocks move, and which way", async () => {
+    const facts = await fetchFactsWithClockChange({
+      date: "2026-10-25",
+      fromOffsetMinutes: 120,
+      toOffsetMinutes: 60,
+      place: "Paris",
+    });
+    expect(
+      within(facts).getByText(/Paris puts its clocks back 1h/i),
+    ).toBeInTheDocument();
+  });
+
+  it("says nothing about clocks when neither place changes", async () => {
+    const facts = await fetchFactsWithClockChange(undefined);
+    expect(within(facts).queryByText(/puts its clocks/i)).toBeNull();
+  });
 
   it("shows sun times and the moon phase, computed offline", async () => {
     const facts = await fetchFacts();

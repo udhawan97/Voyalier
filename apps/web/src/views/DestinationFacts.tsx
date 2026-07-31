@@ -1,10 +1,12 @@
 import type {
   AstroDay,
+  ClockChange,
   CountryFacts,
   CurrencyRate,
   DestinationFactsSnapshot,
   HeritageSite,
   NearbyAirport,
+  SkyEvent,
   TimeDifference,
 } from "@voyalier/contracts";
 
@@ -35,31 +37,38 @@ function crossRate(
   return b / a;
 }
 
+/** Minutes as a duration phrase, shared by the gap and the clock changes. */
+function durationOf(totalMinutes: number) {
+  const abs = Math.abs(totalMinutes);
+  const hours = Math.floor(abs / 60);
+  const minutes = abs % 60;
+  return minutes === 0
+    ? t("facts.clock.hours", { hours })
+    : t("facts.clock.hoursMinutes", { hours, minutes });
+}
+
 /**
  * The clock block: how far the destination runs ahead of (or behind) home, from
  * the two stored UTC offsets. Sub-hour zones keep their minutes; a zero gap is
- * shown plainly as "same time" rather than hidden.
+ * shown plainly as "same time" rather than hidden. The gap is measured on the
+ * trip's start date, so any transition inside the window is stated beneath it.
  */
 function Clock({
   destination,
   diff,
+  changes,
 }: {
   destination: string;
-  diff: TimeDifference;
+  diff: TimeDifference | undefined;
+  changes: ClockChange[];
 }) {
-  const abs = Math.abs(diff.offsetMinutes);
-  const hours = Math.floor(abs / 60);
-  const minutes = abs % 60;
-  const duration =
-    minutes === 0
-      ? t("facts.clock.hours", { hours })
-      : t("facts.clock.hoursMinutes", { hours, minutes });
-  const sentence =
-    diff.offsetMinutes === 0
+  const sentence = !diff
+    ? undefined
+    : diff.offsetMinutes === 0
       ? t("facts.clock.same", { destination, origin: diff.originPlace })
       : t(diff.offsetMinutes > 0 ? "facts.clock.ahead" : "facts.clock.behind", {
           destination,
-          duration,
+          duration: durationOf(diff.offsetMinutes),
           origin: diff.originPlace,
         });
   return (
@@ -67,7 +76,32 @@ function Clock({
       <h3 id="facts-clock-title" className="voy-facts__block-title">
         {t("facts.clock.title")}
       </h3>
-      <p className="voy-facts__clock">{sentence}</p>
+      {sentence ? <p className="voy-facts__clock">{sentence}</p> : null}
+      {/*
+       * The gap above is measured on the trip's start date. When a place moves
+       * its clocks mid-stay that gap stops holding, so the change is stated
+       * rather than folded into the number.
+       */}
+      {changes.map((change) => {
+        const gained = change.toOffsetMinutes - change.fromOffsetMinutes;
+        return (
+          <p
+            key={`${change.place}-${change.date}`}
+            className="voy-facts__clock-change"
+          >
+            {t(
+              gained > 0
+                ? "facts.clock.changeForward"
+                : "facts.clock.changeBack",
+              {
+                place: change.place,
+                duration: durationOf(gained),
+                date: formatDate(change.date),
+              },
+            )}
+          </p>
+        );
+      })}
     </section>
   );
 }
@@ -77,12 +111,33 @@ function Clock({
  * days and nights are stated plainly rather than shown as a rise that never
  * happens.
  */
-function Sky({ days }: { days: AstroDay[] }) {
+function Sky({ days, events }: { days: AstroDay[]; events: SkyEvent[] }) {
   return (
     <section className="voy-facts__block" aria-labelledby="facts-sky-title">
       <h3 id="facts-sky-title" className="voy-facts__block-title">
         {t("facts.sky.title")}
       </h3>
+      {/*
+       * An eclipse falling inside the trip window. The region is NASA's own
+       * coarse visibility band and is shown as exactly that — where the
+       * eclipse is visible at all, never "visible from your destination",
+       * which would need a local-circumstances calculation this does not do.
+       */}
+      {events.length > 0 ? (
+        <ul className="voy-facts__events">
+          {events.map((event) => (
+            <li key={`${event.date}-${event.kind}`}>
+              <span className="voy-facts__event-date">
+                {formatDate(event.date)}
+              </span>
+              <span className="voy-facts__event-label">{event.label}</span>
+              <span className="voy-facts__event-region">
+                {t("facts.sky.eventRegion", { region: event.region })}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <ul className="voy-facts__days">
         {days.map((day) => (
           <li key={day.date} className="voy-facts__day">
@@ -314,6 +369,8 @@ export function DestinationFacts({
   worldHeritage,
   tipping,
   timeDifference,
+  clockChanges,
+  skyEvents,
   onFetched,
 }: {
   tripId: string;
@@ -325,6 +382,8 @@ export function DestinationFacts({
   worldHeritage: HeritageSite[];
   tipping: string | undefined;
   timeDifference: TimeDifference | undefined;
+  clockChanges: ClockChange[];
+  skyEvents: SkyEvent[];
   onFetched: () => void;
 }) {
   const gateway = useGateway();
@@ -348,10 +407,16 @@ export function DestinationFacts({
 
       {snapshot ? (
         <div className="voy-facts__grid">
-          {timeDifference ? (
-            <Clock destination={snapshot.placeName} diff={timeDifference} />
+          {timeDifference || clockChanges.length > 0 ? (
+            <Clock
+              destination={snapshot.placeName}
+              diff={timeDifference}
+              changes={clockChanges}
+            />
           ) : null}
-          {astro.length > 0 ? <Sky days={astro} /> : null}
+          {astro.length > 0 || skyEvents.length > 0 ? (
+            <Sky days={astro} events={skyEvents} />
+          ) : null}
           <Money
             snapshot={snapshot}
             currencyCode={countryFacts?.currencyCode ?? ""}

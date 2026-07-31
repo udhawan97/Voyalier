@@ -17,23 +17,23 @@ use voyalier_core::{
     AdvisoryEntry, AdvisoryPanel, AdvisorySource, AiPrompt, AiPromptKind, AiPromptSettings,
     AirQualityDay, AppError, AssistActivityEntry, AssistDraftResult, AssistReply,
     AssistRequestPreview, AstroDay, AttributedPackPlace, CandidateFact, CandidateStatus,
-    ChatContext, ChatMessage, ChatRole, ClimateNormals, ConfirmCandidateInput, ConfirmedFact,
-    CreateResourceInput, CreateTripInput, CreateTripItemInput, DRAFT_LODGING_DATES_SYSTEM_PROMPT,
-    DestinationFactsSnapshot, DocumentContent, DocumentKind, DocumentParse, DocumentSummary,
-    DownloadedPack, ErrorCode, ExtractionMethod, FCDO_COUNTRIES, FIELD_SUGGESTION_LIMIT,
-    FactPayload, FactType, FcdoCountry, FieldSuggestion, GeocodedPlace, HealthNotice,
-    HealthResponse, ImportDocumentInput, ImportResult, IntelligenceMode, InterestProfile,
-    KeyValidation, LocalAiStatus, LocalModelPullResult, LodgingDateProposal, MAX_AI_PROMPT_LEN,
-    MAX_CHAT_CONTEXT_RECORDS, MAX_CHAT_EXCERPT_CHARS, MAX_NOTES_CHARS, MAX_OFFLINE_MAP_BYTES,
-    OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OfflineMapArchive, OfflineMapChunk, OfflineMapDescriptor,
-    PROVIDERS, PackContent, PackInfo, PackSuggestion, PackingItem, PersonaWeights, PlaceSummary,
-    ProviderConfig, ProviderId, PublicHolidaysSnapshot, Recommendation, RedactionPolicy,
-    ResearchSettings, Resource, ResourceSnapshot, SEARCH_SUGGESTION_LIMIT, SavePlaceInput,
-    SavedPlace, SearchHit, SearchHitSource, SearchableDocument, SearchableResource,
-    SetInterestProfileInput, SetResearchSettingsInput, SetVisaItemProgressInput,
-    SetVisaNationalityInput, SourceDocument, SourceState, SourceStatus, SuggestionSource,
-    TodayView, Trip, TripAssessment, TripBrief, TripDetail, TripItem, TripNotes, TripStatus,
-    TripSummary, UpdatePackingItemInput, UpdateResourceInput, UpdateSavedPlaceInput,
+    ChatContext, ChatMessage, ChatRole, ClimateNormals, ClockChange, ConfirmCandidateInput,
+    ConfirmedFact, CreateResourceInput, CreateTripInput, CreateTripItemInput,
+    DRAFT_LODGING_DATES_SYSTEM_PROMPT, DestinationFactsSnapshot, DocumentContent, DocumentKind,
+    DocumentParse, DocumentSummary, DownloadedPack, ErrorCode, ExtractionMethod, FCDO_COUNTRIES,
+    FIELD_SUGGESTION_LIMIT, FactPayload, FactType, FcdoCountry, FieldSuggestion, GeocodedPlace,
+    HealthNotice, HealthResponse, ImportDocumentInput, ImportResult, IntelligenceMode,
+    InterestProfile, KeyValidation, LocalAiStatus, LocalModelPullResult, LodgingDateProposal,
+    MAX_AI_PROMPT_LEN, MAX_CHAT_CONTEXT_RECORDS, MAX_CHAT_EXCERPT_CHARS, MAX_NOTES_CHARS,
+    MAX_OFFLINE_MAP_BYTES, OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OfflineMapArchive, OfflineMapChunk,
+    OfflineMapDescriptor, PROVIDERS, PackContent, PackInfo, PackSuggestion, PackingItem,
+    PersonaWeights, PlaceSummary, ProviderConfig, ProviderId, PublicHolidaysSnapshot,
+    Recommendation, RedactionPolicy, ResearchSettings, Resource, ResourceSnapshot,
+    SEARCH_SUGGESTION_LIMIT, SavePlaceInput, SavedPlace, SearchHit, SearchHitSource,
+    SearchableDocument, SearchableResource, SetInterestProfileInput, SetResearchSettingsInput,
+    SetVisaItemProgressInput, SetVisaNationalityInput, SourceDocument, SourceState, SourceStatus,
+    SuggestionSource, TodayView, Trip, TripAssessment, TripBrief, TripDetail, TripItem, TripNotes,
+    TripStatus, TripSummary, UpdatePackingItemInput, UpdateResourceInput, UpdateSavedPlaceInput,
     UpdateTripInput, UpdateTripItemInput, VisaPrep, VisaSelfReport, WarningCode, WeatherAlert,
     WeatherSnapshot, WorkspaceSearchHit, WorkspaceSearchRecord, WorkspaceSearchSource,
     advisory_country, air_quality, assess_trip, build_assist_preview, build_assist_request,
@@ -43,18 +43,18 @@ use voyalier_core::{
     derived_link_title, detect_planned_item_conflicts, ecb_rates, entry_from_fcdo,
     estimate_flight_emissions, estimate_tokens, extract_readable_page, fact_identity,
     fact_search_text, forecast, geocode, high_stakes_topics, holidays_within,
-    interpret_key_validation, interpret_pull_response, matching_airports, nearest_airports, new_id,
-    now_rfc3339, nws_alerts, offline_map_download_url, pack_catalog, pack_download_url,
-    parse_assist_reply, parse_import, parse_lodging_dates_reply, parse_pack_content, place_summary,
-    provider_info, public_holidays, rank_field_suggestions, recommend_attributed_places,
-    resource_url_identity, saved_place_identity, school_holidays, school_holidays_covered,
-    school_holidays_within, search_cities, search_trip_corpus, search_workspace_corpus,
-    suggest_packs, suggest_search_terms, time_difference, tipping_guidance, travel_advice,
-    us_state_advisory, validate_api_key, validate_chat_message, validate_country_slug,
-    validate_create_resource, validate_create_trip, validate_create_trip_item,
-    validate_fact_payload, validate_model_name, validate_pack_id, validate_packing_label,
-    validate_planning_notes, validate_provider_id, validate_resource_url, validate_search_query,
-    validate_update_resource, validate_update_trip, world_heritage_near,
+    interpret_key_validation, interpret_pull_response, matching_airports, missions_in,
+    nearest_airports, new_id, now_rfc3339, nws_alerts, offline_map_download_url, pack_catalog,
+    pack_download_url, parse_assist_reply, parse_import, parse_lodging_dates_reply,
+    parse_pack_content, place_summary, provider_info, public_holidays, rank_field_suggestions,
+    recommend_attributed_places, resource_url_identity, saved_place_identity, school_holidays,
+    school_holidays_covered, school_holidays_within, search_cities, search_trip_corpus,
+    search_workspace_corpus, sky_events_within, suggest_packs, suggest_search_terms,
+    time_difference, tipping_guidance, travel_advice, us_state_advisory, validate_api_key,
+    validate_chat_message, validate_country_slug, validate_create_resource, validate_create_trip,
+    validate_create_trip_item, validate_fact_payload, validate_model_name, validate_pack_id,
+    validate_packing_label, validate_planning_notes, validate_provider_id, validate_resource_url,
+    validate_search_query, validate_update_resource, validate_update_trip, world_heritage_near,
 };
 use voyalier_core::{
     BACKUP_FORMAT_VERSION, BackupManifest, VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN,
@@ -1352,7 +1352,9 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
                 currency_rates TEXT NOT NULL DEFAULT '[]',
                 retrieved_at TEXT NOT NULL,
                 origin_place TEXT,
-                origin_utc_offset_minutes INTEGER
+                origin_utc_offset_minutes INTEGER,
+                timezone TEXT NOT NULL DEFAULT '',
+                origin_timezone TEXT
             );
 
             CREATE TABLE IF NOT EXISTS public_holidays_snapshots (
@@ -1528,6 +1530,11 @@ const MIGRATIONS: &[Migration] = &[
         to: 15,
         name: "chat_messages",
         run: migrate_chat_messages,
+    },
+    Migration {
+        to: 16,
+        name: "destination_facts_timezone",
+        run: migrate_facts_timezone,
     },
 ];
 
@@ -2055,6 +2062,39 @@ fn migrate_facts_origin(connection: &Connection) -> Result<(), AppError> {
         .map_err(storage_error)
 }
 
+/// Carry the IANA zone beside the offset on `destination_facts_snapshots`.
+///
+/// Before this, a snapshot stored one offset resolved on the trip's start date,
+/// so every trip spanning a DST transition rendered its later sun times — and
+/// its dual clock — an hour wrong. Retry-safe by the same self-detection as
+/// [`migrate_facts_origin`]. An existing row keeps its offset and simply
+/// reports no clock change until the traveler fetches the facts again.
+fn migrate_facts_timezone(connection: &Connection) -> Result<(), AppError> {
+    let columns = {
+        let mut statement = connection
+            .prepare("PRAGMA table_info(destination_facts_snapshots)")
+            .map_err(storage_error)?;
+        statement
+            .query_map([], |row| row.get::<_, String>(1))
+            .map_err(storage_error)?
+            .collect::<rusqlite::Result<Vec<String>>>()
+            .map_err(storage_error)?
+    };
+    // Two different nothings, and only one of them is "already done". No
+    // columns at all means the table itself is absent — a database stamped past
+    // v6 that never ran it — and altering it would break the chain for every
+    // later step. Skip, exactly as the school-holiday step does.
+    if columns.is_empty() || columns.iter().any(|name| name == "timezone") {
+        return Ok(());
+    }
+    connection
+        .execute_batch(
+            "ALTER TABLE destination_facts_snapshots ADD COLUMN timezone TEXT NOT NULL DEFAULT '';
+             ALTER TABLE destination_facts_snapshots ADD COLUMN origin_timezone TEXT;",
+        )
+        .map_err(storage_error)
+}
+
 /// Add the school-holiday columns to `public_holidays_snapshots`.
 ///
 /// Additive and retry-safe. An existing snapshot keeps its public holidays and
@@ -2464,6 +2504,42 @@ fn offset_minutes_for(timezone: &str, on_date: &str) -> i32 {
     datetime.offset().seconds() / 60
 }
 
+/// Every day inside the window whose offset differs from the day before it.
+///
+/// A blank or unresolvable zone yields nothing on purpose. Snapshots written
+/// before the zone was stored carry no zone at all, and for them a missing
+/// clock change is a quiet omission — whereas inventing one would put a
+/// traveler at an airport an hour late, which is the failure that matters here.
+fn clock_changes_for(timezone: &str, start: &str, end: &str, place: &str) -> Vec<ClockChange> {
+    if timezone.is_empty() || jiff::tz::TimeZone::get(timezone).is_err() {
+        return Vec::new();
+    }
+    let (Ok(first), Ok(end)) = (
+        start.parse::<jiff::civil::Date>(),
+        end.parse::<jiff::civil::Date>(),
+    ) else {
+        return Vec::new();
+    };
+    let mut changes = Vec::new();
+    let mut previous = offset_minutes_for(timezone, &first.to_string());
+    let mut date = first;
+    while date < end {
+        let Ok(next) = date.tomorrow() else { break };
+        date = next;
+        let offset = offset_minutes_for(timezone, &date.to_string());
+        if offset != previous {
+            changes.push(ClockChange {
+                date: date.to_string(),
+                from_offset_minutes: previous,
+                to_offset_minutes: offset,
+                place: place.to_owned(),
+            });
+            previous = offset;
+        }
+    }
+    changes
+}
+
 /// The sun/moon days for the trip window, computed from a stored snapshot's
 /// coordinates and offset. Capped so a very long trip stays bounded.
 fn derive_astro(snapshot: &DestinationFactsSnapshot, trip: &Trip) -> Vec<AstroDay> {
@@ -2477,11 +2553,20 @@ fn derive_astro(snapshot: &DestinationFactsSnapshot, trip: &Trip) -> Vec<AstroDa
     let mut days = Vec::new();
     let mut date = start;
     while date <= end && days.len() < MAX_ASTRO_DAYS {
+        // Per day, not per trip. A stored snapshot's scalar offset was resolved
+        // on the trip's start date, so using it for every day put every sun time
+        // after a DST transition an hour out. Rows written before the zone was
+        // stored still fall back to it — one wrong hour beats no sun times.
+        let offset = if snapshot.timezone.is_empty() {
+            snapshot.utc_offset_minutes
+        } else {
+            offset_minutes_for(&snapshot.timezone, &date.to_string())
+        };
         if let Ok(day) = compute_astro_day(
             snapshot.latitude,
             snapshot.longitude,
             &date.to_string(),
-            snapshot.utc_offset_minutes,
+            offset,
         ) {
             days.push(day);
         }
@@ -2499,7 +2584,7 @@ fn load_destination_facts_snapshot(
         .query_row(
             "SELECT place_name, place_region, latitude, longitude, utc_offset_minutes,
                     country_code, rate_date, currency_rates, retrieved_at,
-                    origin_place, origin_utc_offset_minutes
+                    origin_place, origin_utc_offset_minutes, timezone, origin_timezone
              FROM destination_facts_snapshots WHERE trip_id = ?1",
             params![trip_id],
             |row| {
@@ -2515,6 +2600,8 @@ fn load_destination_facts_snapshot(
                     retrieved_at: row.get(8)?,
                     origin_place: row.get(9)?,
                     origin_utc_offset_minutes: row.get(10)?,
+                    timezone: row.get(11)?,
+                    origin_timezone: row.get(12)?,
                 })
             },
         )

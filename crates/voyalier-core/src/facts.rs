@@ -74,9 +74,21 @@ pub struct DestinationFactsSnapshot {
     pub place_region: String,
     pub latitude: f64,
     pub longitude: f64,
-    /// Minutes east of UTC at the destination on the trip's dates, for
-    /// converting sun times to local wall clock offline.
+    /// Minutes east of UTC at the destination **on the trip's start date**.
+    ///
+    /// Kept as the fallback for rows written before [`Self::timezone`] existed,
+    /// and as the anchor the time difference is measured at. Not a fact about
+    /// the whole trip: a window spanning a DST transition has two offsets, and
+    /// [`ClockChange`] is what names the day they swap.
     pub utc_offset_minutes: i32,
+    /// The destination's IANA zone id (`Europe/Paris`), as the geocode reported
+    /// it. Empty on rows written before it was stored, which is why every
+    /// reader falls back to [`Self::utc_offset_minutes`] rather than assuming.
+    #[serde(default)]
+    pub timezone: String,
+    /// The origin's IANA zone id, when the origin geocoded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin_timezone: Option<String>,
     /// ISO-3166-1 alpha-2, the key into the bundled country-facts table.
     pub country_code: String,
     /// The ECB reference date the rates carry, verbatim.
@@ -108,6 +120,35 @@ pub struct TimeDifference {
     /// zero means the same wall clock. Minutes, not hours, so sub-hour zones
     /// (India +330, Nepal +345) stay exact.
     pub offset_minutes: i32,
+}
+
+/// A civil-time discontinuity inside the trip window: the day a place's clocks
+/// move, and the offsets on either side of it.
+///
+/// Derived in `voyalier-app` rather than here, because finding one means
+/// resolving an IANA zone against the system tzdb, which is filesystem IO this
+/// crate does not do. Core owns the shape and the arithmetic; the app owns the
+/// lookup.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClockChange {
+    /// ISO `YYYY-MM-DD`: the first local day that runs on the new offset.
+    pub date: String,
+    pub from_offset_minutes: i32,
+    pub to_offset_minutes: i32,
+    /// Whose clocks move — the destination or the trip's origin. Named, because
+    /// a traveler reading "the clocks change" needs to know which end of the
+    /// trip it happens at.
+    pub place: String,
+}
+
+impl ClockChange {
+    /// Signed minutes added to the wall clock. Positive springs forward,
+    /// negative falls back. Minutes rather than hours, for the same reason
+    /// [`TimeDifference::offset_minutes`] is: Lord Howe Island moves by thirty.
+    pub fn minutes_gained(&self) -> i32 {
+        self.to_offset_minutes - self.from_offset_minutes
+    }
 }
 
 /// The destination-vs-origin wall-clock gap from their two UTC offsets. Zero is
@@ -848,5 +889,37 @@ mod tests {
         assert_eq!(time_difference("Paris", 120, 120).offset_minutes, 0);
         // Sub-hour zones survive: Kathmandu (+345) from Chicago (−300) = 645 = 10h45m.
         assert_eq!(time_difference("Chicago", -300, 345).offset_minutes, 645);
+    }
+
+    #[test]
+    fn a_clock_change_reports_the_minutes_the_wall_clock_gains() {
+        // Europe/Paris springs forward on the last Sunday in March: +01:00 → +02:00.
+        let forward = ClockChange {
+            date: "2027-03-28".to_owned(),
+            from_offset_minutes: 60,
+            to_offset_minutes: 120,
+            place: "Paris".to_owned(),
+        };
+        assert_eq!(forward.minutes_gained(), 60);
+
+        // Falling back is the same fact with the sign reversed, and is the case
+        // a traveler is most likely to get wrong in their own head.
+        let back = ClockChange {
+            date: "2027-10-31".to_owned(),
+            from_offset_minutes: 120,
+            to_offset_minutes: 60,
+            place: "Paris".to_owned(),
+        };
+        assert_eq!(back.minutes_gained(), -60);
+
+        // Lord Howe Island moves by thirty minutes, so this is minutes rather
+        // than hours for the same reason `time_difference` is.
+        let half = ClockChange {
+            date: "2027-10-03".to_owned(),
+            from_offset_minutes: 630,
+            to_offset_minutes: 660,
+            place: "Lord Howe Island".to_owned(),
+        };
+        assert_eq!(half.minutes_gained(), 30);
     }
 }

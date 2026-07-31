@@ -171,6 +171,63 @@ pub fn pack_catalog() -> Vec<PackInfo> {
             "Hawaii (Big Island)",
             BoundingBox::new(-156.11, 18.87, -154.79, 20.29),
         ),
+        // Six cities added 2026-07-31 to widen a catalog that was seven US,
+        // four European, two Japanese and two Southeast Asian — no Africa, no
+        // South America, no Middle East, no Oceania. Every bounding box below
+        // is anchored on landmark coordinates read from Wikipedia, and every
+        // article title was resolved against the live Wikivoyage API (note
+        // "Marrakech", not the "Marrakesh" redirect: the pack builder stores
+        // the requested title verbatim, so seeding the redirect would persist
+        // a redirecting source URL).
+        pack(
+            "ae-dubai",
+            "Dubai",
+            "United Arab Emirates",
+            "Dubai",
+            // Marina in the south-west to Deira and the airport in the
+            // north-east, the whole coastal strip a visitor uses.
+            BoundingBox::new(55.10, 25.04, 55.40, 25.30),
+        ),
+        pack(
+            "tr-istanbul",
+            "İstanbul",
+            "Türkiye",
+            "Istanbul",
+            // Deliberately spans both shores: Sultanahmet and Süleymaniye in
+            // Europe, Kadıköy in Asia.
+            BoundingBox::new(28.90, 40.96, 29.09, 41.10),
+        ),
+        pack(
+            "ma-marrakech",
+            "Marrakech",
+            "Morocco",
+            "Marrakech",
+            BoundingBox::new(-8.06, 31.58, -7.94, 31.68),
+        ),
+        pack(
+            "mx-mexico-city",
+            "Ciudad de México",
+            "Mexico",
+            "Mexico City",
+            BoundingBox::new(-99.24, 19.30, -99.05, 19.52),
+        ),
+        pack(
+            "br-rio-de-janeiro",
+            "Rio de Janeiro",
+            "Brazil",
+            "Rio de Janeiro",
+            // Anchored on the tourist core rather than on Wikivoyage's own
+            // article coordinate, which is the municipal centroid some 25 km
+            // west of anywhere a visitor goes.
+            BoundingBox::new(-43.28, -23.01, -43.13, -22.88),
+        ),
+        pack(
+            "au-sydney",
+            "Sydney",
+            "Australia",
+            "Sydney",
+            BoundingBox::new(151.15, -33.97, 151.30, -33.78),
+        ),
         pack(
             "jp-kyoto",
             "Kyoto",
@@ -470,7 +527,11 @@ fn pack_aliases(pack_id: &str) -> &'static [&'static str] {
 
 /// Region tokens too generic to imply a specific pack on their own.
 fn is_region_stopword(token: &str) -> bool {
-    matches!(token, "usa" | "the" | "and" | "of")
+    // "united" earns its place the moment two "United …" regions coexist:
+    // it is the shared token between the United Kingdom and the United Arab
+    // Emirates, and the region tier would otherwise offer Dubai to someone
+    // flying to London. Both regions still match on their distinctive words.
+    matches!(token, "usa" | "the" | "and" | "of" | "united")
 }
 
 /// Fold one character for place matching: keep ASCII letters/digits (lowercased),
@@ -706,6 +767,103 @@ pub fn parse_pack_content(expected_id: &str, body: &str) -> Result<PackContent, 
 mod tests {
     use super::*;
     use std::collections::HashSet;
+
+    /// "United" is a token in both "United Kingdom" and "United Arab
+    /// Emirates", and the region tier matches any token of four or more
+    /// characters — so adding an Emirati pack put Dubai in front of a traveler
+    /// going to London until "united" joined the stopwords.
+    #[test]
+    fn a_shared_region_word_does_not_cross_suggest_a_country() {
+        let ids: Vec<String> = suggest_packs("London, United Kingdom")
+            .into_iter()
+            .map(|suggestion| suggestion.pack.id)
+            .collect();
+        assert!(ids.contains(&"gb-london".to_owned()));
+        assert!(
+            !ids.iter().any(|id| id.starts_with("ae-")),
+            "a UK destination suggested an Emirati pack: {ids:?}"
+        );
+
+        // And the reverse, so the stopword did not simply break the tier.
+        let emirati: Vec<String> = suggest_packs("Dubai, United Arab Emirates")
+            .into_iter()
+            .map(|suggestion| suggestion.pack.id)
+            .collect();
+        assert!(emirati.contains(&"ae-dubai".to_owned()));
+        assert!(!emirati.iter().any(|id| id.starts_with("gb-")));
+    }
+
+    /// Every display name must still match itself after folding. İstanbul is
+    /// the case that nearly slipped: `fold_char` has no arm for the Turkish
+    /// dotted capital İ (U+0130), so the name alone would normalize to
+    /// "stanbul" and only the Wikivoyage article title would carry the match.
+    #[test]
+    fn every_pack_name_matches_its_own_pack() {
+        for info in pack_catalog() {
+            let ids: Vec<String> = suggest_packs(&info.name)
+                .into_iter()
+                .map(|suggestion| suggestion.pack.id)
+                .collect();
+            assert!(
+                ids.contains(&info.id),
+                "pack {} does not match its own name {:?}",
+                info.id,
+                info.name
+            );
+        }
+    }
+
+    /// The previous test can pass trivially — a name always matches itself,
+    /// however oddly it folds. This one is the real case: someone typing plain
+    /// ASCII must reach a pack whose display name carries local orthography.
+    #[test]
+    fn ascii_typing_reaches_a_locally_spelled_pack() {
+        for (typed, expected) in [
+            ("Istanbul", "tr-istanbul"),
+            ("Ciudad de Mexico", "mx-mexico-city"),
+            ("Reykjavik", "is-reykjavik"),
+            ("Oahu", "us-hi-oahu"),
+        ] {
+            let ids: Vec<String> = suggest_packs(typed)
+                .into_iter()
+                .map(|suggestion| suggestion.pack.id)
+                .collect();
+            assert!(
+                ids.contains(&expected.to_owned()),
+                "{typed:?} missed {ids:?}"
+            );
+        }
+    }
+
+    /// Every bounding box is a real rectangle. A flipped sign would have the
+    /// publisher clip an empty region and ship a pack with no places in it.
+    #[test]
+    fn every_catalog_bbox_is_well_formed() {
+        for info in pack_catalog() {
+            assert!(
+                info.bbox.west < info.bbox.east,
+                "{} has a flipped longitude",
+                info.id
+            );
+            assert!(
+                info.bbox.south < info.bbox.north,
+                "{} has a flipped latitude",
+                info.id
+            );
+            assert!(
+                (-180.0..=180.0).contains(&info.bbox.west)
+                    && (-180.0..=180.0).contains(&info.bbox.east),
+                "{} has an out-of-range longitude",
+                info.id
+            );
+            assert!(
+                (-90.0..=90.0).contains(&info.bbox.south)
+                    && (-90.0..=90.0).contains(&info.bbox.north),
+                "{} has an out-of-range latitude",
+                info.id
+            );
+        }
+    }
 
     #[test]
     fn catalog_includes_the_required_seed_cities() {

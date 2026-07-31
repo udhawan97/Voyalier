@@ -6,6 +6,87 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-31 — The clock repair and four more authorities
+
+### Fixed
+
+- **A trip that crosses a daylight-saving change no longer reads an hour
+  wrong.** The destination-facts snapshot resolved a single UTC offset on the
+  trip's _first_ day and then used it for every day of the window, so a Paris
+  trip spanning the last Sunday in March — or a US trip spanning the first
+  Sunday in November — printed every later sunrise, sunset and golden hour
+  sixty minutes out, and the home-versus-destination clock with them. The
+  snapshot now keeps the IANA zone the geocode already returned and derives
+  each day's offset from it.
+
+  The repair comes with the thing it makes possible: when either end of the
+  trip moves its clocks mid-stay, the card says so — which place, which day,
+  which direction, by how much. It states the fact and stops there; what to do
+  about a lost hour is the traveler's business. The time difference beside it
+  is still measured on the trip's start date, which is exactly why the change
+  had to be stated separately rather than folded into that one number.
+
+  Snapshots stored before this release carry no zone and fall back to the old
+  behaviour until the facts are fetched again: one wrong hour beats no sun
+  times, and no clock change beats an invented one.
+
+### Added
+
+- **Four more countries will tell you what door you go through — and three of
+  them decline to.** Australia resolves: the Department of Home Affairs
+  publishes enumerated passport lists for its two electronic authorizations,
+  and a passport on either one now gets a four-step route with the
+  department's own pages at every step. A passport on neither resolves to the
+  visitor visa, because that is Home Affairs' own residual structure.
+
+  New Zealand, Korea and the United States are named as authorities that
+  resolve nothing, and that was the finding rather than a shortfall. Each
+  publishes a list clean enough to parse and then gates it on something a
+  passport cannot answer: New Zealand needs a visa for medical treatment
+  whatever the passport, Korea's K-ETA exemption is a temporary measure renewed
+  a year at a time and currently expiring on 31 December 2026, and every one of
+  the 42 US Visa Waiver Program designations is conditioned on travel history.
+  Reading a list is not the same as answering the question the list is part of,
+  so those three hand over the authority's own checker and no route.
+
+- **Where your own country keeps an embassy, as somewhere to confirm rather
+  than somewhere to go.** The visa panel already knows your passport and where
+  you are going, so it now lists your country's embassies and consulates there,
+  from a bundled offline extract of about 9,800 missions.
+
+  It is deliberately not an address. The source records closures unevenly
+  enough that the raw extract still returned embassies of countries that
+  dissolved in 1990, so honorary consulates are excluded, only currently
+  existing countries survive, and the panel tells you to confirm the address
+  and hours with your own foreign ministry before relying on any of it.
+  Coordinates are carried but not drawn as a map pin, for the same reason.
+
+- **The eclipses that fall inside your trip.** Thirty-one of them, solar and
+  lunar, through 2032, transcribed from NASA's catalogues and bundled — no
+  fetch, no snapshot, just a function of your dates. The visibility line is
+  NASA's own broad region, shown as exactly that: where the eclipse can be seen
+  at all, never "visible from your destination", which would need a
+  calculation this does not do.
+
+  Meteor showers were researched for the same card and dropped. Both maintained
+  shower calendars are all-rights-reserved and neither permits bundling, and
+  the one public-domain alternative carries no rates and had not been updated
+  past the previous year. Half the feature was preferable to a licence
+  violation.
+
+- **Six more cities in the offline pack catalogue** — Dubai, İstanbul,
+  Marrakech, Ciudad de México, Rio de Janeiro and Sydney — chosen to widen a
+  list that had been seven US, four European, two Japanese and two Southeast
+  Asian, with nothing in Africa, South America, the Middle East or Oceania.
+  Their pack contents are published separately; until that runs, the catalogue
+  lists them and the download will not find them.
+
+  Adding Dubai surfaced a matching bug worth naming: "United" is a word shared
+  by the United Kingdom and the United Arab Emirates, and the suggestion logic
+  matched on it, so a London trip was being offered a Dubai pack.
+
+## [0.7.0] - 2026-07-31 — The research workspace and local chat
+
 ### Added
 
 - **A trip is now where research lands, and the app can talk about it.** Two

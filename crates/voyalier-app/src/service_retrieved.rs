@@ -256,17 +256,19 @@ impl AppService {
         // the destination-vs-home time difference. A blank or unrecognised
         // origin (or a network hiccup) simply leaves the difference unshown —
         // it never fails the fetch the way a missing destination would.
-        let (origin_place, origin_utc_offset_minutes) = if trip.origin.trim().is_empty() {
-            (None, None)
-        } else {
-            match geocode(&trip.origin, |url| self.fetcher.fetch_text(url)).ok() {
-                Some(origin) => (
-                    Some(origin.name),
-                    Some(offset_minutes_for(&origin.timezone, &trip.start_date)),
-                ),
-                None => (None, None),
-            }
-        };
+        let (origin_place, origin_utc_offset_minutes, origin_timezone) =
+            if trip.origin.trim().is_empty() {
+                (None, None, None)
+            } else {
+                match geocode(&trip.origin, |url| self.fetcher.fetch_text(url)).ok() {
+                    Some(origin) => (
+                        Some(origin.name),
+                        Some(offset_minutes_for(&origin.timezone, &trip.start_date)),
+                        Some(origin.timezone),
+                    ),
+                    None => (None, None, None),
+                }
+            };
 
         let snapshot = DestinationFactsSnapshot {
             place_name: place.name.clone(),
@@ -274,12 +276,17 @@ impl AppService {
             latitude: place.latitude,
             longitude: place.longitude,
             utc_offset_minutes: offset_minutes_for(&place.timezone, &trip.start_date),
+            // The zone itself, not just the offset it resolved to today: the
+            // offset is only true for the trip's first day, and a window
+            // spanning a DST transition needs the zone to find the second one.
+            timezone: place.timezone.clone(),
             country_code: place.country_code.clone(),
             rate_date,
             currency_rates,
             retrieved_at: now_rfc3339(),
             origin_place,
             origin_utc_offset_minutes,
+            origin_timezone,
         };
 
         let connection = self.connection()?;
@@ -288,8 +295,8 @@ impl AppService {
                 "INSERT INTO destination_facts_snapshots
                  (trip_id, place_name, place_region, latitude, longitude, utc_offset_minutes,
                   country_code, rate_date, currency_rates, retrieved_at,
-                  origin_place, origin_utc_offset_minutes)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+                  origin_place, origin_utc_offset_minutes, timezone, origin_timezone)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
                  ON CONFLICT(trip_id) DO UPDATE SET
                    place_name = excluded.place_name,
                    place_region = excluded.place_region,
@@ -301,7 +308,9 @@ impl AppService {
                    currency_rates = excluded.currency_rates,
                    retrieved_at = excluded.retrieved_at,
                    origin_place = excluded.origin_place,
-                   origin_utc_offset_minutes = excluded.origin_utc_offset_minutes",
+                   origin_utc_offset_minutes = excluded.origin_utc_offset_minutes,
+                   timezone = excluded.timezone,
+                   origin_timezone = excluded.origin_timezone",
                 params![
                     trip_id,
                     snapshot.place_name,
@@ -315,6 +324,8 @@ impl AppService {
                     snapshot.retrieved_at,
                     snapshot.origin_place,
                     snapshot.origin_utc_offset_minutes,
+                    snapshot.timezone,
+                    snapshot.origin_timezone,
                 ],
             )
             .map_err(storage_error)?;
