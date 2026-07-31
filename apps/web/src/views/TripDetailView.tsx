@@ -1184,6 +1184,7 @@ export function TripDetailView({
             worldHeritage={data.detail.worldHeritage}
             tipping={data.detail.tipping}
             timeDifference={data.detail.timeDifference}
+            clockChanges={data.detail.clockChanges ?? []}
             onFetched={() => reload()}
           />
 

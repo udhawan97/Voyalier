@@ -775,6 +775,12 @@ const en = {
   "facts.clock.same": "{destination} keeps the same time as {origin}",
   "facts.clock.hours": "{hours}h",
   "facts.clock.hoursMinutes": "{hours}h {minutes}m",
+  // Stated, not advised: the app says the clocks move and leaves what to do
+  // about it to the traveler.
+  "facts.clock.changeForward":
+    "{place} puts its clocks forward {duration} on {date}, during your trip",
+  "facts.clock.changeBack":
+    "{place} puts its clocks back {duration} on {date}, during your trip",
   // Sky: computed offline, so it carries no source and cannot be stale.
   "facts.sky.title": "Sky",
   "facts.sky.sun": "{sunrise} – {sunset}",
@@ -2162,6 +2168,10 @@ const es: Record<MessageKey, string> = {
   "facts.clock.same": "{destination} tiene la misma hora que {origin}",
   "facts.clock.hours": "{hours}h",
   "facts.clock.hoursMinutes": "{hours}h {minutes}m",
+  "facts.clock.changeForward":
+    "{place} adelanta sus relojes {duration} el {date}, durante tu viaje",
+  "facts.clock.changeBack":
+    "{place} atrasa sus relojes {duration} el {date}, durante tu viaje",
   "facts.sky.title": "Cielo",
   "facts.sky.sun": "{sunrise} – {sunset}",
   "facts.sky.dayLength": "{hours}h {minutes}m de luz solar",

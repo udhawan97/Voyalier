@@ -33,7 +33,7 @@ append-only Rust migrations, hand-written TypeScript contracts, React + Vitest.
   row in `packages/contracts/parity/routes.json`. **None of the five tasks below adds a gateway method** —
   every one extends an existing payload. If a task starts wanting a new method, stop and re-plan.
 - Parity goldens pin **exact case counts** in both languages. Adding a case means bumping the number in
-  `crates/voyalier-core/src/tests.rs` *and* `apps/web/src/parity.test.ts`. Regenerate only with
+  `crates/voyalier-core/src/tests.rs` _and_ `apps/web/src/parity.test.ts`. Regenerate only with
   `VOYALIER_REGENERATE_GOLDEN=1`, which rewrites the file and then panics on purpose so the diff gets read.
 - Limits count Unicode characters — `countChars()` from contracts, never `.length`.
 - ADR-0006 binds every curated entry claim: a factual claim about a requirement is a **link**, an authored
@@ -48,19 +48,19 @@ append-only Rust migrations, hand-written TypeScript contracts, React + Vitest.
 
 ## File Structure
 
-| File | Responsibility |
-| --- | --- |
-| `crates/voyalier-core/src/facts.rs` | Snapshot gains `timezone` / `origin_timezone`; new `ClockChange` type |
-| `crates/voyalier-app/src/lib.rs` | Migration step; per-day offset derivation; clock-change detection |
-| `crates/voyalier-app/src/service_retrieved.rs` | Persist the zone ids the geocode already returns |
-| `crates/voyalier-core/src/visa.rs` | New destination constant blocks + `entry_path` arms |
-| `crates/voyalier-core/src/missions.rs` | **New** — bundled diplomatic-mission lookup |
-| `crates/voyalier-core/src/data/missions.tsv` | **New** — Wikidata CC0 extract |
-| `crates/voyalier-core/src/astro.rs` | Eclipse / meteor events inside a date window |
-| `crates/voyalier-core/src/data/sky_events.tsv` | **New** — public-domain event table |
-| `crates/voyalier-core/src/packs.rs` | Catalogue rows |
-| `packages/contracts/src/index.ts`, `mock.ts` | Mirror every new field |
-| `apps/web/src/views/DestinationFacts.tsx`, `VisaPanel.tsx` | Render |
+| File                                                       | Responsibility                                                        |
+| ---------------------------------------------------------- | --------------------------------------------------------------------- |
+| `crates/voyalier-core/src/facts.rs`                        | Snapshot gains `timezone` / `origin_timezone`; new `ClockChange` type |
+| `crates/voyalier-app/src/lib.rs`                           | Migration step; per-day offset derivation; clock-change detection     |
+| `crates/voyalier-app/src/service_retrieved.rs`             | Persist the zone ids the geocode already returns                      |
+| `crates/voyalier-core/src/visa.rs`                         | New destination constant blocks + `entry_path` arms                   |
+| `crates/voyalier-core/src/missions.rs`                     | **New** — bundled diplomatic-mission lookup                           |
+| `crates/voyalier-core/src/data/missions.tsv`               | **New** — Wikidata CC0 extract                                        |
+| `crates/voyalier-core/src/astro.rs`                        | Eclipse / meteor events inside a date window                          |
+| `crates/voyalier-core/src/data/sky_events.tsv`             | **New** — public-domain event table                                   |
+| `crates/voyalier-core/src/packs.rs`                        | Catalogue rows                                                        |
+| `packages/contracts/src/index.ts`, `mock.ts`               | Mirror every new field                                                |
+| `apps/web/src/views/DestinationFacts.tsx`, `VisaPanel.tsx` | Render                                                                |
 
 ---
 
@@ -359,11 +359,11 @@ git commit -m "Contract+web: show the day the clocks move"
 **The decision rule — this is the whole task.** For each researched destination, the verifier's
 `safeToCurate` verdict decides the shape, and nothing else does:
 
-| Verdict | Shape | Precedent in tree |
-| --- | --- | --- |
-| `resolvable_route` | Enumerated lists + a full journey | `CA`, `JP` |
-| `authority_only` | Named authority, every pair `EntryPath::Unknown` | `GB` |
-| `do_not_curate` | Not added at all — `entry_path` keeps returning `None` | every uncurated country |
+| Verdict            | Shape                                                  | Precedent in tree       |
+| ------------------ | ------------------------------------------------------ | ----------------------- |
+| `resolvable_route` | Enumerated lists + a full journey                      | `CA`, `JP`              |
+| `authority_only`   | Named authority, every pair `EntryPath::Unknown`       | `GB`                    |
+| `do_not_curate`    | Not added at all — `entry_path` keeps returning `None` | every uncurated country |
 
 A destination whose exemption list carries conditions gets those nationalities in a `*_CONDITIONAL` block
 resolving to `Unknown`, exactly as `CA_CONDITIONAL` and `JP_CONDITIONAL` already do. Resolving a
@@ -439,7 +439,7 @@ It rewrites `packages/contracts/parity/visa.json` and then panics on purpose. Re
 
 - Produces: `pub fn missions_in(host_iso2: &str, sending_iso2: &str) -> Vec<Mission>` returning at most a
   handful, nearest-capital-first, and `pub struct Mission { pub sending_country: String, pub host_country:
-  String, pub city: String, pub kind: MissionKind, pub latitude: f64, pub longitude: f64 }`.
+String, pub city: String, pub kind: MissionKind, pub latitude: f64, pub longitude: f64 }`.
 
 **Posture — read this before writing code.** A mission address is exactly the kind of fact this product does
 not get to be the authority on: they move, they close, and someone reads it in an emergency. So the panel is
