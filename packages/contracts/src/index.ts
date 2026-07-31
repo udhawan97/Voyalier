@@ -1527,6 +1527,33 @@ export interface VisaPrep {
   /** Absent when the pair is uncurated, conditional, or needs nothing. */
   journey?: VisaJourney;
   items: VisaPrepItem[];
+  /**
+   * The traveler's own country's missions in the destination country, from a
+   * bundled Wikidata extract. A pointer and nothing more — render it beside
+   * the sending country's own mission list, because closure is recorded
+   * unevenly and an address read in an emergency must be confirmed with the
+   * ministry that keeps it. Empty means absent from the extract, not absent
+   * from the world.
+   */
+  missions: Mission[];
+}
+export type MissionKind =
+  "embassy" | "consulateGeneral" | "consulate" | "highCommission";
+/** One diplomatic mission a country keeps in another country. */
+export interface Mission {
+  /** ISO-3166-1 alpha-2 of the country whose mission this is. */
+  sendingCountry: string;
+  /** ISO-3166-1 alpha-2 of the country it sits in. */
+  hostCountry: string;
+  kind: MissionKind;
+  /**
+   * The city as Wikidata records it — sometimes a district rather than the
+   * city proper, because the location is the finest-grained admin unit held.
+   * Empty when nothing usable was recorded.
+   */
+  city: string;
+  latitude: number;
+  longitude: number;
 }
 export interface SetVisaNationalityInput {
   tripId: string;

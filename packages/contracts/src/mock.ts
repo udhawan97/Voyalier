@@ -2118,9 +2118,10 @@ export function createMockGateway(options?: {
       // from the traveler's most recent choice on another trip. A suggestion
       // for the picker only, never applied on their behalf.
       const suggestedNationalityIso2 = [...visaNationalities.values()].at(-1);
+      // No passport chosen means no country whose missions to name.
       return suggestedNationalityIso2
-        ? { tripId, suggestedNationalityIso2, items }
-        : { tripId, items };
+        ? { tripId, suggestedNationalityIso2, items, missions: [] }
+        : { tripId, items, missions: [] };
     }
     // Which country the destination is in decides which authority answers; the
     // real gateway resolves it from the destination-facts snapshot, falling
@@ -2145,6 +2146,21 @@ export function createMockGateway(options?: {
       ...(entryPath ? { entryPath } : {}),
       ...(journey ? { journey } : {}),
       items,
+      // The fixture's trip is to Japan; the mock carries one Canadian mission
+      // so the panel and its "confirm with your own ministry" pointer render.
+      missions:
+        nationalityIso2 === "CA"
+          ? [
+              {
+                sendingCountry: "CA",
+                hostCountry: "JP",
+                kind: "embassy" as const,
+                city: "Akasaka",
+                latitude: 35.6736,
+                longitude: 139.7284,
+              },
+            ]
+          : [],
     };
   }
 

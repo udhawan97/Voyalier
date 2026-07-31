@@ -697,6 +697,12 @@ const en = {
     "Bundled with the app; no runtime request",
   "dataSources.nasa-eclipse.authority":
     "Dates and a coarse visibility band only; not a local-circumstances calculation for your destination",
+  "dataSources.wikidata-missions.use":
+    "Bundled embassy and consulate locations for your passport country",
+  "dataSources.wikidata-missions.network":
+    "Bundled with the app; no runtime request",
+  "dataSources.wikidata-missions.authority":
+    "A pointer to confirm with your own foreign ministry; closures are recorded unevenly and honorary consulates are excluded",
   "dataSources.geonames.use": "Bundled city autocomplete",
   "dataSources.geonames.network": "Bundled with the app; no runtime request",
   "dataSources.geonames.authority": "Place-name autocomplete only",
@@ -1085,6 +1091,17 @@ const en = {
   "readiness.linkOnly.health_notices":
     "Vaccination and health advice depends on your destination and health, and changes often. Check an official source before you travel — Voyalier links to official sources and never gives medical advice.",
   "visa.title": "Visa & entry preparation",
+  // A pointer, and the copy has to say so: the bundled extract records closure
+  // unevenly, so this is somewhere to confirm rather than somewhere to go.
+  "visa.missions.title": "Your country's missions here",
+  "visa.missions.entryWithCity": "{kind} in {city}",
+  "visa.missions.entry": "{kind}",
+  "visa.missions.kind.embassy": "Embassy",
+  "visa.missions.kind.consulateGeneral": "Consulate-general",
+  "visa.missions.kind.consulate": "Consulate",
+  "visa.missions.kind.highCommission": "High commission",
+  "visa.missions.confirm":
+    "From a bundled Wikidata extract, which does not reliably record closures. Confirm the address and hours with your own foreign ministry before relying on it.",
   "visa.disclaimer":
     "Voyalier does not decide whether you need a visa and has not verified anything here. Every requirement below links to the official source — confirm there before you pay, book, or travel.",
   "visa.unavailable": "Visa preparation is unavailable for this trip.",
@@ -2100,6 +2117,12 @@ const es: Record<MessageKey, string> = {
     "Incluido con la aplicación; sin solicitudes en tiempo de ejecución",
   "dataSources.nasa-eclipse.authority":
     "Solo fechas y una franja de visibilidad aproximada; no es un cálculo de circunstancias locales para tu destino",
+  "dataSources.wikidata-missions.use":
+    "Ubicaciones de embajadas y consulados de tu país de pasaporte, incluidas en la app",
+  "dataSources.wikidata-missions.network":
+    "Incluido con la aplicación; sin solicitudes en tiempo de ejecución",
+  "dataSources.wikidata-missions.authority":
+    "Una referencia para confirmar con tu propio ministerio de exteriores; los cierres se registran de forma irregular y se excluyen los consulados honorarios",
   "dataSources.geonames.use": "Autocompletado de ciudades incluido",
   "dataSources.geonames.network":
     "Incluido con la app; sin solicitudes durante el uso",
@@ -2462,6 +2485,15 @@ const es: Record<MessageKey, string> = {
   "readiness.linkOnly.health_notices":
     "Los consejos de vacunación y salud dependen de tu destino y estado de salud, y cambian con frecuencia. Consulta una fuente oficial antes de viajar; Voyalier enlaza a fuentes oficiales y nunca ofrece asesoría médica.",
   "visa.title": "Visado y preparación de entrada",
+  "visa.missions.title": "Misiones de tu país aquí",
+  "visa.missions.entryWithCity": "{kind} en {city}",
+  "visa.missions.entry": "{kind}",
+  "visa.missions.kind.embassy": "Embajada",
+  "visa.missions.kind.consulateGeneral": "Consulado general",
+  "visa.missions.kind.consulate": "Consulado",
+  "visa.missions.kind.highCommission": "Alta comisión",
+  "visa.missions.confirm":
+    "De un extracto de Wikidata incluido en la app, que no registra los cierres de forma fiable. Confirma la dirección y el horario con tu propio ministerio de exteriores antes de fiarte.",
   "visa.disclaimer":
     "Voyalier no decide si necesitas un visado y no ha verificado nada de lo que aparece aquí. Cada requisito enlaza a la fuente oficial: confírmalo allí antes de pagar, reservar o viajar.",
   "visa.unavailable":

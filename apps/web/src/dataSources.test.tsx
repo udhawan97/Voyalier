@@ -51,6 +51,7 @@ describe("data source register", () => {
         "geonames",
         "ourairports",
         "wikidata-heritage",
+        "wikidata-missions",
         "ollama",
         "openai",
         "anthropic",

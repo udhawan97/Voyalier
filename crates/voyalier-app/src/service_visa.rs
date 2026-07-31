@@ -31,6 +31,8 @@ impl AppService {
                 entry_path: None,
                 journey: None,
                 items,
+                // No passport chosen means no country whose missions to name.
+                missions: Vec::new(),
             });
         };
 
@@ -50,6 +52,15 @@ impl AppService {
             None => (None, None),
         };
 
+        // Bundled and offline, and independent of whether an entry path
+        // resolved: where your own country keeps a mission is useful on an
+        // uncurated destination too, and is the one thing this panel can offer
+        // when it has no route to quote.
+        let missions = destination
+            .as_deref()
+            .map(|code| missions_in(code, &nationality_iso2))
+            .unwrap_or_default();
+
         Ok(VisaPrep {
             trip_id: trip_id.to_owned(),
             nationality_iso2: Some(nationality_iso2),
@@ -57,6 +68,7 @@ impl AppService {
             entry_path,
             journey,
             items,
+            missions,
         })
     }
 

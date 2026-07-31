@@ -48,6 +48,38 @@ async function pickPassport(region: HTMLElement, code = "IN") {
 }
 
 /**
+ * Where the traveler's own country keeps a mission, shown as a pointer.
+ *
+ * The mock carries one Canadian embassy for the Japan fixture, matching the
+ * bundled extract's own record — including that Wikidata files it under the
+ * ward, Akasaka, rather than under Tokyo.
+ */
+describe("diplomatic missions", () => {
+  it("names the mission and says to confirm it elsewhere", async () => {
+    const region = await openVisa();
+    fireEvent.change(within(region).getByLabelText("Passport country code"), {
+      target: { value: "CA" },
+    });
+    fireEvent.click(within(region).getByRole("button", { name: "Save" }));
+    expect(
+      await within(region).findByText(/Embassy in Akasaka/i),
+    ).toBeInTheDocument();
+    // The claim is bounded in the copy: confirm it with your own ministry.
+    expect(
+      within(region).getByText(/Confirm the address and hours/i),
+    ).toBeInTheDocument();
+  });
+
+  it("says nothing at all when no passport is chosen", async () => {
+    const region = await openVisa();
+    expect(within(region).queryByText(/Embassy in/i)).toBeNull();
+    expect(
+      within(region).queryByText(/Your country's missions here/i),
+    ).toBeNull();
+  });
+});
+
+/**
  * Open a step that actually asks for documents.
  *
  * A journey opens on its orientation step, which is links and no documents —

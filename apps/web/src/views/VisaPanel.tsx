@@ -1,5 +1,10 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import type { SourceLink, VisaPrep, VisaStep } from "@voyalier/contracts";
+import type {
+  Mission,
+  SourceLink,
+  VisaPrep,
+  VisaStep,
+} from "@voyalier/contracts";
 import { MAX_VISA_NOTE_CHARS, countChars } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
@@ -86,7 +91,43 @@ function VisaCockpit({
       ) : prep.nationalityIso2 ? (
         <NoJourney prep={prep} />
       ) : null}
+      {prep.missions.length > 0 ? <Missions missions={prep.missions} /> : null}
     </>
+  );
+}
+
+/**
+ * Where the traveler's own country keeps a mission in the destination country.
+ *
+ * A pointer, and the copy says so in as many words. The bundled extract is
+ * Wikidata, which records closure unevenly enough that it once returned
+ * embassies of states dissolved in 1990, so every entry is shown as something
+ * to confirm rather than somewhere to go — and the confirm link is the
+ * traveler's own foreign ministry, not this app. Coordinates are carried in the
+ * contract but deliberately not rendered as a map pin here for the same reason.
+ */
+function Missions({ missions }: { missions: Mission[] }) {
+  return (
+    <section className="voy-visa__missions" aria-labelledby="visa-missions">
+      <h4 id="visa-missions" className="voy-visa__missions-title">
+        {t("visa.missions.title")}
+      </h4>
+      <ul className="voy-visa__missions-list">
+        {missions.map((mission) => (
+          <li key={`${mission.kind}-${mission.city}-${mission.latitude}`}>
+            {mission.city
+              ? t("visa.missions.entryWithCity", {
+                  kind: t(`visa.missions.kind.${mission.kind}`),
+                  city: mission.city,
+                })
+              : t("visa.missions.entry", {
+                  kind: t(`visa.missions.kind.${mission.kind}`),
+                })}
+          </li>
+        ))}
+      </ul>
+      <p className="voy-visa__missions-note">{t("visa.missions.confirm")}</p>
+    </section>
   );
 }
 

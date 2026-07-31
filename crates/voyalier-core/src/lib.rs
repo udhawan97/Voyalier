@@ -22,6 +22,7 @@ mod heritage;
 mod holidays;
 mod itinerary;
 mod local_ai;
+mod missions;
 mod packing;
 mod packs;
 mod parser;
@@ -114,6 +115,7 @@ pub use local_ai::{
     LocalAiModel, LocalAiStatus, LocalModelPullResult, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,
     build_pull_body, interpret_pull_response, parse_ollama_models,
 };
+pub use missions::{Mission, MissionKind, missions_in};
 pub use packing::{
     PackingCode, PackingReason, PackingReasonCode, PackingSuggestion, build_packing_list,
 };

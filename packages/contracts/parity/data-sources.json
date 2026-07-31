@@ -241,6 +241,18 @@
    "authority": "Convenience lookup from a dated extract; not a complete UNESCO registry"
   },
   {
+   "id": "wikidata-missions",
+   "category": "built_in",
+   "name": "Wikidata — diplomatic missions",
+   "url": "https://www.wikidata.org/",
+   "use": "Bundled embassy and consulate locations for your passport country",
+   "endpoint": "Pinned Wikidata diplomatic-mission extract",
+   "license": "CC0-1.0",
+   "attribution": "Wikidata contributors, CC0 1.0",
+   "network": "Bundled with the app; no runtime request",
+   "authority": "A pointer to confirm with your own foreign ministry; closures are recorded unevenly and honorary consulates are excluded"
+  },
+  {
    "id": "wikimedia",
    "category": "consent_fetched",
    "name": "Wikipedia / Wikimedia",
@@ -265,5 +277,5 @@
    "authority": "Community-written travel context; shown separately from place data"
   }
  ],
- "count": 22
+ "count": 23
 }

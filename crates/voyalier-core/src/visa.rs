@@ -16,6 +16,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::missions::Mission;
+
 use crate::types::{AppError, ErrorCode, SourceLink};
 
 /// When Canada's curated tables were last read against IRCC by hand.
@@ -196,7 +198,8 @@ pub struct VisaSelfReport {
 
 /// The resolved journey and the traveler's progress, returned together so a
 /// caller cannot pair a journey with another trip's checkboxes.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+// PartialEq only: a mission carries f64 coordinates.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VisaPrep {
     pub trip_id: String,
@@ -212,6 +215,16 @@ pub struct VisaPrep {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub journey: Option<VisaJourney>,
     pub items: Vec<VisaPrepItem>,
+    /// The traveler's own country's missions in the destination country, from
+    /// the bundled Wikidata extract.
+    ///
+    /// A pointer and nothing more. It is rendered beside the sending country's
+    /// own mission list, because Wikidata records closure unevenly and an
+    /// address read in an emergency has to be confirmed against the ministry
+    /// that keeps it. Empty when the pair is uncovered, which means absent from
+    /// the extract — not absent from the world.
+    #[serde(default)]
+    pub missions: Vec<Mission>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
