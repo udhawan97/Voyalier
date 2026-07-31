@@ -30,6 +30,18 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
   behaviour until the facts are fetched again: one wrong hour beats no sun
   times, and no clock change beats an invented one.
 
+- **Offline city packs had been downloading empty since 20 July.** Every pack
+  on the release carried zero places for ten days — the catalogue listed them,
+  the download succeeded, and what arrived had no places in it, so
+  recommendations and pack suggestions had nothing to rank.
+
+  The cause was a data source moving underneath the publisher: Overture keeps
+  only its newest couple of releases, the one pinned here was deleted, and the
+  build treated a failed query as "no places found" rather than as a failure.
+  It now refuses to publish a pack it could not fill, which is the right trade
+  for a publisher that is run by hand and can simply be run again. All
+  twenty-two packs have been rebuilt and verified to contain places.
+
 ### Added
 
 - **Four more countries will tell you what door you go through — and three of
@@ -78,8 +90,7 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
   Marrakech, Ciudad de México, Rio de Janeiro and Sydney — chosen to widen a
   list that had been seven US, four European, two Japanese and two Southeast
   Asian, with nothing in Africa, South America, the Middle East or Oceania.
-  Their pack contents are published separately; until that runs, the catalogue
-  lists them and the download will not find them.
+  All six are published and downloadable.
 
   Adding Dubai surfaced a matching bug worth naming: "United" is a word shared
   by the United Kingdom and the United Arab Emirates, and the suggestion logic
