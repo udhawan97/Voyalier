@@ -104,6 +104,24 @@ pub struct UpdateResourceInput {
     pub tags: Vec<String>,
 }
 
+/// Standing preferences for research capture.
+///
+/// One field today, and a settings object rather than a bare boolean because
+/// the alternative is a new gateway method the next time a preference appears.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResearchSettings {
+    /// Whether saving a link may also fetch what the page says. Off until the
+    /// traveler turns it on, and reversible at any time.
+    pub auto_fetch_details: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetResearchSettingsInput {
+    pub auto_fetch_details: bool,
+}
+
 /// What a fetched page said, reduced to the parts worth keeping.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReadablePage {
@@ -194,7 +212,11 @@ fn is_tracking_param(pair: &str) -> bool {
 
 /// A readable name for a link the traveler did not title, so the list never
 /// shows a bare address.
-fn derive_title(url: &str) -> String {
+///
+/// Public because the fetch path needs to recognize its own handiwork: a title
+/// the traveler chose stays theirs, and only one of these is replaced by what
+/// the page turns out to call itself.
+pub fn derived_link_title(url: &str) -> String {
     let rest = url.split_once("://").map(|(_, rest)| rest).unwrap_or(url);
     let rest = rest.split(['#', '?']).next().unwrap_or("");
     let (authority, path) = match rest.find('/') {
@@ -271,7 +293,7 @@ fn normalize_title(
     let trimmed = raw.trim();
     if trimmed.is_empty() {
         return Ok(match (url, file_name) {
-            (Some(url), _) => derive_title(url),
+            (Some(url), _) => derived_link_title(url),
             (None, Some(name)) => name.to_owned(),
             (None, None) => String::new(),
         });

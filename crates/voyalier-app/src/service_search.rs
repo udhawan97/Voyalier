@@ -6,6 +6,7 @@
 //! where the code lives and nothing about the interface.
 
 use super::*;
+use crate::service_chat::resource_search_text;
 
 impl AppService {
     /// Deterministic search over this trip's stored documents and confirmed
@@ -20,7 +21,27 @@ impl AppService {
             .map(|(id, label, content)| SearchableDocument { id, label, content })
             .collect();
         let facts = self.records(&connection).confirmed_facts(trip_id)?;
-        Ok(search_trip_corpus(&query, &searchable, &facts, &[]))
+        let resources = self.records(&connection).resources(trip_id)?;
+        let resource_texts: Vec<(String, String, String)> = resources
+            .iter()
+            .map(|resource| {
+                (
+                    resource.id.clone(),
+                    resource.title.clone(),
+                    resource_search_text(resource),
+                )
+            })
+            .collect();
+        let searchable_resources: Vec<SearchableResource<'_>> = resource_texts
+            .iter()
+            .map(|(id, title, text)| SearchableResource { id, title, text })
+            .collect();
+        Ok(search_trip_corpus(
+            &query,
+            &searchable,
+            &facts,
+            &searchable_resources,
+        ))
     }
 
     /// Search traveler-visible local records across every trip. Pending parser
@@ -107,6 +128,19 @@ impl AppService {
                         .flatten()
                         .collect::<Vec<_>>()
                         .join(" "),
+                });
+            }
+            for resource in self.records(&connection).resources(&trip.id)? {
+                let text = resource_search_text(&resource);
+                owned.push(OwnedWorkspaceSearchRecord {
+                    source: WorkspaceSearchSource::Resource,
+                    trip_id: trip.id.clone(),
+                    trip_title: trip.title.clone(),
+                    trip_status: trip.status,
+                    trip_updated_at: trip.updated_at.clone(),
+                    record_id: resource.id,
+                    label: resource.title,
+                    text,
                 });
             }
         }

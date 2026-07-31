@@ -146,9 +146,9 @@ pub use recommend::{
 pub use resource::{
     CreateResourceInput, MAX_RESOURCE_NOTE_CHARS, MAX_RESOURCE_TAG_CHARS, MAX_RESOURCE_TAGS,
     MAX_RESOURCE_TITLE_CHARS, MAX_RESOURCE_URL_CHARS, MAX_SNAPSHOT_TEXT_CHARS, ReadablePage,
-    Resource, ResourceKind, ResourceSnapshot, UpdateResourceInput, extract_readable_page,
-    resource_url_identity, validate_create_resource, validate_resource_url,
-    validate_update_resource,
+    ResearchSettings, Resource, ResourceKind, ResourceSnapshot, SetResearchSettingsInput,
+    UpdateResourceInput, derived_link_title, extract_readable_page, resource_url_identity,
+    validate_create_resource, validate_resource_url, validate_update_resource,
 };
 pub use search::{
     SEARCH_SUGGESTION_LIMIT, SearchHit, SearchHitSource, SearchableDocument, SearchableResource,
