@@ -213,6 +213,33 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   gains only a self-reported tally attributed to the traveler. Canada first, both
   routes; more destinations are curation work, not engineering.
 
+- ✓ Research workspace (0.7.0): per-trip **resources** — links and files kept for
+  reading, with the traveler's own title, note, and tags. Deliberately not
+  evidence: no candidate facts, no readiness effect, and a mis-filed confirmation
+  gets an "import it instead" pointer rather than a silent parse. Saving is local;
+  fetching what a page says is gated on one reversible standing preference, off by
+  default, and stores a dated snapshot (title, description, readable text with
+  script and style content dropped, size-capped both ways). Snapshots are readable
+  in-app offline and searchable in both `searchTrip` and `searchWorkspace`
+  alongside notes and tags. Duplicate saves fold on a normalized URL identity.
+  Page text stays unsealed because it is public material and must stay
+  searchable; the traveler's note is sealed like every other note.
+- ✓ Local chat (0.7.0): `sendChatMessage` answers one question about a trip on a
+  local Ollama. **Cloud providers are refused** — a conversation is many sends,
+  and neither a per-message preview nor a standing "always send" consent is
+  acceptable, so cloud keeps the one-shot preview→consent→run assist unchanged.
+  Cloud chat needs its own ADR. Grounding runs the deterministic search and quotes
+  the top records back, so replies cite what they were built from. Redaction is
+  unchanged from the cloud path — codes and names never enter a prompt, local or
+  not. Transcripts persist per trip, sealed, and are excluded from search, brief,
+  and exports so an answer can never be retrieved as established knowledge.
+  High-stakes questions (entry, health, safety, prices) attach a deterministic
+  app-authored pointer card above the reply, never in place of it.
+- ✓ United Kingdom entry authority (0.7.0): named, with every pair resolving
+  `Unknown`. GOV.UK publishes a questionnaire rather than a per-nationality
+  table, so the traveler gets the authority and its own checker and no journey.
+  Distinct from an uncurated destination, which still names no authority at all.
+
 ## Later
 
 Licensed live inventory, encrypted sync, group collaboration, monitoring, silent/automatic email ingestion (inbox scanning, as opposed to the shipped explicit paste-or-.eml import), and mobile experiences.

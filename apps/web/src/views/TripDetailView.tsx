@@ -70,6 +70,8 @@ import { TripNotes } from "./TripNotes";
 import { TodayPanel } from "./TodayPanel";
 import { AssistPreview } from "./AssistPreview";
 import { AssistDraft } from "./AssistDraft";
+import { ChatPanel } from "./ChatPanel";
+import { ResourcesPanel } from "./ResourcesPanel";
 import { CityPacks } from "./CityPacks";
 import { MapPanel } from "./MapPanel";
 import { Recommendations } from "./Recommendations";
@@ -1201,6 +1203,11 @@ export function TripDetailView({
 
           <TripNotes tripId={tripId} />
 
+          {/* Reading material sits with the other things the traveler keeps —
+              next to notes and imported documents, and pointedly not next to
+              the confirmed itinerary it is never allowed to become. */}
+          <ResourcesPanel tripId={tripId} />
+
           <DocumentsPanel tripId={tripId} />
 
           <TripSearch tripId={tripId} />
@@ -1236,6 +1243,8 @@ export function TripDetailView({
 
         {/* AI sits last on purpose: everything above works without it. */}
         <DeferredSection id="section-ai">
+          <ChatPanel tripId={tripId} onOpenSettings={onOpenSettings} />
+
           <AssistPreview tripId={tripId} onOpenSettings={onOpenSettings} />
 
           <AssistDraft

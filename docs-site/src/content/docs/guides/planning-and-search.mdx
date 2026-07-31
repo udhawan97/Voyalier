@@ -44,10 +44,17 @@ location, and times, so private notes cannot enter it.
 ## Search the workspace
 
 Use **Search workspace** from the top bar to search every trip's imported
-documents, confirmed facts, trip notes, saved places, and manual plans. Each
-result names its trip and source kind. Pending extraction candidates remain out
-of search until you review them. Search is a bounded local scan: no query or
-index leaves the device.
+documents, confirmed facts, trip notes, saved places, manual plans, and
+[saved research resources](/Voyalier/guides/research-resources/). Each result
+names its trip and source kind, so a resource you filed to read never arrives
+looking like a confirmed fact. For a resource, your note, your tags, and any page
+text you chose to fetch are all searched.
+
+Two things stay out. Pending extraction candidates remain out of search until you
+review them, and
+[AI chat transcripts](/Voyalier/guides/ai-assist/#where-a-conversation-goes-and-where-it-does-not)
+are excluded permanently. Search is a bounded local scan: no query or index
+leaves the device.
 
 ## Return after a reload
 

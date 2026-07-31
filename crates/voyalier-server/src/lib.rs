@@ -12,10 +12,11 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use voyalier_app::AppService;
 use voyalier_core::{
     AddManualFactInput, AddPackingItemInput, AppError, CandidateFact, CandidateStatus,
-    ConfirmCandidateInput, ConfirmedFact, CreateTripInput, CreateTripItemInput, ErrorCode,
-    HealthResponse, ImportDocumentInput, PersonaWeights, SavePlaceInput, SetInterestProfileInput,
-    SetVisaItemProgressInput, SetVisaNationalityInput, UpdatePackingItemInput,
-    UpdateSavedPlaceInput, UpdateTripInput, UpdateTripItemInput,
+    ConfirmCandidateInput, ConfirmedFact, CreateResourceInput, CreateTripInput,
+    CreateTripItemInput, ErrorCode, HealthResponse, ImportDocumentInput, PersonaWeights,
+    SavePlaceInput, SetInterestProfileInput, SetResearchSettingsInput, SetVisaItemProgressInput,
+    SetVisaNationalityInput, UpdatePackingItemInput, UpdateResourceInput, UpdateSavedPlaceInput,
+    UpdateTripInput, UpdateTripItemInput,
 };
 
 #[derive(Debug, Serialize)]
@@ -103,6 +104,11 @@ struct OfflineMapRangeBody {
     pack_id: String,
     offset: u64,
     length: u32,
+}
+
+#[derive(Debug, Deserialize)]
+struct ChatMessageBody {
+    message: String,
 }
 
 #[derive(Debug)]
@@ -256,6 +262,28 @@ pub fn app(service: AppService) -> Router {
         .route(
             "/api/v1/trip-items/{trip_item_id}",
             patch(update_trip_item).delete(delete_trip_item),
+        )
+        .route(
+            "/api/v1/trips/{trip_id}/resources",
+            get(list_resources).post(create_resource),
+        )
+        .route(
+            "/api/v1/resources/{resource_id}",
+            patch(update_resource).delete(delete_resource),
+        )
+        .route(
+            "/api/v1/resources/{resource_id}/fetch",
+            post(fetch_resource_details),
+        )
+        .route(
+            "/api/v1/research/settings",
+            get(get_research_settings).post(set_research_settings),
+        )
+        .route(
+            "/api/v1/trips/{trip_id}/chat",
+            get(list_chat_messages)
+                .post(send_chat_message)
+                .delete(clear_chat),
         )
         .route(
             "/api/v1/trips/{trip_id}/notes",
@@ -517,6 +545,82 @@ async fn delete_trip_item(
     Path(trip_item_id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     service.delete_trip_item(&trip_item_id)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn list_resources(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.list_resources(&trip_id)?))
+}
+
+async fn create_resource(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+    Json(input): Json<CreateResourceInput>,
+) -> Result<impl IntoResponse, ApiError> {
+    ensure_path_trip_matches(&trip_id, &input.trip_id)?;
+    Ok((StatusCode::CREATED, Json(service.create_resource(input)?)))
+}
+
+async fn update_resource(
+    State(service): State<AppService>,
+    Path(resource_id): Path<String>,
+    Json(input): Json<UpdateResourceInput>,
+) -> Result<impl IntoResponse, ApiError> {
+    ensure_path_id_matches(&resource_id, &input.resource_id, "resourceId")?;
+    Ok(Json(service.update_resource(input)?))
+}
+
+async fn delete_resource(
+    State(service): State<AppService>,
+    Path(resource_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    service.delete_resource(&resource_id)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn fetch_resource_details(
+    State(service): State<AppService>,
+    Path(resource_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.fetch_resource_details(&resource_id)?))
+}
+
+async fn get_research_settings(
+    State(service): State<AppService>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.get_research_settings()?))
+}
+
+async fn set_research_settings(
+    State(service): State<AppService>,
+    Json(input): Json<SetResearchSettingsInput>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.set_research_settings(input)?))
+}
+
+async fn list_chat_messages(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.list_chat_messages(&trip_id)?))
+}
+
+async fn send_chat_message(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+    Json(body): Json<ChatMessageBody>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.send_chat_message(&trip_id, &body.message)?))
+}
+
+async fn clear_chat(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    service.clear_chat(&trip_id)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -2105,6 +2209,7 @@ mod tests {
             .replace("{savedPlaceId}", "place_1")
             .replace("{packingItemId}", "packing_1")
             .replace("{tripItemId}", "item_1")
+            .replace("{resourceId}", "res_1")
             .replace("{provider}", "openai")
     }
 

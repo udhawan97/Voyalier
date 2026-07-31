@@ -8,6 +8,68 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Added
 
+- **A trip is now where research lands, and the app can talk about it.** Two
+  features, one rule holding both together: material you gather is kept apart
+  from material you have confirmed, and the line between them does not move
+  because something would be more convenient on the other side.
+
+  **Research resources** are links and files you keep with a trip, each with your
+  own title, note, and tags. The important word is _reading_. A resource is never
+  evidence: it produces no confirmed booking, no pending candidate to review, and
+  it cannot move the readiness rollup. Drop a booking confirmation into it and it
+  is filed rather than imported — the panel says so and points at the import flow,
+  because quietly parsing it would be the app deciding that your filing was a
+  mistake. Saving contacts nothing and is instant.
+
+  Fetching what a page _says_ is a separate thing, and it asks. One reversible
+  setting, off until you turn it on, and until then the fetch control is absent
+  rather than disabled. Turn it on and Voyalier stores a dated snapshot — title,
+  description, and readable text with script and stylesheet content dropped —
+  which you can read inside the app on a plane, and which becomes searchable
+  alongside your notes and tags in both a trip's search and across every trip. The
+  same page saved twice stays one resource; addresses differing only by a campaign
+  parameter, a trailing slash, casing, or a fragment are the same page. The page's
+  text is not encrypted, because it is public material you did not write and it
+  has to stay searchable. Your note on it is, like every other note here.
+
+  **Ask about this trip** is a conversation answered by a local Ollama model on
+  your own machine. Cloud providers are deliberately not offered for it. The
+  existing assist flow previews the exact request and asks before each send, which
+  works because there is exactly one send; a conversation is many, and the honest
+  choices were an unusable prompt per message or a standing permission to send
+  your trip to a company — so chat is the local one, and cloud keeps the flow it
+  can actually honour.
+
+  Each answer is grounded by running the same deterministic search the search box
+  uses and quoting back what it found, so the reply can list what it was built
+  from and "why did it know that" has a mechanical answer. Confirmation codes and
+  traveler names are withheld from the model exactly as they are from a cloud
+  provider — being local changes who receives the request, not what may be in it.
+  It therefore cannot tell you your booking reference, and says so rather than
+  inventing one. Ask about a visa, health, safety, or a price and Voyalier adds
+  its own card above the reply pointing at where the real answer lives; the card
+  is added to the model's answer, never in place of it, because a keyword that
+  guesses wrong should cost you a redundant card and not your answer.
+
+  Conversations are saved per trip and encrypted, and they are deliberately absent
+  from search, the shareable brief, and every export. A searchable transcript
+  would be retrieved into the next question and the model would begin citing
+  itself as something you had established. If an answer is worth keeping, one
+  control copies it into the trip's notes, where it becomes yours rather than its.
+
+- **The United Kingdom now names an entry authority, and deliberately resolves no
+  route.** Canada and Japan publish per-nationality tables, so Voyalier quotes
+  them and walks the steps. GOV.UK publishes a questionnaire instead, because
+  whether you need an ETA, a Standard Visitor visa, or neither depends on the
+  purpose and length of the visit as well as the passport.
+
+  So a UK trip gets the Home Office named and its own checker handed over, and no
+  journey. That is the design working rather than a gap: saying nothing would
+  claim no authority governs a UK trip, and deriving a route from the passport
+  alone would be Voyalier answering in one step a question the authority declined
+  to answer in one step. Everywhere still uncurated continues to name no authority
+  at all, which remains a different answer and stays one.
+
 - **Seven things the roadmap had been calling high-confidence for a fortnight, and
   the one it turned out to be wrong about.** The selection rule was that each had
   to land on a seam that already exists, so none of them added a gateway method

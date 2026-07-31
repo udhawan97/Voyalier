@@ -604,6 +604,7 @@ const en = {
   "workspaceSearch.source.note": "Trip notes",
   "workspaceSearch.source.saved_place": "Saved place",
   "workspaceSearch.source.trip_item": "Traveler-authored plan",
+  "workspaceSearch.source.resource": "Saved resource",
   "workspaceSearch.archived": "Archived trip",
   "workspaceSearch.updated": "Trip updated {date}",
   "workspaceSearch.label.confirmedFact": "Confirmed fact",
@@ -1296,6 +1297,111 @@ const en = {
   "updates.backupsCleared.other": "Cleared {count} backups.",
   "updates.justUpdated": "Updated to Voyalier {version}.",
   "updates.dismiss": "Dismiss",
+
+  // Inline guidance. On by default and dismissible per visit — a traveler who
+  // has read it once should not have to read it every time, and a traveler who
+  // has not read it should not have to go looking.
+  "hint.dismiss": "Dismiss tip",
+
+  "resources.title": "Saved reading",
+  "resources.intro":
+    "Links and files you're keeping with this trip to read later.",
+  // The product's position, not a notice: everything else on a trip page is
+  // evidence the traveler confirmed, and a saved page must never be mistaken
+  // for one.
+  "resources.hint.notEvidence":
+    "Saved reading is reading material, nothing more. Voyalier never turns it into a confirmed booking, never treats it as evidence, and it never changes your trip's readiness.",
+  "resources.hint.import":
+    "Looks like a confirmation? Import it instead — that's the flow that reads a booking into your trip.",
+  "resources.hint.fetching":
+    "Fetching asks first because it contacts the site you saved. Everything else on this panel stays on this device.",
+  "resources.error": "Couldn't load your saved reading.",
+  "resources.add.title": "Save a link",
+  "resources.add.url": "Link address",
+  "resources.add.urlPlaceholder": "https://…",
+  "resources.add.titleLabel": "Title (optional)",
+  "resources.add.note": "Your note (optional)",
+  "resources.add.tags": "Tags (optional)",
+  "resources.add.tagsHint": "Separate tags with commas.",
+  "resources.add.save": "Save",
+  "resources.duplicate":
+    "You already saved that link — it's in the list below, unchanged.",
+  "resources.announce.saved": "Saved {title}.",
+  "resources.empty": "Nothing saved yet.",
+  "resources.empty.hint":
+    "Paste a link you want to read later and it will be kept here with the trip.",
+  "resources.list.aria": "Saved reading",
+  "resources.tags.aria": "Tags",
+  "resources.filter.aria": "Filter saved reading by tag",
+  "resources.filter.all": "All",
+  "resources.fetch.allow": "Allow fetching page details",
+  "resources.fetch.on":
+    "Fetching is allowed. Voyalier contacts a site only when you ask it to, one link at a time.",
+  "resources.fetch.off":
+    "Fetching is off, so Voyalier will not contact any site you have saved.",
+  "resources.fetch.action": "Fetch page details",
+  "resources.fetch.actionLabel": "Fetch page details for {title}",
+  "resources.fetch.blocked":
+    "Turn on “Allow fetching page details” above to keep a copy of what this page says.",
+  "resources.read": "Read here",
+  "resources.read.hide": "Hide reader",
+  "resources.read.fetched": "Fetched {date}",
+  "resources.read.truncated":
+    "This page ran longer than Voyalier stores, so the end is missing here. Open the original for the rest.",
+  "resources.read.original": "Open the original",
+  "resources.edit": "Edit",
+  "resources.edit.label": "Edit {title}",
+  "resources.edit.save": "Save changes",
+  "resources.remove": "Remove",
+  "resources.remove.label": "Remove {title}",
+
+  "chat.title": "Ask about this trip",
+  "chat.intro":
+    "A conversation about this trip, answered by the AI model running on this computer.",
+  // Says what it can read *and* what it cannot, because "it's private" is not
+  // the same promise as "it does not have your booking reference".
+  "chat.hint.local":
+    "This chat runs on this machine. It can read what you've saved with this trip — your plans, your notes, your saved reading — but confirmation codes and traveler names are deliberately withheld from it, so it can't tell you your booking reference.",
+  "chat.disclaimer":
+    "AI-generated and never authoritative. Voyalier doesn't treat a reply as evidence. Verify anything that matters — entry rules, health, safety, prices — against an official source.",
+  "chat.error": "Couldn't load this conversation.",
+  "chat.thread.aria": "Conversation",
+  "chat.empty": "Nothing asked yet.",
+  "chat.role.user": "You",
+  "chat.role.assistant": "On-device AI",
+  "chat.label": "Your message",
+  "chat.placeholder": "Ask about your plans…",
+  "chat.send": "Send",
+  "chat.sending": "Thinking…",
+  "chat.tooLong":
+    "That's longer than Voyalier can send in one message. Shorten it and try again.",
+  "chat.groundedOn": "Grounded on: {sources}",
+  "chat.itineraryFacts.one": "{count} confirmed plan",
+  "chat.itineraryFacts.other": "{count} confirmed plans",
+  "chat.saveToNotes": "Save to notes",
+  "chat.saveToNotes.done": "Added to your trip notes.",
+  "chat.saveToNotes.error": "Couldn't add that to your notes.",
+  "chat.clear": "Clear conversation",
+  "chat.announce.cleared": "Conversation cleared.",
+  "chat.announce.reply": "The on-device AI replied.",
+  "chat.unavailable.title": "Chat needs a model on this computer",
+  "chat.unavailable.body":
+    "Voyalier answers on-device with Ollama, and nothing is running here yet. Install Ollama, pull a model, and this conversation opens up. Everything else on this trip works without it.",
+  "chat.unavailable.link": "Open on-device AI settings",
+  // App-authored, not model-authored. Rendered above the reply, never instead
+  // of it: suppressing an answer would be its own kind of claim.
+  "chat.pointer.entry.title": "Entry rules: Voyalier isn't the authority",
+  "chat.pointer.entry.body":
+    "Whether you may enter, and on what, is decided by the destination's government. Your trip's readiness list links to the official source, and the visa preparation panel walks the steps for your nationality.",
+  "chat.pointer.health.title": "Health: Voyalier isn't the authority",
+  "chat.pointer.health.body":
+    "Vaccination and health entry requirements change and are decided by official bodies. Your trip's readiness list links to the health notices for this destination.",
+  "chat.pointer.safety.title": "Safety: Voyalier isn't the authority",
+  "chat.pointer.safety.body":
+    "Safety advice comes from your government's travel advice, not from a model. Your trip's readiness list links to the official advisory for this destination.",
+  "chat.pointer.prices.title": "Prices: Voyalier doesn't hold any",
+  "chat.pointer.prices.body":
+    "Voyalier keeps no live prices or availability and never quotes one. Check the operator or seller directly.",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -1881,6 +1987,7 @@ const es: Record<MessageKey, string> = {
   "workspaceSearch.source.note": "Notas del viaje",
   "workspaceSearch.source.saved_place": "Lugar guardado",
   "workspaceSearch.source.trip_item": "Plan del viajero",
+  "workspaceSearch.source.resource": "Recurso guardado",
   "workspaceSearch.archived": "Viaje archivado",
   "workspaceSearch.updated": "Viaje actualizado el {date}",
   "workspaceSearch.label.confirmedFact": "Dato confirmado",
@@ -2542,6 +2649,102 @@ const es: Record<MessageKey, string> = {
   "updates.backupsCleared.other": "Se borraron {count} copias de seguridad.",
   "updates.justUpdated": "Actualizado a Voyalier {version}.",
   "updates.dismiss": "Descartar",
+
+  "hint.dismiss": "Descartar consejo",
+
+  "resources.title": "Lecturas guardadas",
+  "resources.intro":
+    "Enlaces y archivos que guardas con este viaje para leerlos más tarde.",
+  "resources.hint.notEvidence":
+    "Una lectura guardada es material de lectura y nada más. Voyalier nunca la convierte en una reserva confirmada, nunca la trata como evidencia y nunca cambia la preparación de tu viaje.",
+  "resources.hint.import":
+    "¿Parece una confirmación? Impórtala en su lugar: ese es el flujo que incorpora una reserva a tu viaje.",
+  "resources.hint.fetching":
+    "Obtener el contenido pregunta primero porque contacta con el sitio que guardaste. Todo lo demás en este panel se queda en este dispositivo.",
+  "resources.error": "No se pudieron cargar tus lecturas guardadas.",
+  "resources.add.title": "Guardar un enlace",
+  "resources.add.url": "Dirección del enlace",
+  "resources.add.urlPlaceholder": "https://…",
+  "resources.add.titleLabel": "Título (opcional)",
+  "resources.add.note": "Tu nota (opcional)",
+  "resources.add.tags": "Etiquetas (opcional)",
+  "resources.add.tagsHint": "Separa las etiquetas con comas.",
+  "resources.add.save": "Guardar",
+  "resources.duplicate":
+    "Ya habías guardado ese enlace: está en la lista de abajo, sin cambios.",
+  "resources.announce.saved": "Se guardó {title}.",
+  "resources.empty": "Todavía no has guardado nada.",
+  "resources.empty.hint":
+    "Pega un enlace que quieras leer más tarde y se guardará aquí junto al viaje.",
+  "resources.list.aria": "Lecturas guardadas",
+  "resources.tags.aria": "Etiquetas",
+  "resources.filter.aria": "Filtrar lecturas guardadas por etiqueta",
+  "resources.filter.all": "Todas",
+  "resources.fetch.allow": "Permitir obtener el contenido de la página",
+  "resources.fetch.on":
+    "Está permitido obtener el contenido. Voyalier contacta con un sitio solo cuando se lo pides, un enlace a la vez.",
+  "resources.fetch.off":
+    "Obtener el contenido está desactivado, así que Voyalier no contactará con ningún sitio que hayas guardado.",
+  "resources.fetch.action": "Obtener el contenido",
+  "resources.fetch.actionLabel": "Obtener el contenido de {title}",
+  "resources.fetch.blocked":
+    "Activa «Permitir obtener el contenido de la página» arriba para conservar una copia de lo que dice esta página.",
+  "resources.read": "Leer aquí",
+  "resources.read.hide": "Ocultar el lector",
+  "resources.read.fetched": "Obtenido el {date}",
+  "resources.read.truncated":
+    "Esta página era más larga de lo que Voyalier guarda, así que aquí falta el final. Abre el original para ver el resto.",
+  "resources.read.original": "Abrir el original",
+  "resources.edit": "Editar",
+  "resources.edit.label": "Editar {title}",
+  "resources.edit.save": "Guardar cambios",
+  "resources.remove": "Eliminar",
+  "resources.remove.label": "Eliminar {title}",
+
+  "chat.title": "Pregunta sobre este viaje",
+  "chat.intro":
+    "Una conversación sobre este viaje, respondida por el modelo de IA que se ejecuta en esta computadora.",
+  "chat.hint.local":
+    "Este chat se ejecuta en esta máquina. Puede leer lo que guardaste con este viaje —tus planes, tus notas, tus lecturas guardadas—, pero los códigos de confirmación y los nombres de los viajeros se le ocultan a propósito, así que no puede decirte tu número de reserva.",
+  "chat.disclaimer":
+    "Generado por IA y nunca autoritativo. Voyalier no trata una respuesta como evidencia. Verifica cualquier cosa importante —requisitos de entrada, salud, seguridad, precios— con una fuente oficial.",
+  "chat.error": "No se pudo cargar esta conversación.",
+  "chat.thread.aria": "Conversación",
+  "chat.empty": "Todavía no has preguntado nada.",
+  "chat.role.user": "Tú",
+  "chat.role.assistant": "IA en el dispositivo",
+  "chat.label": "Tu mensaje",
+  "chat.placeholder": "Pregunta sobre tus planes…",
+  "chat.send": "Enviar",
+  "chat.sending": "Pensando…",
+  "chat.tooLong":
+    "Eso es más largo de lo que Voyalier puede enviar en un mensaje. Acórtalo e inténtalo de nuevo.",
+  "chat.groundedOn": "Basado en: {sources}",
+  "chat.itineraryFacts.one": "{count} plan confirmado",
+  "chat.itineraryFacts.other": "{count} planes confirmados",
+  "chat.saveToNotes": "Guardar en las notas",
+  "chat.saveToNotes.done": "Añadido a las notas de tu viaje.",
+  "chat.saveToNotes.error": "No se pudo añadir eso a tus notas.",
+  "chat.clear": "Borrar la conversación",
+  "chat.announce.cleared": "Conversación borrada.",
+  "chat.announce.reply": "La IA del dispositivo respondió.",
+  "chat.unavailable.title": "El chat necesita un modelo en esta computadora",
+  "chat.unavailable.body":
+    "Voyalier responde en el dispositivo con Ollama, y aquí no hay nada en ejecución todavía. Instala Ollama, descarga un modelo y esta conversación se abrirá. Todo lo demás de este viaje funciona sin ello.",
+  "chat.unavailable.link": "Abrir la configuración de IA en el dispositivo",
+  "chat.pointer.entry.title":
+    "Requisitos de entrada: Voyalier no es la autoridad",
+  "chat.pointer.entry.body":
+    "Si puedes entrar, y con qué, lo decide el gobierno del destino. La lista de preparación de tu viaje enlaza la fuente oficial, y el panel de preparación de visado recorre los pasos para tu nacionalidad.",
+  "chat.pointer.health.title": "Salud: Voyalier no es la autoridad",
+  "chat.pointer.health.body":
+    "Los requisitos de vacunación y de salud para entrar cambian y los deciden organismos oficiales. La lista de preparación de tu viaje enlaza los avisos sanitarios de este destino.",
+  "chat.pointer.safety.title": "Seguridad: Voyalier no es la autoridad",
+  "chat.pointer.safety.body":
+    "Los consejos de seguridad vienen de las recomendaciones de viaje de tu gobierno, no de un modelo. La lista de preparación de tu viaje enlaza el aviso oficial de este destino.",
+  "chat.pointer.prices.title": "Precios: Voyalier no tiene ninguno",
+  "chat.pointer.prices.body":
+    "Voyalier no guarda precios ni disponibilidad en vivo y nunca cotiza uno. Consúltalo directamente con el operador o el vendedor.",
 };
 
 /**

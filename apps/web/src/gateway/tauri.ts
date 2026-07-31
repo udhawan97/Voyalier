@@ -1,9 +1,9 @@
 import routes from "@voyalier/contracts/parity/routes.json";
 
 import type {
-  DocumentContent,
-  DocumentSummary,
   AddManualFactInput,
+  AddPackingItemInput,
+  AdvisoryPanel,
   AiPromptKind,
   AiPromptSettings,
   AppGateway,
@@ -14,9 +14,15 @@ import type {
   AssistRequestPreview,
   CandidateFact,
   CandidateStatus,
+  ChatMessage,
   ConfirmCandidateInput,
   ConfirmedFact,
+  CreateResourceInput,
   CreateTripInput,
+  CreateTripItemInput,
+  DestinationFactsSnapshot,
+  DocumentContent,
+  DocumentSummary,
   DownloadedPack,
   FcdoCountry,
   FetchAdvisoriesInput,
@@ -24,49 +30,49 @@ import type {
   HealthResponse,
   ImportDocumentInput,
   ImportResult,
+  InterestProfile,
   KeyValidation,
   LocalAiStatus,
   LocalModelPullResult,
   OfflineMapArchive,
   OfflineMapChunk,
   PackInfo,
+  PackingItem,
   PackSuggestion,
   PersonaWeights,
+  PlaceSummary,
   ProviderConfig,
   ProviderId,
+  PublicHolidaysSnapshot,
   Recommendation,
-  InterestProfile,
-  SetInterestProfileInput,
-  SetVisaItemProgressInput,
-  SetVisaNationalityInput,
-  SavePlaceInput,
+  ResearchSettings,
+  Resource,
   SavedPlace,
-  UpdateSavedPlaceInput,
-  AddPackingItemInput,
-  PackingItem,
-  UpdatePackingItemInput,
-  CreateTripItemInput,
-  TripItem,
-  UpdateTripItemInput,
+  SavePlaceInput,
   SearchHit,
-  WorkspaceSearchHit,
+  SetInterestProfileInput,
   SetProviderKeyInput,
   SetProviderModelInput,
+  SetResearchSettingsInput,
+  SetVisaItemProgressInput,
+  SetVisaNationalityInput,
   SuggestFieldValuesInput,
   TodayView,
-  AdvisoryPanel,
   Trip,
   TripBrief,
   TripDetail,
+  TripItem,
   TripNotes,
   TripSummary,
-  VisaPrep,
+  UpdatePackingItemInput,
+  UpdateResourceInput,
+  UpdateSavedPlaceInput,
   UpdateTripInput,
+  UpdateTripItemInput,
   VaultStatus,
-  DestinationFactsSnapshot,
-  PlaceSummary,
-  PublicHolidaysSnapshot,
+  VisaPrep,
   WeatherSnapshot,
+  WorkspaceSearchHit,
 } from "@voyalier/contracts";
 
 import { toAppError } from "./errors";
@@ -314,6 +320,35 @@ export function createTauriGateway(
 
     fetchPlaceSummary: (tripId: string) =>
       call<PlaceSummary>(command("fetchPlaceSummary"), { tripId }),
+
+    listResources: (tripId: string) =>
+      call<Resource[]>(command("listResources"), { tripId }),
+
+    createResource: (input: CreateResourceInput) =>
+      call<Resource>(command("createResource"), input),
+
+    updateResource: (input: UpdateResourceInput) =>
+      call<Resource>(command("updateResource"), input),
+
+    deleteResource: (resourceId: string) =>
+      call<void>(command("deleteResource"), { resourceId }),
+
+    fetchResourceDetails: (resourceId: string) =>
+      call<Resource>(command("fetchResourceDetails"), { resourceId }),
+
+    getResearchSettings: () =>
+      call<ResearchSettings>(command("getResearchSettings"), {}),
+
+    setResearchSettings: (input: SetResearchSettingsInput) =>
+      call<ResearchSettings>(command("setResearchSettings"), input),
+
+    listChatMessages: (tripId: string) =>
+      call<ChatMessage[]>(command("listChatMessages"), { tripId }),
+
+    sendChatMessage: (tripId: string, message: string) =>
+      call<ChatMessage>(command("sendChatMessage"), { tripId, message }),
+
+    clearChat: (tripId: string) => call<void>(command("clearChat"), { tripId }),
 
     searchTrip: (tripId: string, query: string) =>
       call<SearchHit[]>(command("searchTrip"), { tripId, query }),

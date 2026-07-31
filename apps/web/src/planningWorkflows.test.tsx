@@ -1,4 +1,10 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
 
 import { renderApp } from "./test/helpers";
@@ -350,6 +356,18 @@ describe("traveler-owned planning workflows", () => {
           : mock.addPackingItem(input),
     });
     await openKyoto();
+
+    // Let the deferred panels finish their own initial loads first.
+    //
+    // `reportTransportSuccess` clears whatever failure is on the books, so a
+    // load landing *after* this write fails flips the topbar back to Ready and
+    // the assertion below reads a state the traveler never had. Which side of
+    // the click those loads land on comes down to how many of them there are,
+    // so it was passing by luck rather than by anything the panel does — this
+    // is the settled page a real traveler types into.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
 
     const packing = await screen.findByRole("region", {
       name: "Packing checklist",

@@ -13,16 +13,19 @@ Blueprint, an honest readiness check, and a redaction-first brief.
 
 The current public beta covers the full local trip loop: create and
 edit a trip; import confirmation text, HTML, email, or a local file; review every
-suggestion; check conflicts and readiness; save consented advice, weather, city
-packs, recommendations, saved places, packing, manual activities/transfers, and
-maps; search the whole local workspace; travel with Today; switch between
-English and Spanish; protect sensitive evidence in the encrypted vault; and
-share a redacted brief.
+suggestion; check conflicts and readiness; keep the links and files you want to
+read as research resources, separate from evidence; save consented advice,
+weather, city packs, recommendations, saved places, packing, manual
+activities/transfers, and maps; search the whole local workspace; travel with
+Today; switch between English and Spanish; protect sensitive evidence in the
+encrypted vault; and share a redacted brief.
 
 Optional Ollama, OpenAI, and Anthropic assistance sits beside that loop. It adds
 guided setup, validated keys, editable instructions, lodging-date drafts, and an
 exact outbound-payload preview—but never replaces deterministic rules or the
-traveler's review. The in-app updater is minisign-verified and carries checksums
+traveler's review. Asking questions about a trip in conversation is on-device
+only: it runs against a local Ollama model, and cloud providers are deliberately
+not offered there, because a conversation cannot be previewed send by send. The in-app updater is minisign-verified and carries checksums
 and build provenance. OS-signed installers still require paid platform
 certificates, so the packaged builds trip a one-time "unidentified developer"
 warning on first launch — [Download and install](/Voyalier/download/) covers that,

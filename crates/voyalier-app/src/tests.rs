@@ -8,7 +8,9 @@ use std::{fs, path::PathBuf};
 
 use super::*;
 use voyalier_core::KeyValidationStatus;
-use voyalier_core::{CandidateStatus, DocumentKind, FactPayload, FactType};
+use voyalier_core::{
+    CandidateStatus, DocumentKind, FactPayload, FactType, HighStakesTopic, ResourceKind,
+};
 
 #[test]
 fn persists_trips_across_restarts() {
@@ -3920,10 +3922,426 @@ fn a_null_in_a_sealed_column_still_opens_the_workspace() {
     cleanup_database(database);
 }
 
+/// Captures what was POSTed so the redaction claim is checked against the
+/// actual bytes, not against a preview that agrees with itself.
+struct ChatStub {
+    last_body: std::sync::Mutex<String>,
+    reply: String,
+}
+
+impl ChatStub {
+    fn new(reply: &str) -> Arc<Self> {
+        Arc::new(Self {
+            last_body: std::sync::Mutex::new(String::new()),
+            reply: reply.to_owned(),
+        })
+    }
+
+    fn body(&self) -> String {
+        self.last_body.lock().expect("lock").clone()
+    }
+}
+
+impl AdviceFetcher for ChatStub {
+    fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
+        panic!("chat must POST, not GET");
+    }
+
+    fn post_json(
+        &self,
+        url: &str,
+        body: &str,
+        _headers: &[(&str, &str)],
+    ) -> Result<String, AppError> {
+        assert_eq!(url, "http://localhost:11434/api/chat");
+        *self.last_body.lock().expect("lock") = body.to_owned();
+        Ok(format!(
+            r#"{{ "message": {{ "role": "assistant", "content": {} }} }}"#,
+            serde_json::to_string(&self.reply).expect("json")
+        ))
+    }
+}
+
+fn trip_with_a_secret_flight(service: &AppService) -> Trip {
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    service
+        .add_manual_fact(AddManualFactInput {
+            trip_id: trip.id.clone(),
+            fact_type: FactType::FlightSegment,
+            payload: FactPayload {
+                flight_number: Some("FP18".to_owned()),
+                departure_airport_iata: Some("ORD".to_owned()),
+                arrival_airport_iata: Some("HND".to_owned()),
+                departure_local: Some("2027-04-02T10:00".to_owned()),
+                confirmation_code: Some("SECRET-PNR".to_owned()),
+                passenger_name: Some("Jamie Traveler".to_owned()),
+                ..FactPayload::default()
+            },
+        })
+        .expect("manual flight");
+    trip
+}
+
+fn link_input(trip_id: &str, url: &str, title: &str) -> CreateResourceInput {
+    CreateResourceInput {
+        trip_id: trip_id.to_owned(),
+        kind: ResourceKind::Link,
+        url: Some(url.to_owned()),
+        file_name: None,
+        title: title.to_owned(),
+        note: String::new(),
+        tags: Vec::new(),
+    }
+}
+
+#[test]
+fn saving_the_same_page_twice_keeps_one_resource_rather_than_two() {
+    let database = temp_database("resource-duplicate");
+    let service = open_test_service(&database).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+    let first = service
+        .create_resource(link_input(&trip.id, "https://example.com/guide", "Guide"))
+        .expect("first save");
+    // The same page, dressed in a campaign parameter and a trailing slash.
+    let second = service
+        .create_resource(link_input(
+            &trip.id,
+            "https://example.com/guide/?utm_source=newsletter",
+            "Guide again",
+        ))
+        .expect("second save");
+
+    assert_eq!(first.id, second.id, "the repeat save returns the original");
+    assert_eq!(service.list_resources(&trip.id).expect("list").len(), 1);
+
+    drop(service);
+    cleanup_database(database);
+}
+
+#[test]
+fn a_resource_never_becomes_evidence_or_moves_readiness() {
+    let database = temp_database("resource-not-evidence");
+    let service = open_test_service(&database).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    let before = service.get_trip(&trip.id).expect("before");
+
+    service
+        .create_resource(CreateResourceInput {
+            trip_id: trip.id.clone(),
+            kind: ResourceKind::Link,
+            // Deliberately a confirmation-shaped page. Keeping it is filing, not
+            // importing: nothing here is parsed.
+            url: Some("https://airline.example/booking/ABC123".to_owned()),
+            file_name: None,
+            title: "My booking".to_owned(),
+            note: String::new(),
+            tags: Vec::new(),
+        })
+        .expect("resource");
+
+    let after = service.get_trip(&trip.id).expect("after");
+    assert_eq!(after.pending_candidate_count, 0);
+    assert_eq!(after.confirmed_facts.len(), before.confirmed_facts.len());
+    assert_eq!(after.readiness.status, before.readiness.status);
+
+    drop(service);
+    cleanup_database(database);
+}
+
+#[test]
+fn fetching_page_details_is_refused_before_consent_and_reaches_no_site() {
+    let database = temp_database("resource-consent");
+    // Panics on any request, so "no network happened" is proved rather than
+    // inferred from an error the code under test could have swallowed.
+    let service = open_test_service_with_fetcher(&database, Arc::new(FakeFetcher::offline()))
+        .expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    let resource = service
+        .create_resource(link_input(&trip.id, "https://example.com/guide", "Guide"))
+        .expect("resource");
+
+    let error = service
+        .fetch_resource_details(&resource.id)
+        .expect_err("refused before consent");
+    assert_eq!(error.code, ErrorCode::ValidationInvalidInput);
+    assert!(
+        service.list_resources(&trip.id).expect("list")[0]
+            .snapshot
+            .is_none()
+    );
+
+    drop(service);
+    cleanup_database(database);
+}
+
+#[test]
+fn a_fetched_page_becomes_a_dated_snapshot_that_search_can_find() {
+    let database = temp_database("resource-snapshot");
+    let fetcher = Arc::new(
+        FakeFetcher::default().route_bytes(
+            "example.com/guide",
+            b"<html><head><title>Kyoto in April</title></head><body>\
+          <script>alert('x')</script><p>Peak bloom is the first week.</p></body></html>"
+                .to_vec(),
+        ),
+    );
+    let service = open_test_service_with_fetcher(&database, fetcher).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    service
+        .set_research_settings(SetResearchSettingsInput {
+            auto_fetch_details: true,
+        })
+        .expect("consent");
+    let resource = service
+        .create_resource(link_input(&trip.id, "https://example.com/guide", ""))
+        .expect("resource");
+
+    let fetched = service
+        .fetch_resource_details(&resource.id)
+        .expect("fetched");
+    let snapshot = fetched.snapshot.as_ref().expect("snapshot");
+    assert!(snapshot.text.contains("Peak bloom"));
+    assert!(
+        !snapshot.text.contains("alert"),
+        "script text is never stored"
+    );
+    assert!(!snapshot.fetched_at.is_empty());
+    assert!(!snapshot.content_hash.is_empty());
+    // The title was derived from the address, so the page's own name replaces it.
+    assert_eq!(fetched.title, "Kyoto in April");
+
+    let hits = service.search_trip(&trip.id, "bloom").expect("search");
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].source, SearchHitSource::Resource);
+    assert_eq!(hits[0].record_id, resource.id);
+
+    let workspace = service.search_workspace("bloom").expect("workspace");
+    assert_eq!(workspace[0].source, WorkspaceSearchSource::Resource);
+
+    drop(service);
+    cleanup_database(database);
+}
+
+#[test]
+fn a_title_the_traveler_chose_survives_a_fetch() {
+    let database = temp_database("resource-title");
+    let fetcher = Arc::new(FakeFetcher::default().route_bytes(
+        "example.com/guide",
+        b"<html><head><title>SEO Spam | Buy Now</title></head><body>words</body></html>".to_vec(),
+    ));
+    let service = open_test_service_with_fetcher(&database, fetcher).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    service
+        .set_research_settings(SetResearchSettingsInput {
+            auto_fetch_details: true,
+        })
+        .expect("consent");
+    let resource = service
+        .create_resource(link_input(
+            &trip.id,
+            "https://example.com/guide",
+            "Blossom timing",
+        ))
+        .expect("resource");
+
+    let fetched = service
+        .fetch_resource_details(&resource.id)
+        .expect("fetched");
+    assert_eq!(fetched.title, "Blossom timing");
+
+    drop(service);
+    cleanup_database(database);
+}
+
+#[test]
+fn chat_posts_a_redacted_prompt_to_ollama_and_logs_only_metadata() {
+    let database = temp_database("chat-redaction");
+    let stub = ChatStub::new("You land in the early afternoon.");
+    let service = open_test_service_with_fetcher(&database, stub.clone()).expect("service");
+    let trip = trip_with_a_secret_flight(&service);
+
+    let reply = service
+        .send_chat_message(&trip.id, "when does my flight land?")
+        .expect("reply");
+    assert_eq!(reply.text, "You land in the early afternoon.");
+    assert_eq!(reply.role, ChatRole::Assistant);
+    assert_eq!(reply.itinerary_facts, 1);
+
+    // The bytes that actually left: the itinerary, never the secrets. Being on
+    // this machine does not move the line.
+    let body = stub.body();
+    assert!(body.contains("FP18"));
+    assert!(!body.contains("SECRET-PNR"));
+    assert!(!body.contains("Jamie Traveler"));
+
+    // Both turns are kept, and the audit log holds neither of them.
+    let thread = service.list_chat_messages(&trip.id).expect("thread");
+    assert_eq!(thread.len(), 2);
+    assert_eq!(thread[0].role, ChatRole::User);
+    let activity = service.list_assist_activity(&trip.id).expect("activity");
+    let logged = serde_json::to_string(&activity).expect("json");
+    assert!(!logged.contains("flight land"));
+    assert!(!logged.contains("early afternoon"));
+
+    drop(service);
+    cleanup_database(database);
+}
+
+#[test]
+fn chat_grounds_on_saved_research_and_cites_what_it_used() {
+    let database = temp_database("chat-grounding");
+    let stub = ChatStub::new("The first week of April.");
+    let service = open_test_service_with_fetcher(&database, stub.clone()).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    let resource = service
+        .create_resource(CreateResourceInput {
+            trip_id: trip.id.clone(),
+            kind: ResourceKind::Link,
+            url: Some("https://example.com/blossom".to_owned()),
+            file_name: None,
+            title: "Blossom timing".to_owned(),
+            note: "Peak bloom is usually the first week of April".to_owned(),
+            tags: Vec::new(),
+        })
+        .expect("resource");
+
+    let reply = service
+        .send_chat_message(&trip.id, "when is peak bloom?")
+        .expect("reply");
+
+    assert!(stub.body().contains("Peak bloom is usually the first week"));
+    assert_eq!(reply.grounding.len(), 1);
+    assert_eq!(reply.grounding[0].record_id, resource.id);
+    assert_eq!(reply.grounding[0].label, "Blossom timing");
+
+    drop(service);
+    cleanup_database(database);
+}
+
+#[test]
+fn a_visa_question_gets_a_pointer_without_losing_its_answer() {
+    let database = temp_database("chat-pointer");
+    let stub = ChatStub::new("I can't decide entry rules for you.");
+    let service = open_test_service_with_fetcher(&database, stub).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+    let reply = service
+        .send_chat_message(&trip.id, "do I need a visa for Japan?")
+        .expect("reply");
+
+    assert_eq!(reply.pointers, vec![HighStakesTopic::Entry]);
+    // Flagged, never censored: the model's words still come back.
+    assert_eq!(reply.text, "I can't decide entry rules for you.");
+
+    let ordinary = service
+        .send_chat_message(&trip.id, "what should I pack?")
+        .expect("reply");
+    assert!(ordinary.pointers.is_empty());
+
+    drop(service);
+    cleanup_database(database);
+}
+
+#[test]
+fn a_transcript_never_becomes_searchable_and_so_cannot_ground_a_later_answer() {
+    let database = temp_database("chat-not-searchable");
+    let stub = ChatStub::new("Ryokan Fictional is a lovely invented place.");
+    let service = open_test_service_with_fetcher(&database, stub.clone()).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+    service
+        .send_chat_message(&trip.id, "tell me about Ryokan Fictional")
+        .expect("reply");
+
+    // Neither side of the exchange is in the corpus...
+    assert!(
+        service
+            .search_trip(&trip.id, "Ryokan")
+            .expect("trip search")
+            .is_empty()
+    );
+    assert!(
+        service
+            .search_workspace("Ryokan")
+            .expect("workspace search")
+            .is_empty()
+    );
+    // ...so a second question cannot be grounded on the first answer.
+    let second = service
+        .send_chat_message(&trip.id, "what did you say about Ryokan Fictional?")
+        .expect("second reply");
+    assert!(second.grounding.is_empty());
+
+    drop(service);
+    cleanup_database(database);
+}
+
+#[test]
+fn a_model_that_fails_still_leaves_the_question_in_the_thread() {
+    let database = temp_database("chat-failure");
+    let service = open_test_service_with_fetcher(
+        &database,
+        Arc::new(FakeFetcher::default().route_fail(
+            "11434/api/chat",
+            ErrorCode::AssistUnreachable,
+            "no model is running",
+        )),
+    )
+    .expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+    service
+        .send_chat_message(&trip.id, "when does my flight land?")
+        .expect_err("model unreachable");
+
+    let thread = service.list_chat_messages(&trip.id).expect("thread");
+    assert_eq!(thread.len(), 1, "the question survives the failure");
+    assert_eq!(thread[0].role, ChatRole::User);
+    // A call that never succeeded is not logged, same as every other AI path.
+    assert!(
+        service
+            .list_assist_activity(&trip.id)
+            .expect("activity")
+            .is_empty()
+    );
+
+    drop(service);
+    cleanup_database(database);
+}
+
+#[test]
+fn clearing_a_thread_removes_it_without_touching_the_trip() {
+    let database = temp_database("chat-clear");
+    let stub = ChatStub::new("Sure.");
+    let service = open_test_service_with_fetcher(&database, stub).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    service.send_chat_message(&trip.id, "hello").expect("reply");
+
+    service.clear_chat(&trip.id).expect("clear");
+
+    assert!(
+        service
+            .list_chat_messages(&trip.id)
+            .expect("thread")
+            .is_empty()
+    );
+    service.get_trip(&trip.id).expect("trip still there");
+
+    drop(service);
+    cleanup_database(database);
+}
+
 #[test]
 fn sealed_columns_round_trip_through_the_vault() {
     let database = temp_database("sealed-columns");
-    let service = open_test_service(&database).expect("service");
+    // A chat turn is one of the sealed columns, so the fixture needs a model to
+    // answer. Faking it keeps this a storage test rather than an Ollama test.
+    let fetcher = Arc::new(FakeFetcher::default().route(
+        "11434/api/chat",
+        r#"{"message":{"content":"Your flight lands in the early afternoon."}}"#,
+    ));
+    let service = open_test_service_with_fetcher(&database, fetcher).expect("service");
     let trip = service.create_trip(valid_trip_input()).expect("trip");
 
     // Populate every sealed column: a document, its candidates, a confirmed
@@ -4010,6 +4428,20 @@ fn sealed_columns_round_trip_through_the_vault() {
             note: Some("HDFC statements requested 12 Jul".to_owned()),
         })
         .expect("visa progress");
+    service
+        .create_resource(CreateResourceInput {
+            trip_id: trip.id.clone(),
+            kind: ResourceKind::Link,
+            url: Some("https://example.com/kyoto-guide".to_owned()),
+            file_name: None,
+            title: "Kyoto guide".to_owned(),
+            note: "Ask for Rin at the desk, code 5150".to_owned(),
+            tags: vec!["kyoto".to_owned()],
+        })
+        .expect("resource");
+    service
+        .send_chat_message(&trip.id, "when does my flight land?")
+        .expect("chat turn");
 
     let connection = service.connection().expect("connection");
     for (table, column) in SEALED_COLUMNS {
@@ -4053,6 +4485,12 @@ fn sealed_columns_round_trip_through_the_vault() {
         detail.trip_items[0].location.as_deref(),
         Some("12 Secret Lane")
     );
+    let resources = service.list_resources(&trip.id).expect("resources");
+    assert_eq!(resources[0].note, "Ask for Rin at the desk, code 5150");
+    let thread = service.list_chat_messages(&trip.id).expect("thread");
+    assert_eq!(thread[0].text, "when does my flight land?");
+    assert!(!thread[1].text.starts_with(VAULT_PREFIX));
+
     let visa = service.get_visa_prep(&trip.id).expect("visa prep");
     assert_eq!(visa.nationality_iso2.as_deref(), Some("IN"));
     assert_eq!(

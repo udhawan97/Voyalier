@@ -28,6 +28,10 @@ const CURATED_AS_OF: &str = "2026-07-28";
 /// about the other, and one date covering both would age Japan's table every
 /// time Canada's was checked.
 const JP_CURATED_AS_OF: &str = "2026-07-30";
+const UKVI: &str = "UK Visas and Immigration (GOV.UK)";
+const GB_CURATED_AS_OF: &str = "2026-07-31";
+/// GOV.UK's own "Check if you need a UK visa" questionnaire.
+const GB_CHECK: &str = "https://www.gov.uk/check-uk-visa";
 
 /// Content language of the curated prose, so the interface can mark it up rather
 /// than let a non-English reader assume it was translated.
@@ -309,12 +313,39 @@ pub fn entry_path(destination_iso2: &str, nationality_iso2: &str) -> Option<Entr
     match destination_iso2 {
         "CA" => canada_entry_path(nationality_iso2),
         "JP" => japan_entry_path(nationality_iso2),
+        "GB" => united_kingdom_entry_path(nationality_iso2),
         // Anywhere else is uncurated. Quoting one of these authorities for a
         // destination it does not govern would put a government with no
         // connection to the trip in front of the traveler, under the words "the
         // official source".
         _ => None,
     }
+}
+
+/// The United Kingdom, named as an authority without a resolved route.
+///
+/// GOV.UK does not publish a per-nationality table the way IRCC and MOFA do. It
+/// publishes a questionnaire, because which of an ETA, a Standard Visitor visa,
+/// or neither applies turns on the purpose and length of the visit as well as
+/// the passport. So every pair here is `Unknown`, on purpose.
+///
+/// That is curation, not a gap. Returning `None` would say no authority governs
+/// a UK trip, which is false and leaves the traveler with nothing; deriving a
+/// route from the passport alone would be Voyalier answering a question the
+/// authority declined to answer in one step — the failure ADR-0006 exists to
+/// prevent. Naming the Home Office and handing over its own checker is the only
+/// claim here, and it is true for every passport.
+fn united_kingdom_entry_path(nationality_iso2: &str) -> Option<EntryPathQuote> {
+    // Deliberately unread: the answer does not vary by passport, and taking the
+    // argument keeps this the same shape as every other destination.
+    let _ = nationality_iso2;
+    Some(EntryPathQuote {
+        path: EntryPath::Unknown,
+        source_name: UKVI.to_owned(),
+        source_url: GB_CHECK.to_owned(),
+        curated_as_of: GB_CURATED_AS_OF.to_owned(),
+        language: LANGUAGE.to_owned(),
+    })
 }
 
 fn canada_entry_path(nationality_iso2: &str) -> Option<EntryPathQuote> {
@@ -1020,6 +1051,22 @@ mod tests {
     }
 
     #[test]
+    fn the_united_kingdom_names_its_authority_without_resolving_a_route() {
+        // GOV.UK publishes a questionnaire, not a per-nationality table, so the
+        // honest answer for every passport is the same one: here is who decides,
+        // and here is their own checker.
+        for nationality in ["IN", "US", "NG", "AU", "zz", ""] {
+            let quote = entry_path("GB", nationality).expect("the UK is curated");
+            assert_eq!(quote.path, EntryPath::Unknown, "{nationality}");
+            assert!(quote.source_url.starts_with("https://www.gov.uk/"));
+            assert_eq!(quote.source_name, UKVI);
+        }
+        // Unknown yields no journey: nothing walks a traveler through a route
+        // that was never established as theirs.
+        assert!(visa_journey("GB", "IN").is_none());
+    }
+
+    #[test]
     fn every_curated_link_is_a_well_formed_official_url() {
         for journey in journeys() {
             let (domain, _) = official_domain_and_prefix(&journey.destination_iso2);
@@ -1115,7 +1162,7 @@ mod tests {
         // ADR-0006, amended 2026-07-29 and again 2026-07-30. A curated
         // destination must not stand in as the authority for any other one: a
         // London -> Tokyo trip was once told to confirm its case at canada.ca.
-        for destination in ["FR", "GB", "", "CAN", "ca", "jp"] {
+        for destination in ["FR", "BR", "", "CAN", "ca", "jp", "gb"] {
             assert!(
                 entry_path(destination, "IN").is_none(),
                 "{destination} is not curated, so there is no authority to name"
@@ -1132,6 +1179,13 @@ mod tests {
 
             let japan = entry_path("JP", nationality).expect("Japan is curated");
             assert_eq!(japan.source_name, MOFA);
+
+            // The UK answers for every passport too — with the same answer,
+            // because GOV.UK publishes a questionnaire rather than a table.
+            let uk = entry_path("GB", nationality).expect("the UK is curated");
+            assert_eq!(uk.source_name, UKVI);
+            assert!(uk.source_url.starts_with("https://www.gov.uk/"));
+            assert_eq!(uk.path, EntryPath::Unknown);
             assert!(japan.source_url.starts_with("https://www.mofa.go.jp/"));
         }
     }

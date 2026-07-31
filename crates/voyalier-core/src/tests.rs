@@ -301,6 +301,10 @@ fn parity_limits_match_the_contract() {
         ("maxNotesChars", crate::types::MAX_NOTES_CHARS),
         ("maxQueryLen", crate::search::MAX_QUERY_LEN),
         ("maxAiPromptLen", crate::MAX_AI_PROMPT_LEN),
+        ("maxChatMessageChars", crate::MAX_CHAT_MESSAGE_CHARS),
+        ("maxResourceTitleChars", crate::MAX_RESOURCE_TITLE_CHARS),
+        ("maxResourceNoteChars", crate::MAX_RESOURCE_NOTE_CHARS),
+        ("maxResourceUrlChars", crate::MAX_RESOURCE_URL_CHARS),
     ];
     for (key, value) in expected {
         assert_eq!(

@@ -5,16 +5,18 @@ use voyalier_app::{AppService, BackupInfo, RestorePreview};
 use voyalier_core::{
     AddManualFactInput, AddPackingItemInput, AdvisoryPanel, AiPromptSettings, AppError,
     AssistActivityEntry, AssistDraftResult, AssistReply, AssistRequestPreview, CandidateFact,
-    CandidateStatus, ConfirmCandidateInput, ConfirmedFact, CreateTripInput, CreateTripItemInput,
-    DestinationFactsSnapshot, DocumentContent, DocumentSummary, DownloadedPack, ErrorCode,
-    FcdoCountry, FieldSuggestion, HealthResponse, ImportDocumentInput, ImportResult,
-    InterestProfile, KeyValidation, LocalAiStatus, LocalModelPullResult, OfflineMapArchive,
-    OfflineMapChunk, PackInfo, PackSuggestion, PackingItem, PersonaWeights, PlaceSummary,
-    ProviderConfig, PublicHolidaysSnapshot, Recommendation, SavePlaceInput, SavedPlace, SearchHit,
-    SetInterestProfileInput, SetVisaItemProgressInput, SetVisaNationalityInput, TodayView, Trip,
-    TripBrief, TripDetail, TripItem, TripNotes, TripSummary, UpdatePackingItemInput,
-    UpdateSavedPlaceInput, UpdateTripInput, UpdateTripItemInput, VaultStatus, VisaPrep,
-    WeatherSnapshot, WorkspaceSearchHit,
+    CandidateStatus, ChatMessage, ConfirmCandidateInput, ConfirmedFact, CreateResourceInput,
+    CreateTripInput, CreateTripItemInput, DestinationFactsSnapshot, DocumentContent,
+    DocumentSummary, DownloadedPack, ErrorCode, FcdoCountry, FieldSuggestion, HealthResponse,
+    ImportDocumentInput, ImportResult, InterestProfile, KeyValidation, LocalAiStatus,
+    LocalModelPullResult, OfflineMapArchive, OfflineMapChunk, PackInfo, PackSuggestion,
+    PackingItem, PersonaWeights, PlaceSummary, ProviderConfig, PublicHolidaysSnapshot,
+    Recommendation, ResearchSettings, Resource, SavePlaceInput, SavedPlace, SearchHit,
+    SetInterestProfileInput, SetResearchSettingsInput, SetVisaItemProgressInput,
+    SetVisaNationalityInput, TodayView, Trip, TripBrief, TripDetail, TripItem, TripNotes,
+    TripSummary, UpdatePackingItemInput, UpdateResourceInput, UpdateSavedPlaceInput,
+    UpdateTripInput, UpdateTripItemInput, VaultStatus, VisaPrep, WeatherSnapshot,
+    WorkspaceSearchHit,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -654,6 +656,94 @@ fn fetch_place_summary(
     service.fetch_place_summary(&input.trip_id)
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ResourceIdInput {
+    resource_id: String,
+}
+
+#[tauri::command]
+fn list_resources(
+    input: TripIdInput,
+    service: State<'_, AppService>,
+) -> Result<Vec<Resource>, AppError> {
+    service.list_resources(&input.trip_id)
+}
+
+#[tauri::command]
+fn create_resource(
+    input: CreateResourceInput,
+    service: State<'_, AppService>,
+) -> Result<Resource, AppError> {
+    service.create_resource(input)
+}
+
+#[tauri::command]
+fn update_resource(
+    input: UpdateResourceInput,
+    service: State<'_, AppService>,
+) -> Result<Resource, AppError> {
+    service.update_resource(input)
+}
+
+#[tauri::command]
+fn delete_resource(input: ResourceIdInput, service: State<'_, AppService>) -> Result<(), AppError> {
+    service.delete_resource(&input.resource_id)
+}
+
+#[tauri::command]
+fn fetch_resource_details(
+    input: ResourceIdInput,
+    service: State<'_, AppService>,
+) -> Result<Resource, AppError> {
+    service.fetch_resource_details(&input.resource_id)
+}
+
+#[tauri::command]
+fn get_research_settings(
+    input: EmptyInput,
+    service: State<'_, AppService>,
+) -> Result<ResearchSettings, AppError> {
+    let _ = input;
+    service.get_research_settings()
+}
+
+#[tauri::command]
+fn set_research_settings(
+    input: SetResearchSettingsInput,
+    service: State<'_, AppService>,
+) -> Result<ResearchSettings, AppError> {
+    service.set_research_settings(input)
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SendChatMessageInput {
+    trip_id: String,
+    message: String,
+}
+
+#[tauri::command]
+fn list_chat_messages(
+    input: TripIdInput,
+    service: State<'_, AppService>,
+) -> Result<Vec<ChatMessage>, AppError> {
+    service.list_chat_messages(&input.trip_id)
+}
+
+#[tauri::command]
+fn send_chat_message(
+    input: SendChatMessageInput,
+    service: State<'_, AppService>,
+) -> Result<ChatMessage, AppError> {
+    service.send_chat_message(&input.trip_id, &input.message)
+}
+
+#[tauri::command]
+fn clear_chat(input: TripIdInput, service: State<'_, AppService>) -> Result<(), AppError> {
+    service.clear_chat(&input.trip_id)
+}
+
 #[tauri::command]
 fn delete_trip(input: TripIdInput, service: State<'_, AppService>) -> Result<(), AppError> {
     service.delete_trip(&input.trip_id)
@@ -1118,6 +1208,16 @@ fn builder<R: tauri::Runtime>(
             fetch_destination_facts,
             fetch_public_holidays,
             fetch_place_summary,
+            list_resources,
+            create_resource,
+            update_resource,
+            delete_resource,
+            fetch_resource_details,
+            get_research_settings,
+            set_research_settings,
+            list_chat_messages,
+            send_chat_message,
+            clear_chat,
             delete_trip,
             import_document,
             get_trip_notes,

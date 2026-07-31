@@ -17,38 +17,44 @@ use voyalier_core::{
     AdvisoryEntry, AdvisoryPanel, AdvisorySource, AiPrompt, AiPromptKind, AiPromptSettings,
     AirQualityDay, AppError, AssistActivityEntry, AssistDraftResult, AssistReply,
     AssistRequestPreview, AstroDay, AttributedPackPlace, CandidateFact, CandidateStatus,
-    ClimateNormals, ConfirmCandidateInput, ConfirmedFact, CreateTripInput, CreateTripItemInput,
-    DRAFT_LODGING_DATES_SYSTEM_PROMPT, DestinationFactsSnapshot, DocumentContent, DocumentKind,
-    DocumentParse, DocumentSummary, DownloadedPack, ErrorCode, ExtractionMethod, FCDO_COUNTRIES,
-    FIELD_SUGGESTION_LIMIT, FactPayload, FactType, FcdoCountry, FieldSuggestion, GeocodedPlace,
-    HealthNotice, HealthResponse, ImportDocumentInput, ImportResult, IntelligenceMode,
-    InterestProfile, KeyValidation, LocalAiStatus, LocalModelPullResult, LodgingDateProposal,
-    MAX_AI_PROMPT_LEN, MAX_NOTES_CHARS, MAX_OFFLINE_MAP_BYTES, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,
-    OfflineMapArchive, OfflineMapChunk, OfflineMapDescriptor, PROVIDERS, PackContent, PackInfo,
-    PackSuggestion, PackingItem, PersonaWeights, PlaceSummary, ProviderConfig, ProviderId,
-    PublicHolidaysSnapshot, Recommendation, RedactionPolicy, SEARCH_SUGGESTION_LIMIT,
-    SavePlaceInput, SavedPlace, SearchHit, SearchableDocument, SetInterestProfileInput,
-    SetVisaItemProgressInput, SetVisaNationalityInput, SourceDocument, SourceState, SourceStatus,
-    SuggestionSource, TodayView, Trip, TripAssessment, TripBrief, TripDetail, TripItem, TripNotes,
-    TripStatus, TripSummary, UpdatePackingItemInput, UpdateSavedPlaceInput, UpdateTripInput,
-    UpdateTripItemInput, VisaPrep, VisaSelfReport, WarningCode, WeatherAlert, WeatherSnapshot,
-    WorkspaceSearchHit, WorkspaceSearchRecord, WorkspaceSearchSource, advisory_country,
-    air_quality, assess_trip, build_assist_preview, build_assist_request, build_draft_preview,
-    build_key_validation_request, build_packing_list, build_pull_body, build_today_view,
-    build_trip_brief, ca_gac_advisory, cdc_health_notices, changed_payload_fields, climate_normals,
-    compute_astro_day, country_facts, de_aa_advisory, detect_planned_item_conflicts, ecb_rates,
-    entry_from_fcdo, estimate_flight_emissions, estimate_tokens, fact_identity, fact_search_text,
-    forecast, geocode, holidays_within, interpret_key_validation, interpret_pull_response,
-    matching_airports, nearest_airports, new_id, now_rfc3339, nws_alerts, offline_map_download_url,
-    pack_catalog, pack_download_url, parse_assist_reply, parse_import, parse_lodging_dates_reply,
-    parse_pack_content, place_summary, provider_info, public_holidays, rank_field_suggestions,
-    recommend_attributed_places, saved_place_identity, school_holidays, school_holidays_covered,
+    ChatContext, ChatMessage, ChatRole, ClimateNormals, ConfirmCandidateInput, ConfirmedFact,
+    CreateResourceInput, CreateTripInput, CreateTripItemInput, DRAFT_LODGING_DATES_SYSTEM_PROMPT,
+    DestinationFactsSnapshot, DocumentContent, DocumentKind, DocumentParse, DocumentSummary,
+    DownloadedPack, ErrorCode, ExtractionMethod, FCDO_COUNTRIES, FIELD_SUGGESTION_LIMIT,
+    FactPayload, FactType, FcdoCountry, FieldSuggestion, GeocodedPlace, HealthNotice,
+    HealthResponse, ImportDocumentInput, ImportResult, IntelligenceMode, InterestProfile,
+    KeyValidation, LocalAiStatus, LocalModelPullResult, LodgingDateProposal, MAX_AI_PROMPT_LEN,
+    MAX_CHAT_CONTEXT_RECORDS, MAX_CHAT_EXCERPT_CHARS, MAX_NOTES_CHARS, MAX_OFFLINE_MAP_BYTES,
+    OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OfflineMapArchive, OfflineMapChunk, OfflineMapDescriptor,
+    PROVIDERS, PackContent, PackInfo, PackSuggestion, PackingItem, PersonaWeights, PlaceSummary,
+    ProviderConfig, ProviderId, PublicHolidaysSnapshot, Recommendation, RedactionPolicy,
+    ResearchSettings, Resource, ResourceSnapshot, SEARCH_SUGGESTION_LIMIT, SavePlaceInput,
+    SavedPlace, SearchHit, SearchHitSource, SearchableDocument, SearchableResource,
+    SetInterestProfileInput, SetResearchSettingsInput, SetVisaItemProgressInput,
+    SetVisaNationalityInput, SourceDocument, SourceState, SourceStatus, SuggestionSource,
+    TodayView, Trip, TripAssessment, TripBrief, TripDetail, TripItem, TripNotes, TripStatus,
+    TripSummary, UpdatePackingItemInput, UpdateResourceInput, UpdateSavedPlaceInput,
+    UpdateTripInput, UpdateTripItemInput, VisaPrep, VisaSelfReport, WarningCode, WeatherAlert,
+    WeatherSnapshot, WorkspaceSearchHit, WorkspaceSearchRecord, WorkspaceSearchSource,
+    advisory_country, air_quality, assess_trip, build_assist_preview, build_assist_request,
+    build_chat_prompt, build_draft_preview, build_key_validation_request, build_packing_list,
+    build_pull_body, build_today_view, build_trip_brief, ca_gac_advisory, cdc_health_notices,
+    changed_payload_fields, climate_normals, compute_astro_day, country_facts, de_aa_advisory,
+    derived_link_title, detect_planned_item_conflicts, ecb_rates, entry_from_fcdo,
+    estimate_flight_emissions, estimate_tokens, extract_readable_page, fact_identity,
+    fact_search_text, forecast, geocode, high_stakes_topics, holidays_within,
+    interpret_key_validation, interpret_pull_response, matching_airports, nearest_airports, new_id,
+    now_rfc3339, nws_alerts, offline_map_download_url, pack_catalog, pack_download_url,
+    parse_assist_reply, parse_import, parse_lodging_dates_reply, parse_pack_content, place_summary,
+    provider_info, public_holidays, rank_field_suggestions, recommend_attributed_places,
+    resource_url_identity, saved_place_identity, school_holidays, school_holidays_covered,
     school_holidays_within, search_cities, search_trip_corpus, search_workspace_corpus,
     suggest_packs, suggest_search_terms, time_difference, tipping_guidance, travel_advice,
-    us_state_advisory, validate_api_key, validate_country_slug, validate_create_trip,
-    validate_create_trip_item, validate_fact_payload, validate_model_name, validate_pack_id,
-    validate_packing_label, validate_planning_notes, validate_provider_id, validate_search_query,
-    validate_update_trip, world_heritage_near,
+    us_state_advisory, validate_api_key, validate_chat_message, validate_country_slug,
+    validate_create_resource, validate_create_trip, validate_create_trip_item,
+    validate_fact_payload, validate_model_name, validate_pack_id, validate_packing_label,
+    validate_planning_notes, validate_provider_id, validate_resource_url, validate_search_query,
+    validate_update_resource, validate_update_trip, world_heritage_near,
 };
 use voyalier_core::{
     BACKUP_FORMAT_VERSION, BackupManifest, VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN,
@@ -63,10 +69,12 @@ mod records;
 mod sealed;
 mod service_assist;
 mod service_backup;
+mod service_chat;
 mod service_documents;
 mod service_packs;
 mod service_planning;
 mod service_providers;
+mod service_resources;
 mod service_retrieved;
 mod service_search;
 mod service_trips;
@@ -1511,6 +1519,16 @@ const MIGRATIONS: &[Migration] = &[
         name: "school_holidays",
         run: migrate_school_holidays,
     },
+    Migration {
+        to: 14,
+        name: "trip_resources",
+        run: migrate_trip_resources,
+    },
+    Migration {
+        to: 15,
+        name: "chat_messages",
+        run: migrate_chat_messages,
+    },
 ];
 
 /// The version a fully migrated database carries. Stamped into a backup's
@@ -1551,6 +1569,66 @@ fn migrate(connection: &Connection) -> Result<(), AppError> {
         version = migration.to;
     }
     Ok(())
+}
+
+/// Research the traveler kept to read. Beside the evidence tables for the same
+/// reason planning is: a saved link is not a source document, and nothing here
+/// is ever parsed into a candidate fact.
+///
+/// `url_identity` carries the folded form of the address, and the partial
+/// unique index over it is what makes saving the same page twice a no-op — the
+/// service reads the conflict rather than counting rows first, so two quick
+/// saves cannot race past a check.
+fn migrate_trip_resources(connection: &Connection) -> Result<(), AppError> {
+    connection
+        .execute_batch(
+            "CREATE TABLE IF NOT EXISTS trip_resources (
+                id TEXT PRIMARY KEY,
+                trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                kind TEXT NOT NULL CHECK(kind IN ('link', 'file')),
+                url TEXT,
+                url_identity TEXT,
+                file_name TEXT,
+                title TEXT NOT NULL,
+                note TEXT NOT NULL,
+                tags_json TEXT NOT NULL DEFAULT '[]',
+                snapshot_json TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS trip_resources_url_identity
+                ON trip_resources(trip_id, url_identity)
+                WHERE url_identity IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS trip_resources_trip
+                ON trip_resources(trip_id, created_at);",
+        )
+        .map_err(storage_error)
+}
+
+/// The traveler's own conversation with the on-device model.
+///
+/// Sealed, because a free-form message is whatever the traveler typed and may
+/// carry the very codes the rest of the product works to keep out of prompts.
+/// Deliberately absent from search: a searchable transcript would be retrieved
+/// into the next prompt, and the model would start citing itself as local
+/// knowledge.
+fn migrate_chat_messages(connection: &Connection) -> Result<(), AppError> {
+    connection
+        .execute_batch(
+            "CREATE TABLE IF NOT EXISTS chat_messages (
+                id TEXT PRIMARY KEY,
+                trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+                text TEXT NOT NULL,
+                grounding_json TEXT NOT NULL DEFAULT '[]',
+                pointers_json TEXT NOT NULL DEFAULT '[]',
+                itinerary_facts INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS chat_messages_trip
+                ON chat_messages(trip_id, created_at);",
+        )
+        .map_err(storage_error)
 }
 
 /// Add traveler-owned planning records. These tables intentionally sit beside,

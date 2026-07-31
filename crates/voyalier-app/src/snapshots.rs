@@ -151,6 +151,11 @@ mod tests {
             // resolving until the destination comes back.
             "visa_prep",
             "visa_prep_items",
+            // Research and the conversation about it are the traveler's own
+            // work. Correcting a destination typo must not throw away the
+            // reading they gathered or the thread they had about it.
+            "trip_resources",
+            "chat_messages",
         ]
         .into_iter()
         .collect();

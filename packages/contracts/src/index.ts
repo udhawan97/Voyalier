@@ -534,6 +534,14 @@ export const MAX_VISA_NOTE_CHARS = 2_000;
 export const MAX_QUERY_LEN = 200;
 /** The longest custom AI instruction accepted. */
 export const MAX_AI_PROMPT_LEN = 6000;
+/** One chat message. Counted with {@link countChars}. */
+export const MAX_CHAT_MESSAGE_CHARS = 4_000;
+/** A resource's title. Counted with {@link countChars}. */
+export const MAX_RESOURCE_TITLE_CHARS = 240;
+/** The traveler's note on a resource. Counted with {@link countChars}. */
+export const MAX_RESOURCE_NOTE_CHARS = 20_000;
+/** A saved link's address. Counted with {@link countChars}. */
+export const MAX_RESOURCE_URL_CHARS = 2_000;
 
 /**
  * Count characters the way the core does — Unicode scalar values, not UTF-16
@@ -1141,7 +1149,12 @@ export interface TodayView {
   today: TodayItem[];
   next?: TodayItem;
 }
-export type SearchHitSource = "document" | "confirmed_fact";
+/**
+ * `resource` is deliberately not folded into `document`: a source document is
+ * imported evidence that gets parsed, and a resource is reading material that
+ * never is. The interface has to be able to say which one matched.
+ */
+export type SearchHitSource = "document" | "confirmed_fact" | "resource";
 export interface SearchHit {
   source: SearchHitSource;
   factType?: FactType;
@@ -1156,7 +1169,12 @@ export interface SearchHit {
   score: number;
 }
 export type WorkspaceSearchSource =
-  "document" | "confirmed_fact" | "note" | "saved_place" | "trip_item";
+  | "document"
+  | "confirmed_fact"
+  | "note"
+  | "saved_place"
+  | "trip_item"
+  | "resource";
 export interface WorkspaceSearchHit {
   source: WorkspaceSearchSource;
   tripId: string;
@@ -1168,6 +1186,108 @@ export interface WorkspaceSearchHit {
   snippet: string;
   score: number;
 }
+/** How a resource arrived: pasted as a link, or dropped in as a file. */
+export type ResourceKind = "link" | "file";
+
+/**
+ * A dated copy of what a link said when the traveler asked for it. The same
+ * category as any other retrieved snapshot: attributed, able to go stale, and
+ * never promoted into evidence.
+ */
+export interface ResourceSnapshot {
+  /** What the page calls itself. */
+  title?: string;
+  description?: string;
+  /** Readable text with script and style content removed. */
+  text: string;
+  fetchedAt: string;
+  contentHash: string;
+  /** True when the page ran past the stored limit. */
+  truncated: boolean;
+}
+
+/**
+ * A link or file the traveler deliberately kept with a trip for reading.
+ *
+ * Reading material, not evidence: it yields no candidate facts and affects no
+ * readiness item. See `CONTEXT.md`.
+ */
+export interface Resource {
+  id: string;
+  tripId: string;
+  kind: ResourceKind;
+  /** Present on links. */
+  url?: string;
+  /** Present on files. */
+  fileName?: string;
+  title: string;
+  note: string;
+  tags: string[];
+  /** Present once the traveler has fetched the page. */
+  snapshot?: ResourceSnapshot;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateResourceInput {
+  tripId: string;
+  kind: ResourceKind;
+  url?: string;
+  fileName?: string;
+  /** Blank derives a readable name from the address. */
+  title?: string;
+  note?: string;
+  tags?: string[];
+}
+
+export interface UpdateResourceInput {
+  resourceId: string;
+  title: string;
+  note?: string;
+  tags?: string[];
+}
+
+/** Standing preferences for research capture. */
+export interface ResearchSettings {
+  /**
+   * Whether saving a link may also fetch what the page says. Off until the
+   * traveler turns it on, and reversible at any time.
+   */
+  autoFetchDetails: boolean;
+}
+
+export interface SetResearchSettingsInput {
+  autoFetchDetails: boolean;
+}
+
+export type ChatRole = "user" | "assistant";
+
+/**
+ * A subject Voyalier refuses to be the authority on. The interface answers
+ * these itself, above the model's reply — it never suppresses the reply.
+ */
+export type HighStakesTopic = "entry" | "health" | "safety" | "prices";
+
+/** One record an answer was grounded in. */
+export interface ChatGrounding {
+  source: SearchHitSource;
+  recordId: string;
+  label: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  tripId: string;
+  role: ChatRole;
+  text: string;
+  createdAt: string;
+  /** Populated on assistant messages. */
+  grounding: ChatGrounding[];
+  pointers: HighStakesTopic[];
+  /** How many confirmed facts formed the itinerary baseline. */
+  itineraryFacts: number;
+}
+
 export interface TripBrief {
   title: string;
   origin: string;
@@ -1453,6 +1573,31 @@ export interface AppGateway {
   fetchPublicHolidays(tripId: string): Promise<PublicHolidaysSnapshot>;
   /** Fetch a Wikipedia summary of the destination (Wikimedia REST), consent-gated. */
   fetchPlaceSummary(tripId: string): Promise<PlaceSummary>;
+  listResources(tripId: string): Promise<Resource[]>;
+  /** Keep a link or file. Saving the same address twice returns the original. */
+  createResource(input: CreateResourceInput): Promise<Resource>;
+  updateResource(input: UpdateResourceInput): Promise<Resource>;
+  deleteResource(resourceId: string): Promise<void>;
+  /**
+   * Fetch what a saved link says and keep it as a dated snapshot. Refused
+   * unless `ResearchSettings.autoFetchDetails` is on — this is the only
+   * research method that can reach the network.
+   */
+  fetchResourceDetails(resourceId: string): Promise<Resource>;
+  getResearchSettings(): Promise<ResearchSettings>;
+  setResearchSettings(
+    input: SetResearchSettingsInput,
+  ): Promise<ResearchSettings>;
+  listChatMessages(tripId: string): Promise<ChatMessage[]>;
+  /**
+   * Ask the on-device model one question about this trip, and return its reply.
+   *
+   * Local only: Ollama answers, and nothing leaves the device. Cloud providers
+   * keep the one-shot `previewAssist`/`runAssist` path instead — per-message
+   * cloud consent is unusable and a standing one is a trust-contract change.
+   */
+  sendChatMessage(tripId: string, message: string): Promise<ChatMessage>;
+  clearChat(tripId: string): Promise<void>;
   searchTrip(tripId: string, query: string): Promise<SearchHit[]>;
   /** Search traveler-visible local records across every trip. */
   searchWorkspace(query: string): Promise<WorkspaceSearchHit[]>;

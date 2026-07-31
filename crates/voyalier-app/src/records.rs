@@ -28,9 +28,10 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 use voyalier_core::{
-    AppError, CandidateFact, CandidateStatus, ConfirmedFact, DocumentContent, ErrorCode,
-    InterestProfile, PackingItem, PersonaWeights, SavedPlace, SourceDocument, Trip, TripItem,
-    TripItemKind, TripNotes, TripSummary, VisaPrepItem, saved_place_identity,
+    AppError, CandidateFact, CandidateStatus, ChatMessage, ConfirmedFact, DocumentContent,
+    ErrorCode, InterestProfile, PackingItem, PersonaWeights, Resource, ResourceSnapshot,
+    SavedPlace, SourceDocument, Trip, TripItem, TripItemKind, TripNotes, TripSummary, VisaPrepItem,
+    saved_place_identity,
 };
 
 use crate::{DocumentText, Vault, sealed::Sealed, storage_error};
@@ -62,6 +63,13 @@ pub(crate) const SEALED_COLUMNS: &[(&str, &str)] = &[
     // out of briefs and AI requests.
     ("visa_prep", "nationality_iso2"),
     ("visa_prep_items", "note"),
+    // A resource's own text is public web material the traveler did not write,
+    // so it stays in the clear and stays searchable. The note beside it is the
+    // traveler's, on exactly the footing as every other note here.
+    ("trip_resources", "note"),
+    // A chat message is free-form: the traveler can type anything into it,
+    // including the code the prompt itself is built to withhold.
+    ("chat_messages", "text"),
 ];
 
 const TRIP_COLUMNS: &str =
@@ -1163,6 +1171,261 @@ fn raw_trip(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawTrip> {
         status: row.get("status")?,
         created_at: row.get("created_at")?,
         updated_at: row.get("updated_at")?,
+    })
+}
+
+const RESOURCE_COLUMNS: &str = "id, trip_id, kind, url, file_name, title, note, tags_json, \
+     snapshot_json, created_at, updated_at";
+const CHAT_COLUMNS: &str =
+    "id, trip_id, role, text, grounding_json, pointers_json, itinerary_facts, created_at";
+
+impl Records<'_> {
+    pub(crate) fn resources(&self, trip_id: &str) -> Result<Vec<Resource>, AppError> {
+        let mut statement = self
+            .connection
+            .prepare(&format!(
+                "SELECT {RESOURCE_COLUMNS} FROM trip_resources
+                 WHERE trip_id=?1 ORDER BY created_at DESC, id DESC"
+            ))
+            .map_err(storage_error)?;
+        let rows = statement
+            .query_map(params![trip_id], raw_resource)
+            .map_err(storage_error)?;
+        rows.map(|row| self.open_resource(row.map_err(storage_error)?))
+            .collect()
+    }
+
+    pub(crate) fn resource(&self, resource_id: &str) -> Result<Resource, AppError> {
+        let raw = self
+            .connection
+            .query_row(
+                &format!("SELECT {RESOURCE_COLUMNS} FROM trip_resources WHERE id=?1"),
+                params![resource_id],
+                raw_resource,
+            )
+            .optional()
+            .map_err(storage_error)?
+            .ok_or_else(|| {
+                AppError::with_detail(
+                    ErrorCode::ValidationInvalidInput,
+                    "resource not found",
+                    "field",
+                    "resourceId",
+                )
+            })?;
+        self.open_resource(raw)
+    }
+
+    fn open_resource(&self, raw: RawResource) -> Result<Resource, AppError> {
+        Ok(Resource {
+            id: raw.id,
+            trip_id: raw.trip_id,
+            kind: from_sql_enum(&raw.kind)?,
+            url: raw.url,
+            file_name: raw.file_name,
+            title: raw.title,
+            note: self.vault.open(&raw.note)?,
+            tags: from_sql_json(&raw.tags_json)?,
+            snapshot: raw
+                .snapshot_json
+                .as_deref()
+                .map(from_sql_json)
+                .transpose()?,
+            created_at: raw.created_at,
+            updated_at: raw.updated_at,
+        })
+    }
+
+    /// Insert a resource, reporting whether it was new.
+    ///
+    /// `false` means the trip already holds this address: the partial unique
+    /// index on the folded identity refused it, and the caller returns what is
+    /// already there rather than a second copy.
+    pub(crate) fn insert_resource(
+        &self,
+        resource: &Resource,
+        url_identity: Option<&str>,
+    ) -> Result<bool, AppError> {
+        let changed = self
+            .connection
+            .execute(
+                "INSERT OR IGNORE INTO trip_resources
+                    (id, trip_id, kind, url, url_identity, file_name, title, note, tags_json,
+                     snapshot_json, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                params![
+                    resource.id,
+                    resource.trip_id,
+                    to_sql_enum(resource.kind)?,
+                    resource.url,
+                    url_identity,
+                    resource.file_name,
+                    resource.title,
+                    self.vault.seal(&resource.note)?,
+                    to_sql_json(&resource.tags)?,
+                    resource.snapshot.as_ref().map(to_sql_json).transpose()?,
+                    resource.created_at,
+                    resource.updated_at,
+                ],
+            )
+            .map_err(storage_error)?;
+        Ok(changed > 0)
+    }
+
+    pub(crate) fn update_resource(&self, resource: &Resource) -> Result<(), AppError> {
+        self.connection
+            .execute(
+                "UPDATE trip_resources SET title=?2, note=?3, tags_json=?4, updated_at=?5
+                 WHERE id=?1",
+                params![
+                    resource.id,
+                    resource.title,
+                    self.vault.seal(&resource.note)?,
+                    to_sql_json(&resource.tags)?,
+                    resource.updated_at,
+                ],
+            )
+            .map_err(storage_error)?;
+        Ok(())
+    }
+
+    pub(crate) fn set_resource_snapshot(
+        &self,
+        resource_id: &str,
+        snapshot: &ResourceSnapshot,
+        title: &str,
+        updated_at: &str,
+    ) -> Result<(), AppError> {
+        self.connection
+            .execute(
+                "UPDATE trip_resources SET snapshot_json=?2, title=?3, updated_at=?4 WHERE id=?1",
+                params![resource_id, to_sql_json(snapshot)?, title, updated_at],
+            )
+            .map_err(storage_error)?;
+        Ok(())
+    }
+
+    pub(crate) fn delete_resource(&self, resource_id: &str) -> Result<(), AppError> {
+        self.connection
+            .execute(
+                "DELETE FROM trip_resources WHERE id=?1",
+                params![resource_id],
+            )
+            .map_err(storage_error)?;
+        Ok(())
+    }
+
+    pub(crate) fn chat_messages(&self, trip_id: &str) -> Result<Vec<ChatMessage>, AppError> {
+        let mut statement = self
+            .connection
+            .prepare(&format!(
+                "SELECT {CHAT_COLUMNS} FROM chat_messages
+                 WHERE trip_id=?1 ORDER BY created_at ASC, id ASC"
+            ))
+            .map_err(storage_error)?;
+        let rows = statement
+            .query_map(params![trip_id], raw_chat_message)
+            .map_err(storage_error)?;
+        rows.map(|row| {
+            let raw = row.map_err(storage_error)?;
+            Ok(ChatMessage {
+                id: raw.id,
+                trip_id: raw.trip_id,
+                role: from_sql_enum(&raw.role)?,
+                text: self.vault.open(&raw.text)?,
+                created_at: raw.created_at,
+                grounding: from_sql_json(&raw.grounding_json)?,
+                pointers: from_sql_json(&raw.pointers_json)?,
+                itinerary_facts: raw.itinerary_facts as u32,
+            })
+        })
+        .collect()
+    }
+
+    pub(crate) fn insert_chat_message(&self, message: &ChatMessage) -> Result<(), AppError> {
+        self.connection
+            .execute(
+                "INSERT INTO chat_messages
+                    (id, trip_id, role, text, grounding_json, pointers_json, itinerary_facts,
+                     created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![
+                    message.id,
+                    message.trip_id,
+                    to_sql_enum(message.role)?,
+                    self.vault.seal(&message.text)?,
+                    to_sql_json(&message.grounding)?,
+                    to_sql_json(&message.pointers)?,
+                    message.itinerary_facts,
+                    message.created_at,
+                ],
+            )
+            .map_err(storage_error)?;
+        Ok(())
+    }
+
+    pub(crate) fn delete_chat_messages(&self, trip_id: &str) -> Result<(), AppError> {
+        self.connection
+            .execute(
+                "DELETE FROM chat_messages WHERE trip_id=?1",
+                params![trip_id],
+            )
+            .map_err(storage_error)?;
+        Ok(())
+    }
+}
+
+struct RawResource {
+    id: String,
+    trip_id: String,
+    kind: String,
+    url: Option<String>,
+    file_name: Option<String>,
+    title: String,
+    note: Sealed,
+    tags_json: String,
+    snapshot_json: Option<String>,
+    created_at: String,
+    updated_at: String,
+}
+
+fn raw_resource(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawResource> {
+    Ok(RawResource {
+        id: row.get("id")?,
+        trip_id: row.get("trip_id")?,
+        kind: row.get("kind")?,
+        url: row.get("url")?,
+        file_name: row.get("file_name")?,
+        title: row.get("title")?,
+        note: row.get("note")?,
+        tags_json: row.get("tags_json")?,
+        snapshot_json: row.get("snapshot_json")?,
+        created_at: row.get("created_at")?,
+        updated_at: row.get("updated_at")?,
+    })
+}
+
+struct RawChatMessage {
+    id: String,
+    trip_id: String,
+    role: String,
+    text: Sealed,
+    grounding_json: String,
+    pointers_json: String,
+    itinerary_facts: i64,
+    created_at: String,
+}
+
+fn raw_chat_message(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawChatMessage> {
+    Ok(RawChatMessage {
+        id: row.get("id")?,
+        trip_id: row.get("trip_id")?,
+        role: row.get("role")?,
+        text: row.get("text")?,
+        grounding_json: row.get("grounding_json")?,
+        pointers_json: row.get("pointers_json")?,
+        itinerary_facts: row.get("itinerary_facts")?,
+        created_at: row.get("created_at")?,
     })
 }
 

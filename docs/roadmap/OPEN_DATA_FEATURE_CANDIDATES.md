@@ -81,4 +81,23 @@ Still open:
 - **Pollen** on the weather seam, which deepens the single-provider exposure in §2 for Europe-only coverage.
 - The **GTFS transit-summary salvage**, still unbuilt.
 
-The highest-value additions are no longer on this list at all, because they are curation rather than engineering: visa journeys beyond Canada (`visa.rs` refuses any destination but `CA`), and city packs beyond the current sixteen. Both run on machinery that already ships and is already gated by tests.
+The highest-value additions are no longer on this list at all, because they are curation rather than engineering: visa journeys beyond the curated destinations, and city packs beyond the current sixteen. Both run on machinery that already ships and is already gated by tests.
+
+> **Curation status, 2026-07-31.** `visa.rs` no longer refuses every destination
+> but `CA`: Japan carries a full journey, and the United Kingdom is named as an
+> authority that resolves no route, because GOV.UK publishes a questionnaire
+> rather than a per-nationality table. That third case is worth naming as a
+> pattern — a destination can be curated without being resolvable, and the
+> `Unknown` path was already built to carry it. Offline maps are enabled for
+> **every** catalog pack (this document's #7 row, written when four of sixteen
+> had one, is superseded); what remains there is a publisher workflow run, not
+> code.
+>
+> The 0.7.0 research workspace also opened a source class this list never
+> contemplated: a **traveler-supplied address**. Every candidate above was judged
+> against a known provider with a known licence, and a page the traveler pasted
+> has neither. It is gated harder rather than looser — a standing consent plus an
+> explicit ask, a scheme allowlist re-checked at the call that leaves the machine,
+> size caps on both sides of the reduction, and the only fetched class a model may
+> see, quoted in as data it is told to distrust. See the new section in
+> [DATA_SOURCES.md](../data/DATA_SOURCES.md).
