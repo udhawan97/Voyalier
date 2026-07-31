@@ -49,12 +49,12 @@ use voyalier_core::{
     provider_info, public_holidays, rank_field_suggestions, recommend_attributed_places,
     resource_url_identity, saved_place_identity, school_holidays, school_holidays_covered,
     school_holidays_within, search_cities, search_trip_corpus, search_workspace_corpus,
-    suggest_packs, suggest_search_terms, time_difference, tipping_guidance, travel_advice,
-    us_state_advisory, validate_api_key, validate_chat_message, validate_country_slug,
-    validate_create_resource, validate_create_trip, validate_create_trip_item,
-    validate_fact_payload, validate_model_name, validate_pack_id, validate_packing_label,
-    validate_planning_notes, validate_provider_id, validate_resource_url, validate_search_query,
-    validate_update_resource, validate_update_trip, world_heritage_near,
+    sky_events_within, suggest_packs, suggest_search_terms, time_difference, tipping_guidance,
+    travel_advice, us_state_advisory, validate_api_key, validate_chat_message,
+    validate_country_slug, validate_create_resource, validate_create_trip,
+    validate_create_trip_item, validate_fact_payload, validate_model_name, validate_pack_id,
+    validate_packing_label, validate_planning_notes, validate_provider_id, validate_resource_url,
+    validate_search_query, validate_update_resource, validate_update_trip, world_heritage_near,
 };
 use voyalier_core::{
     BACKUP_FORMAT_VERSION, BackupManifest, VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN,

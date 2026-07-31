@@ -1185,6 +1185,7 @@ export function TripDetailView({
             tipping={data.detail.tipping}
             timeDifference={data.detail.timeDifference}
             clockChanges={data.detail.clockChanges ?? []}
+            skyEvents={data.detail.skyEvents ?? []}
             onFetched={() => reload()}
           />
 

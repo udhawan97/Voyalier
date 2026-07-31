@@ -76,6 +76,11 @@ export interface TripDetail {
    */
   clockChanges: ClockChange[];
   /**
+   * Eclipses falling inside the trip window, from a bundled NASA table. Needs
+   * no snapshot and no fetch — a function of the trip's dates alone.
+   */
+  skyEvents: SkyEvent[];
+  /**
    * The destination country's public holidays that fall during the trip,
    * narrowed to the travel window on read. Present only once fetched; its
    * `holidays` list is empty when none land in the window.
@@ -113,6 +118,25 @@ export interface TimeDifference {
    * hours, so sub-hour zones stay exact.
    */
   offsetMinutes: number;
+}
+export type SkyEventKind = "solarEclipse" | "lunarEclipse";
+/** One dated eclipse, with the broad band NASA publishes it as visible from. */
+export interface SkyEvent {
+  /**
+   * ISO `YYYY-MM-DD`, as the catalogue gives it — a Terrestrial/Universal Time
+   * calendar date. Near the date line a local calendar date can differ by one,
+   * so this is the event's date and not the traveler's.
+   */
+  date: string;
+  kind: SkyEventKind;
+  /** The catalogue's own phrasing, e.g. "Total solar eclipse". */
+  label: string;
+  /**
+   * NASA's "Geographic Region of Eclipse Visibility", verbatim — a coarse band
+   * where *some* phase is visible, not a local-circumstances calculation.
+   * Never render this as "visible from your destination".
+   */
+  region: string;
 }
 /** A day inside the trip window when a place's clocks move. */
 export interface ClockChange {

@@ -6,6 +6,7 @@ import type {
   DestinationFactsSnapshot,
   HeritageSite,
   NearbyAirport,
+  SkyEvent,
   TimeDifference,
 } from "@voyalier/contracts";
 
@@ -110,12 +111,33 @@ function Clock({
  * days and nights are stated plainly rather than shown as a rise that never
  * happens.
  */
-function Sky({ days }: { days: AstroDay[] }) {
+function Sky({ days, events }: { days: AstroDay[]; events: SkyEvent[] }) {
   return (
     <section className="voy-facts__block" aria-labelledby="facts-sky-title">
       <h3 id="facts-sky-title" className="voy-facts__block-title">
         {t("facts.sky.title")}
       </h3>
+      {/*
+       * An eclipse falling inside the trip window. The region is NASA's own
+       * coarse visibility band and is shown as exactly that — where the
+       * eclipse is visible at all, never "visible from your destination",
+       * which would need a local-circumstances calculation this does not do.
+       */}
+      {events.length > 0 ? (
+        <ul className="voy-facts__events">
+          {events.map((event) => (
+            <li key={`${event.date}-${event.kind}`}>
+              <span className="voy-facts__event-date">
+                {formatDate(event.date)}
+              </span>
+              <span className="voy-facts__event-label">{event.label}</span>
+              <span className="voy-facts__event-region">
+                {t("facts.sky.eventRegion", { region: event.region })}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <ul className="voy-facts__days">
         {days.map((day) => (
           <li key={day.date} className="voy-facts__day">
@@ -348,6 +370,7 @@ export function DestinationFacts({
   tipping,
   timeDifference,
   clockChanges,
+  skyEvents,
   onFetched,
 }: {
   tripId: string;
@@ -360,6 +383,7 @@ export function DestinationFacts({
   tipping: string | undefined;
   timeDifference: TimeDifference | undefined;
   clockChanges: ClockChange[];
+  skyEvents: SkyEvent[];
   onFetched: () => void;
 }) {
   const gateway = useGateway();
@@ -390,7 +414,9 @@ export function DestinationFacts({
               changes={clockChanges}
             />
           ) : null}
-          {astro.length > 0 ? <Sky days={astro} /> : null}
+          {astro.length > 0 || skyEvents.length > 0 ? (
+            <Sky days={astro} events={skyEvents} />
+          ) : null}
           <Money
             snapshot={snapshot}
             currencyCode={countryFacts?.currencyCode ?? ""}

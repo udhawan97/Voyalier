@@ -51,6 +51,7 @@ fn data_source_register_has_unique_rows_and_a_pinned_count() {
             "ecb",
             "geonames",
             "nager-date",
+            "nasa-eclipse",
             "nws",
             "ollama",
             "open-meteo",

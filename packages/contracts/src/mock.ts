@@ -2324,6 +2324,10 @@ export function createMockGateway(options?: {
           // 2026-11-01, two days before the fixture trip starts on the 3rd.
           // Move those dates and this must stop being a constant.
           clockChanges: [],
+          // The fixture trip runs 2026-11-03 to 2026-11-12; the nearest
+          // bundled eclipses are 2026-08-28 and 2027-02-06, so this is the
+          // true answer for it rather than a stub.
+          skyEvents: [],
           ...(publicHolidays ? { publicHolidays } : {}),
           ...(placeSummaries.has(tripId)
             ? { placeSummary: clone(placeSummaries.get(tripId)!) }

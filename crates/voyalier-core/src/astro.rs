@@ -270,6 +270,86 @@ pub fn moon_phase(date: &str) -> Result<MoonPhase, AppError> {
     })
 }
 
+/// Eclipse dates, transcribed from NASA GSFC's five-millennium catalogues and
+/// cross-checked against the matching decade tables.
+///
+/// Bundled rather than computed. Eclipse geometry does not drift, so a table
+/// shipped today is still right in 2032 — which is the property that makes this
+/// worth bundling at all — and transcribing beats implementing Besselian
+/// elements for thirty-one rows.
+///
+/// Meteor showers were considered and dropped. The IMO working list and the
+/// American Meteor Society's tables are both all-rights-reserved and neither
+/// grants reuse, and NASA's own page carries no rates and had not been rolled
+/// forward past the previous year when it was read. There was no public-domain
+/// source to bundle, so nothing is bundled.
+const SKY_EVENTS_TSV: &str = include_str!("data/sky_events.tsv");
+
+/// Which body the event happens to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SkyEventKind {
+    SolarEclipse,
+    LunarEclipse,
+}
+
+/// One dated sky event, with the broad band NASA publishes it as visible from.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkyEvent {
+    /// ISO `YYYY-MM-DD`, as the catalogue gives it — a Terrestrial/Universal
+    /// Time calendar date. Near the date line a local calendar date can differ
+    /// by one, so this is the event's date and not the traveler's.
+    pub date: String,
+    pub kind: SkyEventKind,
+    /// The catalogue's own phrasing, e.g. "Total solar eclipse".
+    pub label: String,
+    /// NASA's "Geographic Region of Eclipse Visibility", verbatim.
+    ///
+    /// A coarse band where *some* phase is visible — not a local-circumstances
+    /// calculation, and never to be rendered as "visible from your
+    /// destination". The bracketed part, where present, is the central path.
+    pub region: String,
+}
+
+/// The attribution NASA's eclipse site requires of anything reproducing its
+/// predictions. Carried with the data rather than left to a UI to remember.
+pub const SKY_EVENTS_CREDIT: &str = "Eclipse predictions courtesy of Fred Espenak, NASA/Goddard Space Flight Center, from eclipse.gsfc.nasa.gov.";
+
+/// Bundled sky events falling inside an inclusive date window, in date order.
+///
+/// An unparseable or reversed window yields nothing rather than a guess, the
+/// same choice every other windowed reader in the tree makes.
+pub fn sky_events_within(start: &str, end: &str) -> Vec<SkyEvent> {
+    let (Ok(start), Ok(end)) = (start.parse::<Date>(), end.parse::<Date>()) else {
+        return Vec::new();
+    };
+    if end < start {
+        return Vec::new();
+    }
+    SKY_EVENTS_TSV
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.split('\t');
+            let date = fields.next()?;
+            let kind = match fields.next()? {
+                "solar" => SkyEventKind::SolarEclipse,
+                "lunar" => SkyEventKind::LunarEclipse,
+                _ => return None,
+            };
+            let label = fields.next()?;
+            let region = fields.next()?;
+            let parsed: Date = date.parse().ok()?;
+            (parsed >= start && parsed <= end).then(|| SkyEvent {
+                date: date.to_owned(),
+                kind,
+                label: label.to_owned(),
+                region: region.to_owned(),
+            })
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -388,5 +468,73 @@ mod tests {
         );
         assert!(new.illumination_pct < 5, "illum {}", new.illumination_pct);
         assert_eq!(new.name, MoonPhaseName::NewMoon);
+    }
+
+    #[test]
+    fn an_eclipse_inside_the_window_is_returned() {
+        // The total solar eclipse over Iceland and Spain.
+        let events = sky_events_within("2026-08-01", "2026-08-31");
+        assert!(
+            events
+                .iter()
+                .any(|event| event.date == "2026-08-12"
+                    && event.kind == SkyEventKind::SolarEclipse),
+            "{events:?}"
+        );
+        // And the partial lunar eclipse later the same month.
+        assert!(events.iter().any(|event| event.date == "2026-08-28"
+            && event.kind == SkyEventKind::LunarEclipse));
+    }
+
+    #[test]
+    fn a_window_with_no_events_is_empty_rather_than_an_error() {
+        assert!(sky_events_within("2026-09-01", "2026-09-30").is_empty());
+    }
+
+    #[test]
+    fn the_window_is_inclusive_at_both_ends() {
+        assert_eq!(sky_events_within("2026-08-12", "2026-08-12").len(), 1);
+        assert_eq!(sky_events_within("2026-08-28", "2026-08-28").len(), 1);
+    }
+
+    #[test]
+    fn a_reversed_or_unparseable_window_returns_nothing() {
+        assert!(sky_events_within("2026-08-31", "2026-08-01").is_empty());
+        assert!(sky_events_within("not-a-date", "2026-08-31").is_empty());
+        assert!(sky_events_within("2026-08-01", "").is_empty());
+    }
+
+    #[test]
+    fn events_come_back_in_date_order() {
+        let events = sky_events_within("2026-01-01", "2032-12-31");
+        let dates: Vec<&str> = events.iter().map(|event| event.date.as_str()).collect();
+        let mut sorted = dates.clone();
+        sorted.sort_unstable();
+        assert_eq!(dates, sorted);
+    }
+
+    /// The bundle is a transcription of two NASA catalogues, so the guard is
+    /// that every row survived it intact rather than that the astronomy is
+    /// right — nothing here is computed.
+    #[test]
+    fn every_bundled_event_is_well_formed() {
+        let events = sky_events_within("1900-01-01", "2100-01-01");
+        assert_eq!(events.len(), 31, "15 solar and 16 lunar were transcribed");
+        for event in &events {
+            assert!(
+                event.date.len() == 10 && event.date.parse::<Date>().is_ok(),
+                "bad date {:?}",
+                event.date
+            );
+            assert!(!event.label.is_empty(), "{:?} has no label", event.date);
+            assert!(!event.region.is_empty(), "{:?} has no region", event.date);
+        }
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| event.kind == SkyEventKind::SolarEclipse)
+                .count(),
+            15
+        );
     }
 }

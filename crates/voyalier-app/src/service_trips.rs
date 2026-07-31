@@ -108,6 +108,9 @@ impl AppService {
                 snapshot.utc_offset_minutes,
             ))
         });
+        // Bundled and date-only: no snapshot, no fetch, no coordinates. An
+        // eclipse falls on a date whether or not the traveler fetched anything.
+        let sky_events = sky_events_within(&trip.start_date, &trip.end_date);
         // Both ends of the trip can move their clocks mid-stay, and the gap
         // above is anchored to the start date, so the change is stated rather
         // than folded into that one number. Destination first: it is the one a
@@ -186,6 +189,7 @@ impl AppService {
             flight_emissions,
             time_difference,
             clock_changes,
+            sky_events,
             public_holidays,
             world_heritage,
             place_summary,

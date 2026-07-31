@@ -41,6 +41,7 @@ describe("data source register", () => {
         "nws",
         "ecb",
         "nager-date",
+        "nasa-eclipse",
         "wikimedia",
         "openfreemap",
         "openholidays",

@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::advisories::AdvisoryPanel;
 use crate::airports::NearbyAirport;
-use crate::astro::AstroDay;
+use crate::astro::{AstroDay, SkyEvent};
 use crate::co2::FlightEmissions;
 use crate::facts::{ClockChange, CountryFacts, DestinationFactsSnapshot, TimeDifference};
 use crate::heritage::HeritageSite;
@@ -138,6 +138,11 @@ pub struct TripDetail {
     /// zones were stored. Derived, never read back.
     #[serde(default, skip_deserializing)]
     pub clock_changes: Vec<ClockChange>,
+    /// Eclipses falling inside the trip window, from a bundled NASA table.
+    /// Needs no snapshot and no fetch — it is a function of the dates alone.
+    /// Derived, never read back.
+    #[serde(default, skip_deserializing)]
+    pub sky_events: Vec<SkyEvent>,
     /// The destination country's public holidays that fall during the trip,
     /// derived on read from the stored snapshot. Present only once fetched;
     /// carries an empty `holidays` list when none land in the window.

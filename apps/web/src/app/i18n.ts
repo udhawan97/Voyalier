@@ -691,6 +691,12 @@ const en = {
     "Downloaded only when you request a city pack's offline map",
   "dataSources.protomaps-osm.authority":
     "Basemap context; not routing, access, or opening-hours authority",
+  "dataSources.nasa-eclipse.use":
+    "Bundled solar and lunar eclipse dates falling inside a trip window",
+  "dataSources.nasa-eclipse.network":
+    "Bundled with the app; no runtime request",
+  "dataSources.nasa-eclipse.authority":
+    "Dates and a coarse visibility band only; not a local-circumstances calculation for your destination",
   "dataSources.geonames.use": "Bundled city autocomplete",
   "dataSources.geonames.network": "Bundled with the app; no runtime request",
   "dataSources.geonames.authority": "Place-name autocomplete only",
@@ -783,6 +789,9 @@ const en = {
     "{place} puts its clocks back {duration} on {date}, during your trip",
   // Sky: computed offline, so it carries no source and cannot be stale.
   "facts.sky.title": "Sky",
+  // NASA's own visibility band, stated as a band. Never "visible from your
+  // destination" — that would need a local-circumstances calculation.
+  "facts.sky.eventRegion": "Visible from: {region}",
   "facts.sky.sun": "{sunrise} – {sunset}",
   "facts.sky.dayLength": "{hours}h {minutes}m of daylight",
   "facts.polar.day": "Midnight sun — the sun does not set",
@@ -2085,6 +2094,12 @@ const es: Record<MessageKey, string> = {
     "Se descarga solo cuando solicitas el mapa sin conexión de un paquete urbano",
   "dataSources.protomaps-osm.authority":
     "Contexto de mapa base; no es autoridad sobre rutas, acceso u horarios",
+  "dataSources.nasa-eclipse.use":
+    "Fechas de eclipses solares y lunares dentro de la ventana del viaje, incluidas en la app",
+  "dataSources.nasa-eclipse.network":
+    "Incluido con la aplicación; sin solicitudes en tiempo de ejecución",
+  "dataSources.nasa-eclipse.authority":
+    "Solo fechas y una franja de visibilidad aproximada; no es un cálculo de circunstancias locales para tu destino",
   "dataSources.geonames.use": "Autocompletado de ciudades incluido",
   "dataSources.geonames.network":
     "Incluido con la app; sin solicitudes durante el uso",
@@ -2173,6 +2188,7 @@ const es: Record<MessageKey, string> = {
   "facts.clock.changeBack":
     "{place} atrasa sus relojes {duration} el {date}, durante tu viaje",
   "facts.sky.title": "Cielo",
+  "facts.sky.eventRegion": "Visible desde: {region}",
   "facts.sky.sun": "{sunrise} – {sunset}",
   "facts.sky.dayLength": "{hours}h {minutes}m de luz solar",
   "facts.polar.day": "Sol de medianoche: el sol no se pone",
