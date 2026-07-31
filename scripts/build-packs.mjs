@@ -12,10 +12,16 @@
 //               clipped to the pack's bounding box.
 //   - articles: Wikivoyage (CC BY-SA 3.0), fetched via the MediaWiki API.
 //
-// The Wikivoyage layer is the primary content and always builds. The Overture
-// query needs the `duckdb` CLI with the spatial + httpfs extensions and network
-// access to the Overture S3 bucket; if that is unavailable the pack is still
-// written with zero places and a warning, so a run never produces a broken pack.
+// The Overture query needs the `duckdb` CLI with the spatial + httpfs
+// extensions and network access to the Overture S3 bucket. If that fails the
+// run FAILS: it used to write the pack anyway with zero places and a warning,
+// which is how ten days of empty packs were published without anyone noticing.
+// The publisher is manual and re-runnable, so a loud failure costs a re-run and
+// a silent one costs every download.
+//
+// Overture prunes old releases from S3 — only the newest couple survive — so
+// OVERTURE_RELEASE goes stale on its own. Check
+// https://overturemaps-us-west-2.s3.amazonaws.com/?list-type=2&prefix=release/&delimiter=/
 
 import { execFile } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -27,7 +33,7 @@ const run = promisify(execFile);
 
 const OUT_DIR = process.env.OUT_DIR ?? "dist/packs";
 const RELEASE_TAG = process.env.PACK_RELEASE_TAG ?? "packs-v1";
-const OVERTURE_RELEASE = process.env.OVERTURE_RELEASE ?? "2025-01-22.0";
+const OVERTURE_RELEASE = process.env.OVERTURE_RELEASE ?? "2026-07-22.0";
 if (!/^[\w.-]+$/.test(OVERTURE_RELEASE)) {
   throw new Error(`Refusing unsafe OVERTURE_RELEASE: ${OVERTURE_RELEASE}`);
 }
@@ -55,8 +61,14 @@ async function fetchArticle(title) {
   };
 }
 
-/** Query Overture places within a bbox via DuckDB, or [] if unavailable. */
-async function fetchPlaces(bbox) {
+/**
+ * Query Overture places within a bbox via DuckDB.
+ *
+ * Throws when the query fails. It never returns an empty array for a failure —
+ * only for a bbox that genuinely holds no named places — because the two used
+ * to be indistinguishable downstream, and that is how empty packs shipped.
+ */
+export async function fetchPlaces(bbox, release = OVERTURE_RELEASE) {
   // Defense-in-depth: these are interpolated into SQL, so require finite numbers
   // even though they come from the trusted catalog.
   for (const key of ["west", "south", "east", "north"]) {
@@ -64,8 +76,11 @@ async function fetchPlaces(bbox) {
       throw new Error(`Invalid bbox.${key}: ${bbox[key]}`);
     }
   }
+  if (!/^[\w.-]+$/.test(release)) {
+    throw new Error(`Refusing unsafe Overture release: ${release}`);
+  }
   const source =
-    `s3://overturemaps-us-west-2/release/${OVERTURE_RELEASE}` +
+    `s3://overturemaps-us-west-2/release/${release}` +
     "/theme=places/type=place/*";
   const sql = [
     "INSTALL spatial; LOAD spatial;",
@@ -79,29 +94,47 @@ async function fetchPlaces(bbox) {
     "  AND names.primary IS NOT NULL",
     `LIMIT ${MAX_PLACES};`,
   ].join("\n");
-  try {
-    const { stdout } = await run("duckdb", ["-json", "-c", sql], {
-      maxBuffer: 128 * 1024 * 1024,
-    });
-    const rows = JSON.parse(stdout || "[]");
-    return rows
-      .filter((row) => row.name && row.lat != null && row.lon != null)
-      .map((row) => ({
-        name: String(row.name),
-        category: row.category ? String(row.category) : "place",
-        lat: Number(row.lat),
-        lon: Number(row.lon),
-      }));
-  } catch (error) {
-    // Print the whole failure, not its first line. Truncating it is why every
-    // published pack has carried zero places since at least 2026-07-20 without
-    // anyone being able to see why: the run stays green, and the one line that
-    // survives is the command rather than DuckDB's reason for refusing it.
-    console.warn(
-      `    ! places unavailable; writing 0 places\n${error.stderr || ""}${error.stdout || ""}${error.message}`,
+  const failure = (detail) =>
+    new Error(
+      `Overture places query failed for ${JSON.stringify(bbox)}. ` +
+        `Refusing to publish a pack with no places.\n` +
+        `Release queried: ${release} — releases are pruned, so check ` +
+        `https://overturemaps-us-west-2.s3.amazonaws.com/?list-type=2&prefix=release/&delimiter=/ ` +
+        `for one that still exists.\n${detail}`,
     );
-    return [];
+
+  let stdout;
+  try {
+    ({ stdout } = await run("duckdb", ["-json", "-c", sql], {
+      maxBuffer: 128 * 1024 * 1024,
+    }));
+  } catch (error) {
+    throw failure(`${error.stderr || ""}${error.stdout || ""}${error.message}`);
   }
+
+  // The exit code is not enough on its own. DuckDB 1.5.5 on Linux exits
+  // non-zero when it cannot read the S3 prefix, but the Homebrew build on
+  // macOS prints the same "IO Error: No files found" to stdout and exits 0 —
+  // so trusting the exit code alone silently yields zero places on one machine
+  // and a loud failure on another. A successful `-json` SELECT always prints a
+  // JSON array, even for no rows, so anything else is a failure.
+  let rows;
+  try {
+    rows = JSON.parse(stdout || "");
+  } catch {
+    throw failure(stdout || "(no output)");
+  }
+  if (!Array.isArray(rows)) {
+    throw failure(`Expected a JSON array, got: ${stdout}`);
+  }
+  return rows
+    .filter((row) => row.name && row.lat != null && row.lon != null)
+    .map((row) => ({
+      name: String(row.name),
+      category: row.category ? String(row.category) : "place",
+      lat: Number(row.lat),
+      lon: Number(row.lon),
+    }));
 }
 
 // Overture place categories that make up the amenities layer, mapped onto the
