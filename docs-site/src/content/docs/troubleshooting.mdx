@@ -46,6 +46,35 @@ once.
   with your provider and try again — the request is exactly what you saw in the
   preview, so nothing unexpected was sent.
 
+## "Ask about this trip" says no local model was found
+
+**Likely cause:** chat is on-device only, and there is no Ollama model for it to
+use.
+
+- Chat never falls back to a cloud provider, so an OpenAI or Anthropic key will
+  not fix this and is not meant to — see
+  [why chat is local-only](/Voyalier/guides/ai-assist/#local-only-and-that-is-deliberate).
+- Open **AI providers** → **On-device AI** and follow the setup: install
+  [Ollama](https://ollama.com), start it, and pull a model. The panel points you
+  there instead of showing an input box, because an input box would have nothing
+  to answer with.
+- If Ollama is installed, confirm it is actually running on `localhost:11434`,
+  then reopen the panel.
+
+## Fetching a resource's page details does nothing, or the button is missing
+
+**Likely cause:** the setting that allows it is off, which is the default.
+
+- Voyalier never fetches a page you saved until you turn on **allow fetching page
+  details**. While it is off there is no button to press — that is the setting
+  working, not a broken control.
+- Saving a resource contacts nothing by design, so a saved link with no stored
+  text is a normal state, not a failed fetch.
+- With the setting on, a fetch still needs a reachable page and a network
+  connection. Very long pages are stored truncated and say so.
+- Turning the setting back off takes one click. See
+  [Research resources](/Voyalier/guides/research-resources/#fetching-what-a-page-says-is-a-separate-decision).
+
 ## The map is blank
 
 **Likely cause:** no consent click, no WebGL, or no network.

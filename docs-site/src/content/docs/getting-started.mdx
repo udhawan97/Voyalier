@@ -21,7 +21,7 @@ make dev
 
 The React interface runs at `127.0.0.1:5173`, with the local Axum API at `127.0.0.1:8787`. The desktop build uses direct Tauri IPC instead of this development server path.
 
-Open a trip to try it out: import a confirmation (paste, a local file, HTML, or a raw email), fetch official advice and a weather outlook, save a recommended place, build a packing checklist, add a manual activity or transfer, search the workspace, download offline city data, view the map, and use AI assist. AI is optional — everything above works without it. For on-device assist, a guided setup under **AI providers** walks you through installing [Ollama](https://ollama.com), starting it, and pulling a recommended model in-app (no terminal required, though a copyable `ollama pull` command is offered too); for cloud assist, paste an OpenAI or Anthropic key and choose **Validate & save**, and it is checked before being stored in your OS keychain. Every AI request shows a full preview before anything is sent.
+Open a trip to try it out: import a confirmation (paste, a local file, HTML, or a raw email), fetch official advice and a weather outlook, save a recommended place, save a link or file as a research resource to read later, build a packing checklist, add a manual activity or transfer, search the workspace, download offline city data, view the map, and use AI assist. AI is optional — everything above works without it. For on-device assist, a guided setup under **AI providers** walks you through installing [Ollama](https://ollama.com), starting it, and pulling a recommended model in-app (no terminal required, though a copyable `ollama pull` command is offered too); for cloud assist, paste an OpenAI or Anthropic key and choose **Validate & save**, and it is checked before being stored in your OS keychain. Every request that could leave your device shows a full preview before anything is sent; the local chat has no preview because it never leaves.
 
 Run `make check` before submitting changes.
 
@@ -30,6 +30,7 @@ Run `make check` before submitting changes.
 The **Guides** cover each workflow in depth:
 [trips and the Blueprint](/Voyalier/guides/trips-and-blueprint/),
 [importing confirmations](/Voyalier/guides/importing-confirmations/),
+[research resources](/Voyalier/guides/research-resources/),
 [readiness and official advice](/Voyalier/guides/readiness-and-advice/),
 [offline packs, recommendations, and maps](/Voyalier/guides/offline-packs-and-maps/),
 [AI assist](/Voyalier/guides/ai-assist/), and

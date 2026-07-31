@@ -37,6 +37,10 @@ export default defineConfig({
               link: "/guides/importing-confirmations/",
             },
             {
+              label: "Research resources",
+              link: "/guides/research-resources/",
+            },
+            {
               label: "Readiness and official advice",
               link: "/guides/readiness-and-advice/",
             },

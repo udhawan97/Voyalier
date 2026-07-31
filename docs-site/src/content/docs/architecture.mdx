@@ -107,6 +107,14 @@ payload, withheld fields, grounding count, and token estimate. Names and
 confirmation codes are excluded by construction, and completed calls appear in
 the activity log.
 
+Trip chat is a separate surface on the same machinery, and it is on-device only:
+grounding comes from the trip's own confirmed facts, documents, and saved
+resources via the same deterministic search, names and confirmation codes are
+withheld from the local model too, and transcripts stay out of search, the brief,
+and exports. Cloud providers are excluded from it by construction rather than by
+configuration, because a multi-turn exchange cannot be previewed request by
+request.
+
 The reply is assistance, not authority: it cannot originate visa, safety,
 health, price, availability, or opening-hour claims.
 
@@ -148,8 +156,11 @@ Every current remote edge is explicit and attributable:
 - The in-app updater, after opt-in: a once-a-day release-metadata check plus the
   signed update download over `github.com` and `objects.githubusercontent.com`,
   run entirely in the Rust core.
-- OpenFreeMap tiles after the traveler selects **Show map**.
+- OpenFreeMap tiles after the traveler selects **Show map**, and the address of a
+  saved research resource, only once the traveler has enabled page-detail
+  fetching and then asked for that resource.
 - Localhost Ollama, or consented BYOK OpenAI/Anthropic inference after preview.
+  Trip chat is Ollama-only and has no cloud path at all.
 
 There is no telemetry, shared provider key, autonomous booking, live inventory
 aggregation, background scraping, or silent document upload.

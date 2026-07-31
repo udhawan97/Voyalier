@@ -3,9 +3,11 @@ title: AI assist (bring your own key)
 description: Optional, consented AI that can never see your secrets.
 ---
 
-AI assist is **optional** and **bring-your-own-key**. It is built so that a
-provider can never receive your confirmation codes or traveler names, and so that
-nothing is ever sent without you seeing it first.
+AI assist is **optional**. Where it can reach a cloud provider it is
+**bring-your-own-key**, and one surface — [asking about a
+trip](#ask-about-this-trip) — is local-only by design. All of it is built so that
+a provider can never receive your confirmation codes or traveler names, and so
+that nothing is ever sent without you seeing it first.
 
 ## Providers
 
@@ -75,6 +77,58 @@ a non-authoritative disclaimer.
 
 Each successful run is recorded in a per-trip **activity log** that stores
 metadata only (provider, model, time) — never the prompt or the reply.
+
+## Ask about this trip
+
+**Ask about this trip** is a conversation about one trip, answered by a local
+[Ollama](https://ollama.com) model on your own machine. Nothing leaves the
+device.
+
+### Local only, and that is deliberate
+
+OpenAI and Anthropic are **not** offered for chat, even when you have a working
+key saved. The preview above is the reason. A single request can be shown to you
+in full and sent only once you agree; a conversation is many sends, and
+previewing every one of them is unusable. The alternative is a standing "always
+send" permission — and that is not a promise Voyalier is willing to make
+quietly. So chat stays on your device, and your cloud keys stay with the one-shot
+flow that can still show you every byte.
+
+If no local model is found, the panel says so and points you at
+[On-device setup](#on-device-setup-step-by-step), rather than offering an input
+box that could not answer you.
+
+### What it is given, and what it is refused
+
+Each question is answered from the trip's own material: your confirmed flights
+and stays, plus the most relevant of your documents and
+[saved resources](/Voyalier/guides/research-resources/), found with the same
+deterministic search the search box uses. The reply lists what it was grounded
+in.
+
+**Confirmation codes and traveler names are withheld from the model**, exactly as
+they are with cloud assist. The model running on your own hardware does not
+change that — so it cannot tell you your booking reference, and asking it will
+get you a plain statement that it does not have one.
+
+### Pointer cards on high-stakes questions
+
+Ask about visas or entry, health, safety, or prices and Voyalier puts its own
+pointer card above the reply, linking to where the real answer lives. The card is
+**added to** the reply, never swapped in for it: the model's answer is still
+shown, so you can see both what it said and where to go and check it. Every reply
+carries the same non-authoritative framing as the rest of Voyalier's AI.
+
+### Where a conversation goes, and where it does not
+
+Conversations are saved per trip, encrypted at rest, and can be cleared.
+
+Transcripts are deliberately kept out of search, out of the shareable brief, and
+out of exports. The search exclusion is the load-bearing one: if an answer were
+searchable, a later question could retrieve it as grounding, and the model would
+start citing itself as a source. If an answer is worth keeping, **Save to notes**
+copies it into the trip's notes — where it becomes something you decided to write
+down, rather than something the model found lying around.
 
 ## Filling lodging-date gaps on-device
 

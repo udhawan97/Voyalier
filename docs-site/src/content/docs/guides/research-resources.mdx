@@ -1,0 +1,75 @@
+---
+title: Research resources
+description: Keep the links and files you want to read with a trip — reading material, never evidence.
+---
+
+Some of what you gather for a trip is a booking. Most of it is not: a district
+guide, a ferry timetable, a PDF of restaurant notes a friend sent you. Voyalier
+keeps those with the trip as **resources** — a link or a dropped file, with your
+own title, note, and tags — and keeps them out of the evidence lane entirely.
+
+## Reading material, never evidence
+
+This is the line that matters, and Voyalier does not blur it. A resource:
+
+- never becomes a confirmed booking,
+- never creates a pending candidate for you to review, and
+- never changes the readiness rollup.
+
+Nothing you file here can make your trip look more ready than it is.
+
+If you drop a booking confirmation into resources, it is **filed, not imported**
+— the panel tells you so, and points you at
+[Importing confirmations](/Voyalier/guides/importing-confirmations/), which is the
+only path where a confirmation becomes reviewable facts.
+
+## Saving
+
+Paste a link or drop a file, then add your own title, a note, and any tags you
+want. Saving is local and instant: **nothing is contacted when you save.** Only
+`http` and `https` links can be saved.
+
+Saving the same page twice keeps one resource, not two. Addresses that differ
+only by tracking parameters (`utm_*`, `fbclid`, and similar), a trailing slash,
+letter case, a default port, or a `#fragment` are treated as the same page.
+
+## Fetching what a page says is a separate decision
+
+Voyalier does not read the pages you save unless you ask it to. There is one
+setting, **allow fetching page details**, and it is **off by default**. Until
+you turn it on, no fetch happens at all — the button is not there to click.
+Turning it off again is one click, and it takes effect the same way.
+
+With it on, fetching a resource stores a dated snapshot: the page's title,
+description, and readable text, with script and stylesheet content removed.
+Voyalier records when it fetched. Very long pages are stored truncated, and say
+so rather than quietly ending mid-sentence.
+
+**Read here** shows that stored text inside the app, with the fetched date and a
+link to the original. That is what makes your saved reading available offline —
+and it is a copy taken on that date, not the page as it stands now. Fetched text
+is treated like every other retrieved page: untrusted material carrying a source
+and a date, never a fact about your trip.
+
+## Searching
+
+Resources are searchable in a trip's search and in
+[workspace-wide search](/Voyalier/guides/planning-and-search/#search-the-workspace)
+across every trip. Your note, your tags, and any page text you chose to fetch
+are all searched.
+
+A result says it came from a saved resource, distinct from an imported document,
+so reading material never arrives looking like evidence.
+
+Saved resources are also one of the things
+[Ask about this trip](/Voyalier/guides/ai-assist/#ask-about-this-trip) can be
+grounded in, since it finds its material with the same deterministic search.
+
+## What is encrypted, and what is not
+
+A resource's fetched page text is **not** encrypted at rest. It is public web
+material, and it has to stay searchable.
+
+**Your own note on it is encrypted**, like every other note in Voyalier. See
+[The encrypted vault](/Voyalier/guides/encrypted-vault/) for how that works and
+what the optional passphrase adds.
