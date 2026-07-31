@@ -240,6 +240,22 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   table, so the traveler gets the authority and its own checker and no journey.
   Distinct from an uncurated destination, which still names no authority at all.
 
+- ✓ The clock repair and four more authorities (0.8.0): a trip crossing a
+  daylight-saving change read an hour wrong — one UTC offset was resolved on the
+  trip's first day and reused for every day of the window — so the snapshot now
+  keeps the IANA zone and derives each day's offset from it, and states the day
+  either end of the trip moves its clocks. **Australia** resolves an entry route
+  from Home Affairs' two enumerated electronic-authorization lists; **New
+  Zealand, Korea and the United States** are named as authorities that resolve
+  nothing, each because the list they publish is gated on something a passport
+  cannot answer. The visa panel points at the traveler's own embassies and
+  consulates from a bundled Wikidata extract, framed as somewhere to confirm
+  rather than somewhere to go, because closure is recorded unevenly. Eclipses
+  falling inside the trip window come from a bundled NASA table; meteor showers
+  were dropped for want of a bundleable licence. Six more pack cities widen a
+  catalogue that had nothing in Africa, South America, the Middle East or
+  Oceania — their assets follow from a separate publisher run.
+
 ## Later
 
 Licensed live inventory, encrypted sync, group collaboration, monitoring, silent/automatic email ingestion (inbox scanning, as opposed to the shipped explicit paste-or-.eml import), and mobile experiences.
