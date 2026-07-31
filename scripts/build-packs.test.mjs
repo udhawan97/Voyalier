@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { partitionAmenities } from "./build-packs.mjs";
+import { fetchPlaces, partitionAmenities } from "./build-packs.mjs";
 
 /**
  * The amenities layer is carved out of the same Overture query as the places
@@ -88,4 +88,47 @@ test("handles an empty query without inventing a layer", () => {
   const { places, amenities } = partitionAmenities([]);
   assert.deepEqual(places, []);
   assert.deepEqual(amenities, []);
+});
+
+/**
+ * The publisher must fail rather than write a pack with no places in it.
+ *
+ * This is the regression that shipped: a pruned Overture release made every
+ * query fail, the handler swallowed it and returned [], the run went green, and
+ * every published pack carried zero places for ten days. A pack that downloads
+ * successfully and contains nothing is worse than a failed publish, because
+ * nothing surfaces it.
+ */
+test("refuses to publish when the Overture query fails", async () => {
+  await assert.rejects(
+    // A release that cannot exist reproduces exactly what a pruned one does:
+    // DuckDB refuses the read. Pinned explicitly rather than relying on the
+    // ambient default, so this says the same thing on a machine with DuckDB
+    // installed and a live release as on one without either.
+    () =>
+      fetchPlaces(
+        { west: -87.06, south: 36.03, east: -86.62, north: 36.41 },
+        "0000-00-00.0",
+      ),
+    (error) => {
+      assert.match(error.message, /Refusing to publish a pack with no places/);
+      // The message has to name the release, because "which release" is the
+      // question a reader will have and the reason it broke.
+      assert.match(error.message, /Release queried:/);
+      return true;
+    },
+  );
+});
+
+test("rejects a malformed bbox before it reaches SQL", async () => {
+  await assert.rejects(
+    () =>
+      fetchPlaces({
+        west: "-87.06; DROP TABLE",
+        south: 36.03,
+        east: -86.62,
+        north: 36.41,
+      }),
+    /Invalid bbox\.west/,
+  );
 });

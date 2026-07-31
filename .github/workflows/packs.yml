@@ -16,8 +16,15 @@ on:
         default: packs-v1
         type: string
       overture_release:
-        description: Overture Maps release to query
-        default: "2025-01-22.0"
+        # Overture keeps only the newest couple of releases on S3, so this
+        # default rots exactly the way the Protomaps one below does — and when
+        # it rotted it published packs with zero places for ten days. Check
+        # https://overturemaps-us-west-2.s3.amazonaws.com/?list-type=2&prefix=release/&delimiter=/
+        # and pass a release that still exists. The build now fails loudly
+        # rather than shipping empty packs, but a failed run is still a wasted
+        # one.
+        description: Overture Maps release to query — pruned often, verify it still exists
+        default: "2026-07-22.0"
         type: string
       protomaps_build:
         # Protomaps prunes daily planet builds after about two weeks, and there
