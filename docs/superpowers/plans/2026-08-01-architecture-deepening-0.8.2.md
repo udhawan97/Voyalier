@@ -70,7 +70,7 @@ other view can invalidate them without re-deriving the string format.
 `crates/voyalier-app/src/records.rs` declares which columns the vault encrypts
 as 14 `(table, column)` string pairs. Nothing checks them against the database,
 so a typo, or a table renamed by a later migration, silently stops encrypting a
-column. The round-trip test only proves that the columns it *can* find hold
+column. The round-trip test only proves that the columns it _can_ find hold
 sealed values.
 
 `crates/voyalier-app/src/snapshots.rs` already solves exactly this for

@@ -6,6 +6,65 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-08-01 — One copy of each rule
+
+### Fixed
+
+- **Chat again points at the real authority for the questions it was quietly
+  skipping.** Voyalier puts a card above a local model's answer whenever a
+  question touches entry, health, safety, or prices — subjects it refuses to be
+  the last word on. The demonstration build carried its own hand-written copy
+  of the word list behind that card, and the copy had fallen to twenty of the
+  engine's forty-eight terms and none of its six multi-word phrases. A question
+  about entry requirements, customs, ESTA, Schengen, overstaying, quarantine,
+  malaria, terrorism, curfews, travel insurance, or yellow fever got the
+  model's answer with nothing above it.
+
+  The list is now one file both sides read, so there is no second copy left to
+  drift. The single test covering this behavior had asked "Do I need a visa" —
+  one of the twenty words the two lists still shared — and passed throughout.
+
+  Only the demonstration build was affected; the shipped desktop and local
+  server always used the full list.
+
+- **Three panels now say when the local engine cannot be reached.** Opening AI
+  provider settings, reading the encryption status, and setting a passphrase
+  each dropped their failure on the floor. The worst of them removed the whole
+  Encryption section from Settings with no message, because a panel with no
+  status renders nothing at all. All three now show the failure, offer a retry
+  where one can help, and tell the workspace status indicator the truth instead
+  of leaving it reading Ready.
+
+- **A currency conversion is computed one way rather than two.** The
+  destination money block and the engine each carried their own cross-rate
+  arithmetic, and nothing held them to the same answer. Writing the shared test
+  corrected a real misunderstanding on the way in: the European Central Bank
+  feed does not list the euro, and Voyalier adds it at parity so that
+  converting from euros needs no special case. An unknown currency still shows
+  nothing rather than a rate of one, which would read as a real quote.
+
+### Changed
+
+- **Several rules that existed in more than one place now exist in one.**
+  Great-circle distance was written three times, the "this source returned
+  something unreadable" sentence seven times, and a test helper for opening the
+  sample trip six times. None of this changes what Voyalier does; it changes
+  how many places have to agree for it to keep doing it.
+
+- **Two guards were taught to check what they claimed to check.** The
+  declaration of which database columns are encrypted was fourteen strings that
+  nothing compared against the database, so a typo would have stopped
+  encrypting a column in silence. A second check covers a failure that could
+  only ever have appeared on an existing traveler's machine during an upgrade,
+  never on the machine that introduced it.
+
+  This release deliberately does not touch the larger findings from the same
+  review — the two transport layers that are almost entirely forwarding, the
+  request payloads no guard covers, or the database schema stated in three
+  places. Those need their own decision records and are written down in
+  `docs/superpowers/plans/2026-08-01-architecture-deepening-0.8.2.md` so the
+  next review does not rediscover them.
+
 ## [0.8.1] - 2026-08-01 — The feedback repair
 
 ### Fixed
