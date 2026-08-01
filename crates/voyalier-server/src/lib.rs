@@ -2249,11 +2249,18 @@ mod tests {
 
         // A positive control: route_probe's whole discrimination rests on "not
         // (404 with an empty body)" meaning routed. Prove that a path nothing
-        // routes actually still comes back that way before trusting the 57
-        // checks below — anything that made the router answer before routing
-        // (a blanket middleware short-circuit, a change to Axum's own
+        // routes actually still comes back that way before trusting the checks
+        // below — anything that made the router answer before routing (a
+        // blanket middleware short-circuit, a change to Axum's own
         // unmatched-path response) would otherwise turn every one of them
         // vacuously green.
+        //
+        // The count is read off the manifest rather than written into the
+        // prose. It was stated twice here, as 57 in the comment and 68 in the
+        // message, while the manifest carried 81 — a guard that misreports its
+        // own coverage invites the reader to trust the number instead of the
+        // assertion.
+        let checks = manifest.shared.len();
         let (control_status, control_body_empty) = route_probe(
             router.clone(),
             Method::GET,
@@ -2264,8 +2271,8 @@ mod tests {
             control_status == StatusCode::NOT_FOUND && control_body_empty,
             "route_probe's positive control got {control_status} (empty body: \
              {control_body_empty}) for a path nothing routes. route_probe can no longer tell a \
-             routing miss apart from a handler's own response, so the 68 checks below would pass \
-             vacuously."
+             routing miss apart from a handler's own response, so the {checks} checks below would \
+             pass vacuously."
         );
 
         for route in &manifest.shared {
