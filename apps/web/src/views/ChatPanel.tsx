@@ -9,13 +9,13 @@ import { MAX_CHAT_MESSAGE_CHARS, countChars } from "@voyalier/contracts";
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError } from "../app/format";
 import { plural, t, type MessageKey } from "../app/i18n";
-import { useScopeKey } from "../app/revalidate";
+import { chatScope, useScopeKey } from "../app/revalidate";
 import { useAsyncAction, useAsyncData } from "../app/useAsync";
 import { Button } from "../components/Button";
 import { ConfirmButton } from "../components/ConfirmButton";
 import { CpuIcon } from "../components/icons";
 import { Empty, SectionTitle, Skeleton } from "../components/primitives";
-import { Hint } from "./ResourcesPanel";
+import { Hint } from "../components/Hint";
 
 /**
  * What Voyalier says for itself on a subject it refuses to be the authority on.
@@ -167,7 +167,7 @@ export function ChatPanel({
       ]);
       return { messages, localAi };
     },
-    useScopeKey(`chat:${tripId}`),
+    useScopeKey(chatScope(tripId)),
   );
 
   const [draft, setDraft] = useState("");

@@ -2,9 +2,12 @@ import { useState } from "react";
 import type { ProviderConfig, ProviderId } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
+import { describeError } from "../app/format";
 import { t } from "../app/i18n";
+import { useAsyncAction } from "../app/useAsync";
 import { SectionTitle } from "../components/primitives";
 import { KeyIcon } from "../components/icons";
+import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 import { ConfirmButton } from "../components/ConfirmButton";
 
@@ -237,16 +240,12 @@ function ProviderRow({
 export function AiProviders() {
   const gateway = useGateway();
   const [providers, setProviders] = useState<ProviderConfig[] | null>(null);
-  const [loading, setLoading] = useState(false);
 
-  async function load() {
-    setLoading(true);
-    try {
-      setProviders(await gateway.listProviders());
-    } finally {
-      setLoading(false);
-    }
-  }
+  // This was a try/finally with no catch on a click handler, so a rejection
+  // became an unhandled promise rejection: the button un-busied itself, the
+  // panel stayed on its intro copy, and nothing told the topbar the engine was
+  // unreachable. `useAsyncAction` is where that shape belongs.
+  const load = useAsyncAction(() => gateway.listProviders(), setProviders);
 
   function apply(updated: ProviderConfig) {
     setProviders(
@@ -265,7 +264,24 @@ export function AiProviders() {
       {providers === null ? (
         <>
           <p className="voy-providers__intro">{t("providers.intro")}</p>
-          <Button variant="secondary" busy={loading} onClick={load}>
+          {load.error ? (
+            <Banner
+              role="alert"
+              title={describeError(load.error).title}
+              action={
+                <Button variant="secondary" onClick={() => void load.run()}>
+                  {t("action.retry")}
+                </Button>
+              }
+            >
+              {describeError(load.error).body}
+            </Banner>
+          ) : null}
+          <Button
+            variant="secondary"
+            busy={load.busy}
+            onClick={() => void load.run()}
+          >
             {t("providers.manage")}
           </Button>
         </>

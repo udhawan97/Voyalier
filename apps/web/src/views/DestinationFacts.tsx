@@ -2,7 +2,6 @@ import type {
   AstroDay,
   ClockChange,
   CountryFacts,
-  CurrencyRate,
   DestinationFactsSnapshot,
   HeritageSite,
   NearbyAirport,

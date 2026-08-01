@@ -1,42 +1,17 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { AppError, Resource } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError, formatInstantDate } from "../app/format";
 import { t } from "../app/i18n";
-import { useScopeKey } from "../app/revalidate";
+import { resourcesScope, useScopeKey } from "../app/revalidate";
 import { useAsyncAction, useAsyncData } from "../app/useAsync";
 import { Button } from "../components/Button";
 import { ConfirmButton } from "../components/ConfirmButton";
+import { Hint } from "../components/Hint";
 import { Field } from "../components/fields";
 import { CompassIcon } from "../components/icons";
 import { Empty, SectionTitle, Skeleton } from "../components/primitives";
-
-/**
- * A small piece of inline guidance: shown by default, dismissible, and gone for
- * the rest of the visit once dismissed.
- *
- * A `<p role="note">` rather than a dialog or a tooltip, so it is in the reading
- * order where it applies, reachable by keyboard, and readable by a screen reader
- * without anyone having to go hunting for a trigger. Exported because the chat
- * panel owes the traveler the same kind of sentence.
- */
-export function Hint({ children }: { children: ReactNode }) {
-  const [shown, setShown] = useState(true);
-  if (!shown) return null;
-  return (
-    <p className="voy-field-hint" role="note">
-      {children}{" "}
-      <button
-        type="button"
-        className="voy-linkbtn"
-        onClick={() => setShown(false)}
-      >
-        {t("hint.dismiss")}
-      </button>
-    </p>
-  );
-}
 
 /** "kyoto, temples" → ["kyoto", "temples"]. Blank entries are dropped. */
 function parseTags(raw: string): string[] {
@@ -314,7 +289,7 @@ export function ResourcesPanel({ tripId }: { tripId: string }) {
       ]);
       return { resources, settings };
     },
-    useScopeKey(`resources:${tripId}`),
+    useScopeKey(resourcesScope(tripId)),
   );
 
   const [url, setUrl] = useState("");

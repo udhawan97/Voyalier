@@ -1,24 +1,19 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
 
-import { failingGateway, rejectWith, renderApp } from "./test/helpers";
-
-async function openKyoto() {
-  fireEvent.click(
-    await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
-  );
-  await screen.findByRole("heading", {
-    name: "Kyoto autumn journey",
-    level: 1,
-  });
-}
+import {
+  failingGateway,
+  openFixtureTrip,
+  rejectWith,
+  renderApp,
+} from "./test/helpers";
 
 describe("User-flow gap fixes", () => {
   // #1 — a hand-entered fact is a "Remove", announced honestly, not a bogus
   // "moved back to review".
   it("labels manual-fact removal honestly", async () => {
     renderApp(createMockGateway());
-    await openKyoto();
+    await openFixtureTrip();
     const factCard = (await screen.findByText("Flight FP18")).closest(
       "article",
     ) as HTMLElement;
@@ -38,7 +33,7 @@ describe("User-flow gap fixes", () => {
   // #4 — a trip's destination can be edited after creation.
   it("edits a trip's destination", async () => {
     renderApp(createMockGateway());
-    await openKyoto();
+    await openFixtureTrip();
     expect(screen.getByText("Chicago → Kyoto")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
@@ -90,7 +85,7 @@ describe("User-flow gap fixes", () => {
         }),
       }),
     );
-    await openKyoto();
+    await openFixtureTrip();
     const region = await screen.findByRole("region", {
       name: "Preview an AI request",
     });
@@ -119,7 +114,7 @@ describe("User-flow gap fixes", () => {
         }),
       }),
     );
-    await openKyoto();
+    await openFixtureTrip();
     const region = await screen.findByRole("region", {
       name: "Weather outlook",
     });
@@ -143,7 +138,7 @@ describe("User-flow gap fixes", () => {
   // already owns.
   it("never strands focus on the body when a dialog closes", async () => {
     renderApp(createMockGateway());
-    await openKyoto();
+    await openFixtureTrip();
 
     // Cancel: the trigger survives, so focus belongs back on it.
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
@@ -249,7 +244,7 @@ describe("User-flow gap fixes", () => {
       },
     });
     renderApp(gateway);
-    await openKyoto();
+    await openFixtureTrip();
 
     const schedule = await screen.findByRole("region", {
       name: /Schedule check/,
