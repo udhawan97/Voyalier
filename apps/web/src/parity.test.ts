@@ -23,6 +23,7 @@ import {
   MAX_NOTES_CHARS,
   MAX_QUERY_LEN,
   countChars,
+  crossRate,
   mockAssessReadiness,
   mockCountryFacts,
   mockDetectItineraryConflicts,
@@ -373,12 +374,20 @@ describe("parity: trip facts", () => {
   const holidays = tripFactsGolden.holidaysWithin.cases;
   const tipping = tripFactsGolden.tipping.cases;
   const countryFacts = tripFactsGolden.countryFacts.cases;
+  const crossRates = tripFactsGolden.crossRate.cases;
 
   it("covers every golden case", () => {
     expect(timeDifference).toHaveLength(4);
     expect(holidays).toHaveLength(4);
     expect(tipping).toHaveLength(2);
     expect(countryFacts).toHaveLength(2);
+    expect(crossRates).toHaveLength(7);
+  });
+
+  it.each(crossRates)("cross rate: $name", ({ from, to, expected }) => {
+    // The destination-facts panel had its own copy of this and the Rust core's
+    // only caller was a test, so neither held the other to anything.
+    expect(crossRate(tripFactsGolden.crossRate.rates, from, to)).toBe(expected);
   });
 
   it.each(timeDifference)(

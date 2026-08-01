@@ -810,6 +810,29 @@ fn parity_trip_facts_matches_the_contract() {
     }
     assert_eq!(cases.len(), 4, "every timeDifference case must be checked");
 
+    let rates: Vec<crate::facts::CurrencyRate> =
+        serde_json::from_value(golden["crossRate"]["rates"].clone()).expect("rates");
+    let cases = golden["crossRate"]["cases"]
+        .as_array()
+        .expect("crossRate cases");
+    for case in cases {
+        let name = case["name"].as_str().expect("name");
+        let actual = crate::facts::cross_rate(
+            &rates,
+            case["from"].as_str().expect("from"),
+            case["to"].as_str().expect("to"),
+        );
+        // Serialized rather than compared as f64 so an absent rate has to be
+        // null on both sides — 0.0 or 1.0 standing in for "unknown" would read
+        // as a real quote in the money block.
+        assert_eq!(
+            serde_json::to_value(actual).expect("serializable"),
+            case["expected"],
+            "cross_rate for {name:?}"
+        );
+    }
+    assert_eq!(cases.len(), 7, "every crossRate case must be checked");
+
     let cases = golden["holidaysWithin"]["cases"]
         .as_array()
         .expect("holidaysWithin cases");

@@ -9,6 +9,7 @@ import type {
   SkyEvent,
   TimeDifference,
 } from "@voyalier/contracts";
+import { crossRate } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError, formatDate, formatInstant } from "../app/format";
@@ -22,20 +23,6 @@ import { Button } from "../components/Button";
 
 /** Reference currencies the money block quotes the destination against. */
 const REFERENCE_CURRENCIES = ["USD", "EUR", "GBP"] as const;
-
-/** Convert one unit of `from` into `to` via the euro, or null if either is absent. */
-function crossRate(
-  rates: CurrencyRate[],
-  from: string,
-  to: string,
-): number | null {
-  const perEur = (code: string) =>
-    rates.find((rate) => rate.code === code)?.perEur ?? null;
-  const a = perEur(from);
-  const b = perEur(to);
-  if (a === null || b === null) return null;
-  return b / a;
-}
 
 /** Minutes as a duration phrase, shared by the gap and the clock changes. */
 function durationOf(totalMinutes: number) {
