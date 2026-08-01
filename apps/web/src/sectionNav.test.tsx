@@ -151,4 +151,48 @@ describe("Trip section navigation", () => {
     );
     scroll.restore();
   });
+
+  it("offers a named continuation control only while sections overflow", async () => {
+    stubDeferredSections();
+    renderApp(createMockGateway());
+    await openKyoto();
+
+    const nav = screen.getByRole("navigation", {
+      name: "Jump to a section",
+    });
+    let scrollLeft = 0;
+    Object.defineProperties(nav, {
+      clientWidth: { configurable: true, get: () => 280 },
+      scrollWidth: { configurable: true, get: () => 322 },
+      scrollLeft: {
+        configurable: true,
+        get: () => scrollLeft,
+        set: (value: number) => {
+          scrollLeft = value;
+        },
+      },
+    });
+    Object.defineProperty(nav, "scrollBy", {
+      configurable: true,
+      value: vi.fn(({ left }: ScrollToOptions) => {
+        scrollLeft += Number(left ?? 0);
+        fireEvent.scroll(nav);
+      }),
+    });
+    fireEvent(window, new Event("resize"));
+
+    const more = await screen.findByRole("button", {
+      name: "Show more trip sections",
+    });
+    fireEvent.click(more);
+    expect(nav.scrollBy).toHaveBeenCalled();
+
+    scrollLeft = 42;
+    fireEvent.scroll(nav);
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Show more trip sections" }),
+      ).toBeNull(),
+    );
+  });
 });

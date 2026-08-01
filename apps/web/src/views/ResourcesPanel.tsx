@@ -1,5 +1,5 @@
-import { useId, useState, type ReactNode } from "react";
-import type { Resource } from "@voyalier/contracts";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import type { AppError, Resource } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError, formatInstantDate } from "../app/format";
@@ -8,6 +8,7 @@ import { useScopeKey } from "../app/revalidate";
 import { useAsyncAction, useAsyncData } from "../app/useAsync";
 import { Button } from "../components/Button";
 import { ConfirmButton } from "../components/ConfirmButton";
+import { Field } from "../components/fields";
 import { CompassIcon } from "../components/icons";
 import { Empty, SectionTitle, Skeleton } from "../components/primitives";
 
@@ -43,6 +44,19 @@ function parseTags(raw: string): string[] {
     .split(",")
     .map((tag) => tag.trim())
     .filter(Boolean);
+}
+
+/** Map core's stable validation field to the quick-add control that owns it. */
+function resourceFieldError(
+  error?: AppError,
+): { field: "tags"; message: string } | undefined {
+  if (
+    error?.code === "validation/invalid_input" &&
+    error.details?.field === "tags"
+  ) {
+    return { field: "tags", message: t("resources.add.tagsInvalid") };
+  }
+  return undefined;
 }
 
 /**
@@ -307,8 +321,10 @@ export function ResourcesPanel({ tripId }: { tripId: string }) {
   const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
   const [tags, setTags] = useState("");
+  const [submittedTags, setSubmittedTags] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState(false);
   const [filter, setFilter] = useState<string | null>(null);
+  const tagsRef = useRef<HTMLInputElement>(null);
 
   const addAction = useAsyncAction(
     () =>
@@ -335,6 +351,7 @@ export function ResourcesPanel({ tripId }: { tripId: string }) {
       setTitle("");
       setNote("");
       setTags("");
+      setSubmittedTags(null);
       reload();
     },
   );
@@ -345,6 +362,16 @@ export function ResourcesPanel({ tripId }: { tripId: string }) {
   );
 
   const resources = data?.resources ?? [];
+  const addFieldError = resourceFieldError(addAction.error);
+  const tagsError =
+    addFieldError?.field === "tags" && submittedTags === tags
+      ? addFieldError.message
+      : undefined;
+
+  useEffect(() => {
+    if (tagsError) tagsRef.current?.focus();
+  }, [tagsError]);
+
   const canFetch = data?.settings.autoFetchDetails === true;
   const allTags = [...new Set(resources.flatMap((resource) => resource.tags))];
   const shown =
@@ -366,6 +393,7 @@ export function ResourcesPanel({ tripId }: { tripId: string }) {
           event.preventDefault();
           if (!url.trim()) return;
           setDuplicate(false);
+          setSubmittedTags(tags);
           void addAction.run();
         }}
       >
@@ -399,17 +427,23 @@ export function ResourcesPanel({ tripId }: { tripId: string }) {
           value={note}
           onChange={(event) => setNote(event.target.value)}
         />
-        <label htmlFor={`${fieldId}-tags`}>{t("resources.add.tags")}</label>
-        <input
+        <Field
           id={`${fieldId}-tags`}
-          className="voy-input"
-          aria-describedby={`${fieldId}-tags-hint`}
-          value={tags}
-          onChange={(event) => setTags(event.target.value)}
-        />
-        <small id={`${fieldId}-tags-hint`} className="voy-field-hint">
-          {t("resources.add.tagsHint")}
-        </small>
+          label={t("resources.add.tags")}
+          hint={t("resources.add.tagsHint")}
+          error={tagsError}
+        >
+          {(aria) => (
+            <input
+              id={`${fieldId}-tags`}
+              ref={tagsRef}
+              className="voy-input"
+              value={tags}
+              onChange={(event) => setTags(event.target.value)}
+              {...aria}
+            />
+          )}
+        </Field>
         <Button
           type="submit"
           variant="secondary"
@@ -423,7 +457,7 @@ export function ResourcesPanel({ tripId }: { tripId: string }) {
             {t("resources.duplicate")}
           </p>
         ) : null}
-        {addAction.error ? (
+        {addAction.error && !addFieldError ? (
           <p className="voy-field__error" role="alert">
             {describeError(addAction.error).title}
           </p>

@@ -165,9 +165,9 @@ describe("visa preparation", () => {
     );
 
     // The progress line says who counted, in the same sentence as the number.
-    expect(
-      within(region).getByText(/You marked \d+ of \d+ steps/),
-    ).toHaveTextContent(/Voyalier has not verified any of them/);
+    expect(within(region).getByText(/Checklist:/)).toHaveTextContent(
+      /Voyalier has not verified any item/,
+    );
   });
 
   it("saves a note against a document and reloads it", async () => {
@@ -242,8 +242,11 @@ describe("visa preparation", () => {
     // denominator left the journey reading "7 of 8" with every box checked and
     // no remaining action anywhere in the panel.
     const askable = journey.steps.filter((step) => step.documents.length > 0);
-    expect(within(region).getByText(/You marked/)).toHaveTextContent(
-      `You marked ${askable.length} of ${askable.length} steps complete`,
+    expect(within(region).getByText(/Checklist:/)).toHaveTextContent(
+      `Checklist: ${askable.length} of ${askable.length} complete`,
+    );
+    expect(within(region).getByText(/Checklist:/)).toHaveTextContent(
+      `${journey.steps.length} guide steps`,
     );
   });
 
@@ -288,6 +291,28 @@ describe("visa preparation", () => {
     expect(
       within(region).getByLabelText("Passport country code"),
     ).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("does not call valid passport input invalid when the engine is offline", async () => {
+    const base = createMockGateway();
+    const region = await openVisa({
+      ...base,
+      setVisaNationality: () =>
+        Promise.reject({
+          code: "transport/failure",
+          message: "engine unreachable",
+        }),
+    });
+    const field = within(region).getByLabelText("Passport country code");
+    fireEvent.change(field, { target: { value: "US" } });
+    fireEvent.click(within(region).getByRole("button", { name: "Save" }));
+
+    await screen.findByText("Offline");
+    expect(field).not.toHaveAttribute("aria-invalid");
+    expect(within(region).queryByText(/Use two letters/)).toBeNull();
+    expect(
+      await screen.findByText("Voyalier can't reach its engine"),
+    ).toBeInTheDocument();
   });
 
   it("builds the no-journey state without nesting blocks inside a paragraph", async () => {
