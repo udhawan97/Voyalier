@@ -1,3 +1,4 @@
+import chatTopicsGolden from "@voyalier/contracts/parity/chat-topics.json";
 import limits from "@voyalier/contracts/parity/limits.json";
 import normalizePlaceGolden from "@voyalier/contracts/parity/normalize-place.json";
 import savedPlaceIdentityGolden from "@voyalier/contracts/parity/saved-place-identity.json";
@@ -25,6 +26,7 @@ import {
   mockAssessReadiness,
   mockCountryFacts,
   mockDetectItineraryConflicts,
+  mockHighStakesTopics,
   mockHolidaysWithin,
   mockNormalizePlace,
   mockPackingList,
@@ -111,6 +113,69 @@ describe("parity: normalizePlace", () => {
 
   it.each(cases)("folds $input to $expected", ({ input, expected }) => {
     expect(mockNormalizePlace(input)).toBe(expected);
+  });
+});
+
+/**
+ * The table behind the "Voyalier isn't the authority" pointer above a chat
+ * reply. It used to be hand-copied into the mock, which knew 20 of the 48 words
+ * and none of the 6 phrases — so a traveler asking about entry requirements,
+ * customs, quarantine or terrorism got the local model's answer with nothing
+ * above it, in exactly the mode contributors develop against.
+ *
+ * Now both languages read this file. The counts are pinned here and in
+ * `crates/voyalier-core/src/tests.rs`.
+ */
+describe("parity: high-stakes chat topics", () => {
+  const { topics } = chatTopicsGolden;
+
+  it("covers every golden term", () => {
+    expect(topics.flatMap((entry) => entry.words)).toHaveLength(
+      chatTopicsGolden.wordCount,
+    );
+    expect(topics.flatMap((entry) => entry.phrases)).toHaveLength(
+      chatTopicsGolden.phraseCount,
+    );
+    // Exact, not a floor. Bump both files when you add a term.
+    expect(chatTopicsGolden.wordCount).toBe(48);
+    expect(chatTopicsGolden.phraseCount).toBe(6);
+  });
+
+  it.each(
+    topics.flatMap((entry) => entry.words.map((word) => [entry.topic, word])),
+  )("raises %s for the word %s", (topic, word) => {
+    expect(mockHighStakesTopics(`Tell me about ${word} please`)).toContain(
+      topic,
+    );
+  });
+
+  it.each(
+    topics.flatMap((entry) =>
+      entry.phrases.map((phrase) => [entry.topic, phrase]),
+    ),
+  )("raises %s for the phrase %s", (topic, phrase) => {
+    expect(mockHighStakesTopics(`Tell me about ${phrase} please`)).toContain(
+      topic,
+    );
+  });
+
+  it("matches whole words, not substrings", () => {
+    // "safe" fires; the supermarket does not.
+    expect(mockHighStakesTopics("Where is the nearest Safeway?")).toEqual([]);
+    expect(mockHighStakesTopics("Is it safe?")).toEqual(["safety"]);
+  });
+
+  it("orders every word match before any phrase match", () => {
+    // The core scans all words first, then all phrases, and that order is the
+    // order of the pointer cards. Folding it into one per-topic pass reverses
+    // this case.
+    expect(
+      mockHighStakesTopics("Is it safe, and what are the entry requirements?"),
+    ).toEqual(["safety", "entry"]);
+  });
+
+  it("says nothing about an ordinary question", () => {
+    expect(mockHighStakesTopics("Where should I eat dinner?")).toEqual([]);
   });
 });
 

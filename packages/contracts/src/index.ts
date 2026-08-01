@@ -1721,6 +1721,7 @@ export {
   assessReadiness as mockAssessReadiness,
   detectItineraryConflicts as mockDetectItineraryConflicts,
   mockCountryFacts,
+  mockHighStakesTopics,
   mockHolidaysWithin,
   mockNormalizePlace,
   mockPackingList,

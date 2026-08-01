@@ -499,6 +499,99 @@ fn parity_prompts_match_the_contract() {
     );
 }
 
+/// The high-stakes table decides when a chat reply gets a pointer at the real
+/// authority above it. The mock carried a hand-written copy that knew 20 of the
+/// 48 words and none of the 6 phrases, so in mock mode a question about entry
+/// requirements, customs, quarantine, or terrorism got the model's answer with
+/// nothing above it — the one thing the feature exists to prevent. The only
+/// test on it asked "Do I need a visa", a word inside the intersection.
+///
+/// Both counts are pinned here and in `apps/web/src/parity.test.ts`, so a term
+/// added on one side fails until the other is told about it.
+#[test]
+fn parity_chat_topics_match_the_contract() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../packages/contracts/parity/chat-topics.json");
+    let raw = fs::read_to_string(&path).expect("parity/chat-topics.json");
+    let golden: Value = serde_json::from_str(&raw).expect("valid json");
+    let topics = golden["topics"].as_array().expect("topics array");
+
+    assert_eq!(
+        topics.len(),
+        crate::chat::HIGH_STAKES_WORDS.len(),
+        "chat-topics.json declares a different set of topics than HIGH_STAKES_WORDS"
+    );
+
+    let mut words_seen = 0usize;
+    let mut phrases_seen = 0usize;
+
+    for (index, entry) in topics.iter().enumerate() {
+        let (topic, words) = crate::chat::HIGH_STAKES_WORDS[index];
+        // Topic order is the order the pointer cards appear, so it is part of
+        // the contract rather than an artifact of how the table is written.
+        assert_eq!(
+            entry["topic"].as_str(),
+            serde_json::to_value(topic).expect("topic").as_str(),
+            "topic {index} is out of order"
+        );
+
+        let golden_words: Vec<&str> = entry["words"]
+            .as_array()
+            .expect("words array")
+            .iter()
+            .map(|word| word.as_str().expect("word is a string"))
+            .collect();
+        assert_eq!(golden_words, words, "words for {topic:?}");
+        words_seen += words.len();
+
+        let golden_phrases: Vec<&str> = entry["phrases"]
+            .as_array()
+            .expect("phrases array")
+            .iter()
+            .map(|phrase| phrase.as_str().expect("phrase is a string"))
+            .collect();
+        let phrases: Vec<&str> = crate::chat::HIGH_STAKES_PHRASES
+            .iter()
+            .filter(|(candidate, _)| candidate == &topic)
+            .map(|(_, phrase)| *phrase)
+            .collect();
+        assert_eq!(golden_phrases, phrases, "phrases for {topic:?}");
+        phrases_seen += phrases.len();
+    }
+
+    assert_eq!(
+        phrases_seen,
+        crate::chat::HIGH_STAKES_PHRASES.len(),
+        "a phrase names a topic the words table does not"
+    );
+    // The golden groups phrases under their topic; the core keeps one flat
+    // table. A reader flattening the golden in topic order has to land on the
+    // core's order, because that order decides which pointer card comes first.
+    let flattened: Vec<&str> = topics
+        .iter()
+        .flat_map(|entry| entry["phrases"].as_array().expect("phrases array"))
+        .map(|phrase| phrase.as_str().expect("phrase is a string"))
+        .collect();
+    let flat_core: Vec<&str> = crate::chat::HIGH_STAKES_PHRASES
+        .iter()
+        .map(|(_, phrase)| *phrase)
+        .collect();
+    assert_eq!(
+        flattened, flat_core,
+        "HIGH_STAKES_PHRASES is no longer grouped by topic, so flattening the golden reorders it"
+    );
+    assert_eq!(
+        words_seen as u64,
+        golden["wordCount"].as_u64().expect("wordCount"),
+        "wordCount must be bumped in chat-topics.json and in both tests"
+    );
+    assert_eq!(
+        phrases_seen as u64,
+        golden["phraseCount"].as_u64().expect("phraseCount"),
+        "phraseCount must be bumped in chat-topics.json and in both tests"
+    );
+}
+
 /// The curated official-source links are the product's whole claim on entry and
 /// health: it never asserts those rules, it points at the source. They were
 /// hand-maintained in Rust and TypeScript with nothing holding them together,

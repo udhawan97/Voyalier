@@ -1,4 +1,5 @@
 import packing from "../parity/packing.json";
+import chatTopics from "../parity/chat-topics.json";
 import prompts from "../parity/prompts.json";
 import readinessLinks from "../parity/readiness-links.json";
 import visaParity from "../parity/visa.json";
@@ -1466,22 +1467,38 @@ function normalizeTags(raw: string[]): string[] {
   return tags;
 }
 
-/** Mirrors `high_stakes_topics`: whole-word matches, stable topic order. */
-function mockHighStakesTopics(message: string): HighStakesTopic[] {
-  const words = message
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter((word) => word.length > 0);
-  const table: [HighStakesTopic, string[]][] = [
-    ["entry", ["visa", "visas", "passport", "passports", "immigration"]],
-    ["health", ["vaccine", "vaccines", "vaccination", "vaccinations"]],
-    ["safety", ["safe", "unsafe", "safety", "dangerous", "crime"]],
-    ["prices", ["price", "prices", "cost", "costs", "fare", "fares"]],
-  ];
+/**
+ * `high_stakes_topics`, reading the same table the core does.
+ *
+ * This was a hand-written copy of that table and it knew 20 of the 48 words and
+ * none of the 6 phrases, so mock mode dropped the authority pointer on entry
+ * requirements, customs, quarantine, terrorism and the rest — the one thing the
+ * feature exists to put above a local model's answer. Reading
+ * `parity/chat-topics.json` is what ADR-0004 asks for: a rule the mock mirrors
+ * gets a golden, and here the golden is the table itself, so there is nothing
+ * left to mirror.
+ */
+export function mockHighStakesTopics(message: string): HighStakesTopic[] {
+  const lower = message.toLowerCase();
+  const words = lower.split(/[^a-z0-9]+/).filter((word) => word.length > 0);
   const topics: HighStakesTopic[] = [];
-  for (const [topic, terms] of table) {
-    if (words.some((word) => terms.includes(word)) && !topics.includes(topic))
-      topics.push(topic);
+  const add = (topic: HighStakesTopic) => {
+    if (!topics.includes(topic)) topics.push(topic);
+  };
+  // Two passes, in the core's order: every word match before any phrase match.
+  // Folding them into one per-topic loop looks equivalent and is not — "is it
+  // safe, and what are the entry requirements" yields [safety, entry] here and
+  // [entry, safety] there, and that order is the order of the pointer cards.
+  //
+  // Words match whole ("safe" fires, "safeway" does not); phrases match as
+  // substrings, which is the only way a multi-word form is caught at all.
+  for (const entry of chatTopics.topics) {
+    if (entry.words.some((word) => words.includes(word)))
+      add(entry.topic as HighStakesTopic);
+  }
+  for (const entry of chatTopics.topics) {
+    if (entry.phrases.some((phrase) => lower.includes(phrase)))
+      add(entry.topic as HighStakesTopic);
   }
   return topics;
 }
