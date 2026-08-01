@@ -6,6 +6,49 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-08-01 — The feedback repair
+
+### Fixed
+
+- **A failed form now points to the field that needs changing.** An activity
+  whose end preceded its start used to discard the server's field detail,
+  display only “Check highlighted fields,” highlight nothing, and offer to
+  retry the same invalid request. Saved-reading tags failed the same way when
+  there were too many or one was too long. Both forms now name the rule beside
+  the responsible field, mark and focus that field, clear the message when the
+  traveler corrects it, and reserve Retry for failures that can actually
+  recover without editing the request.
+
+  This repair uses the validation details the local engine already returns; it
+  does not add browser-side product rules or change the contract.
+
+- **A valid passport code no longer becomes “invalid” when the engine is
+  offline.** The visa form had collapsed every save failure into the two-letter
+  format message, so a valid code such as `US` was blamed when the real problem
+  was transport. Format validation now stays attached only to format failures,
+  while the existing workspace recovery banner owns an offline save. The
+  traveler-entered code and previously loaded visa guidance remain visible.
+
+  Voyalier still does not infer eligibility or treat a saved nationality as a
+  visa decision.
+
+- **Visa progress now describes the two different counts it displays.** The
+  checklist count records what the traveler can complete; the guide-step count
+  records the authority-backed route Voyalier presents. A four-step route with
+  one askable checklist item now says “0 of 1 complete across 4 guide steps”
+  instead of appearing to contradict the four-step rail above it.
+
+- **Every trip section is discoverable on a narrow screen.** At 320 and 375
+  pixels the horizontal section bar could hide the final AI destination with
+  no visual or accessible cue. A named, keyboard-operable continuation control
+  now appears only while more section links remain to the right and disappears
+  after they are revealed. The page itself still does not scroll sideways.
+
+- **Theme radios keep their names when their visible captions are hidden.** The
+  compact topbar and Settings controls now expose Light, System, and Dark to
+  assistive technology at every responsive layout. This changes no appearance
+  preference or persistence behavior.
+
 ## [0.8.0] - 2026-07-31 — The clock repair and four more authorities
 
 ### Fixed
