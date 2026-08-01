@@ -17,9 +17,9 @@ The obvious conclusion is "generate it". Before accepting that, two things were 
 | Site               | Enforced by                                                           |
 | ------------------ | --------------------------------------------------------------------- |
 | `index.ts`         | it _is_ the declaration                                               |
-| `mock.ts`          | typed `const gateway: AppGateway` (`mock.ts:1884`)                    |
-| `http.ts`          | typed `): AppGateway` (`http.ts:88`)                                  |
-| `tauri.ts`         | typed `): AppGateway` (`tauri.ts:89`)                                 |
+| `mock.ts`          | typed `const gateway: AppGateway`                                     |
+| `http.ts`          | typed `): AppGateway` on `createHttpGateway`                          |
+| `tauri.ts`         | typed `): AppGateway` on `createTauriGateway`                         |
 | `routes.json`      | `ARGS: Record<keyof AppGateway, unknown[]>`, compiler-forced          |
 | Axum route+handler | `the_router_declares_exactly_the_manifest` (both directions)          |
 | Tauri command      | `generate_handler_registers_every_declared_command` + the 0.6.1 guard |
@@ -30,10 +30,10 @@ So the cost of the ritual is typing, not risk. That reframes what a fix has to b
 **Each proposed collapse trades away a guarantee.**
 
 - _Generating `http.ts` and `tauri.ts` from the manifest._ Both are currently typed
-  `): AppGateway`, so TypeScript checks all 71 signatures and return types against the
+  `): AppGateway`, so TypeScript checks every signature and return type against the
   contract. A manifest-driven dispatcher produces an untyped method table and needs one
-  `as unknown as AppGateway`, which discards that check for every method at once. The 804 lines
-  are boring, but they are the type-checked bridge between the contract and the wire.
+  `as unknown as AppGateway`, which discards that check for every method at once. Those two
+  files are boring, but they are the type-checked bridge between the contract and the wire.
 - _A Rust macro for the handlers and commands._ `voyalier-server`'s parity guard reads routes
   out of `pub fn app`'s **source**, and `voyalier-desktop`'s reads identifiers out of
   `generate_handler!`'s source. `the_router_uses_only_wiring_forms_the_parity_parser_understands`
@@ -83,3 +83,21 @@ declaration is now consumed rather than only compared against.
   duplicated literals, not the ritual. The ritual is the price of two transports and two
   languages over one contract, it is fully enforced, and none of the ways to shorten it are
   currently worth what they cost.
+
+## Amendment, 2026-08-01
+
+The enforcement table cited three line numbers. All three moved within two days
+of this ADR being written, and by the 0.8.2 review every one pointed at
+something else — `mock.ts:1884` at the middle of a doc comment, `http.ts:88` at
+a blank line, `tauri.ts:89` at a closing brace. The counts had drifted the same
+way: 71 signatures and 804 lines when written, 81 and 929 when checked.
+
+Line numbers and totals are now named constructs and plain prose instead. An
+ADR is read months later by someone deciding whether to reopen it, and a stale
+anchor makes the whole record read as stale. The claim — that each of the ten
+sites is type-checked or test-checked — has not changed.
+
+`voyalier-server`'s route guard carried the same rot in a worse place: it said
+"the 57 checks below" in a comment and "the 68 checks below" in the assertion
+message of the same test, against a manifest of 81. It now reads the number off
+the manifest.

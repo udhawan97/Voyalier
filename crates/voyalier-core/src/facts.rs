@@ -166,10 +166,7 @@ pub fn time_difference(
 }
 
 fn unreadable_source() -> AppError {
-    AppError::new(
-        ErrorCode::WeatherFetchFailed,
-        "the exchange-rate source returned something Voyalier could not read",
-    )
+    crate::source::unreadable_source(ErrorCode::WeatherFetchFailed, "exchange-rate")
 }
 
 /// Parse the ECB daily reference-rate feed into its date and rates.

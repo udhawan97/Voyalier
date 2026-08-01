@@ -10,12 +10,11 @@ use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
+use crate::geo::haversine_km;
+
 /// The bundled site list: `name<TAB>lat<TAB>lon<TAB>year` per line, sorted by
 /// name. Names carry no tabs, so a split on tabs is exact; the year may be empty.
 const WHS_TSV: &str = include_str!("data/whs.tsv");
-
-/// Mean Earth radius in kilometres, for the haversine distance.
-const EARTH_RADIUS_KM: f64 = 6371.0;
 
 /// One World Heritage site near a point, with its distance from that point.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -63,15 +62,6 @@ fn sites() -> &'static [Site] {
             })
             .collect()
     })
-}
-
-/// Great-circle distance in kilometres between two points.
-fn haversine_km(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
-    let (p1, p2) = (lat1.to_radians(), lat2.to_radians());
-    let delta_lat = (lat2 - lat1).to_radians();
-    let delta_lon = (lon2 - lon1).to_radians();
-    let a = (delta_lat / 2.0).sin().powi(2) + p1.cos() * p2.cos() * (delta_lon / 2.0).sin().powi(2);
-    2.0 * EARTH_RADIUS_KM * a.sqrt().asin()
 }
 
 /// The `limit` World Heritage sites within `radius_km` of the point, closest

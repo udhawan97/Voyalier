@@ -17,6 +17,8 @@ import {
  * - `` `trip:${id}` `` — one trip's detail and its pending candidates
  * - `` `documents:${id}` `` — one trip's imported documents
  * - `` `visa:${id}` `` — one trip's visa preparation
+ * - `` `resources:${id}` `` — one trip's kept research
+ * - `` `chat:${id}` `` — one trip's conversation
  */
 export type Scope = string;
 
@@ -28,6 +30,16 @@ export const tripScope = (tripId: string): Scope => `trip:${tripId}`;
 export const documentsScope = (tripId: string): Scope => `documents:${tripId}`;
 /** One trip's visa preparation. */
 export const visaScope = (tripId: string): Scope => `visa:${tripId}`;
+/**
+ * One trip's kept research, and one trip's conversation.
+ *
+ * Both panels already used these exact strings, built inline. Naming them is
+ * what lets another view invalidate either one -- the chat is grounded on the
+ * research, so a resource the traveler adds is a reason to reload the thread,
+ * and no view could say so without re-deriving the format by hand.
+ */
+export const resourcesScope = (tripId: string): Scope => `resources:${tripId}`;
+export const chatScope = (tripId: string): Scope => `chat:${tripId}`;
 
 type Listener = () => void;
 

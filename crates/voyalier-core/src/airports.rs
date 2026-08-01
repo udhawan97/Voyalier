@@ -11,13 +11,12 @@ use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
+use crate::geo::haversine_km;
+
 /// The bundled airport list: `IATA,lat,lon,{L|M},name` per line, sorted by IATA.
 /// Names carry no commas (the build step stripped them), so a split on the
 /// first four commas is exact.
 const AIRPORTS_CSV: &str = include_str!("data/airports.csv");
-
-/// Mean Earth radius in kilometres, for the haversine distance.
-const EARTH_RADIUS_KM: f64 = 6371.0;
 
 /// How large an airport is, as OurAirports classifies it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -75,15 +74,6 @@ fn airports() -> &'static [Airport] {
             })
             .collect()
     })
-}
-
-/// Great-circle distance in kilometres between two points.
-fn haversine_km(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
-    let (p1, p2) = (lat1.to_radians(), lat2.to_radians());
-    let delta_lat = (lat2 - lat1).to_radians();
-    let delta_lon = (lon2 - lon1).to_radians();
-    let a = (delta_lat / 2.0).sin().powi(2) + p1.cos() * p2.cos() * (delta_lon / 2.0).sin().powi(2);
-    2.0 * EARTH_RADIUS_KM * a.sqrt().asin()
 }
 
 /// The `limit` airports nearest to the point, closest first.

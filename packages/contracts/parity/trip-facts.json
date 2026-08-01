@@ -9,21 +9,30 @@
         "originPlace": "Chicago",
         "originUtcOffsetMinutes": -300,
         "destinationUtcOffsetMinutes": 540,
-        "expected": { "originPlace": "Chicago", "offsetMinutes": 840 }
+        "expected": {
+          "originPlace": "Chicago",
+          "offsetMinutes": 840
+        }
       },
       {
         "name": "destination behind origin",
         "originPlace": "Kyoto",
         "originUtcOffsetMinutes": 540,
         "destinationUtcOffsetMinutes": -300,
-        "expected": { "originPlace": "Kyoto", "offsetMinutes": -840 }
+        "expected": {
+          "originPlace": "Kyoto",
+          "offsetMinutes": -840
+        }
       },
       {
         "name": "same wall clock is a real answer, not a missing one",
         "originPlace": "Lisbon",
         "originUtcOffsetMinutes": 60,
         "destinationUtcOffsetMinutes": 60,
-        "expected": { "originPlace": "Lisbon", "offsetMinutes": 0 }
+        "expected": {
+          "originPlace": "Lisbon",
+          "offsetMinutes": 0
+        }
       },
       {
         "name": "sub-hour zones stay exact",
@@ -31,7 +40,10 @@
         "originPlace": "Delhi",
         "originUtcOffsetMinutes": 330,
         "destinationUtcOffsetMinutes": 345,
-        "expected": { "originPlace": "Delhi", "offsetMinutes": 15 }
+        "expected": {
+          "originPlace": "Delhi",
+          "offsetMinutes": 15
+        }
       }
     ]
   },
@@ -195,9 +207,14 @@
         "expected": {
           "iso2": "JP",
           "name": "Japan",
-          "languages": ["Japanese"],
+          "languages": [
+            "Japanese"
+          ],
           "currencyCode": "JPY",
-          "plugTypes": ["A", "B"],
+          "plugTypes": [
+            "A",
+            "B"
+          ],
           "voltageV": 100,
           "frequencyHz": 50,
           "drivesOnLeft": true,
@@ -211,6 +228,71 @@
       },
       {
         "iso2": "ZZ",
+        "expected": null
+      }
+    ]
+  },
+  "crossRate": {
+    "$why": "The ECB feed quotes every currency per euro -- and parse_ecb_rates adds the euro itself at 1.0 so a conversion from EUR needs no special case -- which makes a rate between two others a division. It lived twice: crossRate in the web's destination-facts panel, and cross_rate in the Rust core, whose only caller was a test. Nothing held them to the same answer. An absent currency is null, never 0 or 1: a missing rate rendered as parity would read as a real quote.",
+    "rates": [
+      {
+        "code": "EUR",
+        "perEur": 1.0
+      },
+      {
+        "code": "USD",
+        "perEur": 1.08
+      },
+      {
+        "code": "JPY",
+        "perEur": 168.4
+      },
+      {
+        "code": "GBP",
+        "perEur": 0.845
+      }
+    ],
+    "cases": [
+      {
+        "name": "one currency into another, via the euro",
+        "from": "USD",
+        "to": "JPY",
+        "expected": 155.92592592592592
+      },
+      {
+        "name": "the inverse direction",
+        "from": "JPY",
+        "to": "USD",
+        "expected": 0.006413301662707839
+      },
+      {
+        "name": "a currency into itself is exactly one",
+        "from": "GBP",
+        "to": "GBP",
+        "expected": 1.0
+      },
+      {
+        "name": "the euro is in the feed at 1.0, so it needs no special case",
+        "from": "EUR",
+        "to": "USD",
+        "expected": 1.08
+      },
+      {
+        "name": "and converting into the euro is the plain inverse",
+        "from": "USD",
+        "to": "EUR",
+        "expected": 0.9259259259259258
+      },
+      {
+        "name": "an unknown source currency has no rate",
+        "from": "XXX",
+        "to": "USD",
+        "expected": null
+      },
+      {
+        "name": "an unknown target currency has no rate",
+        "from": "USD",
+        "to": "XXX",
         "expected": null
       }
     ]

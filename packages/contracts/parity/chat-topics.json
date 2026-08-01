@@ -1,0 +1,79 @@
+{
+  "$comment": "The table behind the 'Voyalier isn't the authority' pointer above a chat reply. The core defines it (voyalier-core: HIGH_STAKES_WORDS, HIGH_STAKES_PHRASES) and high_stakes_topics scans a message against it. voyalier-core's parity_chat_topics_match_the_contract holds Rust to this file; mock.ts imports it rather than paraphrasing, which is how the mock's copy came to know 20 of the 48 words and none of the phrases -- so a question about entry requirements, customs, quarantine, or terrorism raised the pointer in the product and nothing in mock mode. Topic order here is the order the pointers appear. Words match whole ('safe' fires, 'safeway' does not); phrases match as substrings. Adding a term means bumping wordCount or phraseCount in this file and in both tests.",
+  "wordCount": 48,
+  "phraseCount": 6,
+  "topics": [
+    {
+      "topic": "entry",
+      "words": [
+        "visa",
+        "visas",
+        "passport",
+        "passports",
+        "immigration",
+        "customs",
+        "border",
+        "esta",
+        "evisa",
+        "schengen",
+        "deported",
+        "overstay"
+      ],
+      "phrases": ["entry requirement", "entry rules"]
+    },
+    {
+      "topic": "health",
+      "words": [
+        "vaccine",
+        "vaccines",
+        "vaccination",
+        "vaccinations",
+        "vaccinated",
+        "malaria",
+        "medication",
+        "medications",
+        "prescription",
+        "prescriptions",
+        "quarantine",
+        "outbreak",
+        "rabies",
+        "typhoid"
+      ],
+      "phrases": ["yellow fever", "travel insurance"]
+    },
+    {
+      "topic": "safety",
+      "words": [
+        "safe",
+        "unsafe",
+        "safety",
+        "dangerous",
+        "danger",
+        "crime",
+        "terrorism",
+        "kidnapping",
+        "curfew",
+        "riots",
+        "advisory",
+        "advisories"
+      ],
+      "phrases": ["state department"]
+    },
+    {
+      "topic": "prices",
+      "words": [
+        "price",
+        "prices",
+        "cost",
+        "costs",
+        "fare",
+        "fares",
+        "fee",
+        "fees",
+        "cheapest",
+        "expensive"
+      ],
+      "phrases": ["how much"]
+    }
+  ]
+}

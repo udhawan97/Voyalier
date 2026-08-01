@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { VaultStatus } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
+import { describeError } from "../app/format";
 import { t } from "../app/i18n";
+import { useAsyncData, useAsyncAction } from "../app/useAsync";
 import { Button } from "../components/Button";
 import { SectionTitle } from "../components/primitives";
 import { LockIcon } from "../components/icons";
@@ -24,48 +26,54 @@ type Mode = "idle" | "setting" | "removing";
 export function VaultPanel() {
   const gateway = useGateway();
   const announce = useAnnounce();
-  const [status, setStatus] = useState<VaultStatus | null>(null);
   const [mode, setMode] = useState<Mode>("idle");
   const [passphrase, setPassphrase] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  /** Local rules the traveler can fix by typing — length, and the two fields agreeing. */
+  const [invalid, setInvalid] = useState<string | null>(null);
 
-  useEffect(() => {
-    let live = true;
-    gateway.getVaultStatus().then(
-      (next) => {
-        if (live) setStatus(next);
-      },
-      () => {},
-    );
-    return () => {
-      live = false;
-    };
-  }, [gateway]);
+  // The status read used to swallow its rejection with an empty handler, and
+  // `status === null` renders nothing, so an unreachable engine made the whole
+  // vault section vanish out of Settings with no explanation at all.
+  const vault = useAsyncData(() => gateway.getVaultStatus(), "vault");
+  const status = vault.data;
 
   function reset() {
     setMode("idle");
     setPassphrase("");
     setConfirm("");
-    setError(null);
+    setInvalid(null);
   }
 
-  async function apply(action: () => Promise<VaultStatus>, done: string) {
-    setBusy(true);
-    setError(null);
-    try {
-      setStatus(await action());
+  // The write half. It reported nothing to the topbar, so setting a passphrase
+  // against a stopped engine left "Ready" above a generic sentence.
+  const apply = useAsyncAction(
+    async (action: () => Promise<VaultStatus>, done: string) => {
+      await action();
+      return done;
+    },
+    (done) => {
       announce(done);
       reset();
-    } catch {
-      setError(t("vault.error.generic"));
-    } finally {
-      setBusy(false);
-    }
-  }
+      vault.reload();
+    },
+  );
+  const busy = apply.busy;
+  const error = invalid ?? (apply.error ? t("vault.error.generic") : null);
 
-  if (status === null) return null;
+  if (vault.status === "error") {
+    return (
+      <section className="voy-vault" aria-labelledby="vault-title">
+        <SectionTitle id="vault-title" icon={<LockIcon />}>
+          {t("vault.section")}
+        </SectionTitle>
+        <p className="voy-vault__error" role="alert">
+          {describeError(vault.error!).title}
+        </p>
+      </section>
+    );
+  }
+  if (!status) return null;
 
   return (
     <section className="voy-vault" aria-labelledby="vault-title">
@@ -98,7 +106,8 @@ export function VaultPanel() {
                 className="voy-vault__form"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  void apply(
+                  setInvalid(null);
+                  void apply.run(
                     () => gateway.removeVaultPassphrase(passphrase),
                     t("vault.announce.removed"),
                   );
@@ -142,14 +151,17 @@ export function VaultPanel() {
               onSubmit={(event) => {
                 event.preventDefault();
                 if (passphrase.length < MIN_PASSPHRASE) {
-                  setError(t("vault.error.tooShort", { min: MIN_PASSPHRASE }));
+                  setInvalid(
+                    t("vault.error.tooShort", { min: MIN_PASSPHRASE }),
+                  );
                   return;
                 }
                 if (passphrase !== confirm) {
-                  setError(t("vault.error.mismatch"));
+                  setInvalid(t("vault.error.mismatch"));
                   return;
                 }
-                void apply(
+                setInvalid(null);
+                void apply.run(
                   () => gateway.setVaultPassphrase(passphrase),
                   t("vault.announce.set"),
                 );

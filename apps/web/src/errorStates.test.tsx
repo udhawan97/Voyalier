@@ -1,17 +1,12 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
 
-import { failingGateway, rejectWith, renderApp } from "./test/helpers";
-
-async function openKyoto() {
-  fireEvent.click(
-    await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
-  );
-  await screen.findByRole("heading", {
-    name: "Kyoto autumn journey",
-    level: 1,
-  });
-}
+import {
+  failingGateway,
+  openFixtureTrip,
+  rejectWith,
+  renderApp,
+} from "./test/helpers";
 
 async function fillAndSubmitCreate() {
   fireEvent.click(await screen.findByRole("button", { name: "Create a trip" }));
@@ -103,7 +98,7 @@ describe("AppError rendered states", () => {
         }),
       }),
     );
-    await openKyoto();
+    await openFixtureTrip();
     fireEvent.click(
       await screen.findByRole("button", { name: /Review 3 suggestions/ }),
     );
@@ -127,7 +122,7 @@ describe("AppError rendered states", () => {
         }),
       }),
     );
-    await openKyoto();
+    await openFixtureTrip();
     fireEvent.click(
       await screen.findByRole("button", { name: /Review 3 suggestions/ }),
     );
@@ -168,7 +163,7 @@ describe("AppError rendered states", () => {
         archiveTrip: rejectWith({ code: "storage/failure", message: "disk" }),
       }),
     );
-    await openKyoto();
+    await openFixtureTrip();
     fireEvent.click(screen.getByRole("button", { name: "Archive" }));
 
     const alert = await screen.findByRole("alert");
@@ -181,7 +176,7 @@ describe("AppError rendered states", () => {
         unconfirmFact: rejectWith({ code: "fact/not_found", message: "gone" }),
       }),
     );
-    await openKyoto();
+    await openFixtureTrip();
     const factCard = (await screen.findByText("Flight FP18")).closest(
       "article",
     ) as HTMLElement;
@@ -204,7 +199,7 @@ describe("AppError rendered states", () => {
         }),
       }),
     );
-    await openKyoto();
+    await openFixtureTrip();
     await submitImport();
     expect(
       await screen.findByText(/over the 1,000,000 character limit/),
@@ -221,7 +216,7 @@ describe("AppError rendered states", () => {
         }),
       }),
     );
-    await openKyoto();
+    await openFixtureTrip();
     await submitImport();
     expect(await screen.findByText("Already imported")).toBeInTheDocument();
     // The internal document id is a debug token and must not reach the user.
@@ -239,7 +234,7 @@ describe("AppError rendered states", () => {
         }),
       }),
     );
-    await openKyoto();
+    await openFixtureTrip();
     await submitImport();
     expect(
       await screen.findByText("The pasted content was empty."),
@@ -375,16 +370,6 @@ describe("AppError rendered states", () => {
     return { gateway, state };
   }
 
-  async function openKyotoTrip() {
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
-    );
-    await screen.findByRole("heading", {
-      name: "Kyoto autumn journey",
-      level: 1,
-    });
-  }
-
   /**
    * The same duplicate, on the path an *action* takes.
    *
@@ -395,7 +380,7 @@ describe("AppError rendered states", () => {
   it("shows one engine-unreachable banner when an action fails too", async () => {
     const { gateway, state } = unpluggableGateway();
     renderApp(gateway);
-    await openKyotoTrip();
+    await openFixtureTrip();
 
     state.offline = true;
     fireEvent.click(screen.getByRole("button", { name: "Archive" }));
@@ -423,7 +408,7 @@ describe("AppError rendered states", () => {
   it("clears an action's transport error once the engine answers again", async () => {
     const { gateway, state } = unpluggableGateway();
     renderApp(gateway);
-    await openKyotoTrip();
+    await openFixtureTrip();
 
     state.offline = true;
     fireEvent.click(screen.getByRole("button", { name: "Archive" }));

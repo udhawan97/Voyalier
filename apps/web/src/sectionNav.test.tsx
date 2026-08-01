@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
 
 import { App } from "./App";
-import { renderApp } from "./test/helpers";
+import { openFixtureTrip, renderApp } from "./test/helpers";
 
 /**
  * The trip page's jump chips, tested under the condition that broke them: a
@@ -39,16 +39,6 @@ function captureScrollTargets(): { ids: string[]; restore: () => void } {
   };
 }
 
-async function openKyoto() {
-  fireEvent.click(
-    await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
-  );
-  await screen.findByRole("heading", {
-    name: "Kyoto autumn journey",
-    level: 1,
-  });
-}
-
 describe("Trip section navigation", () => {
   // The hash and the restored trip are real browser state, so a test that sets
   // them has to put them back whether or not it reached its own cleanup.
@@ -63,7 +53,7 @@ describe("Trip section navigation", () => {
   it("lands on the target section even when the sections have not mounted", async () => {
     stubDeferredSections();
     renderApp(createMockGateway());
-    await openKyoto();
+    await openFixtureTrip();
 
     // Nothing inside the AI group exists yet — this is the pre-scroll state.
     expect(
@@ -138,7 +128,7 @@ describe("Trip section navigation", () => {
     // test is about the click, not about scroll tracking.
     stubDeferredSections();
     renderApp(createMockGateway());
-    await openKyoto();
+    await openFixtureTrip();
 
     const ai = screen.getByRole("link", { name: "AI" });
     expect(ai).not.toHaveAttribute("aria-current");
@@ -155,7 +145,7 @@ describe("Trip section navigation", () => {
   it("offers a named continuation control only while sections overflow", async () => {
     stubDeferredSections();
     renderApp(createMockGateway());
-    await openKyoto();
+    await openFixtureTrip();
 
     const nav = screen.getByRole("navigation", {
       name: "Jump to a section",

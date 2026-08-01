@@ -18,6 +18,7 @@ mod co2;
 mod email;
 mod facts;
 mod gazetteer;
+mod geo;
 mod heritage;
 mod holidays;
 mod itinerary;

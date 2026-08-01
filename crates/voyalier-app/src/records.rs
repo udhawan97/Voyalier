@@ -43,6 +43,9 @@ use crate::{DocumentText, Vault, sealed::Sealed, storage_error};
 /// This is the single declaration. It drives the legacy-encryption migration,
 /// and `sealed_columns_round_trip_through_the_vault` holds every entry to it:
 /// add a row here and the test fails until the read and write paths seal it.
+/// `sealed_columns_and_the_schema_agree` holds the declaration to the database:
+/// the pairs here are strings, so a typo or a table a later migration renames
+/// would otherwise stop encrypting a column in silence.
 pub(crate) const SEALED_COLUMNS: &[(&str, &str)] = &[
     ("confirmed_facts", "payload"),
     ("source_documents", "raw_content"),
@@ -1464,4 +1467,115 @@ fn to_sql_json<T: Serialize>(value: &T) -> Result<String, AppError> {
 fn from_sql_json<T: DeserializeOwned>(value: &str) -> Result<T, AppError> {
     serde_json::from_str(value)
         .map_err(|_| AppError::new(ErrorCode::StorageFailure, "unreadable stored value"))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::{BTreeMap, BTreeSet};
+
+    use rusqlite::Connection;
+
+    use super::SEALED_COLUMNS;
+    use crate::init_connection;
+
+    /// Read every table's TEXT columns straight out of the built schema.
+    fn text_columns(connection: &Connection) -> BTreeMap<String, BTreeSet<String>> {
+        let tables: Vec<String> = {
+            let mut statement = connection
+                .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+                .expect("tables");
+            statement
+                .query_map([], |row| row.get::<_, String>(0))
+                .expect("names")
+                .collect::<rusqlite::Result<Vec<String>>>()
+                .expect("collect")
+        };
+        tables
+            .into_iter()
+            .map(|table| {
+                let mut statement = connection
+                    .prepare(&format!("PRAGMA table_info({table})"))
+                    .expect("table_info");
+                let columns = statement
+                    .query_map([], |row| {
+                        Ok((row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+                    })
+                    .expect("columns")
+                    .collect::<rusqlite::Result<Vec<(String, String)>>>()
+                    .expect("collect")
+                    .into_iter()
+                    .filter(|(_, kind)| kind.eq_ignore_ascii_case("TEXT"))
+                    .map(|(name, _)| name)
+                    .collect();
+                (table, columns)
+            })
+            .collect()
+    }
+
+    /// `SEALED_COLUMNS` is fourteen string pairs and nothing checked them
+    /// against the database, so a typo, or a table a later migration renamed,
+    /// would stop encrypting a column without a single test going red.
+    /// `snapshots.rs` already reconciles `SNAPSHOT_TABLES` this way; this is the
+    /// same guard one file over.
+    #[test]
+    fn sealed_columns_and_the_schema_agree() {
+        let connection = Connection::open_in_memory().expect("memory db");
+        init_connection(&connection).expect("schema");
+        let schema = text_columns(&connection);
+
+        for (table, column) in SEALED_COLUMNS {
+            let columns = schema.get(*table).unwrap_or_else(|| {
+                panic!("SEALED_COLUMNS names {table}, which is not in the schema")
+            });
+            assert!(
+                columns.contains(*column),
+                "SEALED_COLUMNS names {table}.{column}, which is not a TEXT column on {table}"
+            );
+        }
+    }
+
+    /// Every sealed table must carry an `id` column, and it must be unique.
+    ///
+    /// `migrate_encrypt_sensitive_columns` re-seals a legacy database with
+    /// `SELECT id, {column} FROM {table}` and writes each row back by that id.
+    /// A sealed table without a unique `id` therefore fails, or corrupts, at
+    /// upgrade time on someone else's machine -- never on the machine that
+    /// added the table, because a fresh database has no legacy rows to re-seal.
+    ///
+    /// `visa_prep` and `trip_notes` both carry a vestigial `id` for exactly
+    /// this reason, with a comment in the migration saying so. A comment is
+    /// what stands in for a constraint when there is no test; this is the test.
+    #[test]
+    fn every_sealed_table_can_be_re_sealed_by_id() {
+        let connection = Connection::open_in_memory().expect("memory db");
+        init_connection(&connection).expect("schema");
+
+        let sealed_tables: BTreeSet<&str> =
+            SEALED_COLUMNS.iter().map(|(table, _)| *table).collect();
+        for table in sealed_tables {
+            let key: Vec<(String, i64)> = {
+                let mut statement = connection
+                    .prepare(&format!("PRAGMA table_info({table})"))
+                    .expect("table_info");
+                statement
+                    .query_map([], |row| {
+                        Ok((row.get::<_, String>(1)?, row.get::<_, i64>(5)?))
+                    })
+                    .expect("columns")
+                    .collect::<rusqlite::Result<Vec<_>>>()
+                    .expect("collect")
+            };
+            let id = key.iter().find(|(name, _)| name == "id");
+            assert!(
+                id.is_some(),
+                "{table} holds a sealed column but has no id column, so \
+                 migrate_encrypt_sensitive_columns cannot re-seal a legacy row in it"
+            );
+            assert!(
+                id.expect("id column").1 > 0,
+                "{table}.id is not the primary key, so re-sealing a legacy row \
+                 could write over the wrong one"
+            );
+        }
+    }
 }

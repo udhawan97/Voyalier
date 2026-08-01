@@ -22,6 +22,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::airports::airport_by_iata;
+use crate::geo::haversine_km;
 
 /// Kilograms of CO₂-equivalent per passenger-kilometre.
 ///
@@ -40,9 +41,6 @@ const KG_CO2E_PER_PASSENGER_KM: f64 = 0.14253;
 /// estimate so a stale factor is visible rather than silent.
 pub const FACTOR_YEAR: u16 = 2026;
 
-/// Mean Earth radius in kilometres, matching `airports.rs`.
-const EARTH_RADIUS_KM: f64 = 6371.0;
-
 /// A trip's estimated flight emissions, and how much of the trip it covers.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -59,15 +57,6 @@ pub struct FlightEmissions {
     pub unresolved_flights: u32,
     /// The DESNZ factor year behind the estimate.
     pub factor_year: u16,
-}
-
-/// Great-circle distance in kilometres between two points.
-fn haversine_km(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
-    let (p1, p2) = (lat1.to_radians(), lat2.to_radians());
-    let delta_lat = (lat2 - lat1).to_radians();
-    let delta_lon = (lon2 - lon1).to_radians();
-    let a = (delta_lat / 2.0).sin().powi(2) + p1.cos() * p2.cos() * (delta_lon / 2.0).sin().powi(2);
-    2.0 * EARTH_RADIUS_KM * a.sqrt().asin()
 }
 
 /// Estimate a trip's flight emissions from its confirmed legs.

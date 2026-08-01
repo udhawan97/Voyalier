@@ -43,6 +43,32 @@ export async function renderSettings(
   return view;
 }
 
+/**
+ * Open the fixture trip and wait for its page.
+ *
+ * `renderApp` lands on the trip list, but most panels only exist inside a trip,
+ * so six files had defined this same click-and-wait -- `errorStates` twice,
+ * under two names, 372 lines apart -- and the rest inlined it. The accessible
+ * name is the contract between the list and every one of those tests; it lives
+ * in one place now.
+ */
+export async function openFixtureTrip() {
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+  );
+  await screen.findByRole("heading", {
+    name: "Kyoto autumn journey",
+    level: 1,
+  });
+}
+
+/** Render the app and open the fixture trip in one step. */
+export async function renderTrip(gateway: AppGateway = createMockGateway()) {
+  const view = renderApp(gateway);
+  await openFixtureTrip();
+  return view;
+}
+
 /** A mock gateway with specific operations overridden to reject. */
 export function failingGateway(overrides: Partial<AppGateway>): AppGateway {
   return { ...createMockGateway(), ...overrides };

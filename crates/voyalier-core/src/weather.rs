@@ -93,10 +93,7 @@ pub struct GeocodedPlace {
 }
 
 fn unreadable_source() -> AppError {
-    AppError::new(
-        ErrorCode::WeatherFetchFailed,
-        "the weather source returned something Voyalier could not read",
-    )
+    crate::source::unreadable_source(ErrorCode::WeatherFetchFailed, "weather")
 }
 
 /// Resolve a free-text place name to a place on the map.

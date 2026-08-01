@@ -106,6 +106,33 @@ describe("trip chat", () => {
     expect(within(region).getByText(REPLY)).toBeInTheDocument();
   });
 
+  /**
+   * The question above says "visa", which was one of the twenty words the mock's
+   * hand-written copy of the table happened to share with the core's forty-eight.
+   * These are two it did not: a multi-word form the copy had no scan for at all,
+   * and a single word added to the core after the copy was written. Both raise
+   * the pointer in the shipped product, and neither did in mock mode.
+   */
+  it.each([
+    [
+      "a phrase no single-word scan would catch",
+      "What are the entry requirements for Japan?",
+      "Entry rules: Voyalier isn't the authority",
+    ],
+    [
+      "a word added to the table later",
+      "Do I need to worry about quarantine?",
+      "Health: Voyalier isn't the authority",
+    ],
+  ])("raises the pointer for %s", async (_name, question, title) => {
+    const region = await openChat();
+
+    await ask(region, question);
+
+    expect(await within(region).findAllByText(title)).not.toHaveLength(0);
+    expect(within(region).getByText(REPLY)).toBeInTheDocument();
+  });
+
   it("explains instead of offering an input when no local model is running", async () => {
     const region = await openChat(
       failingGateway({

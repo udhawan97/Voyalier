@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState, type Ref, type RefObject } from "react";
-import type { AppError, CandidateFact, FactPayload } from "@voyalier/contracts";
+import type {
+  CandidateFact,
+  ConfirmedFact,
+  FactPayload,
+} from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import {
@@ -16,6 +20,7 @@ import {
   type PayloadDraft,
 } from "../app/format";
 import { plural, t } from "../app/i18n";
+import { useAsyncAction } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 import { ConfirmButton } from "../components/ConfirmButton";
@@ -41,8 +46,6 @@ function ReviewCard({
   const [draft, setDraft] = useState<PayloadDraft>(() =>
     payloadToDraft(candidate.payload),
   );
-  const [busy, setBusy] = useState<"confirm" | "reject" | null>(null);
-  const [error, setError] = useState<AppError | null>(null);
 
   const values = candidate.payload as Values;
   const spans = new Map(
@@ -52,43 +55,47 @@ function ReviewCard({
     (key) => values[key] != null && values[key] !== "",
   );
 
-  async function confirm(editedPayload?: FactPayload) {
-    setBusy("confirm");
-    setError(null);
-    try {
-      await gateway.confirmCandidate(
+  // Two actions rather than one three-state `busy`, so each button reports its
+  // own. Both used to cast `caught as AppError` over whatever was thrown --
+  // including a TypeError from draftToPayload, which would have rendered as
+  // "the local core could not be reached". `useAsyncAction` normalizes instead.
+  const confirmAction = useAsyncAction<
+    [FactPayload?],
+    { candidate: CandidateFact; confirmedFact: ConfirmedFact }
+  >(
+    (editedPayload?: FactPayload) =>
+      gateway.confirmCandidate(
         editedPayload
           ? { candidateId: candidate.id, editedPayload }
           : { candidateId: candidate.id },
-      );
+      ),
+    // The type arguments are explicit because `Args` is inferred from both
+    // parameters, and a zero-argument onSuccess narrows the action's optional
+    // payload straight out of the signature.
+    () => {
       announce(
         t("review.announce.confirmed", {
           fact: factTitle(candidate.factType, candidate.payload),
         }),
       );
       onDone(candidate.id);
-    } catch (caught) {
-      setError(caught as AppError);
-      setBusy(null);
-    }
-  }
+    },
+  );
 
-  async function reject() {
-    setBusy("reject");
-    setError(null);
-    try {
-      await gateway.rejectCandidate(candidate.id);
+  const rejectAction = useAsyncAction(
+    () => gateway.rejectCandidate(candidate.id),
+    () => {
       announce(
         t("review.announce.dismissed", {
           fact: factTitle(candidate.factType, candidate.payload),
         }),
       );
       onDone(candidate.id);
-    } catch (caught) {
-      setError(caught as AppError);
-      setBusy(null);
-    }
-  }
+    },
+  );
+
+  const busy = confirmAction.busy || rejectAction.busy;
+  const error = confirmAction.error ?? rejectAction.error;
 
   return (
     <li className="voy-review">
@@ -166,7 +173,7 @@ function ReviewCard({
           <>
             <Button
               variant="ghost"
-              disabled={busy !== null}
+              disabled={busy}
               onClick={() => {
                 setEditing(false);
                 setDraft(payloadToDraft(candidate.payload));
@@ -177,9 +184,13 @@ function ReviewCard({
             <Button
               ref={confirmRef}
               variant="primary"
-              busy={busy === "confirm"}
-              disabled={busy !== null}
-              onClick={() => confirm(draftToPayload(candidate.factType, draft))}
+              busy={confirmAction.busy}
+              disabled={busy}
+              onClick={() =>
+                void confirmAction.run(
+                  draftToPayload(candidate.factType, draft),
+                )
+              }
             >
               {t("review.saveConfirm")}
             </Button>
@@ -189,24 +200,24 @@ function ReviewCard({
             <Button
               ref={confirmRef}
               variant="primary"
-              busy={busy === "confirm"}
-              disabled={busy !== null}
-              onClick={() => confirm()}
+              busy={confirmAction.busy}
+              disabled={busy}
+              onClick={() => void confirmAction.run()}
             >
               {t("review.confirm")}
             </Button>
             <Button
               variant="secondary"
-              disabled={busy !== null}
+              disabled={busy}
               onClick={() => setEditing(true)}
             >
               {t("review.editConfirm")}
             </Button>
             <ConfirmButton
               label={t("review.dismiss")}
-              busy={busy === "reject"}
-              disabled={busy !== null}
-              onConfirm={reject}
+              busy={rejectAction.busy}
+              disabled={busy}
+              onConfirm={() => void rejectAction.run()}
             />
           </>
         )}

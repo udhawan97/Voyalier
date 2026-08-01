@@ -7,22 +7,12 @@ import {
 } from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
 
-import { renderApp } from "./test/helpers";
-
-async function openKyoto() {
-  fireEvent.click(
-    await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
-  );
-  await screen.findByRole("heading", {
-    name: "Kyoto autumn journey",
-    level: 1,
-  });
-}
+import { openFixtureTrip, renderApp } from "./test/helpers";
 
 describe("traveler-owned planning workflows", () => {
   it("explains the required text before either blank planning submission", async () => {
     renderApp(createMockGateway());
-    await openKyoto();
+    await openFixtureTrip();
 
     const packing = await screen.findByRole("region", {
       name: "Packing checklist",
@@ -61,7 +51,7 @@ describe("traveler-owned planning workflows", () => {
 
   it("adds checklist items explicitly and keeps manual activities out of confirmed facts", async () => {
     renderApp(createMockGateway());
-    await openKyoto();
+    await openFixtureTrip();
 
     const packing = await screen.findByRole("region", {
       name: "Packing checklist",
@@ -213,7 +203,7 @@ describe("traveler-owned planning workflows", () => {
     });
     expect(duplicate.id).toBe(savedRecord.id);
     renderApp(gateway);
-    await openKyoto();
+    await openFixtureTrip();
 
     const saved = screen.getByRole("region", { name: "Saved places" });
     const place = (await within(saved).findByText(recommendation.name)).closest(
@@ -314,7 +304,7 @@ describe("traveler-owned planning workflows", () => {
       title: "Airport express",
     });
     renderApp(gateway);
-    await openKyoto();
+    await openFixtureTrip();
 
     for (const name of [
       `Remove ${recommendation.name}`,
@@ -355,7 +345,7 @@ describe("traveler-owned planning workflows", () => {
             })
           : mock.addPackingItem(input),
     });
-    await openKyoto();
+    await openFixtureTrip();
 
     // Let the deferred panels finish their own initial loads first.
     //
@@ -406,7 +396,7 @@ describe("traveler-owned planning workflows", () => {
           details: { field: "endAt" },
         }),
     });
-    await openKyoto();
+    await openFixtureTrip();
 
     const items = screen.getByRole("region", {
       name: "Activities & transfers",

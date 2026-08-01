@@ -12,6 +12,7 @@ import { useAnnounce, useGateway } from "../app/context";
 import { useAsyncAction } from "../app/useAsync";
 import { describeError } from "../app/format";
 import { plural, t, type MessageKey } from "../app/i18n";
+import { APP_LOCALE } from "../app/locale";
 import { SectionTitle } from "../components/primitives";
 import { CompassIcon } from "../components/icons";
 import { Button } from "../components/Button";
@@ -276,7 +277,7 @@ export function Recommendations({
                     {t("recs.reason.interest", {
                       dimension: dimensionLabel(
                         rec.dimension,
-                      ).toLocaleLowerCase(),
+                      ).toLocaleLowerCase(APP_LOCALE),
                     })}
                     {rec.wildcard ? ` · ${t("recs.reason.wildcard")}` : ""}
                   </p>

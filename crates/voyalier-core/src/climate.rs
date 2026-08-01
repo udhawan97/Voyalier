@@ -24,10 +24,7 @@ const WET_DAY_MM: f64 = 1.0;
 const MAX_AIR_QUALITY_DAYS: usize = 32;
 
 fn unreadable_source() -> AppError {
-    AppError::new(
-        ErrorCode::WeatherFetchFailed,
-        "the weather source returned something Voyalier could not read",
-    )
+    crate::source::unreadable_source(ErrorCode::WeatherFetchFailed, "weather")
 }
 
 /// What the trip's calendar dates have usually been like at the destination.

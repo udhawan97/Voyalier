@@ -37,10 +37,7 @@ pub struct WeatherAlert {
 }
 
 fn unreadable_source() -> AppError {
-    AppError::new(
-        ErrorCode::WeatherFetchFailed,
-        "the weather source returned something Voyalier could not read",
-    )
+    crate::source::unreadable_source(ErrorCode::WeatherFetchFailed, "weather")
 }
 
 /// Parse an `api.weather.gov/alerts/active` GeoJSON response.

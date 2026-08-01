@@ -144,7 +144,7 @@ pub fn validate_chat_message(raw: &str) -> Result<String, AppError> {
 /// Words that put a question in a category Voyalier will not answer with
 /// authority. Matched whole, not as substrings: "safe" should fire, "safeway"
 /// should not.
-const HIGH_STAKES_WORDS: &[(HighStakesTopic, &[&str])] = &[
+pub(crate) const HIGH_STAKES_WORDS: &[(HighStakesTopic, &[&str])] = &[
     (
         HighStakesTopic::Entry,
         &[
@@ -216,7 +216,7 @@ const HIGH_STAKES_WORDS: &[(HighStakesTopic, &[&str])] = &[
 ];
 
 /// Multi-word forms a single-word scan would miss.
-const HIGH_STAKES_PHRASES: &[(HighStakesTopic, &str)] = &[
+pub(crate) const HIGH_STAKES_PHRASES: &[(HighStakesTopic, &str)] = &[
     (HighStakesTopic::Entry, "entry requirement"),
     (HighStakesTopic::Entry, "entry rules"),
     (HighStakesTopic::Health, "yellow fever"),

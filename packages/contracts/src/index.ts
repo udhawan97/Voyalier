@@ -666,6 +666,28 @@ export function savedPlaceIdentity(value: string): string {
     .map((character) => character.codePointAt(0)!.toString(16))
     .join("-")}`;
 }
+
+/**
+ * One unit of `from` in `to`, via the euro, or `null` if either is absent.
+ *
+ * The ECB feed quotes everything per euro, so a rate between two other
+ * currencies is a division. This lived twice — here in the destination-facts
+ * panel and as `cross_rate` in the Rust core, whose only caller was a test —
+ * with nothing holding the two to the same answer. `parity/trip-facts.json`
+ * now does.
+ */
+export function crossRate(
+  rates: CurrencyRate[],
+  from: string,
+  to: string,
+): number | null {
+  const perEur = (code: string) =>
+    rates.find((rate) => rate.code === code)?.perEur ?? null;
+  const a = perEur(from);
+  const b = perEur(to);
+  if (a === null || b === null) return null;
+  return b / a;
+}
 /** One fetchable FCDO country page (curated list; slugs are never free text). */
 export interface FcdoCountry {
   slug: string;
@@ -1721,6 +1743,7 @@ export {
   assessReadiness as mockAssessReadiness,
   detectItineraryConflicts as mockDetectItineraryConflicts,
   mockCountryFacts,
+  mockHighStakesTopics,
   mockHolidaysWithin,
   mockNormalizePlace,
   mockPackingList,

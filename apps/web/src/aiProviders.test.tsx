@@ -113,4 +113,36 @@ describe("AI providers (BYOK)", () => {
     ).toBeInTheDocument();
     expect(within(ollamaRow).queryByLabelText(/API key/)).toBeNull();
   });
+
+  /**
+   * The list load had a try/finally and no catch, wired straight to a click, so
+   * a rejection became an unhandled promise rejection: the button un-busied
+   * itself, the panel stayed on the intro copy, and the topbar went on saying
+   * the engine was reachable.
+   */
+  it("states a failed provider read, and retries it", async () => {
+    let fail = true;
+    const base = createMockGateway();
+    await renderSettings({
+      ...base,
+      listProviders: () =>
+        fail
+          ? Promise.reject({
+              code: "transport/failure",
+              message: "The local core could not be reached.",
+            })
+          : base.listProviders(),
+    });
+    const region = await openProviders();
+
+    const alert = await within(region).findByRole("alert");
+    expect(alert).toHaveTextContent(/engine/i);
+    // And the app-level status stops claiming everything is fine.
+    expect(await screen.findByText("Offline")).toBeInTheDocument();
+
+    fail = false;
+    fireEvent.click(within(alert).getByRole("button", { name: "Retry" }));
+    expect(await within(region).findByText("OpenAI")).toBeInTheDocument();
+    expect(within(region).queryByRole("alert")).toBeNull();
+  });
 });
