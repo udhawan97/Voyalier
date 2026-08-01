@@ -2,7 +2,26 @@
 //!
 //! Building a source's URL is part of knowing that source's protocol, so it
 //! belongs beside the parser that reads the reply rather than at the call site
-//! that happens to need it. This module holds what every such URL needs.
+//! that happens to need it. This module holds what every such source needs:
+//! how to address it, and what to say when its reply does not parse.
+
+use crate::types::{AppError, ErrorCode};
+
+/// The error a source gets when it answered, but not with anything readable.
+///
+/// Seven modules needed this sentence and each wrote its own copy, differing
+/// only in the error code and one noun. The sentence is shown to the traveler,
+/// so keeping the copies identical mattered and nothing was keeping them so.
+///
+/// `source` names the source in the traveler's words — "weather",
+/// "exchange-rate", "public-holiday" — and is interpolated into
+/// "the {source} source returned something Voyalier could not read".
+pub(crate) fn unreadable_source(code: ErrorCode, source: &str) -> AppError {
+    AppError::new(
+        code,
+        format!("the {source} source returned something Voyalier could not read"),
+    )
+}
 
 /// Minimal RFC 3986 percent-encoding for a single query value.
 ///

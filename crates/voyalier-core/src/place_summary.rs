@@ -77,10 +77,7 @@ pub fn parse_place_summary(json: &str, retrieved_at: &str) -> Result<PlaceSummar
 }
 
 fn unreadable() -> AppError {
-    AppError::new(
-        ErrorCode::AdviceFetchFailed,
-        "the place-summary source returned something Voyalier could not read",
-    )
+    crate::source::unreadable_source(ErrorCode::AdviceFetchFailed, "place-summary")
 }
 
 fn no_summary() -> AppError {

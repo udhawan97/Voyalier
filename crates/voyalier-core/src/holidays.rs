@@ -275,10 +275,7 @@ pub fn holidays_within(holidays: &[PublicHoliday], start: &str, end: &str) -> Ve
 }
 
 fn unreadable() -> AppError {
-    AppError::new(
-        ErrorCode::AdviceFetchFailed,
-        "the public-holiday source returned something Voyalier could not read",
-    )
+    crate::source::unreadable_source(ErrorCode::AdviceFetchFailed, "public-holiday")
 }
 
 #[cfg(test)]

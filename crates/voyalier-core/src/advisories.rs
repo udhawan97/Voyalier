@@ -348,10 +348,7 @@ pub fn entry_from_fcdo(snapshot: &TravelAdviceSnapshot) -> AdvisoryEntry {
 /// cannot read. Deliberately identical to the FCDO parser's wording: which
 /// government failed is the caller's news to break, not the parser's.
 fn unreadable_source() -> AppError {
-    AppError::new(
-        ErrorCode::AdviceFetchFailed,
-        "the official source returned something Voyalier could not read",
-    )
+    crate::source::unreadable_source(ErrorCode::AdviceFetchFailed, "official")
 }
 
 /// Decode the handful of HTML entities the State Department feed actually
