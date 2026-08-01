@@ -83,6 +83,23 @@ describe("theme", () => {
     expect(store["voyalier-theme"]).toBe("light");
   });
 
+  it("keeps every theme choice named when mobile CSS hides its text", async () => {
+    renderApp();
+    fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
+
+    const groups = await screen.findAllByRole("radiogroup", {
+      name: "Color theme",
+    });
+    for (const group of groups) {
+      for (const name of ["Light", "System", "Dark"]) {
+        expect(within(group).getByRole("radio", { name })).toHaveAttribute(
+          "aria-label",
+          name,
+        );
+      }
+    }
+  });
+
   it("ships reduced-motion equivalents in the stylesheet", () => {
     expect(styles).toContain("prefers-reduced-motion");
   });

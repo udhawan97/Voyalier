@@ -296,7 +296,33 @@ export function isTripSectionHash(hash: string): boolean {
 function TripSectionNav({ skipHash }: { skipHash: boolean }) {
   const mountAllSections = useMountAllSections();
   const [current, setCurrent] = useState<string | null>(null);
+  const [hasMoreSections, setHasMoreSections] = useState(false);
   const hashConsumed = useRef(false);
+  const navRef = useRef<HTMLElement>(null);
+
+  const measureOverflow = useCallback(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    setHasMoreSections(nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 1);
+  }, []);
+
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    measureOverflow();
+    nav.addEventListener("scroll", measureOverflow, { passive: true });
+    globalThis.addEventListener?.("resize", measureOverflow);
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? undefined
+        : new ResizeObserver(measureOverflow);
+    observer?.observe(nav);
+    return () => {
+      nav.removeEventListener("scroll", measureOverflow);
+      globalThis.removeEventListener?.("resize", measureOverflow);
+      observer?.disconnect();
+    };
+  }, [measureOverflow]);
 
   // Which section owns the viewport, so a chip can answer "where am I?". The
   // band is deliberately narrow and high: a section counts as current once its
@@ -392,19 +418,40 @@ function TripSectionNav({ skipHash }: { skipHash: boolean }) {
   }
 
   return (
-    <nav className="voy-tripnav" aria-label={t("tripnav.label")}>
-      {TRIP_NAV.map((item) => (
-        <a
-          key={item.target}
-          className="voy-tripnav__chip"
-          href={`#${item.target}`}
-          aria-current={current === item.target ? "true" : undefined}
-          onClick={(event) => jump(event, item.target)}
+    <div className="voy-tripnav-wrap">
+      <nav
+        ref={navRef}
+        className={`voy-tripnav${hasMoreSections ? " has-more" : ""}`}
+        aria-label={t("tripnav.label")}
+      >
+        {TRIP_NAV.map((item) => (
+          <a
+            key={item.target}
+            className="voy-tripnav__chip"
+            href={`#${item.target}`}
+            aria-current={current === item.target ? "true" : undefined}
+            onClick={(event) => jump(event, item.target)}
+          >
+            {t(item.label)}
+          </a>
+        ))}
+      </nav>
+      {hasMoreSections ? (
+        <button
+          type="button"
+          className="voy-tripnav__more"
+          aria-label={t("tripnav.more")}
+          onClick={() =>
+            navRef.current?.scrollBy({
+              left: Math.max(navRef.current.clientWidth * 0.7, 80),
+              behavior: "auto",
+            })
+          }
         >
-          {t(item.label)}
-        </a>
-      ))}
-    </nav>
+          <ChevronRightIcon />
+        </button>
+      ) : null}
+    </div>
   );
 }
 

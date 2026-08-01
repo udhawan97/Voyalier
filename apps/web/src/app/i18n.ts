@@ -581,10 +581,18 @@ const en = {
   "planning.items.transfer": "Transfer",
   "planning.items.name": "Name",
   "planning.items.nameRequired": "Enter a name before adding this plan.",
+  "planning.items.nameInvalid": "Use a name of 240 characters or fewer.",
   "planning.items.location": "Location (optional)",
+  "planning.items.locationInvalid":
+    "Use a location of 240 characters or fewer.",
   "planning.items.start": "Start (optional)",
   "planning.items.end": "End (optional)",
+  "planning.items.timeInvalid": "Use a valid local date and time.",
+  "planning.items.endBeforeStart":
+    "End must be the same as or later than Start.",
   "planning.items.notes": "Private notes (optional)",
+  "planning.items.notesInvalid":
+    "Use private notes of 20,000 characters or fewer.",
   "planning.items.add": "Add to plan",
   "planning.items.edit": "Edit",
   "planning.items.editLabel": "Edit {name}",
@@ -1131,8 +1139,10 @@ const en = {
     "An electronic authorization is published for this passport",
   "visa.path.exempt": "Neither is published for this passport",
   "visa.path.unknown": "Not curated — check the official source",
-  "visa.progress":
-    "You marked {done} of {total} steps complete. Voyalier has not verified any of them.",
+  "visa.progress.one":
+    "Checklist: {done} of {total} complete across {count} guide step. Voyalier has not verified any item.",
+  "visa.progress.other":
+    "Checklist: {done} of {total} complete across {count} guide steps. Voyalier has not verified any item.",
   "visa.stepLabel": "Step {ordinal} · {title}",
   "visa.stepDone": "Done",
   "visa.authorityCallsIt": "The authority calls this",
@@ -1274,6 +1284,7 @@ const en = {
   "documents.kind.email": "Email",
 
   "tripnav.label": "Jump to a section",
+  "tripnav.more": "Show more trip sections",
   "tripnav.plan": "Plan",
   "tripnav.prepare": "Prepare",
   "tripnav.discover": "Discover",
@@ -1355,6 +1366,8 @@ const en = {
   "resources.add.note": "Your note (optional)",
   "resources.add.tags": "Tags (optional)",
   "resources.add.tagsHint": "Separate tags with commas.",
+  "resources.add.tagsInvalid":
+    "Use up to 12 tags, each 40 characters or fewer.",
   "resources.add.save": "Save",
   "resources.duplicate":
     "You already saved that link — it's in the list below, unchanged.",
@@ -1996,10 +2009,18 @@ const es: Record<MessageKey, string> = {
   "planning.items.transfer": "Traslado",
   "planning.items.name": "Nombre",
   "planning.items.nameRequired": "Escribe un nombre antes de añadir este plan.",
+  "planning.items.nameInvalid": "Usa un nombre de 240 caracteres o menos.",
   "planning.items.location": "Ubicación (opcional)",
+  "planning.items.locationInvalid":
+    "Usa una ubicación de 240 caracteres o menos.",
   "planning.items.start": "Inicio (opcional)",
   "planning.items.end": "Fin (opcional)",
+  "planning.items.timeInvalid": "Usa una fecha y hora locales válidas.",
+  "planning.items.endBeforeStart":
+    "El final debe ser igual o posterior al inicio.",
   "planning.items.notes": "Notas privadas (opcional)",
+  "planning.items.notesInvalid":
+    "Usa notas privadas de 20.000 caracteres o menos.",
   "planning.items.add": "Añadir al plan",
   "planning.items.edit": "Editar",
   "planning.items.editLabel": "Editar {name}",
@@ -2523,8 +2544,10 @@ const es: Record<MessageKey, string> = {
     "Se publica una autorización electrónica para este pasaporte",
   "visa.path.exempt": "No se publica ninguno de los dos para este pasaporte",
   "visa.path.unknown": "Sin curar: consulta la fuente oficial",
-  "visa.progress":
-    "Marcaste {done} de {total} pasos como completados. Voyalier no ha verificado ninguno.",
+  "visa.progress.one":
+    "Lista: {done} de {total} completado en {count} paso de la guía. Voyalier no ha verificado ningún elemento.",
+  "visa.progress.other":
+    "Lista: {done} de {total} completados en {count} pasos de la guía. Voyalier no ha verificado ningún elemento.",
   "visa.stepLabel": "Paso {ordinal} · {title}",
   "visa.stepDone": "Hecho",
   "visa.authorityCallsIt": "La autoridad lo llama",
@@ -2649,6 +2672,7 @@ const es: Record<MessageKey, string> = {
   "documents.kind.html": "HTML",
   "documents.kind.email": "Correo electrónico",
   "tripnav.label": "Ir a una sección",
+  "tripnav.more": "Mostrar más secciones del viaje",
   "tripnav.plan": "Planificar",
   "tripnav.prepare": "Preparar",
   "tripnav.discover": "Descubrir",
@@ -2727,6 +2751,8 @@ const es: Record<MessageKey, string> = {
   "resources.add.note": "Tu nota (opcional)",
   "resources.add.tags": "Etiquetas (opcional)",
   "resources.add.tagsHint": "Separa las etiquetas con comas.",
+  "resources.add.tagsInvalid":
+    "Usa hasta 12 etiquetas, de 40 caracteres o menos cada una.",
   "resources.add.save": "Guardar",
   "resources.duplicate":
     "Ya habías guardado ese enlace: está en la lista de abajo, sin cambios.",

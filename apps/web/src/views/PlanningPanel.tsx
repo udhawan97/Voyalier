@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
+  AppError,
   PackingItem,
   PackingSuggestion,
   SavedPlace,
@@ -19,7 +20,43 @@ import { toAppError } from "../gateway/errors";
 /** The three features this panel holds; a failure belongs to exactly one. */
 type PlanningArea = "saved" | "packing" | "items";
 
-type Failure = { key: string; message: string; retry: () => void };
+type Failure = { key: string; error: AppError; retry: () => void };
+
+type ItemField = "title" | "location" | "startAt" | "endAt" | "notes";
+
+function isValidationError(error: AppError): boolean {
+  return (
+    error.code === "validation/invalid_input" ||
+    error.code === "validation/invalid_date_range"
+  );
+}
+
+/** Map core's stable `details.field` value to one actionable activity field. */
+function planningItemFieldError(
+  error: AppError,
+): { field: ItemField; message: string } | undefined {
+  if (error.code === "validation/invalid_date_range") {
+    return { field: "endAt", message: t("planning.items.endBeforeStart") };
+  }
+  if (error.code !== "validation/invalid_input") return undefined;
+  switch (error.details?.field) {
+    case "title":
+      return { field: "title", message: t("planning.items.nameInvalid") };
+    case "location":
+      return {
+        field: "location",
+        message: t("planning.items.locationInvalid"),
+      };
+    case "startAt":
+      return { field: "startAt", message: t("planning.items.timeInvalid") };
+    case "endAt":
+      return { field: "endAt", message: t("planning.items.timeInvalid") };
+    case "notes":
+      return { field: "notes", message: t("planning.items.notesInvalid") };
+    default:
+      return undefined;
+  }
+}
 
 /** Which feature a change key belongs to, so its failure renders there. */
 function areaOf(key: string): PlanningArea {
@@ -61,6 +98,10 @@ export function PlanningPanel({
   const [customPacking, setCustomPacking] = useState("");
   const [titleError, setTitleError] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const locationInputRef = useRef<HTMLInputElement>(null);
+  const startInputRef = useRef<HTMLInputElement>(null);
+  const endInputRef = useRef<HTMLInputElement>(null);
+  const notesInputRef = useRef<HTMLTextAreaElement>(null);
   const [savedNotes, setSavedNotes] = useState<Record<string, string>>({});
   const [kind, setKind] = useState<TripItemKind>("activity");
   const [title, setTitle] = useState("");
@@ -103,7 +144,7 @@ export function PlanningPanel({
       transportHealth.reportTransportFailure(error);
       setFailure({
         key,
-        message: describeError(error).title,
+        error,
         retry: () => void change(key, action),
       });
     } finally {
@@ -120,14 +161,40 @@ export function PlanningPanel({
    */
   function renderFailure(area: PlanningArea) {
     if (!failure || areaOf(failure.key) !== area) return null;
+    if (area === "items" && planningItemFieldError(failure.error)) return null;
+    const validation = isValidationError(failure.error);
+    const copy = describeError(failure.error);
     return (
       <p role="alert" className="voy-planning__error">
-        {failure.message}{" "}
-        <Button variant="ghost" onClick={failure.retry}>
-          {t("planning.retry")}
-        </Button>
+        {validation ? copy.body : copy.title}{" "}
+        {!validation ? (
+          <Button variant="ghost" onClick={failure.retry}>
+            {t("planning.retry")}
+          </Button>
+        ) : null}
       </p>
     );
+  }
+
+  const itemFieldError =
+    failure && areaOf(failure.key) === "items"
+      ? planningItemFieldError(failure.error)
+      : undefined;
+
+  useEffect(() => {
+    if (!itemFieldError) return;
+    const refs: Record<ItemField, React.RefObject<HTMLElement | null>> = {
+      title: titleInputRef,
+      location: locationInputRef,
+      startAt: startInputRef,
+      endAt: endInputRef,
+      notes: notesInputRef,
+    };
+    refs[itemFieldError.field].current?.focus();
+  }, [itemFieldError]);
+
+  function clearItemFailure(field: ItemField) {
+    if (itemFieldError?.field === field) setFailure(null);
   }
 
   const acceptedCodes = new Set(
@@ -208,6 +275,7 @@ export function PlanningPanel({
                       setItemNotes("");
                       setSelectedSavedPlaceId(place.id);
                       setTitleError(false);
+                      setFailure(null);
                       announce(
                         t("planning.saved.prefilled", { name: place.name }),
                       );
@@ -446,56 +514,139 @@ export function PlanningPanel({
             <input
               ref={titleInputRef}
               required
-              aria-invalid={titleError || undefined}
+              aria-invalid={
+                titleError || itemFieldError?.field === "title" || undefined
+              }
               aria-describedby={
-                titleError ? "trip-item-title-error" : undefined
+                titleError || itemFieldError?.field === "title"
+                  ? "trip-item-title-error"
+                  : undefined
               }
               value={title}
               onChange={(event) => {
                 const next = event.target.value;
                 setTitle(next);
                 if (next.trim()) setTitleError(false);
+                clearItemFailure("title");
               }}
             />
-            {titleError ? (
+            {titleError || itemFieldError?.field === "title" ? (
               <span
                 id="trip-item-title-error"
                 className="voy-field-error"
                 role="alert"
               >
-                {t("planning.items.nameRequired")}
+                {titleError
+                  ? t("planning.items.nameRequired")
+                  : itemFieldError?.message}
               </span>
             ) : null}
           </label>
           <label>
             {t("planning.items.location")}
             <input
+              ref={locationInputRef}
+              aria-invalid={itemFieldError?.field === "location" || undefined}
+              aria-describedby={
+                itemFieldError?.field === "location"
+                  ? "trip-item-location-error"
+                  : undefined
+              }
               value={location}
-              onChange={(event) => setLocation(event.target.value)}
+              onChange={(event) => {
+                setLocation(event.target.value);
+                clearItemFailure("location");
+              }}
             />
+            {itemFieldError?.field === "location" ? (
+              <span
+                id="trip-item-location-error"
+                className="voy-field-error"
+                role="alert"
+              >
+                {itemFieldError.message}
+              </span>
+            ) : null}
           </label>
           <label>
             {t("planning.items.start")}
             <input
+              ref={startInputRef}
               type="datetime-local"
+              aria-invalid={itemFieldError?.field === "startAt" || undefined}
+              aria-describedby={
+                itemFieldError?.field === "startAt"
+                  ? "trip-item-start-error"
+                  : undefined
+              }
               value={startAt}
-              onChange={(event) => setStartAt(event.target.value)}
+              onChange={(event) => {
+                setStartAt(event.target.value);
+                clearItemFailure("startAt");
+              }}
             />
+            {itemFieldError?.field === "startAt" ? (
+              <span
+                id="trip-item-start-error"
+                className="voy-field-error"
+                role="alert"
+              >
+                {itemFieldError.message}
+              </span>
+            ) : null}
           </label>
           <label>
             {t("planning.items.end")}
             <input
+              ref={endInputRef}
               type="datetime-local"
+              aria-invalid={itemFieldError?.field === "endAt" || undefined}
+              aria-describedby={
+                itemFieldError?.field === "endAt"
+                  ? "trip-item-end-error"
+                  : undefined
+              }
               value={endAt}
-              onChange={(event) => setEndAt(event.target.value)}
+              onChange={(event) => {
+                setEndAt(event.target.value);
+                clearItemFailure("endAt");
+              }}
             />
+            {itemFieldError?.field === "endAt" ? (
+              <span
+                id="trip-item-end-error"
+                className="voy-field-error"
+                role="alert"
+              >
+                {itemFieldError.message}
+              </span>
+            ) : null}
           </label>
           <label>
             {t("planning.items.notes")}
             <textarea
+              ref={notesInputRef}
+              aria-invalid={itemFieldError?.field === "notes" || undefined}
+              aria-describedby={
+                itemFieldError?.field === "notes"
+                  ? "trip-item-notes-error"
+                  : undefined
+              }
               value={itemNotes}
-              onChange={(event) => setItemNotes(event.target.value)}
+              onChange={(event) => {
+                setItemNotes(event.target.value);
+                clearItemFailure("notes");
+              }}
             />
+            {itemFieldError?.field === "notes" ? (
+              <span
+                id="trip-item-notes-error"
+                className="voy-field-error"
+                role="alert"
+              >
+                {itemFieldError.message}
+              </span>
+            ) : null}
           </label>
           <Button
             type="submit"

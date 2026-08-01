@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type {
+  AppError,
   Mission,
   SourceLink,
   VisaPrep,
@@ -9,7 +10,7 @@ import { MAX_VISA_NOTE_CHARS, countChars } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError } from "../app/format";
-import { t } from "../app/i18n";
+import { plural, t } from "../app/i18n";
 import {
   tripScope,
   useRevalidate,
@@ -151,6 +152,7 @@ function NationalityPicker({
   const suggested = prep.suggestedNationalityIso2 ?? "";
   const [draft, setDraft] = useState<string | null>(null);
   const [invalid, setInvalid] = useState(false);
+  const [submittedCode, setSubmittedCode] = useState<string | null>(null);
   const value = draft ?? prep.nationalityIso2 ?? suggested;
 
   const save = useAsyncAction(
@@ -162,6 +164,7 @@ function NationalityPicker({
     () => {
       setDraft(null);
       setInvalid(false);
+      setSubmittedCode(null);
       announce(t("visa.nationalitySaved"));
       onChanged();
     },
@@ -175,8 +178,17 @@ function NationalityPicker({
    * form has one field, drew no highlight, and left the traveler looking for a
    * marker that did not exist. A single-field form can name the rule instead.
    */
+  const serverValidation =
+    save.error?.code === "validation/invalid_input" ||
+    save.error?.code === "validation/invalid_date_range";
   const error =
-    invalid || save.error ? t("visa.nationalityInvalid") : undefined;
+    invalid || (serverValidation && submittedCode === value)
+      ? t("visa.nationalityInvalid")
+      : undefined;
+  const actionError: AppError | undefined =
+    save.error && !serverValidation && save.error.code !== "transport/failure"
+      ? save.error
+      : undefined;
 
   return (
     <form
@@ -186,11 +198,12 @@ function NationalityPicker({
         const code = value.trim();
         // An empty submit used to return here silently, so a real button did
         // nothing observable at all.
-        if (code.length !== 2) {
+        if (!/^[A-Za-z]{2}$/.test(code)) {
           setInvalid(true);
           return;
         }
         setInvalid(false);
+        setSubmittedCode(code);
         void save.run(code);
       }}
     >
@@ -218,6 +231,11 @@ function NationalityPicker({
       <Button type="submit" busy={save.busy}>
         {t("visa.nationalitySave")}
       </Button>
+      {actionError ? (
+        <p className="voy-field__error" role="alert">
+          {describeError(actionError).body}
+        </p>
+      ) : null}
     </form>
   );
 }
@@ -311,9 +329,10 @@ function Journey({
     <div className="voy-visa__journey" lang={journey.language}>
       <p className="voy-visa__progress">
         {/* Attributed to the traveler in the same breath as the number. */}
-        {t("visa.progress")
-          .replace("{done}", String(doneSteps))
-          .replace("{total}", String(askableSteps.length))}
+        {plural("visa.progress", journey.steps.length, {
+          done: doneSteps,
+          total: askableSteps.length,
+        })}
       </p>
 
       <div className="voy-visa__cockpit">

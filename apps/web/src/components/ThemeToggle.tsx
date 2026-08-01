@@ -53,6 +53,7 @@ export function ThemeToggle() {
             }}
             type="button"
             role="radio"
+            aria-label={t(option.label)}
             aria-checked={active}
             tabIndex={active ? 0 : -1}
             className={`voy-theme__opt${active ? " is-active" : ""}`}

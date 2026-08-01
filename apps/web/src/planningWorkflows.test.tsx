@@ -394,4 +394,42 @@ describe("traveler-owned planning workflows", () => {
       expect(within(packing).queryByRole("alert")).toBeNull(),
     );
   });
+
+  it("maps an invalid time range to End without offering Retry", async () => {
+    const base = createMockGateway();
+    renderApp({
+      ...base,
+      createTripItem: () =>
+        Promise.reject({
+          code: "validation/invalid_date_range",
+          message: "trip item end must not precede its start",
+          details: { field: "endAt" },
+        }),
+    });
+    await openKyoto();
+
+    const items = screen.getByRole("region", {
+      name: "Activities & transfers",
+    });
+    fireEvent.change(within(items).getByLabelText("Name"), {
+      target: { value: "Tea ceremony" },
+    });
+    fireEvent.change(within(items).getByLabelText("Start (optional)"), {
+      target: { value: "2026-11-05T12:00" },
+    });
+    const end = within(items).getByLabelText("End (optional)");
+    fireEvent.change(end, { target: { value: "2026-11-05T10:00" } });
+    fireEvent.click(within(items).getByRole("button", { name: "Add to plan" }));
+
+    const alert = await within(items).findByRole("alert");
+    expect(alert).toHaveTextContent(/same as or later than Start/i);
+    expect(end).toHaveAttribute("aria-invalid", "true");
+    expect(end.getAttribute("aria-describedby")).toContain(alert.id);
+    expect(end).toHaveFocus();
+    expect(within(items).queryByRole("button", { name: "Retry" })).toBeNull();
+
+    fireEvent.change(end, { target: { value: "2026-11-05T13:00" } });
+    expect(within(items).queryByRole("alert")).toBeNull();
+    expect(end).not.toHaveAttribute("aria-invalid");
+  });
 });

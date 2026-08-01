@@ -192,6 +192,38 @@ describe("saved reading", () => {
     ).toBeInTheDocument();
   });
 
+  it("maps a tag validation response back to Tags and clears it on edit", async () => {
+    const base = createMockGateway();
+    const region = await openResources({
+      ...base,
+      createResource: () =>
+        Promise.reject({
+          code: "validation/invalid_input",
+          message: "each tag must be at most 40 characters",
+          details: { field: "tags" },
+        }),
+    });
+    const tags = within(region).getByLabelText("Tags (optional)");
+
+    saveLink(region, "https://example.com/kyoto-guide", {
+      tags: "a-tag-that-is-deliberately-longer-than-forty-characters",
+    });
+
+    const alert = await within(region).findByRole("alert");
+    expect(alert).toHaveTextContent(/up to 12 tags/i);
+    expect(alert).toHaveTextContent(/40 characters/i);
+    expect(tags).toHaveAttribute("aria-invalid", "true");
+    expect(tags.getAttribute("aria-describedby")).toContain(alert.id);
+    expect(tags).toHaveFocus();
+    expect(
+      within(region).queryByText("Check the highlighted fields"),
+    ).toBeNull();
+
+    fireEvent.change(tags, { target: { value: "planning" } });
+    expect(within(region).queryByRole("alert")).toBeNull();
+    expect(tags).not.toHaveAttribute("aria-invalid");
+  });
+
   it("edits a saved link and removes it", async () => {
     const gateway = createMockGateway();
     const region = await openResources(gateway);

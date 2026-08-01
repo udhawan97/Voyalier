@@ -107,4 +107,15 @@ describe("i18n message catalog", () => {
     expect(plural("tripcard.facts", 1)).toBe("dato confirmado");
     expect(plural("tripcard.facts", 2)).toBe("datos confirmados");
   });
+
+  it("distinguishes visa checklist totals from visible guide steps", () => {
+    expect(plural("visa.progress", 4, { done: 0, total: 1 })).toBe(
+      "Checklist: 0 of 1 complete across 4 guide steps. Voyalier has not verified any item.",
+    );
+
+    setLocalePreference("es");
+    expect(plural("visa.progress", 1, { done: 0, total: 1 })).toBe(
+      "Lista: 0 de 1 completado en 1 paso de la guía. Voyalier no ha verificado ningún elemento.",
+    );
+  });
 });
