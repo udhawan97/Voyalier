@@ -75,6 +75,7 @@ mod service_documents;
 mod service_packs;
 mod service_planning;
 mod service_providers;
+mod service_recheck;
 mod service_resources;
 mod service_retrieved;
 mod service_search;
