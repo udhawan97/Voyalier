@@ -3230,6 +3230,30 @@ h3 {
   margin-inline: auto;
 }
 
+/* Carries the section-heading look this view had when it was an h2, so
+   promoting it to the page's h1 changed the document outline and nothing
+   visible. */
+.voy-workspace-search__title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0 0.9rem;
+  font-size: var(--voy-text-xl);
+  font-family: var(--voy-font-display);
+}
+
+.voy-workspace-search__title svg {
+  flex: none;
+  color: var(--voy-indigo);
+}
+
+.voy-workspace-search__recover {
+  margin-top: var(--voy-space-2xs);
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+  max-width: 46rem;
+}
+
 .voy-workspace-search__form {
   display: flex;
   gap: 0.75rem;

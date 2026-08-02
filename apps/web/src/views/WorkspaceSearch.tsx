@@ -7,7 +7,6 @@ import { searchSourceKey, t } from "../app/i18n";
 import { useAsyncAction } from "../app/useAsync";
 import { Button } from "../components/Button";
 import { ArrowLeftIcon, SearchIcon } from "../components/icons";
-import { SectionTitle } from "../components/primitives";
 
 /**
  * What to call a result.
@@ -103,9 +102,15 @@ export function WorkspaceSearch({
         <ArrowLeftIcon aria-hidden="true" />
         <span>{t("workspaceSearch.back")}</span>
       </button>
-      <SectionTitle id="workspace-search-title" icon={<SearchIcon />}>
-        {t("workspaceSearch.title")}
-      </SectionTitle>
+      {/* A hand-rolled h1, matching what the trip list, trip detail, Settings
+          and the vault unlock each already do. This was the one top-level view
+          without one, because `SectionTitle` renders an h2 — correct where it
+          titles a section inside a page, wrong as this view's only heading, and
+          not something to change on the shared primitive. */}
+      <h1 id="workspace-search-title" className="voy-workspace-search__title">
+        <SearchIcon aria-hidden="true" />
+        <span>{t("workspaceSearch.title")}</span>
+      </h1>
       <p>{t("workspaceSearch.intro")}</p>
       <form
         className="voy-workspace-search__form"
@@ -133,7 +138,16 @@ export function WorkspaceSearch({
       ) : null}
       {hits ? (
         hits.length === 0 ? (
-          <p>{t("workspaceSearch.none")}</p>
+          <>
+            <p>{t("workspaceSearch.none")}</p>
+            {/* The intro above says what is searched, but it is three lines up
+                and was written before the traveler had a failure to explain.
+                Saying it again here, where the failure is, is the difference
+                between a dead end and a next step. */}
+            <p className="voy-workspace-search__recover">
+              {t("workspaceSearch.none.recover")}
+            </p>
+          </>
         ) : (
           <ul className="voy-workspace-search__results">
             {hits.map((hit) => (
