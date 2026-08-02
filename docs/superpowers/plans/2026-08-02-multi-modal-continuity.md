@@ -16,9 +16,11 @@ once, over all six fact types, rather than written for flights and then widened.
 - `FactPayload` gains `carrier_name`, `service_number`, `departure_place`, `arrival_place`,
   `vehicle_description`. Airport IATA fields stay flight-only (ADR-0016 §1).
 - `FactPayload::journey_field_paths()` / `car_rental_field_paths()` beside the existing two.
-- `validate_fact_payload` dispatch: journeys require a parseable `departureLocal`; a
-  `arrivalLocal` before it is rejected exactly as a flight's is. Car rental reads the same pair
-  as pickup/drop-off.
+- `validate_fact_payload` dispatch: journey timestamps must parse. An **inverted** pair is
+  deliberately _not_ rejected — a flight has never rejected one, an overnight sleeper
+  legitimately reads that way, and the itinerary checks report it as an advisory finding rather
+  than blocking the traveller from recording what their ticket says. Car rental reads the same
+  pair as pickup/drop-off.
 - `FactLabel` gains `JourneyService { mode, service }`, `JourneyRoute { mode, from, to }`,
   `Journey { mode }`, `RentalCompany { company }`, `Rental`; new `TransportMode` enum
   (`rail | coach | ferry`) so one label family covers three fact types.
@@ -37,9 +39,10 @@ once, over all six fact types, rather than written for flights and then widened.
 - `build_disruption_plan(trip, facts, items) -> DisruptionPlan`, IO-free, deterministic.
 - Internal `Leg` abstraction over confirmed facts (flights, journeys, rentals) and timed trip
   items, so the rule is written once per ADR-0016 §2.
-- `Handoff { from, to, kind, slack_minutes, band }` wherever one commitment follows another:
-  leg→leg, arrival→check-in, check-out→departure. Both times must parse or no handoff is
-  emitted.
+- `Handoff { from, to, kind, slack_minutes, band }` wherever one commitment follows another.
+  Both times must parse or no handoff is emitted. **Revised while building:** the lodging
+  hand-offs in this line were dropped and the hire car's two ends took their place — see the
+  ADR's amendment for why a stay cannot yield a figure in minutes.
 - `HandoffBand` = `Tight | Short | Comfortable | Ample`, from fixed thresholds that differ by
   handoff kind (a flight→flight connection is not a check-out→train walk).
 - `ExposedLeg` — a leg with downstream dependents and the least slack among them; carries how
@@ -92,9 +95,11 @@ once, over all six fact types, rather than written for flights and then widened.
   voice per ADR-0016 §2: no reassurance, no proposed alternative.
 - New `views/RecheckPanel.tsx` — one button, the consent sentence naming the hosts, and the
   per-source outcome list.
-- `views/TripCover.tsx` — a per-trip cover using imagery already in the workspace (the
-  `place_summary` lead image), the trip title, and Today's now/next line. No new fetch, no new
-  source. Falls back to a token-driven gradient when there is no image.
+- `views/TripCover.tsx` — **revised while building.** The `place_summary` snapshot turned out to
+  store an article's text and URL, not its lead image, so there was no imagery in the workspace
+  to use; and a separate titled block duplicated the `<h1>` and tripped axe's `landmark-unique`.
+  What shipped is a backdrop behind the header that already exists, washed in a hue derived from
+  the destination's name. No fetch, no source, no attribution, no second heading.
 - Tests flat in `apps/web/src/`, named by feature: `disruptionPanel.test.tsx`,
   `recheckPanel.test.tsx`, `tripCover.test.tsx`, `multiModalFacts.test.tsx`.
 - Reduced-motion, keyboard, contrast and 200% zoom preserved; the cover is decorative and

@@ -26,6 +26,17 @@ A dated, attributed copy of information fetched on the traveler's explicit
 request. It can become stale and never becomes a confirmed fact.
 _Avoid_: Live data, current truth
 
+**Hand-off**:
+A place where one confirmed commitment has to be met after another, carrying the
+slack between them in minutes. It states exposure, never availability: it never
+means an alternative service exists.
+_Avoid_: Connection risk, layover warning
+
+**Exposed leg**:
+A confirmed leg other commitments are stacked behind, with how long it can run
+late before the next one is missed. Advisory; it never affects readiness.
+_Avoid_: Critical path, risk score
+
 ## Planning
 
 **Interest profile**:
@@ -65,6 +76,14 @@ A link or file the traveler deliberately keeps with a trip for reading,
 together with their own note and tags. It is reading material, not evidence:
 it never yields candidate facts and never affects readiness.
 _Avoid_: Bookmark, attachment, source document
+
+## Re-checking
+
+**Sweep**:
+A single traveler-initiated pass that refreshes only the retrieved snapshots that
+have gone stale, and reports per source what changed. It runs when asked and
+never on its own.
+_Avoid_: Monitoring, watching, sync
 
 ## Distribution and trust
 

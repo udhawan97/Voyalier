@@ -6,6 +6,68 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-08-02 — The legs that were not flights
+
+### Added
+
+- **A trip can finally record the train.** Confirmed facts covered flights and
+  stays and nothing else, while the planning lane had carried rail and transfer
+  entries since 0.5.0 — so a Eurostar confirmation could be imported as a
+  document and then had nowhere to go. Rail journeys, coach journeys, ferry
+  crossings and hire cars are now first-class evidence: parsed from a
+  confirmation where the sender publishes one, added by hand where they do not,
+  and carried through the Blueprint, Today, search, the shareable brief and the
+  itinerary checks alongside everything else. They are asked for their stations
+  rather than an airport code, because there is no IATA for a bus stop and a
+  code space this product does not own is not one it should invent. The tradeoff
+  is that the carbon estimate still counts only flights: the emission factors
+  behind it are published per air haul, and quietly extending them to rail would
+  be a number with nothing under it.
+- **The plan now says what a delay would cost.** A new section states how much
+  slack sits at each hand-off — between two legs, and either side of a hire car
+  — and which legs have the most stacked behind them. It reads your own
+  confirmations and nothing else: it is offline, deterministic, and it never
+  says a leg is _likely_ to be late, because no honest dataset for that ships
+  here. What it deliberately does not do is suggest another way round. It cannot
+  know that another sailing exists or that a seat is free, and a workspace that
+  implied otherwise at the moment someone actually needed it would be worse than
+  one that stayed quiet. So it answers the smaller, answerable question — here is
+  your exposure, and here is what you already hold — and stops. The
+  who-to-contact list is built only from the operator named on your own
+  confirmation, your own consulates, and airports near the destination; there is
+  no curated table of airline phone numbers, because those change constantly and
+  a wrong one reaches someone standing in a terminal at 23:00.
+- **One click to ask what changed since you last looked.** Official advice and
+  the forecast each carried a retrieval date and a staleness warning, and each
+  had to be refreshed separately by someone who remembered which they had last
+  read. "Re-check this trip" refreshes only what has actually gone stale and
+  reports, per source, what moved — a government's own wording changing, a
+  health notice appearing, an official alert being raised, the outlook shifting
+  for particular days. It is not monitoring, and the difference is the point:
+  nothing runs in the background, nothing wakes up, and the hosts it will reach
+  are named above the button rather than after the click. Three quiet outcomes
+  are spelled out rather than left to silence — a source still fresh says it was
+  skipped, one never fetched says so, and one that could not be read says that
+  too and keeps your last copy. A failed re-check is never reported as an
+  all-clear.
+- **A trip looks like itself.** Opening a trip now washes its header in a colour
+  derived from the destination's own name, so Kyoto and Reykjavík are
+  recognisable before you have read a word. There is deliberately no photograph:
+  the workspace stores an article's text, not its lead image, so a picture would
+  have meant a new network fetch, another source in the register, another licence
+  to display and another consent — a lot of machinery for decoration. The colour
+  is computed on the device from letters you already typed.
+
+### Changed
+
+- **Two things that both carry you can no longer overlap unnoticed.** The
+  schedule check read only flights, so a train booked across a flight was
+  invisible to it. It now reads every scheduled service and names the modes
+  involved. A hire car is deliberately exempt: its booking window legitimately
+  spans the whole trip while it sits in a car park, and flagging that would have
+  been noise. The one real failure that exemption hid — a car booked from before
+  you land — is now reported by the new section instead.
+
 ## [0.9.2] - 2026-08-02 — The gesture that Back became
 
 0.9.1 was cut but never published. This supersedes it and carries everything in
