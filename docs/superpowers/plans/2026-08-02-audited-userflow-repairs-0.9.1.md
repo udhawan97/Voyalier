@@ -82,7 +82,7 @@ Three distinct causes behind one symptom class, fixed separately:
   search jump carries the old trip's section hash into the new trip and wins on
   reload. Clear it whenever the viewed trip changes.
 
-### 4. `Web: say each thing once, and say what failed` (G5, G6, G7, G10)
+### 4. `Web: say each thing once, and say what failed` (G5, G6, G7)
 
 - `StepDetail` renders each document's links and then the step's links, so a step
   that cites the same authority at both levels prints it twice — 14 pairs across 11
@@ -93,8 +93,12 @@ Three distinct causes behind one symptom class, fixed separately:
   add a level prop to `SectionTitle`, whose `h2` is right everywhere else.
 - The zero-result state says only "No matches in this workspace." Add one line of
   recovery at the point of failure.
-- Any statistics refresh error renders "Could not reach {authority}". The engine
-  already distinguishes a fetch failure from a parse failure; branch the copy.
+- ~~Any statistics refresh error renders "Could not reach {authority}". The
+  engine already distinguishes a fetch failure from a parse failure; branch the
+  copy.~~ **Wrong, and dropped from this release.** It does not: a network
+  failure, a parse failure and an uncurated source all return
+  `ErrorCode::AdviceFetchFailed`. Splitting them needs a new variant, which is
+  wire contract mirrored in a JSON schema, so it wants an ADR of its own.
 
 ### 5. `Web: stand aside while an IME is composing` (G9)
 

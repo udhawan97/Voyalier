@@ -185,6 +185,9 @@ function Workspace({
   // True while a popstate is being applied, so the effect that writes the URL
   // does not push a second entry for a move the browser already made.
   const poppingRef = useRef(false);
+  // The query the search view last held. It stays out of the URL on purpose
+  // (ADR-0015), so this is what lets Back restore it rather than an empty box.
+  const lastSearchQuery = useRef("");
   // Where "Back" from Settings returns to (the view Settings was opened from).
   const [returnView, setReturnView] = useState<View>({ name: "list" });
   const [health, setHealth] = useState<HealthState>("checking");
@@ -261,6 +264,22 @@ function Workspace({
   const hashOwner = useRef<string | null>(null);
 
   useEffect(() => {
+    // A move the browser made already owns the URL — including the hash it just
+    // restored. Everything below rewrites the address bar, so it has to stand
+    // down first; clearing the hash here would strip the very `#section-*` a
+    // Back press had just brought back.
+    if (poppingRef.current) {
+      poppingRef.current = false;
+      if (view.name === "trip") {
+        hashOwner.current = view.tripId;
+        rememberActiveTrip(view.tripId);
+      } else if (view.name === "list") {
+        hashOwner.current = null;
+        clearActiveTrip();
+      }
+      return;
+    }
+
     if (view.name === "trip") {
       if (hashOwner.current !== null && hashOwner.current !== view.tripId) {
         clearTripSectionHash();
@@ -274,25 +293,34 @@ function Workspace({
     }
 
     // ADR-0015: give the move a history entry, so Back undoes it. Skipped when
-    // the move *came from* Back, and when the URL already says this — the
-    // latter keeps a first render, or a section-hash rewrite, from stacking a
-    // duplicate entry the traveler would have to press Back twice to escape.
-    if (typeof window === "undefined") return;
-    if (poppingRef.current) {
-      poppingRef.current = false;
-      return;
-    }
+    // the URL already says this — that keeps a first render, or a section-hash
+    // rewrite, from stacking a duplicate entry the traveler would have to press
+    // Back twice to escape.
+    //
+    // Also skipped while the vault is locked: nothing of the workspace is on
+    // screen yet, and writing `?trip=<id>` would put a restored trip id in the
+    // address bar — the one surface here that is shoulder-surfable — before the
+    // traveler has unlocked anything.
+    if (typeof window === "undefined" || locked) return;
     const next = urlForView(view);
     const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
     if (next !== current) window.history.pushState(null, "", next);
-  }, [view]);
+  }, [view, locked]);
 
   // Back and Forward move the view rather than leaving the workspace.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const onPop = () => {
       poppingRef.current = true;
-      setView(viewFromLocation() ?? { name: "list" });
+      const restored = viewFromLocation() ?? { name: "list" as const };
+      // The query is deliberately not in the URL (ADR-0015), so Back into the
+      // search view would otherwise land on an empty box — the very symptom
+      // G4 closed, coming back through the door this release just opened.
+      setView(
+        restored.name === "search"
+          ? { ...restored, query: lastSearchQuery.current }
+          : restored,
+      );
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -315,13 +343,12 @@ function Workspace({
       }),
     [],
   );
-  const setSearchQuery = useCallback(
-    (query: string) =>
-      setView((current) =>
-        current.name === "search" ? { ...current, query } : current,
-      ),
-    [],
-  );
+  const setSearchQuery = useCallback((query: string) => {
+    lastSearchQuery.current = query;
+    setView((current) =>
+      current.name === "search" ? { ...current, query } : current,
+    );
+  }, []);
   const openSearchResult = useCallback(
     (hit: WorkspaceSearchHit) =>
       setView({

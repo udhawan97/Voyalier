@@ -50,10 +50,35 @@ export function TripNotes({ tripId }: { tripId: string }) {
 
   const body = draft ?? data?.body ?? "";
 
+  /**
+   * Flush a pending save on unmount, rather than cancelling it.
+   *
+   * Cancelling was safe while every way out of a trip went through a control:
+   * clicking one blurs the textarea first, and `onBlur` commits immediately.
+   * ADR-0015 removed that guarantee — a browser Back or a phone back-swipe
+   * unmounts this panel without ever blurring it, and it made that gesture
+   * ordinary navigation rather than a way out of the app. A note typed inside
+   * the debounce window would have gone with it, silently.
+   *
+   * The latest text is read from a ref because the cleanup is mount-scoped and
+   * would otherwise close over the first render's empty draft.
+   */
+  const pending = useRef<string | null>(null);
+  // `save` closes over `data`, so the mount-scoped cleanup below needs the
+  // current one rather than the one that existed at mount. Written in an effect,
+  // never during render — a ref assigned while rendering is not allowed to be.
+  const saveRef = useRef<((next: string) => Promise<void>) | null>(null);
   useEffect(() => {
-    // Cancel a pending save if the panel unmounts mid-debounce.
+    saveRef.current = save;
+  });
+  useEffect(() => {
     return () => {
-      if (timer.current) clearTimeout(timer.current);
+      if (!timer.current) return;
+      clearTimeout(timer.current);
+      const unsaved = pending.current;
+      // Fire and forget: teardown cannot await, and the gateway call does not
+      // need this component to still exist in order to finish.
+      if (unsaved !== null) void saveRef.current?.(unsaved);
     };
   }, []);
 
@@ -82,8 +107,12 @@ export function TripNotes({ tripId }: { tripId: string }) {
   function change(next: string) {
     setDraft(next);
     setState("idle");
+    pending.current = next;
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => void save(next), SAVE_DEBOUNCE_MS);
+    timer.current = setTimeout(() => {
+      pending.current = null;
+      void save(next);
+    }, SAVE_DEBOUNCE_MS);
   }
 
   return (

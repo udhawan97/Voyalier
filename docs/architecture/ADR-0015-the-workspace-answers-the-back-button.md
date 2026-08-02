@@ -77,8 +77,19 @@ Back and Forward now traverse in-app navigation. The in-app Back controls stay
 where they are: they express "up", which is not always the same as "back", and
 removing them would trade one missing affordance for another.
 
-This is reversible in one commit. The URL is written in one place and read in
-one place, and nothing else in the app consults it.
+This is reversible in one commit. The URL is written by one effect and parsed by
+one function — though that function is called from two places (the initial view
+and the `popstate` handler), and `clearTripSectionHash` and the test setup also
+touch `window.location`.
+
+Two consequences are worth naming because they are not obvious from the
+decision. Leaving a trip for a detour has to carry the section hash, or Back
+returns the traveler to the top of a trip they had scrolled halfway through —
+so every view except the list keeps it. And because the search query is
+deliberately absent from the URL, a Back into the search view would rebuild it
+empty; the query is held in a ref so the gesture restores what the traveler
+typed. Both were regressions this ADR introduced before they were closed, and
+both now carry tests.
 
 What this ADR does **not** do: it does not make every panel addressable, and it
 does not put record ids in the URL. A search result still opens a trip and

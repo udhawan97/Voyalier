@@ -299,8 +299,10 @@ re-fetch per trip; trip open fires ~8–10 gateway calls.
    Plan · Prepare · Discover · AI) — pure CSS + `scroll-margin-top`; no
    router needed.
 
-**Explicit non-goal:** URL routing / deep links. It would change
-refresh/back behavior and is listed under deferred flows (Lane 6 tail).
+**Superseded 2026-08-02 by [ADR-0015](../architecture/ADR-0015-the-workspace-answers-the-back-button.md).**
+This read "Explicit non-goal: URL routing / deep links", and 0.9.1 reversed it:
+the view now lives in a query string and Back moves it. The reasoning for the
+reversal, including why a query string rather than a path, is in the ADR.
 
 **Test impact (expected, not collateral):** tests that mount global panels via
 the trip view (`aiProviders`, `onDeviceAi`, `aiPromptSettings`,
@@ -533,8 +535,14 @@ Full export/restore is deferred; for now add a "Back up your data" docs page
 
 **Explicitly deferred (list in ROADMAP, don't start):** workspace
 export/restore UI, additional fact types (trains/activities — core contract
-surgery), multi-traveler, budgets, packing lists, global cross-trip search,
-URL routing/deep links, share-beyond-print.
+surgery), multi-traveler, budgets, packing lists, share-beyond-print.
+
+Two entries have left this list rather than being deferred further: global
+cross-trip search shipped in 0.7.0, and URL routing / deep links shipped in
+0.9.1 under [ADR-0015](../architecture/ADR-0015-the-workspace-answers-the-back-button.md).
+They are struck here because a stale don't-start list is worse than no list —
+ADR-0015 was argued partly on the fact that this one had already outlived its
+own accuracy.
 
 ---
 

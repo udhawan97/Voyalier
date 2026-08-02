@@ -411,6 +411,49 @@ describe("User-flow gap fixes", () => {
   });
 
   /**
+   * Back into the search view restores the query too.
+   *
+   * The query is deliberately kept out of the URL (ADR-0015), so a popstate
+   * that rebuilt the view from the address bar alone landed on an empty box —
+   * the symptom the in-app Back had just been fixed for, arriving through the
+   * door this release opened.
+   */
+  it("restores the search query on browser Back, not just in-app Back", async () => {
+    renderApp(createMockGateway());
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+    fireEvent.change(await screen.findByLabelText("Search all trips"), {
+      target: { value: "Kyoto" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await screen.findByRole("heading", { name: "Settings", level: 1 });
+
+    window.history.replaceState(null, "", "/?view=search");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+
+    expect(await screen.findByLabelText("Search all trips")).toHaveValue(
+      "Kyoto",
+    );
+  });
+
+  /**
+   * Leaving a trip for a detour keeps the section the traveler was reading.
+   *
+   * ADR-0015 broke this and the follow-up commit fixed it, but shipped without
+   * a guard — so the address bar has to be asserted, not assumed.
+   */
+  it("carries the section hash into a Settings detour", async () => {
+    renderApp(createMockGateway());
+    await openFixtureTrip();
+    window.history.replaceState(null, "", "/?trip=trip_kyoto#section-visa");
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await screen.findByRole("heading", { name: "Settings", level: 1 });
+
+    expect(window.location.search).toBe("?view=settings");
+    expect(window.location.hash).toBe("#section-visa");
+  });
+
+  /**
    * And the query survives the round trip, because Settings replaces the whole
    * main subtree: a query held inside WorkspaceSearch died on the way out and
    * the traveler came back to an empty box having done nothing wrong.

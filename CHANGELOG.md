@@ -6,6 +6,38 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-08-02 — The gesture that Back became
+
+0.9.1 was cut but never published. This supersedes it and carries everything in
+it, plus the three things a review of that release found. Read 0.9.1's notes
+below for the bulk of the work.
+
+### Fixed
+
+- **A note typed and not yet saved survives leaving the trip.** Notes save
+  themselves a beat after you stop typing, and leaving through any button saved
+  them on the way out — so this never bit. Then 0.9.1 made the browser's Back
+  and the phone's back-swipe do something, and those reach none of the buttons:
+  a note under a second old went with them, silently. The pending save is now
+  flushed on the way out rather than abandoned. The window was always small; it
+  is the kind that costs a sentence someone had just thought of.
+- **Back into search brings the search back.** The query is deliberately kept
+  out of the address bar, which meant returning to it by Back rebuilt an empty
+  box — the same thing 0.9.1 had just fixed for the in-app Back, arriving
+  through the door 0.9.1 itself opened.
+- **Back keeps the section you were reading.** Returning into a trip restored
+  the section anchor and then immediately cleared it, so Back landed at the top
+  of the trip instead of where you left.
+
+### Changed
+
+- The address bar stays empty while the vault is locked. It was writing the
+  restored trip id before anything had been unlocked, and the address bar is
+  the one surface here that someone can read over your shoulder.
+- `docs/product/APP_AUDIT_AND_POLISH_PLAN.md` no longer lists URL routing and
+  cross-trip search as things not to start; both have shipped. ADR-0015 argued
+  partly from that list being stale, so leaving it stale was the wrong ending.
+
 ## [0.9.1] - 2026-08-02 — What the browser already promised
 
 ### Fixed
@@ -17,9 +49,9 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
   44px input became a 256px box, which pushed Save 166px below the field it
   submits and left the country suggestions floating 216px under the input, on
   top of the hint text. On a phone the gap was 220px, over a quarter of the
-  screen. Nothing about this was visible to the test suite: jsdom performs no
-  layout and reports every element as zero-sized, so all 742 unit tests agreed
-  the panel was fine. The guard therefore lives in the end-to-end suite, which
+  screen. Nothing about this was visible to the unit suite: jsdom performs no layout and
+  reports every element as zero-sized, so every one of those tests agreed the
+  panel was fine. The guard therefore lives in the end-to-end suite, which
   drives a real browser and already runs inside `make check`; it fails if the
   rule ever moves back.
 - **Place names are counted the way the engine counts them.** The trip forms
@@ -27,15 +59,19 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
   engine counts characters — so a 61-character name written with emoji counted
   as 122 and was refused, while the same value posted straight to the engine was
   accepted. Pasted, it was worse: the browser's own limit cut it to 60 and said
-  nothing at all. Both forms now use the shared counter and the shared constant.
-  The limit stays where it was; only the arithmetic changed.
+  nothing at all. Both forms now use the shared counter and the shared constant for origin and
+  destination. The limit stays where it was; only the arithmetic changed. The
+  trip-name field on both forms still carries a plain browser limit, because the
+  engine does not bound a title at all — there is nothing yet for a character
+  count to check against.
 - **A detour no longer costs you your place.** Opening Settings from a search
   discarded the query, opening search from inside a trip dropped you back on the
   trip list while Settings returned correctly, jumping to a result in another
   trip carried the previous trip's section into the new one, and the visa guide
   forgot which step you had open. Four symptoms, three causes, all now closed.
-  Notes typed but not saved were never at risk, and still aren't — that was
-  checked rather than assumed.
+  Notes typed but not saved survive it. That held for clicked detours because
+  leaving through a control saves on the way out — and it now holds for the back
+  gesture below, which reaches none of them.
 - **Visa steps say each thing once.** Where a step and one of its documents cite
   the same official page — which the curated journeys do in 14 places across all
   four of them, sometimes from a single shared helper — the page was printed
@@ -60,8 +96,9 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 - **Back does something.** Opening a trip used to leave the browser's history
   untouched, so Back walked out of the workspace rather than undoing the move —
   and on a phone, the back swipe is the first thing anyone reaches for. The view
-  now lives in the address bar, which also makes a trip or a section of one
-  shareable and bookmarkable. This reverses a decision recorded as an explicit
+  now lives in the address bar, which also makes a trip, or a section of one,
+  bookmarkable and reloadable on this device. Not shareable: the address is
+  loopback-only, and on the desktop app there is no address bar at all. This reverses a decision recorded as an explicit
   non-goal; ADR-0015 carries the reversal and its reasons, chiefly that the same
   deferred list also holds cross-trip search, which shipped two releases ago.
   The search query is deliberately kept out of the URL: it is your own text
@@ -77,9 +114,13 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
   failure and an uncurated source alike, so telling them apart means adding to
   the wire contract — an ADR, not a release-eve patch.
 - The import and candidate-review flow was not exercised by the audit behind
-  this release, and is named here rather than left implicit. It is the one
-  surface where a paste is still trimmed silently, and where the next pass
-  should start.
+  this release, and is named here rather than left implicit. That is where the
+  next pass should start.
+- Four fields still trim a long paste silently rather than explaining the
+  limit: the trip-name field on both trip forms, the in-trip search box, and
+  the import label. Each keeps a plain browser limit on purpose — the browser
+  limit is the only one there is, because nothing behind them counts — and one
+  of them sits inside the unexercised import flow above.
 
 ## [0.9.0] - 2026-08-02 — No route is a dead end
 

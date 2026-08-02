@@ -137,3 +137,37 @@ describe("trip notes", () => {
     expect(field).toHaveValue("Unsaved thought");
   });
 });
+
+/**
+ * A note typed inside the debounce window survives leaving the trip.
+ *
+ * Cancelling the pending save on unmount was safe while every exit went through
+ * a control: clicking one blurs the textarea, and blur commits immediately.
+ * ADR-0015 removed that guarantee — a browser Back or a phone back-swipe
+ * unmounts this panel without ever blurring it, and it turned that gesture into
+ * ordinary navigation. The window is under a second, and the loss was silent.
+ */
+describe("notes and an unmount mid-debounce", () => {
+  it("flushes a pending save when the trip view goes away", async () => {
+    const saved: string[] = [];
+    const gateway = failingGateway({
+      setTripNotes: (_tripId: string, body: string) => {
+        saved.push(body);
+        return Promise.resolve({ tripId: "trip_kyoto", body, updatedAt: null });
+      },
+    });
+    const region = await openNotes(gateway);
+
+    // Typed, but never blurred and never past the debounce.
+    fireEvent.change(within(region).getByLabelText("Trip notes"), {
+      target: { value: "ryokan deposit due friday" },
+    });
+    expect(saved).toEqual([]);
+
+    // What Back does: leave the trip without touching a control.
+    window.history.replaceState(null, "", "/");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+
+    await waitFor(() => expect(saved).toEqual(["ryokan deposit due friday"]));
+  });
+});
