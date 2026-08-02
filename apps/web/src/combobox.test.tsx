@@ -83,3 +83,37 @@ describe("Combobox (origin/destination entry)", () => {
     expect(await findA11yViolations()).toEqual([]);
   });
 });
+
+/**
+ * An IME owns the arrows, Enter and Escape while it is composing.
+ *
+ * The suggestion list drives itself with the same keys, so without a guard it
+ * took the ArrowDown meant for the candidate window and swallowed the Escape
+ * meant to cancel the composition. Every form with a place or country field
+ * shares this component, including the visa passport picker on a product that
+ * ships a curated Japanese journey.
+ */
+describe("IME composition", () => {
+  it("leaves the arrow keys to the input method while composing", async () => {
+    const dialog = await openCreateDialog();
+    const field = within(dialog).getByLabelText(/^From/);
+
+    const composing = new KeyboardEvent("keydown", {
+      key: "ArrowDown",
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(composing, "isComposing", { get: () => true });
+    field.dispatchEvent(composing);
+    expect(composing.defaultPrevented).toBe(false);
+
+    // And still drives its own list once composition has ended.
+    const plain = new KeyboardEvent("keydown", {
+      key: "ArrowDown",
+      bubbles: true,
+      cancelable: true,
+    });
+    field.dispatchEvent(plain);
+    expect(plain.defaultPrevented).toBe(true);
+  });
+});
