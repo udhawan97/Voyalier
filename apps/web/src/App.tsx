@@ -99,6 +99,49 @@ function clearTripSectionHash(): void {
 }
 
 /**
+ * The view, written into the URL and read back out (ADR-0015).
+ *
+ * A query string rather than a path, because this app is served by a loopback
+ * Axum process and by Tauri's asset protocol, and neither would rewrite a path
+ * route without being taught to. The section hash keeps its own job unchanged:
+ * the query says which view, the hash says where inside it.
+ *
+ * The search query is deliberately absent. It is the traveler's own text about
+ * their own trips, and the address bar is the one place in this product where
+ * such text would outlive the moment — into history, screenshots, screen
+ * shares. It rides in view state, which already survives a detour.
+ */
+function viewFromLocation(): View | null {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  const named = params.get("view");
+  if (named === "settings") return { name: "settings" };
+  if (named === "search") return { name: "search", query: "" };
+  const tripId = params.get("trip")?.trim();
+  if (tripId && tripId.length <= 128) return { name: "trip", tripId };
+  if (params.has("view") || params.has("trip")) return { name: "list" };
+  return null;
+}
+
+function urlForView(view: View): string {
+  const path = window.location.pathname;
+  switch (view.name) {
+    case "settings":
+      return `${path}?view=settings`;
+    case "search":
+      return `${path}?view=search`;
+    // Only a trip keeps the section hash: it is the only view whose sections
+    // those ids name.
+    case "trip":
+      return `${path}?trip=${encodeURIComponent(view.tripId)}${
+        isTripSectionHash(window.location.hash) ? window.location.hash : ""
+      }`;
+    default:
+      return path;
+  }
+}
+
+/**
  * Revalidation has to wrap the workspace, because the workspace revalidates:
  * `retry` refetches everything after the engine goes unreachable. Splitting the
  * provider out keeps `<App gateway={...}/>` the whole mounting story for tests.
@@ -127,9 +170,17 @@ function Workspace({
   const updaterController = useUpdater(updater);
   const revalidateAll = useRevalidateAll();
   const [view, setView] = useState<View>(() => {
+    // The URL wins when it says anything; the session's last trip is the
+    // fallback, so an address bar with no query keeps the pre-0.9.1 behaviour
+    // of returning the traveler to where they were.
+    const fromUrl = viewFromLocation();
+    if (fromUrl) return fromUrl;
     const tripId = readActiveTrip();
     return tripId ? { name: "trip", tripId } : { name: "list" };
   });
+  // True while a popstate is being applied, so the effect that writes the URL
+  // does not push a second entry for a move the browser already made.
+  const poppingRef = useRef(false);
   // Where "Back" from Settings returns to (the view Settings was opened from).
   const [returnView, setReturnView] = useState<View>({ name: "list" });
   const [health, setHealth] = useState<HealthState>("checking");
@@ -217,7 +268,31 @@ function Workspace({
       clearActiveTrip();
       clearTripSectionHash();
     }
+
+    // ADR-0015: give the move a history entry, so Back undoes it. Skipped when
+    // the move *came from* Back, and when the URL already says this — the
+    // latter keeps a first render, or a section-hash rewrite, from stacking a
+    // duplicate entry the traveler would have to press Back twice to escape.
+    if (typeof window === "undefined") return;
+    if (poppingRef.current) {
+      poppingRef.current = false;
+      return;
+    }
+    const next = urlForView(view);
+    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (next !== current) window.history.pushState(null, "", next);
   }, [view]);
+
+  // Back and Forward move the view rather than leaving the workspace.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onPop = () => {
+      poppingRef.current = true;
+      setView(viewFromLocation() ?? { name: "list" });
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   const openTrip = useCallback(
     (tripId: string) => setView({ name: "trip", tripId }),

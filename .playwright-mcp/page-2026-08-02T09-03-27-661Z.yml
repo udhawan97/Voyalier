@@ -1,0 +1,100 @@
+- generic [ref=f13e2]:
+  - generic [ref=f13e3]:
+    - link "Skip to content" [ref=f13e4] [cursor=pointer]:
+      - /url: "#main"
+    - banner [ref=f13e5]:
+      - button "Voyalier — all trips" [ref=f13e6] [cursor=pointer]:
+        - generic [ref=f13e7]: Voyalier
+      - generic [ref=f13e8]:
+        - button "Search workspace" [ref=f13e9] [cursor=pointer]
+        - status [ref=f13e13]: Ready
+        - radiogroup "Color theme" [ref=f13e15]:
+          - radio "Light" [ref=f13e16] [cursor=pointer]
+          - radio "System" [ref=f13e22] [cursor=pointer]
+          - radio "Dark" [checked] [ref=f13e28] [cursor=pointer]
+        - button "Settings" [ref=f13e33] [cursor=pointer]
+    - main [ref=f13e37]:
+      - region [ref=f13e38]:
+        - button "All trips" [ref=f13e39] [cursor=pointer]
+        - generic [ref=f13e43]:
+          - generic [ref=f13e44]:
+            - heading "Mumbai → Tokyo" [level=1] [ref=f13e45]
+            - paragraph [ref=f13e46]:
+              - text: Nov 10, 2026 – Nov 24, 2026
+              - generic [ref=f13e47]: ·
+              - generic [ref=f13e48]: "Status:"
+              - generic [ref=f13e49]: Draft
+          - generic [ref=f13e54]:
+            - button "Import" [ref=f13e55] [cursor=pointer]
+            - button "Add flight or stay" [ref=f13e60] [cursor=pointer]
+            - button "Edit" [ref=f13e62] [cursor=pointer]
+            - button "Archive" [ref=f13e64] [cursor=pointer]
+            - button "Delete" [ref=f13e70] [cursor=pointer]
+        - navigation "Jump to a section" [ref=f13e73]:
+          - link "Plan" [ref=f13e74] [cursor=pointer]:
+            - /url: "#section-plan"
+          - link "Prepare" [ref=f13e75] [cursor=pointer]:
+            - /url: "#section-prepare"
+          - link "Visa" [ref=f13e76] [cursor=pointer]:
+            - /url: "#section-visa"
+          - link "Discover" [ref=f13e77] [cursor=pointer]:
+            - /url: "#section-discover"
+          - link "AI" [ref=f13e78] [cursor=pointer]:
+            - /url: "#section-ai"
+        - region [ref=f13e79]:
+          - generic [ref=f13e80]:
+            - heading "Today" [level=2] [ref=f13e81]
+            - generic [ref=f13e87]: Starts in 100 days
+          - paragraph [ref=f13e88]: No plans for today.
+        - paragraph [ref=f13e89]: No suggestions waiting. Import a document to find more.
+        - generic [ref=f13e90]:
+          - heading "Blueprint" [level=2] [ref=f13e91]
+          - generic [ref=f13e92]:
+            - paragraph [ref=f13e93]: Your Blueprint is empty
+            - generic [ref=f13e94]: Confirmed flights and stays land here in itinerary order. Import a confirmation or add a fact by hand to begin.
+            - generic [ref=f13e96]:
+              - button "Import a document" [ref=f13e97] [cursor=pointer]
+              - button "Add flight or stay" [ref=f13e102] [cursor=pointer]
+        - generic [ref=f13e104]:
+          - region [ref=f13e105]:
+            - heading "Saved places" [level=2] [ref=f13e106]
+            - paragraph [ref=f13e111]: Your shortlist keeps the source, license, and reasons captured when you saved it. Adding one to the plan is always a separate choice.
+            - paragraph [ref=f13e112]: No saved places yet.
+          - region [ref=f13e113]:
+            - heading "Packing checklist" [level=2] [ref=f13e114]
+            - paragraph [ref=f13e119]: Suggestions stay suggestions until you add them. Once added, weather updates never change or remove your checklist.
+            - generic [ref=f13e120]:
+              - generic [ref=f13e121]:
+                - text: Custom item
+                - textbox "Custom item" [ref=f13e122]
+              - generic [ref=f13e123]: Enter an item to enable Add.
+              - button "Add" [disabled] [ref=f13e124]
+            - list
+          - region [ref=f13e126]:
+            - heading "Activities & transfers" [level=2] [ref=f13e127]
+            - paragraph [ref=f13e132]: Add plans you entered yourself. They are shown as traveler-authored plans, never as confirmed bookings.
+            - generic [ref=f13e133]:
+              - generic [ref=f13e134]:
+                - text: Type
+                - combobox "Type" [ref=f13e135]:
+                  - option "Activity" [selected]
+                  - option "Rail"
+                  - option "Transfer"
+              - generic [ref=f13e136]:
+                - text: Name
+                - textbox "Name" [ref=f13e137]
+              - generic [ref=f13e138]:
+                - text: Location (optional)
+                - textbox "Location (optional)" [ref=f13e139]
+              - generic [ref=f13e140]:
+                - text: Start (optional)
+                - textbox "Start (optional)" [ref=f13e141]
+              - generic [ref=f13e142]:
+                - text: End (optional)
+                - textbox "End (optional)" [ref=f13e143]
+              - generic [ref=f13e144]:
+                - text: Private notes (optional)
+                - textbox "Private notes (optional)" [ref=f13e145]
+              - button "Add to plan" [ref=f13e146] [cursor=pointer]
+            - list
+  - status [ref=f13e152]

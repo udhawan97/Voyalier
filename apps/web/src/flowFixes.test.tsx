@@ -387,6 +387,30 @@ describe("User-flow gap fixes", () => {
   });
 
   /**
+   * ADR-0015 — the platform's Back affordance does something.
+   *
+   * Opening a trip used to leave `history.length` untouched, so Back walked
+   * straight out of the workspace. On a phone, where the back swipe is the
+   * primary way back, that is the affordance the traveler reaches for first.
+   */
+  it("gives in-app navigation a history entry and answers Back", async () => {
+    renderApp(createMockGateway());
+    await screen.findByRole("heading", { name: "Trips", level: 1 });
+    expect(window.location.search).toBe("");
+
+    await openFixtureTrip();
+    expect(window.location.search).toContain("trip=");
+
+    // What the browser does on Back: rewind the URL, then announce it.
+    window.history.replaceState(null, "", window.location.pathname);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+
+    expect(
+      await screen.findByRole("heading", { name: "Trips", level: 1 }),
+    ).toBeInTheDocument();
+  });
+
+  /**
    * And the query survives the round trip, because Settings replaces the whole
    * main subtree: a query held inside WorkspaceSearch died on the way out and
    * the traveler came back to an empty box having done nothing wrong.
