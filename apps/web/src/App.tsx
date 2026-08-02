@@ -50,19 +50,38 @@ type AppProps = { gateway?: AppGateway; updater?: UpdaterGateway };
 
 const ACTIVE_TRIP_KEY = "voyalier-active-trip";
 
+/**
+ * Whether a trip id from outside the app is one the workspace will adopt.
+ *
+ * Two readers put a value into the same `view.tripId`: the address bar and
+ * session storage. Both are places the app does not control, so both ask this
+ * one question — the URL reader ADR-0015 added checked only the length, and
+ * the looser of two rules is the rule. Nothing downstream is exploitable today
+ * (an unknown id is a not-found error, and React escapes the text), which is
+ * why this is a boundary that stays closed rather than a bug being patched.
+ *
+ * `.length` and not `countChars()` on purpose: this is a defensive ceiling on
+ * an opaque identifier, not a limit a traveler types into and sees counted.
+ */
+function isAdoptableTripId(tripId: string | undefined): tripId is string {
+  // C0 controls and DEL: exactly the per-character loop this replaces, checked
+  // identical over all 65536 BMP code units and over surrogate pairs, where
+  // `Array.from` and a code-unit scan disagree about what a character is.
+  // Not `\p{Cc}`, which also rejects C1 (U+0080–U+009F) and would quietly
+  // narrow what the session-storage reader here has always accepted.
+  //
+  // `no-control-regex` exists to catch control characters someone pasted in by
+  // accident. Here they are the subject of the check, so the rule is answered
+  // rather than obeyed — the alternative spellings that satisfy it silently
+  // (`\p{Cc}`, a `fromCharCode` build-up) either change the rule or hide it.
+  // eslint-disable-next-line no-control-regex
+  return !!tripId && tripId.length <= 128 && !/[\x00-\x1f\x7f]/.test(tripId);
+}
+
 function readActiveTrip(): string | null {
   try {
     const tripId = globalThis.sessionStorage?.getItem(ACTIVE_TRIP_KEY)?.trim();
-    if (
-      tripId &&
-      tripId.length <= 128 &&
-      Array.from(tripId).every((character) => {
-        const code = character.charCodeAt(0);
-        return code >= 32 && code !== 127;
-      })
-    ) {
-      return tripId;
-    }
+    if (isAdoptableTripId(tripId)) return tripId;
   } catch {
     // Session storage can be unavailable; list view remains the safe default.
   }
@@ -118,7 +137,9 @@ function viewFromLocation(): View | null {
   if (named === "settings") return { name: "settings" };
   if (named === "search") return { name: "search", query: "" };
   const tripId = params.get("trip")?.trim();
-  if (tripId && tripId.length <= 128) return { name: "trip", tripId };
+  if (isAdoptableTripId(tripId)) return { name: "trip", tripId };
+  // A `?trip=` this rejects still counts as the URL having spoken: the list,
+  // not the session's last trip, which is what an unreadable address means.
   if (params.has("view") || params.has("trip")) return { name: "list" };
   return null;
 }
