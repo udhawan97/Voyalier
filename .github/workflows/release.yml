@@ -86,7 +86,7 @@ jobs:
       # The release job builds clean.
       - run: pnpm install --frozen-lockfile
       - name: Build, sign, and draft the release
-        uses: tauri-apps/tauri-action@944946e3e4cac6603d1fe8f514171e9ecd3c78aa # v1
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1
         env:
           # Step-scoped so no OTHER step (checkout, checksum, attest) can read
           # the key. Note: `cargo build` runs INSIDE this step, so a dependency's
