@@ -25,6 +25,7 @@ function brief(overrides: Partial<TripBrief> = {}): TripBrief {
         arrivalLocal: "2026-11-04T15:10",
       },
     ],
+    journeys: [],
     stays: [
       {
         propertyName: "River Paper Inn",

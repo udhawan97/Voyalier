@@ -1208,8 +1208,23 @@ const en = {
   "schedule.label.flight": "A flight",
   "schedule.label.lodging_property": "{property}",
   "schedule.label.lodging": "A lodging stay",
+  // Rail, coach and ferry share one label family in the core; the noun that
+  // distinguishes them is this catalog's job, not the core's.
+  "schedule.label.rail_service": "Train {service}",
+  "schedule.label.rail_route": "Train {from}→{to}",
+  "schedule.label.rail": "A train journey",
+  "schedule.label.coach_service": "Coach {service}",
+  "schedule.label.coach_route": "Coach {from}→{to}",
+  "schedule.label.coach": "A coach journey",
+  "schedule.label.ferry_service": "Ferry {service}",
+  "schedule.label.ferry_route": "Ferry {from}→{to}",
+  "schedule.label.ferry": "A ferry crossing",
+  "schedule.label.rental_company": "{company} hire car",
+  "schedule.label.rental": "A hire car",
   "schedule.flight_overlap":
     "{first} and {second} overlap in time — a traveler can only be on one flight at once.",
+  "schedule.journey_overlap":
+    "{first} and {second} overlap in time — a traveler can only be on one of them.",
   "schedule.lodging_overlap":
     "{first} and {second} overlap — two stays cover the same night.",
   // A one-night gap and a run of nights are the same finding with a different
@@ -2652,8 +2667,21 @@ const es: Record<MessageKey, string> = {
   "schedule.label.flight": "Un vuelo",
   "schedule.label.lodging_property": "{property}",
   "schedule.label.lodging": "Una estancia de alojamiento",
+  "schedule.label.rail_service": "Tren {service}",
+  "schedule.label.rail_route": "Tren {from}→{to}",
+  "schedule.label.rail": "Un viaje en tren",
+  "schedule.label.coach_service": "Autobús {service}",
+  "schedule.label.coach_route": "Autobús {from}→{to}",
+  "schedule.label.coach": "Un viaje en autobús",
+  "schedule.label.ferry_service": "Ferry {service}",
+  "schedule.label.ferry_route": "Ferry {from}→{to}",
+  "schedule.label.ferry": "Una travesía en ferry",
+  "schedule.label.rental_company": "Coche de alquiler de {company}",
+  "schedule.label.rental": "Un coche de alquiler",
   "schedule.flight_overlap":
     "{first} y {second} se traslapan en el tiempo; un viajero solo puede estar en un vuelo a la vez.",
+  "schedule.journey_overlap":
+    "{first} y {second} se traslapan en el tiempo; un viajero solo puede estar en uno de ellos.",
   "schedule.lodging_overlap":
     "{first} y {second} se traslapan; dos estancias cubren la misma noche.",
   "schedule.lodging_gap.one":

@@ -44,6 +44,7 @@ import type {
   ProviderConfig,
   ProviderId,
   PublicHolidaysSnapshot,
+  RecheckReport,
   Recommendation,
   ResearchSettings,
   Resource,
@@ -409,6 +410,8 @@ export function createHttpGateway(
 
     fetchWeather: (tripId: string) =>
       request<WeatherSnapshot>(...route("fetchWeather", { tripId })),
+    recheckTrip: (tripId: string) =>
+      request<RecheckReport>(...route("recheckTrip", { tripId })),
 
     fetchDestinationFacts: (tripId: string) =>
       request<DestinationFactsSnapshot>(

@@ -646,6 +646,21 @@ function ScheduleCheck({ conflicts }: { conflicts: ItineraryConflict[] }) {
         });
       case "lodging":
         return t("schedule.label.lodging");
+      case "journey_service":
+        return t(`schedule.label.${label.mode}_service`, {
+          service: label.service,
+        });
+      case "journey_route":
+        return t(`schedule.label.${label.mode}_route`, {
+          from: label.from,
+          to: label.to,
+        });
+      case "journey":
+        return t(`schedule.label.${label.mode}`);
+      case "rental_company":
+        return t("schedule.label.rental_company", { company: label.company });
+      case "rental":
+        return t("schedule.label.rental");
     }
   }
 
@@ -670,6 +685,9 @@ function ScheduleCheck({ conflicts }: { conflicts: ItineraryConflict[] }) {
     switch (conflict.kind) {
       case "flight_overlap":
         return t("schedule.flight_overlap", { first, second });
+      // Equally impossible, named apart so the sentence can say "train".
+      case "journey_overlap":
+        return t("schedule.journey_overlap", { first, second });
       case "lodging_overlap":
         return t("schedule.lodging_overlap", { first, second });
       case "lodging_gap": {
