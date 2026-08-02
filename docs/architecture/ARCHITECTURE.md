@@ -263,6 +263,7 @@ Related decisions, in order:
 - [ADR-0004](ADR-0004-mock-parity.md) — a mirrored rule needs a golden
 - [ADR-0005](ADR-0005-user-owned-planning.md) — planning belongs to the traveler
 - [ADR-0006](ADR-0006-visa-preparation-pointers.md) — visa preparation points, never decides
+- [ADR-0014](ADR-0014-visa-statistics-are-read-live-never-bundled.md) — visa statistics are read live from the authority, never bundled
 - [ADR-0007](ADR-0007-sealed-columns-are-a-type.md) — a sealed column is a type
 - [ADR-0008](ADR-0008-source-protocol-lives-with-its-parser.md) — a source's URL lives beside its parser
 - [ADR-0009](ADR-0009-mock-field-coverage.md) — the mock is held to the contract's fields
