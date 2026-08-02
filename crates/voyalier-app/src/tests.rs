@@ -3916,6 +3916,175 @@ fn visa_preparation_refuses_bad_input_and_follows_the_trip() {
 }
 
 #[test]
+fn uncurated_routes_get_the_playbook_never_a_dead_end() {
+    let database = temp_database("visa-playbook");
+    let service = open_test_service(&database).expect("service");
+
+    // India → France: no authority, no journey — and no dead end either.
+    let paris = service
+        .create_trip(CreateTripInput {
+            title: None,
+            origin: "Delhi".to_owned(),
+            destination: "Paris".to_owned(),
+            start_date: "2027-04-01".to_owned(),
+            end_date: "2027-04-10".to_owned(),
+        })
+        .expect("trip");
+    let prep = service
+        .set_visa_nationality(SetVisaNationalityInput {
+            trip_id: paris.id.clone(),
+            nationality_iso2: "IN".to_owned(),
+        })
+        .expect("prep");
+    assert!(prep.entry_path.is_none(), "France names no authority");
+    assert!(prep.journey.is_none());
+    let playbook = prep.playbook.expect("the playbook fills the gap");
+    assert_eq!(playbook.steps.len(), 6);
+    assert_eq!(playbook.nationality_iso2, "IN");
+    assert!(
+        prep.stats.is_none(),
+        "no authority, no stats zone — honest absence"
+    );
+
+    // Ticking a playbook document counts in the traveler's own tally.
+    service
+        .set_visa_item_progress(SetVisaItemProgressInput {
+            trip_id: paris.id.clone(),
+            document_id: "playbook-passport".to_owned(),
+            checked: true,
+            note: None,
+        })
+        .expect("tick");
+    let detail = service.get_trip(&paris.id).expect("detail");
+    let report = detail.visa_self_report.expect("playbook steps count too");
+    assert_eq!(report.total, 6, "ADR-0014 §4: whichever guide renders");
+
+    // A curated route still overrides: never both.
+    let toronto = service.create_trip(canada_trip_input()).expect("trip");
+    let curated = service
+        .set_visa_nationality(SetVisaNationalityInput {
+            trip_id: toronto.id.clone(),
+            nationality_iso2: "IN".to_owned(),
+        })
+        .expect("prep");
+    assert!(curated.journey.is_some());
+    assert!(
+        curated.playbook.is_none(),
+        "curation overrides the playbook"
+    );
+
+    drop(service);
+    cleanup_database(database);
+}
+
+/// A UKVI-shaped page: the parser itself is proven against verbatim fixtures
+/// in core — this body only exercises the app plumbing around it.
+const UKVI_TEST_BODY: &str = r#"<html><head>
+<meta name="govuk:public-updated-at" content="2026-06-26T09:53:33+01:00">
+</head><body><h2 id="visit-visas">Visit visas</h2>
+<table><thead><tr><th>Category</th><th>Processing time</th></tr></thead>
+<tbody><tr><td><a href="https://www.gov.uk/standard-visitor">Standard Visitor</a></td><td>3 weeks</td></tr></tbody>
+</table><h2 id="study-visas">Study visas</h2></body></html>"#;
+
+#[test]
+fn visa_stats_fetch_keep_and_fail_honestly() {
+    let fetcher = Arc::new(FakeFetcher::new().route("gov.uk/guidance", UKVI_TEST_BODY));
+    let database = temp_database("visa-stats");
+    let service =
+        open_test_service_with_fetcher(&database, Arc::clone(&fetcher) as _).expect("service");
+    let trip = service
+        .create_trip(CreateTripInput {
+            title: None,
+            origin: "Delhi".to_owned(),
+            destination: "London".to_owned(),
+            start_date: "2027-04-01".to_owned(),
+            end_date: "2027-04-10".to_owned(),
+        })
+        .expect("trip");
+
+    // Before a passport: nothing to refresh against.
+    let error = service
+        .refresh_visa_stats(&trip.id)
+        .expect_err("no passport");
+    assert_eq!(error.code, ErrorCode::ValidationInvalidInput);
+
+    let prep = service
+        .set_visa_nationality(SetVisaNationalityInput {
+            trip_id: trip.id.clone(),
+            nationality_iso2: "IN".to_owned(),
+        })
+        .expect("prep");
+    let stats = prep.stats.expect("the UK names an authority");
+    assert!(stats.source.fetchable);
+    assert!(
+        stats.snapshot.is_none(),
+        "no fetch has happened, so no figures exist anywhere"
+    );
+    assert!(!fetcher.called("gov.uk"), "opening the panel never fetches");
+
+    // The explicit refresh is the consent act, and only its direct return
+    // carries Fetched provenance.
+    let refreshed = service.refresh_visa_stats(&trip.id).expect("refresh");
+    let snapshot = refreshed.stats.expect("panel").snapshot.expect("figures");
+    assert_eq!(
+        snapshot.provenance,
+        voyalier_core::VisaStatsProvenance::Fetched
+    );
+    assert_eq!(snapshot.metrics[0].value, "3 weeks");
+    assert_eq!(
+        snapshot.published_at.as_deref(),
+        Some("2026-06-26T09:53:33+01:00")
+    );
+    let retrieved_at = snapshot.retrieved_at.clone();
+
+    // Every later read serves the kept copy and says so, with the original
+    // fetch's stamp — never the read's.
+    let kept = service.get_visa_prep(&trip.id).expect("prep");
+    let kept_snapshot = kept.stats.expect("panel").snapshot.expect("kept");
+    assert_eq!(
+        kept_snapshot.provenance,
+        voyalier_core::VisaStatsProvenance::KeptCopy
+    );
+    assert_eq!(kept_snapshot.retrieved_at, retrieved_at);
+
+    // The authority going unreachable is a loud failure, and the kept copy
+    // survives it untouched.
+    fetcher.set(
+        "gov.uk/guidance",
+        Reply::Fail(ErrorCode::AdviceFetchFailed, "down".to_owned()),
+    );
+    let failure = service.refresh_visa_stats(&trip.id).expect_err("loud");
+    assert_eq!(failure.code, ErrorCode::AdviceFetchFailed);
+    let after = service.get_visa_prep(&trip.id).expect("prep");
+    assert!(after.stats.expect("panel").snapshot.is_some());
+
+    drop(service);
+    cleanup_database(database);
+}
+
+#[test]
+fn visa_stats_refresh_refuses_where_no_dataset_is_published() {
+    let database = temp_database("visa-stats-unfetchable");
+    let service = open_test_service(&database).expect("service");
+    // Kyoto → Japan: a named authority that publishes no readable dataset.
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    let prep = service
+        .set_visa_nationality(SetVisaNationalityInput {
+            trip_id: trip.id.clone(),
+            nationality_iso2: "IN".to_owned(),
+        })
+        .expect("prep");
+    let stats = prep.stats.expect("MOFA is named");
+    assert!(!stats.source.fetchable, "link-only, by design");
+
+    let error = service.refresh_visa_stats(&trip.id).expect_err("refuses");
+    assert_eq!(error.code, ErrorCode::AdviceFetchFailed);
+
+    drop(service);
+    cleanup_database(database);
+}
+
+#[test]
 fn visa_preparation_stays_silent_without_a_resolvable_destination() {
     let database = temp_database("visa-prep-unknown");
     let service = open_test_service(&database).expect("service");

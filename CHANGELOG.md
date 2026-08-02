@@ -6,6 +6,49 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-02 — No route is a dead end
+
+### Added
+
+- **No visa route is a dead end any more.** Every trip whose destination
+  resolves now gets a step-by-step guide: the curated journeys where they exist
+  (Canada, Japan, Australia), and everywhere else a six-step universal playbook
+  — how to find the real authority under the lookalike agency sites, the shared
+  vocabulary of entry paths, the document classes that fail when started late,
+  where to file, how to track, and what a decision does and does not promise at
+  the border. The playbook opens with a banner naming it Voyalier's own
+  writing, never reads as an authority's answer, and holds ADR-0006's rule
+  under a stricter scan than the curated prose: no currency marks, no duration
+  units, anywhere. Ticks, notes, and the self-reported readiness tally work
+  identically in both guides. The tradeoff is generality — the playbook links
+  at most the one page a real curation act stands behind, and says "confirm at
+  the official checklist" where a curated journey would name the exact form.
+
+- **The cockpit can now fetch the authority's own published processing times —
+  and ships with none.** A statistics card headed by the authority's name
+  starts empty on purpose: no figure is bundled, because a shipped number ages
+  into a lie (ADR-0014). One press reads IRCC's processing-times dataset or
+  UKVI's decision waiting times page from your device, quotes the rows
+  verbatim — the source's labels, units, and "no processing time available"
+  included — with the retrieval stamp, the source's own as-of date where it
+  publishes one, the licence line, and your own passport's row marked where
+  the publication is per-country. The raw page is kept locally and re-read on
+  every open, so a parser fix reaches copies already stored; a failed refresh
+  keeps the copy visible under a loud banner, and anything older than a week
+  says so. Japan, Australia, New Zealand, Korea, and the United States publish
+  no dataset Voyalier can read yet, and their cards say exactly that with the
+  official link. Statistics history and a US parser were left out deliberately
+  — the stored copy is overwrite-on-refresh, and trends are future work.
+
+- **The passport picker now speaks your language.** Typing a country's name —
+  in English or Spanish, matched without worrying about accents — suggests
+  countries ranked the way travellers type (code match, then name prefixes,
+  then the rest, each alphabetically), and a bare two-letter code still works
+  exactly as before. A new trip offers the last trip's passport as a single
+  labelled tap instead of silently prefilling the field. The visa panel's four
+  zones sit on the app's new spacing scale, missions fold behind a disclosure,
+  and headings no longer crowd their paragraphs.
+
 ### Fixed
 
 - **City packs now select useful places across the whole city instead of one

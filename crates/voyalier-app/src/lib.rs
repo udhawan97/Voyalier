@@ -1534,6 +1534,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "destination_facts_timezone",
         run: migrate_facts_timezone,
     },
+    Migration {
+        to: 17,
+        name: "visa_stats",
+        run: migrate_visa_stats,
+    },
 ];
 
 /// The version a fully migrated database carries. Stamped into a backup's
@@ -1672,6 +1677,28 @@ fn migrate_visa_preparation(connection: &Connection) -> Result<(), AppError> {
 
             CREATE INDEX IF NOT EXISTS visa_prep_items_trip
                 ON visa_prep_items(trip_id);",
+        )
+        .map_err(storage_error)?;
+    Ok(())
+}
+
+/// Kept copies of authority-published visa statistics (ADR-0014 §2).
+///
+/// Destination-keyed, deliberately outside the trip registry: the authority
+/// publishes one table per destination, the traveler's passport only selects
+/// rows at render time, and a destination edit re-resolves the lookup key. The
+/// row holds the raw fetched body — parse-at-read, so a parser fix reaches
+/// copies this device already kept. Nothing here is personal and nothing is
+/// sealed; no cascade, so a snapshot outliving its trips is a recorded,
+/// deliberate retention decision.
+fn migrate_visa_stats(connection: &Connection) -> Result<(), AppError> {
+    connection
+        .execute_batch(
+            "CREATE TABLE IF NOT EXISTS visa_stats_snapshots (
+                destination_iso2 TEXT PRIMARY KEY,
+                body TEXT NOT NULL,
+                retrieved_at TEXT NOT NULL
+            );",
         )
         .map_err(storage_error)?;
     Ok(())
@@ -2311,6 +2338,42 @@ fn advisory_source_from_tag(tag: &str) -> Option<AdvisorySource> {
 
 /// Upsert one government's entry. Storing the same source twice replaces it:
 /// a trip carries one current copy per government, not a history.
+/// The kept statistics body for a destination, with the retrieval time of the
+/// fetch that wrote it.
+fn load_visa_stats_body(
+    connection: &Connection,
+    destination_iso2: &str,
+) -> Result<Option<(String, String)>, AppError> {
+    connection
+        .query_row(
+            "SELECT body, retrieved_at FROM visa_stats_snapshots WHERE destination_iso2 = ?1",
+            params![destination_iso2],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()
+        .map_err(storage_error)
+}
+
+/// Keep the authority's own bytes, one row per destination, newest fetch wins.
+fn store_visa_stats_body(
+    connection: &Connection,
+    destination_iso2: &str,
+    body: &str,
+    retrieved_at: &str,
+) -> Result<(), AppError> {
+    connection
+        .execute(
+            "INSERT INTO visa_stats_snapshots (destination_iso2, body, retrieved_at)
+             VALUES (?1, ?2, ?3)
+             ON CONFLICT(destination_iso2) DO UPDATE SET
+               body = excluded.body,
+               retrieved_at = excluded.retrieved_at",
+            params![destination_iso2, body, retrieved_at],
+        )
+        .map(|_| ())
+        .map_err(storage_error)
+}
+
 fn store_advisory_entry(
     connection: &Connection,
     trip_id: &str,

@@ -3,6 +3,7 @@ import chatTopics from "../parity/chat-topics.json";
 import prompts from "../parity/prompts.json";
 import readinessLinks from "../parity/readiness-links.json";
 import visaParity from "../parity/visa.json";
+import visaStatsSources from "../parity/visa-stats-sources.json";
 
 import {
   MAX_AI_PROMPT_LEN,
@@ -112,8 +113,12 @@ import type {
   UpdateTripItemInput,
   VaultStatus,
   VisaJourney,
+  VisaPlaybook,
   VisaPrep,
   VisaPrepItem,
+  VisaStatMetric,
+  VisaStatsPanel,
+  VisaStatsSnapshot,
   WeatherSnapshot,
   WorkspaceSearchHit,
 } from "./index";
@@ -1943,8 +1948,88 @@ async function sha256(content: string): Promise<string> {
  * which is the branch that must not borrow an authority.
  */
 function mockDestinationCountry(destination: string): string {
-  const japanese = ["kyoto", "tokyo", "osaka"];
-  return japanese.includes(destination.trim().toLowerCase()) ? "JP" : "CA";
+  const place = destination.trim().toLowerCase();
+  if (["kyoto", "tokyo", "osaka"].includes(place)) return "JP";
+  if (["london", "edinburgh"].includes(place)) return "GB";
+  if (["paris", "lyon"].includes(place)) return "FR";
+  return "CA";
+}
+
+/**
+ * The playbook, synthesized from the same golden the journey is (ADR-0004:
+ * read, never mirror). Structure from `parity/visa.json`; prose synthetic.
+ * All documents sit on the third step, as they do in the real playbook.
+ */
+function mockVisaPlaybook(
+  destinationIso2: string,
+  nationalityIso2: string,
+): VisaPlaybook | undefined {
+  const found = visaParity.cases.find(
+    (entry) =>
+      entry.destination === destinationIso2 &&
+      entry.nationality === nationalityIso2,
+  );
+  const expected = found?.expected as
+    | {
+        entryPath: VisaPrep["entryPath"] | null;
+        playbook: {
+          stepIds: string[];
+          ordinals: number[];
+          documentIds: string[];
+        } | null;
+      }
+    | undefined;
+  if (!expected?.playbook) return undefined;
+  const { stepIds, ordinals, documentIds } = expected.playbook;
+  // The one link a playbook may carry: the quote's URL, labeled with its
+  // source — or nothing at all where no authority is named.
+  const links = expected.entryPath
+    ? [
+        {
+          label: `${expected.entryPath.sourceName} — official source`,
+          url: expected.entryPath.sourceUrl,
+        },
+      ]
+    : [];
+  return {
+    destinationIso2,
+    nationalityIso2,
+    language: "en",
+    steps: stepIds.map((id, index) => ({
+      id,
+      ordinal: ordinals[index] ?? index + 1,
+      title: `Mock playbook step ${index + 1}`,
+      plainExplanation: `Mock caution for ${id}.`,
+      links,
+      documents:
+        index === 2
+          ? documentIds.map((documentId) => ({
+              id: documentId,
+              label: `Mock document ${documentId}`,
+              plainExplanation: `Mock caution for ${documentId}.`,
+              gotchas: [`Mock caution for ${documentId}.`],
+              links,
+            }))
+          : [],
+    })),
+  };
+}
+
+/** The statistics zone from the stats-sources golden, plus any kept snapshot. */
+function mockStatsPanel(
+  destinationIso2: string,
+  kept: VisaStatsSnapshot | undefined,
+): VisaStatsPanel | undefined {
+  const source = visaStatsSources.sources.find(
+    (row) => row.destinationIso2 === destinationIso2,
+  );
+  if (!source) return undefined;
+  return {
+    source: clone(source),
+    // Provenance is defined by delivery: anything served from the mock's
+    // store is a kept copy, exactly as the engine serves its table.
+    ...(kept ? { snapshot: { ...clone(kept), provenance: "keptCopy" } } : {}),
+  };
 }
 
 function mockVisaJourney(
@@ -2035,6 +2120,7 @@ export function createMockGateway(options?: {
     fixtureDocuments.map((stored) => [stored.document.id, clone(stored)]),
   );
   const advisoryPanels = new Map<string, AdvisoryPanel>();
+  const visaStatsKept = new Map<string, VisaStatsSnapshot>();
   const weatherSnapshots = new Map<string, WeatherSnapshot>();
   const destinationFactsSnapshots = new Map<string, DestinationFactsSnapshot>();
   const publicHolidaysSnapshots = new Map<string, PublicHolidaysSnapshot>();
@@ -2176,6 +2262,13 @@ export function createMockGateway(options?: {
     // real gateway resolves it from the destination-facts snapshot, falling
     // back to the bundled gazetteer.
     const journey = mockVisaJourney(destinationIso2, nationalityIso2);
+    const playbook = journey
+      ? undefined
+      : mockVisaPlaybook(destinationIso2, nationalityIso2);
+    const stats = mockStatsPanel(
+      destinationIso2,
+      visaStatsKept.get(destinationIso2),
+    );
     const entryPath =
       journey?.entryPath ??
       (
@@ -2194,6 +2287,8 @@ export function createMockGateway(options?: {
       nationalityIso2,
       ...(entryPath ? { entryPath } : {}),
       ...(journey ? { journey } : {}),
+      ...(playbook ? { playbook } : {}),
+      ...(stats ? { stats } : {}),
       items,
       // The fixture's trip is to Japan; the mock carries one Canadian mission
       // so the panel and its "confirm with your own ministry" pointer render.
@@ -2420,7 +2515,9 @@ export function createMockGateway(options?: {
             // Mirrors the real service: steps whose documents are all ticked,
             // so the readiness line matches what the cockpit shows.
             const prep = readVisaPrep(tripId);
-            if (!prep.journey) return {};
+            // ADR-0014 §4: whichever guide renders is the guide that counts.
+            const guide = prep.journey ?? prep.playbook;
+            if (!guide) return {};
             const ticked = new Set(
               prep.items
                 .filter((item) => item.checked)
@@ -2428,12 +2525,12 @@ export function createMockGateway(options?: {
             );
             return {
               visaSelfReport: {
-                done: prep.journey.steps.filter(
+                done: guide.steps.filter(
                   (step) =>
                     step.documents.length > 0 &&
                     step.documents.every((document) => ticked.has(document.id)),
                 ).length,
-                total: prep.journey.steps.length,
+                total: guide.steps.length,
               },
             };
           })(),
@@ -3802,6 +3899,79 @@ export function createMockGateway(options?: {
           });
         }
         return readVisaPrep(input.tripId);
+      }),
+
+    refreshVisaStats: (tripId: string) =>
+      execute("refreshVisaStats", () => {
+        const trip = requireTrip(tripId);
+        const destinationIso2 = mockDestinationCountry(trip.destination);
+        const nationalityIso2 = visaNationalities.get(tripId);
+        if (!nationalityIso2) {
+          throw appError(
+            "validation/invalid_input",
+            "set the passport before fetching statistics",
+          );
+        }
+        const source = visaStatsSources.sources.find(
+          (row) => row.destinationIso2 === destinationIso2,
+        );
+        if (!source?.fetchable) {
+          throw appError(
+            "advice/fetch_failed",
+            "this authority's statistics cannot be read automatically",
+          );
+        }
+        // Fictional figures in the source's own shape, as fetchAdvisories
+        // does: real labels and real units so the panel renders honestly,
+        // invented values so nobody mistakes the fixture for the authority.
+        const metrics: VisaStatMetric[] =
+          destinationIso2 === "CA"
+            ? [
+                {
+                  id: "ca-ircc.visitor-outside-canada",
+                  label: "Visitor visa (from outside Canada)",
+                  audience: nationalityIso2,
+                  value: "21 days",
+                },
+                {
+                  id: "ca-ircc.study",
+                  label: "Study permit (from outside Canada)",
+                  audience: nationalityIso2,
+                  value: "9 weeks",
+                },
+              ]
+            : [
+                {
+                  id: "uk-ukvi.visit.standard-visitor",
+                  label: "Standard Visitor",
+                  value: "3 weeks",
+                },
+                {
+                  id: "uk-ukvi.visit.transit",
+                  label: "Transit",
+                  value: "3 weeks",
+                },
+              ];
+        const snapshot: VisaStatsSnapshot = {
+          destinationIso2,
+          authorityName: source.authorityName,
+          sourceUrl: source.pageUrl,
+          attribution:
+            destinationIso2 === "CA"
+              ? "Open Government Licence – Canada"
+              : "Open Government Licence v3.0",
+          retrievedAt: timestamp(),
+          ...(destinationIso2 === "GB"
+            ? { publishedAt: "2026-06-26T09:53:33+01:00" }
+            : {}),
+          metrics,
+          provenance: "fetched",
+        };
+        visaStatsKept.set(destinationIso2, clone(snapshot));
+        // Only this direct return says "fetched" — the next read serves the
+        // kept copy and says so, exactly as the engine does (ADR-0014).
+        const prep = readVisaPrep(tripId);
+        return { ...prep, stats: { source: clone(source), snapshot } };
       }),
 
     listAdviceCountries: () =>

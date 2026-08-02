@@ -676,6 +676,19 @@
       }
     },
     {
+      "method": "refreshVisaStats",
+      "verb": "POST",
+      "path": "/api/v1/trips/{tripId}/visa/stats",
+      "command": "refresh_visa_stats",
+      "payload": {
+        "command": [
+          "tripId"
+        ],
+        "body": null,
+        "query": []
+      }
+    },
+    {
       "method": "listAdviceCountries",
       "verb": "GET",
       "path": "/api/v1/advice/countries",
@@ -1098,7 +1111,7 @@
     "updater_relaunch"
   ],
   "counts": {
-    "shared": 81,
+    "shared": 82,
     "desktopOnly": 10
   }
 }

@@ -1,6 +1,6 @@
 ---
 title: Visa and entry preparation
-description: A step-by-step preparation cockpit that points at authorities and never speaks for them.
+description: A four-zone cockpit that points at authorities and never speaks for them.
 ---
 
 Voyalier does not decide whether you need a visa, and it never will. What it can
@@ -19,14 +19,19 @@ The split is absolute, and a test fails the build if it is ever broken:
   way people commonly trip.
 
 Voyalier never states a fee, a processing time, or an eligibility outcome, and
-it never reports that your entry requirements are satisfied.
+it never reports that your entry requirements are satisfied. The one place
+numbers appear at all — the published processing times card below — shows only
+figures your own device read from the authority's page, quoted verbatim with
+the source, the retrieval time, and the licence attached.
 
 ## Setting your passport
 
-Open a trip and choose **Visa** in the section nav. Enter the two-letter country
-code of the passport you will actually travel on (`IN`, `NG`, `GB`, and so on).
-A new trip prefills the code from the last one you set, but never applies it for
-you — a trip may not be for the same traveller.
+Open a trip and choose **Visa** in the section nav. Start typing either the
+country's name or its two-letter code — the picker suggests countries by name
+in your own language, and a bare code (`IN`, `NG`, `GB`) always works exactly
+as before. A new trip offers the passport from your last one as a single tap,
+clearly labelled — offered, never applied, because a trip may not be for the
+same traveller.
 
 Your nationality is encrypted at rest alongside your confirmations, and so is
 every note you write against a document.
@@ -40,79 +45,126 @@ the authority that published it and the date the list was read:
 > Quoted from Immigration, Refugees and Citizenship Canada · read on 2026-07-28
 
 Where a curated authority publishes conditions rather than a single answer, you
-get that authority's official link and no journey. Voyalier will not fill that
-gap with a guess. The United Kingdom is the clearest case of this, and it is
-covered below.
+get that authority's official link and no curated journey. Voyalier will not
+fill that gap with a guess — the United Kingdom is the clearest case, covered
+below. Where the destination is not curated at all, there is no authority to
+quote, so Voyalier names none: it will not stand a different country's
+government in front of you because that is the one it happens to know.
 
-Where the destination is not curated at all, there is no authority to quote, so
-Voyalier names none and offers no link — it tells you to check your destination's
-own immigration service. It will not stand a different country's government in
-front of you because that is the one it happens to know.
+Neither case is a dead end any more. Wherever no curated journey exists, the
+**universal playbook** takes its place.
+
+## The universal playbook
+
+Routes without a curated journey get a six-step route map — how to find the
+authority and dodge the lookalike agency sites that outrank it, the shared
+vocabulary entry paths are written in, the document classes that go wrong when
+started late, where to file, how to track, and what a decision does and does
+not promise at the border.
+
+The playbook opens with a banner that tells you exactly what it is: **written
+by Voyalier, not read from any authority, and not specific to your route.**
+Every step tells you what to confirm at the official source, and where the
+route has a named authority, the playbook links that authority's page and
+nothing else. Its document items are cautions, deliberately conditional —
+"photographs, _if they are asked for_" — because the official checklist is the
+only list, and the playbook's job is to make sure the slow items on it do not
+catch you late.
+
+Ticks and notes work the same in both guides, and both count into the same
+self-reported tally.
 
 ## Working the steps
 
-For a curated route, the cockpit lists the steps down the left and opens one at
-a time on the right. Each step names what the authority calls the thing, then
-explains it plainly, then lists the documents it takes — each with the specific
-mistakes that cost people applications, and a link to the official page.
+The cockpit lists the steps down the left and opens one at a time on the
+right. Each step names what the authority calls the thing, then explains it
+plainly, then lists the documents it takes — each with the specific mistakes
+that cost people applications, and a link to the official page.
 
 Tick a document when you have it. Add a private note if you want to remember
-where you got to. Both persist per trip, so you can close Voyalier mid-application
-and come back to where you were.
+where you got to. Both persist per trip, so you can close Voyalier
+mid-application and come back to where you were.
 
-**Step one is a question Voyalier refuses to answer, and it is the most valuable
-thing here.** Some authorities publish a far cheaper alternative to a full visa
-for citizens of _some_ visa-required countries — Canada's electronic travel
-authorization for travellers who have held a Canadian visa in the past ten years
-or hold a valid US non-immigrant visa is the motivating case. The eligible list
-is short and it moves. Voyalier puts the question in front of you with the list
-attached, because a traveller who qualifies but never checks pays for a visa
-they did not need.
+**Step one of a curated journey is a question Voyalier refuses to answer, and
+it is the most valuable thing here.** Some authorities publish a far cheaper
+alternative to a full visa for citizens of _some_ visa-required countries —
+Canada's electronic travel authorization for travellers who have held a
+Canadian visa in the past ten years or hold a valid US non-immigrant visa is
+the motivating case. The eligible list is short and it moves. Voyalier puts
+the question in front of you with the list attached, because a traveller who
+qualifies but never checks pays for a visa they did not need.
+
+## Published processing times
+
+For destinations whose authority is named, the cockpit carries a statistics
+card headed by that authority's name. It starts empty on purpose: **no figure
+is bundled with the app, ever** — a shipped number ages into a lie, and a
+stale processing time is the kind that costs a booking.
+
+Where the authority publishes its times in a form Voyalier can read — IRCC's
+processing-times dataset for Canada, UKVI's decision waiting times page for
+the United Kingdom — one press fetches them. The consent sentence beside the
+button says exactly what happens: your device contacts that authority once to
+read its published page, and nothing about you or your trip is sent, because
+the page is the same for every traveller. What comes back is quoted verbatim
+— the source's own labels, its own units, its own "no processing time
+available" where that is what it says — with the retrieval time, the source's
+own as-of date where it publishes one, and the licence line. Where the source
+publishes per-country rows, the row for your own passport code is marked, and
+the caption tells you to confirm it is yours.
+
+The copy is kept on your device. When a later fetch fails, the kept copy stays
+visible with a loud banner saying when it was saved; when any copy is more
+than a week old, it says so and tells you to fetch again before relying on it.
+Authorities that publish no readable dataset — Japan, Australia, New Zealand,
+Korea, the United States today — get an honest sentence and the official
+link instead of a broken fetch button.
 
 ## What this does not change
 
-The **Entry requirements** item in [readiness](/Voyalier/guides/readiness-and-advice/) is
-deliberately untouched. It still reads "Check yourself", it still asserts
-nothing, and it still cannot clear your trip. It gains one line reporting your
-own tally — attributed to you in the same sentence, because Voyalier has
-verified none of it.
+The **Entry requirements** item in
+[readiness](/Voyalier/guides/readiness-and-advice/) is deliberately untouched.
+It still reads "Check yourself", it still asserts nothing, and it still cannot
+clear your trip. It gains one line reporting your own tally — attributed to
+you in the same sentence, because Voyalier has verified none of it. With the
+playbook, that tally now exists on every route, not only curated ones.
 
 ## Coverage
 
-Two destinations carry a full journey: **Canada** — both the visitor visa and the
-electronic travel authorization routes — and **Japan**'s short-term-stay visa.
-Each carries its own "read on" date, because re-reading one authority says
-nothing about the other.
+Three destinations carry a curated journey: **Canada** — both the visitor visa
+and the electronic travel authorization routes — **Japan**'s short-term-stay
+visa, and **Australia**'s electronic authorization. Each carries its own "read
+on" date, because re-reading one authority says nothing about the others.
 
-The two do not have the same shape, and that is the point. Japan publishes no
+The journeys do not share a shape, and that is the point. Japan publishes no
 electronic authorization at all; its online visa service is a channel for the
-same visa, and eligibility depends on the country you **live** in rather than the
-passport you hold, so it appears as a link inside the journey rather than as a
-door of its own. Japan also conditions many of its visa exemptions on a passport
-type or a prior registration — Voyalier cannot see which passport you hold, so
-those resolve to the ministry's own table and no journey, rather than to a guess
-that could leave you at a gate without a visa.
+same visa, and eligibility depends on the country you **live** in rather than
+the passport you hold, so it appears as a link inside the journey rather than
+as a door of its own. Japan also conditions many of its visa exemptions on a
+passport type or a prior registration — Voyalier cannot see which passport you
+hold, so those resolve to the ministry's own table, and the playbook fills the
+step-by-step gap without pretending to be Japan's answer.
 
-**The United Kingdom is named as an authority and deliberately resolves no route
-at all, and that is the design working rather than a hole in it.** GOV.UK
-publishes no per-nationality table Voyalier could quote from; it publishes an
-interactive questionnaire, because the answer turns on the purpose and the length
-of your visit as much as on the passport you hold. Any per-passport answer
-Voyalier printed would be a guess wearing a quote's clothes. So a UK trip gets
-the authority named and a link to GOV.UK's own
-[Check if you need a UK visa](https://www.gov.uk/check-uk-visa) checker, and
-nothing else — no steps, no document list, no tally. The rule is that Voyalier
-quotes or says nothing, and here the honest quote is "go and answer their
-questions."
+**The United Kingdom is named as an authority and deliberately resolves no
+curated route, and that is the design working rather than a hole in it.**
+GOV.UK publishes no per-nationality table Voyalier could quote from; it
+publishes an interactive questionnaire, because the answer turns on the
+purpose and the length of your visit as much as on the passport you hold. Any
+per-passport answer Voyalier printed would be a guess wearing a quote's
+clothes. So a UK trip gets the authority named, a link to GOV.UK's own
+[Check if you need a UK visa](https://www.gov.uk/check-uk-visa) checker, the
+universal playbook labelled as Voyalier's own writing — and, one press away,
+UKVI's own published waiting times.
 
-Every other destination is still uncurated: no authority named, no link and no
-journey — an empty answer rather than a borrowed one.
+Every other destination gets the playbook and honesty about the rest: no
+authority named, no link invented, no borrowed government.
 
-The guidance is compiled into the app and stamped with the date it was read,
-rather than fetched. That is not a shortcut: neither of the two journey
-authorities publishes a machine-readable feed and both refuse automated requests,
-so a curated-and-dated guide is the only honest shape. It works offline, and it
-tells you how old it is.
+The guidance itself is compiled into the app and stamped with the date it was
+read, rather than fetched — neither journey authority publishes a
+machine-readable feed for its rules, so a curated-and-dated guide is the only
+honest shape, and it works offline. The statistics are the deliberate
+exception: read live from the authority's own publication at your request,
+never shipped in the box (ADR-0014).
 
 **Always confirm your own case at the official source before you pay, book, or
 travel.**

@@ -633,6 +633,14 @@ fn fetch_weather(
 }
 
 #[tauri::command]
+fn refresh_visa_stats(
+    input: TripIdInput,
+    service: State<'_, AppService>,
+) -> Result<VisaPrep, AppError> {
+    service.refresh_visa_stats(&input.trip_id)
+}
+
+#[tauri::command]
 fn fetch_destination_facts(
     input: TripIdInput,
     service: State<'_, AppService>,
@@ -1187,6 +1195,7 @@ fn builder<R: tauri::Runtime>(
             get_visa_prep,
             set_visa_nationality,
             set_visa_item_progress,
+            refresh_visa_stats,
             save_place,
             update_saved_place,
             delete_saved_place,
@@ -1613,6 +1622,7 @@ mod tests {
             "set_provider_model",
             "fetch_advisories",
             "fetch_weather",
+            "refresh_visa_stats",
             "fetch_destination_facts",
             "fetch_public_holidays",
             "fetch_place_summary",
@@ -1980,12 +1990,12 @@ mod tests {
         }
 
         // Mechanically checked against a struct in this file, rather than
-        // classified as a passthrough: 56 that hand-build an argument object,
+        // classified as a passthrough: 57 that hand-build an argument object,
         // plus the 9 that send an empty envelope against `EmptyInput`. Bump it
         // when a row changes kind.
         assert_eq!(
-            checked_locally, 65,
-            "expected 65 commands with desktop-declared input structs, found {checked_locally}"
+            checked_locally, 66,
+            "expected 66 commands with desktop-declared input structs, found {checked_locally}"
         );
     }
 

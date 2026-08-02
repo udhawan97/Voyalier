@@ -1,0 +1,48 @@
+{
+  "count": 7,
+  "sources": [
+    {
+      "destinationIso2": "CA",
+      "authorityName": "Immigration, Refugees and Citizenship Canada",
+      "pageUrl": "https://www.canada.ca/en/immigration-refugees-citizenship/services/application/check-processing-times.html",
+      "fetchable": true
+    },
+    {
+      "destinationIso2": "GB",
+      "authorityName": "UK Visas and Immigration (GOV.UK)",
+      "pageUrl": "https://www.gov.uk/guidance/visa-processing-times-applications-outside-the-uk",
+      "fetchable": true
+    },
+    {
+      "destinationIso2": "JP",
+      "authorityName": "Ministry of Foreign Affairs of Japan",
+      "pageUrl": "https://www.mofa.go.jp/j_info/visit/visa/index.html",
+      "fetchable": false
+    },
+    {
+      "destinationIso2": "AU",
+      "authorityName": "Department of Home Affairs (Australia)",
+      "pageUrl": "https://immi.homeaffairs.gov.au/visas/getting-a-visa/visa-finder",
+      "fetchable": false
+    },
+    {
+      "destinationIso2": "NZ",
+      "authorityName": "Immigration New Zealand",
+      "pageUrl": "https://www.immigration.govt.nz/visit/what-you-need-to-visit-new-zealand/visa-waiver-countries-and-territories/",
+      "fetchable": false
+    },
+    {
+      "destinationIso2": "KR",
+      "authorityName": "Korea Immigration Service (Ministry of Justice)",
+      "pageUrl": "https://www.k-eta.go.kr/portal/apply/index.do",
+      "fetchable": false
+    },
+    {
+      "destinationIso2": "US",
+      "authorityName": "U.S. Department of State — Bureau of Consular Affairs",
+      "pageUrl": "https://travel.state.gov/content/travel/en/us-visas/tourism-visit/visa-waiver-program.html",
+      "fetchable": false
+    }
+  ],
+  "note": "ADR-0014's statistics source table, asserted from crates/voyalier-core/src/tests.rs and apps/web/src/parity.test.ts. fetchable describes the publication, not the network: true only where core carries a parser for a published dataset. The mock reads this file for source rows and link-only states; it never mirrors the table."
+}

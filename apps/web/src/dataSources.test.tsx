@@ -33,8 +33,10 @@ describe("data source register", () => {
     expect(new Set(register.sources.map((source) => source.id))).toEqual(
       new Set([
         "uk-fcdo",
+        "uk-ukvi",
         "us-state",
         "ca-gac",
+        "ca-ircc",
         "de-aa",
         "us-cdc",
         "open-meteo",

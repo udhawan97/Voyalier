@@ -1,0 +1,84 @@
+{
+ "visitor-outside-canada": {
+  "IN": "22 days",
+  "AF": "64 days",
+  "AU": "13 days",
+  "BR": "23 days",
+  "NG": "64 days",
+  "AD": "No processing time available"
+ },
+ "supervisa": {
+  "IN": "52 days",
+  "AF": "No processing time available",
+  "AU": "No processing time available",
+  "BR": "30 days",
+  "NG": "41 days",
+  "AD": "No processing time available"
+ },
+ "study": {
+  "IN": "5 weeks",
+  "AF": "3 weeks",
+  "AU": "4 weeks",
+  "BR": "4 weeks",
+  "NG": "6 weeks",
+  "AD": "No processing time available"
+ },
+ "work": {
+  "IN": "9 weeks",
+  "AF": "No processing time available",
+  "AU": "7 weeks",
+  "BR": "4 weeks",
+  "NG": "7 weeks",
+  "AD": "No processing time available"
+ },
+ "child_dependent": {
+  "IN": "7 months",
+  "AF": "No processing time available",
+  "AU": "No processing time available",
+  "BR": "No processing time available",
+  "NG": "22 months",
+  "AD": "No processing time available"
+ },
+ "child_adopted": {
+  "IN": "Not enough data",
+  "AF": "Not enough data",
+  "AU": "Not enough data",
+  "BR": "Not enough data",
+  "NG": "Not enough data",
+  "AD": "Not enough data"
+ },
+ "refugees_gov": {
+  "IN": "Not enough data",
+  "AF": "Not enough data",
+  "AU": "Not enough data",
+  "BR": "Not enough data",
+  "NG": "Not enough data",
+  "AD": "Not enough data"
+ },
+ "refugees_private": {
+  "IN": {
+   "sponsor": "27 months",
+   "refugee": "20 months"
+  },
+  "AF": {
+   "sponsor": "Not enough data",
+   "refugee": "Not enough data"
+  },
+  "AU": {
+   "sponsor": "Not enough data",
+   "refugee": "Not enough data"
+  },
+  "BR": {
+   "sponsor": "Not enough data",
+   "refugee": "Not enough data"
+  },
+  "NG": {
+   "sponsor": "Not enough data",
+   "refugee": "Not enough data"
+  },
+  "AD": {
+   "sponsor": "Not enough data",
+   "refugee": "Not enough data"
+  }
+ }
+}

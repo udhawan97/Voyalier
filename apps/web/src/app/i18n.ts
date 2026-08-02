@@ -633,6 +633,16 @@ const en = {
     "Fetched only when you request official advice",
   "dataSources.uk-fcdo.authority":
     "Official UK government advice; written for UK nationals",
+  "dataSources.uk-ukvi.use": "Published visa decision waiting times",
+  "dataSources.uk-ukvi.network":
+    "Fetched only when you ask for the authority's published times",
+  "dataSources.uk-ukvi.authority":
+    "UKVI's own published figures, quoted verbatim; never a promise about your application",
+  "dataSources.ca-ircc.use": "Published visa processing times",
+  "dataSources.ca-ircc.network":
+    "Fetched only when you ask for the authority's published times",
+  "dataSources.ca-ircc.authority":
+    "IRCC's own published figures, quoted verbatim; never a promise about your application",
   "dataSources.us-state.use": "Official travel advisories",
   "dataSources.us-state.network":
     "Fetched only when you request official advice",
@@ -1120,29 +1130,58 @@ const en = {
   "visa.nationalitySaved": "Passport country saved.",
   "visa.nationalityHelp":
     "Two letters, ISO-3166-1 alpha-2 — IN for India, NG for Nigeria, GB for the United Kingdom.",
-  "visa.nationalitySuggested":
-    "Prefilled from your last trip. Change it if this trip is for someone else, then save.",
   "visa.nationalityInvalid":
     "Use two letters, ISO-3166-1 alpha-2 — IN, NG, GB.",
   "visa.noAuthority":
-    "Voyalier has not curated an authority for this destination, so it has nothing to quote and no official page to point you at. Check your destination's own immigration service.",
+    "Voyalier has not curated an authority for this destination, so it has nothing to quote — no entry path and no published processing times — and no official page to point you at. Check your destination's own immigration service.",
   "visa.noDestination":
     "Voyalier could not work out which country this trip goes to, so it has nothing to look up. Editing the destination to include the country will resolve it.",
   "visa.quotedFrom": "Quoted from",
   "visa.curatedAsOf": "read on",
   "visa.confirmAtSource": "Confirm your own case at the official source",
-  "visa.noJourney": "No step-by-step guide for this route yet",
-  "visa.noJourneyDetail":
-    "Either this route needs nothing, or the authority publishes conditions rather than a single answer. Voyalier will not guess which — check your own case at the official source.",
   "visa.path.visaRequired": "A visa is published as required for this passport",
   "visa.path.electronicAuthorization":
     "An electronic authorization is published for this passport",
   "visa.path.exempt": "Neither is published for this passport",
-  "visa.path.unknown": "Not curated — check the official source",
+  "visa.path.unknown":
+    "No single answer is published for this passport — check the official source",
   "visa.progress.one":
     "Checklist: {done} of {total} complete across {count} guide step. Voyalier has not verified any item.",
   "visa.progress.other":
     "Checklist: {done} of {total} complete across {count} guide steps. Voyalier has not verified any item.",
+  "visa.nationalityChipLabel":
+    "Use {name} ({code}) — the passport from your last trip. Saves immediately.",
+  // The provenance banners are what keep the two guides honest: curated steps
+  // were read from a named authority on a date; the playbook is Voyalier's own
+  // writing and says so in those words (spec 2026-08-02).
+  "visa.guide.provenance.curated":
+    "These steps were read from {authority} on {date}. Confirm your own case there before you act on any of them.",
+  "visa.guide.provenance.playbook":
+    "A general route map written by Voyalier — not read from any authority and not specific to this route. Each step tells you what to confirm at the official source before you pay, book, or file.",
+  // ADR-0014: figures are quoted, stamped, licensed, and never bundled.
+  "visa.stats.consent":
+    "Fetching contacts {authority} once from this device to read its published processing times, and stores a dated copy locally. Nothing about you or your trip is sent — only the public page is downloaded.",
+  "visa.stats.fetch": "Fetch current published times",
+  "visa.stats.fetched": "Published times fetched.",
+  "visa.stats.kept":
+    "Could not reach {authority} — showing the copy saved {date}. The published times may have changed since; check the source.",
+  "visa.stats.stale":
+    "Fetched {days} days ago — fetch again before you rely on it.",
+  "visa.stats.unfetchable":
+    "{authority} does not publish its times in a form Voyalier can read for you. Read them yourself at the official page.",
+  "visa.stats.failedNoCopy":
+    "Could not reach {authority}, and nothing is stored yet. Try again, or read the page yourself.",
+  "visa.stats.noRows":
+    "{authority} publishes no row for the passport code {code} in the tables Voyalier reads. Check the page yourself.",
+  "visa.stats.caption": "Published times, as {authority} labels them",
+  "visa.stats.colLabel": "As labelled by the source",
+  "visa.stats.colValue": "Published time",
+  "visa.stats.yourPassport": "your passport",
+  "visa.stats.highlightCaption":
+    "Marks the row labelled \u201c{label}\u201d — confirm it is yours.",
+  "visa.stats.retrieved": "Read from {authority} · retrieved {stamp}",
+  "visa.stats.publishedAs": "{authority} states these figures as of {stamp}",
+  "visa.stats.pageLink": "Check current published times at the source",
   "visa.stepLabel": "Step {ordinal} · {title}",
   "visa.stepDone": "Done",
   "visa.authorityCallsIt": "The authority calls this",
@@ -2061,6 +2100,17 @@ const es: Record<MessageKey, string> = {
     "Se obtiene solo cuando solicitas avisos oficiales",
   "dataSources.uk-fcdo.authority":
     "Aviso oficial del Gobierno británico; escrito para nacionales del Reino Unido",
+  "dataSources.uk-ukvi.use":
+    "Tiempos de espera publicados para decisiones de visado",
+  "dataSources.uk-ukvi.network":
+    "Se obtiene solo cuando pides los tiempos publicados por la autoridad",
+  "dataSources.uk-ukvi.authority":
+    "Cifras publicadas por la propia UKVI, citadas textualmente; nunca una promesa sobre tu solicitud",
+  "dataSources.ca-ircc.use": "Tiempos de tramitación de visados publicados",
+  "dataSources.ca-ircc.network":
+    "Se obtiene solo cuando pides los tiempos publicados por la autoridad",
+  "dataSources.ca-ircc.authority":
+    "Cifras publicadas por el propio IRCC, citadas textualmente; nunca una promesa sobre tu solicitud",
   "dataSources.us-state.use": "Avisos de viaje oficiales",
   "dataSources.us-state.network":
     "Se obtiene solo cuando solicitas avisos oficiales",
@@ -2526,28 +2576,55 @@ const es: Record<MessageKey, string> = {
   "visa.nationalitySaved": "País del pasaporte guardado.",
   "visa.nationalityHelp":
     "Dos letras, ISO-3166-1 alfa-2: IN para India, NG para Nigeria, GB para el Reino Unido.",
-  "visa.nationalitySuggested":
-    "Rellenado con el de tu último viaje. Cámbialo si este viaje es para otra persona y guarda.",
   "visa.nationalityInvalid": "Usa dos letras, ISO-3166-1 alfa-2: IN, NG, GB.",
   "visa.noAuthority":
-    "Voyalier no ha curado ninguna autoridad para este destino, así que no tiene nada que citar ni ninguna página oficial que indicarte. Consulta el servicio de inmigración de tu destino.",
+    "Voyalier no ha curado ninguna autoridad para este destino, así que no tiene nada que citar (ni ruta de entrada ni tiempos de tramitación publicados) ni ninguna página oficial que indicarte. Consulta el servicio de inmigración de tu destino.",
   "visa.noDestination":
     "Voyalier no pudo determinar a qué país va este viaje, así que no tiene nada que consultar. Editar el destino para incluir el país lo resolverá.",
   "visa.quotedFrom": "Citado de",
   "visa.curatedAsOf": "consultado el",
   "visa.confirmAtSource": "Confirma tu caso en la fuente oficial",
-  "visa.noJourney": "Aún no hay una guía paso a paso para esta ruta",
-  "visa.noJourneyDetail":
-    "O esta ruta no requiere nada, o la autoridad publica condiciones en lugar de una única respuesta. Voyalier no lo adivinará: consulta tu caso en la fuente oficial.",
   "visa.path.visaRequired": "Se publica que este pasaporte requiere visado",
   "visa.path.electronicAuthorization":
     "Se publica una autorización electrónica para este pasaporte",
   "visa.path.exempt": "No se publica ninguno de los dos para este pasaporte",
-  "visa.path.unknown": "Sin curar: consulta la fuente oficial",
+  "visa.path.unknown":
+    "No se publica una única respuesta para este pasaporte: consulta la fuente oficial",
   "visa.progress.one":
     "Lista: {done} de {total} completado en {count} paso de la guía. Voyalier no ha verificado ningún elemento.",
   "visa.progress.other":
     "Lista: {done} de {total} completados en {count} pasos de la guía. Voyalier no ha verificado ningún elemento.",
+  "visa.nationalityChipLabel":
+    "Usar {name} ({code}): el pasaporte de tu último viaje. Se guarda al instante.",
+  "visa.guide.provenance.curated":
+    "Estos pasos se leyeron de {authority} el {date}. Confirma tu propio caso allí antes de actuar sobre cualquiera de ellos.",
+  "visa.guide.provenance.playbook":
+    "Una hoja de ruta general escrita por Voyalier: no proviene de ninguna autoridad ni es específica de esta ruta. Cada paso te dice qué confirmar en la fuente oficial antes de pagar, reservar o presentar nada.",
+  "visa.stats.consent":
+    "Al obtenerlos, este dispositivo contacta una vez con {authority} para leer sus tiempos de tramitación publicados y guarda una copia con fecha. No se envía nada sobre ti ni sobre tu viaje: solo se descarga la página pública.",
+  "visa.stats.fetch": "Obtener los tiempos publicados actuales",
+  "visa.stats.fetched": "Tiempos publicados obtenidos.",
+  "visa.stats.kept":
+    "No se pudo contactar con {authority}: se muestra la copia guardada el {date}. Los tiempos publicados pueden haber cambiado desde entonces; consulta la fuente.",
+  "visa.stats.stale":
+    "Obtenido hace {days} días. Vuelve a obtenerlo antes de confiar en él.",
+  "visa.stats.unfetchable":
+    "{authority} no publica sus tiempos en un formato que Voyalier pueda leer por ti. Léelos tú en la página oficial.",
+  "visa.stats.failedNoCopy":
+    "No se pudo contactar con {authority} y aún no hay nada guardado. Inténtalo de nuevo o lee la página tú mismo.",
+  "visa.stats.noRows":
+    "{authority} no publica ninguna fila para el código de pasaporte {code} en las tablas que Voyalier lee. Consulta la página tú mismo.",
+  "visa.stats.caption": "Tiempos publicados, tal como los etiqueta {authority}",
+  "visa.stats.colLabel": "Como lo etiqueta la fuente",
+  "visa.stats.colValue": "Tiempo publicado",
+  "visa.stats.yourPassport": "tu pasaporte",
+  "visa.stats.highlightCaption":
+    "Marca la fila etiquetada \u201c{label}\u201d: confirma que es la tuya.",
+  "visa.stats.retrieved": "Leído de {authority} · obtenido {stamp}",
+  "visa.stats.publishedAs":
+    "{authority} declara estas cifras a fecha de {stamp}",
+  "visa.stats.pageLink":
+    "Consulta los tiempos publicados actuales en la fuente",
   "visa.stepLabel": "Paso {ordinal} · {title}",
   "visa.stepDone": "Hecho",
   "visa.authorityCallsIt": "La autoridad lo llama",

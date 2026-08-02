@@ -350,6 +350,9 @@ export function createHttpGateway(
         input,
       ),
 
+    refreshVisaStats: (tripId: string) =>
+      request<VisaPrep>(...route("refreshVisaStats", { tripId })),
+
     savePlace: (input: SavePlaceInput) =>
       request<SavedPlace>(
         ...route("savePlace", { tripId: input.tripId }),

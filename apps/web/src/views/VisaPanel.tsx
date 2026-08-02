@@ -3,14 +3,19 @@ import type {
   AppError,
   Mission,
   SourceLink,
+  VisaJourney,
+  VisaPlaybook,
   VisaPrep,
+  VisaStatsPanel,
   VisaStep,
 } from "@voyalier/contracts";
 import { MAX_VISA_NOTE_CHARS, countChars } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
-import { describeError } from "../app/format";
+import { ISO2_COUNTRY_CODES, countryName } from "../app/countries";
+import { describeError, formatInstant, formatInstantDate } from "../app/format";
 import { plural, t } from "../app/i18n";
+import { APP_LOCALE } from "../app/locale";
 import {
   tripScope,
   useRevalidate,
@@ -19,12 +24,24 @@ import {
 } from "../app/revalidate";
 import { useAsyncAction, useAsyncData } from "../app/useAsync";
 import { Button } from "../components/Button";
-import { TextField } from "../components/fields";
+import { Combobox } from "../components/Combobox";
 import { FileTextIcon } from "../components/icons";
 import { Empty, SectionTitle, Skeleton } from "../components/primitives";
 
+/** Mirrors TravelAdvice: quoted figures older than this carry an age warning. */
+const STALE_AFTER_DAYS = 7;
+
+function daysSince(iso: string): number | null {
+  const parsed = Date.parse(iso);
+  if (Number.isNaN(parsed)) return null;
+  return Math.floor((Date.now() - parsed) / 86_400_000);
+}
+
 /**
- * The visa preparation cockpit.
+ * The visa preparation cockpit — four zones, top to bottom: the route header
+ * (passport picker + quoted verdict), the guide (a curated journey, else the
+ * universal playbook), the route statistics (ADR-0014: fetched from the
+ * authority on the traveler's click, never bundled), and the missions pointer.
  *
  * ADR-0006 is the whole shape of this view: Voyalier never decides whether a
  * visa is needed. The entry path is a *quote* — rendered with the authority that
@@ -32,9 +49,10 @@ import { Empty, SectionTitle, Skeleton } from "../components/primitives";
  * The words this panel contributes are translation and caution, which is why the
  * disclaimer is not dismissible and sits above the route rather than under it.
  *
- * Curated prose arrives from the core carrying a `language` tag, and is marked
- * up with it, so a reader in another locale is not misled into thinking the
- * guidance was translated. Interface chrome around it *is* translated.
+ * Curated and playbook prose arrives from the core carrying a `language` tag,
+ * and is marked up with it, so a reader in another locale is not misled into
+ * thinking the guidance was translated. Interface chrome around it *is*
+ * translated.
  */
 export function VisaPanel({ tripId }: { tripId: string }) {
   const gateway = useGateway();
@@ -87,10 +105,9 @@ function VisaCockpit({
       ) : (
         <p className="voy-visa__hint">{t("visa.pickNationality")}</p>
       )}
-      {prep.journey ? (
-        <Journey prep={prep} onChanged={onChanged} />
-      ) : prep.nationalityIso2 ? (
-        <NoJourney prep={prep} />
+      <Guide prep={prep} onChanged={onChanged} />
+      {prep.nationalityIso2 && prep.stats ? (
+        <StatsCard tripId={prep.tripId} prep={prep} onChanged={onChanged} />
       ) : null}
       {prep.missions.length > 0 ? <Missions missions={prep.missions} /> : null}
     </>
@@ -106,38 +123,61 @@ function VisaCockpit({
  * to confirm rather than somewhere to go — and the confirm link is the
  * traveler's own foreign ministry, not this app. Coordinates are carried in the
  * contract but deliberately not rendered as a map pin here for the same reason.
+ *
+ * Collapsed behind a disclosure by default: it is reference material, not a
+ * step, and it was crowding the guide it sits under.
  */
 function Missions({ missions }: { missions: Mission[] }) {
+  const [open, setOpen] = useState(false);
+  const regionId = useId();
   return (
-    <section className="voy-visa__missions" aria-labelledby="visa-missions">
-      <h4 id="visa-missions" className="voy-visa__missions-title">
-        {t("visa.missions.title")}
+    <section className="voy-visa__missions" aria-labelledby={`${regionId}-t`}>
+      <h4 className="voy-visa__missions-title">
+        <button
+          type="button"
+          id={`${regionId}-t`}
+          className="voy-visa__missions-toggle"
+          aria-expanded={open}
+          aria-controls={regionId}
+          onClick={() => setOpen((current) => !current)}
+        >
+          <span className="voy-visa__missions-marker" aria-hidden="true">
+            {open ? "▾" : "▸"}
+          </span>
+          {t("visa.missions.title")}
+        </button>
       </h4>
-      <ul className="voy-visa__missions-list">
-        {missions.map((mission) => (
-          <li key={`${mission.kind}-${mission.city}-${mission.latitude}`}>
-            {mission.city
-              ? t("visa.missions.entryWithCity", {
-                  kind: t(`visa.missions.kind.${mission.kind}`),
-                  city: mission.city,
-                })
-              : t("visa.missions.entry", {
-                  kind: t(`visa.missions.kind.${mission.kind}`),
-                })}
-          </li>
-        ))}
-      </ul>
-      <p className="voy-visa__missions-note">{t("visa.missions.confirm")}</p>
+      {open ? (
+        <div id={regionId}>
+          <ul className="voy-visa__missions-list">
+            {missions.map((mission) => (
+              <li key={`${mission.kind}-${mission.city}-${mission.latitude}`}>
+                {mission.city
+                  ? t("visa.missions.entryWithCity", {
+                      kind: t(`visa.missions.kind.${mission.kind}`),
+                      city: mission.city,
+                    })
+                  : t("visa.missions.entry", {
+                      kind: t(`visa.missions.kind.${mission.kind}`),
+                    })}
+              </li>
+            ))}
+          </ul>
+          <p className="voy-visa__missions-note">
+            {t("visa.missions.confirm")}
+          </p>
+        </div>
+      ) : null}
     </section>
   );
 }
 
 /**
- * The passport the journey resolves against.
+ * The passport the route resolves against.
  *
- * A free-text ISO code rather than a country list: the contract takes alpha-2,
- * every country resolves to *some* honest answer, and a 250-entry translated
- * <select> would be a lot of catalog for a field most travelers set once.
+ * A combobox over the alpha-2 list with names in the traveler's locale —
+ * suggestions never gate what can be typed, so a bare two-letter code still
+ * works, and the committed value is always the code the contract takes.
  */
 function NationalityPicker({
   prep,
@@ -153,7 +193,7 @@ function NationalityPicker({
   const [draft, setDraft] = useState<string | null>(null);
   const [invalid, setInvalid] = useState(false);
   const [submittedCode, setSubmittedCode] = useState<string | null>(null);
-  const value = draft ?? prep.nationalityIso2 ?? suggested;
+  const value = draft ?? prep.nationalityIso2 ?? "";
 
   const save = useAsyncAction(
     (code: string) =>
@@ -190,47 +230,92 @@ function NationalityPicker({
       ? save.error
       : undefined;
 
+  /**
+   * Local data only: names + codes, case- and diacritic-insensitively.
+   *
+   * Ranked the way a traveler types: a code match first ("in" → India),
+   * then names the query begins ("Ind" → India before the Indian Ocean
+   * Territory), then names that merely contain it — each band in the
+   * locale's own alphabetical order, not ISO code order.
+   */
+  const suggestions = (query: string) => {
+    const fold = (text: string) =>
+      text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+    const needle = fold(query.trim());
+    const band = (code: string, name: string): number => {
+      if (!needle) return 3;
+      if (code.toLowerCase().startsWith(needle)) return 0;
+      if (name.startsWith(needle)) return 1;
+      if (name.includes(needle)) return 2;
+      return -1;
+    };
+    const matches = ISO2_COUNTRY_CODES.map((code) => {
+      const name = countryName(code, APP_LOCALE);
+      return { code, name, band: band(code, fold(name)) };
+    })
+      .filter((entry) => entry.band >= 0)
+      .sort(
+        (a, b) => a.band - b.band || a.name.localeCompare(b.name, APP_LOCALE),
+      );
+    return Promise.resolve(
+      matches.slice(0, 12).map(({ code, name }) => ({
+        value: code,
+        label: `${name} — ${code}`,
+      })),
+    );
+  };
+
   return (
     <form
       className="voy-visa__nationality"
       onSubmit={(event) => {
         event.preventDefault();
-        const code = value.trim();
+        // Uppercase at submit only, so typing a name to search never fights
+        // the field.
+        const code = value.trim().toUpperCase();
         // An empty submit used to return here silently, so a real button did
         // nothing observable at all.
-        if (!/^[A-Za-z]{2}$/.test(code)) {
+        if (!/^[A-Z]{2}$/.test(code)) {
           setInvalid(true);
           return;
         }
         setInvalid(false);
-        setSubmittedCode(code);
+        setSubmittedCode(value);
         void save.run(code);
       }}
     >
-      <TextField
+      <Combobox
         id={fieldId}
         label={t("visa.nationalityLabel")}
         value={value}
-        maxLength={2}
-        autoComplete="country"
-        spellCheck={false}
-        onChange={(event) => {
-          setDraft(event.target.value.toUpperCase());
-          // Stop arguing the moment the field is answerable again.
-          if (event.target.value.trim().length === 2) setInvalid(false);
+        onChange={(next) => {
+          setDraft(next);
+          if (/^[A-Za-z]{2}$/.test(next.trim())) setInvalid(false);
         }}
+        fetchSuggestions={suggestions}
         error={error}
-        hint={
-          /* Prefilled from the traveler's last trip, never applied for them:
-             a trip may not be for the person who set the previous one. */
-          !prep.nationalityIso2 && suggested
-            ? t("visa.nationalitySuggested")
-            : t("visa.nationalityHelp")
-        }
+        hint={t("visa.nationalityHelp")}
+        autoComplete="off"
+        spellCheck={false}
       />
       <Button type="submit" busy={save.busy}>
         {t("visa.nationalitySave")}
       </Button>
+      {/* Offered, never applied: the last trip's passport as one tap — a trip
+          may not be for the person who set the previous one. */}
+      {!prep.nationalityIso2 && suggested && !save.busy ? (
+        <button
+          type="button"
+          className="voy-visa__chip"
+          aria-label={t("visa.nationalityChipLabel", {
+            name: countryName(suggested, APP_LOCALE),
+            code: suggested,
+          })}
+          onClick={() => void save.run(suggested)}
+        >
+          {countryName(suggested, APP_LOCALE)} — {suggested}
+        </button>
+      ) : null}
       {actionError ? (
         <p className="voy-field__error" role="alert">
           {describeError(actionError).body}
@@ -243,13 +328,17 @@ function NationalityPicker({
 /** The quoted entry path, always shown with its source and the date it was read. */
 function EntryPathQuoteCard({ prep }: { prep: VisaPrep }) {
   const quote = prep.entryPath;
-  // No quote means no authority to name — either the destination country could
-  // not be worked out, or nothing is curated for the one that was. The two are
-  // indistinguishable on the wire and the honest sentence is the same for both:
-  // Voyalier has nobody to point at, so it points at nobody. It used to reach
-  // for the only authority it had, which put Canada in front of a traveler
-  // flying to Tokyo (ADR-0006, amended 2026-07-29).
-  if (!quote) return <p className="voy-visa__hint">{t("visa.noAuthority")}</p>;
+  if (!quote) {
+    // No quote means no authority to name. The playbook's presence is what
+    // distinguishes the two honest reasons: with it, the destination resolved
+    // and nothing is curated there; without it, the destination itself could
+    // not be worked out, and editing the trip is the fix.
+    return (
+      <p className="voy-visa__hint">
+        {prep.playbook ? t("visa.noAuthority") : t("visa.noDestination")}
+      </p>
+    );
+  }
 
   return (
     <div className="voy-visa__quote">
@@ -267,32 +356,18 @@ function EntryPathQuoteCard({ prep }: { prep: VisaPrep }) {
   );
 }
 
-/** Nothing curated, or the authority publishes conditions rather than an answer. */
-function NoJourney({ prep }: { prep: VisaPrep }) {
-  return (
-    <Empty title={t("visa.noJourney")}>
-      <p>{t("visa.noJourneyDetail")}</p>
-      {prep.entryPath ? (
-        <OfficialLinks
-          links={[
-            { label: t("visa.confirmAtSource"), url: prep.entryPath.sourceUrl },
-          ]}
-        />
-      ) : null}
-    </Empty>
-  );
-}
-
-function Journey({
-  prep,
-  onChanged,
-}: {
-  prep: VisaPrep;
-  onChanged: () => void;
-}) {
-  const journey = prep.journey;
+/**
+ * The guide zone: the curated journey when one exists, else the universal
+ * playbook — one renderer for both, because both are steps the traveler works
+ * through and ticks. The provenance banner is what keeps them honest: curated
+ * steps were read from a named authority on a date; playbook steps were
+ * written by Voyalier and say so in those words.
+ */
+function Guide({ prep, onChanged }: { prep: VisaPrep; onChanged: () => void }) {
+  const guide: VisaJourney | VisaPlaybook | undefined =
+    prep.journey ?? prep.playbook;
   const [openStepId, setOpenStepId] = useState<string | null>(
-    journey?.steps[0]?.id ?? null,
+    guide?.steps[0]?.id ?? null,
   );
   // False until the traveler picks a step themselves, so opening the panel
   // never yanks focus out of whatever they were reading.
@@ -305,31 +380,43 @@ function Journey({
       ),
     [prep.items],
   );
-  if (!journey) return null;
+  if (!guide || !prep.nationalityIso2) return null;
 
   /**
-   * The steps this journey can actually be finished from.
+   * The steps this guide can actually be finished from.
    *
-   * A curated journey opens by asking whether the traveler needs the route at
-   * all — links, no documents, nothing to tick. Counting it in the denominator
-   * meant a traveler who ticked all sixteen documents read "7 of 8 complete"
-   * forever, with no remaining action anywhere that could close the gap.
+   * A guide opens by orienting — links, no documents, nothing to tick.
+   * Counting those steps in the denominator meant a traveler who ticked
+   * everything read "7 of 8 complete" forever, with no remaining action
+   * anywhere that could close the gap.
    */
-  const askableSteps = journey.steps.filter(
-    (step) => step.documents.length > 0,
-  );
+  const askableSteps = guide.steps.filter((step) => step.documents.length > 0);
   const isComplete = (step: VisaStep) =>
     step.documents.length > 0 &&
     step.documents.every((document) => checked.has(document.id));
   const doneSteps = askableSteps.filter(isComplete).length;
   const openStep =
-    journey.steps.find((step) => step.id === openStepId) ?? journey.steps[0];
+    guide.steps.find((step) => step.id === openStepId) ?? guide.steps[0];
+
+  const provenance = prep.journey ? (
+    <p className="voy-visa__provenance voy-visa__provenance--curated">
+      {t("visa.guide.provenance.curated", {
+        authority: prep.journey.entryPath.sourceName,
+        date: prep.journey.curatedAsOf,
+      })}
+    </p>
+  ) : (
+    <p className="voy-visa__provenance voy-visa__provenance--playbook">
+      {t("visa.guide.provenance.playbook")}
+    </p>
+  );
 
   return (
-    <div className="voy-visa__journey" lang={journey.language}>
+    <div className="voy-visa__journey" lang={guide.language}>
+      {provenance}
       <p className="voy-visa__progress">
         {/* Attributed to the traveler in the same breath as the number. */}
-        {plural("visa.progress", journey.steps.length, {
+        {plural("visa.progress", guide.steps.length, {
           done: doneSteps,
           total: askableSteps.length,
         })}
@@ -337,7 +424,7 @@ function Journey({
 
       <div className="voy-visa__cockpit">
         <ol className="voy-visa__rail">
-          {journey.steps.map((step) => (
+          {guide.steps.map((step) => (
             <li key={step.id}>
               <button
                 type="button"
@@ -369,6 +456,193 @@ function Journey({
         />
       </div>
     </div>
+  );
+}
+
+/**
+ * The route statistics zone (ADR-0014).
+ *
+ * The authority's name is the heading in every state, so a cropped screenshot
+ * still names whose numbers these are. Figures appear only after this device
+ * read them from the authority's own publication, verbatim, with the retrieval
+ * stamp, the source's own as-of date where it publishes one, and the licence.
+ * The fetch button is the consent act; failure is loud and the kept copy
+ * survives it.
+ */
+function StatsCard({
+  tripId,
+  prep,
+  onChanged,
+}: {
+  tripId: string;
+  prep: VisaPrep;
+  onChanged: () => void;
+}) {
+  const gateway = useGateway();
+  const announce = useAnnounce();
+  const stats = prep.stats as VisaStatsPanel;
+  const { source, snapshot } = stats;
+
+  const refresh = useAsyncAction(
+    () => gateway.refreshVisaStats(tripId),
+    () => {
+      announce(t("visa.stats.fetched"));
+      onChanged();
+    },
+  );
+  useEffect(() => {
+    if (!refresh.error) return;
+    announce(
+      snapshot
+        ? t("visa.stats.kept", {
+            authority: source.authorityName,
+            date: formatInstantDate(snapshot.retrievedAt),
+          })
+        : t("visa.stats.failedNoCopy", { authority: source.authorityName }),
+    );
+  }, [refresh.error, snapshot, source.authorityName, announce]);
+
+  const staleDays = snapshot ? daysSince(snapshot.retrievedAt) : null;
+  const isStale = staleDays !== null && staleDays > STALE_AFTER_DAYS;
+  const highlighted = snapshot?.metrics.find(
+    (metric) => metric.audience === prep.nationalityIso2,
+  );
+
+  return (
+    <section className="voy-visa__stats" aria-labelledby="visa-stats-title">
+      <h4 id="visa-stats-title" className="voy-visa__stats-title">
+        {source.authorityName}
+      </h4>
+
+      {snapshot ? (
+        <>
+          {refresh.error ? (
+            <p className="voy-visa__stats-kept">
+              {t("visa.stats.kept", {
+                authority: source.authorityName,
+                date: formatInstantDate(snapshot.retrievedAt),
+              })}
+            </p>
+          ) : null}
+          {isStale ? (
+            <p className="voy-visa__stats-stale">
+              {t("visa.stats.stale", { days: staleDays as number })}
+            </p>
+          ) : null}
+          {snapshot.metrics.length === 0 ? (
+            /* Absence reported as absence: the source parsed, and it simply
+               publishes no row for this passport code. An empty table would
+               read as a broken fetch. */
+            <p className="voy-visa__stats-consent">
+              {t("visa.stats.noRows", {
+                authority: snapshot.authorityName,
+                code: prep.nationalityIso2 as string,
+              })}
+            </p>
+          ) : (
+            <div className="voy-visa__stats-scroll">
+              <table className="voy-visa__stats-table">
+                <caption className="voy-sr-only">
+                  {t("visa.stats.caption", { authority: source.authorityName })}
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">{t("visa.stats.colLabel")}</th>
+                    <th scope="col">{t("visa.stats.colValue")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {snapshot.metrics.map((metric) => {
+                    const mine = metric.audience === prep.nationalityIso2;
+                    return (
+                      <tr
+                        key={metric.id}
+                        className={
+                          mine ? "voy-visa__stats-row--mine" : undefined
+                        }
+                      >
+                        <th scope="row">
+                          {metric.label}
+                          {metric.audience ? (
+                            <span className="voy-visa__stats-audience">
+                              {" "}
+                              · {metric.audience}
+                            </span>
+                          ) : null}
+                          {mine ? (
+                            <span className="voy-visa__stats-mine">
+                              {t("visa.stats.yourPassport")}
+                            </span>
+                          ) : null}
+                        </th>
+                        {/* Verbatim, units and all — never converted. */}
+                        <td>{metric.value}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {highlighted ? (
+            <p className="voy-visa__stats-highlight-note">
+              {t("visa.stats.highlightCaption", {
+                label: highlighted.audience as string,
+              })}
+            </p>
+          ) : null}
+          <p className="voy-visa__stats-sourceline">
+            {t("visa.stats.retrieved", {
+              authority: snapshot.authorityName,
+              stamp: formatInstant(snapshot.retrievedAt),
+            })}
+          </p>
+          {/* The source's own date is never omitted when present: a fresh
+              retrieval stamp over old figures is the stale-table trap. */}
+          {snapshot.publishedAt ? (
+            <p className="voy-visa__stats-sourceline">
+              {t("visa.stats.publishedAs", {
+                authority: snapshot.authorityName,
+                stamp: formatInstant(snapshot.publishedAt),
+              })}
+            </p>
+          ) : null}
+          <p className="voy-visa__stats-licence">{snapshot.attribution}</p>
+        </>
+      ) : source.fetchable ? (
+        <>
+          <p className="voy-visa__stats-consent">
+            {t("visa.stats.consent", { authority: source.authorityName })}
+          </p>
+          {refresh.error ? (
+            <p className="voy-field__error" role="alert">
+              {t("visa.stats.failedNoCopy", {
+                authority: source.authorityName,
+              })}
+            </p>
+          ) : null}
+        </>
+      ) : (
+        <p className="voy-visa__stats-consent">
+          {t("visa.stats.unfetchable", { authority: source.authorityName })}
+        </p>
+      )}
+
+      <div className="voy-visa__stats-actions">
+        {source.fetchable ? (
+          <Button
+            onClick={() => void refresh.run()}
+            busy={refresh.busy}
+            variant="secondary"
+          >
+            {t("visa.stats.fetch")}
+          </Button>
+        ) : null}
+        <OfficialLinks
+          links={[{ label: t("visa.stats.pageLink"), url: source.pageUrl }]}
+        />
+      </div>
+    </section>
   );
 }
 

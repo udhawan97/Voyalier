@@ -214,6 +214,16 @@ pub struct VisaPrep {
     pub entry_path: Option<EntryPathQuote>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub journey: Option<VisaJourney>,
+    /// The universal route map, present exactly when a passport is set, a
+    /// destination resolved, and no curated journey overrides it. Never both
+    /// this and `journey`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub playbook: Option<VisaPlaybook>,
+    /// The statistics zone (ADR-0014), present exactly when the destination is
+    /// one of the named authorities. Absent is honest absence — an uncurated
+    /// destination has no stats card at all.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stats: Option<crate::visa_stats::VisaStatsPanel>,
     pub items: Vec<VisaPrepItem>,
     /// The traveler's own country's missions in the destination country, from
     /// the bundled Wikidata extract.
@@ -232,6 +242,25 @@ pub struct VisaPrep {
 pub struct SetVisaNationalityInput {
     pub trip_id: String,
     pub nationality_iso2: String,
+}
+
+/// A general route map for a pair Voyalier has not curated.
+///
+/// Authored by Voyalier, not read from any authority, and the interface says so
+/// in those words. It exists because the alternative — a dead end reading
+/// "check the official source" — teaches nothing about *how*, and the how is
+/// where first-time applicants fail. Every sentence keeps ADR-0006's split:
+/// a caution about execution, or a translation of the vocabulary authorities
+/// share; never a claim about what this destination requires. Its steps are
+/// the same shape a curated journey's are, so the traveler's ticks and notes
+/// work identically, and a route that later gains real curation keeps them.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VisaPlaybook {
+    pub destination_iso2: String,
+    pub nationality_iso2: String,
+    pub steps: Vec<VisaStep>,
+    pub language: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -795,6 +824,189 @@ fn document(
         plain_explanation: plain.to_owned(),
         gotchas: gotchas.iter().map(|text| (*text).to_owned()).collect(),
         links,
+    }
+}
+
+/// The universal playbook: what preparing an application looks like anywhere,
+/// voiced entirely as cautions and shared vocabulary.
+///
+/// Links are the passed quote's URL or nothing — the playbook may repeat the
+/// one page a real curation act stands behind, and may not invent, or relabel,
+/// a URL (the 2026-07-29 lesson: a link Voyalier cannot trace to curation is a
+/// link it must not render). Document ids carry the `playbook-` prefix and are
+/// shared across destinations on purpose: the caution about funds history is
+/// the same caution everywhere, and a traveler's tick on it means the same.
+pub fn universal_playbook(
+    destination_iso2: &str,
+    nationality_iso2: &str,
+    quote: Option<&EntryPathQuote>,
+) -> VisaPlaybook {
+    let official = |quote: Option<&EntryPathQuote>| -> Vec<SourceLink> {
+        quote
+            .map(|quote| {
+                vec![link(
+                    &format!("{} — official source", quote.source_name),
+                    &quote.source_url,
+                )]
+            })
+            .unwrap_or_default()
+    };
+    let steps = vec![
+        step(
+            "pb.01-authority",
+            1,
+            "Confirm who decides",
+            None,
+            "Every border on this trip belongs to one government — a transit airport included, \
+             which can carry rules of its own. That government's immigration service is the \
+             only source that can answer what you need, and every step below is about reading \
+             that source — none of them replaces it. \
+             Search results put lookalike visa-agency sites above the official one; they charge \
+             for forms governments publish, and some are simply fraud. Find the official domain \
+             before you read anything else, and check the address bar every time you come back.",
+            Vec::new(),
+            official(quote),
+        ),
+        step(
+            "pb.02-path",
+            2,
+            "Identify your entry path",
+            None,
+            "Authorities publish a small shared vocabulary. A visa is applied for and decided by \
+             the authority itself — usually ahead of travel; where one is offered on arrival, \
+             the authority's own page is what says so. An electronic authorization is a lighter online check, still \
+             decided before you travel. An exemption means no application for the stays the \
+             authority defines. Published conditions mean the answer depends on your passport \
+             type, your purpose, or your history — and only you can read your own case. Which of \
+             these applies to the exact passport you will travel on is the first thing the \
+             official source answers. Read your own row rather than someone's summary of it.",
+            Vec::new(),
+            official(quote),
+        ),
+        step(
+            "pb.03-documents",
+            3,
+            "Get ahead of the documents that take time",
+            None,
+            "The official checklist decides what is actually asked for — read it before \
+             gathering anything. This step exists because some document classes fail when \
+             started late, whatever the destination. Each item below is a way that class goes \
+             wrong, not a claim that this destination asks for it.",
+            vec![
+                document(
+                    "playbook-passport",
+                    "Your passport",
+                    "If there is an application, it is built from the biographic page.",
+                    &[
+                        "Renewing mid-application means redoing parts of it — check validity \
+                         against the official checklist before anything else.",
+                        "Some authorities count validity from your arrival date and others from \
+                         your departure date; the checklist's own wording decides which.",
+                    ],
+                    Vec::new(),
+                ),
+                document(
+                    "playbook-photos",
+                    "Photographs, if they are asked for",
+                    "Photo specifications are destination-specific, not universal.",
+                    &[
+                        "Take the destination's own published specification to the photographer \
+                         rather than asking for a passport photo — a home-country passport photo \
+                         is a common rejection.",
+                    ],
+                    Vec::new(),
+                ),
+                document(
+                    "playbook-funds",
+                    "Evidence of funds, if it is asked for",
+                    "How money is held matters as much as how much of it there is.",
+                    &[
+                        "A balance that appeared shortly before you applied reads as borrowed — \
+                         history matters more than the amount.",
+                    ],
+                    Vec::new(),
+                ),
+                document(
+                    "playbook-itinerary",
+                    "Itinerary and bookings, if they are asked for",
+                    "Where you will be and when, in the trip's own order.",
+                    &[
+                        "An itinerary that does not line up with your bookings or your dates is \
+                         worse than a sparse one.",
+                    ],
+                    Vec::new(),
+                ),
+                document(
+                    "playbook-ties",
+                    "Evidence you will go home, if it is asked for",
+                    "Work, study, family, property — whatever holds you to where you live.",
+                    &[
+                        "No single paper is this document, which is why it is the one people \
+                         leave until last. Start collecting early.",
+                    ],
+                    Vec::new(),
+                ),
+                document(
+                    "playbook-insurance",
+                    "Insurance, if it is asked for",
+                    "Where cover is on the checklist, the checklist also says for how much of \
+                     the stay.",
+                    &[
+                        "A policy that starts on your departure date can leave the first hours \
+                         uncovered across time zones — check the dates on the certificate, not \
+                         the receipt.",
+                    ],
+                    Vec::new(),
+                ),
+            ],
+            official(quote),
+        ),
+        step(
+            "pb.04-file",
+            4,
+            "File where the authority says to file",
+            None,
+            "File only where the official source's own pages say to file — its own portal, its \
+             own forms, or the application centre it names. Third-party filing sites rank above \
+             official ones in search results and resell what the authority provides. If a form \
+             must be filled in a specific program to generate a barcode, the page will say so — \
+             a form filled in the wrong tool is a common silent rejection.",
+            Vec::new(),
+            official(quote),
+        ),
+        step(
+            "pb.05-track",
+            5,
+            "Track and wait",
+            None,
+            "Track only through the channel the authority itself names — an account on its \
+             portal, a reference number, or the centre that took your documents. Where the \
+             authority publishes current decision times, its own page is the only current \
+             answer; the same figure repeated anywhere else is older than it looks. Plan around \
+             what the authority publishes today, not what a forum remembered.",
+            Vec::new(),
+            official(quote),
+        ),
+        step(
+            "pb.06-entry",
+            6,
+            "Prepare for entry",
+            None,
+            "A decision in your favour is permission to travel, not a promise of entry — the \
+             officer at the border applies the authority's conditions to you in person. Carry \
+             what you relied on in your application, because the officer can ask for any of it. \
+             Conditions of entry — how long, for what purpose, what you may not do — are \
+             published by the same authority, and reading them before you fly is what makes the \
+             conversation at the desk short.",
+            Vec::new(),
+            official(quote),
+        ),
+    ];
+    VisaPlaybook {
+        destination_iso2: destination_iso2.to_owned(),
+        nationality_iso2: nationality_iso2.to_owned(),
+        steps,
+        language: LANGUAGE.to_owned(),
     }
 }
 
@@ -1689,5 +1901,113 @@ mod tests {
     fn biometrics_pointers_define_and_locate() {
         let links = biometrics_links();
         assert_eq!(links.len(), 2, "always a definition and a place to go");
+    }
+
+    #[test]
+    fn playbook_prose_stays_inside_adr_0006_under_a_stricter_scan() {
+        // The curated scan bans known fee/time shapes. The playbook has no
+        // authority behind any sentence, so it gets a wider net: no currency
+        // marks, no duration units at all. Titles and labels are scanned too —
+        // the curated test's narrower surface is a known gap, not a licence.
+        let quote = entry_path("GB", "IN").expect("the UK names an authority");
+        for playbook in [
+            universal_playbook("FR", "IN", None),
+            universal_playbook("GB", "IN", Some(&quote)),
+        ] {
+            let mut prose = String::new();
+            for step in &playbook.steps {
+                prose.push_str(&step.title);
+                prose.push_str(&step.plain_explanation);
+                if let Some(term) = &step.authority_term {
+                    prose.push_str(term);
+                }
+                for document in &step.documents {
+                    prose.push_str(&document.label);
+                    prose.push_str(&document.plain_explanation);
+                    for gotcha in &document.gotchas {
+                        prose.push_str(gotcha);
+                    }
+                }
+            }
+            for banned in [
+                "$",
+                "€",
+                "£",
+                "₹",
+                "CAD",
+                "USD",
+                "EUR",
+                " day",
+                " week",
+                " month",
+                "business days",
+                "weeks to process",
+            ] {
+                assert!(
+                    !prose.contains(banned),
+                    "playbook prose must not contain {banned:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn playbook_links_are_exactly_the_quotes_url_or_nothing() {
+        // Set membership, not domain prefix: a same-domain sibling URL would be
+        // an invented link wearing official clothes (ADR-0006, 2026-07-29).
+        let quote = entry_path("GB", "IN").expect("quoted");
+        let with_quote = universal_playbook("GB", "IN", Some(&quote));
+        let mut linked = 0;
+        for step in &with_quote.steps {
+            for source_link in step
+                .links
+                .iter()
+                .chain(step.documents.iter().flat_map(|d| d.links.iter()))
+            {
+                assert_eq!(source_link.url, quote.source_url);
+                assert!(source_link.label.contains(&quote.source_name));
+                linked += 1;
+            }
+        }
+        assert!(linked > 0, "the one real page is offered where it exists");
+
+        let without_quote = universal_playbook("FR", "IN", None);
+        for step in &without_quote.steps {
+            assert!(step.links.is_empty(), "no quote, no links");
+            assert!(step.documents.iter().all(|d| d.links.is_empty()));
+        }
+    }
+
+    #[test]
+    fn playbook_is_six_contiguous_steps_with_playbook_prefixed_documents() {
+        let playbook = universal_playbook("FR", "IN", None);
+        assert_eq!(playbook.steps.len(), 6);
+        for (index, step) in playbook.steps.iter().enumerate() {
+            assert_eq!(usize::from(step.ordinal), index + 1, "{}", step.id);
+        }
+        assert_eq!(playbook.language, LANGUAGE);
+
+        let playbook_ids: Vec<&str> = playbook
+            .steps
+            .iter()
+            .flat_map(|step| step.documents.iter().map(|d| d.id.as_str()))
+            .collect();
+        assert!(!playbook_ids.is_empty());
+        for id in &playbook_ids {
+            assert!(id.starts_with("playbook-"), "not playbook-prefixed: {id}");
+        }
+        // Ticks key on document ids, so the shared playbook ids must never
+        // collide with a curated journey's destination-prefixed ones.
+        for journey in journeys() {
+            for step in &journey.steps {
+                for document in &step.documents {
+                    assert!(
+                        !document.id.starts_with("playbook-"),
+                        "curated id in playbook namespace: {}",
+                        document.id
+                    );
+                }
+            }
+        }
     }
 }

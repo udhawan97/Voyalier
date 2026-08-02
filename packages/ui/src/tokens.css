@@ -53,6 +53,19 @@
   --voy-w-medium: 500;
   --voy-w-strong: 700;
 
+  /* Spacing scale — the same deal as the type scale below: a small, named
+     ladder new code uses by name, with the legacy ad-hoc rem values migrating
+     onto it incrementally (the visa cockpit is the first consumer). Values are
+     pinned in the 2026-08-02 spec so nobody eyeballs the docs-site's unrelated
+     --space-* ladder for the same suffixes. */
+  --voy-space-2xs: 0.25rem;
+  --voy-space-xs: 0.5rem;
+  --voy-space-sm: 0.75rem;
+  --voy-space-md: 1rem;
+  --voy-space-lg: 1.5rem;
+  --voy-space-xl: 2rem;
+  --voy-space-2xl: 2.5rem;
+
   /* Type scale — a small, named ladder. New code should use these; the legacy
      ad-hoc rem sizes are being migrated onto them incrementally. */
   --voy-text-xs: 0.72rem;

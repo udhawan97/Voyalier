@@ -41,6 +41,7 @@ mod today;
 mod types;
 mod vault;
 mod visa;
+mod visa_stats;
 mod weather;
 
 pub use advice::{
@@ -171,8 +172,16 @@ pub use types::*;
 pub use vault::{VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, derive_key, open, seal};
 pub use visa::{
     EntryPath, EntryPathQuote, MAX_VISA_NOTE_CHARS, SetVisaItemProgressInput,
-    SetVisaNationalityInput, VisaDocument, VisaJourney, VisaPrep, VisaPrepItem, VisaSelfReport,
-    VisaStep, entry_path, validate_nationality, validate_visa_note, visa_journey,
+    SetVisaNationalityInput, VisaDocument, VisaJourney, VisaPlaybook, VisaPrep, VisaPrepItem,
+    VisaSelfReport, VisaStep, entry_path, universal_playbook, validate_nationality,
+    validate_visa_note, visa_journey,
+};
+// Deliberately narrow (ADR-0008, ADR-0014): the dataset endpoints and the
+// concrete parsers stay inside the module. The app layer gets the fetch-injected
+// entry points and the wire types, nothing else.
+pub use visa_stats::{
+    VisaStatMetric, VisaStatsPanel, VisaStatsProvenance, VisaStatsSnapshot, VisaStatsSource,
+    kept_times, published_times, stats_source,
 };
 pub use weather::{
     GeocodedPlace, WeatherCoverage, WeatherDay, WeatherSnapshot, describe_weather_code, forecast,
