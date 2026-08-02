@@ -52,8 +52,14 @@ function statusMessage(state: SourceState, sourceName: string): string | null {
   }
 }
 
-/** The government names, for statuses whose entry is absent from the panel. */
-const SOURCE_NAMES: Record<AdvisorySource, string> = {
+/**
+ * The government names, for statuses whose entry is absent from the panel.
+ *
+ * Proper nouns, deliberately outside the message catalog: a ministry's own name
+ * is not this product's to translate, and the re-check sweep names the same
+ * governments, so it reads them from here rather than keeping a second copy.
+ */
+export const SOURCE_NAMES: Record<AdvisorySource, string> = {
   "uk-fcdo": "UK Foreign, Commonwealth & Development Office",
   "us-state": "U.S. Department of State",
   "ca-gac": "Government of Canada — Global Affairs Canada",

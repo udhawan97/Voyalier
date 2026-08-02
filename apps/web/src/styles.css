@@ -5064,3 +5064,122 @@ body::before {
 .voy-schedule__jump {
   margin-left: 0.5rem;
 }
+
+/* --- Trip cover ---------------------------------------------------------
+ * A wash generated from the destination's name (see TripCover.tsx for why it is
+ * not a photograph), painted behind the trip header that already exists.
+ *
+ * `prefers-reduced-motion` is honoured by having nothing to reduce: it is
+ * static. No parallax, no Ken Burns, no autoplay. The tint is kept low so the
+ * header's own text and buttons keep the contrast they were designed with —
+ * this decorates the surface, it does not become one.
+ */
+.voy-detail__head--cover {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: var(--voy-radius-lg, 16px);
+  padding: clamp(1rem, 3vw, 1.75rem);
+}
+
+.voy-cover {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(
+      120% 150% at 12% 0%,
+      hsl(var(--voy-cover-hue) 70% 55% / 0.16),
+      transparent 62%
+    ),
+    radial-gradient(
+      110% 140% at 92% 100%,
+      hsl(var(--voy-cover-hue-far) 65% 50% / 0.14),
+      transparent 64%
+    );
+}
+
+/* A forced-colours user asked for their own palette; a decorative tint is
+ * exactly what they asked to be rid of. */
+@media (forced-colors: active) {
+  .voy-cover {
+    display: none;
+  }
+}
+
+/* --- Disruption playbook ------------------------------------------------- */
+.voy-disruption__subtitle {
+  margin: var(--voy-space-5, 1.25rem) 0 var(--voy-space-2, 0.5rem);
+  font-size: 0.9375rem;
+}
+
+.voy-disruption__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--voy-space-2, 0.5rem);
+}
+
+.voy-disruption__handoff {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-inline-start: 3px solid var(--voy-border, #d0d0d0);
+  border-radius: 0 var(--voy-radius-sm, 6px) var(--voy-radius-sm, 6px) 0;
+  background: var(--voy-surface-2, transparent);
+}
+
+/* The minutes lead, because they are the traveler's own evidence; the band
+ * follows, because it is a caution this product authored. */
+.voy-disruption__slack {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.voy-disruption__band {
+  font-size: 0.8125rem;
+  opacity: 0.85;
+}
+
+.voy-disruption__handoff--impossible,
+.voy-disruption__handoff--tight {
+  border-inline-start-color: var(--voy-warn, #b45309);
+}
+
+.voy-disruption__exposed,
+.voy-disruption__pointer {
+  padding-inline-start: 0.75rem;
+  border-inline-start: 3px solid transparent;
+}
+
+/* --- Re-check sweep ------------------------------------------------------ */
+.voy-recheck__list {
+  margin: var(--voy-space-3, 0.75rem) 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--voy-space-3, 0.75rem);
+}
+
+.voy-recheck__source {
+  font-weight: 600;
+  margin-inline-end: 0.4rem;
+}
+
+.voy-recheck__outcome--failed {
+  color: var(--voy-warn, #b45309);
+}
+
+.voy-recheck__changes {
+  margin: 0.35rem 0 0;
+  padding-inline-start: 1.1rem;
+}
+
+.voy-recheck__stamp {
+  margin: var(--voy-space-3, 0.75rem) 0 0;
+  font-size: 0.8125rem;
+  opacity: 0.85;
+}

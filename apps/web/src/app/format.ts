@@ -173,24 +173,49 @@ export function factTypeLabel(factType: FactType): string {
 /** A short headline for a fact/candidate ("Flight NS204" / "River Paper Inn"). */
 export function factTitle(factType: FactType, payload: FactPayload): string {
   const values = payload as Record<string, string | undefined>;
-  if (factType === "flight_segment") {
-    return values.flightNumber
-      ? t("fact.flightHeadline", { number: values.flightNumber })
-      : t("factType.flight");
+  switch (factType) {
+    case "flight_segment":
+      return values.flightNumber
+        ? t("fact.flightHeadline", { number: values.flightNumber })
+        : t("factType.flight");
+    case "lodging_stay":
+      return values.propertyName ?? t("factType.stay");
+    case "car_rental":
+      return values.carrierName ?? t("factType.rental");
+    default:
+      // The operator names it if they gave it a name; the mode does otherwise.
+      return (
+        values.serviceNumber ??
+        values.carrierName ??
+        t(
+          factType === "coach_journey"
+            ? "factType.coach"
+            : factType === "ferry_crossing"
+              ? "factType.ferry"
+              : "factType.rail",
+        )
+      );
   }
-  return values.propertyName ?? t("factType.stay");
 }
 
 /** A supporting line ("ORD → NRT" / an address). */
 export function factSubtitle(factType: FactType, payload: FactPayload): string {
   const values = payload as Record<string, string | undefined>;
-  if (factType === "flight_segment") {
-    if (values.departureAirportIata && values.arrivalAirportIata) {
-      return `${values.departureAirportIata} → ${values.arrivalAirportIata}`;
-    }
-    return t("fact.flightSegment");
+  switch (factType) {
+    case "flight_segment":
+      if (values.departureAirportIata && values.arrivalAirportIata) {
+        return `${values.departureAirportIata} → ${values.arrivalAirportIata}`;
+      }
+      return t("fact.flightSegment");
+    case "lodging_stay":
+      return values.address ?? t("fact.lodgingStay");
+    default:
+      // Places in the operator's own words, never a code we do not own.
+      if (values.departurePlace && values.arrivalPlace) {
+        return `${values.departurePlace} → ${values.arrivalPlace}`;
+      }
+      return values.carrierName ?? t("factType.rail");
   }
-  return values.address ?? t("fact.lodgingStay");
 }
 
 export function methodLabel(method: ExtractionMethod): string {
@@ -251,6 +276,34 @@ export const FLIGHT_FIELDS = [
   "passengerName",
 ] as const;
 
+/**
+ * Rail, coach and ferry share one field set: the operator, the service, the two
+ * places, and the two times. Airport codes are deliberately absent — there is no
+ * IATA for a bus stop (ADR-0016 §1).
+ */
+export const JOURNEY_FIELDS = [
+  "carrierName",
+  "serviceNumber",
+  "departurePlace",
+  "departureLocal",
+  "arrivalPlace",
+  "arrivalLocal",
+  "confirmationCode",
+  "passengerName",
+] as const;
+
+/** A hire car reads its pickup and drop-off through the same pair. */
+export const CAR_RENTAL_FIELDS = [
+  "carrierName",
+  "vehicleDescription",
+  "departurePlace",
+  "departureLocal",
+  "arrivalPlace",
+  "arrivalLocal",
+  "confirmationCode",
+  "passengerName",
+] as const;
+
 export const LODGING_FIELDS = [
   "propertyName",
   "address",
@@ -270,6 +323,11 @@ const FIELD_LABEL_KEYS: Record<string, MessageKey> = {
   departureLocal: "field.departureLocal",
   arrivalLocal: "field.arrivalLocal",
   confirmationCode: "field.confirmationCode",
+  carrierName: "field.carrierName",
+  serviceNumber: "field.serviceNumber",
+  departurePlace: "field.departurePlace",
+  arrivalPlace: "field.arrivalPlace",
+  vehicleDescription: "field.vehicleDescription",
   passengerName: "field.passengerName",
   propertyName: "field.propertyName",
   address: "field.address",
@@ -282,7 +340,16 @@ const DATE_FIELDS = new Set(["checkinDate", "checkoutDate"]);
 const DATETIME_FIELDS = new Set(["departureLocal", "arrivalLocal"]);
 
 export function fieldsForType(factType: FactType): readonly string[] {
-  return factType === "flight_segment" ? FLIGHT_FIELDS : LODGING_FIELDS;
+  switch (factType) {
+    case "flight_segment":
+      return FLIGHT_FIELDS;
+    case "lodging_stay":
+      return LODGING_FIELDS;
+    case "car_rental":
+      return CAR_RENTAL_FIELDS;
+    default:
+      return JOURNEY_FIELDS;
+  }
 }
 
 /** "payload.flightNumber" or "flightNumber" → "Flight number". */
