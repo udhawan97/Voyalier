@@ -1,0 +1,96 @@
+- generic [ref=f10e2]:
+  - generic [ref=f10e3]:
+    - link "Skip to content" [ref=f10e4] [cursor=pointer]:
+      - /url: "#main"
+    - banner [ref=f10e5]:
+      - button "Voyalier — all trips" [ref=f10e6] [cursor=pointer]:
+        - generic [ref=f10e7]: Voyalier
+      - generic [ref=f10e8]:
+        - button "Search workspace" [ref=f10e9] [cursor=pointer]
+        - status [ref=f10e13]: Ready
+        - radiogroup "Color theme" [ref=f10e15]:
+          - radio "Light" [ref=f10e16] [cursor=pointer]
+          - radio "System" [ref=f10e22] [cursor=pointer]
+          - radio "Dark" [checked] [ref=f10e28] [cursor=pointer]
+        - button "Settings" [ref=f10e33] [cursor=pointer]
+    - main [ref=f10e37]:
+      - region [ref=f10e38]:
+        - button "All trips" [ref=f10e39] [cursor=pointer]
+        - generic [ref=f10e43]:
+          - generic [ref=f10e44]:
+            - paragraph [ref=f10e45]: Mumbai → Tokyo
+            - heading "Mumbai → Tokyo" [level=1] [ref=f10e46]
+            - paragraph [ref=f10e47]:
+              - text: Nov 10, 2026 – Nov 24, 2026
+              - generic [ref=f10e48]: ·
+              - generic [ref=f10e49]: "Status:"
+              - generic [ref=f10e50]: Draft
+          - generic [ref=f10e55]:
+            - button "Import" [ref=f10e56] [cursor=pointer]
+            - button "Add flight or stay" [ref=f10e61] [cursor=pointer]
+            - button "Edit" [ref=f10e63] [cursor=pointer]
+            - button "Archive" [ref=f10e65] [cursor=pointer]
+            - button "Delete" [ref=f10e71] [cursor=pointer]
+        - navigation "Jump to a section" [ref=f10e74]:
+          - link "Plan" [ref=f10e75] [cursor=pointer]:
+            - /url: "#section-plan"
+          - link "Prepare" [ref=f10e76] [cursor=pointer]:
+            - /url: "#section-prepare"
+          - link "Visa" [ref=f10e77] [cursor=pointer]:
+            - /url: "#section-visa"
+          - link "Discover" [ref=f10e78] [cursor=pointer]:
+            - /url: "#section-discover"
+          - link "AI" [ref=f10e79] [cursor=pointer]:
+            - /url: "#section-ai"
+        - paragraph [ref=f10e80]: No suggestions waiting. Import a document to find more.
+        - generic [ref=f10e81]:
+          - heading "Blueprint" [level=2] [ref=f10e82]
+          - generic [ref=f10e83]:
+            - paragraph [ref=f10e84]: Your Blueprint is empty
+            - generic [ref=f10e85]: Confirmed flights and stays land here in itinerary order. Import a confirmation or add a fact by hand to begin.
+            - generic [ref=f10e87]:
+              - button "Import a document" [ref=f10e88] [cursor=pointer]
+              - button "Add flight or stay" [ref=f10e93] [cursor=pointer]
+        - generic [ref=f10e95]:
+          - region [ref=f10e96]:
+            - heading "Saved places" [level=2] [ref=f10e97]
+            - paragraph [ref=f10e102]: Your shortlist keeps the source, license, and reasons captured when you saved it. Adding one to the plan is always a separate choice.
+            - paragraph [ref=f10e103]: No saved places yet.
+          - region [ref=f10e104]:
+            - heading "Packing checklist" [level=2] [ref=f10e105]
+            - paragraph [ref=f10e110]: Suggestions stay suggestions until you add them. Once added, weather updates never change or remove your checklist.
+            - generic [ref=f10e111]:
+              - generic [ref=f10e112]:
+                - text: Custom item
+                - textbox "Custom item" [ref=f10e113]
+              - generic [ref=f10e114]: Enter an item to enable Add.
+              - button "Add" [disabled] [ref=f10e115]
+            - list
+          - region [ref=f10e117]:
+            - heading "Activities & transfers" [level=2] [ref=f10e118]
+            - paragraph [ref=f10e123]: Add plans you entered yourself. They are shown as traveler-authored plans, never as confirmed bookings.
+            - generic [ref=f10e124]:
+              - generic [ref=f10e125]:
+                - text: Type
+                - combobox "Type" [ref=f10e126]:
+                  - option "Activity" [selected]
+                  - option "Rail"
+                  - option "Transfer"
+              - generic [ref=f10e127]:
+                - text: Name
+                - textbox "Name" [ref=f10e128]
+              - generic [ref=f10e129]:
+                - text: Location (optional)
+                - textbox "Location (optional)" [ref=f10e130]
+              - generic [ref=f10e131]:
+                - text: Start (optional)
+                - textbox "Start (optional)" [ref=f10e132]
+              - generic [ref=f10e133]:
+                - text: End (optional)
+                - textbox "End (optional)" [ref=f10e134]
+              - generic [ref=f10e135]:
+                - text: Private notes (optional)
+                - textbox "Private notes (optional)" [ref=f10e136]
+              - button "Add to plan" [ref=f10e137] [cursor=pointer]
+            - list
+  - status [ref=f10e143]

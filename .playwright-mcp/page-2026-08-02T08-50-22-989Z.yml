@@ -1,0 +1,394 @@
+- generic [ref=f10e2]:
+  - generic [ref=f10e3]:
+    - link "Skip to content" [ref=f10e4] [cursor=pointer]:
+      - /url: "#main"
+    - banner [ref=f10e5]:
+      - button "Voyalier — all trips" [ref=f10e6] [cursor=pointer]:
+        - generic [ref=f10e7]: Voyalier
+      - generic [ref=f10e8]:
+        - button "Search workspace" [ref=f10e9] [cursor=pointer]
+        - status [ref=f10e13]: Ready
+        - radiogroup "Color theme" [ref=f10e15]:
+          - radio "Light" [ref=f10e16] [cursor=pointer]
+          - radio "System" [ref=f10e22] [cursor=pointer]
+          - radio "Dark" [checked] [ref=f10e28] [cursor=pointer]
+        - button "Settings" [ref=f10e33] [cursor=pointer]
+    - main [ref=f10e37]:
+      - region [ref=f10e211]:
+        - button "All trips" [ref=f10e212] [cursor=pointer]
+        - generic [ref=f10e216]:
+          - generic [ref=f10e217]:
+            - paragraph [ref=f10e218]: Mumbai → Toronto
+            - heading "Mumbai → Toronto" [level=1] [ref=f10e219]
+            - paragraph [ref=f10e220]:
+              - text: Feb 5, 2027 – Feb 19, 2027
+              - generic [ref=f10e221]: ·
+              - generic [ref=f10e222]: "Status:"
+              - generic [ref=f10e223]: Draft
+          - generic [ref=f10e228]:
+            - button "Import" [ref=f10e229] [cursor=pointer]
+            - button "Add flight or stay" [ref=f10e234] [cursor=pointer]
+            - button "Edit" [ref=f10e236] [cursor=pointer]
+            - button "Archive" [ref=f10e238] [cursor=pointer]
+            - button "Delete" [ref=f10e244] [cursor=pointer]
+        - navigation "Jump to a section" [ref=f10e247]:
+          - link "Plan" [ref=f10e248] [cursor=pointer]:
+            - /url: "#section-plan"
+          - link "Prepare" [ref=f10e249] [cursor=pointer]:
+            - /url: "#section-prepare"
+          - link "Visa" [active] [ref=f10e250] [cursor=pointer]:
+            - /url: "#section-visa"
+          - link "Discover" [ref=f10e251] [cursor=pointer]:
+            - /url: "#section-discover"
+          - link "AI" [ref=f10e252] [cursor=pointer]:
+            - /url: "#section-ai"
+        - region [ref=f10e253]:
+          - generic [ref=f10e254]:
+            - heading "Today" [level=2] [ref=f10e255]
+            - generic [ref=f10e261]: Starts in 187 days
+          - paragraph [ref=f10e262]: No plans for today.
+        - paragraph [ref=f10e263]: No suggestions waiting. Import a document to find more.
+        - generic [ref=f10e264]:
+          - heading "Blueprint" [level=2] [ref=f10e265]
+          - generic [ref=f10e266]:
+            - paragraph [ref=f10e267]: Your Blueprint is empty
+            - generic [ref=f10e268]: Confirmed flights and stays land here in itinerary order. Import a confirmation or add a fact by hand to begin.
+            - generic [ref=f10e270]:
+              - button "Import a document" [ref=f10e271] [cursor=pointer]
+              - button "Add flight or stay" [ref=f10e276] [cursor=pointer]
+        - generic [ref=f10e278]:
+          - region [ref=f10e279]:
+            - heading "Saved places" [level=2] [ref=f10e280]
+            - paragraph [ref=f10e285]: Your shortlist keeps the source, license, and reasons captured when you saved it. Adding one to the plan is always a separate choice.
+            - paragraph [ref=f10e286]: No saved places yet.
+          - region [ref=f10e287]:
+            - heading "Packing checklist" [level=2] [ref=f10e288]
+            - paragraph [ref=f10e293]: Suggestions stay suggestions until you add them. Once added, weather updates never change or remove your checklist.
+            - generic [ref=f10e294]:
+              - generic [ref=f10e295]:
+                - text: Custom item
+                - textbox "Custom item" [ref=f10e296]
+              - generic [ref=f10e297]: Enter an item to enable Add.
+              - button "Add" [disabled] [ref=f10e298]
+            - list
+          - region [ref=f10e300]:
+            - heading "Activities & transfers" [level=2] [ref=f10e301]
+            - paragraph [ref=f10e306]: Add plans you entered yourself. They are shown as traveler-authored plans, never as confirmed bookings.
+            - generic [ref=f10e307]:
+              - generic [ref=f10e308]:
+                - text: Type
+                - combobox "Type" [ref=f10e309]:
+                  - option "Activity" [selected]
+                  - option "Rail"
+                  - option "Transfer"
+              - generic [ref=f10e310]:
+                - text: Name
+                - textbox "Name" [ref=f10e311]
+              - generic [ref=f10e312]:
+                - text: Location (optional)
+                - textbox "Location (optional)" [ref=f10e313]
+              - generic [ref=f10e314]:
+                - text: Start (optional)
+                - textbox "Start (optional)" [ref=f10e315]
+              - generic [ref=f10e316]:
+                - text: End (optional)
+                - textbox "End (optional)" [ref=f10e317]
+              - generic [ref=f10e318]:
+                - text: Private notes (optional)
+                - textbox "Private notes (optional)" [ref=f10e319]
+              - button "Add to plan" [ref=f10e320] [cursor=pointer]
+            - list
+        - generic [ref=f10e322]:
+          - region [ref=f10e326]:
+            - heading "Official travel advice" [level=2] [ref=f10e327]
+            - generic [ref=f10e333]:
+              - generic [ref=f10e334]: Country to fetch official advice for
+              - combobox "Country to fetch official advice for" [ref=f10e335]:
+                - option "Choose a country…" [selected]
+                - option "Australia"
+                - option "Austria"
+                - option "Belgium"
+                - option "Brazil"
+                - option "Canada"
+                - option "China"
+                - option "Croatia"
+                - option "Denmark"
+                - option "Egypt"
+                - option "Finland"
+                - option "France"
+                - option "Germany"
+                - option "Greece"
+                - option "Iceland"
+                - option "India"
+                - option "Indonesia"
+                - option "Ireland"
+                - option "Italy"
+                - option "Japan"
+                - option "Malaysia"
+                - option "Mexico"
+                - option "Morocco"
+                - option "Netherlands"
+                - option "New Zealand"
+                - option "Norway"
+                - option "Peru"
+                - option "Poland"
+                - option "Portugal"
+                - option "Singapore"
+                - option "South Africa"
+                - option "South Korea"
+                - option "Spain"
+                - option "Sweden"
+                - option "Switzerland"
+                - option "Thailand"
+                - option "Turkey"
+                - option "United Arab Emirates"
+                - option "USA"
+                - option "Vietnam"
+              - button "Fetch official advice" [disabled] [ref=f10e336]
+            - paragraph [ref=f10e338]: Fetching contacts the UK, US, Canadian, and German government sources and the US CDC once from this device, and stores a dated copy locally. Nothing about your trip leaves this device.
+          - region [ref=f10e339]:
+            - heading "Weather outlook" [level=2] [ref=f10e340]
+            - button "Fetch weather outlook" [ref=f10e348] [cursor=pointer]
+            - paragraph [ref=f10e350]: Fetching sends your destination name (“Toronto”) to open-meteo.com to place it on the map, then retrieves the forecast, the history for your dates, and the air quality. For US destinations it also asks the National Weather Service for active alerts. Nothing else about your trip leaves this device.
+          - region [ref=f10e351]:
+            - heading "Destination facts" [level=2] [ref=f10e352]
+            - button "Fetch destination facts" [ref=f10e359] [cursor=pointer]
+            - paragraph [ref=f10e361]: Fetching sends your destination (“Toronto”) and your origin place name to open-meteo.com to place them on the map, and asks the European Central Bank for today’s reference rates. The time difference, sun, moon, country facts and nearest airports are worked out on this device. Nothing else about your trip leaves it.
+          - region [ref=f10e362]:
+            - heading "Public holidays" [level=2] [ref=f10e363]
+            - button "Fetch public holidays" [ref=f10e370] [cursor=pointer]
+            - paragraph [ref=f10e372]: Fetching sends your destination name (“Toronto”) to open-meteo.com to place it in a country, then asks Nager.Date for that country’s public holidays. Nothing else about your trip leaves it.
+          - region [ref=f10e373]:
+            - heading "About this place" [level=2] [ref=f10e374]
+            - button "Fetch a summary" [ref=f10e381] [cursor=pointer]
+            - paragraph [ref=f10e383]: Fetching asks Wikipedia (en.wikipedia.org) for a short summary of “Toronto”. Nothing else about your trip leaves it.
+          - region [ref=f10e384]:
+            - heading "Notes" [level=2] [ref=f10e385]
+            - paragraph [ref=f10e390]: "Anything you want to remember: half-made plans, a restaurant someone mentioned, what to book next."
+            - generic [ref=f10e391]: Trip notes
+            - textbox "Trip notes" [ref=f10e392]:
+              - /placeholder: Start typing…
+            - generic [ref=f10e393]:
+              - paragraph [ref=f10e394]: Kept on this device and encrypted. Never included in a shared brief or sent to an AI provider.
+              - status
+          - region [ref=f10e395]:
+            - heading "Saved reading" [level=2] [ref=f10e396]
+            - paragraph [ref=f10e402]: Links and files you're keeping with this trip to read later.
+            - note [ref=f10e403]:
+              - text: Saved reading is reading material, nothing more. Voyalier never turns it into a confirmed booking, never treats it as evidence, and it never changes your trip's readiness.
+              - button "Dismiss tip" [ref=f10e404] [cursor=pointer]
+            - generic [ref=f10e405]:
+              - heading "Save a link" [level=3] [ref=f10e406]
+              - note [ref=f10e407]:
+                - text: Looks like a confirmation? Import it instead — that's the flow that reads a booking into your trip.
+                - button "Dismiss tip" [ref=f10e408] [cursor=pointer]
+              - generic [ref=f10e409]: Link address
+              - textbox "Link address" [ref=f10e410]:
+                - /placeholder: https://…
+              - generic [ref=f10e411]: Title (optional)
+              - textbox "Title (optional)" [ref=f10e412]
+              - generic [ref=f10e413]: Your note (optional)
+              - textbox "Your note (optional)" [ref=f10e414]
+              - generic [ref=f10e415]:
+                - generic [ref=f10e416]: Tags (optional)
+                - paragraph [ref=f10e417]: Separate tags with commas.
+                - textbox "Tags (optional)" [ref=f10e418]
+              - button "Save" [disabled] [ref=f10e419]
+            - generic [ref=f10e421]:
+              - note [ref=f10e422]:
+                - text: Fetching asks first because it contacts the site you saved. Everything else on this panel stays on this device.
+                - button "Dismiss tip" [ref=f10e423] [cursor=pointer]
+              - generic [ref=f10e424]:
+                - checkbox "Allow fetching page details" [ref=f10e425]
+                - text: Allow fetching page details
+              - paragraph [ref=f10e426]: Fetching is off, so Voyalier will not contact any site you have saved.
+            - generic [ref=f10e427]:
+              - paragraph [ref=f10e428]: Nothing saved yet.
+              - generic [ref=f10e429]: Paste a link you want to read later and it will be kept here with the trip.
+          - region [ref=f10e430]:
+            - heading "Imported documents" [level=2] [ref=f10e431]
+            - paragraph [ref=f10e437]: The confirmations you brought in. Voyalier keeps the original text so you can check what it read — and remove it whenever you like.
+            - generic [ref=f10e438]:
+              - paragraph [ref=f10e443]: Nothing imported yet.
+              - generic [ref=f10e444]: Import a confirmation and the original will be kept here.
+          - region [ref=f10e445]:
+            - heading "Find in this trip" [level=2] [ref=f10e446]
+            - paragraph [ref=f10e452]: Type to search as you go — partial words work, and any word matches. Pick a suggestion, or copy a result to reuse it.
+            - generic [ref=f10e453]:
+              - generic [ref=f10e454]: Search your documents and confirmed plans
+              - searchbox "Search your documents and confirmed plans" [ref=f10e455]
+        - region [ref=f10e456]:
+          - heading "Visa & entry preparation" [level=2] [ref=f10e457]
+          - note [ref=f10e463]: Voyalier does not decide whether you need a visa and has not verified anything here. Every requirement below links to the official source — confirm there before you pay, book, or travel.
+          - generic [ref=f10e464]:
+            - generic [ref=f10e465]:
+              - generic [ref=f10e466]: Passport country code
+              - paragraph [ref=f10e467]: Two letters, ISO-3166-1 alpha-2 — IN for India, NG for Nigeria, GB for the United Kingdom.
+              - generic [ref=f10e468]:
+                - textbox "Passport country code" [ref=f10e469]: IN
+                - status [ref=f10e470]
+            - button "Save" [ref=f10e471] [cursor=pointer]
+          - generic [ref=f10e473]:
+            - paragraph [ref=f10e474]: Visitor visa (temporary resident visa)
+            - paragraph [ref=f10e475]: Quoted from Immigration, Refugees and Citizenship Canada · read on 2026-07-28
+            - list [ref=f10e476]:
+              - listitem [ref=f10e477]:
+                - link "Confirm your own case at the official source (opens in new tab)" [ref=f10e478] [cursor=pointer]:
+                  - /url: https://www.canada.ca/en/immigration-refugees-citizenship/services/visit-canada/entry-requirements-country.html
+                  - text: Confirm your own case at the official source
+                  - generic [ref=f10e479]: (opens in new tab)
+          - generic [ref=f10e480]:
+            - paragraph [ref=f10e481]: These steps were read from Immigration, Refugees and Citizenship Canada on 2026-07-28. Confirm your own case there before you act on any of them.
+            - paragraph [ref=f10e482]: "Checklist: 0 of 7 complete across 8 guide steps. Voyalier has not verified any item."
+            - generic [ref=f10e483]:
+              - list [ref=f10e484]:
+                - listitem [ref=f10e485]:
+                  - button "1 Do you even need one?" [ref=f10e486] [cursor=pointer]:
+                    - generic [ref=f10e487]: "1"
+                    - generic [ref=f10e488]: Do you even need one?
+                - listitem [ref=f10e489]:
+                  - button "2 Your passport" [ref=f10e490] [cursor=pointer]:
+                    - generic [ref=f10e491]: "2"
+                    - generic [ref=f10e492]: Your passport
+                - listitem [ref=f10e493]:
+                  - button "3 Photo" [ref=f10e494] [cursor=pointer]:
+                    - generic [ref=f10e495]: "3"
+                    - generic [ref=f10e496]: Photo
+                - listitem [ref=f10e497]:
+                  - button "4 Prove you can pay for the trip" [ref=f10e498] [cursor=pointer]:
+                    - generic [ref=f10e499]: "4"
+                    - generic [ref=f10e500]: Prove you can pay for the trip
+                - listitem [ref=f10e501]:
+                  - button "5 Prove you'll come back" [ref=f10e502] [cursor=pointer]:
+                    - generic [ref=f10e503]: "5"
+                    - generic [ref=f10e504]: Prove you'll come back
+                - listitem [ref=f10e505]:
+                  - button "6 Fill the forms" [ref=f10e506] [cursor=pointer]:
+                    - generic [ref=f10e507]: "6"
+                    - generic [ref=f10e508]: Fill the forms
+                - listitem [ref=f10e509]:
+                  - button "7 Submit, pay, and give biometrics" [ref=f10e510] [cursor=pointer]:
+                    - generic [ref=f10e511]: "7"
+                    - generic [ref=f10e512]: Submit, pay, and give biometrics
+                - listitem [ref=f10e513]:
+                  - button "8 Wait, then send your passport" [ref=f10e514] [cursor=pointer]:
+                    - generic [ref=f10e515]: "8"
+                    - generic [ref=f10e516]: Wait, then send your passport
+              - generic [ref=f10e517]:
+                - heading "Step 1 · Do you even need one?" [level=3] [ref=f10e518]
+                - paragraph [ref=f10e519]: "Before anything else: Canada lets citizens of some visa-required countries apply for an electronic travel authorization instead of a visitor visa, if they have held a Canadian visa in the past ten years or hold a valid United States non-immigrant visa. The list of eligible countries is short and it changes. Check whether your passport is on it before you start — the two routes cost and take very different amounts."
+                - list [ref=f10e520]:
+                  - listitem [ref=f10e521]:
+                    - link "IRCC — Check if you need a visa or an eTA (opens in new tab)" [ref=f10e522] [cursor=pointer]:
+                      - /url: https://www.canada.ca/en/immigration-refugees-citizenship/services/visit-canada/check-visa-eta.html
+                      - text: IRCC — Check if you need a visa or an eTA
+                      - generic [ref=f10e523]: (opens in new tab)
+                  - listitem [ref=f10e524]:
+                    - link "IRCC — eTA for citizens of some visa-required countries (opens in new tab)" [ref=f10e525] [cursor=pointer]:
+                      - /url: https://www.canada.ca/en/immigration-refugees-citizenship/services/visit-canada/eta/eligibility/eta-x.html
+                      - text: IRCC — eTA for citizens of some visa-required countries
+                      - generic [ref=f10e526]: (opens in new tab)
+                  - listitem [ref=f10e527]:
+                    - link "IRCC — Entry requirements by country (opens in new tab)" [ref=f10e528] [cursor=pointer]:
+                      - /url: https://www.canada.ca/en/immigration-refugees-citizenship/services/visit-canada/entry-requirements-country.html
+                      - text: IRCC — Entry requirements by country
+                      - generic [ref=f10e529]: (opens in new tab)
+          - region [ref=f10e530]:
+            - heading "Immigration, Refugees and Citizenship Canada" [level=4] [ref=f10e531]
+            - paragraph [ref=f10e532]: Fetching contacts Immigration, Refugees and Citizenship Canada once from this device to read its published processing times, and stores a dated copy locally. Nothing about you or your trip is sent — only the public page is downloaded.
+            - generic [ref=f10e533]:
+              - button "Fetch current published times" [ref=f10e534] [cursor=pointer]
+              - list [ref=f10e536]:
+                - listitem [ref=f10e537]:
+                  - link "Check current published times at the source (opens in new tab)" [ref=f10e538] [cursor=pointer]:
+                    - /url: https://www.canada.ca/en/immigration-refugees-citizenship/services/application/check-processing-times.html
+                    - text: Check current published times at the source
+                    - generic [ref=f10e539]: (opens in new tab)
+          - region [ref=f10e540]:
+            - heading [level=4] [ref=f10e541]:
+              - button "Your country's missions here" [ref=f10e542] [cursor=pointer]:
+                - generic [ref=f10e543]: ▸
+                - text: Your country's missions here
+        - generic [ref=f10e324]:
+          - region [ref=f10e544]:
+            - heading "Offline city data" [level=2] [ref=f10e545]
+            - paragraph [ref=f10e551]: No city pack matches “Toronto” yet. Browse all packs below.
+            - paragraph [ref=f10e552]: Download a city's places and travel notes to use offline. The pack is pulled from GitHub and stored on this device for this trip — nothing about your trip is sent. Each pack pairs Overture places with a separate Wikivoyage notes layer, each under its own license.
+            - button "Browse city packs" [ref=f10e553] [cursor=pointer]
+            - paragraph [ref=f10e555]: Packs are stored on this device for this trip. Downloading pulls data in from GitHub; nothing about your trip is sent.
+          - region [ref=f10e556]:
+            - heading "Recommendations" [level=2] [ref=f10e557]
+            - paragraph [ref=f10e563]: Ranked picks from a downloaded city pack, weighted by your interests. The scoring is a transparent rule — not a model — and each pick keeps its source and license.
+            - group "Persona presets" [ref=f10e564]:
+              - button "Balanced" [ref=f10e565] [cursor=pointer]
+              - button "Foodie" [ref=f10e567] [cursor=pointer]
+              - button "Explorer" [ref=f10e569] [cursor=pointer]
+            - generic [ref=f10e571]:
+              - generic [ref=f10e572]:
+                - generic [ref=f10e573]:
+                  - text: Food
+                  - generic [ref=f10e574]: "50"
+                - slider "Food 50" [ref=f10e575]: "50"
+              - generic [ref=f10e576]:
+                - generic [ref=f10e577]:
+                  - text: Culture
+                  - generic [ref=f10e578]: "50"
+                - slider "Culture 50" [ref=f10e579]: "50"
+              - generic [ref=f10e580]:
+                - generic [ref=f10e581]:
+                  - text: Nature
+                  - generic [ref=f10e582]: "50"
+                - slider "Nature 50" [ref=f10e583]: "50"
+              - generic [ref=f10e584]:
+                - generic [ref=f10e585]:
+                  - text: Nightlife
+                  - generic [ref=f10e586]: "50"
+                - slider "Nightlife 50" [ref=f10e587]: "50"
+              - generic [ref=f10e588]:
+                - generic [ref=f10e589]:
+                  - text: Shopping
+                  - generic [ref=f10e590]: "50"
+                - slider "Shopping 50" [ref=f10e591]: "50"
+            - generic [ref=f10e592]:
+              - button "Save interests" [disabled] [ref=f10e593]
+              - status [ref=f10e595]: Interests saved
+            - button "Get recommendations" [ref=f10e596] [cursor=pointer]
+            - paragraph [ref=f10e598]: Suggestions from open place data — never authoritative for prices, hours, or safety. Nothing leaves your device.
+          - region [ref=f10e599]:
+            - heading "Map" [level=2] [ref=f10e600]
+            - paragraph [ref=f10e606]: See your destination and recommended places on a map. A downloaded offline basemap stays on this device; otherwise showing the map fetches tiles from OpenFreeMap. Nothing about your trip is sent.
+            - button "Show map" [ref=f10e607] [cursor=pointer]
+        - generic [ref=f10e325]:
+          - region [ref=f10e609]:
+            - heading "Ask about this trip" [level=2] [ref=f10e610]
+            - paragraph [ref=f10e616]: A conversation about this trip, answered by the AI model running on this computer.
+            - note [ref=f10e617]:
+              - text: This chat runs on this machine. It can read what you've saved with this trip — your plans, your notes, your saved reading — but confirmation codes and traveler names are deliberately withheld from it, so it can't tell you your booking reference.
+              - button "Dismiss tip" [ref=f10e618] [cursor=pointer]
+            - note [ref=f10e619]: AI-generated and never authoritative. Voyalier doesn't treat a reply as evidence. Verify anything that matters — entry rules, health, safety, prices — against an official source.
+            - paragraph [ref=f10e621]: Nothing asked yet.
+            - generic [ref=f10e622]:
+              - heading "Chat needs a model on this computer" [level=3] [ref=f10e623]
+              - paragraph [ref=f10e624]: Voyalier answers on-device with Ollama, and nothing is running here yet. Install Ollama, pull a model, and this conversation opens up. Everything else on this trip works without it.
+              - button "Open on-device AI settings" [ref=f10e625] [cursor=pointer]
+          - region [ref=f10e626]:
+            - heading "Preview an AI request" [level=2] [ref=f10e627]
+            - paragraph [ref=f10e633]: See exactly what Voyalier would send to a provider for this trip. Confirmation codes and traveler names are never included, and nothing is sent.
+            - paragraph [ref=f10e634]: This gives you a read-only answer — it won't change your trip. To have the AI fill in lodging dates from a booking you imported, use “Fill gaps with on-device AI” below.
+            - generic [ref=f10e635]:
+              - generic [ref=f10e636]: Provider to preview
+              - combobox "Provider to preview" [ref=f10e637]:
+                - option "Ollama (on-device)" [selected]
+                - option "OpenAI"
+                - option "Anthropic"
+              - button "Preview request" [ref=f10e638] [cursor=pointer]
+            - paragraph [ref=f10e640]:
+              - text: Set up AI in Settings to use this.
+              - button "Open Settings" [ref=f10e641] [cursor=pointer]
+            - paragraph [ref=f10e642]: Preview shows exactly what would be sent. On-device runs stay on this device via Ollama; cloud runs send the previewed request to your chosen provider using your stored key. Each completed run is listed above.
+          - region [ref=f10e643]:
+            - heading "Fill gaps with on-device AI" [level=2] [ref=f10e644]
+            - paragraph [ref=f10e650]: If a booking you imported has lodging dates that weren't picked up, your on-device AI can propose them from the text. It runs on this device — nothing leaves — and every suggestion is a draft you review before anything is saved.
+            - button "Preview what it reads" [ref=f10e652] [cursor=pointer]
+            - paragraph [ref=f10e654]: On-device only. Voyalier drafts dates from your own imported text; it never invents prices, visas, health, or safety details, and nothing is saved until you review it.
+  - status [ref=f10e143]

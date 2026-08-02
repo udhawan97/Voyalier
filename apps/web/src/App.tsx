@@ -42,7 +42,9 @@ type View =
       searchTarget?: Pick<WorkspaceSearchHit, "source" | "recordId">;
     }
   | { name: "settings" }
-  | { name: "search" };
+  // The query rides on the view, not inside WorkspaceSearch: leaving for
+  // Settings unmounts that subtree, and a query held below here died with it.
+  | { name: "search"; query: string };
 
 type AppProps = { gateway?: AppGateway; updater?: UpdaterGateway };
 
@@ -197,10 +199,21 @@ function Workspace({
     probeHealth();
   }, [probeHealth]);
 
+  // Which trip the section hash belongs to. `#section-visa` is an id every trip
+  // shares, so a hash left over from trip A silently re-applies to trip B — and
+  // on a search jump it is the *reload* that shows it, because the search
+  // target wins on the first render and hides the stale hash until then.
+  const hashOwner = useRef<string | null>(null);
+
   useEffect(() => {
     if (view.name === "trip") {
+      if (hashOwner.current !== null && hashOwner.current !== view.tripId) {
+        clearTripSectionHash();
+      }
+      hashOwner.current = view.tripId;
       rememberActiveTrip(view.tripId);
     } else if (view.name === "list") {
+      hashOwner.current = null;
       clearActiveTrip();
       clearTripSectionHash();
     }
@@ -211,7 +224,25 @@ function Workspace({
     [],
   );
   const openList = useCallback(() => setView({ name: "list" }), []);
-  const openSearch = useCallback(() => setView({ name: "search" }), []);
+  // Search is a detour too, and used not to be: it recorded nothing and its
+  // Back was hard-wired to the trip list, so opening it from inside a trip
+  // dropped the traveler out of that trip. Settings has always done this
+  // correctly; the two topbar buttons beside each other now agree.
+  const openSearch = useCallback(
+    () =>
+      setView((current) => {
+        if (current.name !== "search") setReturnView(current);
+        return { name: "search", query: "" };
+      }),
+    [],
+  );
+  const setSearchQuery = useCallback(
+    (query: string) =>
+      setView((current) =>
+        current.name === "search" ? { ...current, query } : current,
+      ),
+    [],
+  );
   const openSearchResult = useCallback(
     (hit: WorkspaceSearchHit) =>
       setView({
@@ -232,7 +263,8 @@ function Workspace({
       }),
     [],
   );
-  const leaveSettings = useCallback(() => setView(returnView), [returnView]);
+  // Shared by Settings and Search — both are detours over the same return slot.
+  const leaveDetour = useCallback(() => setView(returnView), [returnView]);
 
   const retry = useCallback(() => {
     setHealth("checking");
@@ -271,11 +303,13 @@ function Workspace({
                       <UpdatesPanel />
                     </>
                   ) : view.name === "settings" ? (
-                    <SettingsView onBack={leaveSettings} />
+                    <SettingsView onBack={leaveDetour} />
                   ) : view.name === "search" ? (
                     <WorkspaceSearch
-                      onBack={openList}
+                      onBack={leaveDetour}
                       onOpenResult={openSearchResult}
+                      initialQuery={view.query}
+                      onQueryChange={setSearchQuery}
                     />
                   ) : view.name === "list" ? (
                     <TripListView onOpenTrip={openTrip} />

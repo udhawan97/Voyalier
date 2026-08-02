@@ -360,6 +360,53 @@ describe("User-flow gap fixes", () => {
   });
 
   /**
+   * Search is a detour, like Settings beside it in the topbar.
+   *
+   * It recorded no return view and hard-wired its Back to the trip list, so
+   * opening it from inside a trip dropped the traveler out of that trip — while
+   * the button next to it returned correctly. Two adjacent controls, opposite
+   * semantics.
+   */
+  it("returns to the trip that search was opened from", async () => {
+    renderApp(createMockGateway());
+    await openFixtureTrip();
+    expect(
+      screen.getByRole("heading", { name: "Kyoto autumn journey", level: 1 }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+    await screen.findByRole("heading", { name: "Search workspace" });
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Kyoto autumn journey",
+        level: 1,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  /**
+   * And the query survives the round trip, because Settings replaces the whole
+   * main subtree: a query held inside WorkspaceSearch died on the way out and
+   * the traveler came back to an empty box having done nothing wrong.
+   */
+  it("keeps the workspace search query across a Settings detour", async () => {
+    renderApp(createMockGateway());
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+    const field = await screen.findByLabelText("Search all trips");
+    fireEvent.change(field, { target: { value: "Kyoto" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await screen.findByRole("heading", { name: "Settings", level: 1 });
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(await screen.findByLabelText("Search all trips")).toHaveValue(
+      "Kyoto",
+    );
+  });
+
+  /**
    * And still refuses one that is genuinely too long, so the fix above did not
    * simply delete the limit.
    */

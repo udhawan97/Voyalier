@@ -28,15 +28,29 @@ function resultLabel(hit: WorkspaceSearchHit): string {
   return hit.label;
 }
 
+/**
+ * The query lives above this component, in the App's view state.
+ *
+ * Leaving for Settings unmounts this whole subtree, so a query held only in
+ * local state died on the way out and the traveler came back to an empty box
+ * having typed nothing wrong. `initialQuery` seeds it on the way in and
+ * `onQueryChange` reports it on the way out; the debounce, the request-id
+ * guard and the hits stay local, because none of those are worth restoring —
+ * re-running the search on return is cheap and always correct.
+ */
 export function WorkspaceSearch({
   onBack,
   onOpenResult,
+  initialQuery = "",
+  onQueryChange,
 }: {
   onBack: () => void;
   onOpenResult: (hit: WorkspaceSearchHit) => void;
+  initialQuery?: string;
+  onQueryChange?: (query: string) => void;
 }) {
   const gateway = useGateway();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [hits, setHits] = useState<WorkspaceSearchHit[] | null>(null);
   const requestIdRef = useRef(0);
   const action = useAsyncAction(
@@ -54,6 +68,18 @@ export function WorkspaceSearch({
     };
   }, []);
 
+  // Coming back from a detour: the box is refilled, so the results have to
+  // follow it. Restoring the text and leaving the list empty would read as
+  // "your query now matches nothing", which is a worse lie than losing it was.
+  useEffect(() => {
+    if (!initialQuery.trim()) return;
+    requestIdRef.current += 1;
+    void action.run(initialQuery.trim(), requestIdRef.current);
+    // Mount only: this seeds from the view state, and every later keystroke is
+    // handled by handleQueryChange's own debounce.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function runSearch(value: string) {
     requestIdRef.current += 1;
     void action.run(value, requestIdRef.current);
@@ -61,6 +87,7 @@ export function WorkspaceSearch({
 
   function handleQueryChange(next: string) {
     setQuery(next);
+    onQueryChange?.(next);
     if (timerRef.current) clearTimeout(timerRef.current);
     if (!next.trim()) {
       requestIdRef.current += 1;

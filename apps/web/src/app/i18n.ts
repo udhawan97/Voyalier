@@ -601,7 +601,7 @@ const en = {
   "planning.items.removeLabel": "Remove {name}",
   "planning.items.save": "Save changes",
   "topbar.search": "Search workspace",
-  "workspaceSearch.back": "All trips",
+  "workspaceSearch.back": "Back",
   "workspaceSearch.title": "Search workspace",
   "workspaceSearch.intro":
     "Search imported documents, confirmed facts, notes, saved places, and traveler-authored plans across every trip. Pending suggestions stay out until you confirm them.",
@@ -2070,7 +2070,7 @@ const es: Record<MessageKey, string> = {
   "planning.items.removeLabel": "Eliminar {name}",
   "planning.items.save": "Guardar cambios",
   "topbar.search": "Buscar en el espacio de trabajo",
-  "workspaceSearch.back": "Todos los viajes",
+  "workspaceSearch.back": "Volver",
   "workspaceSearch.title": "Buscar en el espacio de trabajo",
   "workspaceSearch.intro":
     "Busca documentos importados, datos confirmados, notas, lugares guardados y planes creados por el viajero en todos los viajes. Las sugerencias pendientes se excluyen hasta que las confirmes.",
