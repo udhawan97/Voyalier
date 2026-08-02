@@ -57,7 +57,7 @@ than the viewport.
    - Picker: existing `Combobox`. Options `{ value: code, label: "{name} — {code}" }`
      built once from a bundled alpha-2 constant (new `apps/web/src/app/countries.ts`,
      ~249 codes — chrome, not contract) + `Intl.DisplayNames(APP_LOCALE,
-     { type: "region", fallback: "code" })` wrapped in try/catch (raw code on
+{ type: "region", fallback: "code" })` wrapped in try/catch (raw code on
      throw). Filtering is caller-side in `fetchSuggestions`: case- and
      diacritic-insensitive, matches name and code. The field drops
      `maxLength={2}`; uppercase normalization happens at submit only; after
@@ -78,19 +78,19 @@ than the viewport.
      Voyalier — not read from any authority and not specific to this route.
      Each step tells you what to confirm at the official source before you
      pay, book, or file."
-   The guide wrapper keeps `lang={journey.language}`; the playbook carries
-   `language: "en"` like curated journeys, so ES chrome around English steps
-   stays honestly tagged.
+     The guide wrapper keeps `lang={journey.language}`; the playbook carries
+     `language: "en"` like curated journeys, so ES chrome around English steps
+     stays honestly tagged.
 3. **Route stats** — processing-time card. The authority name is the card's
    **heading in every state** (a cropped screenshot still names whose numbers
    these are). States:
-   - *Never fetched:* heading + official page link + consent sentence
+   - _Never fetched:_ heading + official page link + consent sentence
      `visa.stats.consent`: "Fetching contacts {authority} once from this
      device to read its published processing times, and stores a dated copy
      locally. Nothing about you or your trip is sent — only the public page
      is downloaded." Button `visa.stats.fetch`: "Fetch current published
      times" (the click is the consent act, mirroring `DestinationFacts`).
-   - *Fetched / kept:* metric rows as a real `<table>` with header semantics,
+   - _Fetched / kept:_ metric rows as a real `<table>` with header semantics,
      quoted styling (the `voy-advice__summary` treatment), the source's own
      labels and units — no unit conversion, no averaging, no reordering or
      filtering of rows. Source line: "Read from {authority} · retrieved
@@ -102,14 +102,14 @@ than the viewport.
      the bundled table; never filters or reorders; marked with text ("your
      passport", sr-only at minimum), never color alone; captioned "marks the
      row labelled '{label}' — confirm it is yours."
-   - *Staleness is marked by age as well as by failure*, mirroring
+   - _Staleness is marked by age as well as by failure_, mirroring
      `TravelAdvice` (7-day window): any displayed snapshot older than the
      window carries `visa.stats.stale`: "Fetched {days} days ago — fetch
      again before you rely on it," regardless of refresh outcome.
-   - *Kept copy after a failed refresh:* `visa.stats.kept`: "Could not reach
+   - _Kept copy after a failed refresh:_ `visa.stats.kept`: "Could not reach
      {authority} — showing the copy saved {date}. The published times may
      have changed since; check the source."
-   - *Unfetchable authority:* `visa.stats.unfetchable`: "{authority} blocks
+   - _Unfetchable authority:_ `visa.stats.unfetchable`: "{authority} blocks
      automated reading, so Voyalier cannot fetch its published times for you.
      Read them yourself at the official page." (This is canada.ca's likely
      state in practice; the design treats it as first-class, not an error.)
@@ -136,16 +136,16 @@ restyled in this slice.
 ## Core (`crates/voyalier-core`)
 
 - `src/visa.rs` gains `universal_playbook(destination_iso2, nationality_iso2,
-  quote: Option<&EntryPathQuote>) -> VisaJourney`:
+quote: Option<&EntryPathQuote>) -> VisaJourney`:
   - Six steps, every sentence a translation or an execution caution — zero
     fees, times, eligibility outcomes, or amounts:
-    1. *Confirm who decides* — the authority when a quote exists; else
+    1. _Confirm who decides_ — the authority when a quote exists; else
        cautions for finding it (lookalike visa-agency sites outrank official
        ones in search — the folklore trap).
-    2. *Identify your entry path* — path vocabulary translated (visa /
+    2. _Identify your entry path_ — path vocabulary translated (visa /
        electronic authorization / exemption / published conditions); the
        quote's page is where the answer lives.
-    3. *Get ahead of the documents that take time* — opens with "the official
+    3. _Get ahead of the documents that take time_ — opens with "the official
        checklist decides what is actually asked for — read it before
        gathering anything." Each item names a document class **only inside a
        caution about how that class goes wrong or takes time**, conditional
@@ -157,13 +157,13 @@ restyled in this slice.
        history matters more than the amount"), itinerary/ties/insurance in
        the same conditional voice. The step never states that this
        destination asks for anything.
-    4. *File where the authority says to file* — caution-voiced: "file only
+    4. _File where the authority says to file_ — caution-voiced: "file only
        where {source_name}'s own site says to file — third-party filing
        sites rank above it in search results"; browser-vs-Adobe form trap.
-    5. *Track and wait* — "track only through the channel the authority
+    5. _Track and wait_ — "track only through the channel the authority
        itself names"; points at the Route stats card without stating any
        time.
-    6. *Prepare for entry* — carry-documents caution; conditions-of-entry
+    6. _Prepare for entry_ — carry-documents caution; conditions-of-entry
        vocabulary translation.
   - **Link rule (tested):** the playbook renders at most `quote.source_url`,
     labeled with `quote.source_name` — no other anchors, no relabeling as
@@ -185,18 +185,18 @@ restyled in this slice.
   dispatch; nothing here is re-exported through `lib.rs`'s `pub use` beyond
   the types the contract needs):
   - `published_times(destination_iso2, retrieved_at, fetch: impl FnOnce(&str)
-    -> Result<String, AppError>) -> Result<Option<VisaStatsSnapshot>, AppError>`
+-> Result<String, AppError>) -> Result<Option<VisaStatsSnapshot>, AppError>`
     — owns the fetch endpoint URLs (IRCC's published JSON dataset; UKVI's
     GOV.UK waiting-times page) and picks the parser. The app layer supplies
     only fetch, error flavour, and storage.
   - Pure parsers beneath it, fixture-tested: `parse_ircc_processing_times`
     (JSON) and `parse_ukvi_waiting_times` (HTML). Malformed fixtures included.
   - Types: `VisaStatsPanel { source: VisaStatsSource, snapshot:
-    Option<VisaStatsSnapshot> }`, `VisaStatsSource { destination_iso2,
-    authority_name, page_url, fetchable }`, `VisaStatsSnapshot {
-    destination_iso2, authority_name, source_url, attribution, retrieved_at,
-    published_at: Option<String>, metrics, provenance }`, `VisaStatMetric
-    { id, label, audience: Option<String>, value, unit: Option<String> }`,
+Option<VisaStatsSnapshot> }`, `VisaStatsSource { destination_iso2,
+authority_name, page_url, fetchable }`, `VisaStatsSnapshot {
+destination_iso2, authority_name, source_url, attribution, retrieved_at,
+published_at: Option<String>, metrics, provenance }`, `VisaStatMetric
+{ id, label, audience: Option<String>, value, unit: Option<String> }`,
     `VisaStatsProvenance { Fetched, KeptCopy }`.
   - **Provenance is defined by delivery, not history:** `Fetched` describes
     only the direct return value of a successful refresh; any snapshot served
@@ -210,7 +210,7 @@ restyled in this slice.
 ## App (`crates/voyalier-app`)
 
 - **ADR-0014** records all four decisions: (1) the narrow ADR-0006 amendment —
-  the `AdviceFetcher` seam now applies to published *statistics* pages, never
+  the `AdviceFetcher` seam now applies to published _statistics_ pages, never
   rules, fetched only on explicit user action; (2) the `visa_stats_snapshots`
   storage shape including the deliberate no-cascade retention decision (a
   snapshot outlives trips to that destination; destination-keyed lookup means
@@ -221,7 +221,7 @@ restyled in this slice.
   self-attributed).
 - Migration: append `Migration { to: 17, name: "visa_stats", … }` —
   `CREATE TABLE IF NOT EXISTS visa_stats_snapshots (destination_iso2 TEXT
-  PRIMARY KEY, payload_json TEXT NOT NULL, retrieved_at TEXT NOT NULL)`.
+PRIMARY KEY, payload_json TEXT NOT NULL, retrieved_at TEXT NOT NULL)`.
   Destination-scoped (the authority publishes one table per destination;
   nationality is display-time only). Not sealed — nothing personal:
   `audience` labels are the publication's row labels.
@@ -256,29 +256,29 @@ payload `{ "command": ["tripId"], "body": null, "query": [] }` (the
    `VisaPrep.playbook`/`stats`.
 5. `packages/contracts/src/mock.ts` — see mock rules below.
 6. `apps/web/src/gateway/http.ts`. 7. `apps/web/src/gateway/tauri.ts`.
-8. `packages/contracts/parity/routes.json` — one hand-written row.
-9. `apps/web/src/routeParity.test.ts` — `ARGS` entry for the method.
-10. `apps/web/src/mockFieldCoverage.test.ts` — `driveWorkspace()` calls the
-    method; every new optional (`playbook`, `stats`, `publishedAt`,
-    `audience`, `unit`) appears once or carries a reasoned exception; the
-    walk sets a nationality on an uncurated trip so the playbook actually
-    materializes.
-11. `packages/contracts/parity/data-sources.json` — two new rows (`ca-ircc`,
+7. `packages/contracts/parity/routes.json` — one hand-written row.
+8. `apps/web/src/routeParity.test.ts` — `ARGS` entry for the method.
+9. `apps/web/src/mockFieldCoverage.test.ts` — `driveWorkspace()` calls the
+   method; every new optional (`playbook`, `stats`, `publishedAt`,
+   `audience`, `unit`) appears once or carries a reasoned exception; the
+   walk sets a nationality on an uncurated trip so the playbook actually
+   materializes.
+10. `packages/contracts/parity/data-sources.json` — two new rows (`ca-ircc`,
     `uk-ukvi`; distinct from `ca-gac`/`uk-fcdo`), `count` 23→25; BTreeSet +
     pinned count updated in `crates/voyalier-core/src/tests.rs`;
     `apps/web/src/dataSources.test.tsx` renders the new count.
-12. `packages/contracts/parity/visa.json` — **playbook cases added** (uncurated
+11. `packages/contracts/parity/visa.json` — **playbook cases added** (uncurated
     pairs pinning step ids, ordinals, `playbook-` document ids) so the mock
     synthesizes the playbook from the golden (read, never mirror); `caseCount`
     bumped in the file, the literal `toHaveLength` bumped in
     `apps/web/src/parity.test.ts`, and the Rust side follows the file.
-13. New golden `packages/contracts/parity/visa-stats-sources.json` — the
+12. New golden `packages/contracts/parity/visa-stats-sources.json` — the
     7-row source table with pinned count, asserted from both
     `crates/voyalier-core/src/tests.rs` and `apps/web/src/parity.test.ts`;
     the mock reads it for source rows and link-only states.
-14. `apps/web/src/gateway/gateway.live.test.ts` — the new route exercised
+13. `apps/web/src/gateway/gateway.live.test.ts` — the new route exercised
     against the real loopback server.
-15. `docs/architecture/ADR-0014-….md` + this spec + the plan doc.
+14. `docs/architecture/ADR-0014-….md` + this spec + the plan doc.
 
 Mock rules (ADR-0004/0009): playbook synthesized from `visa.json` cases like
 `mockVisaJourney` does today; source rows from `visa-stats-sources.json`;

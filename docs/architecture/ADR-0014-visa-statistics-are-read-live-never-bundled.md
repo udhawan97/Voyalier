@@ -21,7 +21,7 @@ that shape is specific to safety advice.
 
 Four decisions, recorded together because they ship together.
 
-**1. The `AdviceFetcher` seam now applies to published visa *statistics* pages — never rules.**
+**1. The `AdviceFetcher` seam now applies to published visa _statistics_ pages — never rules.**
 `voyalier-core::visa_stats::published_times` owns the endpoint URLs and parser dispatch
 (ADR-0008), takes an injected fetch, and returns a `VisaStatsSnapshot` quoting the authority's
 own rows verbatim: source name, source URL, attribution/licence, retrieved-at, and the source's
