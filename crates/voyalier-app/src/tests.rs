@@ -5463,3 +5463,196 @@ fn a_weather_network_failure_is_a_weather_error_not_an_advice_one() {
     );
     cleanup_database(database);
 }
+
+/// ADR-0016 §2: the playbook is derived on read, and it is advisory — a tight
+/// connection is a choice some travelers make deliberately, so it must never
+/// move a plan-completeness rollup.
+#[test]
+fn the_disruption_plan_is_derived_and_never_moves_readiness() {
+    let database = temp_database("disruption");
+    let service = open_test_service(&database).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+    let before = service.get_trip(&trip.id).expect("detail");
+    assert!(
+        before.disruption_plan.is_empty(),
+        "a trip with no legs has nothing to say"
+    );
+
+    service
+        .add_manual_fact(AddManualFactInput {
+            trip_id: trip.id.clone(),
+            fact_type: FactType::FlightSegment,
+            payload: FactPayload {
+                airline_name: Some("Nimbus Air".to_owned()),
+                departure_airport_iata: Some("SFO".to_owned()),
+                arrival_airport_iata: Some("NRT".to_owned()),
+                departure_local: Some("2027-04-02T10:00".to_owned()),
+                arrival_local: Some("2027-04-02T14:00".to_owned()),
+                ..FactPayload::default()
+            },
+        })
+        .expect("flight");
+    service
+        .add_manual_fact(AddManualFactInput {
+            trip_id: trip.id.clone(),
+            fact_type: FactType::RailJourney,
+            payload: FactPayload {
+                carrier_name: Some("Meridian Rail".to_owned()),
+                departure_place: Some("Narita".to_owned()),
+                arrival_place: Some("Kyoto".to_owned()),
+                departure_local: Some("2027-04-02T14:40".to_owned()),
+                arrival_local: Some("2027-04-02T17:10".to_owned()),
+                ..FactPayload::default()
+            },
+        })
+        .expect("rail leg");
+
+    let after = service.get_trip(&trip.id).expect("detail");
+    let handoff = after
+        .disruption_plan
+        .handoffs
+        .first()
+        .expect("a connection between the two legs");
+    assert_eq!(handoff.slack_minutes, 40);
+    assert_eq!(handoff.band, voyalier_core::HandoffBand::Tight);
+    // The pointers name only the operators the traveler's own evidence names.
+    let serialized = serde_json::to_string(&after.disruption_plan).expect("json");
+    assert!(
+        !serialized.contains("http"),
+        "no URL may enter the playbook"
+    );
+
+    // The same two legs with four hours between them instead of forty minutes:
+    // a different playbook, an identical readiness rollup. Comparing the two
+    // trips isolates the playbook's effect from the effect of merely having
+    // facts, which does legitimately move readiness off `NotChecked`.
+    let roomy = service
+        .create_trip(valid_trip_input())
+        .expect("second trip");
+    service
+        .add_manual_fact(AddManualFactInput {
+            trip_id: roomy.id.clone(),
+            fact_type: FactType::FlightSegment,
+            payload: FactPayload {
+                airline_name: Some("Nimbus Air".to_owned()),
+                departure_airport_iata: Some("SFO".to_owned()),
+                arrival_airport_iata: Some("NRT".to_owned()),
+                departure_local: Some("2027-04-02T10:00".to_owned()),
+                arrival_local: Some("2027-04-02T14:00".to_owned()),
+                ..FactPayload::default()
+            },
+        })
+        .expect("flight");
+    service
+        .add_manual_fact(AddManualFactInput {
+            trip_id: roomy.id.clone(),
+            fact_type: FactType::RailJourney,
+            payload: FactPayload {
+                carrier_name: Some("Meridian Rail".to_owned()),
+                departure_place: Some("Narita".to_owned()),
+                arrival_place: Some("Kyoto".to_owned()),
+                departure_local: Some("2027-04-02T18:00".to_owned()),
+                arrival_local: Some("2027-04-02T20:30".to_owned()),
+                ..FactPayload::default()
+            },
+        })
+        .expect("rail leg");
+    let roomy = service.get_trip(&roomy.id).expect("detail");
+
+    assert_eq!(
+        roomy.disruption_plan.handoffs[0].band,
+        voyalier_core::HandoffBand::Comfortable,
+        "four hours off a flight is not tight"
+    );
+    assert_eq!(
+        after.readiness.status, roomy.readiness.status,
+        "a tight connection is not an incomplete plan"
+    );
+    assert_eq!(
+        after.readiness.items.len(),
+        roomy.readiness.items.len(),
+        "the playbook adds no readiness item"
+    );
+    assert!(
+        after
+            .itinerary_conflicts
+            .iter()
+            .all(|conflict| conflict.kind != voyalier_core::ItineraryConflictKind::JourneyOverlap),
+        "a tight connection is not an overlap"
+    );
+    cleanup_database(database);
+}
+
+/// Storage must accept every fact type the contract declares. The CHECK
+/// constraint is a second, silent copy of `FactType`, and the first attempt at
+/// this feature shipped a rail leg that validated in core and then failed at
+/// the database — so the two are pinned together here rather than by eye.
+#[test]
+fn storage_accepts_every_declared_fact_type() {
+    let database = temp_database("fact_types");
+    let service = open_test_service(&database).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+    let cases = [
+        (
+            FactType::FlightSegment,
+            FactPayload {
+                departure_airport_iata: Some("SFO".to_owned()),
+                ..FactPayload::default()
+            },
+        ),
+        (
+            FactType::LodgingStay,
+            FactPayload {
+                property_name: Some("Hotel Example".to_owned()),
+                ..FactPayload::default()
+            },
+        ),
+        (
+            FactType::RailJourney,
+            FactPayload {
+                carrier_name: Some("Meridian Rail".to_owned()),
+                ..FactPayload::default()
+            },
+        ),
+        (
+            FactType::CoachJourney,
+            FactPayload {
+                carrier_name: Some("Coast Coaches".to_owned()),
+                ..FactPayload::default()
+            },
+        ),
+        (
+            FactType::FerryCrossing,
+            FactPayload {
+                carrier_name: Some("Blue Strait".to_owned()),
+                ..FactPayload::default()
+            },
+        ),
+        (
+            FactType::CarRental,
+            FactPayload {
+                carrier_name: Some("Northern Roads".to_owned()),
+                vehicle_description: Some("Compact".to_owned()),
+                ..FactPayload::default()
+            },
+        ),
+    ];
+
+    for (fact_type, payload) in cases {
+        service
+            .add_manual_fact(AddManualFactInput {
+                trip_id: trip.id.clone(),
+                fact_type,
+                payload,
+            })
+            .unwrap_or_else(|error| {
+                panic!("{} rejected by storage: {error:?}", fact_type.wire_name())
+            });
+    }
+
+    let detail = service.get_trip(&trip.id).expect("detail");
+    assert_eq!(detail.confirmed_facts.len(), 6);
+    cleanup_database(database);
+}

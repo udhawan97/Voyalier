@@ -9,6 +9,7 @@ use crate::advisories::AdvisoryPanel;
 use crate::airports::NearbyAirport;
 use crate::astro::{AstroDay, SkyEvent};
 use crate::co2::FlightEmissions;
+use crate::contingency::DisruptionPlan;
 use crate::facts::{ClockChange, CountryFacts, DestinationFactsSnapshot, TimeDifference};
 use crate::heritage::HeritageSite;
 use crate::holidays::PublicHolidaysSnapshot;
@@ -173,6 +174,13 @@ pub struct TripDetail {
     /// evidence-backed confirmed facts.
     #[serde(default)]
     pub trip_items: Vec<TripItem>,
+    /// Where the plan depends on the previous thing having gone right, derived
+    /// on read from the confirmed facts. Advisory only: it never enters the
+    /// readiness rollup, and it never proposes an alternative service
+    /// (ADR-0016 §2). Empty until two timed legs exist. Derived, never read
+    /// back.
+    #[serde(default, skip_deserializing)]
+    pub disruption_plan: DisruptionPlan,
 }
 
 /// Which deterministic plan-completeness check a readiness item reports on.
