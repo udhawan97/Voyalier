@@ -3,6 +3,10 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [react()],
+  // MapLibre 6 is ESM-only and resolves its worker as a sibling URL. Vite's
+  // dev pre-bundle moves the entry module without that sibling, producing a
+  // 404 for maplibre-gl-worker.mjs; serve the package modules in place instead.
+  optimizeDeps: { exclude: ["maplibre-gl"] },
   server: {
     host: "127.0.0.1",
     port: 5173,
