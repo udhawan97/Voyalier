@@ -9,7 +9,8 @@ use std::{fs, path::PathBuf};
 use super::*;
 use voyalier_core::KeyValidationStatus;
 use voyalier_core::{
-    CandidateStatus, DocumentKind, FactPayload, FactType, HighStakesTopic, ResourceKind,
+    CandidateStatus, DocumentKind, FactPayload, FactType, HighStakesTopic, RecheckOutcome,
+    RecheckSource, ResourceKind,
 };
 
 /// The defect this repairs: the destination-facts snapshot resolved one UTC
@@ -2760,7 +2761,7 @@ fn optional_passphrase_locks_the_vault_and_unlock_restores_access() {
         .expect("set passphrase");
     assert!(status.active && status.protected && !status.locked);
     // The account this database owns, not the shared default — a temp path is
-    // namespaced by ADR-0016, and that is the account a passphrase clears.
+    // namespaced by ADR-0017, and that is the account a passphrase clears.
     let account = vault_key_account(&database);
     assert!(
         !secrets.has(&account),
@@ -5580,5 +5581,330 @@ fn a_weather_network_failure_is_a_weather_error_not_an_advice_one() {
             .code,
         ErrorCode::WeatherFetchFailed
     );
+    cleanup_database(database);
+}
+
+/// ADR-0017 §2: the playbook is derived on read, and it is advisory — a tight
+/// connection is a choice some travelers make deliberately, so it must never
+/// move a plan-completeness rollup.
+#[test]
+fn the_disruption_plan_is_derived_and_never_moves_readiness() {
+    let database = temp_database("disruption");
+    let service = open_test_service(&database).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+    let before = service.get_trip(&trip.id).expect("detail");
+    assert!(
+        before.disruption_plan.is_empty(),
+        "a trip with no legs has nothing to say"
+    );
+
+    service
+        .add_manual_fact(AddManualFactInput {
+            trip_id: trip.id.clone(),
+            fact_type: FactType::FlightSegment,
+            payload: FactPayload {
+                airline_name: Some("Nimbus Air".to_owned()),
+                departure_airport_iata: Some("SFO".to_owned()),
+                arrival_airport_iata: Some("NRT".to_owned()),
+                departure_local: Some("2027-04-02T10:00".to_owned()),
+                arrival_local: Some("2027-04-02T14:00".to_owned()),
+                ..FactPayload::default()
+            },
+        })
+        .expect("flight");
+    service
+        .add_manual_fact(AddManualFactInput {
+            trip_id: trip.id.clone(),
+            fact_type: FactType::RailJourney,
+            payload: FactPayload {
+                carrier_name: Some("Meridian Rail".to_owned()),
+                departure_place: Some("Narita".to_owned()),
+                arrival_place: Some("Kyoto".to_owned()),
+                departure_local: Some("2027-04-02T14:40".to_owned()),
+                arrival_local: Some("2027-04-02T17:10".to_owned()),
+                ..FactPayload::default()
+            },
+        })
+        .expect("rail leg");
+
+    let after = service.get_trip(&trip.id).expect("detail");
+    let handoff = after
+        .disruption_plan
+        .handoffs
+        .first()
+        .expect("a connection between the two legs");
+    assert_eq!(handoff.slack_minutes, 40);
+    assert_eq!(handoff.band, voyalier_core::HandoffBand::Tight);
+    // The pointers name only the operators the traveler's own evidence names.
+    let serialized = serde_json::to_string(&after.disruption_plan).expect("json");
+    assert!(
+        !serialized.contains("http"),
+        "no URL may enter the playbook"
+    );
+
+    // The same two legs with four hours between them instead of forty minutes:
+    // a different playbook, an identical readiness rollup. Comparing the two
+    // trips isolates the playbook's effect from the effect of merely having
+    // facts, which does legitimately move readiness off `NotChecked`.
+    let roomy = service
+        .create_trip(valid_trip_input())
+        .expect("second trip");
+    service
+        .add_manual_fact(AddManualFactInput {
+            trip_id: roomy.id.clone(),
+            fact_type: FactType::FlightSegment,
+            payload: FactPayload {
+                airline_name: Some("Nimbus Air".to_owned()),
+                departure_airport_iata: Some("SFO".to_owned()),
+                arrival_airport_iata: Some("NRT".to_owned()),
+                departure_local: Some("2027-04-02T10:00".to_owned()),
+                arrival_local: Some("2027-04-02T14:00".to_owned()),
+                ..FactPayload::default()
+            },
+        })
+        .expect("flight");
+    service
+        .add_manual_fact(AddManualFactInput {
+            trip_id: roomy.id.clone(),
+            fact_type: FactType::RailJourney,
+            payload: FactPayload {
+                carrier_name: Some("Meridian Rail".to_owned()),
+                departure_place: Some("Narita".to_owned()),
+                arrival_place: Some("Kyoto".to_owned()),
+                departure_local: Some("2027-04-02T18:00".to_owned()),
+                arrival_local: Some("2027-04-02T20:30".to_owned()),
+                ..FactPayload::default()
+            },
+        })
+        .expect("rail leg");
+    let roomy = service.get_trip(&roomy.id).expect("detail");
+
+    assert_eq!(
+        roomy.disruption_plan.handoffs[0].band,
+        voyalier_core::HandoffBand::Comfortable,
+        "four hours off a flight is not tight"
+    );
+    assert_eq!(
+        after.readiness.status, roomy.readiness.status,
+        "a tight connection is not an incomplete plan"
+    );
+    assert_eq!(
+        after.readiness.items.len(),
+        roomy.readiness.items.len(),
+        "the playbook adds no readiness item"
+    );
+    assert!(
+        after
+            .itinerary_conflicts
+            .iter()
+            .all(|conflict| conflict.kind != voyalier_core::ItineraryConflictKind::JourneyOverlap),
+        "a tight connection is not an overlap"
+    );
+    cleanup_database(database);
+}
+
+/// Storage must accept every fact type the contract declares. The CHECK
+/// constraint is a second, silent copy of `FactType`, and the first attempt at
+/// this feature shipped a rail leg that validated in core and then failed at
+/// the database — so the two are pinned together here rather than by eye.
+#[test]
+fn storage_accepts_every_declared_fact_type() {
+    let database = temp_database("fact_types");
+    let service = open_test_service(&database).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+    let cases = [
+        (
+            FactType::FlightSegment,
+            FactPayload {
+                departure_airport_iata: Some("SFO".to_owned()),
+                ..FactPayload::default()
+            },
+        ),
+        (
+            FactType::LodgingStay,
+            FactPayload {
+                property_name: Some("Hotel Example".to_owned()),
+                ..FactPayload::default()
+            },
+        ),
+        (
+            FactType::RailJourney,
+            FactPayload {
+                carrier_name: Some("Meridian Rail".to_owned()),
+                ..FactPayload::default()
+            },
+        ),
+        (
+            FactType::CoachJourney,
+            FactPayload {
+                carrier_name: Some("Coast Coaches".to_owned()),
+                ..FactPayload::default()
+            },
+        ),
+        (
+            FactType::FerryCrossing,
+            FactPayload {
+                carrier_name: Some("Blue Strait".to_owned()),
+                ..FactPayload::default()
+            },
+        ),
+        (
+            FactType::CarRental,
+            FactPayload {
+                carrier_name: Some("Northern Roads".to_owned()),
+                vehicle_description: Some("Compact".to_owned()),
+                ..FactPayload::default()
+            },
+        ),
+    ];
+
+    for (fact_type, payload) in cases {
+        service
+            .add_manual_fact(AddManualFactInput {
+                trip_id: trip.id.clone(),
+                fact_type,
+                payload,
+            })
+            .unwrap_or_else(|error| {
+                panic!("{} rejected by storage: {error:?}", fact_type.wire_name())
+            });
+    }
+
+    let detail = service.get_trip(&trip.id).expect("detail");
+    assert_eq!(detail.confirmed_facts.len(), 6);
+    cleanup_database(database);
+}
+
+/// ADR-0017 §4: a sweep never invents a first fetch, never refetches something
+/// still fresh, and never lets a failure read as an all-clear.
+#[test]
+fn a_recheck_reports_never_fetched_before_it_reports_anything_else() {
+    let database = temp_database("recheck_empty");
+    let service = open_test_service_with_fetcher(&database, Arc::new(FakeFetcher::offline()))
+        .expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+    let report = service.recheck_trip(&trip.id).expect("report");
+    assert_eq!(report.trip_id, trip.id);
+    assert_eq!(report.lines.len(), 2);
+    assert!(
+        report
+            .lines
+            .iter()
+            .all(|line| line.outcome == RecheckOutcome::NeverFetched),
+        "nothing stored means nothing to compare, not an empty all-clear"
+    );
+    assert!(
+        report.hosts_contacted.is_empty(),
+        "a sweep with nothing to refresh must contact nobody"
+    );
+    assert!(!report.has_changes());
+    cleanup_database(database);
+}
+
+#[test]
+fn a_fresh_snapshot_is_skipped_rather_than_refetched() {
+    struct CountingFetcher {
+        calls: std::sync::Mutex<u32>,
+    }
+    impl AdviceFetcher for CountingFetcher {
+        fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+            *self.calls.lock().expect("lock") += 1;
+            weather_bodies(url, "JP")
+                .ok_or_else(|| AppError::new(ErrorCode::WeatherFetchFailed, "unexpected url"))
+        }
+    }
+
+    let database = temp_database("recheck_fresh");
+    let fetcher = Arc::new(CountingFetcher {
+        calls: std::sync::Mutex::new(0),
+    });
+    let service = open_test_service_with_fetcher(&database, fetcher.clone()).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    service.fetch_weather(&trip.id).expect("first fetch");
+    let after_first = *fetcher.calls.lock().expect("lock");
+
+    // The snapshot was just written, so it is well inside its twelve-hour
+    // window: the sweep must say so rather than ask again.
+    let report = service.recheck_trip(&trip.id).expect("report");
+    let weather = report
+        .lines
+        .iter()
+        .find(|line| line.source == RecheckSource::Weather)
+        .expect("a weather line");
+    assert_eq!(weather.outcome, RecheckOutcome::Skipped);
+    assert!(weather.previously_retrieved_at.is_some());
+    assert_eq!(
+        *fetcher.calls.lock().expect("lock"),
+        after_first,
+        "a skipped source must not touch the network"
+    );
+    assert!(
+        !report
+            .hosts_contacted
+            .iter()
+            .any(|host| host == "open-meteo.com"),
+        "a host that was not contacted must not be listed as contacted"
+    );
+    cleanup_database(database);
+}
+
+#[test]
+fn a_failed_source_keeps_its_snapshot_and_never_reads_as_unchanged() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    struct FlakyFetcher {
+        broken: AtomicBool,
+    }
+    impl AdviceFetcher for FlakyFetcher {
+        fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+            if self.broken.load(Ordering::SeqCst) {
+                return Err(AppError::new(ErrorCode::WeatherFetchFailed, "offline"));
+            }
+            weather_bodies(url, "JP")
+                .ok_or_else(|| AppError::new(ErrorCode::WeatherFetchFailed, "unexpected url"))
+        }
+    }
+
+    let database = temp_database("recheck_failure");
+    let fetcher = Arc::new(FlakyFetcher {
+        broken: AtomicBool::new(false),
+    });
+    let service = open_test_service_with_fetcher(&database, fetcher.clone()).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    let stored = service.fetch_weather(&trip.id).expect("first fetch");
+
+    // Age the stored snapshot past its window so the sweep genuinely tries.
+    {
+        let connection = service.connection().expect("connection");
+        connection
+            .execute(
+                "UPDATE weather_snapshots SET retrieved_at = ?1 WHERE trip_id = ?2",
+                rusqlite::params!["2020-01-01T00:00:00Z", &trip.id],
+            )
+            .expect("age the snapshot");
+    }
+    fetcher.broken.store(true, Ordering::SeqCst);
+
+    let report = service.recheck_trip(&trip.id).expect("report");
+    let weather = report
+        .lines
+        .iter()
+        .find(|line| line.source == RecheckSource::Weather)
+        .expect("a weather line");
+    assert!(
+        matches!(weather.outcome, RecheckOutcome::Failed { .. }),
+        "an unreachable source is a failure, not an all-clear: {:?}",
+        weather.outcome
+    );
+    assert!(!report.has_changes());
+
+    // The old snapshot is still there, unchanged.
+    let detail = service.get_trip(&trip.id).expect("detail");
+    let kept = detail.weather.expect("the stored snapshot survives");
+    assert_eq!(kept.days.len(), stored.days.len());
+    assert_eq!(kept.place_name, stored.place_name);
     cleanup_database(database);
 }

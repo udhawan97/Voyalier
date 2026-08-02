@@ -181,14 +181,19 @@ impl ConfirmationParser for JsonLdParser {
             // `data-` attributes, and the first match would be the decoy.
             let region = SearchRegion::slice_of(raw, script.content, script.content_start);
             for reservation in reservations {
-                if type_matches(reservation, "FlightReservation") {
-                    if let Some(candidate) = flight_candidate(raw, region, reservation) {
-                        outcome.candidates.push(candidate);
-                    }
+                let candidate = if type_matches(reservation, "FlightReservation") {
+                    flight_candidate(raw, region, reservation)
                 } else if type_matches(reservation, "LodgingReservation") {
-                    if let Some(candidate) = lodging_candidate(raw, region, reservation) {
-                        outcome.candidates.push(candidate);
-                    }
+                    lodging_candidate(raw, region, reservation)
+                } else if type_matches(reservation, "RentalCarReservation") {
+                    rental_candidate(raw, region, reservation)
+                } else {
+                    reservation_journey_type(reservation).and_then(|fact_type| {
+                        journey_candidate(raw, region, reservation, fact_type)
+                    })
+                };
+                if let Some(candidate) = candidate {
+                    outcome.candidates.push(candidate);
                 }
             }
         }
@@ -339,7 +344,9 @@ fn collect_reservations<'a>(value: &'a Value, reservations: &mut Vec<&'a Value>)
             }
         }
         Value::Object(object) => {
-            if type_matches(value, "FlightReservation") || type_matches(value, "LodgingReservation")
+            if RESERVATION_TYPES
+                .iter()
+                .any(|expected| type_matches(value, expected))
             {
                 reservations.push(value);
             }
@@ -353,6 +360,31 @@ fn collect_reservations<'a>(value: &'a Value, reservations: &mut Vec<&'a Value>)
             }
         }
         _ => {}
+    }
+}
+
+/// The schema.org reservation types this parser recognises. Collection and
+/// dispatch read the same list, so a type cannot be gathered and then silently
+/// dropped for want of a branch.
+const RESERVATION_TYPES: &[&str] = &[
+    "FlightReservation",
+    "LodgingReservation",
+    "TrainReservation",
+    "BusReservation",
+    "BoatReservation",
+    "RentalCarReservation",
+];
+
+/// Which surface fact type a reservation announces itself as, if any.
+fn reservation_journey_type(reservation: &Value) -> Option<FactType> {
+    if type_matches(reservation, "TrainReservation") {
+        Some(FactType::RailJourney)
+    } else if type_matches(reservation, "BusReservation") {
+        Some(FactType::CoachJourney)
+    } else if type_matches(reservation, "BoatReservation") {
+        Some(FactType::FerryCrossing)
+    } else {
+        None
     }
 }
 
@@ -482,6 +514,134 @@ fn lodging_candidate(
     })
 }
 
+/// Rail, coach, and ferry reservations, which schema.org models identically
+/// apart from what it calls the two ends. One function rather than three
+/// because the difference is a key name, not a shape.
+fn journey_candidate(
+    raw: &str,
+    region: SearchRegion<'_>,
+    reservation: &Value,
+    fact_type: FactType,
+) -> Option<ParsedCandidate> {
+    let trip = reservation.get("reservationFor").unwrap_or(reservation);
+    let (departure_keys, arrival_keys): (&[&str], &[&str]) = match fact_type {
+        FactType::RailJourney => (&["departureStation"], &["arrivalStation"]),
+        FactType::CoachJourney => (
+            &["departureBusStop", "departureStation"],
+            &["arrivalBusStop", "arrivalStation"],
+        ),
+        _ => (&["departureBoatTerminal"], &["arrivalBoatTerminal"]),
+    };
+    let provider = trip.get("provider").or_else(|| reservation.get("provider"));
+    let mut payload = FactPayload {
+        carrier_name: provider
+            .and_then(|value| string_at(value, "name"))
+            .or_else(|| string_at(trip, "trainName"))
+            .or_else(|| string_at(trip, "busName")),
+        service_number: string_at(trip, "trainNumber")
+            .or_else(|| string_at(trip, "busNumber"))
+            .or_else(|| string_at(trip, "tripNumber")),
+        departure_place: first_place(trip, departure_keys),
+        arrival_place: first_place(trip, arrival_keys),
+        departure_local: string_at(trip, "departureTime").map(to_local_wall_clock),
+        arrival_local: string_at(trip, "arrivalTime").map(to_local_wall_clock),
+        confirmation_code: string_at(reservation, "reservationNumber")
+            .or_else(|| string_at(reservation, "confirmationNumber")),
+        passenger_name: reservation
+            .get("underName")
+            .and_then(|value| string_at(value, "name")),
+        ..FactPayload::default()
+    };
+
+    trim_payload_strings(&mut payload);
+    if validate_fact_payload(fact_type, &payload).is_err() {
+        return None;
+    }
+
+    let mut field_spans = Vec::new();
+    add_payload_spans(raw, region, &payload, fact_type, &mut field_spans);
+
+    let mut warnings = Vec::new();
+    if payload.departure_place.is_none() || payload.arrival_place.is_none() {
+        warnings.push(WarningCode::MissingLocations);
+    }
+    if payload.departure_local.is_none() || payload.arrival_local.is_none() {
+        warnings.push(WarningCode::MissingDates);
+    }
+
+    Some(ParsedCandidate {
+        fact_type,
+        payload,
+        method: ExtractionMethod::Structured,
+        field_spans,
+        warnings,
+    })
+}
+
+/// A hire car reads pickup/drop-off onto the same departure/arrival pair every
+/// other journey uses (ADR-0016 §1).
+fn rental_candidate(
+    raw: &str,
+    region: SearchRegion<'_>,
+    reservation: &Value,
+) -> Option<ParsedCandidate> {
+    let car = reservation.get("reservationFor").unwrap_or(reservation);
+    let company = car
+        .get("rentalCompany")
+        .or_else(|| reservation.get("provider"))
+        .or_else(|| car.get("provider"));
+    let mut payload = FactPayload {
+        carrier_name: company.and_then(|value| string_at(value, "name")),
+        vehicle_description: string_at(car, "name").or_else(|| string_at(car, "model")),
+        departure_place: first_place(reservation, &["pickupLocation"]),
+        arrival_place: first_place(reservation, &["dropoffLocation"]),
+        departure_local: string_at(reservation, "pickupTime").map(to_local_wall_clock),
+        arrival_local: string_at(reservation, "dropoffTime").map(to_local_wall_clock),
+        confirmation_code: string_at(reservation, "reservationNumber")
+            .or_else(|| string_at(reservation, "confirmationNumber")),
+        passenger_name: reservation
+            .get("underName")
+            .and_then(|value| string_at(value, "name")),
+        ..FactPayload::default()
+    };
+
+    trim_payload_strings(&mut payload);
+    if validate_fact_payload(FactType::CarRental, &payload).is_err() {
+        return None;
+    }
+
+    let mut field_spans = Vec::new();
+    add_payload_spans(raw, region, &payload, FactType::CarRental, &mut field_spans);
+
+    let mut warnings = Vec::new();
+    if payload.departure_place.is_none() || payload.arrival_place.is_none() {
+        warnings.push(WarningCode::MissingLocations);
+    }
+    if payload.departure_local.is_none() || payload.arrival_local.is_none() {
+        warnings.push(WarningCode::MissingDates);
+    }
+
+    Some(ParsedCandidate {
+        fact_type: FactType::CarRental,
+        payload,
+        method: ExtractionMethod::Structured,
+        field_spans,
+        warnings,
+    })
+}
+
+/// A schema.org place is either a string or an object with a `name`. Take the
+/// first key that yields either.
+fn first_place(value: &Value, keys: &[&str]) -> Option<String> {
+    keys.iter().find_map(|key| {
+        let place = value.get(key)?;
+        place
+            .as_str()
+            .map(ToOwned::to_owned)
+            .or_else(|| string_at(place, "name"))
+    })
+}
+
 fn string_at(value: &Value, key: &str) -> Option<String> {
     value.get(key)?.as_str().map(ToOwned::to_owned)
 }
@@ -545,6 +705,11 @@ fn trim_payload_strings(payload: &mut FactPayload) {
         &mut payload.checkin_date,
         &mut payload.checkout_date,
         &mut payload.guest_name,
+        &mut payload.carrier_name,
+        &mut payload.service_number,
+        &mut payload.departure_place,
+        &mut payload.arrival_place,
+        &mut payload.vehicle_description,
     ]
     .into_iter()
     .flatten()
@@ -591,6 +756,35 @@ fn add_payload_spans(
                 payload.confirmation_code.as_deref(),
             ),
             ("payload.guestName", payload.guest_name.as_deref()),
+        ],
+        FactType::RailJourney | FactType::CoachJourney | FactType::FerryCrossing => vec![
+            ("payload.carrierName", payload.carrier_name.as_deref()),
+            ("payload.serviceNumber", payload.service_number.as_deref()),
+            ("payload.departurePlace", payload.departure_place.as_deref()),
+            ("payload.arrivalPlace", payload.arrival_place.as_deref()),
+            ("payload.departureLocal", payload.departure_local.as_deref()),
+            ("payload.arrivalLocal", payload.arrival_local.as_deref()),
+            (
+                "payload.confirmationCode",
+                payload.confirmation_code.as_deref(),
+            ),
+            ("payload.passengerName", payload.passenger_name.as_deref()),
+        ],
+        FactType::CarRental => vec![
+            ("payload.carrierName", payload.carrier_name.as_deref()),
+            (
+                "payload.vehicleDescription",
+                payload.vehicle_description.as_deref(),
+            ),
+            ("payload.departurePlace", payload.departure_place.as_deref()),
+            ("payload.arrivalPlace", payload.arrival_place.as_deref()),
+            ("payload.departureLocal", payload.departure_local.as_deref()),
+            ("payload.arrivalLocal", payload.arrival_local.as_deref()),
+            (
+                "payload.confirmationCode",
+                payload.confirmation_code.as_deref(),
+            ),
+            ("payload.passengerName", payload.passenger_name.as_deref()),
         ],
     };
 

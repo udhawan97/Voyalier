@@ -14,9 +14,9 @@ async function openFlightForm() {
     await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
   );
   fireEvent.click(
-    await screen.findByRole("button", { name: "Add flight or stay" }),
+    await screen.findByRole("button", { name: "Add reservation" }),
   );
-  return screen.findByRole("dialog", { name: "Add a flight or stay" });
+  return screen.findByRole("dialog", { name: "Add a reservation" });
 }
 
 describe("airport code suggestions", () => {

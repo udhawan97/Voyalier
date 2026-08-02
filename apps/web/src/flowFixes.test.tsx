@@ -474,6 +474,24 @@ describe("User-flow gap fixes", () => {
   });
 
   /**
+   * The address bar is exactly as untrusted as session storage.
+   *
+   * ADR-0015 taught the URL to name a trip, but its reader checked only the
+   * length while `readActiveTrip` — feeding the very same `view.tripId` — also
+   * rejected control characters. Two doors into one piece of state, and the
+   * looser one decided what got in. Nothing downstream is exploitable today,
+   * which is the reason to fix it now rather than after something is.
+   */
+  it("refuses a ?trip= id carrying a control character", async () => {
+    window.history.replaceState(null, "", "/?trip=trip_kyoto%00");
+    renderApp(createMockGateway());
+
+    expect(
+      await screen.findByRole("heading", { name: "Trips", level: 1 }),
+    ).toBeInTheDocument();
+  });
+
+  /**
    * And still refuses one that is genuinely too long, so the fix above did not
    * simply delete the limit.
    */

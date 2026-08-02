@@ -15,6 +15,7 @@ mod brief;
 mod chat;
 mod climate;
 mod co2;
+mod contingency;
 mod email;
 mod facts;
 mod gazetteer;
@@ -31,6 +32,7 @@ mod place_summary;
 mod planning;
 mod provider;
 mod readiness;
+mod recheck;
 mod recommend;
 mod resource;
 mod search;
@@ -95,6 +97,10 @@ pub use climate::{
     parse_climate_normals,
 };
 pub use co2::{FACTOR_YEAR, FlightEmissions, estimate_flight_emissions};
+pub use contingency::{
+    DisruptionContext, DisruptionPlan, ExposedLeg, FallbackPointer, Handoff, HandoffBand,
+    HandoffKind, build_disruption_plan,
+};
 // `extract_email_body` is deliberately not re-exported: it must only be reached
 // through `parse_import`, which bounds the raw input before the extractor walks
 // an untrusted MIME tree.
@@ -112,7 +118,7 @@ pub use holidays::{
     holidays_within, parse_nager_holidays, parse_openholidays_school, public_holidays,
     school_holidays, school_holidays_covered, school_holidays_within,
 };
-pub use itinerary::{detect_itinerary_conflicts, detect_planned_item_conflicts};
+pub use itinerary::{detect_itinerary_conflicts, detect_planned_item_conflicts, fact_label};
 pub use local_ai::{
     LocalAiModel, LocalAiStatus, LocalModelPullResult, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,
     build_pull_body, interpret_pull_response, parse_ollama_models,
@@ -144,6 +150,11 @@ pub use provider::{
     validate_provider_id,
 };
 pub use readiness::{TripAssessment, assess_trip};
+pub use recheck::{
+    ADVISORY_STALE_AFTER_MINUTES, RecheckChange, RecheckLine, RecheckOutcome, RecheckReport,
+    RecheckSource, WEATHER_STALE_AFTER_MINUTES, diff_advisory_panel, diff_weather, hosts_for,
+    is_stale,
+};
 pub use recommend::{
     AttributedPackPlace, PersonaWeights, Recommendation, recommend_attributed_places,
     recommend_places,

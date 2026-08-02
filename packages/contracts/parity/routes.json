@@ -731,6 +731,19 @@
       }
     },
     {
+      "method": "recheckTrip",
+      "verb": "POST",
+      "path": "/api/v1/trips/{tripId}/recheck",
+      "command": "recheck_trip",
+      "payload": {
+        "command": [
+          "tripId"
+        ],
+        "body": null,
+        "query": []
+      }
+    },
+    {
       "method": "fetchDestinationFacts",
       "verb": "POST",
       "path": "/api/v1/trips/{tripId}/destination-facts",
@@ -1111,7 +1124,7 @@
     "updater_relaunch"
   ],
   "counts": {
-    "shared": 82,
+    "shared": 83,
     "desktopOnly": 10
   }
 }

@@ -107,6 +107,10 @@ export function AddFactDialog({
             options={[
               { value: "flight_segment", label: t("factType.flight") },
               { value: "lodging_stay", label: t("factType.stay") },
+              { value: "rail_journey", label: t("factType.rail") },
+              { value: "coach_journey", label: t("factType.coach") },
+              { value: "ferry_crossing", label: t("factType.ferry") },
+              { value: "car_rental", label: t("factType.rental") },
             ]}
           />
         </div>

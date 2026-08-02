@@ -1260,3 +1260,376 @@ fn assert_schema<T: serde::Serialize>(schemas: &SchemaSet, schema_name: &str, va
         .validate(schema_name, &json)
         .unwrap_or_else(|errors| panic!("{schema_name} failed: {errors:?}\n{json:#}"));
 }
+
+// ---------------------------------------------------------------------------
+// Surface transport facts (ADR-0016 §1)
+// ---------------------------------------------------------------------------
+
+fn journey_fact(id: &str, fact_type: FactType, departure: &str, arrival: &str) -> ConfirmedFact {
+    ConfirmedFact {
+        id: id.to_owned(),
+        trip_id: "trip_1".to_owned(),
+        fact_type,
+        payload: FactPayload {
+            carrier_name: Some("Meridian Rail".to_owned()),
+            service_number: Some("9024".to_owned()),
+            departure_place: Some("London St Pancras".to_owned()),
+            arrival_place: Some("Paris Gare du Nord".to_owned()),
+            departure_local: Some(departure.to_owned()),
+            arrival_local: Some(arrival.to_owned()),
+            ..FactPayload::default()
+        },
+        method: ExtractionMethod::Structured,
+        candidate_id: None,
+        corrected_fields: Vec::new(),
+        confirmed_at: "2026-08-01T00:00:00Z".to_owned(),
+        source_removed: false,
+    }
+}
+
+fn parse_html(raw: &str) -> crate::parser::ParserOutcome {
+    JsonLdParser.parse(&NormalizedDocument::new(DocumentKind::Html, raw))
+}
+
+#[test]
+fn every_payload_field_is_listed_by_exactly_one_fact_type() {
+    // The union of the per-type allow-lists must cover every field the payload
+    // can serialize. A field missing from all four is unreachable; the
+    // `reject_foreign_fields` rule would refuse it for every type.
+    let populated = FactPayload {
+        airline_name: Some("a".to_owned()),
+        airline_iata: Some("a".to_owned()),
+        flight_number: Some("a".to_owned()),
+        departure_airport_iata: Some("a".to_owned()),
+        arrival_airport_iata: Some("a".to_owned()),
+        departure_local: Some("a".to_owned()),
+        arrival_local: Some("a".to_owned()),
+        confirmation_code: Some("a".to_owned()),
+        passenger_name: Some("a".to_owned()),
+        property_name: Some("a".to_owned()),
+        address: Some("a".to_owned()),
+        checkin_date: Some("a".to_owned()),
+        checkout_date: Some("a".to_owned()),
+        guest_name: Some("a".to_owned()),
+        carrier_name: Some("a".to_owned()),
+        service_number: Some("a".to_owned()),
+        departure_place: Some("a".to_owned()),
+        arrival_place: Some("a".to_owned()),
+        vehicle_description: Some("a".to_owned()),
+    };
+    let serialized = serde_json::to_value(&populated).expect("payload json");
+    let on_the_wire: BTreeSet<String> = serialized
+        .as_object()
+        .expect("object")
+        .keys()
+        .map(|key| format!("payload.{key}"))
+        .collect();
+
+    let mut declared: BTreeSet<String> = BTreeSet::new();
+    for fact_type in FACT_TYPES {
+        for path in fact_type.field_paths() {
+            declared.insert((*path).to_owned());
+        }
+    }
+
+    assert_eq!(
+        on_the_wire, declared,
+        "every payload field must belong to at least one fact type"
+    );
+}
+
+const FACT_TYPES: [FactType; 6] = [
+    FactType::FlightSegment,
+    FactType::LodgingStay,
+    FactType::RailJourney,
+    FactType::CoachJourney,
+    FactType::FerryCrossing,
+    FactType::CarRental,
+];
+
+#[test]
+fn a_fact_type_refuses_a_field_that_belongs_to_another() {
+    // A rail journey has no airport code, and a flight has no station name.
+    let with_airport = FactPayload {
+        departure_airport_iata: Some("LHR".to_owned()),
+        ..FactPayload::default()
+    };
+    let error = validate_fact_payload(FactType::RailJourney, &with_airport)
+        .expect_err("a rail journey cannot carry an airport code");
+    assert_eq!(error.code, ErrorCode::ValidationInvalidInput);
+
+    let with_station = FactPayload {
+        departure_place: Some("London St Pancras".to_owned()),
+        ..FactPayload::default()
+    };
+    assert!(
+        validate_fact_payload(FactType::FlightSegment, &with_station).is_err(),
+        "a flight cannot carry a station name"
+    );
+
+    // The pairs that are legal stay legal.
+    for fact_type in [
+        FactType::RailJourney,
+        FactType::CoachJourney,
+        FactType::FerryCrossing,
+        FactType::CarRental,
+    ] {
+        let payload = FactPayload {
+            departure_place: Some("A".to_owned()),
+            arrival_place: Some("B".to_owned()),
+            departure_local: Some("2026-08-03T09:01".to_owned()),
+            arrival_local: Some("2026-08-03T12:17".to_owned()),
+            confirmation_code: Some("X1".to_owned()),
+            ..FactPayload::default()
+        };
+        validate_fact_payload(fact_type, &payload).expect("a journey payload is valid");
+    }
+}
+
+#[test]
+fn a_service_number_belongs_to_scheduled_services_only() {
+    let payload = FactPayload {
+        service_number: Some("9024".to_owned()),
+        ..FactPayload::default()
+    };
+    for fact_type in [
+        FactType::RailJourney,
+        FactType::CoachJourney,
+        FactType::FerryCrossing,
+    ] {
+        validate_fact_payload(fact_type, &payload).expect("scheduled services carry a service");
+    }
+    assert!(
+        validate_fact_payload(FactType::CarRental, &payload).is_err(),
+        "a hire car has no scheduled service number"
+    );
+    assert!(
+        validate_fact_payload(FactType::LodgingStay, &payload).is_err(),
+        "a stay has no service number"
+    );
+}
+
+#[test]
+fn journey_times_are_parsed_but_an_inverted_pair_is_not_refused() {
+    let bad_time = FactPayload {
+        departure_local: Some("not a time".to_owned()),
+        ..FactPayload::default()
+    };
+    assert!(validate_fact_payload(FactType::FerryCrossing, &bad_time).is_err());
+
+    // An overnight sleeper reads oddly and is still recordable: the itinerary
+    // checks report it, validation does not block it. Flights have always
+    // behaved this way, and surface legs must not be stricter.
+    let inverted = FactPayload {
+        departure_local: Some("2026-08-03T23:50".to_owned()),
+        arrival_local: Some("2026-08-03T06:10".to_owned()),
+        ..FactPayload::default()
+    };
+    validate_fact_payload(FactType::RailJourney, &inverted).expect("recordable");
+    validate_fact_payload(FactType::FlightSegment, &inverted).expect("same rule as a flight");
+}
+
+#[test]
+fn the_parser_reads_each_surface_reservation_kind() {
+    let cases = [
+        ("jsonld-rail", FactType::RailJourney),
+        ("jsonld-coach", FactType::CoachJourney),
+        ("jsonld-ferry", FactType::FerryCrossing),
+        ("jsonld-car-rental", FactType::CarRental),
+    ];
+    for (case, expected) in cases {
+        let raw = fs::read_to_string(fixture_root().join(case).join("input.html"))
+            .expect("fixture input");
+        let outcome = parse_html(&raw);
+        assert_eq!(
+            outcome.candidates.len(),
+            1,
+            "{case} should yield exactly one candidate"
+        );
+        assert_eq!(
+            outcome.candidates[0].fact_type, expected,
+            "{case} resolved the wrong fact type"
+        );
+        assert!(
+            outcome.candidates[0].payload.departure_place.is_some(),
+            "{case} lost its departure place"
+        );
+        assert!(
+            outcome.candidates[0]
+                .payload
+                .departure_airport_iata
+                .is_none(),
+            "{case} must not invent an airport code"
+        );
+        // Every extracted value carries a span back into the source document.
+        assert!(
+            !outcome.candidates[0].field_spans.is_empty(),
+            "{case} lost its evidence spans"
+        );
+    }
+}
+
+#[test]
+fn a_sparse_surface_reservation_warns_rather_than_inventing() {
+    let raw = fs::read_to_string(fixture_root().join("jsonld-rail-sparse").join("input.html"))
+        .expect("fixture input");
+    let outcome = parse_html(&raw);
+    let candidate = outcome.candidates.first().expect("a candidate");
+    assert_eq!(candidate.fact_type, FactType::RailJourney);
+    assert!(candidate.payload.departure_place.is_none());
+    assert!(candidate.payload.departure_local.is_none());
+    assert!(candidate.warnings.contains(&WarningCode::MissingLocations));
+    assert!(candidate.warnings.contains(&WarningCode::MissingDates));
+}
+
+#[test]
+fn a_train_and_a_flight_cannot_run_at_once() {
+    let trip = Trip {
+        id: "trip_1".to_owned(),
+        title: "Continental hop".to_owned(),
+        origin: "London".to_owned(),
+        destination: "Paris".to_owned(),
+        start_date: "2026-08-03".to_owned(),
+        end_date: "2026-08-06".to_owned(),
+        status: TripStatus::Active,
+        created_at: "2026-08-01T00:00:00Z".to_owned(),
+        updated_at: "2026-08-01T00:00:00Z".to_owned(),
+    };
+    let mut flight = journey_fact(
+        "fact_air",
+        FactType::FlightSegment,
+        "2026-08-03T10:00",
+        "2026-08-03T11:30",
+    );
+    flight.payload = FactPayload {
+        flight_number: Some("NB412".to_owned()),
+        departure_local: Some("2026-08-03T10:00".to_owned()),
+        arrival_local: Some("2026-08-03T11:30".to_owned()),
+        ..FactPayload::default()
+    };
+    let train = journey_fact(
+        "fact_rail",
+        FactType::RailJourney,
+        "2026-08-03T09:01",
+        "2026-08-03T12:17",
+    );
+
+    let conflicts = crate::detect_itinerary_conflicts(&trip, &[flight.clone(), train.clone()]);
+    let overlap = conflicts
+        .iter()
+        .find(|conflict| conflict.kind == crate::ItineraryConflictKind::JourneyOverlap)
+        .expect("a mixed-mode overlap is reported");
+    assert_eq!(overlap.fact_ids, vec!["fact_air", "fact_rail"]);
+
+    // A hire car booked across the same window is not a conflict: it sits in a
+    // car park while its holder takes the train.
+    let hire = journey_fact(
+        "fact_car",
+        FactType::CarRental,
+        "2026-08-03T08:00",
+        "2026-08-06T08:00",
+    );
+    let with_car = crate::detect_itinerary_conflicts(&trip, &[train, hire]);
+    assert!(
+        with_car
+            .iter()
+            .all(|conflict| conflict.kind != crate::ItineraryConflictKind::JourneyOverlap),
+        "a parked hire car does not overlap a train"
+    );
+}
+
+#[test]
+fn a_surface_leg_reaches_today_the_brief_and_search() {
+    let trip = Trip {
+        id: "trip_1".to_owned(),
+        title: "Continental hop".to_owned(),
+        origin: "London".to_owned(),
+        destination: "Paris".to_owned(),
+        start_date: "2026-08-03".to_owned(),
+        end_date: "2026-08-06".to_owned(),
+        status: TripStatus::Active,
+        created_at: "2026-08-01T00:00:00Z".to_owned(),
+        updated_at: "2026-08-01T00:00:00Z".to_owned(),
+    };
+    let train = journey_fact(
+        "fact_rail",
+        FactType::RailJourney,
+        "2026-08-03T09:01",
+        "2026-08-03T12:17",
+    );
+
+    let today = crate::build_today_view(&trip, std::slice::from_ref(&train), &[], "2026-08-03");
+    assert!(
+        today
+            .today
+            .iter()
+            .any(|item| item.kind == crate::TodayItemKind::JourneyDeparture),
+        "a confirmed rail departure belongs in Today"
+    );
+    assert!(
+        today
+            .today
+            .iter()
+            .all(|item| item.kind != crate::TodayItemKind::Rail),
+        "confirmed evidence must not borrow the traveler-authored Rail kind"
+    );
+
+    let brief = crate::build_trip_brief(
+        &trip,
+        std::slice::from_ref(&train),
+        &[],
+        &crate::RedactionPolicy::default(),
+        "2026-08-02T00:00:00Z",
+    );
+    assert_eq!(
+        brief.journeys.len(),
+        1,
+        "a surface leg belongs in the brief"
+    );
+    assert!(brief.flights.is_empty());
+
+    // Its operator and stations are searchable text.
+    let text = crate::fact_search_text(&train);
+    assert!(text.contains("Meridian Rail"));
+    assert!(text.contains("Paris Gare du Nord"));
+    assert_eq!(
+        crate::fact_identity(&train).as_deref(),
+        Some("London St Pancras → Paris Gare du Nord")
+    );
+}
+
+#[test]
+fn a_surface_leg_names_itself_by_service_then_route() {
+    let mut train = journey_fact(
+        "fact_rail",
+        FactType::RailJourney,
+        "2026-08-03T09:01",
+        "2026-08-03T12:17",
+    );
+    assert_eq!(
+        crate::fact_label(&train),
+        crate::FactLabel::JourneyService {
+            mode: crate::TransportMode::Rail,
+            service: "9024".to_owned()
+        }
+    );
+
+    train.payload.service_number = None;
+    train.payload.carrier_name = None;
+    assert_eq!(
+        crate::fact_label(&train),
+        crate::FactLabel::JourneyRoute {
+            mode: crate::TransportMode::Rail,
+            from: "London St Pancras".to_owned(),
+            to: "Paris Gare du Nord".to_owned()
+        }
+    );
+
+    train.payload.departure_place = None;
+    assert_eq!(
+        crate::fact_label(&train),
+        crate::FactLabel::Journey {
+            mode: crate::TransportMode::Rail
+        }
+    );
+}

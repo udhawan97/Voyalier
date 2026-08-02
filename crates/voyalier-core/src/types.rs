@@ -9,6 +9,7 @@ use crate::advisories::AdvisoryPanel;
 use crate::airports::NearbyAirport;
 use crate::astro::{AstroDay, SkyEvent};
 use crate::co2::FlightEmissions;
+use crate::contingency::DisruptionPlan;
 use crate::facts::{ClockChange, CountryFacts, DestinationFactsSnapshot, TimeDifference};
 use crate::heritage::HeritageSite;
 use crate::holidays::PublicHolidaysSnapshot;
@@ -173,6 +174,13 @@ pub struct TripDetail {
     /// evidence-backed confirmed facts.
     #[serde(default)]
     pub trip_items: Vec<TripItem>,
+    /// Where the plan depends on the previous thing having gone right, derived
+    /// on read from the confirmed facts. Advisory only: it never enters the
+    /// readiness rollup, and it never proposes an alternative service
+    /// (ADR-0016 §2). Empty until two timed legs exist. Derived, never read
+    /// back.
+    #[serde(default, skip_deserializing)]
+    pub disruption_plan: DisruptionPlan,
 }
 
 /// Which deterministic plan-completeness check a readiness item reports on.
@@ -294,6 +302,10 @@ pub enum ItineraryConflictKind {
     /// Two traveler-authored itinerary entries overlap. This is a notice, not
     /// evidence of an impossible or double-booked confirmed plan.
     PlannedItemOverlap,
+    /// Two scheduled services occupy overlapping time and at least one is a
+    /// surface leg — also physically impossible, but named apart from
+    /// `FlightOverlap` so an interface can say "train" when it means train.
+    JourneyOverlap,
 }
 
 /// How strongly a conflict should be surfaced. Advisory only.
@@ -329,6 +341,37 @@ pub enum FactLabel {
     LodgingProperty { property: String },
     /// A stay with no name recorded.
     Lodging,
+    /// A surface journey the traveler gave a service name or number for.
+    JourneyService {
+        mode: TransportMode,
+        service: String,
+    },
+    /// A surface journey known only by the places it runs between.
+    JourneyRoute {
+        mode: TransportMode,
+        from: String,
+        to: String,
+    },
+    /// A surface journey with neither a service nor both places.
+    Journey { mode: TransportMode },
+    /// A hire car with a company name.
+    RentalCompany { company: String },
+    /// A hire car with no company recorded.
+    Rental,
+}
+
+/// Which surface mode a journey fact runs on.
+///
+/// One label family covers three fact types because the identifying rule is the
+/// same for all three — a service name if there is one, otherwise the places,
+/// otherwise nothing. Only the noun differs, and choosing the noun is the
+/// interface's job, not the core's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TransportMode {
+    Rail,
+    Coach,
+    Ferry,
 }
 
 /// A single deterministic finding about the confirmed itinerary.
@@ -357,11 +400,70 @@ pub struct ItineraryConflict {
     pub end_date: Option<String>,
 }
 
+/// What kind of thing a confirmed fact records.
+///
+/// Every variant is **evidence the traveler approved**, never a reservation this
+/// product made or can make (ADR-0016 §1). The four surface variants share one
+/// payload shape; they stay separate types rather than one variant carrying a
+/// mode because the type is what every rule in this crate switches on, and
+/// hiding the distinction in a payload field would make each of those switches
+/// silently incomplete.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FactType {
     FlightSegment,
     LodgingStay,
+    RailJourney,
+    CoachJourney,
+    FerryCrossing,
+    CarRental,
+}
+
+impl FactType {
+    /// The surface mode this type runs on, for the shared label family.
+    /// `None` for flights, stays, and hire cars — none of which is a scheduled
+    /// surface service.
+    pub fn transport_mode(self) -> Option<TransportMode> {
+        match self {
+            FactType::RailJourney => Some(TransportMode::Rail),
+            FactType::CoachJourney => Some(TransportMode::Coach),
+            FactType::FerryCrossing => Some(TransportMode::Ferry),
+            FactType::FlightSegment | FactType::LodgingStay | FactType::CarRental => None,
+        }
+    }
+
+    /// True for the types that move the traveler between two places at two
+    /// times — everything except a stay.
+    pub fn is_journey(self) -> bool {
+        !matches!(self, FactType::LodgingStay)
+    }
+
+    /// The variant as it appears on the wire, for error messages that name the
+    /// thing the caller actually sent.
+    pub fn wire_name(self) -> &'static str {
+        match self {
+            FactType::FlightSegment => "flight_segment",
+            FactType::LodgingStay => "lodging_stay",
+            FactType::RailJourney => "rail_journey",
+            FactType::CoachJourney => "coach_journey",
+            FactType::FerryCrossing => "ferry_crossing",
+            FactType::CarRental => "car_rental",
+        }
+    }
+
+    /// Which payload fields this type is allowed to carry. Anything set outside
+    /// this list is rejected, so a new field cannot leak into a type that has no
+    /// meaning for it.
+    pub fn field_paths(self) -> &'static [&'static str] {
+        match self {
+            FactType::FlightSegment => FactPayload::flight_field_paths(),
+            FactType::LodgingStay => FactPayload::lodging_field_paths(),
+            FactType::RailJourney | FactType::CoachJourney | FactType::FerryCrossing => {
+                FactPayload::journey_field_paths()
+            }
+            FactType::CarRental => FactPayload::car_rental_field_paths(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -395,6 +497,27 @@ pub struct FactPayload {
     pub checkout_date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub guest_name: Option<String>,
+    /// Who operates a surface journey, or who the hire car is from. Free text:
+    /// there is no code space this product owns for rail and coach operators.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub carrier_name: Option<String>,
+    /// The service as the operator names it — "Eurostar 9024", "Caledonian
+    /// Sleeper", a coach route number. Not parsed, not validated against
+    /// anything: it is quoted from the traveler's own confirmation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub service_number: Option<String>,
+    /// Where a surface journey starts, or where a hire car is picked up. A
+    /// station, port, or depot name in the operator's own words — deliberately
+    /// not an airport code (ADR-0016 §1).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub departure_place: Option<String>,
+    /// Where a surface journey ends, or where a hire car goes back.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub arrival_place: Option<String>,
+    /// What the traveler was told they are getting — "compact, automatic".
+    /// Hire cars only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vehicle_description: Option<String>,
 }
 
 impl FactPayload {
@@ -420,6 +543,38 @@ impl FactPayload {
             "payload.checkoutDate",
             "payload.confirmationCode",
             "payload.guestName",
+        ]
+    }
+
+    /// Rail, coach, and ferry share one shape. They carry the generic
+    /// departure/arrival timestamps a flight uses, but name their endpoints in
+    /// words rather than airport codes.
+    pub fn journey_field_paths() -> &'static [&'static str] {
+        &[
+            "payload.carrierName",
+            "payload.serviceNumber",
+            "payload.departurePlace",
+            "payload.arrivalPlace",
+            "payload.departureLocal",
+            "payload.arrivalLocal",
+            "payload.confirmationCode",
+            "payload.passengerName",
+        ]
+    }
+
+    /// A hire car is a journey between two places at two times, so it reads the
+    /// same departure/arrival pair as pickup and drop-off rather than growing a
+    /// second pair that would mean the same thing.
+    pub fn car_rental_field_paths() -> &'static [&'static str] {
+        &[
+            "payload.carrierName",
+            "payload.vehicleDescription",
+            "payload.departurePlace",
+            "payload.arrivalPlace",
+            "payload.departureLocal",
+            "payload.arrivalLocal",
+            "payload.confirmationCode",
+            "payload.passengerName",
         ]
     }
 }
@@ -869,9 +1024,14 @@ pub fn validate_document_content(content: &str) -> Result<u32, AppError> {
 }
 
 pub fn validate_fact_payload(fact_type: FactType, payload: &FactPayload) -> Result<(), AppError> {
+    reject_foreign_fields(fact_type, payload)?;
     match fact_type {
-        FactType::FlightSegment => validate_flight_payload(payload),
         FactType::LodgingStay => validate_lodging_payload(payload),
+        FactType::FlightSegment
+        | FactType::RailJourney
+        | FactType::CoachJourney
+        | FactType::FerryCrossing
+        | FactType::CarRental => validate_journey_times(payload),
     }
 }
 
@@ -976,18 +1136,35 @@ fn parse_local_datetime(value: &str, field: &str) -> Result<DateTime, AppError> 
     })
 }
 
-fn validate_flight_payload(payload: &FactPayload) -> Result<(), AppError> {
-    if payload.property_name.is_some()
-        || payload.address.is_some()
-        || payload.checkin_date.is_some()
-        || payload.checkout_date.is_some()
-        || payload.guest_name.is_some()
-    {
-        return Err(AppError::new(
-            ErrorCode::ValidationInvalidInput,
-            "flight_segment payload contains lodging fields",
-        ));
+/// Reject any field the type has no meaning for.
+///
+/// This replaced two hand-written "does it contain the *other* type's fields"
+/// checks. With two types that was one comparison; with six it would have been
+/// fifteen, and every new field would have had to be remembered in all of them.
+/// Driving it off `FactType::field_paths` means a field is opt-in per type and a
+/// forgotten one fails closed.
+fn reject_foreign_fields(fact_type: FactType, payload: &FactPayload) -> Result<(), AppError> {
+    let allowed = fact_type.field_paths();
+    for (path, value) in payload_fields(payload) {
+        if value.is_some() && !allowed.contains(&path) {
+            return Err(AppError::with_detail(
+                ErrorCode::ValidationInvalidInput,
+                format!("a {} payload cannot carry {path}", fact_type.wire_name()),
+                "field",
+                path,
+            ));
+        }
     }
+    Ok(())
+}
+
+/// Departure and arrival stamps, for every type that moves the traveler.
+///
+/// Deliberately no "arrival before departure" rule: a flight has never had one,
+/// an overnight sleeper legitimately arrives on a later date than it reads, and
+/// an inverted pair is surfaced by the itinerary checks as an advisory finding
+/// rather than blocking the traveler from recording what their ticket says.
+fn validate_journey_times(payload: &FactPayload) -> Result<(), AppError> {
     if let Some(value) = &payload.departure_local {
         parse_local_datetime(value, "departureLocal")?;
     }
@@ -998,20 +1175,6 @@ fn validate_flight_payload(payload: &FactPayload) -> Result<(), AppError> {
 }
 
 fn validate_lodging_payload(payload: &FactPayload) -> Result<(), AppError> {
-    if payload.airline_name.is_some()
-        || payload.airline_iata.is_some()
-        || payload.flight_number.is_some()
-        || payload.departure_airport_iata.is_some()
-        || payload.arrival_airport_iata.is_some()
-        || payload.departure_local.is_some()
-        || payload.arrival_local.is_some()
-        || payload.passenger_name.is_some()
-    {
-        return Err(AppError::new(
-            ErrorCode::ValidationInvalidInput,
-            "lodging_stay payload contains flight fields",
-        ));
-    }
     let checkin = match &payload.checkin_date {
         Some(value) => Some(parse_date(value, "checkinDate")?),
         None => None,
@@ -1031,76 +1194,46 @@ fn validate_lodging_payload(payload: &FactPayload) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Every payload field with its wire path, in one place.
+///
+/// Both the change-tracker and the foreign-field rejection read this, so a field
+/// added to `FactPayload` without being added here is invisible to both — which
+/// the `every_payload_field_is_listed` test turns into a failure rather than a
+/// silent gap.
+fn payload_fields(payload: &FactPayload) -> Vec<(&'static str, &Option<String>)> {
+    vec![
+        ("payload.airlineName", &payload.airline_name),
+        ("payload.airlineIata", &payload.airline_iata),
+        ("payload.flightNumber", &payload.flight_number),
+        (
+            "payload.departureAirportIata",
+            &payload.departure_airport_iata,
+        ),
+        ("payload.arrivalAirportIata", &payload.arrival_airport_iata),
+        ("payload.departureLocal", &payload.departure_local),
+        ("payload.arrivalLocal", &payload.arrival_local),
+        ("payload.confirmationCode", &payload.confirmation_code),
+        ("payload.passengerName", &payload.passenger_name),
+        ("payload.propertyName", &payload.property_name),
+        ("payload.address", &payload.address),
+        ("payload.checkinDate", &payload.checkin_date),
+        ("payload.checkoutDate", &payload.checkout_date),
+        ("payload.guestName", &payload.guest_name),
+        ("payload.carrierName", &payload.carrier_name),
+        ("payload.serviceNumber", &payload.service_number),
+        ("payload.departurePlace", &payload.departure_place),
+        ("payload.arrivalPlace", &payload.arrival_place),
+        ("payload.vehicleDescription", &payload.vehicle_description),
+    ]
+}
+
 fn payload_field_values<'a>(
     original: &'a FactPayload,
     edited: &'a FactPayload,
 ) -> Vec<(&'static str, &'a Option<String>, &'a Option<String>)> {
-    vec![
-        (
-            "payload.airlineName",
-            &original.airline_name,
-            &edited.airline_name,
-        ),
-        (
-            "payload.airlineIata",
-            &original.airline_iata,
-            &edited.airline_iata,
-        ),
-        (
-            "payload.flightNumber",
-            &original.flight_number,
-            &edited.flight_number,
-        ),
-        (
-            "payload.departureAirportIata",
-            &original.departure_airport_iata,
-            &edited.departure_airport_iata,
-        ),
-        (
-            "payload.arrivalAirportIata",
-            &original.arrival_airport_iata,
-            &edited.arrival_airport_iata,
-        ),
-        (
-            "payload.departureLocal",
-            &original.departure_local,
-            &edited.departure_local,
-        ),
-        (
-            "payload.arrivalLocal",
-            &original.arrival_local,
-            &edited.arrival_local,
-        ),
-        (
-            "payload.confirmationCode",
-            &original.confirmation_code,
-            &edited.confirmation_code,
-        ),
-        (
-            "payload.passengerName",
-            &original.passenger_name,
-            &edited.passenger_name,
-        ),
-        (
-            "payload.propertyName",
-            &original.property_name,
-            &edited.property_name,
-        ),
-        ("payload.address", &original.address, &edited.address),
-        (
-            "payload.checkinDate",
-            &original.checkin_date,
-            &edited.checkin_date,
-        ),
-        (
-            "payload.checkoutDate",
-            &original.checkout_date,
-            &edited.checkout_date,
-        ),
-        (
-            "payload.guestName",
-            &original.guest_name,
-            &edited.guest_name,
-        ),
-    ]
+    payload_fields(original)
+        .into_iter()
+        .zip(payload_fields(edited))
+        .map(|((path, left), (_, right))| (path, left, right))
+        .collect()
 }

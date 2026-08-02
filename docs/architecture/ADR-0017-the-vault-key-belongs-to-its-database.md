@@ -1,4 +1,4 @@
-# ADR-0016 — The vault key belongs to its database
+# ADR-0017 — The vault key belongs to its database
 
 **Status:** Accepted · 2026-08-02
 

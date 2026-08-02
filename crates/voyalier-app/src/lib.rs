@@ -21,28 +21,29 @@ use voyalier_core::{
     AssistRequestPreview, AstroDay, AttributedPackPlace, CandidateFact, CandidateStatus,
     ChatContext, ChatMessage, ChatRole, ClimateNormals, ClockChange, ConfirmCandidateInput,
     ConfirmedFact, CreateResourceInput, CreateTripInput, CreateTripItemInput,
-    DRAFT_LODGING_DATES_SYSTEM_PROMPT, DestinationFactsSnapshot, DocumentContent, DocumentKind,
-    DocumentParse, DocumentSummary, DownloadedPack, ErrorCode, ExtractionMethod, FCDO_COUNTRIES,
-    FIELD_SUGGESTION_LIMIT, FactPayload, FactType, FcdoCountry, FieldSuggestion, GeocodedPlace,
-    HealthNotice, HealthResponse, ImportDocumentInput, ImportResult, IntelligenceMode,
-    InterestProfile, KeyValidation, LocalAiStatus, LocalModelPullResult, LodgingDateProposal,
-    MAX_AI_PROMPT_LEN, MAX_CHAT_CONTEXT_RECORDS, MAX_CHAT_EXCERPT_CHARS, MAX_NOTES_CHARS,
-    MAX_OFFLINE_MAP_BYTES, OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OfflineMapArchive, OfflineMapChunk,
-    OfflineMapDescriptor, PROVIDERS, PackContent, PackInfo, PackSuggestion, PackingItem,
-    PersonaWeights, PlaceSummary, ProviderConfig, ProviderId, PublicHolidaysSnapshot,
-    Recommendation, RedactionPolicy, ResearchSettings, Resource, ResourceSnapshot,
-    SEARCH_SUGGESTION_LIMIT, SavePlaceInput, SavedPlace, SearchHit, SearchHitSource,
-    SearchableDocument, SearchableResource, SetInterestProfileInput, SetResearchSettingsInput,
-    SetVisaItemProgressInput, SetVisaNationalityInput, SourceDocument, SourceState, SourceStatus,
-    SuggestionSource, TodayView, Trip, TripAssessment, TripBrief, TripDetail, TripItem, TripNotes,
-    TripStatus, TripSummary, UpdatePackingItemInput, UpdateResourceInput, UpdateSavedPlaceInput,
+    DRAFT_LODGING_DATES_SYSTEM_PROMPT, DestinationFactsSnapshot, DisruptionContext,
+    DocumentContent, DocumentKind, DocumentParse, DocumentSummary, DownloadedPack, ErrorCode,
+    ExtractionMethod, FCDO_COUNTRIES, FIELD_SUGGESTION_LIMIT, FactPayload, FactType, FcdoCountry,
+    FieldSuggestion, GeocodedPlace, HealthNotice, HealthResponse, ImportDocumentInput,
+    ImportResult, IntelligenceMode, InterestProfile, KeyValidation, LocalAiStatus,
+    LocalModelPullResult, LodgingDateProposal, MAX_AI_PROMPT_LEN, MAX_CHAT_CONTEXT_RECORDS,
+    MAX_CHAT_EXCERPT_CHARS, MAX_NOTES_CHARS, MAX_OFFLINE_MAP_BYTES, OLLAMA_PULL_URL,
+    OLLAMA_TAGS_URL, OfflineMapArchive, OfflineMapChunk, OfflineMapDescriptor, PROVIDERS,
+    PackContent, PackInfo, PackSuggestion, PackingItem, PersonaWeights, PlaceSummary,
+    ProviderConfig, ProviderId, PublicHolidaysSnapshot, Recommendation, RedactionPolicy,
+    ResearchSettings, Resource, ResourceSnapshot, SEARCH_SUGGESTION_LIMIT, SavePlaceInput,
+    SavedPlace, SearchHit, SearchHitSource, SearchableDocument, SearchableResource,
+    SetInterestProfileInput, SetResearchSettingsInput, SetVisaItemProgressInput,
+    SetVisaNationalityInput, SourceDocument, SourceState, SourceStatus, SuggestionSource,
+    TodayView, Trip, TripAssessment, TripBrief, TripDetail, TripItem, TripNotes, TripStatus,
+    TripSummary, UpdatePackingItemInput, UpdateResourceInput, UpdateSavedPlaceInput,
     UpdateTripInput, UpdateTripItemInput, VisaPrep, VisaSelfReport, WarningCode, WeatherAlert,
     WeatherSnapshot, WorkspaceSearchHit, WorkspaceSearchRecord, WorkspaceSearchSource,
     advisory_country, air_quality, assess_trip, build_assist_preview, build_assist_request,
-    build_chat_prompt, build_draft_preview, build_key_validation_request, build_packing_list,
-    build_pull_body, build_today_view, build_trip_brief, ca_gac_advisory, cdc_health_notices,
-    changed_payload_fields, climate_normals, compute_astro_day, country_facts, de_aa_advisory,
-    derived_link_title, detect_planned_item_conflicts, ecb_rates, entry_from_fcdo,
+    build_chat_prompt, build_disruption_plan, build_draft_preview, build_key_validation_request,
+    build_packing_list, build_pull_body, build_today_view, build_trip_brief, ca_gac_advisory,
+    cdc_health_notices, changed_payload_fields, climate_normals, compute_astro_day, country_facts,
+    de_aa_advisory, derived_link_title, detect_planned_item_conflicts, ecb_rates, entry_from_fcdo,
     estimate_flight_emissions, estimate_tokens, extract_readable_page, fact_identity,
     fact_search_text, forecast, geocode, high_stakes_topics, holidays_within,
     interpret_key_validation, interpret_pull_response, matching_airports, missions_in,
@@ -76,6 +77,7 @@ mod service_documents;
 mod service_packs;
 mod service_planning;
 mod service_providers;
+mod service_recheck;
 mod service_resources;
 mod service_retrieved;
 mod service_search;
@@ -562,7 +564,7 @@ fn keyring_failure(error: keyring::Error) -> AppError {
 /// every shipped install already has this account, so it must keep it.
 const VAULT_KEY_ACCOUNT: &str = "vault.data_key";
 
-/// The keychain account this database's data key lives under (ADR-0016).
+/// The keychain account this database's data key lives under (ADR-0017).
 ///
 /// `VOYALIER_DATA_DIR` moves the database. It used to be the *only* thing that
 /// moved: the keychain service and account were constants, so every data
@@ -939,7 +941,7 @@ impl AppService {
             clear_vault_wrap(&connection)?;
         }
         // Namespaced by the database's own path, so a second data directory
-        // cannot delete the key this one's sealed columns depend on (ADR-0016).
+        // cannot delete the key this one's sealed columns depend on (ADR-0017).
         let vault_account = resolve_vault_key_account(secrets.as_ref(), path);
         let vault = Vault::load_or_init(secrets.as_ref(), &connection, &vault_account)?;
         // Encrypt any pre-existing plaintext payloads now the vault is available.
@@ -1362,7 +1364,8 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
                 trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
                 document_id TEXT NOT NULL REFERENCES source_documents(id) ON DELETE CASCADE,
                 parser_run_id TEXT NOT NULL REFERENCES parser_runs(id) ON DELETE CASCADE,
-                fact_type TEXT NOT NULL CHECK (fact_type IN ('flight_segment', 'lodging_stay')),
+                fact_type TEXT NOT NULL CHECK (fact_type IN ('flight_segment', 'lodging_stay',
+                    'rail_journey', 'coach_journey', 'ferry_crossing', 'car_rental')),
                 payload TEXT NOT NULL,
                 method TEXT NOT NULL CHECK (method IN ('structured', 'inferred', 'manual', 'assisted')),
                 field_spans TEXT NOT NULL,
@@ -1455,7 +1458,8 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
             CREATE TABLE IF NOT EXISTS confirmed_facts (
                 id TEXT PRIMARY KEY,
                 trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
-                fact_type TEXT NOT NULL CHECK (fact_type IN ('flight_segment', 'lodging_stay')),
+                fact_type TEXT NOT NULL CHECK (fact_type IN ('flight_segment', 'lodging_stay',
+                    'rail_journey', 'coach_journey', 'ferry_crossing', 'car_rental')),
                 payload TEXT NOT NULL,
                 method TEXT NOT NULL CHECK (method IN ('structured', 'inferred', 'manual', 'assisted')),
                 candidate_id TEXT REFERENCES candidate_facts(id) ON DELETE SET NULL,
@@ -1618,6 +1622,11 @@ const MIGRATIONS: &[Migration] = &[
         to: 17,
         name: "visa_stats",
         run: migrate_visa_stats,
+    },
+    Migration {
+        to: 18,
+        name: "widen_fact_type_check",
+        run: migrate_fact_type_check,
     },
 ];
 
@@ -2385,6 +2394,90 @@ fn migrate_method_check(connection: &Connection) -> Result<(), AppError> {
                 confirmed_at TEXT NOT NULL
              );
              INSERT INTO confirmed_facts_migrated SELECT * FROM confirmed_facts;
+             DROP TABLE confirmed_facts;
+             ALTER TABLE confirmed_facts_migrated RENAME TO confirmed_facts;
+             COMMIT;",
+        )
+        .map_err(storage_error);
+    // Restore FK enforcement whether or not the rebuild succeeded.
+    let _ = connection.execute_batch("PRAGMA foreign_keys = ON;");
+    rebuilt
+}
+
+/// Let both fact tables hold the four surface kinds (ADR-0017 §1).
+///
+/// SQLite cannot alter a CHECK constraint, so both tables are rebuilt — the
+/// same shape as `migrate_method_check`, which widened the `method` list for
+/// the same reason. Retry-safe: the guard reads the stored DDL, so a database
+/// created fresh (whose base schema already carries the six values) and a
+/// database that has run this step once both fall straight through.
+fn migrate_fact_type_check(connection: &Connection) -> Result<(), AppError> {
+    let is_stale = |table: &str| -> Result<bool, AppError> {
+        let sql: Option<String> = connection
+            .query_row(
+                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?1",
+                params![table],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(storage_error)?;
+        Ok(sql.is_some_and(|sql| !sql.contains("'car_rental'")))
+    };
+    if !is_stale("candidate_facts")? && !is_stale("confirmed_facts")? {
+        return Ok(());
+    }
+
+    // FK enforcement cannot change inside a transaction, so toggle it around one.
+    connection
+        .execute_batch("PRAGMA foreign_keys = OFF;")
+        .map_err(storage_error)?;
+    // Columns are named rather than `SELECT *`: by this version both tables have
+    // picked up columns in a different order than they were declared in, and an
+    // unqualified copy would silently transpose them.
+    let rebuilt = connection
+        .execute_batch(
+            "BEGIN;
+             CREATE TABLE candidate_facts_migrated (
+                id TEXT PRIMARY KEY,
+                trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                document_id TEXT NOT NULL REFERENCES source_documents(id) ON DELETE CASCADE,
+                parser_run_id TEXT NOT NULL REFERENCES parser_runs(id) ON DELETE CASCADE,
+                fact_type TEXT NOT NULL CHECK (fact_type IN ('flight_segment', 'lodging_stay',
+                    'rail_journey', 'coach_journey', 'ferry_crossing', 'car_rental')),
+                payload TEXT NOT NULL,
+                method TEXT NOT NULL CHECK (method IN ('structured', 'inferred', 'manual', 'assisted')),
+                field_spans TEXT NOT NULL,
+                warnings TEXT NOT NULL,
+                status TEXT NOT NULL CHECK (status IN ('pending', 'confirmed', 'rejected')),
+                created_at TEXT NOT NULL,
+                resolved_at TEXT
+             );
+             INSERT INTO candidate_facts_migrated
+                (id, trip_id, document_id, parser_run_id, fact_type, payload, method,
+                 field_spans, warnings, status, created_at, resolved_at)
+             SELECT id, trip_id, document_id, parser_run_id, fact_type, payload, method,
+                 field_spans, warnings, status, created_at, resolved_at
+             FROM candidate_facts;
+             DROP TABLE candidate_facts;
+             ALTER TABLE candidate_facts_migrated RENAME TO candidate_facts;
+             CREATE TABLE confirmed_facts_migrated (
+                id TEXT PRIMARY KEY,
+                trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                fact_type TEXT NOT NULL CHECK (fact_type IN ('flight_segment', 'lodging_stay',
+                    'rail_journey', 'coach_journey', 'ferry_crossing', 'car_rental')),
+                payload TEXT NOT NULL,
+                method TEXT NOT NULL CHECK (method IN ('structured', 'inferred', 'manual', 'assisted')),
+                candidate_id TEXT REFERENCES candidate_facts(id) ON DELETE SET NULL,
+                corrected_fields TEXT NOT NULL,
+                confirmed_at TEXT NOT NULL,
+                source_removed INTEGER NOT NULL DEFAULT 0
+             );
+             INSERT INTO confirmed_facts_migrated
+                (id, trip_id, fact_type, payload, method, candidate_id, corrected_fields,
+                 confirmed_at, source_removed)
+             SELECT id, trip_id, fact_type, payload, method, candidate_id, corrected_fields,
+                 confirmed_at, source_removed
+             FROM confirmed_facts;
              DROP TABLE confirmed_facts;
              ALTER TABLE confirmed_facts_migrated RENAME TO confirmed_facts;
              COMMIT;",

@@ -22,6 +22,12 @@ export interface TripDetail {
   itineraryConflicts: ItineraryConflict[];
   /** Deterministic plan-completeness rollup (logistics only, no sourced/entry data). */
   readiness: ReadinessSummary;
+  /**
+   * Where the plan depends on the previous thing having gone right, derived on
+   * read from the confirmed facts. Advisory only: it never enters the readiness
+   * rollup, and it never proposes an alternative service (ADR-0016 §2).
+   */
+  disruptionPlan: DisruptionPlan;
   /** The latest user-fetched official advisory panel, when one exists. */
   advisoryPanel?: AdvisoryPanel;
   /** The latest user-fetched destination weather outlook, when one exists. */
@@ -404,7 +410,16 @@ export interface ReadinessSummary {
   items: ReadinessItem[];
 }
 export type ItineraryConflictKind =
-  "flight_overlap" | "lodging_overlap" | "lodging_gap" | "planned_item_overlap";
+  | "flight_overlap"
+  | "lodging_overlap"
+  | "lodging_gap"
+  | "planned_item_overlap"
+  /**
+   * Two scheduled services overlap and at least one is a surface leg. Named
+   * apart from `flight_overlap` so an interface can say "train" when it means
+   * train; both are equally impossible.
+   */
+  | "journey_overlap";
 export type ConflictSeverity = "notice" | "warning";
 /**
  * How to name a confirmed fact, for the interface to render in its own words.
@@ -419,7 +434,19 @@ export type FactLabel =
   | { code: "flight_route"; from: string; to: string }
   | { code: "flight" }
   | { code: "lodging_property"; property: string }
-  | { code: "lodging" };
+  | { code: "lodging" }
+  | { code: "journey_service"; mode: TransportMode; service: string }
+  | { code: "journey_route"; mode: TransportMode; from: string; to: string }
+  | { code: "journey"; mode: TransportMode }
+  | { code: "rental_company"; company: string }
+  | { code: "rental" };
+/**
+ * Which surface mode a journey fact runs on. One label family covers three fact
+ * types because the identifying rule is the same for all three — a service name
+ * if there is one, otherwise the places, otherwise nothing. Only the noun
+ * differs, and choosing the noun is this interface's job, not the core's.
+ */
+export type TransportMode = "rail" | "coach" | "ferry";
 export interface ItineraryConflict {
   kind: ItineraryConflictKind;
   severity: ConflictSeverity;
@@ -441,7 +468,18 @@ export interface ItineraryConflict {
   /** Last affected night inclusive (ISO YYYY-MM-DD) for date-range findings. */
   endDate?: string;
 }
-export type FactType = "flight_segment" | "lodging_stay";
+/**
+ * What kind of thing a confirmed fact records. Every variant is evidence the
+ * traveler approved, never a reservation this product made or can make
+ * (ADR-0016 §1).
+ */
+export type FactType =
+  | "flight_segment"
+  | "lodging_stay"
+  | "rail_journey"
+  | "coach_journey"
+  | "ferry_crossing"
+  | "car_rental";
 export interface FlightSegmentPayload {
   airlineName?: string;
   airlineIata?: string;
@@ -461,7 +499,42 @@ export interface LodgingStayPayload {
   confirmationCode?: string;
   guestName?: string;
 }
-export type FactPayload = FlightSegmentPayload | LodgingStayPayload;
+/**
+ * Rail, coach and ferry share one shape. They carry the same timestamps a
+ * flight does but name their endpoints in words rather than airport codes:
+ * there is no IATA for a bus stop, and inventing a code space this product does
+ * not own would be a claim about identity it cannot back.
+ */
+export interface SurfaceJourneyPayload {
+  carrierName?: string;
+  serviceNumber?: string;
+  departurePlace?: string;
+  arrivalPlace?: string;
+  departureLocal?: string;
+  arrivalLocal?: string;
+  confirmationCode?: string;
+  passengerName?: string;
+}
+/**
+ * A hire car is a journey between two places at two times, so it reads the same
+ * departure/arrival pair as pickup and drop-off rather than growing a second
+ * pair that would mean the same thing.
+ */
+export interface CarRentalPayload {
+  carrierName?: string;
+  vehicleDescription?: string;
+  departurePlace?: string;
+  arrivalPlace?: string;
+  departureLocal?: string;
+  arrivalLocal?: string;
+  confirmationCode?: string;
+  passengerName?: string;
+}
+export type FactPayload =
+  | FlightSegmentPayload
+  | LodgingStayPayload
+  | SurfaceJourneyPayload
+  | CarRentalPayload;
 export type ExtractionMethod =
   | "structured"
   | "inferred"
@@ -1206,6 +1279,14 @@ export type TodayItemKind =
   | "flight_arrival"
   | "checkin"
   | "checkout"
+  /**
+   * A confirmed surface departure — rail, coach, ferry, or a hire-car pickup.
+   * Distinct from `rail`, which is a traveler-authored *plan*: one is evidence
+   * and one is an intention, and they must not merge.
+   */
+  | "journey_departure"
+  /** A confirmed surface arrival, or a hire car going back. */
+  | "journey_arrival"
   | "staying_tonight"
   | "activity"
   | "rail"
@@ -1366,6 +1447,127 @@ export interface ChatMessage {
   itineraryFacts: number;
 }
 
+/**
+ * Where one commitment has to be met after another (ADR-0016 §2).
+ *
+ * This is exposure, never availability: nothing here knows that another sailing
+ * exists, that a seat is free, or that a route is possible. Where a booking
+ * agent's "backup route" means *here is another way*, this means *here is what
+ * you would have to replace, and how long you would have*.
+ */
+export type HandoffKind = "connection" | "rental_pickup" | "rental_return";
+/**
+ * How tight a hand-off is. An app-authored caution, **not** any carrier's
+ * minimum connection time — render the minutes, and the band only as the
+ * caution it is.
+ */
+export type HandoffBand =
+  "impossible" | "tight" | "short" | "comfortable" | "ample";
+export interface Handoff {
+  kind: HandoffKind;
+  /** What the traveler arrives on. */
+  from: FactLabel;
+  /** What they then have to make. */
+  to: FactLabel;
+  fromFactId: string;
+  toFactId: string;
+  /** Minutes between the two. Negative when the second starts first. */
+  slackMinutes: number;
+  band: HandoffBand;
+  /** When the first commitment ends, in its own local wall clock. */
+  at: string;
+}
+/** A leg other commitments are stacked behind. */
+export interface ExposedLeg {
+  factId: string;
+  label: FactLabel;
+  /** How long this leg can run late before the next commitment is missed. */
+  absorbsMinutes: number;
+  /** How many later commitments sit behind it. */
+  dependents: number;
+}
+/**
+ * Something in the workspace worth reaching for, assembled only from evidence
+ * and bundled data the traveler already has.
+ *
+ * Deliberately carries no URL and no phone number: this product does not curate
+ * carrier contact channels, because they change constantly and the failure
+ * lands on someone standing in a terminal at 23:00 (ADR-0016 §3).
+ */
+export type FallbackPointer =
+  | { code: "carrier_on_confirmation"; carrier: string; factId: string }
+  | {
+      code: "alternate_airport";
+      name: string;
+      iata: string;
+      distanceKm: number;
+    }
+  | {
+      code: "diplomatic_mission";
+      sendingCountry: string;
+      city: string;
+      kind: MissionKind;
+    };
+/** Everything the playbook has to say about one trip. Advisory only. */
+export interface DisruptionPlan {
+  /** Tightest first, then in time order. */
+  handoffs: Handoff[];
+  /** Least slack first. */
+  exposedLegs: ExposedLeg[];
+  pointers: FallbackPointer[];
+}
+/**
+ * Which consent-gated snapshot a sweep line is about (ADR-0016 §4).
+ *
+ * `weather` covers the forecast and the official alerts that ride inside the
+ * same snapshot — they are fetched together, so they go stale together.
+ */
+export type RecheckSource = "advisories" | "weather";
+/** One thing that moved, in the source's own words. */
+export type RecheckChange =
+  | {
+      code: "advisory_level";
+      source: AdvisorySource;
+      from?: string;
+      to?: string;
+    }
+  | { code: "advisory_added"; source: AdvisorySource }
+  | { code: "advisory_withdrawn"; source: AdvisorySource }
+  | { code: "health_notice_added"; title: string }
+  | { code: "health_notice_cleared"; title: string }
+  | { code: "alert_raised"; event: string; headline: string }
+  | { code: "alert_cleared"; event: string }
+  | { code: "forecast_moved"; dayCount: number };
+/** What one source did during a sweep. */
+export type RecheckOutcome =
+  /** Still fresh, so nothing was fetched — reported rather than hidden. */
+  | { code: "skipped" }
+  /** Nothing stored yet; a first fetch belongs to the panel that owns it. */
+  | { code: "never_fetched" }
+  | { code: "unchanged" }
+  | { code: "changed"; changes: RecheckChange[] }
+  /**
+   * Could not be read this time. The stored snapshot is kept untouched — a
+   * failed re-check must never read as an all-clear.
+   */
+  | { code: "failed"; reason: string };
+export interface RecheckLine {
+  source: RecheckSource;
+  outcome: RecheckOutcome;
+  /** When the snapshot this line is about was last retrieved. */
+  previouslyRetrievedAt?: string;
+}
+/**
+ * The result of one explicit sweep. Returned, rendered, and never stored: an
+ * answer must not become retrievable later as established knowledge.
+ */
+export interface RecheckReport {
+  tripId: string;
+  checkedAt: string;
+  lines: RecheckLine[];
+  /** Every host this sweep contacted, so the click's reach is visible. */
+  hostsContacted: string[];
+}
 export interface TripBrief {
   title: string;
   origin: string;
@@ -1376,6 +1578,12 @@ export interface TripBrief {
   flights: FlightSegmentPayload[];
   /** Redacted lodging entries in check-in order. */
   stays: LodgingStayPayload[];
+  /**
+   * Redacted rail, coach, ferry and hire-car legs in departure order. Its own
+   * list rather than a key per mode: whoever reads a brief wants the surface
+   * legs together, and the mode is already in the payload's own words.
+   */
+  journeys: (SurfaceJourneyPayload | CarRentalPayload)[];
   /** Traveler-authored itinerary entries; private notes are excluded. */
   tripItems: BriefTripItem[];
   /** Human-readable list of the field kinds removed from this brief. */
@@ -1756,6 +1964,13 @@ export interface AppGateway {
   listAdviceCountries(): Promise<FcdoCountry[]>;
   fetchAdvisories(input: FetchAdvisoriesInput): Promise<AdvisoryPanel>;
   fetchWeather(tripId: string): Promise<WeatherSnapshot>;
+  /**
+   * Refresh whatever the trip has let go stale, and report what moved
+   * (ADR-0016 §4). One explicit sweep — no timer, no daemon — reaching only
+   * hosts the traveler could already reach panel by panel. A source that is
+   * still fresh is skipped; a source that fails keeps its snapshot and says so.
+   */
+  recheckTrip(tripId: string): Promise<RecheckReport>;
   fetchDestinationFacts(tripId: string): Promise<DestinationFactsSnapshot>;
   /** Fetch the destination country's public holidays (Nager.Date), consent-gated. */
   fetchPublicHolidays(tripId: string): Promise<PublicHolidaysSnapshot>;

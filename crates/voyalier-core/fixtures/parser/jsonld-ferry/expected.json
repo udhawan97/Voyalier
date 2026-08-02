@@ -1,0 +1,20 @@
+{
+  "parser": "jsonld.v1",
+  "exact": true,
+  "expectedCandidates": [
+    {
+      "factType": "ferry_crossing",
+      "method": "structured",
+      "payload": {
+        "carrierName": "Blue Strait Ferries",
+        "departurePlace": "Piraeus Gate E7",
+        "arrivalPlace": "Naxos Port",
+        "departureLocal": "2026-08-07T07:25",
+        "arrivalLocal": "2026-08-07T12:10",
+        "confirmationCode": "FY2208",
+        "passengerName": "Alex Example"
+      }
+    }
+  ],
+  "expectedDiagnostics": []
+}

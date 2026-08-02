@@ -349,7 +349,7 @@ const en = {
   "search.label.flightGeneric": "Flight",
   "search.label.stayGeneric": "Stay",
 
-  "addFact.title": "Add a flight or stay",
+  "addFact.title": "Add a reservation",
   "addFact.description":
     "Enter a flight or a stay by hand. Manual entries are yours and appear in the Blueprint right away.",
   "addFact.submit": "Add to Blueprint",
@@ -1037,7 +1037,7 @@ const en = {
   "detail.unarchive": "Unarchive",
   "detail.announce.updated": "Trip updated.",
   "detail.announce.unarchived": "Trip unarchived.",
-  "detail.addFact": "Add flight or stay",
+  "detail.addFact": "Add reservation",
   "detail.carbon.estimate.one":
     "About {kg} kg CO₂e for {count} flight · {km} km",
   "detail.carbon.estimate.other":
@@ -1215,8 +1215,103 @@ const en = {
   "schedule.label.flight": "A flight",
   "schedule.label.lodging_property": "{property}",
   "schedule.label.lodging": "A lodging stay",
+  // Rail, coach and ferry share one label family in the core; the noun that
+  // distinguishes them is this catalog's job, not the core's.
+  // --- Disruption playbook (ADR-0016 §2) -----------------------------------
+  // The voice: state exposure, never reassure, never propose an alternative.
+  "disruption.title": "If something slips",
+  "disruption.lede":
+    "Where this plan depends on the previous thing going right. Voyalier cannot tell you whether another service exists — only what you would have to replace, and how long you would have.",
+  "disruption.handoffs.title": "Hand-offs",
+  "disruption.handoff.connection": "between {from} and {to}",
+  "disruption.handoff.rental_pickup": "between {from} and collecting {to}",
+  "disruption.handoff.rental_return": "between returning {from} and {to}",
+  "disruption.slack.minutes": "{minutes} min",
+  "disruption.slack.hours": "{hours} h",
+  "disruption.slack.hoursMinutes": "{hours} h {minutes} min",
+  "disruption.slack.before": "{minutes} min before",
+  // Cautions Voyalier authored, not any carrier's minimum connection time.
+  "disruption.band.impossible": "starts before the one before it ends",
+  "disruption.band.tight": "tight",
+  "disruption.band.short": "short",
+  "disruption.band.comfortable": "comfortable",
+  "disruption.band.ample": "ample",
+  "disruption.exposed.title": "What is stacked behind what",
+  "disruption.exposed.line.one":
+    "{subject} can run {minutes} min late before the next thing is missed. One commitment follows it.",
+  "disruption.exposed.line.other":
+    "{subject} can run {minutes} min late before the next thing is missed. {count} commitments follow it.",
+  "disruption.pointers.title": "What you already have",
+  "disruption.pointers.note":
+    "Voyalier does not keep operators' contact details — they change, and a wrong one is worse than none. These come from your own records.",
+  "disruption.pointer.carrier":
+    "{carrier} — the number that reaches them is on your own confirmation.",
+  "disruption.pointer.airport":
+    "{name} ({iata}) is about {km} km away. Geography only: nothing here says a service runs from it.",
+  "disruption.pointer.mission":
+    "Your country keeps a post in {city}. Confirm its hours and address with your own foreign ministry before going.",
+
+  // --- Re-check sweep (ADR-0016 §4) ----------------------------------------
+  "recheck.title": "What changed since you last looked",
+  "recheck.lede":
+    "Refresh only what has gone stale, and see what moved. This runs when you ask and never on its own — Voyalier does not watch anything in the background.",
+  "recheck.consent":
+    "One click contacts the same official sites the advice and weather panels use: gov.uk, the US, Canadian and German foreign ministries, the CDC, Open-Meteo, and the US National Weather Service. Nothing about your trip is sent.",
+  "recheck.action": "Re-check this trip",
+  "recheck.checkedAt": "Checked {when}",
+  "recheck.announce.changed": "The re-check found changes.",
+  "recheck.announce.quiet": "The re-check found no changes.",
+  "recheck.source.advisories": "Official advice",
+  "recheck.source.weather": "Weather and alerts",
+  "recheck.outcome.neverFetched":
+    "never fetched — open the panel below to fetch it the first time",
+  "recheck.outcome.skipped": "still fresh, so it was not asked again",
+  "recheck.outcome.skippedSince":
+    "still fresh from {when}, so it was not asked again",
+  "recheck.outcome.unchanged": "no change",
+  "recheck.outcome.failed":
+    "could not be read this time ({reason}). Your last copy is unchanged — this is not an all-clear.",
+  "recheck.hosts": "Contacted: {hosts}",
+  "recheck.hosts.none": "Nothing needed refreshing, so nothing was contacted.",
+  "recheck.change.advisoryLevel": "{source} now says “{to}” (was “{from}”)",
+  "recheck.change.noLevel": "no level",
+  "recheck.change.advisoryAdded":
+    "{source} now publishes advice for this country",
+  "recheck.change.advisoryWithdrawn":
+    "{source} no longer publishes advice for this country",
+  "recheck.change.healthAdded": "New health notice: {title}",
+  "recheck.change.healthCleared": "Health notice no longer listed: {title}",
+  "recheck.change.alertRaised": "Official alert: {headline}",
+  "recheck.change.alertCleared": "Alert cleared: {event}",
+  "recheck.change.forecastMoved": "The outlook moved for {days} trip day(s)",
+
+  // --- Trip cover ----------------------------------------------------------
+  "cover.dates": "{start} — {end}",
+  "brief.journeys": "Trains, coaches, ferries and hire cars",
+  "factType.rail": "Train",
+  "factType.coach": "Coach",
+  "factType.ferry": "Ferry",
+  "factType.rental": "Hire car",
+  "field.carrierName": "Operator",
+  "field.serviceNumber": "Service",
+  "field.departurePlace": "From",
+  "field.arrivalPlace": "To",
+  "field.vehicleDescription": "Vehicle",
+  "schedule.label.rail_service": "Train {service}",
+  "schedule.label.rail_route": "Train {from}→{to}",
+  "schedule.label.rail": "A train journey",
+  "schedule.label.coach_service": "Coach {service}",
+  "schedule.label.coach_route": "Coach {from}→{to}",
+  "schedule.label.coach": "A coach journey",
+  "schedule.label.ferry_service": "Ferry {service}",
+  "schedule.label.ferry_route": "Ferry {from}→{to}",
+  "schedule.label.ferry": "A ferry crossing",
+  "schedule.label.rental_company": "{company} hire car",
+  "schedule.label.rental": "A hire car",
   "schedule.flight_overlap":
     "{first} and {second} overlap in time — a traveler can only be on one flight at once.",
+  "schedule.journey_overlap":
+    "{first} and {second} overlap in time — a traveler can only be on one of them.",
   "schedule.lodging_overlap":
     "{first} and {second} overlap — two stays cover the same night.",
   // A one-night gap and a run of nights are the same finding with a different
@@ -1827,7 +1922,7 @@ const es: Record<MessageKey, string> = {
   "search.label.flight": "Vuelo {subject}",
   "search.label.flightGeneric": "Vuelo",
   "search.label.stayGeneric": "Estancia",
-  "addFact.title": "Agregar vuelo o estancia",
+  "addFact.title": "Agregar una reserva",
   "addFact.description":
     "Ingresa un vuelo o una estancia manualmente. Las entradas manuales son tuyas y aparecen en el Blueprint de inmediato.",
   "addFact.submit": "Agregar al Blueprint",
@@ -2501,7 +2596,7 @@ const es: Record<MessageKey, string> = {
   "detail.unarchive": "Desarchivar",
   "detail.announce.updated": "Viaje actualizado.",
   "detail.announce.unarchived": "Viaje desarchivado.",
-  "detail.addFact": "Añadir vuelo o estancia",
+  "detail.addFact": "Añadir reserva",
   "detail.carbon.estimate.one":
     "Unos {kg} kg de CO₂e para {count} vuelo · {km} km",
   "detail.carbon.estimate.other":
@@ -2666,8 +2761,101 @@ const es: Record<MessageKey, string> = {
   "schedule.label.flight": "Un vuelo",
   "schedule.label.lodging_property": "{property}",
   "schedule.label.lodging": "Una estancia de alojamiento",
+  // --- Cuaderno de contingencias (ADR-0016 §2) -----------------------------
+  "disruption.title": "Si algo se retrasa",
+  "disruption.lede":
+    "Dónde este plan depende de que lo anterior salga bien. Voyalier no puede decirte si existe otro servicio, solo qué tendrías que reemplazar y cuánto tiempo tendrías.",
+  "disruption.handoffs.title": "Enlaces",
+  "disruption.handoff.connection": "entre {from} y {to}",
+  "disruption.handoff.rental_pickup": "entre {from} y recoger {to}",
+  "disruption.handoff.rental_return": "entre devolver {from} y {to}",
+  "disruption.slack.minutes": "{minutes} min",
+  "disruption.slack.hours": "{hours} h",
+  "disruption.slack.hoursMinutes": "{hours} h {minutes} min",
+  "disruption.slack.before": "{minutes} min antes",
+  "disruption.band.impossible": "empieza antes de que termine lo anterior",
+  "disruption.band.tight": "justo",
+  "disruption.band.short": "corto",
+  "disruption.band.comfortable": "cómodo",
+  "disruption.band.ample": "amplio",
+  "disruption.exposed.title": "Qué depende de qué",
+  "disruption.exposed.line.one":
+    "{subject} puede retrasarse {minutes} min antes de perder lo siguiente. Le sigue un compromiso.",
+  "disruption.exposed.line.other":
+    "{subject} puede retrasarse {minutes} min antes de perder lo siguiente. Le siguen {count} compromisos.",
+  "disruption.pointers.title": "Lo que ya tienes",
+  "disruption.pointers.note":
+    "Voyalier no guarda los datos de contacto de los operadores: cambian, y uno equivocado es peor que ninguno. Estos salen de tus propios registros.",
+  "disruption.pointer.carrier":
+    "{carrier}: el número para contactarlos está en tu propia confirmación.",
+  "disruption.pointer.airport":
+    "{name} ({iata}) está a unos {km} km. Solo geografía: nada aquí dice que salga un servicio desde allí.",
+  "disruption.pointer.mission":
+    "Tu país mantiene una sede en {city}. Confirma su horario y dirección con tu propio ministerio de exteriores antes de ir.",
+
+  // --- Reconsulta (ADR-0016 §4) --------------------------------------------
+  "recheck.title": "Qué ha cambiado desde la última vez",
+  "recheck.lede":
+    "Actualiza solo lo que ha caducado y mira qué se ha movido. Se ejecuta cuando tú lo pides y nunca por su cuenta: Voyalier no vigila nada en segundo plano.",
+  "recheck.consent":
+    "Un clic contacta los mismos sitios oficiales que usan los paneles de consejos y clima: gov.uk, los ministerios de exteriores de EE. UU., Canadá y Alemania, los CDC, Open-Meteo y el Servicio Meteorológico Nacional de EE. UU. No se envía nada sobre tu viaje.",
+  "recheck.action": "Reconsultar este viaje",
+  "recheck.checkedAt": "Consultado {when}",
+  "recheck.announce.changed": "La reconsulta encontró cambios.",
+  "recheck.announce.quiet": "La reconsulta no encontró cambios.",
+  "recheck.source.advisories": "Consejos oficiales",
+  "recheck.source.weather": "Clima y alertas",
+  "recheck.outcome.neverFetched":
+    "nunca consultado; abre el panel de abajo para consultarlo por primera vez",
+  "recheck.outcome.skipped": "aún reciente, así que no se volvió a consultar",
+  "recheck.outcome.skippedSince":
+    "aún reciente desde {when}, así que no se volvió a consultar",
+  "recheck.outcome.unchanged": "sin cambios",
+  "recheck.outcome.failed":
+    "no se pudo leer esta vez ({reason}). Tu última copia sigue igual; esto no es una confirmación de que todo esté bien.",
+  "recheck.hosts": "Contactado: {hosts}",
+  "recheck.hosts.none":
+    "No hacía falta actualizar nada, así que no se contactó a nadie.",
+  "recheck.change.advisoryLevel": "{source} ahora dice «{to}» (antes «{from}»)",
+  "recheck.change.noLevel": "sin nivel",
+  "recheck.change.advisoryAdded":
+    "{source} ahora publica consejos para este país",
+  "recheck.change.advisoryWithdrawn":
+    "{source} ya no publica consejos para este país",
+  "recheck.change.healthAdded": "Nuevo aviso sanitario: {title}",
+  "recheck.change.healthCleared": "Aviso sanitario ya no listado: {title}",
+  "recheck.change.alertRaised": "Alerta oficial: {headline}",
+  "recheck.change.alertCleared": "Alerta levantada: {event}",
+  "recheck.change.forecastMoved":
+    "El pronóstico cambió para {days} día(s) del viaje",
+
+  // --- Portada del viaje ---------------------------------------------------
+  "cover.dates": "{start} — {end}",
+  "brief.journeys": "Trenes, autobuses, ferris y coches de alquiler",
+  "factType.rail": "Tren",
+  "factType.coach": "Autobús",
+  "factType.ferry": "Ferry",
+  "factType.rental": "Coche de alquiler",
+  "field.carrierName": "Operador",
+  "field.serviceNumber": "Servicio",
+  "field.departurePlace": "Desde",
+  "field.arrivalPlace": "Hasta",
+  "field.vehicleDescription": "Vehículo",
+  "schedule.label.rail_service": "Tren {service}",
+  "schedule.label.rail_route": "Tren {from}→{to}",
+  "schedule.label.rail": "Un viaje en tren",
+  "schedule.label.coach_service": "Autobús {service}",
+  "schedule.label.coach_route": "Autobús {from}→{to}",
+  "schedule.label.coach": "Un viaje en autobús",
+  "schedule.label.ferry_service": "Ferry {service}",
+  "schedule.label.ferry_route": "Ferry {from}→{to}",
+  "schedule.label.ferry": "Una travesía en ferry",
+  "schedule.label.rental_company": "Coche de alquiler de {company}",
+  "schedule.label.rental": "Un coche de alquiler",
   "schedule.flight_overlap":
     "{first} y {second} se traslapan en el tiempo; un viajero solo puede estar en un vuelo a la vez.",
+  "schedule.journey_overlap":
+    "{first} y {second} se traslapan en el tiempo; un viajero solo puede estar en uno de ellos.",
   "schedule.lodging_overlap":
     "{first} y {second} se traslapan; dos estancias cubren la misma noche.",
   "schedule.lodging_gap.one":

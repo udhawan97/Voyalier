@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   CandidateFact,
   ConfirmedFact,
+  FactType,
   FactLabel,
   FlightEmissions,
   ItineraryConflict,
@@ -67,7 +68,11 @@ import { BriefDialog } from "./BriefDialog";
 import { CandidateReviewDialog } from "./CandidateReviewDialog";
 import { DocumentsPanel } from "./DocumentsPanel";
 import { TripNotes } from "./TripNotes";
+import { RouteIcon } from "../components/icons";
+import { DisruptionPanel } from "./DisruptionPanel";
+import { RecheckPanel } from "./RecheckPanel";
 import { TodayPanel } from "./TodayPanel";
+import { TripCover } from "./TripCover";
 import { AssistPreview } from "./AssistPreview";
 import { AssistDraft } from "./AssistDraft";
 import { ChatPanel } from "./ChatPanel";
@@ -98,6 +103,13 @@ function byField(key: string) {
   };
 }
 
+/** Which mark stands for a fact's kind. Surface legs share the route mark. */
+function factIcon(factType: FactType) {
+  if (factType === "flight_segment") return <PlaneIcon />;
+  if (factType === "lodging_stay") return <BedIcon />;
+  return <RouteIcon />;
+}
+
 function FactCard({
   fact,
   onUnconfirm,
@@ -120,7 +132,7 @@ function FactCard({
     >
       <div className="voy-fact__head">
         <span className="voy-fact__icon" aria-hidden="true">
-          {fact.factType === "flight_segment" ? <PlaneIcon /> : <BedIcon />}
+          {factIcon(fact.factType)}
         </span>
         <div className="voy-fact__heading">
           <p className="voy-fact__title">
@@ -646,6 +658,21 @@ function ScheduleCheck({ conflicts }: { conflicts: ItineraryConflict[] }) {
         });
       case "lodging":
         return t("schedule.label.lodging");
+      case "journey_service":
+        return t(`schedule.label.${label.mode}_service`, {
+          service: label.service,
+        });
+      case "journey_route":
+        return t(`schedule.label.${label.mode}_route`, {
+          from: label.from,
+          to: label.to,
+        });
+      case "journey":
+        return t(`schedule.label.${label.mode}`);
+      case "rental_company":
+        return t("schedule.label.rental_company", { company: label.company });
+      case "rental":
+        return t("schedule.label.rental");
     }
   }
 
@@ -670,6 +697,9 @@ function ScheduleCheck({ conflicts }: { conflicts: ItineraryConflict[] }) {
     switch (conflict.kind) {
       case "flight_overlap":
         return t("schedule.flight_overlap", { first, second });
+      // Equally impossible, named apart so the sentence can say "train".
+      case "journey_overlap":
+        return t("schedule.journey_overlap", { first, second });
       case "lodging_overlap":
         return t("schedule.lodging_overlap", { first, second });
       case "lodging_gap": {
@@ -1007,6 +1037,15 @@ export function TripDetailView({
   const stays = confirmedFacts
     .filter((fact) => fact.factType === "lodging_stay")
     .sort(byField("checkinDate"));
+  // Rail, coach, ferry and hire cars in one group, in departure order. Grouped
+  // together rather than one section per mode: a traveler reads their surface
+  // legs as a sequence, and the mode is already on each card.
+  const journeys = confirmedFacts
+    .filter(
+      (fact) =>
+        fact.factType !== "flight_segment" && fact.factType !== "lodging_stay",
+    )
+    .sort(byField("departureLocal"));
   const isArchived = trip.status === "archived";
   const hasItinerary =
     confirmedFacts.length > 0 || data.detail.tripItems.length > 0;
@@ -1016,7 +1055,8 @@ export function TripDetailView({
       <section className="voy-detail" aria-labelledby="detail-heading">
         {backButton}
 
-        <header className="voy-detail__head">
+        <header className="voy-detail__head voy-detail__head--cover">
+          <TripCover destination={trip.destination} />
           <div className="voy-detail__headmain">
             {/* Same rule as the trip card: the eyebrow earns its place only
                 when it differs from the title beneath it, and a trip created
@@ -1181,6 +1221,13 @@ export function TripDetailView({
               />
               <CarbonEstimate estimate={data.detail.flightEmissions} />
               <FactGroup
+                title={t("brief.journeys")}
+                icon={<RouteIcon />}
+                facts={journeys}
+                onUnconfirm={unconfirm}
+                unconfirmingId={unconfirmingId}
+              />
+              <FactGroup
                 title={t("brief.stays")}
                 icon={<BedIcon />}
                 facts={stays}
@@ -1209,9 +1256,15 @@ export function TripDetailView({
 
         {hasItinerary ? <ScheduleCheck conflicts={itineraryConflicts} /> : null}
 
+        {/* Advisory, and deliberately below the schedule check: what is already
+          wrong outranks what could go wrong. */}
+        <DisruptionPanel plan={data.detail.disruptionPlan} />
+
         {/* Everything from here down is below the fold and several of these fetch
           on mount, so they wait until they are nearly on screen. */}
         <DeferredSection id="section-prepare">
+          <RecheckPanel tripId={tripId} onChecked={() => reload()} />
+
           <TravelAdvice
             tripId={tripId}
             panel={data.detail.advisoryPanel}

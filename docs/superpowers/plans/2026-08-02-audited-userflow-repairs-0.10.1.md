@@ -1,4 +1,4 @@
-# Audited user-flow repairs — 0.9.3
+# Audited user-flow repairs — 0.10.1
 
 Eleven findings from the 2026-08-02 browser audit of 0.9.2 (`9c3b49a`), which
 aimed at the flow the 0.9.2 notes named as unexercised: import → candidate
@@ -32,7 +32,7 @@ Fix: derive the keychain account from the database path.
   owns an account nobody else deletes.
 
 Copy, never move — a move would be the same data-loss bug pointing the other
-way. ADR-0016 carries the reasoning.
+way. ADR-0017 carries the reasoning.
 
 ## Core — the evidence spans
 

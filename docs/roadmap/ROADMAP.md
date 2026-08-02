@@ -256,6 +256,16 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   catalogue that had nothing in Africa, South America, the Middle East or
   Oceania — their assets follow from a separate publisher run.
 
+- ✓ Multi-modal evidence, exposure and the sweep (0.10.0): `FactType` extends to rail,
+  coach, ferry and hire cars — evidence, never booking — with airport codes kept flight-only so
+  the carbon estimate and the nearest-airport lookup cannot be confused by a station. A
+  deterministic, offline **disruption playbook** states the slack at each hand-off and what is
+  stacked behind each leg; it never proposes an alternative service, never predicts a delay, and
+  never enters the readiness rollup. **`recheckTrip`** refreshes only what has gone stale across
+  the advice and weather seams and reports what moved, naming every host before the click — an
+  explicit sweep, not background monitoring. ADR-0016 records all four decisions, including the
+  refusal to curate a carrier contact table.
+
 ## Later
 
 Licensed live inventory, encrypted sync, group collaboration, monitoring, silent/automatic email ingestion (inbox scanning, as opposed to the shipped explicit paste-or-.eml import), and mobile experiences.
