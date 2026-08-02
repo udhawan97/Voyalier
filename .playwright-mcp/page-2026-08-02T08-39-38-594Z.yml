@@ -1,0 +1,397 @@
+- generic [ref=f9e2]:
+  - generic [ref=f9e3]:
+    - link "Skip to content" [ref=f9e4] [cursor=pointer]:
+      - /url: "#main"
+    - banner [ref=f9e5]:
+      - button "Voyalier — all trips" [ref=f9e6] [cursor=pointer]:
+        - generic [ref=f9e7]: Voyalier
+      - generic [ref=f9e8]:
+        - button "Search workspace" [ref=f9e9] [cursor=pointer]
+        - status [ref=f9e13]: Ready
+        - radiogroup "Color theme" [ref=f9e15]:
+          - radio "Light" [ref=f9e16] [cursor=pointer]
+          - radio "System" [ref=f9e22] [cursor=pointer]
+          - radio "Dark" [checked] [ref=f9e28] [cursor=pointer]
+        - button "Settings" [ref=f9e33] [cursor=pointer]
+    - main [ref=f9e37]:
+      - region [ref=f9e96]:
+        - button "All trips" [ref=f9e97] [cursor=pointer]
+        - generic [ref=f9e101]:
+          - generic [ref=f9e102]:
+            - paragraph [ref=f9e103]: Mumbai → Tokyo
+            - heading "Mumbai → Tokyo" [level=1] [ref=f9e104]
+            - paragraph [ref=f9e105]:
+              - text: Nov 10, 2026 – Nov 24, 2026
+              - generic [ref=f9e106]: ·
+              - generic [ref=f9e107]: "Status:"
+              - generic [ref=f9e108]: Draft
+          - generic [ref=f9e113]:
+            - button "Import" [ref=f9e114] [cursor=pointer]
+            - button "Add flight or stay" [ref=f9e119] [cursor=pointer]
+            - button "Edit" [ref=f9e121] [cursor=pointer]
+            - button "Archive" [ref=f9e123] [cursor=pointer]
+            - button "Delete" [ref=f9e129] [cursor=pointer]
+        - navigation "Jump to a section" [ref=f9e132]:
+          - link "Plan" [ref=f9e133] [cursor=pointer]:
+            - /url: "#section-plan"
+          - link "Prepare" [ref=f9e134] [cursor=pointer]:
+            - /url: "#section-prepare"
+          - link "Visa" [active] [ref=f9e135] [cursor=pointer]:
+            - /url: "#section-visa"
+          - link "Discover" [ref=f9e136] [cursor=pointer]:
+            - /url: "#section-discover"
+          - link "AI" [ref=f9e137] [cursor=pointer]:
+            - /url: "#section-ai"
+        - region [ref=f9e138]:
+          - generic [ref=f9e139]:
+            - heading "Today" [level=2] [ref=f9e140]
+            - generic [ref=f9e146]: Starts in 100 days
+          - paragraph [ref=f9e147]: No plans for today.
+        - paragraph [ref=f9e148]: No suggestions waiting. Import a document to find more.
+        - generic [ref=f9e149]:
+          - heading "Blueprint" [level=2] [ref=f9e150]
+          - generic [ref=f9e151]:
+            - paragraph [ref=f9e152]: Your Blueprint is empty
+            - generic [ref=f9e153]: Confirmed flights and stays land here in itinerary order. Import a confirmation or add a fact by hand to begin.
+            - generic [ref=f9e155]:
+              - button "Import a document" [ref=f9e156] [cursor=pointer]
+              - button "Add flight or stay" [ref=f9e161] [cursor=pointer]
+        - generic [ref=f9e163]:
+          - region [ref=f9e164]:
+            - heading "Saved places" [level=2] [ref=f9e165]
+            - paragraph [ref=f9e170]: Your shortlist keeps the source, license, and reasons captured when you saved it. Adding one to the plan is always a separate choice.
+            - paragraph [ref=f9e171]: No saved places yet.
+          - region [ref=f9e172]:
+            - heading "Packing checklist" [level=2] [ref=f9e173]
+            - paragraph [ref=f9e178]: Suggestions stay suggestions until you add them. Once added, weather updates never change or remove your checklist.
+            - generic [ref=f9e179]:
+              - generic [ref=f9e180]:
+                - text: Custom item
+                - textbox "Custom item" [ref=f9e181]
+              - generic [ref=f9e182]: Enter an item to enable Add.
+              - button "Add" [disabled] [ref=f9e183]
+            - list
+          - region [ref=f9e185]:
+            - heading "Activities & transfers" [level=2] [ref=f9e186]
+            - paragraph [ref=f9e191]: Add plans you entered yourself. They are shown as traveler-authored plans, never as confirmed bookings.
+            - generic [ref=f9e192]:
+              - generic [ref=f9e193]:
+                - text: Type
+                - combobox "Type" [ref=f9e194]:
+                  - option "Activity" [selected]
+                  - option "Rail"
+                  - option "Transfer"
+              - generic [ref=f9e195]:
+                - text: Name
+                - textbox "Name" [ref=f9e196]
+              - generic [ref=f9e197]:
+                - text: Location (optional)
+                - textbox "Location (optional)" [ref=f9e198]
+              - generic [ref=f9e199]:
+                - text: Start (optional)
+                - textbox "Start (optional)" [ref=f9e200]
+              - generic [ref=f9e201]:
+                - text: End (optional)
+                - textbox "End (optional)" [ref=f9e202]
+              - generic [ref=f9e203]:
+                - text: Private notes (optional)
+                - textbox "Private notes (optional)" [ref=f9e204]
+              - button "Add to plan" [ref=f9e205] [cursor=pointer]
+            - list
+        - generic [ref=f9e207]:
+          - region [ref=f9e211]:
+            - heading "Official travel advice" [level=2] [ref=f9e212]
+            - generic [ref=f9e218]:
+              - generic [ref=f9e219]: Country to fetch official advice for
+              - combobox "Country to fetch official advice for" [ref=f9e220]:
+                - option "Choose a country…" [selected]
+                - option "Australia"
+                - option "Austria"
+                - option "Belgium"
+                - option "Brazil"
+                - option "Canada"
+                - option "China"
+                - option "Croatia"
+                - option "Denmark"
+                - option "Egypt"
+                - option "Finland"
+                - option "France"
+                - option "Germany"
+                - option "Greece"
+                - option "Iceland"
+                - option "India"
+                - option "Indonesia"
+                - option "Ireland"
+                - option "Italy"
+                - option "Japan"
+                - option "Malaysia"
+                - option "Mexico"
+                - option "Morocco"
+                - option "Netherlands"
+                - option "New Zealand"
+                - option "Norway"
+                - option "Peru"
+                - option "Poland"
+                - option "Portugal"
+                - option "Singapore"
+                - option "South Africa"
+                - option "South Korea"
+                - option "Spain"
+                - option "Sweden"
+                - option "Switzerland"
+                - option "Thailand"
+                - option "Turkey"
+                - option "United Arab Emirates"
+                - option "USA"
+                - option "Vietnam"
+              - button "Fetch official advice" [disabled] [ref=f9e221]
+            - paragraph [ref=f9e223]: Fetching contacts the UK, US, Canadian, and German government sources and the US CDC once from this device, and stores a dated copy locally. Nothing about your trip leaves this device.
+          - region [ref=f9e224]:
+            - heading "Weather outlook" [level=2] [ref=f9e225]
+            - button "Fetch weather outlook" [ref=f9e233] [cursor=pointer]
+            - paragraph [ref=f9e235]: Fetching sends your destination name (“Tokyo”) to open-meteo.com to place it on the map, then retrieves the forecast, the history for your dates, and the air quality. For US destinations it also asks the National Weather Service for active alerts. Nothing else about your trip leaves this device.
+          - region [ref=f9e236]:
+            - heading "Destination facts" [level=2] [ref=f9e237]
+            - button "Fetch destination facts" [ref=f9e244] [cursor=pointer]
+            - paragraph [ref=f9e246]: Fetching sends your destination (“Tokyo”) and your origin place name to open-meteo.com to place them on the map, and asks the European Central Bank for today’s reference rates. The time difference, sun, moon, country facts and nearest airports are worked out on this device. Nothing else about your trip leaves it.
+          - region [ref=f9e247]:
+            - heading "Public holidays" [level=2] [ref=f9e248]
+            - button "Fetch public holidays" [ref=f9e255] [cursor=pointer]
+            - paragraph [ref=f9e257]: Fetching sends your destination name (“Tokyo”) to open-meteo.com to place it in a country, then asks Nager.Date for that country’s public holidays. Nothing else about your trip leaves it.
+          - region [ref=f9e258]:
+            - heading "About this place" [level=2] [ref=f9e259]
+            - button "Fetch a summary" [ref=f9e266] [cursor=pointer]
+            - paragraph [ref=f9e268]: Fetching asks Wikipedia (en.wikipedia.org) for a short summary of “Tokyo”. Nothing else about your trip leaves it.
+          - region [ref=f9e269]:
+            - heading "Notes" [level=2] [ref=f9e270]
+            - paragraph [ref=f9e275]: "Anything you want to remember: half-made plans, a restaurant someone mentioned, what to book next."
+            - generic [ref=f9e276]: Trip notes
+            - textbox "Trip notes" [ref=f9e277]:
+              - /placeholder: Start typing…
+              - text: Zanzibar ryokan booking reference and onsen plan
+            - generic [ref=f9e278]:
+              - paragraph [ref=f9e279]: Kept on this device and encrypted. Never included in a shared brief or sent to an AI provider.
+              - status
+          - region [ref=f9e280]:
+            - heading "Saved reading" [level=2] [ref=f9e281]
+            - paragraph [ref=f9e287]: Links and files you're keeping with this trip to read later.
+            - note [ref=f9e288]:
+              - text: Saved reading is reading material, nothing more. Voyalier never turns it into a confirmed booking, never treats it as evidence, and it never changes your trip's readiness.
+              - button "Dismiss tip" [ref=f9e289] [cursor=pointer]
+            - generic [ref=f9e290]:
+              - heading "Save a link" [level=3] [ref=f9e291]
+              - note [ref=f9e292]:
+                - text: Looks like a confirmation? Import it instead — that's the flow that reads a booking into your trip.
+                - button "Dismiss tip" [ref=f9e293] [cursor=pointer]
+              - generic [ref=f9e294]: Link address
+              - textbox "Link address" [ref=f9e295]:
+                - /placeholder: https://…
+              - generic [ref=f9e296]: Title (optional)
+              - textbox "Title (optional)" [ref=f9e297]
+              - generic [ref=f9e298]: Your note (optional)
+              - textbox "Your note (optional)" [ref=f9e299]
+              - generic [ref=f9e300]:
+                - generic [ref=f9e301]: Tags (optional)
+                - paragraph [ref=f9e302]: Separate tags with commas.
+                - textbox "Tags (optional)" [ref=f9e303]
+              - button "Save" [disabled] [ref=f9e304]
+            - generic [ref=f9e306]:
+              - note [ref=f9e307]:
+                - text: Fetching asks first because it contacts the site you saved. Everything else on this panel stays on this device.
+                - button "Dismiss tip" [ref=f9e308] [cursor=pointer]
+              - generic [ref=f9e309]:
+                - checkbox "Allow fetching page details" [ref=f9e310]
+                - text: Allow fetching page details
+              - paragraph [ref=f9e311]: Fetching is off, so Voyalier will not contact any site you have saved.
+            - generic [ref=f9e312]:
+              - paragraph [ref=f9e313]: Nothing saved yet.
+              - generic [ref=f9e314]: Paste a link you want to read later and it will be kept here with the trip.
+          - region [ref=f9e315]:
+            - heading "Imported documents" [level=2] [ref=f9e316]
+            - paragraph [ref=f9e322]: The confirmations you brought in. Voyalier keeps the original text so you can check what it read — and remove it whenever you like.
+            - generic [ref=f9e323]:
+              - paragraph [ref=f9e328]: Nothing imported yet.
+              - generic [ref=f9e329]: Import a confirmation and the original will be kept here.
+          - region [ref=f9e330]:
+            - heading "Find in this trip" [level=2] [ref=f9e331]
+            - paragraph [ref=f9e337]: Type to search as you go — partial words work, and any word matches. Pick a suggestion, or copy a result to reuse it.
+            - generic [ref=f9e338]:
+              - generic [ref=f9e339]: Search your documents and confirmed plans
+              - searchbox "Search your documents and confirmed plans" [ref=f9e340]
+        - region [ref=f9e341]:
+          - heading "Visa & entry preparation" [level=2] [ref=f9e342]
+          - note [ref=f9e348]: Voyalier does not decide whether you need a visa and has not verified anything here. Every requirement below links to the official source — confirm there before you pay, book, or travel.
+          - generic [ref=f9e349]:
+            - generic [ref=f9e350]:
+              - generic [ref=f9e351]: Passport country code
+              - paragraph [ref=f9e352]: Two letters, ISO-3166-1 alpha-2 — IN for India, NG for Nigeria, GB for the United Kingdom.
+              - generic [ref=f9e353]:
+                - textbox "Passport country code" [ref=f9e354]: IN
+                - status [ref=f9e355]
+            - button "Save" [ref=f9e356] [cursor=pointer]
+          - generic [ref=f9e358]:
+            - paragraph [ref=f9e359]: Short-term stay visa (Japan)
+            - paragraph [ref=f9e360]: Quoted from Ministry of Foreign Affairs of Japan · read on 2026-07-30
+            - list [ref=f9e361]:
+              - listitem [ref=f9e362]:
+                - link "Confirm your own case at the official source (opens in new tab)" [ref=f9e363] [cursor=pointer]:
+                  - /url: https://www.mofa.go.jp/j_info/visit/visa/index.html
+                  - text: Confirm your own case at the official source
+                  - generic [ref=f9e364]: (opens in new tab)
+          - generic [ref=f9e365]:
+            - paragraph [ref=f9e366]: These steps were read from Ministry of Foreign Affairs of Japan on 2026-07-30. Confirm your own case there before you act on any of them.
+            - paragraph [ref=f9e367]: "Checklist: 1 of 4 complete across 6 guide steps. Voyalier has not verified any item."
+            - generic [ref=f9e368]:
+              - list [ref=f9e369]:
+                - listitem [ref=f9e370]:
+                  - button "1 Check which door is yours" [ref=f9e371] [cursor=pointer]:
+                    - generic [ref=f9e372]: "1"
+                    - generic [ref=f9e373]: Check which door is yours
+                - listitem [ref=f9e374]:
+                  - button "2 Your passport Done" [ref=f9e375] [cursor=pointer]:
+                    - generic [ref=f9e376]: "2"
+                    - generic [ref=f9e377]: Your passport
+                    - generic [ref=f9e378]: Done
+                - listitem [ref=f9e379]:
+                  - button "3 The form and the photograph" [ref=f9e380] [cursor=pointer]:
+                    - generic [ref=f9e381]: "3"
+                    - generic [ref=f9e382]: The form and the photograph
+                - listitem [ref=f9e383]:
+                  - button "4 What the trip actually is" [ref=f9e384] [cursor=pointer]:
+                    - generic [ref=f9e385]: "4"
+                    - generic [ref=f9e386]: What the trip actually is
+                - listitem [ref=f9e387]:
+                  - button "5 Where you apply" [ref=f9e388] [cursor=pointer]:
+                    - generic [ref=f9e389]: "5"
+                    - generic [ref=f9e390]: Where you apply
+                - listitem [ref=f9e391]:
+                  - button "6 After it is issued" [ref=f9e392] [cursor=pointer]:
+                    - generic [ref=f9e393]: "6"
+                    - generic [ref=f9e394]: After it is issued
+              - generic [ref=f9e395]:
+                - heading "Step 1 · Check which door is yours" [level=3] [ref=f9e396]
+                - paragraph [ref=f9e397]: The authority calls this “short-term stay”
+                - paragraph [ref=f9e398]: Short-term stay covers tourism, business, and visiting friends or relatives, with no paid work. Japan publishes a table of the countries and regions it exempts from a visa for this; for several of them the exemption depends on the kind of passport you hold, or on registering it with a Japanese mission first. Read your own row before you assume either way.
+                - list [ref=f9e399]:
+                  - listitem [ref=f9e400]:
+                    - link "MOFA — Exemption of visa (short-term stay) (opens in new tab)" [ref=f9e401] [cursor=pointer]:
+                      - /url: https://www.mofa.go.jp/j_info/visit/visa/short/novisa.html
+                      - text: MOFA — Exemption of visa (short-term stay)
+                      - generic [ref=f9e402]: (opens in new tab)
+                  - listitem [ref=f9e403]:
+                    - link "MOFA — Visa (opens in new tab)" [ref=f9e404] [cursor=pointer]:
+                      - /url: https://www.mofa.go.jp/j_info/visit/visa/index.html
+                      - text: MOFA — Visa
+                      - generic [ref=f9e405]: (opens in new tab)
+                  - listitem [ref=f9e406]:
+                    - link "MOFA — Procedure chart for short-term stay (opens in new tab)" [ref=f9e407] [cursor=pointer]:
+                      - /url: https://www.mofa.go.jp/j_info/visit/visa/process/short.html
+                      - text: MOFA — Procedure chart for short-term stay
+                      - generic [ref=f9e408]: (opens in new tab)
+          - region [ref=f9e409]:
+            - heading "Ministry of Foreign Affairs of Japan" [level=4] [ref=f9e410]
+            - paragraph [ref=f9e411]: Ministry of Foreign Affairs of Japan does not publish its times in a form Voyalier can read for you. Read them yourself at the official page.
+            - list [ref=f9e413]:
+              - listitem [ref=f9e414]:
+                - link "Check current published times at the source (opens in new tab)" [ref=f9e415] [cursor=pointer]:
+                  - /url: https://www.mofa.go.jp/j_info/visit/visa/index.html
+                  - text: Check current published times at the source
+                  - generic [ref=f9e416]: (opens in new tab)
+          - region [ref=f9e417]:
+            - heading [level=4] [ref=f9e418]:
+              - button "Your country's missions here" [ref=f9e419] [cursor=pointer]:
+                - generic [ref=f9e420]: ▸
+                - text: Your country's missions here
+        - generic [ref=f9e209]:
+          - region [ref=f9e421]:
+            - heading "Offline city data" [level=2] [ref=f9e422]
+            - generic [ref=f9e428]:
+              - heading "Recommended for this trip" [level=3] [ref=f9e429]
+              - list [ref=f9e430]:
+                - listitem [ref=f9e431]:
+                  - generic [ref=f9e432]:
+                    - generic [ref=f9e433]: Tokyo
+                    - generic [ref=f9e434]: Japan
+                  - paragraph [ref=f9e435]: Matches your destination
+                  - paragraph [ref=f9e436]: Includes a verified offline map download; size varies by city.
+                  - button "Download Tokyo city data" [ref=f9e437] [cursor=pointer]
+              - paragraph [ref=f9e439]: Downloading pulls this pack's data in; nothing about your trip is sent except the request for the pack file.
+            - paragraph [ref=f9e440]: Download a city's places and travel notes to use offline. The pack is pulled from GitHub and stored on this device for this trip — nothing about your trip is sent. Each pack pairs Overture places with a separate Wikivoyage notes layer, each under its own license.
+            - button "Browse city packs" [ref=f9e441] [cursor=pointer]
+            - paragraph [ref=f9e443]: Packs are stored on this device for this trip. Downloading pulls data in from GitHub; nothing about your trip is sent.
+          - region [ref=f9e444]:
+            - heading "Recommendations" [level=2] [ref=f9e445]
+            - paragraph [ref=f9e451]: Ranked picks from a downloaded city pack, weighted by your interests. The scoring is a transparent rule — not a model — and each pick keeps its source and license.
+            - group "Persona presets" [ref=f9e452]:
+              - button "Balanced" [ref=f9e453] [cursor=pointer]
+              - button "Foodie" [ref=f9e455] [cursor=pointer]
+              - button "Explorer" [ref=f9e457] [cursor=pointer]
+            - generic [ref=f9e459]:
+              - generic [ref=f9e460]:
+                - generic [ref=f9e461]:
+                  - text: Food
+                  - generic [ref=f9e462]: "50"
+                - slider "Food 50" [ref=f9e463]: "50"
+              - generic [ref=f9e464]:
+                - generic [ref=f9e465]:
+                  - text: Culture
+                  - generic [ref=f9e466]: "50"
+                - slider "Culture 50" [ref=f9e467]: "50"
+              - generic [ref=f9e468]:
+                - generic [ref=f9e469]:
+                  - text: Nature
+                  - generic [ref=f9e470]: "50"
+                - slider "Nature 50" [ref=f9e471]: "50"
+              - generic [ref=f9e472]:
+                - generic [ref=f9e473]:
+                  - text: Nightlife
+                  - generic [ref=f9e474]: "50"
+                - slider "Nightlife 50" [ref=f9e475]: "50"
+              - generic [ref=f9e476]:
+                - generic [ref=f9e477]:
+                  - text: Shopping
+                  - generic [ref=f9e478]: "50"
+                - slider "Shopping 50" [ref=f9e479]: "50"
+            - generic [ref=f9e480]:
+              - button "Save interests" [disabled] [ref=f9e481]
+              - status [ref=f9e483]: Interests saved
+            - button "Get recommendations" [ref=f9e484] [cursor=pointer]
+            - paragraph [ref=f9e486]: Suggestions from open place data — never authoritative for prices, hours, or safety. Nothing leaves your device.
+          - region [ref=f9e487]:
+            - heading "Map" [level=2] [ref=f9e488]
+            - paragraph [ref=f9e494]: See your destination and recommended places on a map. A downloaded offline basemap stays on this device; otherwise showing the map fetches tiles from OpenFreeMap. Nothing about your trip is sent.
+            - button "Show map" [ref=f9e495] [cursor=pointer]
+        - generic [ref=f9e210]:
+          - region [ref=f9e497]:
+            - heading "Ask about this trip" [level=2] [ref=f9e498]
+            - paragraph [ref=f9e504]: A conversation about this trip, answered by the AI model running on this computer.
+            - note [ref=f9e505]:
+              - text: This chat runs on this machine. It can read what you've saved with this trip — your plans, your notes, your saved reading — but confirmation codes and traveler names are deliberately withheld from it, so it can't tell you your booking reference.
+              - button "Dismiss tip" [ref=f9e506] [cursor=pointer]
+            - note [ref=f9e507]: AI-generated and never authoritative. Voyalier doesn't treat a reply as evidence. Verify anything that matters — entry rules, health, safety, prices — against an official source.
+            - paragraph [ref=f9e509]: Nothing asked yet.
+            - generic [ref=f9e510]:
+              - heading "Chat needs a model on this computer" [level=3] [ref=f9e511]
+              - paragraph [ref=f9e512]: Voyalier answers on-device with Ollama, and nothing is running here yet. Install Ollama, pull a model, and this conversation opens up. Everything else on this trip works without it.
+              - button "Open on-device AI settings" [ref=f9e513] [cursor=pointer]
+          - region [ref=f9e514]:
+            - heading "Preview an AI request" [level=2] [ref=f9e515]
+            - paragraph [ref=f9e521]: See exactly what Voyalier would send to a provider for this trip. Confirmation codes and traveler names are never included, and nothing is sent.
+            - paragraph [ref=f9e522]: This gives you a read-only answer — it won't change your trip. To have the AI fill in lodging dates from a booking you imported, use “Fill gaps with on-device AI” below.
+            - generic [ref=f9e523]:
+              - generic [ref=f9e524]: Provider to preview
+              - combobox "Provider to preview" [ref=f9e525]:
+                - option "Ollama (on-device)" [selected]
+                - option "OpenAI"
+                - option "Anthropic"
+              - button "Preview request" [ref=f9e526] [cursor=pointer]
+            - paragraph [ref=f9e528]:
+              - text: Set up AI in Settings to use this.
+              - button "Open Settings" [ref=f9e529] [cursor=pointer]
+            - paragraph [ref=f9e530]: Preview shows exactly what would be sent. On-device runs stay on this device via Ollama; cloud runs send the previewed request to your chosen provider using your stored key. Each completed run is listed above.
+          - region [ref=f9e531]:
+            - heading "Fill gaps with on-device AI" [level=2] [ref=f9e532]
+            - paragraph [ref=f9e538]: If a booking you imported has lodging dates that weren't picked up, your on-device AI can propose them from the text. It runs on this device — nothing leaves — and every suggestion is a draft you review before anything is saved.
+            - button "Preview what it reads" [ref=f9e540] [cursor=pointer]
+            - paragraph [ref=f9e542]: On-device only. Voyalier drafts dates from your own imported text; it never invents prices, visas, health, or safety details, and nothing is saved until you review it.
+  - status [ref=f9e95]

@@ -132,3 +132,69 @@ test("planning persists through the real loopback service and a browser reload",
       .getByText("Tea ceremony", { exact: true }),
   ).toBeVisible();
 });
+
+/**
+ * The passport row is one row.
+ *
+ * This lives here, and not in the unit suite, because jsdom performs no layout:
+ * it reports every element as zero-sized, so the defect this guards against —
+ * `flex: 1 1 16rem` landing on a column-axis child and computing a 44px input
+ * as 256px tall — is invisible to Vitest by construction. Only a real engine
+ * can fail this test.
+ */
+test("the visa passport field keeps its Save button and suggestions attached", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Create a trip" }).first().click();
+  const createTrip = page.getByRole("dialog", { name: "Create a trip" });
+  await createTrip.getByLabel("From").fill("Mumbai");
+  await createTrip.getByLabel("To").fill("Tokyo");
+  await createTrip.getByLabel("Start date").fill(isoDay(30));
+  await createTrip.getByLabel("End date").fill(isoDay(44));
+  await createTrip.getByLabel("Trip name (optional)").fill("Passport row trip");
+  await createTrip.getByRole("button", { name: "Create trip" }).click();
+  await page.getByRole("button", { name: "Open Passport row trip" }).click();
+  await page.getByRole("link", { name: "Visa" }).click();
+
+  const row = page.locator(".voy-visa__nationality");
+  await expect(row.locator("input")).toBeVisible();
+
+  // Both viewports: the row wraps below 48rem, so the desktop and narrow cases
+  // are genuinely different layouts rather than the same one measured twice.
+  for (const width of [1280, 375]) {
+    await page.setViewportSize({ width, height: 900 });
+    const gap = await row.evaluate((form) => {
+      const input = form.querySelector("input") as HTMLElement;
+      const save = form.querySelector(".voy-btn") as HTMLElement;
+      const inputBox = input.getBoundingClientRect();
+      const saveBox = save.getBoundingClientRect();
+      return {
+        // The wrapper must not inflate around its own 44px input.
+        wrapperHeight: Math.round(
+          (
+            form.querySelector(".voy-field") as HTMLElement
+          ).getBoundingClientRect().height,
+        ),
+        inputHeight: Math.round(inputBox.height),
+        saveBelowInput: Math.round(saveBox.top - inputBox.bottom),
+      };
+    });
+    expect(gap.wrapperHeight).toBeLessThan(gap.inputHeight * 3);
+    expect(gap.saveBelowInput).toBeLessThan(gap.inputHeight);
+  }
+
+  // The suggestion list hangs off the combobox box, so an inflated wrapper
+  // detaches it from the input it belongs to.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await row.locator("input").fill("Ind");
+  await expect(page.getByRole("option", { name: /India/ })).toBeVisible();
+  const listOffset = await row.evaluate((form) => {
+    const input = form.querySelector("input") as HTMLElement;
+    const list = form.querySelector(".voy-combobox__list") as HTMLElement;
+    return Math.round(
+      list.getBoundingClientRect().top - input.getBoundingClientRect().bottom,
+    );
+  });
+  expect(listOffset).toBeLessThan(12);
+});
