@@ -6,6 +6,81 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-08-02 — What the browser already promised
+
+### Fixed
+
+- **The passport field has its Save button back.** A sizing rule written for the
+  visa cockpit's picker row landed one element too deep — on the combobox rather
+  than the field wrapper around it — and because that wrapper stacks its label,
+  hint and input in a column, a width of 16rem was read as a height of 256px. A
+  44px input became a 256px box, which pushed Save 166px below the field it
+  submits and left the country suggestions floating 216px under the input, on
+  top of the hint text. On a phone the gap was 220px, over a quarter of the
+  screen. Nothing about this was visible to the test suite: jsdom performs no
+  layout and reports every element as zero-sized, so all 742 unit tests agreed
+  the panel was fine. The guard therefore lives in the end-to-end suite, which
+  drives a real browser and already runs inside `make check`; it fails if the
+  rule ever moves back.
+- **Place names are counted the way the engine counts them.** The trip forms
+  measured with JavaScript's `.length`, which counts UTF-16 units, while the
+  engine counts characters — so a 61-character name written with emoji counted
+  as 122 and was refused, while the same value posted straight to the engine was
+  accepted. Pasted, it was worse: the browser's own limit cut it to 60 and said
+  nothing at all. Both forms now use the shared counter and the shared constant.
+  The limit stays where it was; only the arithmetic changed.
+- **A detour no longer costs you your place.** Opening Settings from a search
+  discarded the query, opening search from inside a trip dropped you back on the
+  trip list while Settings returned correctly, jumping to a result in another
+  trip carried the previous trip's section into the new one, and the visa guide
+  forgot which step you had open. Four symptoms, three causes, all now closed.
+  Notes typed but not saved were never at risk, and still aren't — that was
+  checked rather than assumed.
+- **Visa steps say each thing once.** Where a step and one of its documents cite
+  the same official page — which the curated journeys do in 14 places across all
+  four of them, sometimes from a single shared helper — the page was printed
+  twice, one line apart, reading as two separate requirements. The duplicate is
+  dropped in the interface; the curated data is untouched, because it was never
+  wrong.
+- **Search titles itself.** It was the only top-level view in the app without a
+  top-level heading, which left screen-reader and heading navigation without an
+  answer to "where am I". An empty result also now says what is and is not
+  searched, at the point of failure rather than three lines above it.
+- **A trip's route is printed once.** A trip created without a name is titled
+  "From → To" by the engine, which is exactly what the route line underneath it
+  said — so most trips showed the same words twice, on the card and again in the
+  header.
+- **Japanese and Chinese input methods keep their arrow keys.** Every place and
+  country field shares one control, and it claimed ArrowUp, ArrowDown, Enter and
+  Escape unconditionally — the same keys an input method uses to move through
+  its candidate window. It now stands aside until composition ends.
+
+### Added
+
+- **Back does something.** Opening a trip used to leave the browser's history
+  untouched, so Back walked out of the workspace rather than undoing the move —
+  and on a phone, the back swipe is the first thing anyone reaches for. The view
+  now lives in the address bar, which also makes a trip or a section of one
+  shareable and bookmarkable. This reverses a decision recorded as an explicit
+  non-goal; ADR-0015 carries the reversal and its reasons, chiefly that the same
+  deferred list also holds cross-trip search, which shipped two releases ago.
+  The search query is deliberately kept out of the URL: it is your own text
+  about your own trips, and the address bar is the one place here that would
+  carry it into history, screenshots and screen shares.
+
+### Not fixed
+
+- A visa-statistics fetch that reaches the authority but cannot read the reply
+  still reports as though the authority were unreachable. The audit blamed the
+  interface for discarding a distinction the engine had already made; that was
+  wrong. The engine returns one error code for a network failure, a parse
+  failure and an uncurated source alike, so telling them apart means adding to
+  the wire contract — an ADR, not a release-eve patch.
+- The import and candidate-review flow was not exercised by the audit behind
+  this release, and is named here rather than left implicit. It is the one
+  surface where a paste is still trimmed silently, and where the next pass
+  should start.
+
 ## [0.9.0] - 2026-08-02 — No route is a dead end
 
 ### Added
