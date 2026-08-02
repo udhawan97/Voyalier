@@ -24,6 +24,7 @@ dist/
 coverage/
 playwright-report/
 .playwright-cli/
+.playwright-mcp/
 
 # Pack build outputs (see .github/workflows/packs.yml)
 /catalog.json
