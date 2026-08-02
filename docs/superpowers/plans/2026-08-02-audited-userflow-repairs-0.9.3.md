@@ -16,7 +16,7 @@ compile-time constants and the crate has exactly one env override
 OS user reads and writes one key. Opening a passphrase-protected directory
 deletes it (`lib.rs:608-612`), setting a passphrase deletes it
 (`service_vault.rs:52`), and restoring a backup overwrites it
-(`lib.rs:1093`/`1095`). Everything in `SEALED_COLUMNS` in the *other* directory
+(`lib.rs:1093`/`1095`). Everything in `SEALED_COLUMNS` in the _other_ directory
 then fails to open, and because `load_or_init` folds keychain errors into
 "vault inactive", nothing names the cause.
 
@@ -49,7 +49,7 @@ the reservation was parsed from and rebase the offset, so spans stay
 raw-document-relative and the contract is unchanged.
 
 **G3 · the quote shows markup instead of words.** `excerpt()` slices ±40
-characters and *then* calls `strip_tags_and_collapse`, which starts with
+characters and _then_ calls `strip_tags_and_collapse`, which starts with
 `in_tag = false`. A window opening inside a tag emits the tag's attribute text
 as prose; one closing inside a tag swallows everything after the `<`, including
 the value it evidences. Fix: strip first, then take the window from the cleaned
@@ -75,7 +75,7 @@ documented guards stay.
 
 **G7 · the dialog body does not scroll by keyboard.** `initialFocus="dialog"`
 parks focus on `.voy-dialog`, whose scroller `.voy-dialog__body` is a
-*descendant*; browsers scroll the nearest scrollable *ancestor*. Make the body
+_descendant_; browsers scroll the nearest scrollable _ancestor_. Make the body
 focusable and focus it instead, so there is one.
 
 **G4 · a failed import shows nothing.** The banner mounts above the user's

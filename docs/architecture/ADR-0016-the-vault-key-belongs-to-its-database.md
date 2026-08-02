@@ -55,7 +55,7 @@ The keychain account is derived from the database's own path.
   find a legacy one **copies** the legacy value across rather than generating a
   new key.
 
-The keychain *service* stays one constant. Splitting it would fragment the OS's
+The keychain _service_ stays one constant. Splitting it would fragment the OS's
 own view of the app for no gain; the account is the level at which the conflict
 happens.
 
@@ -84,7 +84,7 @@ not data loss, and canonicalizing would mean touching the filesystem on a path
 that may not exist yet.
 
 `crates/voyalier-app/src/tests.rs` carries the guard: two data directories over
-one secret store, a passphrase set on the second, and the first one's *sealed*
+one secret store, a passphrase set on the second, and the first one's _sealed_
 note still readable afterwards. It was mutation-checked — restoring the shared
 account fails it. An earlier version of that test asserted on a trip title and
 passed under the mutation, because a title is not a sealed column.
