@@ -168,6 +168,23 @@ impl AppService {
                     )
                 }),
         );
+        // Where the plan leans on the previous thing having gone right. Derived
+        // from the confirmed legs themselves plus bundled tables — no fetch, no
+        // row of its own — and advisory only: `assess_trip` above never sees it
+        // (ADR-0016 §2). The pointers are assembled from what the workspace
+        // already holds, so an empty mission list simply offers fewer of them.
+        let nationality = self.records(&connection).visa_nationality(trip_id)?;
+        let missions = match (nationality, self.destination_country(&connection, &trip)?) {
+            (Some(nationality), Some(destination)) => missions_in(&destination, &nationality),
+            _ => Vec::new(),
+        };
+        let disruption_plan = build_disruption_plan(
+            &confirmed_facts,
+            DisruptionContext {
+                nearest_airports: &nearest_airports,
+                missions: &missions,
+            },
+        );
         let interest_profile = self.records(&connection).interest_profile(trip_id)?;
         let saved_places = self.records(&connection).saved_places(trip_id)?;
         let packing_items = self.records(&connection).packing_items(trip_id)?;
@@ -198,6 +215,7 @@ impl AppService {
             saved_places,
             packing_items,
             trip_items,
+            disruption_plan,
         })
     }
 

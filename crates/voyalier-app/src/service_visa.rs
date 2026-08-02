@@ -214,7 +214,7 @@ impl AppService {
 
     /// The destination's country code: the geocoded snapshot when the traveler
     /// has fetched one, else the bundled gazetteer so the cockpit works offline.
-    fn destination_country(
+    pub(crate) fn destination_country(
         &self,
         connection: &Connection,
         trip: &Trip,

@@ -15,6 +15,7 @@ mod brief;
 mod chat;
 mod climate;
 mod co2;
+mod contingency;
 mod email;
 mod facts;
 mod gazetteer;
@@ -95,6 +96,10 @@ pub use climate::{
     parse_climate_normals,
 };
 pub use co2::{FACTOR_YEAR, FlightEmissions, estimate_flight_emissions};
+pub use contingency::{
+    DisruptionContext, DisruptionPlan, ExposedLeg, FallbackPointer, Handoff, HandoffBand,
+    HandoffKind, build_disruption_plan,
+};
 // `extract_email_body` is deliberately not re-exported: it must only be reached
 // through `parse_import`, which bounds the raw input before the extractor walks
 // an untrusted MIME tree.
