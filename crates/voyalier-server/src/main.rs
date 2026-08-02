@@ -11,7 +11,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .init();
 
-    let bind = env::var("VOYALIER_BIND").unwrap_or_else(|_| "127.0.0.1:8787".to_owned());
+    let bind =
+        env::var("VOYALIER_BIND").unwrap_or_else(|_| voyalier_server::DEFAULT_BIND.to_owned());
     let address: SocketAddr = bind.parse()?;
     let listener = tokio::net::TcpListener::bind(address).await?;
     let service = if env::var("VOYALIER_INTEGRATION_TEST").as_deref() == Ok("1") {
@@ -34,7 +35,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     info!(%address, "Voyalier local API ready");
-    axum::serve(listener, voyalier_server::app(service))
+    // The bound address, not a constant: the router derives its Host
+    // allowlist from it, so a chosen port stays answerable.
+    axum::serve(listener, voyalier_server::app(service, address))
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 
