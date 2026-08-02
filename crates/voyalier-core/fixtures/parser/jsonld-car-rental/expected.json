@@ -1,0 +1,21 @@
+{
+  "parser": "jsonld.v1",
+  "exact": true,
+  "expectedCandidates": [
+    {
+      "factType": "car_rental",
+      "method": "structured",
+      "payload": {
+        "carrierName": "Northern Roads Hire",
+        "vehicleDescription": "Compact, automatic",
+        "departurePlace": "Keflavik Airport desk",
+        "arrivalPlace": "Reykjavik city office",
+        "departureLocal": "2026-08-09T10:00",
+        "arrivalLocal": "2026-08-12T08:30",
+        "confirmationCode": "CR5590",
+        "passengerName": "Alex Example"
+      }
+    }
+  ],
+  "expectedDiagnostics": []
+}

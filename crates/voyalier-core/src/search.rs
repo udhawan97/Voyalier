@@ -473,25 +473,44 @@ fn fact_label(fact: &ConfirmedFact) -> String {
             .filter(|value| !value.is_empty())
             .map(ToOwned::to_owned)
             .unwrap_or_else(|| "Stay".to_owned()),
+        FactType::RailJourney | FactType::CoachJourney | FactType::FerryCrossing => {
+            journey_name(fact).unwrap_or_else(|| {
+                match fact.fact_type {
+                    FactType::CoachJourney => "Coach journey",
+                    FactType::FerryCrossing => "Ferry crossing",
+                    _ => "Rail journey",
+                }
+                .to_owned()
+            })
+        }
+        FactType::CarRental => {
+            trimmed(fact.payload.carrier_name.as_deref()).unwrap_or_else(|| "Car rental".to_owned())
+        }
     }
+}
+
+/// What a surface journey calls itself: the service if the operator named one,
+/// otherwise the operator.
+fn journey_name(fact: &ConfirmedFact) -> Option<String> {
+    trimmed(fact.payload.service_number.as_deref())
+        .or_else(|| trimmed(fact.payload.carrier_name.as_deref()))
+}
+
+fn trimmed(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
 }
 
 fn fact_subject(fact: &ConfirmedFact) -> Option<String> {
     match fact.fact_type {
-        FactType::FlightSegment => fact
-            .payload
-            .flight_number
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(ToOwned::to_owned),
-        FactType::LodgingStay => fact
-            .payload
-            .property_name
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(ToOwned::to_owned),
+        FactType::FlightSegment => trimmed(fact.payload.flight_number.as_deref()),
+        FactType::LodgingStay => trimmed(fact.payload.property_name.as_deref()),
+        FactType::RailJourney | FactType::CoachJourney | FactType::FerryCrossing => {
+            journey_name(fact)
+        }
+        FactType::CarRental => trimmed(fact.payload.carrier_name.as_deref()),
     }
 }
 
@@ -512,6 +531,11 @@ fn fact_field_values(fact: &ConfirmedFact) -> Vec<&str> {
         payload.checkin_date.as_deref(),
         payload.checkout_date.as_deref(),
         payload.guest_name.as_deref(),
+        payload.carrier_name.as_deref(),
+        payload.service_number.as_deref(),
+        payload.departure_place.as_deref(),
+        payload.arrival_place.as_deref(),
+        payload.vehicle_description.as_deref(),
     ]
     .into_iter()
     .flatten()
@@ -545,6 +569,16 @@ pub fn fact_identity(fact: &ConfirmedFact) -> Option<String> {
             }
         }
         FactType::LodgingStay => payload.property_name.clone(),
+        FactType::RailJourney | FactType::CoachJourney | FactType::FerryCrossing => {
+            match (
+                trimmed(payload.departure_place.as_deref()),
+                trimmed(payload.arrival_place.as_deref()),
+            ) {
+                (Some(from), Some(to)) => Some(format!("{from} → {to}")),
+                _ => journey_name(fact),
+            }
+        }
+        FactType::CarRental => trimmed(payload.carrier_name.as_deref()),
     }
 }
 

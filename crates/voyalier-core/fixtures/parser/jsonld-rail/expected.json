@@ -1,0 +1,21 @@
+{
+  "parser": "jsonld.v1",
+  "exact": true,
+  "expectedCandidates": [
+    {
+      "factType": "rail_journey",
+      "method": "structured",
+      "payload": {
+        "carrierName": "Meridian Rail",
+        "serviceNumber": "9024",
+        "departurePlace": "London St Pancras",
+        "arrivalPlace": "Paris Gare du Nord",
+        "departureLocal": "2026-08-03T09:01",
+        "arrivalLocal": "2026-08-03T12:17",
+        "confirmationCode": "RL42QP",
+        "passengerName": "Alex Example"
+      }
+    }
+  ],
+  "expectedDiagnostics": []
+}

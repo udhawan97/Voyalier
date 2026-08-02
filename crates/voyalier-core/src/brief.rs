@@ -73,6 +73,12 @@ pub struct TripBrief {
     pub end_date: String,
     pub flights: Vec<FactPayload>,
     pub stays: Vec<FactPayload>,
+    /// Confirmed rail, coach, ferry, and hire-car legs, under the same
+    /// generation-time redaction as the flights above. Its own list rather than
+    /// a sixth key per mode: whoever reads a brief wants the surface legs in one
+    /// place, in time order, and the mode is already in the payload's own words.
+    #[serde(default)]
+    pub journeys: Vec<FactPayload>,
     /// Traveler-authored itinerary entries with private notes excluded by
     /// construction. These remain visibly separate from confirmed facts.
     #[serde(default)]
@@ -110,6 +116,7 @@ pub fn build_trip_brief(
 ) -> TripBrief {
     let mut flights: Vec<(String, FactPayload)> = Vec::new();
     let mut stays: Vec<(String, FactPayload)> = Vec::new();
+    let mut journeys: Vec<(String, FactPayload)> = Vec::new();
     for fact in facts {
         let payload = redact_payload(&fact.payload, policy);
         match fact.fact_type {
@@ -121,10 +128,18 @@ pub fn build_trip_brief(
                 let key = payload.checkin_date.clone().unwrap_or_default();
                 stays.push((key, payload));
             }
+            FactType::RailJourney
+            | FactType::CoachJourney
+            | FactType::FerryCrossing
+            | FactType::CarRental => {
+                let key = payload.departure_local.clone().unwrap_or_default();
+                journeys.push((key, payload));
+            }
         }
     }
     flights.sort_by(|left, right| left.0.cmp(&right.0));
     stays.sort_by(|left, right| left.0.cmp(&right.0));
+    journeys.sort_by(|left, right| left.0.cmp(&right.0));
     let mut trip_items: Vec<BriefTripItem> = trip_items
         .iter()
         .map(|item| BriefTripItem {
@@ -153,6 +168,7 @@ pub fn build_trip_brief(
         end_date: trip.end_date.clone(),
         flights: flights.into_iter().map(|(_, payload)| payload).collect(),
         stays: stays.into_iter().map(|(_, payload)| payload).collect(),
+        journeys: journeys.into_iter().map(|(_, payload)| payload).collect(),
         trip_items,
         redacted_fields: policy.redacted_field_labels(),
         generated_at: generated_at.to_owned(),
@@ -171,6 +187,11 @@ fn redact_payload(payload: &FactPayload, policy: &RedactionPolicy) -> FactPayloa
     if policy.redact_addresses {
         redacted.address = None;
     }
+    // `departurePlace`/`arrivalPlace` are deliberately not covered by
+    // `redact_addresses`. A lodging address is redacted because it says where
+    // the traveler sleeps; a station, port, or depot is a public place and is
+    // the whole content of a surface leg — redacting it would leave a brief
+    // saying a train exists and nothing about where it goes.
     redacted
 }
 

@@ -112,7 +112,7 @@ pub use holidays::{
     holidays_within, parse_nager_holidays, parse_openholidays_school, public_holidays,
     school_holidays, school_holidays_covered, school_holidays_within,
 };
-pub use itinerary::{detect_itinerary_conflicts, detect_planned_item_conflicts};
+pub use itinerary::{detect_itinerary_conflicts, detect_planned_item_conflicts, fact_label};
 pub use local_ai::{
     LocalAiModel, LocalAiStatus, LocalModelPullResult, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,
     build_pull_body, interpret_pull_response, parse_ollama_models,

@@ -71,9 +71,12 @@ pub fn detect_planned_item_conflicts(
             }
         }
     }
+    // Every scheduled service, not only flights: an activity booked during a
+    // confirmed ferry crossing is the same notice as one booked during a flight.
+    // A hire car is excluded for the reason `flight_overlaps` gives.
     let flights: Vec<(&ConfirmedFact, DateTime, DateTime)> = facts
         .iter()
-        .filter(|fact| fact.fact_type == FactType::FlightSegment)
+        .filter(|fact| fact.fact_type.is_journey() && fact.fact_type != FactType::CarRental)
         .filter_map(|fact| {
             let departure = fact
                 .payload
@@ -100,7 +103,7 @@ pub fn detect_planned_item_conflicts(
                 conflicts.push(ItineraryConflict {
                     kind: ItineraryConflictKind::PlannedItemOverlap,
                     severity: ConflictSeverity::Notice,
-                    subjects: vec![flight_label(flight)],
+                    subjects: vec![fact_label(flight)],
                     fact_ids: vec![flight.id.clone()],
                     planned_item_ids: vec![item.id.clone()],
                     planned_item_titles: vec![item.title.clone()],
@@ -118,10 +121,19 @@ pub fn detect_planned_item_conflicts(
     conflicts
 }
 
+/// Two things that both carry the traveler somewhere cannot run at once.
+///
+/// Scheduled services only — flights, rail, coach, ferry. A hire car is
+/// deliberately excluded: it sits in a car park while its holder takes a train,
+/// so its booking window legitimately overlaps everything else in the trip.
+///
+/// A flight-against-flight finding keeps reporting as `FlightOverlap`, exactly
+/// as it did before surface legs existed; any pair involving a surface journey
+/// reports as `JourneyOverlap` so an interface can name the right nouns.
 fn flight_overlaps(facts: &[ConfirmedFact]) -> Vec<ItineraryConflict> {
-    let flights: Vec<(&ConfirmedFact, DateTime, DateTime)> = facts
+    let scheduled: Vec<(&ConfirmedFact, DateTime, DateTime)> = facts
         .iter()
-        .filter(|fact| fact.fact_type == FactType::FlightSegment)
+        .filter(|fact| fact.fact_type.is_journey() && fact.fact_type != FactType::CarRental)
         .filter_map(|fact| {
             let departure = fact
                 .payload
@@ -138,16 +150,22 @@ fn flight_overlaps(facts: &[ConfirmedFact]) -> Vec<ItineraryConflict> {
         .collect();
 
     let mut conflicts = Vec::new();
-    for left_index in 0..flights.len() {
-        for right_index in (left_index + 1)..flights.len() {
-            let (left, left_start, left_end) = flights[left_index];
-            let (right, right_start, right_end) = flights[right_index];
+    for left_index in 0..scheduled.len() {
+        for right_index in (left_index + 1)..scheduled.len() {
+            let (left, left_start, left_end) = scheduled[left_index];
+            let (right, right_start, right_end) = scheduled[right_index];
             // Half-open overlap: touching endpoints (a connection) is not a conflict.
             if left_start < right_end && right_start < left_end {
+                let both_flights = left.fact_type == FactType::FlightSegment
+                    && right.fact_type == FactType::FlightSegment;
                 conflicts.push(ItineraryConflict {
-                    kind: ItineraryConflictKind::FlightOverlap,
+                    kind: if both_flights {
+                        ItineraryConflictKind::FlightOverlap
+                    } else {
+                        ItineraryConflictKind::JourneyOverlap
+                    },
                     severity: ConflictSeverity::Warning,
-                    subjects: vec![flight_label(left), flight_label(right)],
+                    subjects: vec![journey_label(left), journey_label(right)],
                     fact_ids: sorted_ids(&left.id, &right.id),
                     planned_item_ids: Vec::new(),
                     planned_item_titles: Vec::new(),
@@ -294,6 +312,68 @@ fn flight_label(fact: &ConfirmedFact) -> FactLabel {
         },
         _ => FactLabel::Flight,
     }
+}
+
+/// How to name any confirmed fact, whatever it is.
+///
+/// The rule is the same for every type — the most specific identifying detail
+/// the payload actually has, degrading to the bare noun — so it lives in one
+/// place rather than being re-derived per caller. Returns a `FactLabel`, never
+/// prose: turning it into a sentence is the interface's job in its own language.
+pub fn fact_label(fact: &ConfirmedFact) -> FactLabel {
+    match fact.fact_type {
+        FactType::FlightSegment => flight_label(fact),
+        FactType::LodgingStay => lodging_label(fact),
+        FactType::RailJourney | FactType::CoachJourney | FactType::FerryCrossing => {
+            surface_label(fact)
+        }
+        FactType::CarRental => rental_label(fact),
+    }
+}
+
+/// Internal alias used by the overlap check, which reads only journeys.
+fn journey_label(fact: &ConfirmedFact) -> FactLabel {
+    fact_label(fact)
+}
+
+fn surface_label(fact: &ConfirmedFact) -> FactLabel {
+    let payload = &fact.payload;
+    // Unreachable for anything but the three surface types, which all resolve.
+    let mode = fact
+        .fact_type
+        .transport_mode()
+        .unwrap_or(crate::types::TransportMode::Rail);
+    if let Some(service) = non_empty(payload.service_number.as_deref())
+        .or_else(|| non_empty(payload.carrier_name.as_deref()))
+    {
+        return FactLabel::JourneyService {
+            mode,
+            service: service.to_owned(),
+        };
+    }
+    match (
+        non_empty(payload.departure_place.as_deref()),
+        non_empty(payload.arrival_place.as_deref()),
+    ) {
+        (Some(from), Some(to)) => FactLabel::JourneyRoute {
+            mode,
+            from: from.to_owned(),
+            to: to.to_owned(),
+        },
+        _ => FactLabel::Journey { mode },
+    }
+}
+
+fn rental_label(fact: &ConfirmedFact) -> FactLabel {
+    non_empty(fact.payload.carrier_name.as_deref())
+        .map(|company| FactLabel::RentalCompany {
+            company: company.to_owned(),
+        })
+        .unwrap_or(FactLabel::Rental)
+}
+
+fn non_empty(value: Option<&str>) -> Option<&str> {
+    value.map(str::trim).filter(|value| !value.is_empty())
 }
 
 fn lodging_label(fact: &ConfirmedFact) -> FactLabel {
