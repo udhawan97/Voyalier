@@ -239,6 +239,13 @@ export function ImportDialog({
             ]}
           />
         </div>
+        {/* Left as a hard cap on purpose. It has the same UTF-16 flaw as the
+            trip form's place fields did, but this dialog is the one surface the
+            0.9.0 audit never exercised, and swapping a silent truncation for a
+            new refusal path in an untested flow trades a small known problem
+            for an unknown one. The literal 200 is also unexplained — it merely
+            coincides with MAX_QUERY_LEN — so both want a pass with the import
+            flow actually under test. */}
         <TextField
           id="import-label"
           label={t("import.label")}

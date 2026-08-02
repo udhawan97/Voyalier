@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import type { AppError, Trip, UpdateTripInput } from "@voyalier/contracts";
+import { MAX_LOCATION_LEN, countChars } from "@voyalier/contracts";
 
 import { useGateway } from "../app/context";
 import { describeError, tripFieldError } from "../app/format";
@@ -46,11 +47,13 @@ export function EditTripDialog({
     const next: FieldErrors = {};
     const trimmedOrigin = origin.trim();
     const trimmedDestination = destination.trim();
+    // countChars, never `.length` — see the doc block above MAX_LOCATION_LEN.
     if (!trimmedOrigin) next.origin = t("createTrip.origin.required");
-    else if (trimmedOrigin.length > 120) next.origin = t("createTrip.tooLong");
+    else if (countChars(trimmedOrigin) > MAX_LOCATION_LEN)
+      next.origin = t("createTrip.tooLong");
     if (!trimmedDestination)
       next.destination = t("createTrip.destination.required");
-    else if (trimmedDestination.length > 120)
+    else if (countChars(trimmedDestination) > MAX_LOCATION_LEN)
       next.destination = t("createTrip.tooLong");
     if (!startDate || !endDate) next.dates = t("createTrip.dates.required");
     else if (startDate > endDate) next.dates = t("createTrip.dates.order");
@@ -137,7 +140,6 @@ export function EditTripDialog({
           fetchSuggestions={fetchPlaceSuggestions}
           error={errors.origin}
           required
-          maxLength={120}
           placeholder={t("createTrip.origin.placeholder")}
         />
         <Combobox
@@ -148,7 +150,6 @@ export function EditTripDialog({
           fetchSuggestions={fetchPlaceSuggestions}
           error={errors.destination}
           required
-          maxLength={120}
           placeholder={t("createTrip.destination.placeholder")}
         />
         <div className="voy-form__dates">
@@ -188,6 +189,8 @@ export function EditTripDialog({
             </p>
           ) : null}
         </div>
+        {/* Keeps its maxLength, unlike origin and destination above: the engine
+            does not bound a trip title, so this attribute is the whole limit. */}
         <TextField
           id="edit-trip-title"
           label={t("createTrip.name.label")}

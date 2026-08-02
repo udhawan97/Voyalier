@@ -321,4 +321,64 @@ describe("User-flow gap fixes", () => {
       within(dialog).getByText("Enter where the trip starts."),
     ).toBeInTheDocument();
   });
+
+  /**
+   * The form and the engine have to agree on what a character is.
+   *
+   * `.length` counts UTF-16 code units, so a place name carrying astral
+   * characters counted double and the form refused a name the engine accepts —
+   * exactly the failure the doc block above `MAX_LOCATION_LEN` warns about. 61
+   * astral characters is 122 code units: over the old check, under the real
+   * limit.
+   */
+  it("accepts a place name the engine accepts, counting characters not code units", async () => {
+    renderApp(createMockGateway());
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: "Create a trip" }))[0],
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Create a trip" });
+
+    const astral = "\u{1F3D4}".repeat(61);
+    expect(astral.length).toBe(122);
+    expect([...astral].length).toBe(61);
+
+    fireEvent.change(within(dialog).getByLabelText(/^From/), {
+      target: { value: astral },
+    });
+    fireEvent.change(within(dialog).getByLabelText(/^To/), {
+      target: { value: "Kyoto" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Create trip" }),
+    );
+
+    await waitFor(() =>
+      expect(
+        within(dialog).queryByText("Keep this under 120 characters."),
+      ).toBeNull(),
+    );
+  });
+
+  /**
+   * And still refuses one that is genuinely too long, so the fix above did not
+   * simply delete the limit.
+   */
+  it("still refuses a place name past the real character limit", async () => {
+    renderApp(createMockGateway());
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: "Create a trip" }))[0],
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Create a trip" });
+
+    fireEvent.change(within(dialog).getByLabelText(/^From/), {
+      target: { value: "a".repeat(121) },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Create trip" }),
+    );
+
+    expect(
+      await within(dialog).findByText("Keep this under 120 characters."),
+    ).toBeInTheDocument();
+  });
 });

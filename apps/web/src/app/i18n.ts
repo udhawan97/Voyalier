@@ -477,6 +477,8 @@ const en = {
   "prompts.save": "Save instruction",
   "prompts.reset": "Reset to default",
   "prompts.error": "Couldn't save that — nothing was changed.",
+  "prompts.tooLong":
+    "That instruction is longer than {max} characters. Shorten it to save.",
   "prompts.announce.saved": "{name} saved.",
   "prompts.announce.reset": "{name} reset to default.",
   "prompts.scope":
@@ -1947,6 +1949,8 @@ const es: Record<MessageKey, string> = {
   "prompts.save": "Guardar instrucción",
   "prompts.reset": "Restablecer a predeterminado",
   "prompts.error": "No se pudo guardar; no hubo cambios.",
+  "prompts.tooLong":
+    "Esa instrucción supera los {max} caracteres. Acórtala para guardar.",
   "prompts.announce.saved": "{name} guardado.",
   "prompts.announce.reset": "{name} restablecido a predeterminado.",
   "prompts.scope":

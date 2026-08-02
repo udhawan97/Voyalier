@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   MAX_AI_PROMPT_LEN,
+  countChars,
   type AiPrompt,
   type AiPromptKind,
   type AiPromptSettings as AiPromptSettingsData,
@@ -40,6 +41,11 @@ function PromptRow({
   // Disable Save when blank or unchanged from the effective instruction.
   const effective = (prompt.customText ?? prompt.defaultText).trim();
   const unchanged = text.trim() === "" || text.trim() === effective;
+  // Counted, not truncated. `maxLength` here cut a pasted instruction at the
+  // UTF-16 boundary — below the real limit whenever it carried astral
+  // characters — and said nothing about having done it. This is authored text,
+  // so losing the tail silently is the worst available outcome.
+  const tooLong = countChars(text) > MAX_AI_PROMPT_LEN;
 
   async function save() {
     setError(false);
@@ -88,8 +94,12 @@ function PromptRow({
         value={text}
         onChange={(event) => setText(event.target.value)}
         rows={5}
-        maxLength={MAX_AI_PROMPT_LEN}
       />
+      {tooLong ? (
+        <p className="voy-prompt__error" role="alert">
+          {t("prompts.tooLong", { max: String(MAX_AI_PROMPT_LEN) })}
+        </p>
+      ) : null}
       {error ? (
         <p className="voy-prompt__error" role="alert">
           {t("prompts.error")}
@@ -99,7 +109,7 @@ function PromptRow({
         <Button
           variant="secondary"
           busy={busy === "save"}
-          disabled={busy !== null || unchanged}
+          disabled={busy !== null || unchanged || tooLong}
           onClick={save}
         >
           {t("prompts.save")}
