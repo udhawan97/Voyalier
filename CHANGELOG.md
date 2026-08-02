@@ -6,6 +6,8 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-02 — No route is a dead end
+
 ### Added
 
 - **No visa route is a dead end any more.** Every trip whose destination
