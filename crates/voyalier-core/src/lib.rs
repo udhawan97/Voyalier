@@ -32,6 +32,7 @@ mod place_summary;
 mod planning;
 mod provider;
 mod readiness;
+mod recheck;
 mod recommend;
 mod resource;
 mod search;
@@ -149,6 +150,11 @@ pub use provider::{
     validate_provider_id,
 };
 pub use readiness::{TripAssessment, assess_trip};
+pub use recheck::{
+    ADVISORY_STALE_AFTER_MINUTES, RecheckChange, RecheckLine, RecheckOutcome, RecheckReport,
+    RecheckSource, WEATHER_STALE_AFTER_MINUTES, diff_advisory_panel, diff_weather, hosts_for,
+    is_stale,
+};
 pub use recommend::{
     AttributedPackPlace, PersonaWeights, Recommendation, recommend_attributed_places,
     recommend_places,

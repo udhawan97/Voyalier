@@ -9,7 +9,8 @@ use std::{fs, path::PathBuf};
 use super::*;
 use voyalier_core::KeyValidationStatus;
 use voyalier_core::{
-    CandidateStatus, DocumentKind, FactPayload, FactType, HighStakesTopic, ResourceKind,
+    CandidateStatus, DocumentKind, FactPayload, FactType, HighStakesTopic, RecheckOutcome,
+    RecheckSource, ResourceKind,
 };
 
 /// The defect this repairs: the destination-facts snapshot resolved one UTC
@@ -5654,5 +5655,137 @@ fn storage_accepts_every_declared_fact_type() {
 
     let detail = service.get_trip(&trip.id).expect("detail");
     assert_eq!(detail.confirmed_facts.len(), 6);
+    cleanup_database(database);
+}
+
+/// ADR-0016 §4: a sweep never invents a first fetch, never refetches something
+/// still fresh, and never lets a failure read as an all-clear.
+#[test]
+fn a_recheck_reports_never_fetched_before_it_reports_anything_else() {
+    let database = temp_database("recheck_empty");
+    let service = open_test_service_with_fetcher(&database, Arc::new(FakeFetcher::offline()))
+        .expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+    let report = service.recheck_trip(&trip.id).expect("report");
+    assert_eq!(report.trip_id, trip.id);
+    assert_eq!(report.lines.len(), 2);
+    assert!(
+        report
+            .lines
+            .iter()
+            .all(|line| line.outcome == RecheckOutcome::NeverFetched),
+        "nothing stored means nothing to compare, not an empty all-clear"
+    );
+    assert!(
+        report.hosts_contacted.is_empty(),
+        "a sweep with nothing to refresh must contact nobody"
+    );
+    assert!(!report.has_changes());
+    cleanup_database(database);
+}
+
+#[test]
+fn a_fresh_snapshot_is_skipped_rather_than_refetched() {
+    struct CountingFetcher {
+        calls: std::sync::Mutex<u32>,
+    }
+    impl AdviceFetcher for CountingFetcher {
+        fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+            *self.calls.lock().expect("lock") += 1;
+            weather_bodies(url, "JP")
+                .ok_or_else(|| AppError::new(ErrorCode::WeatherFetchFailed, "unexpected url"))
+        }
+    }
+
+    let database = temp_database("recheck_fresh");
+    let fetcher = Arc::new(CountingFetcher {
+        calls: std::sync::Mutex::new(0),
+    });
+    let service = open_test_service_with_fetcher(&database, fetcher.clone()).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    service.fetch_weather(&trip.id).expect("first fetch");
+    let after_first = *fetcher.calls.lock().expect("lock");
+
+    // The snapshot was just written, so it is well inside its twelve-hour
+    // window: the sweep must say so rather than ask again.
+    let report = service.recheck_trip(&trip.id).expect("report");
+    let weather = report
+        .lines
+        .iter()
+        .find(|line| line.source == RecheckSource::Weather)
+        .expect("a weather line");
+    assert_eq!(weather.outcome, RecheckOutcome::Skipped);
+    assert!(weather.previously_retrieved_at.is_some());
+    assert_eq!(
+        *fetcher.calls.lock().expect("lock"),
+        after_first,
+        "a skipped source must not touch the network"
+    );
+    assert!(
+        !report
+            .hosts_contacted
+            .iter()
+            .any(|host| host == "open-meteo.com"),
+        "a host that was not contacted must not be listed as contacted"
+    );
+    cleanup_database(database);
+}
+
+#[test]
+fn a_failed_source_keeps_its_snapshot_and_never_reads_as_unchanged() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    struct FlakyFetcher {
+        broken: AtomicBool,
+    }
+    impl AdviceFetcher for FlakyFetcher {
+        fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+            if self.broken.load(Ordering::SeqCst) {
+                return Err(AppError::new(ErrorCode::WeatherFetchFailed, "offline"));
+            }
+            weather_bodies(url, "JP")
+                .ok_or_else(|| AppError::new(ErrorCode::WeatherFetchFailed, "unexpected url"))
+        }
+    }
+
+    let database = temp_database("recheck_failure");
+    let fetcher = Arc::new(FlakyFetcher {
+        broken: AtomicBool::new(false),
+    });
+    let service = open_test_service_with_fetcher(&database, fetcher.clone()).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    let stored = service.fetch_weather(&trip.id).expect("first fetch");
+
+    // Age the stored snapshot past its window so the sweep genuinely tries.
+    {
+        let connection = service.connection().expect("connection");
+        connection
+            .execute(
+                "UPDATE weather_snapshots SET retrieved_at = ?1 WHERE trip_id = ?2",
+                rusqlite::params!["2020-01-01T00:00:00Z", &trip.id],
+            )
+            .expect("age the snapshot");
+    }
+    fetcher.broken.store(true, Ordering::SeqCst);
+
+    let report = service.recheck_trip(&trip.id).expect("report");
+    let weather = report
+        .lines
+        .iter()
+        .find(|line| line.source == RecheckSource::Weather)
+        .expect("a weather line");
+    assert!(
+        matches!(weather.outcome, RecheckOutcome::Failed { .. }),
+        "an unreachable source is a failure, not an all-clear: {:?}",
+        weather.outcome
+    );
+    assert!(!report.has_changes());
+
+    // The old snapshot is still there, unchanged.
+    let detail = service.get_trip(&trip.id).expect("detail");
+    let kept = detail.weather.expect("the stored snapshot survives");
+    assert_eq!(kept.days.len(), stored.days.len());
+    assert_eq!(kept.place_name, stored.place_name);
     cleanup_database(database);
 }
