@@ -30,6 +30,11 @@ impl AppService {
                 suggested_nationality_iso2: records.latest_visa_nationality()?,
                 entry_path: None,
                 journey: None,
+                // No passport, no guide of either kind: the playbook's own
+                // sentences address "the passport you will travel on", and
+                // there is none to address yet.
+                playbook: None,
+                stats: None,
                 items,
                 // No passport chosen means no country whose missions to name.
                 missions: Vec::new(),
@@ -61,15 +66,93 @@ impl AppService {
             .map(|code| missions_in(code, &nationality_iso2))
             .unwrap_or_default();
 
+        // No curated journey is no longer a dead end: the universal playbook
+        // fills the gap for any resolved destination, and a route that later
+        // gains curation overrides it (spec 2026-08-02). Never both.
+        let playbook = match (destination.as_deref(), &journey) {
+            (Some(code), None) => Some(voyalier_core::universal_playbook(
+                code,
+                &nationality_iso2,
+                entry_path.as_ref(),
+            )),
+            _ => None,
+        };
+
+        let stats = destination
+            .as_deref()
+            .map(|code| visa_stats_panel(&connection, code, &nationality_iso2))
+            .transpose()?
+            .flatten();
+
         Ok(VisaPrep {
             trip_id: trip_id.to_owned(),
             nationality_iso2: Some(nationality_iso2),
             suggested_nationality_iso2: None,
             entry_path,
             journey,
+            playbook,
+            stats,
             items,
             missions,
         })
+    }
+
+    /// Fetch the destination authority's published times, on the traveler's
+    /// explicit click (ADR-0014 §1 — the click is the consent for this one
+    /// named fetch), and keep the source's own bytes for offline reads.
+    ///
+    /// Failure is loud: a fetch or parse error surfaces as the error it is,
+    /// and the panel keeps serving whatever copy it already had. Only the
+    /// direct return of this method carries `Fetched` provenance — the next
+    /// read serves the kept copy and says so.
+    pub fn refresh_visa_stats(&self, trip_id: &str) -> Result<VisaPrep, AppError> {
+        let (nationality_iso2, destination) = {
+            let connection = self.connection()?;
+            let records = self.records(&connection);
+            let trip = records.trip(trip_id)?;
+            let Some(nationality_iso2) = records.visa_nationality(trip_id)? else {
+                return Err(AppError::new(
+                    ErrorCode::ValidationInvalidInput,
+                    "set the passport before fetching statistics",
+                ));
+            };
+            let Some(destination) = self.destination_country(&connection, &trip)? else {
+                return Err(AppError::new(
+                    ErrorCode::ValidationInvalidInput,
+                    "the trip's destination country is not resolved",
+                ));
+            };
+            (nationality_iso2, destination)
+            // The connection drops here — never held across the network call.
+        };
+
+        let retrieved_at = now_rfc3339();
+        let fetched = voyalier_core::published_times(
+            &destination,
+            &nationality_iso2,
+            &retrieved_at,
+            |url| self.fetcher.fetch_text(url),
+        )?;
+        let Some((snapshot, body)) = fetched else {
+            return Err(AppError::new(
+                ErrorCode::AdviceFetchFailed,
+                "this authority's statistics cannot be read automatically",
+            ));
+        };
+
+        {
+            let connection = self.connection()?;
+            store_visa_stats_body(&connection, &destination, &body, &retrieved_at)?;
+        }
+
+        let mut prep = self.get_visa_prep(trip_id)?;
+        if let Some(stats) = prep.stats.as_mut() {
+            // Provenance is defined by delivery (ADR-0014): this call fetched,
+            // so this call's return says `Fetched`; every later read of the
+            // stored copy says `KeptCopy`.
+            stats.snapshot = Some(snapshot);
+        }
+        Ok(prep)
     }
 
     /// The traveler's own visa-prep tally for the readiness line, or `None` when
@@ -90,8 +173,19 @@ impl AppService {
         let Some(destination) = self.destination_country(connection, trip)? else {
             return Ok(None);
         };
-        let Some(journey) = voyalier_core::visa_journey(&destination, &nationality) else {
-            return Ok(None);
+        // Whichever guide the cockpit renders is the guide the traveler ticks,
+        // so it is the guide this counts (ADR-0014 §4). Still self-attributed:
+        // the copy that renders the line names the traveler, never Voyalier.
+        let steps = match voyalier_core::visa_journey(&destination, &nationality) {
+            Some(journey) => journey.steps,
+            None => {
+                voyalier_core::universal_playbook(
+                    &destination,
+                    &nationality,
+                    voyalier_core::entry_path(&destination, &nationality).as_ref(),
+                )
+                .steps
+            }
         };
         let checked: std::collections::HashSet<String> = records
             .visa_prep_items(&trip.id)?
@@ -99,8 +193,7 @@ impl AppService {
             .filter(|item| item.checked)
             .map(|item| item.document_id)
             .collect();
-        let done = journey
-            .steps
+        let done = steps
             .iter()
             .filter(|step| {
                 !step.documents.is_empty()
@@ -112,7 +205,7 @@ impl AppService {
             .count();
         Ok(Some(VisaSelfReport {
             done: u32::try_from(done).unwrap_or(u32::MAX),
-            total: u32::try_from(journey.steps.len()).unwrap_or(u32::MAX),
+            total: u32::try_from(steps.len()).unwrap_or(u32::MAX),
         }))
     }
 
@@ -179,4 +272,27 @@ impl AppService {
         }
         self.get_visa_prep(&input.trip_id)
     }
+}
+
+/// The statistics zone for one destination: the source row when an authority
+/// is named, plus whatever copy this device kept, re-read fresh.
+///
+/// A kept body the current parser cannot read yields no snapshot rather than
+/// an error: the card falls back to its fetch-offered state, one click
+/// re-fetches under the fixed parser, and the stored bytes stay put. That is
+/// the one deliberate quiet degradation in this feature — it can only occur
+/// after a parser change of our own, and it is self-healing.
+fn visa_stats_panel(
+    connection: &Connection,
+    destination_iso2: &str,
+    nationality_iso2: &str,
+) -> Result<Option<voyalier_core::VisaStatsPanel>, AppError> {
+    let Some(source) = voyalier_core::stats_source(destination_iso2) else {
+        return Ok(None);
+    };
+    let snapshot =
+        load_visa_stats_body(connection, destination_iso2)?.and_then(|(body, retrieved_at)| {
+            voyalier_core::kept_times(destination_iso2, nationality_iso2, &body, &retrieved_at).ok()
+        });
+    Ok(Some(voyalier_core::VisaStatsPanel { source, snapshot }))
 }

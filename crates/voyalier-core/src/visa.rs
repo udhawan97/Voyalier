@@ -214,6 +214,16 @@ pub struct VisaPrep {
     pub entry_path: Option<EntryPathQuote>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub journey: Option<VisaJourney>,
+    /// The universal route map, present exactly when a passport is set, a
+    /// destination resolved, and no curated journey overrides it. Never both
+    /// this and `journey`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub playbook: Option<VisaPlaybook>,
+    /// The statistics zone (ADR-0014), present exactly when the destination is
+    /// one of the named authorities. Absent is honest absence — an uncurated
+    /// destination has no stats card at all.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stats: Option<crate::visa_stats::VisaStatsPanel>,
     pub items: Vec<VisaPrepItem>,
     /// The traveler's own country's missions in the destination country, from
     /// the bundled Wikidata extract.
