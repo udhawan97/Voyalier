@@ -304,6 +304,7 @@ mod tests {
         PackPlace {
             name: name.to_owned(),
             category: category.to_owned(),
+            source_confidence: None,
             lat: 36.16,
             lon: -86.78,
         }

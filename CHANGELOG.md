@@ -374,7 +374,6 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
   `apartment_building` contained "art" and was recommended as culture. A keyword
   now has to end a category token, which is what separates `art_museum` from
   `apartment_building` without needing a list of exceptions.
-
   The larger repair is what the keywords never reached. Temples, shrines,
   churches, cathedrals, castles, palaces and monasteries matched no culture
   keyword, scored nothing, and were silently dropped from every result — in
