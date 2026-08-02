@@ -673,6 +673,45 @@ describe("visa cockpit v2", () => {
     ).toBeInTheDocument();
   });
 
+  it("says when the source publishes no row for the passport, instead of an empty table", async () => {
+    const base = createMockGateway();
+    await base.createTrip({
+      title: "London filing",
+      origin: "Delhi",
+      destination: "London",
+      startDate: "2027-05-01",
+      endDate: "2027-05-10",
+    });
+    const trips = await base.listTrips();
+    const london = trips.find((trip) => trip.title === "London filing")!;
+    await base.setVisaNationality({
+      tripId: london.id,
+      nationalityIso2: "IN",
+    });
+    await base.refreshVisaStats(london.id);
+    // The parse succeeded and simply carries no row for this passport.
+    const gateway = {
+      ...base,
+      getVisaPrep: async (tripId: string) => {
+        const prep = await base.getVisaPrep(tripId);
+        if (prep.stats?.snapshot) prep.stats.snapshot.metrics = [];
+        return prep;
+      },
+    };
+    renderApp(gateway as typeof base);
+    const region = await openVisaFor("London filing");
+
+    const stats = within(region).getByRole("region", {
+      name: /UK Visas and Immigration/,
+    });
+    expect(
+      await within(stats).findByText(
+        /publishes no row for the passport code IN/,
+      ),
+    ).toBeInTheDocument();
+    expect(within(stats).queryByRole("table")).toBeNull();
+  });
+
   it("renders the playbook banner in Spanish chrome around English steps", async () => {
     setLocalePreference("es");
     const gateway = createMockGateway();
