@@ -116,7 +116,7 @@ const UKVI: &str = "UK Visas and Immigration (GOV.UK)";
 /// One page is both the human page and the fetch target: GOV.UK publishes the
 /// waiting times as sectioned HTML with its update stamp in page metadata.
 const UKVI_PAGE: &str =
-    "https://www.gov.uk/guidance/visa-decision-waiting-times-applications-outside-the-uk";
+    "https://www.gov.uk/guidance/visa-processing-times-applications-outside-the-uk";
 const UKVI_ATTRIBUTION: &str = "Open Government Licence v3.0";
 
 const MOFA: &str = "Ministry of Foreign Affairs of Japan";

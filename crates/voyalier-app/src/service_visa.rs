@@ -156,8 +156,11 @@ impl AppService {
     }
 
     /// The traveler's own visa-prep tally for the readiness line, or `None` when
-    /// no journey resolves. Counts steps whose documents are all ticked, so it
-    /// matches what the cockpit shows rather than counting documents twice.
+    /// no guide resolves. Counts steps whose documents are all ticked, over the
+    /// guide's full step count. The cockpit strip divides by askable steps only
+    /// (steps that carry documents), so the two lines share a numerator and
+    /// deliberately not a denominator — the readiness line describes the whole
+    /// guide, the strip describes what can still be acted on.
     /// `pub(crate)` rather than private only because ADR-0010 put its one
     /// caller, `get_trip`, in a sibling module. Still crate-internal: the
     /// public surface is unchanged.

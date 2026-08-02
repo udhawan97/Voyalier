@@ -529,47 +529,61 @@ function StatsCard({
               {t("visa.stats.stale", { days: staleDays as number })}
             </p>
           ) : null}
-          <div className="voy-visa__stats-scroll">
-            <table className="voy-visa__stats-table">
-              <caption className="voy-sr-only">
-                {t("visa.stats.caption", { authority: source.authorityName })}
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col">{t("visa.stats.colLabel")}</th>
-                  <th scope="col">{t("visa.stats.colValue")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {snapshot.metrics.map((metric) => {
-                  const mine = metric.audience === prep.nationalityIso2;
-                  return (
-                    <tr
-                      key={metric.id}
-                      className={mine ? "voy-visa__stats-row--mine" : undefined}
-                    >
-                      <th scope="row">
-                        {metric.label}
-                        {metric.audience ? (
-                          <span className="voy-visa__stats-audience">
-                            {" "}
-                            · {metric.audience}
-                          </span>
-                        ) : null}
-                        {mine ? (
-                          <span className="voy-visa__stats-mine">
-                            {t("visa.stats.yourPassport")}
-                          </span>
-                        ) : null}
-                      </th>
-                      {/* Verbatim, units and all — never converted. */}
-                      <td>{metric.value}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          {snapshot.metrics.length === 0 ? (
+            /* Absence reported as absence: the source parsed, and it simply
+               publishes no row for this passport code. An empty table would
+               read as a broken fetch. */
+            <p className="voy-visa__stats-consent">
+              {t("visa.stats.noRows", {
+                authority: snapshot.authorityName,
+                code: prep.nationalityIso2 as string,
+              })}
+            </p>
+          ) : (
+            <div className="voy-visa__stats-scroll">
+              <table className="voy-visa__stats-table">
+                <caption className="voy-sr-only">
+                  {t("visa.stats.caption", { authority: source.authorityName })}
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">{t("visa.stats.colLabel")}</th>
+                    <th scope="col">{t("visa.stats.colValue")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {snapshot.metrics.map((metric) => {
+                    const mine = metric.audience === prep.nationalityIso2;
+                    return (
+                      <tr
+                        key={metric.id}
+                        className={
+                          mine ? "voy-visa__stats-row--mine" : undefined
+                        }
+                      >
+                        <th scope="row">
+                          {metric.label}
+                          {metric.audience ? (
+                            <span className="voy-visa__stats-audience">
+                              {" "}
+                              · {metric.audience}
+                            </span>
+                          ) : null}
+                          {mine ? (
+                            <span className="voy-visa__stats-mine">
+                              {t("visa.stats.yourPassport")}
+                            </span>
+                          ) : null}
+                        </th>
+                        {/* Verbatim, units and all — never converted. */}
+                        <td>{metric.value}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
           {highlighted ? (
             <p className="voy-visa__stats-highlight-note">
               {t("visa.stats.highlightCaption", {
@@ -598,10 +612,7 @@ function StatsCard({
       ) : source.fetchable ? (
         <>
           <p className="voy-visa__stats-consent">
-            {t("visa.stats.consent", {
-              authority: source.authorityName,
-              destination: countryName(source.destinationIso2, APP_LOCALE),
-            })}
+            {t("visa.stats.consent", { authority: source.authorityName })}
           </p>
           {refresh.error ? (
             <p className="voy-field__error" role="alert">

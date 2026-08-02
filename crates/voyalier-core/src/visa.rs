@@ -857,9 +857,10 @@ pub fn universal_playbook(
             1,
             "Confirm who decides",
             None,
-            "Every entry rule for this trip is set by one government: the one whose border you \
-             will cross. Its immigration service is the only source that can answer what you \
-             need, and every step below is about reading that source — none of them replaces it. \
+            "Every border on this trip belongs to one government — a transit airport included, \
+             which can carry rules of its own. That government's immigration service is the \
+             only source that can answer what you need, and every step below is about reading \
+             that source — none of them replaces it. \
              Search results put lookalike visa-agency sites above the official one; they charge \
              for forms governments publish, and some are simply fraud. Find the official domain \
              before you read anything else, and check the address bar every time you come back.",
@@ -871,8 +872,9 @@ pub fn universal_playbook(
             2,
             "Identify your entry path",
             None,
-            "Authorities publish a small shared vocabulary. A visa is applied for and decided \
-             before you travel. An electronic authorization is a lighter online check, still \
+            "Authorities publish a small shared vocabulary. A visa is applied for and decided by \
+             the authority itself — usually ahead of travel; where one is offered on arrival, \
+             the authority's own page is what says so. An electronic authorization is a lighter online check, still \
              decided before you travel. An exemption means no application for the stays the \
              authority defines. Published conditions mean the answer depends on your passport \
              type, your purpose, or your history — and only you can read your own case. Which of \

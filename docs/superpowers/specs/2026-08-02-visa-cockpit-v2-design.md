@@ -344,3 +344,39 @@ migration (slice 3), LLM mini-prompt (slice 4), readiness/Today integration
 (approach C), stats history/trends (snapshot table is overwrite-on-refresh),
 US State Dept parser, `getVisaStats` as a separate method (folded into
 `VisaPrep`), any autonomous filing or booking behavior.
+
+## As built (2026-08-02, post-implementation amendments)
+
+Six deviations from the text above shipped deliberately; each is an
+improvement the council reviews accepted, recorded here so the spec stays an
+honest record:
+
+1. The playbook is its own `VisaPlaybook` type (destination, nationality,
+   steps, language) rather than a `VisaJourney` — a journey's `entry_path` is
+   non-optional and a playbook without a quote must not invent one. The
+   renderer shares `VisaStep`, which was the point.
+2. `VisaStatMetric` has no `unit` field: values are quoted verbatim with their
+   units in the string, and a separate field would have invited conversion.
+3. The snapshot table stores the raw fetched `body`, not parsed
+   `payload_json`, and parses on every read — a parser fix reaches copies
+   already kept, and a destination-shared row is never bound to the passport
+   that fetched it.
+4. `published_times` takes `nationality_iso2` so per-country sources quote the
+   traveler's own rows; nationality still never leaves the device (the fetch
+   URL is a constant; filtering is local, verified in review).
+5. The missions disclosure is a button with `aria-expanded` (not native
+   `<details>`) for deterministic testing, and keeps the existing static
+   title rather than interpolating country names.
+6. `visa.noDestination` was kept and wired rather than deleted: with the
+   playbook present, an uncurated destination and an unresolved destination
+   are distinguishable states, and the string describes the second exactly
+   (playbook absence is what distinguishes them). `visa.noJourney`/
+   `visa.noJourneyDetail` retired instead — the playbook made their state
+   unreachable.
+
+Post-review corrections also folded in: UKVI's page URL pinned to the target
+of its current 301 redirect; the unknown-path label no longer says "not
+curated" under a curated quote; the no-authority hint names the statistics
+absence too; a snapshot whose tables carry no row for the passport code says
+so instead of rendering an empty table; playbook steps 1–2 no longer imply a
+single government per trip or a universal pre-travel decision.

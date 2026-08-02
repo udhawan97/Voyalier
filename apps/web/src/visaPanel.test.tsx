@@ -634,6 +634,45 @@ describe("visa cockpit v2", () => {
     expect(within(stats).getByRole("table")).toBeInTheDocument();
   });
 
+  it("marks a kept copy older than a week and says to fetch again", async () => {
+    const base = createMockGateway();
+    await base.createTrip({
+      title: "London filing",
+      origin: "Delhi",
+      destination: "London",
+      startDate: "2027-05-01",
+      endDate: "2027-05-10",
+    });
+    const trips = await base.listTrips();
+    const london = trips.find((trip) => trip.title === "London filing")!;
+    await base.setVisaNationality({
+      tripId: london.id,
+      nationalityIso2: "IN",
+    });
+    await base.refreshVisaStats(london.id);
+    // Age the kept copy past the advice staleness window on the way out.
+    const gateway = {
+      ...base,
+      getVisaPrep: async (tripId: string) => {
+        const prep = await base.getVisaPrep(tripId);
+        if (prep.stats?.snapshot) {
+          prep.stats.snapshot.retrievedAt = "2026-07-01T00:00:00Z";
+        }
+        return prep;
+      },
+    };
+    renderApp(gateway as typeof base);
+    const region = await openVisaFor("London filing");
+
+    const stats = within(region).getByRole("region", {
+      name: /UK Visas and Immigration/,
+    });
+    expect(await within(stats).findByRole("table")).toBeInTheDocument();
+    expect(
+      within(stats).getByText(/days ago — fetch again before you rely on it/),
+    ).toBeInTheDocument();
+  });
+
   it("renders the playbook banner in Spanish chrome around English steps", async () => {
     setLocalePreference("es");
     const gateway = createMockGateway();

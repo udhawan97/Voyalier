@@ -220,7 +220,7 @@
       "id": "uk-ukvi",
       "category": "consent_fetched",
       "name": "UK Visas and Immigration",
-      "url": "https://www.gov.uk/guidance/visa-decision-waiting-times-applications-outside-the-uk",
+      "url": "https://www.gov.uk/guidance/visa-processing-times-applications-outside-the-uk",
       "use": "Published visa decision waiting times",
       "endpoint": "gov.uk guidance page (HTML)",
       "license": "Open Government Licence v3.0",

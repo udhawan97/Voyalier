@@ -1133,7 +1133,7 @@ const en = {
   "visa.nationalityInvalid":
     "Use two letters, ISO-3166-1 alpha-2 — IN, NG, GB.",
   "visa.noAuthority":
-    "Voyalier has not curated an authority for this destination, so it has nothing to quote and no official page to point you at. Check your destination's own immigration service.",
+    "Voyalier has not curated an authority for this destination, so it has nothing to quote — no entry path and no published processing times — and no official page to point you at. Check your destination's own immigration service.",
   "visa.noDestination":
     "Voyalier could not work out which country this trip goes to, so it has nothing to look up. Editing the destination to include the country will resolve it.",
   "visa.quotedFrom": "Quoted from",
@@ -1143,7 +1143,8 @@ const en = {
   "visa.path.electronicAuthorization":
     "An electronic authorization is published for this passport",
   "visa.path.exempt": "Neither is published for this passport",
-  "visa.path.unknown": "Not curated — check the official source",
+  "visa.path.unknown":
+    "No single answer is published for this passport — check the official source",
   "visa.progress.one":
     "Checklist: {done} of {total} complete across {count} guide step. Voyalier has not verified any item.",
   "visa.progress.other":
@@ -1170,6 +1171,8 @@ const en = {
     "{authority} does not publish its times in a form Voyalier can read for you. Read them yourself at the official page.",
   "visa.stats.failedNoCopy":
     "Could not reach {authority}, and nothing is stored yet. Try again, or read the page yourself.",
+  "visa.stats.noRows":
+    "{authority} publishes no row for the passport code {code} in the tables Voyalier reads. Check the page yourself.",
   "visa.stats.caption": "Published times, as {authority} labels them",
   "visa.stats.colLabel": "As labelled by the source",
   "visa.stats.colValue": "Published time",
@@ -2575,7 +2578,7 @@ const es: Record<MessageKey, string> = {
     "Dos letras, ISO-3166-1 alfa-2: IN para India, NG para Nigeria, GB para el Reino Unido.",
   "visa.nationalityInvalid": "Usa dos letras, ISO-3166-1 alfa-2: IN, NG, GB.",
   "visa.noAuthority":
-    "Voyalier no ha curado ninguna autoridad para este destino, así que no tiene nada que citar ni ninguna página oficial que indicarte. Consulta el servicio de inmigración de tu destino.",
+    "Voyalier no ha curado ninguna autoridad para este destino, así que no tiene nada que citar (ni ruta de entrada ni tiempos de tramitación publicados) ni ninguna página oficial que indicarte. Consulta el servicio de inmigración de tu destino.",
   "visa.noDestination":
     "Voyalier no pudo determinar a qué país va este viaje, así que no tiene nada que consultar. Editar el destino para incluir el país lo resolverá.",
   "visa.quotedFrom": "Citado de",
@@ -2585,7 +2588,8 @@ const es: Record<MessageKey, string> = {
   "visa.path.electronicAuthorization":
     "Se publica una autorización electrónica para este pasaporte",
   "visa.path.exempt": "No se publica ninguno de los dos para este pasaporte",
-  "visa.path.unknown": "Sin curar: consulta la fuente oficial",
+  "visa.path.unknown":
+    "No se publica una única respuesta para este pasaporte: consulta la fuente oficial",
   "visa.progress.one":
     "Lista: {done} de {total} completado en {count} paso de la guía. Voyalier no ha verificado ningún elemento.",
   "visa.progress.other":
@@ -2608,6 +2612,8 @@ const es: Record<MessageKey, string> = {
     "{authority} no publica sus tiempos en un formato que Voyalier pueda leer por ti. Léelos tú en la página oficial.",
   "visa.stats.failedNoCopy":
     "No se pudo contactar con {authority} y aún no hay nada guardado. Inténtalo de nuevo o lee la página tú mismo.",
+  "visa.stats.noRows":
+    "{authority} no publica ninguna fila para el código de pasaporte {code} en las tablas que Voyalier lee. Consulta la página tú mismo.",
   "visa.stats.caption": "Tiempos publicados, tal como los etiqueta {authority}",
   "visa.stats.colLabel": "Como lo etiqueta la fuente",
   "visa.stats.colValue": "Tiempo publicado",
