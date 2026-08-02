@@ -2163,12 +2163,45 @@ mod tests {
     /// folds it into the comparison key alongside `(verb, path)` so a same-verb
     /// handler swap between two routes fails instead of comparing as two
     /// identical keys.
+    /// What a gateway puts in the request. See ADR-0012.
+    #[derive(serde::Deserialize)]
+    #[serde(untagged)]
+    enum PayloadKeys {
+        /// `"input"`: a whole typed object onto a shared voyalier-core type.
+        Whole(String),
+        /// A literal list the gateway writes itself.
+        Keys(Vec<String>),
+        /// Forwarded whole onto a struct re-declared locally. Not used by any
+        /// HTTP body today; the shape exists so the manifest reads the same
+        /// from both transports.
+        WholeRedeclared { whole: Vec<String> },
+    }
+
+    impl PayloadKeys {
+        /// The keys to compare, or `None` when the type is shared and its
+        /// fields are not this crate's to know.
+        fn checkable(&self) -> Option<&[String]> {
+            match self {
+                PayloadKeys::Whole(_) => None,
+                PayloadKeys::Keys(keys) => Some(keys),
+                PayloadKeys::WholeRedeclared { whole } => Some(whole),
+            }
+        }
+    }
+
+    #[derive(serde::Deserialize)]
+    struct RoutePayload {
+        body: Option<PayloadKeys>,
+        query: Vec<String>,
+    }
+
     #[derive(serde::Deserialize)]
     struct SharedRoute {
         method: String,
         verb: String,
         path: String,
         command: String,
+        payload: RoutePayload,
     }
 
     #[derive(serde::Deserialize)]
@@ -2230,6 +2263,239 @@ mod tests {
             .await
             .expect("bytes");
         (status, body.is_empty())
+    }
+
+    /// The type inside a handler's `Json<...>` or `Query<...>` extractor.
+    ///
+    /// Every extractor in this file is written in one literal form --
+    /// `Json(x): Json<T>` -- with no generics and no custom extractors, which
+    /// `handler_signatures_stay_in_a_form_the_payload_parser_understands`
+    /// keeps true.
+    fn handler_extractor<'a>(source: &'a str, handler: &str, kind: &str) -> Option<&'a str> {
+        let marker = format!("async fn {handler}(");
+        let start = source.find(&marker)? + marker.len();
+        let end = start + source[start..].find(") -> ")?;
+        let signature = &source[start..end];
+        let opener = format!("{kind}<");
+        let at = signature.find(&opener)? + opener.len();
+        let close = signature[at..].find('>')?;
+        Some(signature[at..at + close].trim())
+    }
+
+    /// The JSON keys a struct declared in this file accepts.
+    ///
+    /// `None` when the type is not local, which is how a shared voyalier-core
+    /// type is told apart from a body struct written here. Most of these carry
+    /// no `rename_all`, so they expect bare snake_case on the wire — exactly
+    /// the detail a reader would assume wrongly, and the reason this reads the
+    /// attribute instead of assuming camelCase.
+    fn local_struct_keys(source: &str, type_name: &str) -> Option<Vec<String>> {
+        let marker = format!("struct {type_name} {{");
+        let start = source.find(&marker)?;
+        let camel = source[..start]
+            .rsplit("#[derive")
+            .next()
+            .unwrap_or("")
+            .contains(r#"rename_all = "camelCase""#);
+        let body_start = start + marker.len();
+        let mut depth = 1usize;
+        let mut end = body_start;
+        for (offset, character) in source[body_start..].char_indices() {
+            match character {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = body_start + offset;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut keys = Vec::new();
+        for line in source[body_start..end].lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with("//") || line.starts_with("#[") {
+                continue;
+            }
+            let Some(name) = line.split(':').next() else {
+                continue;
+            };
+            let name = name.trim();
+            if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+                continue;
+            }
+            keys.push(if camel {
+                to_camel_case(name)
+            } else {
+                name.to_owned()
+            });
+        }
+        Some(keys)
+    }
+
+    fn to_camel_case(field: &str) -> String {
+        let mut out = String::with_capacity(field.len());
+        let mut upper = false;
+        for character in field.chars() {
+            if character == '_' {
+                upper = true;
+            } else if upper {
+                out.extend(character.to_uppercase());
+                upper = false;
+            } else {
+                out.push(character);
+            }
+        }
+        out
+    }
+
+    /// `(VERB, path) -> handler ident`, off the same parse the route guard uses.
+    fn handlers_by_route(source: &str) -> std::collections::HashMap<(String, String), String> {
+        declared_routes(source)
+            .into_iter()
+            .map(|(verb, path, handler)| ((verb, path), handler))
+            .collect()
+    }
+
+    /// Guards the parser above, the way `the_router_uses_only_wiring_forms...`
+    /// guards the route parser. A payload guard that quietly stops finding
+    /// extractors would report success over an unchecked surface.
+    #[test]
+    fn handler_signatures_stay_in_a_form_the_payload_parser_understands() {
+        let source = include_str!("lib.rs");
+        let manifest = load_route_manifest();
+        let handlers = handlers_by_route(source);
+
+        for route in &manifest.shared {
+            let key = (route.verb.clone(), route.path.clone());
+            let handler = handlers.get(&key).unwrap_or_else(|| {
+                panic!(
+                    "no handler for {} {} ({})",
+                    route.verb, route.path, route.method
+                )
+            });
+            let declares_body = route.payload.body.is_some();
+            let found_body = handler_extractor(source, handler, "Json").is_some();
+            assert_eq!(
+                found_body,
+                declares_body,
+                "{handler} ({}) {} a Json extractor, but parity/routes.json {} a body",
+                route.method,
+                if found_body { "has" } else { "has no" },
+                if declares_body {
+                    "declares"
+                } else {
+                    "declares no"
+                }
+            );
+
+            let declares_query = !route.payload.query.is_empty();
+            let found_query = handler_extractor(source, handler, "Query").is_some();
+            assert_eq!(
+                found_query,
+                declares_query,
+                "{handler} ({}) {} a Query extractor, but parity/routes.json {} query keys",
+                route.method,
+                if found_query { "has" } else { "has no" },
+                if declares_query {
+                    "declares"
+                } else {
+                    "declares no"
+                }
+            );
+        }
+    }
+
+    /// The keys http.ts writes by hand must be the keys the handler reads by
+    /// name, and nothing compared them.
+    ///
+    /// 14 of the 81 calls hand-build a request body and 8 build a query string,
+    /// against 16 body structs and 6 query structs declared here. Renaming a
+    /// field on either side alone compiled clean and passed every guard: the
+    /// route tests compare verb and path, and `gateway.live.test.ts` drives ten
+    /// methods behind a flag `make check` does not set. Four of the six query
+    /// structs carry no `rename_all`, so the expected key is a bare identifier
+    /// with nothing announcing it. ADR-0012.
+    #[test]
+    fn every_handler_reads_the_keys_the_manifest_declares() {
+        let source = include_str!("lib.rs");
+        let manifest = load_route_manifest();
+        let handlers = handlers_by_route(source);
+        let (mut bodies, mut queries) = (0usize, 0usize);
+
+        for route in &manifest.shared {
+            let handler = &handlers[&(route.verb.clone(), route.path.clone())];
+
+            if let Some(declared) = &route.payload.body {
+                if let PayloadKeys::Whole(spelling) = declared {
+                    assert_eq!(
+                        spelling, "input",
+                        "the only whole-body spelling is \"input\" ({})",
+                        route.method
+                    );
+                }
+                let type_name =
+                    handler_extractor(source, handler, "Json").expect("form is guarded");
+                match (declared.checkable(), local_struct_keys(source, type_name)) {
+                    (Some(expected), Some(actual)) => {
+                        let (mut expected, mut actual) = (expected.to_vec(), actual);
+                        expected.sort();
+                        actual.sort();
+                        assert_eq!(
+                            actual, expected,
+                            "{handler} ({}) reads Json<{type_name}>, whose keys are {actual:?}, \
+                             but parity/routes.json declares the gateway sends {expected:?}",
+                            route.method
+                        );
+                        bodies += 1;
+                    }
+                    (Some(expected), None) => panic!(
+                        "parity/routes.json declares body keys {expected:?} for {} ({handler}), \
+                         but Json<{type_name}> is not declared in voyalier-server -- a shared \
+                         voyalier-core type means the row should say \"input\"",
+                        route.method
+                    ),
+                    (None, Some(actual)) => panic!(
+                        "parity/routes.json says {} ({handler}) forwards a whole object, but \
+                         Json<{type_name}> is a server-local struct with keys {actual:?} -- \
+                         declare those keys instead",
+                        route.method
+                    ),
+                    (None, None) => {}
+                }
+            }
+
+            if !route.payload.query.is_empty() {
+                let type_name =
+                    handler_extractor(source, handler, "Query").expect("form is guarded");
+                let mut actual = local_struct_keys(source, type_name).unwrap_or_else(|| {
+                    panic!(
+                        "Query<{type_name}> for {} is not declared here",
+                        route.method
+                    )
+                });
+                let mut expected = route.payload.query.clone();
+                actual.sort();
+                expected.sort();
+                assert_eq!(
+                    actual, expected,
+                    "{handler} ({}) reads Query<{type_name}>, whose keys are {actual:?}, but \
+                     parity/routes.json declares the gateway sends {expected:?}",
+                    route.method
+                );
+                queries += 1;
+            }
+        }
+
+        // Mechanically compared against a struct in this file. Bump when a row
+        // changes kind.
+        assert_eq!(
+            (bodies, queries),
+            (14, 8),
+            "expected 14 bodies and 8 query strings"
+        );
     }
 
     #[tokio::test]

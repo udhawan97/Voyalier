@@ -1733,10 +1733,31 @@ mod tests {
         }
     }
 
+    /// What a method puts inside the Tauri `input` envelope: either the whole
+    /// typed input object (`"input"`), or a literal list of keys the gateway
+    /// hand-writes. See ADR-0012.
+    #[derive(serde::Deserialize)]
+    #[serde(untagged)]
+    enum PayloadKeys {
+        /// `"input"`: forwarded whole onto a shared voyalier-core type.
+        Whole(String),
+        /// A literal list the gateway writes itself.
+        Keys(Vec<String>),
+        /// Forwarded whole, but read here through a locally re-declared
+        /// struct -- so the key set is checkable and worth checking.
+        WholeRedeclared { whole: Vec<String> },
+    }
+
+    #[derive(serde::Deserialize)]
+    struct RoutePayload {
+        command: PayloadKeys,
+    }
+
     #[derive(serde::Deserialize)]
     struct SharedRoute {
         method: String,
         command: String,
+        payload: RoutePayload,
     }
 
     #[derive(serde::Deserialize)]
@@ -1779,6 +1800,193 @@ mod tests {
             .map(str::trim)
             .filter(|token| !token.is_empty())
             .collect()
+    }
+
+    /// The type of a command's `input` parameter, read out of its signature.
+    ///
+    /// Every shared command in this file is written as `fn name(input: T,` or
+    /// `fn name(\n    input: T,` -- `get_vault_status` alone uses `_input`.
+    /// `command_signatures_stay_in_a_form_the_payload_parser_understands` fails
+    /// if that stops being true, so this cannot go blind quietly.
+    fn command_input_type<'a>(source: &'a str, command: &str) -> Option<&'a str> {
+        let marker = format!("fn {command}(");
+        let start = source.find(&marker)? + marker.len();
+        let rest = &source[start..];
+        let colon = rest.find(':')?;
+        let head = rest[..colon].trim();
+        if head != "input" && head != "_input" {
+            return None;
+        }
+        let after = &rest[colon + 1..];
+        let end = after.find(',')?;
+        Some(after[..end].trim())
+    }
+
+    /// The JSON keys a locally-declared input struct accepts.
+    ///
+    /// Returns `None` when the type is not declared in this file, which is how
+    /// a shared `voyalier-core` type is told apart from a desktop wrapper.
+    /// Every struct here carries `#[serde(rename_all = "camelCase")]`; the
+    /// parser requires it rather than assuming it, because a struct without one
+    /// expects snake_case on the wire and the gateway sends camelCase.
+    fn struct_json_keys(source: &str, type_name: &str) -> Option<Vec<String>> {
+        let marker = format!("struct {type_name} {{");
+        let start = source.find(&marker)?;
+        let head = &source[..start];
+        let attrs = head.rsplit("#[derive").next().unwrap_or("");
+        let camel = attrs.contains(r#"rename_all = "camelCase""#);
+        let body_start = start + marker.len();
+        // Brace-match rather than looking for a closing line: `struct
+        // EmptyInput {}` has no closing line of its own, and searching for one
+        // swallowed the rest of the file.
+        let mut depth = 1usize;
+        let mut end = body_start;
+        for (offset, character) in source[body_start..].char_indices() {
+            match character {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = body_start + offset;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut keys = Vec::new();
+        for line in source[body_start..end].lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with("//") || line.starts_with("#[") {
+                continue;
+            }
+            let Some(name) = line.split(':').next() else {
+                continue;
+            };
+            let name = name.trim();
+            if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+                continue;
+            }
+            keys.push(if camel {
+                to_camel(name)
+            } else {
+                name.to_owned()
+            });
+        }
+        Some(keys)
+    }
+
+    fn to_camel(field: &str) -> String {
+        let mut out = String::with_capacity(field.len());
+        let mut upper = false;
+        for character in field.chars() {
+            if character == '_' {
+                upper = true;
+            } else if upper {
+                out.extend(character.to_uppercase());
+                upper = false;
+            } else {
+                out.push(character);
+            }
+        }
+        out
+    }
+
+    /// Guards the parser above, the way the router's wiring-form test guards
+    /// the route parser: if a command signature stops matching, this fails
+    /// loudly instead of the payload test silently checking nothing.
+    #[test]
+    fn command_signatures_stay_in_a_form_the_payload_parser_understands() {
+        let manifest = load_route_manifest();
+        let source = include_str!("lib.rs");
+        for route in &manifest.shared {
+            assert!(
+                command_input_type(source, &route.command).is_some(),
+                "`{}` ({}) does not declare its argument as `input: T` on one line, so the \
+                 payload parity guard cannot read its type. Keep the signature in that form.",
+                route.command,
+                route.method
+            );
+        }
+    }
+
+    /// The keys tauri.ts writes by hand must be the keys the command's struct
+    /// reads by name, and nothing compared them.
+    ///
+    /// 50 of the 81 shared calls hand-construct their argument object --
+    /// `{ tripId, patch: input }` for `update_trip`, and so on. Renaming
+    /// `patch` on either side alone compiled clean and passed every guard here:
+    /// the argument is typed `Record<string, unknown>` in TypeScript,
+    /// `generate_handler_registers_every_declared_command` compares names, and
+    /// `every_shared_command_binds_its_argument_to_input` sends no envelope at
+    /// all. The desktop trip editor would have been dead with `make check`
+    /// green. ADR-0012.
+    #[test]
+    fn every_command_reads_the_keys_the_manifest_declares() {
+        let manifest = load_route_manifest();
+        let source = include_str!("lib.rs");
+        let mut checked_locally = 0usize;
+
+        for route in &manifest.shared {
+            let type_name =
+                command_input_type(source, &route.command).expect("signature form is guarded");
+            let declared = struct_json_keys(source, type_name);
+
+            // A re-declared forward is checked exactly like a hand-built one:
+            // from this side the only question is whether the struct's keys are
+            // the ones the gateway puts on the wire. Whether the gateway wrote
+            // them or forwarded them is the web suite's half.
+            if let PayloadKeys::Whole(spelling) = &route.payload.command {
+                assert_eq!(
+                    spelling, "input",
+                    "the only whole-payload spelling is \"input\" ({})",
+                    route.method
+                );
+            }
+            let expected_keys = match &route.payload.command {
+                PayloadKeys::WholeRedeclared { whole } => Some(whole.as_slice()),
+                PayloadKeys::Keys(keys) => Some(keys.as_slice()),
+                PayloadKeys::Whole(_) => None,
+            };
+
+            match (expected_keys, declared) {
+                (Some(expected), Some(actual)) => {
+                    let mut expected = expected.to_vec();
+                    let mut actual = actual;
+                    expected.sort();
+                    actual.sort();
+                    assert_eq!(
+                        actual, expected,
+                        "`{}` ({}) reads {type_name}, whose JSON keys are {actual:?}, but \
+                         parity/routes.json declares the gateway sends {expected:?}",
+                        route.command, route.method
+                    );
+                    checked_locally += 1;
+                }
+                (Some(expected), None) => panic!(
+                    "parity/routes.json declares literal keys {expected:?} for {} ({}), but its \
+                     input type {type_name} is not declared in voyalier-desktop -- a shared \
+                     voyalier-core type means the row should say \"input\"",
+                    route.command, route.method
+                ),
+                (None, None) => {}
+                (None, Some(actual)) => panic!(
+                    "parity/routes.json says {} ({}) forwards the whole input object, but its \
+                     type {type_name} is a desktop-local wrapper with keys {actual:?} -- declare \
+                     those keys instead",
+                    route.command, route.method
+                ),
+            }
+        }
+
+        // Mechanically checked against a struct in this file, rather than
+        // classified as a passthrough: 56 that hand-build an argument object,
+        // plus the 9 that send an empty envelope against `EmptyInput`. Bump it
+        // when a row changes kind.
+        assert_eq!(
+            checked_locally, 65,
+            "expected 65 commands with desktop-declared input structs, found {checked_locally}"
+        );
     }
 
     /// `packages/contracts/parity/routes.json` is the one declaration of the API
