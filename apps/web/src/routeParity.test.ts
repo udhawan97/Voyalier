@@ -142,6 +142,7 @@ const ARGS: Record<keyof AppGateway, unknown[]> = {
   listAdviceCountries: [],
   fetchAdvisories: [{ tripId: "trip_1", countrySlug: "japan" }],
   fetchWeather: ["trip_1"],
+  recheckTrip: ["trip_1"],
   fetchDestinationFacts: ["trip_1"],
   fetchPublicHolidays: ["trip_1"],
   fetchPlaceSummary: ["trip_1"],

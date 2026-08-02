@@ -53,10 +53,22 @@ import type {
   FetchAdvisoriesInput,
   FieldSuggestion,
   FlightEmissions,
+  CarRentalPayload,
+  DisruptionPlan,
+  ExposedLeg,
+  FactType,
+  FallbackPointer,
   FlightSegmentPayload,
+  Handoff,
+  HandoffBand,
+  HandoffKind,
   HealthResponse,
   HeritageSite,
   HighStakesTopic,
+  RecheckLine,
+  RecheckReport,
+  SurfaceJourneyPayload,
+  TransportMode,
   ImportDocumentInput,
   ImportResult,
   InterestProfile,
@@ -308,6 +320,27 @@ const fixtureConfirmedFacts: ConfirmedFact[] = [
     candidateId: null,
     correctedFields: [],
     confirmedAt: "2026-07-07T14:00:00Z",
+    sourceRemoved: false,
+  },
+  {
+    // Lands 16:05, boards 16:50: a real 45-minute hand-off, so the playbook has
+    // something to say in mock mode without inventing a defect.
+    id: "fact_kyoto_rail",
+    tripId: "trip_kyoto",
+    factType: "rail_journey",
+    payload: {
+      carrierName: "Fictional Rail",
+      serviceNumber: "NX41",
+      departurePlace: "Haneda Airport Terminal 3",
+      arrivalPlace: "Kyoto Station",
+      departureLocal: "2026-11-04T16:50",
+      arrivalLocal: "2026-11-04T19:20",
+      confirmationCode: "RAIL55",
+    },
+    method: "manual",
+    candidateId: null,
+    correctedFields: [],
+    confirmedAt: "2026-07-07T14:02:00Z",
     sourceRemoved: false,
   },
   {
@@ -1643,6 +1676,267 @@ function suggestSearchTermsFrom(
  * sharing policy: confirmation codes and traveler names are excluded by
  * construction; addresses are kept.
  */
+/** The four fact types that are a surface leg rather than a flight or a stay. */
+const SURFACE_FACT_TYPES: FactType[] = [
+  "rail_journey",
+  "coach_journey",
+  "ferry_crossing",
+  "car_rental",
+];
+
+/** Mirrors voyalier-core::contingency's hand-off horizon. */
+const MAX_HANDOFF_MINUTES = 24 * 60;
+
+function factLabelFor(fact: ConfirmedFact): FactLabel {
+  const payload = fact.payload as FlightSegmentPayload &
+    LodgingStayPayload &
+    SurfaceJourneyPayload &
+    CarRentalPayload;
+  const filled = (value?: string) => {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : undefined;
+  };
+  switch (fact.factType) {
+    case "flight_segment": {
+      const number = filled(payload.flightNumber);
+      if (number) return { code: "flight_number", number };
+      const from = filled(payload.departureAirportIata);
+      const to = filled(payload.arrivalAirportIata);
+      return from && to
+        ? { code: "flight_route", from, to }
+        : { code: "flight" };
+    }
+    case "lodging_stay": {
+      const property = filled(payload.propertyName);
+      return property
+        ? { code: "lodging_property", property }
+        : { code: "lodging" };
+    }
+    case "car_rental": {
+      const company = filled(payload.carrierName);
+      return company ? { code: "rental_company", company } : { code: "rental" };
+    }
+    default: {
+      const mode: TransportMode =
+        fact.factType === "coach_journey"
+          ? "coach"
+          : fact.factType === "ferry_crossing"
+            ? "ferry"
+            : "rail";
+      const service =
+        filled(payload.serviceNumber) ?? filled(payload.carrierName);
+      if (service) return { code: "journey_service", mode, service };
+      const from = filled(payload.departurePlace);
+      const to = filled(payload.arrivalPlace);
+      return from && to
+        ? { code: "journey_route", mode, from, to }
+        : { code: "journey", mode };
+    }
+  }
+}
+
+/** Mirrors voyalier-core::contingency::band_for. */
+function handoffBand(
+  kind: HandoffKind,
+  fromType: FactType,
+  slack: number,
+): HandoffBand {
+  if (slack < 0) return "impossible";
+  const [tight, short, comfortable] =
+    kind === "connection"
+      ? fromType === "flight_segment"
+        ? [75, 150, 300]
+        : [20, 45, 120]
+      : kind === "rental_pickup"
+        ? [30, 60, 120]
+        : [45, 90, 180];
+  if (slack < tight) return "tight";
+  if (slack < short) return "short";
+  if (slack < comfortable) return "comfortable";
+  return "ample";
+}
+
+function minutesBetween(from: string, to: string): number | undefined {
+  const start = Date.parse(`${from}:00Z`);
+  const end = Date.parse(`${to}:00Z`);
+  if (Number.isNaN(start) || Number.isNaN(end)) return undefined;
+  return Math.round((end - start) / 60000);
+}
+
+interface MockLeg {
+  fact: ConfirmedFact;
+  departure: string;
+  arrival: string;
+}
+
+function legsOf(
+  tripFacts: ConfirmedFact[],
+  wanted: (factType: FactType) => boolean,
+): MockLeg[] {
+  return tripFacts
+    .filter((fact) => wanted(fact.factType))
+    .flatMap((fact) => {
+      const payload = fact.payload as SurfaceJourneyPayload;
+      const departure = payload.departureLocal;
+      const arrival = payload.arrivalLocal;
+      if (!departure || !arrival) return [];
+      if (minutesBetween(departure, arrival) === undefined) return [];
+      return [{ fact, departure, arrival }];
+    })
+    .sort(
+      (a, b) =>
+        a.departure.localeCompare(b.departure) ||
+        a.fact.id.localeCompare(b.fact.id),
+    );
+}
+
+/**
+ * Mirrors voyalier-core::contingency::build_disruption_plan. Advisory only: the
+ * mock's readiness rollup never reads it, exactly as the service's does not.
+ */
+function buildDisruptionPlan(
+  tripFacts: ConfirmedFact[],
+  nearestAirports: NearbyAirport[],
+): DisruptionPlan {
+  const scheduled = legsOf(
+    tripFacts,
+    (factType) => factType !== "lodging_stay" && factType !== "car_rental",
+  );
+  const rentals = legsOf(tripFacts, (factType) => factType === "car_rental");
+  const handoffs: Handoff[] = [];
+
+  for (let index = 0; index + 1 < scheduled.length; index += 1) {
+    const from = scheduled[index];
+    const to = scheduled[index + 1];
+    const slack = minutesBetween(from.arrival, to.departure);
+    // A negative gap is an overlap, which the itinerary checks already report.
+    if (slack === undefined || slack < 0 || slack > MAX_HANDOFF_MINUTES)
+      continue;
+    handoffs.push({
+      kind: "connection",
+      from: factLabelFor(from.fact),
+      to: factLabelFor(to.fact),
+      fromFactId: from.fact.id,
+      toFactId: to.fact.id,
+      slackMinutes: slack,
+      band: handoffBand("connection", from.fact.factType, slack),
+      at: from.arrival,
+    });
+  }
+
+  // A hire car never joins the chain — it sits in a car park while its holder
+  // takes a train — so each of its two ends is measured on its own.
+  for (const rental of rentals) {
+    const nearest = (gap: (leg: MockLeg) => number | undefined) =>
+      scheduled
+        .map((leg) => ({ leg, gap: gap(leg) }))
+        .filter(
+          (entry): entry is { leg: MockLeg; gap: number } =>
+            entry.gap !== undefined &&
+            Math.abs(entry.gap) <= MAX_HANDOFF_MINUTES,
+        )
+        .sort(
+          (a, b) =>
+            Math.abs(a.gap) - Math.abs(b.gap) ||
+            a.leg.fact.id.localeCompare(b.leg.fact.id),
+        )[0];
+
+    const pickup = nearest((leg) =>
+      minutesBetween(leg.arrival, rental.departure),
+    );
+    if (pickup) {
+      handoffs.push({
+        kind: "rental_pickup",
+        from: factLabelFor(pickup.leg.fact),
+        to: factLabelFor(rental.fact),
+        fromFactId: pickup.leg.fact.id,
+        toFactId: rental.fact.id,
+        slackMinutes: pickup.gap,
+        band: handoffBand(
+          "rental_pickup",
+          pickup.leg.fact.factType,
+          pickup.gap,
+        ),
+        at: pickup.leg.arrival,
+      });
+    }
+    const back = nearest((leg) =>
+      minutesBetween(rental.arrival, leg.departure),
+    );
+    if (back) {
+      handoffs.push({
+        kind: "rental_return",
+        from: factLabelFor(rental.fact),
+        to: factLabelFor(back.leg.fact),
+        fromFactId: rental.fact.id,
+        toFactId: back.leg.fact.id,
+        slackMinutes: back.gap,
+        band: handoffBand("rental_return", rental.fact.factType, back.gap),
+        at: rental.arrival,
+      });
+    }
+  }
+
+  const exposedLegs: ExposedLeg[] = scheduled
+    .flatMap((leg) => {
+      const fromHere = handoffs.filter(
+        (handoff) => handoff.fromFactId === leg.fact.id,
+      );
+      if (fromHere.length === 0) return [];
+      return [
+        {
+          factId: leg.fact.id,
+          label: factLabelFor(leg.fact),
+          absorbsMinutes: Math.min(
+            ...fromHere.map((handoff) => Math.max(handoff.slackMinutes, 0)),
+          ),
+          dependents: handoffs.filter((handoff) => handoff.at >= leg.arrival)
+            .length,
+        },
+      ];
+    })
+    .sort(
+      (a, b) =>
+        a.absorbsMinutes - b.absorbsMinutes ||
+        b.dependents - a.dependents ||
+        a.factId.localeCompare(b.factId),
+    );
+
+  // Only what the workspace already holds: no URL, no curated carrier table.
+  const pointers: FallbackPointer[] = [];
+  const seen = new Set<string>();
+  for (const fact of tripFacts) {
+    if (fact.factType === "lodging_stay") continue;
+    const payload = fact.payload as SurfaceJourneyPayload &
+      FlightSegmentPayload;
+    const carrier = (payload.carrierName ?? payload.airlineName)?.trim();
+    if (!carrier || seen.has(carrier)) continue;
+    seen.add(carrier);
+    pointers.push({
+      code: "carrier_on_confirmation",
+      carrier,
+      factId: fact.id,
+    });
+  }
+  for (const airport of nearestAirports) {
+    pointers.push({
+      code: "alternate_airport",
+      name: airport.name,
+      iata: airport.iata,
+      distanceKm: Math.round(airport.distanceKm),
+    });
+  }
+
+  handoffs.sort(
+    (a, b) =>
+      a.slackMinutes - b.slackMinutes ||
+      a.at.localeCompare(b.at) ||
+      a.fromFactId.localeCompare(b.fromFactId) ||
+      a.toFactId.localeCompare(b.toFactId),
+  );
+  return { handoffs, exposedLegs, pointers };
+}
+
 function buildShareBrief(
   trip: Trip,
   tripFacts: ConfirmedFact[],
@@ -1669,6 +1963,19 @@ function buildShareBrief(
       ]),
     )
     .sort((a, b) => (a.checkinDate ?? "").localeCompare(b.checkinDate ?? ""));
+  // Surface legs travel together in one list, under the same generation-time
+  // redaction the flights above get.
+  const journeys = tripFacts
+    .filter((fact) => SURFACE_FACT_TYPES.includes(fact.factType))
+    .map((fact) =>
+      omit(fact.payload as SurfaceJourneyPayload, [
+        "confirmationCode",
+        "passengerName",
+      ]),
+    )
+    .sort((a, b) =>
+      (a.departureLocal ?? "").localeCompare(b.departureLocal ?? ""),
+    );
   const briefItems = manualItems
     .map(({ id, kind, title, location, startAt, endAt }) => ({
       id,
@@ -1693,6 +2000,7 @@ function buildShareBrief(
     endDate: trip.endDate,
     flights,
     stays,
+    journeys,
     tripItems: briefItems,
     redactedFields: ["Confirmation codes", "Traveler names"],
     generatedAt,
@@ -1869,11 +2177,13 @@ function buildTodayView(
     checkout: 0,
     flight_departure: 1,
     flight_arrival: 2,
-    checkin: 3,
-    staying_tonight: 4,
-    activity: 5,
-    rail: 6,
-    transfer: 7,
+    journey_departure: 3,
+    journey_arrival: 4,
+    checkin: 5,
+    staying_tonight: 6,
+    activity: 7,
+    rail: 8,
+    transfer: 9,
   };
   todayItems.sort(
     (a, b) =>
@@ -2467,6 +2777,9 @@ export function createMockGateway(options?: {
             pendingCandidateCount,
             confirmedConflicts,
           ),
+          // Derived like the service's, and — like the service's — never read
+          // by `assessReadiness` above.
+          disruptionPlan: buildDisruptionPlan(confirmedFacts, nearestAirports),
           ...(advisoryPanel ? { advisoryPanel: clone(advisoryPanel) } : {}),
           ...(weather ? { weather: clone(weather) } : {}),
           packingList: mockPackingList(weather, confirmedFacts, trip),
@@ -4069,6 +4382,72 @@ export function createMockGateway(options?: {
         };
         advisoryPanels.set(input.tripId, panel);
         return clone(panel);
+      }),
+
+    /**
+     * One explicit sweep, mirroring the service's rules: a source with nothing
+     * stored is `never_fetched`, a stored one is refreshed and diffed, and the
+     * report is returned rather than kept. The mock's stored snapshots are
+     * always freshly written, so it drives the *changed* path deliberately —
+     * the skipped and failed paths are the service's own tests to prove.
+     */
+    recheckTrip: (tripId: string) =>
+      execute("recheckTrip", () => {
+        requireTrip(tripId);
+        const checkedAt = timestamp();
+        const previousPanel = advisoryPanels.get(tripId);
+        const previousWeather = weatherSnapshots.get(tripId);
+        const hostsContacted: string[] = [];
+        const lines: RecheckLine[] = [];
+
+        if (!previousPanel) {
+          lines.push({
+            source: "advisories",
+            outcome: { code: "never_fetched" },
+          });
+        } else {
+          hostsContacted.push("www.gov.uk", "wwwnc.cdc.gov");
+          lines.push({
+            source: "advisories",
+            previouslyRetrievedAt: previousPanel.retrievedAt,
+            outcome: {
+              code: "changed",
+              changes: [
+                {
+                  code: "advisory_level",
+                  source: previousPanel.entries[0]?.source ?? "uk-fcdo",
+                  from: previousPanel.entries[0]?.levelLabel,
+                  to: "Advise against all but essential travel",
+                },
+              ],
+            },
+          });
+        }
+
+        if (!previousWeather) {
+          lines.push({ source: "weather", outcome: { code: "never_fetched" } });
+        } else {
+          hostsContacted.push("open-meteo.com");
+          lines.push({
+            source: "weather",
+            previouslyRetrievedAt: previousWeather.retrievedAt,
+            outcome:
+              previousWeather.days.length > 0
+                ? {
+                    code: "changed",
+                    changes: [{ code: "forecast_moved", dayCount: 1 }],
+                  }
+                : { code: "unchanged" },
+          });
+        }
+
+        const report: RecheckReport = {
+          tripId,
+          checkedAt,
+          lines,
+          hostsContacted,
+        };
+        return report;
       }),
 
     fetchWeather: (tripId: string) =>

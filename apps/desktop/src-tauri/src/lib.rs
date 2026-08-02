@@ -11,8 +11,8 @@ use voyalier_core::{
     ImportDocumentInput, ImportResult, InterestProfile, KeyValidation, LocalAiStatus,
     LocalModelPullResult, OfflineMapArchive, OfflineMapChunk, PackInfo, PackSuggestion,
     PackingItem, PersonaWeights, PlaceSummary, ProviderConfig, PublicHolidaysSnapshot,
-    Recommendation, ResearchSettings, Resource, SavePlaceInput, SavedPlace, SearchHit,
-    SetInterestProfileInput, SetResearchSettingsInput, SetVisaItemProgressInput,
+    RecheckReport, Recommendation, ResearchSettings, Resource, SavePlaceInput, SavedPlace,
+    SearchHit, SetInterestProfileInput, SetResearchSettingsInput, SetVisaItemProgressInput,
     SetVisaNationalityInput, TodayView, Trip, TripBrief, TripDetail, TripItem, TripNotes,
     TripSummary, UpdatePackingItemInput, UpdateResourceInput, UpdateSavedPlaceInput,
     UpdateTripInput, UpdateTripItemInput, VaultStatus, VisaPrep, WeatherSnapshot,
@@ -641,6 +641,14 @@ fn refresh_visa_stats(
 }
 
 #[tauri::command]
+fn recheck_trip(
+    input: TripIdInput,
+    service: State<'_, AppService>,
+) -> Result<RecheckReport, AppError> {
+    service.recheck_trip(&input.trip_id)
+}
+
+#[tauri::command]
 fn fetch_destination_facts(
     input: TripIdInput,
     service: State<'_, AppService>,
@@ -1214,6 +1222,7 @@ fn builder<R: tauri::Runtime>(
             set_provider_model,
             fetch_advisories,
             fetch_weather,
+            recheck_trip,
             fetch_destination_facts,
             fetch_public_holidays,
             fetch_place_summary,
@@ -1622,6 +1631,7 @@ mod tests {
             "set_provider_model",
             "fetch_advisories",
             "fetch_weather",
+            "recheck_trip",
             "refresh_visa_stats",
             "fetch_destination_facts",
             "fetch_public_holidays",
@@ -1990,12 +2000,12 @@ mod tests {
         }
 
         // Mechanically checked against a struct in this file, rather than
-        // classified as a passthrough: 57 that hand-build an argument object,
+        // classified as a passthrough: 58 that hand-build an argument object,
         // plus the 9 that send an empty envelope against `EmptyInput`. Bump it
         // when a row changes kind.
         assert_eq!(
-            checked_locally, 66,
-            "expected 66 commands with desktop-declared input structs, found {checked_locally}"
+            checked_locally, 67,
+            "expected 67 commands with desktop-declared input structs, found {checked_locally}"
         );
     }
 

@@ -26,6 +26,15 @@ type Values = Record<string, string | undefined>;
 
 // Fields already shown in each entry's title/subtitle, so we don't repeat them
 // in the detail rows below.
+// Rail, coach and ferry read identically: the service names the entry and the
+// two places subtitle it.
+const SHOWN_IN_JOURNEY_HEADING = [
+  "carrierName",
+  "serviceNumber",
+  "departurePlace",
+  "arrivalPlace",
+] as const;
+
 const SHOWN_IN_HEADING: Record<FactType, readonly string[]> = {
   flight_segment: [
     "flightNumber",
@@ -33,6 +42,10 @@ const SHOWN_IN_HEADING: Record<FactType, readonly string[]> = {
     "arrivalAirportIata",
   ],
   lodging_stay: ["propertyName", "address"],
+  rail_journey: SHOWN_IN_JOURNEY_HEADING,
+  coach_journey: SHOWN_IN_JOURNEY_HEADING,
+  ferry_crossing: SHOWN_IN_JOURNEY_HEADING,
+  car_rental: ["carrierName", "departurePlace", "arrivalPlace"],
 };
 
 function BriefEntry({

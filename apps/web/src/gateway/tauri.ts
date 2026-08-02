@@ -44,6 +44,7 @@ import type {
   ProviderConfig,
   ProviderId,
   PublicHolidaysSnapshot,
+  RecheckReport,
   Recommendation,
   ResearchSettings,
   Resource,
@@ -312,6 +313,8 @@ export function createTauriGateway(
 
     fetchWeather: (tripId: string) =>
       call<WeatherSnapshot>(command("fetchWeather"), { tripId }),
+    recheckTrip: (tripId: string) =>
+      call<RecheckReport>(command("recheckTrip"), { tripId }),
 
     fetchDestinationFacts: (tripId: string) =>
       call<DestinationFactsSnapshot>(command("fetchDestinationFacts"), {

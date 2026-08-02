@@ -169,6 +169,9 @@ async function driveWorkspace(): Promise<Array<[string, unknown]>> {
     gateway.fetchPublicHolidays("trip_kyoto"),
   );
   await record("fetchPlaceSummary", gateway.fetchPlaceSummary("trip_kyoto"));
+  // The sweep runs after the snapshots above exist, so its lines carry the
+  // `previouslyRetrievedAt` a never-fetched trip would leave absent.
+  await record("recheckTrip", gateway.recheckTrip("trip_kyoto"));
   await record(
     "fetchAdvisories",
     gateway.fetchAdvisories({ tripId: "trip_kyoto", countrySlug: "japan" }),

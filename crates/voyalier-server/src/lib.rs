@@ -225,6 +225,7 @@ pub fn app(service: AppService, address: SocketAddr) -> Router {
         )
         .route("/api/v1/trips/{trip_id}/advisories", post(fetch_advisories))
         .route("/api/v1/trips/{trip_id}/weather", post(fetch_weather))
+        .route("/api/v1/trips/{trip_id}/recheck", post(recheck_trip))
         .route(
             "/api/v1/trips/{trip_id}/destination-facts",
             post(fetch_destination_facts),
@@ -841,6 +842,13 @@ async fn refresh_visa_stats(
     Path(trip_id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(service.refresh_visa_stats(&trip_id)?))
+}
+
+async fn recheck_trip(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok(Json(service.recheck_trip(&trip_id)?))
 }
 
 async fn fetch_destination_facts(
