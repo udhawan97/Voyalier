@@ -6,6 +6,46 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+### Fixed
+
+- **City packs now select useful places across the whole city instead of one
+  parquet-scan corner.** The builder ranks rows by Overture confidence with a
+  deterministic visible-field tie-break, gives places and practical amenities
+  separate budgets, and excludes categories that do not belong in a travel
+  workspace. A failed or empty places query still stops publication, including
+  when DuckDB prints an error but exits successfully.
+
+  The source confidence used to choose each row is now retained in the pack
+  instead of being discarded after sorting. Older downloaded packs remain
+  readable because the field is optional. The category allowlist is deliberately
+  conservative; newly introduced Overture categories stay out until reviewed,
+  and migrating from the source's deprecated primary-category field remains
+  separate work.
+
+- **Recommendations no longer mistake substrings for travel categories, and
+  religious and heritage sights are no longer invisible.** `barber` no longer
+  becomes nightlife because it contains "bar", and `apartment_building` no
+  longer becomes culture because it contains "art". Temples, shrines, churches,
+  mosques, synagogues, castles, palaces and monasteries now score as culture.
+
+  Hotels, hostels and ryokan remain unranked because Voyalier has no stay
+  dimension; they continue to appear through place-name suggestions rather than
+  being assigned a misleading persona score.
+
+- **A configured local API address now agrees with the address the server
+  actually bound.** Alternate loopback addresses and an operating-system-chosen
+  port no longer fail their own Host check. Non-loopback bind requests are
+  rejected before listening, so this does not turn the local engine into a
+  network service.
+
+### Changed
+
+- **Runtime, test, and CI dependencies were brought forward together.** This
+  includes MapLibre GL 6, current Rust cryptography utilities, the JavaScript
+  toolchain, and maintained GitHub Actions. The getrandom and SHA-256 call sites
+  were migrated explicitly rather than suppressing their breaking API changes;
+  no hosted service or new product capability was added.
+
 ## [0.8.3] - 2026-08-01 — The request payload is declared
 
 ### Changed
@@ -364,34 +404,6 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
   Left out on purpose: more destinations. Each is a fresh reading of a fresh
   authority, and two in one branch would halve the attention each got.
-
-### Fixed
-
-- **Recommendations were reading category names as substrings, and a whole class
-  of sights had no category at all.** The ranker matched an Overture category by
-  asking whether it _contained_ a keyword, so `barber` contained "bar" and was
-  recommended as nightlife — forty-seven of them across the published packs — and
-  `apartment_building` contained "art" and was recommended as culture. A keyword
-  now has to end a category token, which is what separates `art_museum` from
-  `apartment_building` without needing a list of exceptions.
-  The larger repair is what the keywords never reached. Temples, shrines,
-  churches, cathedrals, castles, palaces and monasteries matched no culture
-  keyword, scored nothing, and were silently dropped from every result — in
-  Kyoto, that is most of what a traveler opens the app to find. They are scored
-  as culture now, along with mosques and synagogues, which the same gap covered
-  in Singapore and Bangkok.
-
-  Anchoring is not free, and two smaller repairs came with it: a keyword stem
-  like `histor` can never end a token, so each real form is spelled out, and
-  `shopping_center` needed "shopping" once "shop" no longer matched inside it.
-  A test pins the categories that already ranked, because losing one to the fix
-  is the same defect as never having had it.
-
-  Left out on purpose: hotels, hostels and ryokan stay unranked. There is no
-  "stay" dimension to weigh them against, and filing a hotel under culture would
-  be a wrong answer rather than a missing one — they already reach the traveler
-  through place-name suggestions, which never went through ranking. A test pins
-  that decision so it is not reversed by accident.
 
 ## [0.6.2] - 2026-07-29 — Honest search, readable engine
 
