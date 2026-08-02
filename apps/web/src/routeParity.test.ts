@@ -127,6 +127,7 @@ const ARGS: Record<keyof AppGateway, unknown[]> = {
   setVisaItemProgress: [
     { tripId: "trip_1", documentId: "ca.trv.funds.statements", checked: true },
   ],
+  refreshVisaStats: ["trip_1"],
   savePlace: [{ tripId: "trip_1", recommendation: {} }],
   updateSavedPlace: [{ savedPlaceId: "place_1", notes: "" }],
   deleteSavedPlace: ["place_1"],

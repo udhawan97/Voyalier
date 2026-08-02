@@ -47,6 +47,7 @@ fn data_source_register_has_unique_rows_and_a_pinned_count() {
         BTreeSet::from([
             "anthropic",
             "ca-gac",
+            "ca-ircc",
             "de-aa",
             "ecb",
             "geonames",
@@ -62,6 +63,7 @@ fn data_source_register_has_unique_rows_and_a_pinned_count() {
             "overture",
             "protomaps-osm",
             "uk-fcdo",
+            "uk-ukvi",
             "us-cdc",
             "us-state",
             "wikidata-heritage",
@@ -1123,6 +1125,44 @@ fn actual_field_set(outcome: &crate::parser::ParserOutcome) -> BTreeSet<String> 
 }
 
 #[test]
+fn parity_visa_stats_sources_match_the_contract() {
+    // ADR-0014: the source table is user-facing surface, so it is pinned as a
+    // golden the web side reads too — the mock renders from this file rather
+    // than mirroring the Rust table (ADR-0004).
+    let register: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../packages/contracts/parity/visa-stats-sources.json"
+    ))
+    .expect("visa stats source golden");
+    let sources = register["sources"].as_array().expect("sources");
+    assert_eq!(sources.len() as u64, register["count"].as_u64().unwrap());
+    assert_eq!(
+        sources.len(),
+        7,
+        "bump both count pins when curating an authority"
+    );
+
+    for row in sources {
+        let code = row["destinationIso2"].as_str().expect("code");
+        let source = crate::stats_source(code).expect("every golden row is curated");
+        assert_eq!(
+            source.authority_name,
+            row["authorityName"].as_str().unwrap()
+        );
+        assert_eq!(source.page_url, row["pageUrl"].as_str().unwrap());
+        assert_eq!(source.fetchable, row["fetchable"].as_bool().unwrap());
+    }
+    assert_eq!(
+        sources
+            .iter()
+            .filter(|row| row["fetchable"].as_bool().unwrap())
+            .count(),
+        2,
+        "CA and GB carry parsers in this slice"
+    );
+    assert!(crate::stats_source("FR").is_none(), "no eighth authority");
+}
+
+#[test]
 fn parity_visa_journeys_match_the_contract() {
     let path =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/contracts/parity/visa.json");
@@ -1163,6 +1203,33 @@ fn parity_visa_journeys_match_the_contract() {
                     .iter()
                     .flat_map(|step| step.documents.iter().map(|document| document.id.clone()))
                     .collect::<Vec<_>>()
+            }),
+            // The universal playbook fills exactly the cases a journey does not
+            // (spec 2026-08-02): pinned here so the mock can synthesize it from
+            // this file instead of mirroring core prose (ADR-0004).
+            "playbook": journey.is_none().then(|| {
+                let playbook = crate::universal_playbook(
+                    destination,
+                    nationality,
+                    crate::entry_path(destination, nationality).as_ref(),
+                );
+                serde_json::json!({
+                    "stepIds": playbook
+                        .steps
+                        .iter()
+                        .map(|step| step.id.clone())
+                        .collect::<Vec<_>>(),
+                    "ordinals": playbook
+                        .steps
+                        .iter()
+                        .map(|step| step.ordinal)
+                        .collect::<Vec<_>>(),
+                    "documentIds": playbook
+                        .steps
+                        .iter()
+                        .flat_map(|step| step.documents.iter().map(|document| document.id.clone()))
+                        .collect::<Vec<_>>(),
+                })
             }),
         });
 

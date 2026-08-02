@@ -39,6 +39,7 @@
           7,
           8
         ],
+        "playbook": null,
         "routeLabel": "Visitor visa (temporary resident visa)",
         "stepIds": [
           "ca.trv.01-need",
@@ -73,6 +74,7 @@
           2,
           3
         ],
+        "playbook": null,
         "routeLabel": "Electronic travel authorization (eTA)",
         "stepIds": [
           "ca.eta.01-need",
@@ -95,6 +97,32 @@
           "sourceUrl": "https://www.canada.ca/en/immigration-refugees-citizenship/services/visit-canada/entry-requirements-country.html"
         },
         "ordinals": null,
+        "playbook": {
+          "documentIds": [
+            "playbook-passport",
+            "playbook-photos",
+            "playbook-funds",
+            "playbook-itinerary",
+            "playbook-ties",
+            "playbook-insurance"
+          ],
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "stepIds": [
+            "pb.01-authority",
+            "pb.02-path",
+            "pb.03-documents",
+            "pb.04-file",
+            "pb.05-track",
+            "pb.06-entry"
+          ]
+        },
         "routeLabel": null,
         "stepIds": null
       },
@@ -113,6 +141,32 @@
           "sourceUrl": "https://www.canada.ca/en/immigration-refugees-citizenship/services/visit-canada/check-visa-eta.html"
         },
         "ordinals": null,
+        "playbook": {
+          "documentIds": [
+            "playbook-passport",
+            "playbook-photos",
+            "playbook-funds",
+            "playbook-itinerary",
+            "playbook-ties",
+            "playbook-insurance"
+          ],
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "stepIds": [
+            "pb.01-authority",
+            "pb.02-path",
+            "pb.03-documents",
+            "pb.04-file",
+            "pb.05-track",
+            "pb.06-entry"
+          ]
+        },
         "routeLabel": null,
         "stepIds": null
       },
@@ -125,6 +179,32 @@
         "documentIds": null,
         "entryPath": null,
         "ordinals": null,
+        "playbook": {
+          "documentIds": [
+            "playbook-passport",
+            "playbook-photos",
+            "playbook-funds",
+            "playbook-itinerary",
+            "playbook-ties",
+            "playbook-insurance"
+          ],
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "stepIds": [
+            "pb.01-authority",
+            "pb.02-path",
+            "pb.03-documents",
+            "pb.04-file",
+            "pb.05-track",
+            "pb.06-entry"
+          ]
+        },
         "routeLabel": null,
         "stepIds": null
       },
@@ -143,6 +223,32 @@
           "sourceUrl": "https://www.canada.ca/en/immigration-refugees-citizenship/services/visit-canada/check-visa-eta.html"
         },
         "ordinals": null,
+        "playbook": {
+          "documentIds": [
+            "playbook-passport",
+            "playbook-photos",
+            "playbook-funds",
+            "playbook-itinerary",
+            "playbook-ties",
+            "playbook-insurance"
+          ],
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "stepIds": [
+            "pb.01-authority",
+            "pb.02-path",
+            "pb.03-documents",
+            "pb.04-file",
+            "pb.05-track",
+            "pb.06-entry"
+          ]
+        },
         "routeLabel": null,
         "stepIds": null
       },
@@ -175,6 +281,7 @@
           5,
           6
         ],
+        "playbook": null,
         "routeLabel": "Short-term stay visa (Japan)",
         "stepIds": [
           "jp.sts.01-door",
@@ -200,6 +307,32 @@
           "sourceUrl": "https://www.mofa.go.jp/j_info/visit/visa/short/novisa.html"
         },
         "ordinals": null,
+        "playbook": {
+          "documentIds": [
+            "playbook-passport",
+            "playbook-photos",
+            "playbook-funds",
+            "playbook-itinerary",
+            "playbook-ties",
+            "playbook-insurance"
+          ],
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "stepIds": [
+            "pb.01-authority",
+            "pb.02-path",
+            "pb.03-documents",
+            "pb.04-file",
+            "pb.05-track",
+            "pb.06-entry"
+          ]
+        },
         "routeLabel": null,
         "stepIds": null
       },
@@ -218,6 +351,32 @@
           "sourceUrl": "https://www.mofa.go.jp/j_info/visit/visa/short/novisa.html"
         },
         "ordinals": null,
+        "playbook": {
+          "documentIds": [
+            "playbook-passport",
+            "playbook-photos",
+            "playbook-funds",
+            "playbook-itinerary",
+            "playbook-ties",
+            "playbook-insurance"
+          ],
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "stepIds": [
+            "pb.01-authority",
+            "pb.02-path",
+            "pb.03-documents",
+            "pb.04-file",
+            "pb.05-track",
+            "pb.06-entry"
+          ]
+        },
         "routeLabel": null,
         "stepIds": null
       },
@@ -243,6 +402,7 @@
           3,
           4
         ],
+        "playbook": null,
         "routeLabel": "Electronic authorization (ETA or eVisitor)",
         "stepIds": [
           "au.eauth.01-which",
@@ -266,6 +426,32 @@
           "sourceUrl": "https://immi.homeaffairs.gov.au/visas/getting-a-visa/visa-listing/visitor-600/tourist-stream-overseas"
         },
         "ordinals": null,
+        "playbook": {
+          "documentIds": [
+            "playbook-passport",
+            "playbook-photos",
+            "playbook-funds",
+            "playbook-itinerary",
+            "playbook-ties",
+            "playbook-insurance"
+          ],
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "stepIds": [
+            "pb.01-authority",
+            "pb.02-path",
+            "pb.03-documents",
+            "pb.04-file",
+            "pb.05-track",
+            "pb.06-entry"
+          ]
+        },
         "routeLabel": null,
         "stepIds": null
       },
@@ -284,6 +470,32 @@
           "sourceUrl": "https://immi.homeaffairs.gov.au/visas/getting-a-visa/visa-finder"
         },
         "ordinals": null,
+        "playbook": {
+          "documentIds": [
+            "playbook-passport",
+            "playbook-photos",
+            "playbook-funds",
+            "playbook-itinerary",
+            "playbook-ties",
+            "playbook-insurance"
+          ],
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "stepIds": [
+            "pb.01-authority",
+            "pb.02-path",
+            "pb.03-documents",
+            "pb.04-file",
+            "pb.05-track",
+            "pb.06-entry"
+          ]
+        },
         "routeLabel": null,
         "stepIds": null
       },
@@ -302,6 +514,32 @@
           "sourceUrl": "https://www.immigration.govt.nz/visit/what-you-need-to-visit-new-zealand/visa-waiver-countries-and-territories/"
         },
         "ordinals": null,
+        "playbook": {
+          "documentIds": [
+            "playbook-passport",
+            "playbook-photos",
+            "playbook-funds",
+            "playbook-itinerary",
+            "playbook-ties",
+            "playbook-insurance"
+          ],
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "stepIds": [
+            "pb.01-authority",
+            "pb.02-path",
+            "pb.03-documents",
+            "pb.04-file",
+            "pb.05-track",
+            "pb.06-entry"
+          ]
+        },
         "routeLabel": null,
         "stepIds": null
       },
@@ -320,6 +558,32 @@
           "sourceUrl": "https://travel.state.gov/content/travel/en/us-visas/tourism-visit/visa-waiver-program.html"
         },
         "ordinals": null,
+        "playbook": {
+          "documentIds": [
+            "playbook-passport",
+            "playbook-photos",
+            "playbook-funds",
+            "playbook-itinerary",
+            "playbook-ties",
+            "playbook-insurance"
+          ],
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "stepIds": [
+            "pb.01-authority",
+            "pb.02-path",
+            "pb.03-documents",
+            "pb.04-file",
+            "pb.05-track",
+            "pb.06-entry"
+          ]
+        },
         "routeLabel": null,
         "stepIds": null
       },
@@ -338,6 +602,32 @@
           "sourceUrl": "https://www.k-eta.go.kr/portal/apply/index.do"
         },
         "ordinals": null,
+        "playbook": {
+          "documentIds": [
+            "playbook-passport",
+            "playbook-photos",
+            "playbook-funds",
+            "playbook-itinerary",
+            "playbook-ties",
+            "playbook-insurance"
+          ],
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "stepIds": [
+            "pb.01-authority",
+            "pb.02-path",
+            "pb.03-documents",
+            "pb.04-file",
+            "pb.05-track",
+            "pb.06-entry"
+          ]
+        },
         "routeLabel": null,
         "stepIds": null
       },
@@ -345,5 +635,5 @@
       "nationality": "JP"
     }
   ],
-  "note": "Curated visa journeys, asserted from crates/voyalier-core/src/tests.rs and apps/web/src/parity.test.ts. Pins structure -- entry-path quotes, step ids and ordinals, document ids -- and deliberately not the curated prose: the interface renders that verbatim from core, so pinning it here would turn every copy edit into golden churn without catching anything. Adding a case fails both sides until caseCount is bumped in this file and in both tests. Regenerate expectations with VOYALIER_REGENERATE_GOLDEN=1 and read the diff."
+  "note": "Curated visa journeys, asserted from crates/voyalier-core/src/tests.rs and apps/web/src/parity.test.ts. Pins structure -- entry-path quotes, step ids and ordinals, document ids -- and deliberately not the curated prose: the interface renders that verbatim from core, so pinning it here would turn every copy edit into golden churn without catching anything. Adding a case fails both sides until caseCount is bumped in this file and in both tests. Regenerate expectations with VOYALIER_REGENERATE_GOLDEN=1 and read the diff. The playbook field pins the universal playbook's structure for every case a journey does not cover; the mock synthesizes the playbook from it (spec 2026-08-02)."
 }

@@ -274,6 +274,9 @@ export function createTauriGateway(
     setVisaItemProgress: (input: SetVisaItemProgressInput) =>
       call<VisaPrep>(command("setVisaItemProgress"), input),
 
+    refreshVisaStats: (tripId: string) =>
+      call<VisaPrep>(command("refreshVisaStats"), { tripId }),
+
     savePlace: (input: SavePlaceInput) =>
       call<SavedPlace>(command("savePlace"), input),
 

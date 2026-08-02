@@ -220,6 +220,39 @@ async function driveWorkspace(): Promise<Array<[string, unknown]>> {
   await record("getVisaPrep", gateway.getVisaPrep("trip_kyoto"));
   await record("getVisaPrep", gateway.getVisaPrep("trip_lisbon"));
 
+  // The playbook needs an uncurated route with a passport set (spec
+  // 2026-08-02), and the statistics zone needs both fetchable authorities:
+  // Canada covers per-country audience rows, the UK covers the source's own
+  // published-at stamp.
+  const paris = await gateway.createTrip({
+    origin: "Delhi",
+    destination: "Paris",
+    startDate: "2027-04-01",
+    endDate: "2027-04-10",
+  });
+  await gateway.setVisaNationality({
+    tripId: paris.id,
+    nationalityIso2: "IN",
+  });
+  await record("getVisaPrep", gateway.getVisaPrep(paris.id));
+  const london = await gateway.createTrip({
+    origin: "Delhi",
+    destination: "London",
+    startDate: "2027-05-01",
+    endDate: "2027-05-10",
+  });
+  await gateway.setVisaNationality({
+    tripId: london.id,
+    nationalityIso2: "IN",
+  });
+  await record("refreshVisaStats", gateway.refreshVisaStats(london.id));
+  await gateway.setVisaNationality({
+    tripId: "trip_lisbon",
+    nationalityIso2: "IN",
+  });
+  await record("refreshVisaStats", gateway.refreshVisaStats("trip_lisbon"));
+  await record("getVisaPrep", gateway.getVisaPrep("trip_lisbon"));
+
   // A saved place, so a trip item can point at one. It has to come from a real
   // recommendation, which is the contract's way of saying a saved place always
   // keeps the provenance it was saved with.

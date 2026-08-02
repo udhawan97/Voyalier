@@ -633,6 +633,16 @@ const en = {
     "Fetched only when you request official advice",
   "dataSources.uk-fcdo.authority":
     "Official UK government advice; written for UK nationals",
+  "dataSources.uk-ukvi.use": "Published visa decision waiting times",
+  "dataSources.uk-ukvi.network":
+    "Fetched only when you ask for the authority's published times",
+  "dataSources.uk-ukvi.authority":
+    "UKVI's own published figures, quoted verbatim; never a promise about your application",
+  "dataSources.ca-ircc.use": "Published visa processing times",
+  "dataSources.ca-ircc.network":
+    "Fetched only when you ask for the authority's published times",
+  "dataSources.ca-ircc.authority":
+    "IRCC's own published figures, quoted verbatim; never a promise about your application",
   "dataSources.us-state.use": "Official travel advisories",
   "dataSources.us-state.network":
     "Fetched only when you request official advice",
@@ -2061,6 +2071,17 @@ const es: Record<MessageKey, string> = {
     "Se obtiene solo cuando solicitas avisos oficiales",
   "dataSources.uk-fcdo.authority":
     "Aviso oficial del Gobierno británico; escrito para nacionales del Reino Unido",
+  "dataSources.uk-ukvi.use":
+    "Tiempos de espera publicados para decisiones de visado",
+  "dataSources.uk-ukvi.network":
+    "Se obtiene solo cuando pides los tiempos publicados por la autoridad",
+  "dataSources.uk-ukvi.authority":
+    "Cifras publicadas por la propia UKVI, citadas textualmente; nunca una promesa sobre tu solicitud",
+  "dataSources.ca-ircc.use": "Tiempos de tramitación de visados publicados",
+  "dataSources.ca-ircc.network":
+    "Se obtiene solo cuando pides los tiempos publicados por la autoridad",
+  "dataSources.ca-ircc.authority":
+    "Cifras publicadas por el propio IRCC, citadas textualmente; nunca una promesa sobre tu solicitud",
   "dataSources.us-state.use": "Avisos de viaje oficiales",
   "dataSources.us-state.network":
     "Se obtiene solo cuando solicitas avisos oficiales",

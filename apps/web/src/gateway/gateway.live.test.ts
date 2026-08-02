@@ -59,6 +59,38 @@ describe.skipIf(!LIVE)("HTTP gateway against the live core", () => {
     });
   });
 
+  it("walks the visa cockpit: playbook, stats zone, and a loud refusal", async () => {
+    // Kyoto: a named authority (MOFA) that publishes no readable dataset —
+    // the one refreshVisaStats outcome that is deterministic offline, which
+    // makes it the honest live-wire check for the new route. The fetchable
+    // paths are covered by FakeFetcher service tests and the mock.
+    const trip = await gateway.createTrip({
+      origin: "Delhi",
+      destination: "Kyoto",
+      startDate: "2027-05-01",
+      endDate: "2027-05-08",
+    });
+    try {
+      const prep = await gateway.setVisaNationality({
+        tripId: trip.id,
+        nationalityIso2: "IN",
+      });
+      // India → Japan is curated, so the journey renders and the playbook
+      // stays away (never both).
+      expect(prep.journey).toBeDefined();
+      expect(prep.playbook).toBeUndefined();
+      const stats = prep.stats;
+      expect(stats?.source.fetchable).toBe(false);
+      expect(stats?.snapshot).toBeUndefined();
+
+      await expect(gateway.refreshVisaStats(trip.id)).rejects.toMatchObject({
+        code: "advice/fetch_failed",
+      });
+    } finally {
+      await gateway.deleteTrip(trip.id);
+    }
+  });
+
   it("drives the full import → confirm → unconfirm → manual loop", async () => {
     // A JSON-LD FlightReservation the real parser extracts as a structured
     // flight candidate (verbatim local wall-clock times, no offset).

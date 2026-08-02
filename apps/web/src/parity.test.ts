@@ -6,6 +6,7 @@ import assessTripGolden from "@voyalier/contracts/parity/assess-trip.json";
 import packingGolden from "@voyalier/contracts/parity/packing.json";
 import tripFactsGolden from "@voyalier/contracts/parity/trip-facts.json";
 import visaGolden from "@voyalier/contracts/parity/visa.json";
+import visaStatsSourcesGolden from "@voyalier/contracts/parity/visa-stats-sources.json";
 import type {
   ConfirmedFact,
   PublicHoliday,
@@ -280,22 +281,27 @@ describe("parity: packing list", () => {
  * `voyalier-core`'s `parity_visa_journeys_match_the_contract` holds Rust to the
  * same file.
  */
+// The destinations with curated authorities, and the one official domain each
+// may cite. Mirrors official_domain_and_prefix in crates/voyalier-core. Module
+// scope because both the journey and the statistics goldens are held to it.
+const CURATED_DOMAINS = {
+  CA: "https://www.canada.ca/",
+  JP: "https://www.mofa.go.jp/",
+  AU: "https://immi.homeaffairs.gov.au/",
+  // Curated as authorities that resolve no route: each publishes a readable
+  // list and gates it on something a passport code cannot answer, so they
+  // name a source and never a path. They still belong here — an authority
+  // without a route is curated, and must be held to its own domain.
+  NZ: "https://www.immigration.govt.nz/",
+  KR: "https://www.k-eta.go.kr/",
+  US: "https://travel.state.gov/",
+  // The UK appears in the statistics golden (UKVI publishes waiting times on
+  // GOV.UK) though no journey golden case exercises it yet.
+  GB: "https://www.gov.uk/",
+} as const;
+
 describe("parity: visa journeys", () => {
   const cases = visaGolden.cases;
-  // The destinations with curated journeys, and the one official domain each
-  // may cite. Mirrors official_domain_and_prefix in crates/voyalier-core.
-  const CURATED_DOMAINS = {
-    CA: "https://www.canada.ca/",
-    JP: "https://www.mofa.go.jp/",
-    AU: "https://immi.homeaffairs.gov.au/",
-    // Curated as authorities that resolve no route: each publishes a readable
-    // list and gates it on something a passport code cannot answer, so they
-    // name a source and never a path. They still belong here — an authority
-    // without a route is curated, and must be held to its own domain.
-    NZ: "https://www.immigration.govt.nz/",
-    KR: "https://www.k-eta.go.kr/",
-    US: "https://travel.state.gov/",
-  } as const;
 
   it("covers every golden case", () => {
     expect(cases).toHaveLength(15);
@@ -365,6 +371,69 @@ describe("parity: visa journeys", () => {
       expect(new Set(expected.documentIds!).size).toBe(
         expected.documentIds!.length,
       );
+    },
+  );
+
+  it.each(cases)(
+    "carries the playbook exactly where no journey resolves: $name",
+    ({ expected }) => {
+      // The universal playbook fills every gap a journey leaves (spec
+      // 2026-08-02) — and only those gaps. Never both.
+      const playbook = (
+        expected as {
+          playbook?: {
+            stepIds: string[];
+            ordinals: number[];
+            documentIds: string[];
+          } | null;
+        }
+      ).playbook;
+      if (expected.stepIds !== null) {
+        expect(playbook).toBeNull();
+        return;
+      }
+      expect(playbook).not.toBeNull();
+      expect(playbook!.stepIds).toHaveLength(6);
+      expect(playbook!.ordinals).toEqual([1, 2, 3, 4, 5, 6]);
+      // Ticks key on document ids: the shared playbook namespace must never
+      // collide with a curated journey's destination-prefixed ids.
+      expect(playbook!.documentIds.length).toBeGreaterThan(0);
+      for (const id of playbook!.documentIds) {
+        expect(id.startsWith("playbook-")).toBe(true);
+      }
+    },
+  );
+});
+
+describe("parity: visa statistics sources", () => {
+  // ADR-0014's source table, read by the mock for source rows and link-only
+  // states — never mirrored.
+  const sources = visaStatsSourcesGolden.sources;
+
+  it("covers every named authority and no more", () => {
+    expect(sources).toHaveLength(7);
+    expect(sources).toHaveLength(visaStatsSourcesGolden.count);
+  });
+
+  it("marks exactly the two parsers this slice ships", () => {
+    const fetchable = sources
+      .filter((row) => row.fetchable)
+      .map((row) => row.destinationIso2)
+      .sort();
+    expect(fetchable).toEqual(["CA", "GB"]);
+  });
+
+  it.each(sources)(
+    "sends the traveler to $destinationIso2's own authority",
+    (row) => {
+      // The same per-destination domain rule the journeys are held to: a
+      // statistics page must live on its own authority's domain.
+      expect(row.authorityName).not.toHaveLength(0);
+      expect(
+        row.pageUrl.startsWith(
+          CURATED_DOMAINS[row.destinationIso2 as keyof typeof CURATED_DOMAINS],
+        ),
+      ).toBe(true);
     },
   );
 });

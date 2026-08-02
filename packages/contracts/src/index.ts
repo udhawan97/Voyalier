@@ -1548,6 +1548,17 @@ export interface VisaPrep {
   entryPath?: EntryPathQuote;
   /** Absent when the pair is uncurated, conditional, or needs nothing. */
   journey?: VisaJourney;
+  /**
+   * The universal route map, present exactly when a passport is set, a
+   * destination resolved, and no curated journey overrides it. Never both
+   * this and `journey`.
+   */
+  playbook?: VisaPlaybook;
+  /**
+   * ADR-0014's statistics zone; absent for a destination with no named
+   * authority — honest absence, not an error.
+   */
+  stats?: VisaStatsPanel;
   items: VisaPrepItem[];
   /**
    * The traveler's own country's missions in the destination country, from a
@@ -1587,6 +1598,72 @@ export interface SetVisaItemProgressInput {
   documentId: string;
   checked: boolean;
   note?: string;
+}
+/**
+ * A general route map for a pair Voyalier has not curated. Authored by
+ * Voyalier, not read from any authority — the interface says so in those
+ * words. Same step shape as a curated journey, so ticks and notes work
+ * identically and survive a route later gaining real curation.
+ */
+export interface VisaPlaybook {
+  destinationIso2: string;
+  nationalityIso2: string;
+  steps: VisaStep[];
+  language: string;
+}
+/**
+ * Whether figures came back from the authority in this very call, or from the
+ * copy this device kept. Defined by delivery: only the direct return of a
+ * successful refresh says "fetched" — a stamp can never look fresher than the
+ * fetch behind it.
+ */
+export type VisaStatsProvenance = "fetched" | "keptCopy";
+/** One quoted figure, exactly as the source labels it. */
+export interface VisaStatMetric {
+  id: string;
+  /** The source's own product term for the row. */
+  label: string;
+  /**
+   * The source's own row key when the publication is per-country ("IN") —
+   * matched by key equality, never mapped through names.
+   */
+  audience?: string;
+  /** Verbatim, units and all. Never parsed, converted, or averaged. */
+  value: string;
+}
+/**
+ * Figures read from one authority at one moment (ADR-0014), with everything a
+ * reader needs to check them at the source.
+ */
+export interface VisaStatsSnapshot {
+  destinationIso2: string;
+  authorityName: string;
+  /** The human page to verify at — never the dataset endpoint. */
+  sourceUrl: string;
+  /** The source's own reuse terms, rendered beside the figures. */
+  attribution: string;
+  retrievedAt: string;
+  /** The source's own "updated" stamp, where the publication carries one. */
+  publishedAt?: string;
+  metrics: VisaStatMetric[];
+  provenance: VisaStatsProvenance;
+}
+/** Where one destination authority publishes decision statistics. */
+export interface VisaStatsSource {
+  destinationIso2: string;
+  authorityName: string;
+  /** The human page — where the traveler reads the current answer. */
+  pageUrl: string;
+  /** True only where core carries a parser for a published dataset. */
+  fetchable: boolean;
+}
+/**
+ * The statistics zone of the cockpit: the source row always, the snapshot only
+ * when this device holds one.
+ */
+export interface VisaStatsPanel {
+  source: VisaStatsSource;
+  snapshot?: VisaStatsSnapshot;
 }
 export interface AppGateway {
   health(): Promise<HealthResponse>;
@@ -1670,6 +1747,12 @@ export interface AppGateway {
   getVisaPrep(tripId: string): Promise<VisaPrep>;
   setVisaNationality(input: SetVisaNationalityInput): Promise<VisaPrep>;
   setVisaItemProgress(input: SetVisaItemProgressInput): Promise<VisaPrep>;
+  /**
+   * Fetch the destination authority's published processing times, on the
+   * traveler's explicit click (ADR-0014 — the click is the consent). Fails
+   * loudly; a kept copy survives every failure.
+   */
+  refreshVisaStats(tripId: string): Promise<VisaPrep>;
   listAdviceCountries(): Promise<FcdoCountry[]>;
   fetchAdvisories(input: FetchAdvisoriesInput): Promise<AdvisoryPanel>;
   fetchWeather(tripId: string): Promise<WeatherSnapshot>;
