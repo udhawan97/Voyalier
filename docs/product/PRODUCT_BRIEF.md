@@ -11,7 +11,8 @@ Voyalier is a private trip operating system. It turns fragmented research and co
    through an explicit action.
 3. Review and save persona-aware recommendations without treating them as
    reservations.
-4. Import confirmations and approve extracted facts.
+4. Import confirmations and approve extracted facts — flights, stays, and since
+   0.10.0 rail, coach, ferry and hire-car legs, all evidence and never bookings.
 5. Build an explicit packing checklist and add traveler-authored activities,
    rail legs, or transfers in a separate planning lane.
 6. Resolve missing bookings, confirmed-plan conflicts, planning notices, and
@@ -41,6 +42,16 @@ Scoring is a transparent deterministic rule — not a model — and each pick ke
 its source, license, score, and reasons. Weights persist per trip; saving a place
 snapshots its provenance, and only an explicit promotion creates a manual plan
 item. Traveler constraints always override interest preference.
+
+## Advisory surfaces
+
+Two surfaces talk about things going wrong, and both are advisory by
+construction (ADR-0016). The **disruption playbook** states the slack at each
+hand-off and what depends on each leg; it never proposes an alternative service,
+never predicts a delay, and never moves readiness. The **re-check sweep**
+refreshes stale snapshots on an explicit click and reports what moved; it is not
+monitoring, and a source it could not read is reported as failed rather than
+clear.
 
 ## MVP non-goals
 

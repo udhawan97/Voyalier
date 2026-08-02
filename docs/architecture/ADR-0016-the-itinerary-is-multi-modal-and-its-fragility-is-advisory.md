@@ -61,11 +61,27 @@ every decision point, and the TypeScript union widens in the same commit as its 
 
 ### 2. The disruption playbook states exposure. It never states availability.
 
-A new IO-free core module derives, from the confirmed facts and traveller-authored items
-already in the trip, a **handoff** wherever one commitment must be met after another: leg to
-leg, arrival to check-in, check-out to departure. Each handoff carries the slack between the
-two in minutes and a band naming how tight that is. From those it derives which legs carry
-downstream weight, and what a given slip would reach.
+A new IO-free core module derives, from the confirmed facts already in the trip, a **handoff**
+wherever one commitment must be met after another. Each carries the slack between the two in
+minutes and a band naming how tight that is. From those it derives which legs carry downstream
+weight.
+
+_Amended during implementation (2026-08-02)._ This clause originally also named
+"arrival to check-in" and "check-out to departure". Both were dropped on contact with the data:
+a lodging stay carries `checkinDate`/`checkoutDate` — **dates, with no time of day** — so a
+figure in minutes against them would have been invented rather than measured. Whether the
+traveller has a room on the night they arrive is already the `LodgingGap` check's question, so
+nothing is lost. What replaced them is the hire car's two ends, each measured against the
+nearest scheduled leg: a car is not something the traveller rides _between_ other legs (it sits
+in a car park while they take a train), so it never joins the connection chain, but reaching the
+desk and giving the car back are both real commitments. That exclusion also left a gap nothing
+else covered — a pickup timed for before the traveller lands is invisible to the overlap check,
+precisely because hire cars are exempt from it — and the playbook now reports it.
+
+Handoffs are derived from **confirmed facts only**. Traveller-authored items were in the first
+sketch and are not here: mixing a plan into a slack calculation blurs the evidence line this
+product keeps everywhere else, and a planned item overlapping a confirmed leg is already a
+`PlannedItemOverlap` notice.
 
 Three limits are load-bearing, and each is asserted by a test:
 
@@ -117,9 +133,12 @@ returns a per-source report of what changed. There is no timer, no daemon, no ba
 thread and no wake-up: the click is the consent, exactly as it is for each panel today, and
 the report names every host that was contacted.
 
-Scope is the three sources with both a staleness clock and a change worth stating: the
-advisory panel, the weather outlook, and US weather alerts. Destination facts, holidays,
-place summaries and visa statistics are deliberately excluded — a bundled-fact snapshot does
+Scope is the sources with both a staleness clock and a change worth stating: the advisory panel
+and the weather outlook. _Amended during implementation (2026-08-02): this said "three sources"
+and named US weather alerts as the third. Alerts are not a third — `fetch_weather` stores them
+inside the weather snapshot, so they are fetched together, go stale together, and are diffed as
+part of it._ Destination facts, holidays, place summaries and visa statistics are deliberately
+excluded — a bundled-fact snapshot does
 not change under the traveller, and widening the sweep would mean contacting hosts the
 traveller did not have in mind when they clicked.
 
@@ -141,6 +160,11 @@ follow).
   gateway method. Neither adds a table, a migration, or a sealed column.
 - `recheckTrip` is one new row in `packages/contracts/parity/routes.json` and the full
   lockstep train of ADR-0012.
+- The traveller-facing cover added alongside this work carries **no photograph**, for a reason
+  that belongs here: `PlaceSummary` stores an article's text and URL, not its lead image, so a
+  photographic cover would have meant a new fetch, a new row in the data-source register, a new
+  licence to display, and a new consent — a great deal of machinery for decoration. The wash is
+  derived from the destination's own name instead: deterministic, offline, and attribution-free.
 - The product gains a surface that talks about things going wrong. The wording rule from
   ADR-0006 applies: state what the evidence says, caution where it is silent, and never
   reassure. "Your connection has 45 minutes" is a fact. "You'll be fine" is not ours to say.
