@@ -1,3 +1,5 @@
+use std::{net::SocketAddr, sync::Arc};
+
 use axum::{
     Json, Router,
     body::Body,
@@ -127,7 +129,17 @@ impl IntoResponse for ApiError {
     }
 }
 
-pub fn app(service: AppService) -> Router {
+/// Where the local API listens unless `VOYALIER_BIND` says otherwise.
+pub const DEFAULT_BIND: &str = "127.0.0.1:8787";
+
+/// Build the router for a server that will be reachable at `address`.
+///
+/// The address is a parameter rather than a constant because the `Host`
+/// allowlist below is derived from it. It used to be a literal while the bind
+/// address stayed configurable, so any other port produced a server that bound,
+/// logged "ready", and then refused every request — health included — with a
+/// 403 from its own rebinding guard.
+pub fn app(service: AppService, address: SocketAddr) -> Router {
     let cors = CorsLayer::new()
         .allow_origin([
             HeaderValue::from_static("http://127.0.0.1:5173"),
@@ -309,7 +321,10 @@ pub fn app(service: AppService) -> Router {
         .route("/api/v1/trips/{trip_id}/facts", post(add_manual_fact))
         .route("/api/v1/facts/{fact_id}", delete(unconfirm_fact))
         .with_state(service)
-        .layer(middleware::from_fn(validate_host_origin))
+        .layer(middleware::from_fn_with_state(
+            Arc::new(allowed_hosts(address)),
+            validate_host_origin,
+        ))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
 }
@@ -943,8 +958,34 @@ async fn unconfirm_fact(
     Ok(StatusCode::NO_CONTENT)
 }
 
-async fn validate_host_origin(request: Request<Body>, next: Next) -> Response {
-    if !host_is_allowed(&request) || !origin_is_allowed(&request) {
+/// The `Host` values this server answers to, derived from the address it bound.
+///
+/// The bare forms carry over from when this list was a literal, and stay for
+/// exactly that reason: they were already accepted, and dropping them here
+/// would be a behaviour change smuggled into a bug fix. They are not the hole
+/// they look like — a browser sets `Host` from the URL it was given, so the
+/// guard against a page that resolved its own name to loopback is this list not
+/// containing that name, and the guard against a page fetching the address
+/// directly is `origin_is_allowed`.
+fn allowed_hosts(address: SocketAddr) -> Vec<String> {
+    let port = address.port();
+    vec![
+        format!("127.0.0.1:{port}"),
+        format!("localhost:{port}"),
+        // IPv6 loopback is the same trust level, and `VOYALIER_BIND=[::1]:…`
+        // is the same trap as a non-default port.
+        format!("[::1]:{port}"),
+        "127.0.0.1".to_owned(),
+        "localhost".to_owned(),
+    ]
+}
+
+async fn validate_host_origin(
+    State(allowed): State<Arc<Vec<String>>>,
+    request: Request<Body>,
+    next: Next,
+) -> Response {
+    if !host_is_allowed(&request, &allowed) || !origin_is_allowed(&request) {
         // A blocked host/origin is an authorization rejection (the DNS-rebinding
         // guard), not a server fault — respond 403, not 500.
         return (
@@ -1001,17 +1042,14 @@ fn ensure_path_candidate_matches(
     Ok(())
 }
 
-fn host_is_allowed(request: &Request<Body>) -> bool {
+fn host_is_allowed(request: &Request<Body>, allowed: &[String]) -> bool {
     let Some(host) = request.headers().get(header::HOST) else {
         return true;
     };
     let Ok(host) = host.to_str() else {
         return false;
     };
-    matches!(
-        host,
-        "127.0.0.1:8787" | "localhost:8787" | "127.0.0.1" | "localhost"
-    )
+    allowed.iter().any(|candidate| candidate == host)
 }
 
 fn origin_is_allowed(request: &Request<Body>) -> bool {
@@ -1063,7 +1101,7 @@ mod tests {
     async fn http_contract_endpoints_work() {
         let database = temp_database("contract");
         let service = open_test_service(&database).expect("service");
-        let router = app(service);
+        let router = app(service, DEFAULT_BIND.parse().expect("default bind"));
 
         let health = request(router.clone(), Method::GET, "/api/health", None).await;
         assert_eq!(health.status, StatusCode::OK);
@@ -1318,7 +1356,7 @@ mod tests {
     async fn planning_payloads_round_trip_through_live_axum_routes() {
         let database = temp_database("planning-contract");
         let service = open_test_service(&database).expect("service");
-        let router = app(service);
+        let router = app(service, DEFAULT_BIND.parse().expect("default bind"));
         let created = request(
             router.clone(),
             Method::POST,
@@ -1421,7 +1459,7 @@ mod tests {
     async fn http_error_paths_match_contract_status_map() {
         let database = temp_database("errors");
         let service = open_test_service(&database).expect("service");
-        let router = app(service);
+        let router = app(service, DEFAULT_BIND.parse().expect("default bind"));
 
         assert_eq!(
             request(router.clone(), Method::GET, "/api/v1/trips/missing", None)
@@ -1554,7 +1592,7 @@ mod tests {
         let database = temp_database("advice");
         let service =
             open_test_service_with_fetcher(&database, Arc::new(StubFetcher)).expect("service");
-        let router = app(service);
+        let router = app(service, DEFAULT_BIND.parse().expect("default bind"));
 
         let local_ai = request(router.clone(), Method::GET, "/api/v1/local-ai", None).await;
         assert_eq!(local_ai.status, StatusCode::OK);
@@ -1673,7 +1711,7 @@ mod tests {
             Arc::new(MemorySecretStore::default()),
         )
         .expect("service");
-        let router = app(service);
+        let router = app(service, DEFAULT_BIND.parse().expect("default bind"));
 
         let list = request(router.clone(), Method::GET, "/api/v1/providers", None).await;
         assert_eq!(list.status, StatusCode::OK);
@@ -1766,7 +1804,7 @@ mod tests {
             std::sync::Arc::new(voyalier_app::MemorySecretStore::default()),
         )
         .expect("service");
-        let router = app(service);
+        let router = app(service, DEFAULT_BIND.parse().expect("default bind"));
         let trip = create_trip_direct(&router).await;
         let trip_id = trip["id"].as_str().expect("trip id");
 
@@ -1823,7 +1861,7 @@ mod tests {
     async fn today_route_returns_a_phase_for_the_trip() {
         let database = temp_database("today");
         let service = open_test_service(&database).expect("service");
-        let router = app(service);
+        let router = app(service, DEFAULT_BIND.parse().expect("default bind"));
         let trip = create_trip_direct(&router).await;
         let trip_id = trip["id"].as_str().expect("id");
 
@@ -1856,11 +1894,11 @@ mod tests {
         // touches (or wipes) the real OS keychain.
         let database = temp_database("vault");
         let secrets = Arc::new(MemorySecretStore::default());
-        let router =
-            app(
-                AppService::open_path_with_deps(&database, Arc::new(NoFetcher), secrets.clone())
-                    .expect("service"),
-            );
+        let router = app(
+            AppService::open_path_with_deps(&database, Arc::new(NoFetcher), secrets.clone())
+                .expect("service"),
+            DEFAULT_BIND.parse().expect("default bind"),
+        );
 
         let status = request(router.clone(), Method::GET, "/api/v1/vault", None).await;
         assert_eq!(status.status, StatusCode::OK);
@@ -1888,11 +1926,11 @@ mod tests {
         assert_eq!(set.json["protected"], true);
 
         // Reopening the same database finds the wrapped key and opens locked.
-        let reopened =
-            app(
-                AppService::open_path_with_deps(&database, Arc::new(NoFetcher), secrets.clone())
-                    .expect("reopen"),
-            );
+        let reopened = app(
+            AppService::open_path_with_deps(&database, Arc::new(NoFetcher), secrets.clone())
+                .expect("reopen"),
+            DEFAULT_BIND.parse().expect("default bind"),
+        );
         let locked = request(reopened.clone(), Method::GET, "/api/v1/vault", None).await;
         assert_eq!(locked.json["locked"], true);
 
@@ -1923,7 +1961,7 @@ mod tests {
     async fn recommendations_route_accepts_weights_and_is_empty_without_packs() {
         let database = temp_database("recommendations");
         let service = open_test_service(&database).expect("service");
-        let router = app(service);
+        let router = app(service, DEFAULT_BIND.parse().expect("default bind"));
         let trip = create_trip_direct(&router).await;
         let trip_id = trip["id"].as_str().expect("id");
 
@@ -1946,7 +1984,7 @@ mod tests {
     async fn packs_route_lists_the_required_seed_cities() {
         let database = temp_database("packs");
         let service = open_test_service(&database).expect("service");
-        let router = app(service);
+        let router = app(service, DEFAULT_BIND.parse().expect("default bind"));
 
         let response = request(router, Method::GET, "/api/v1/packs", None).await;
         assert_eq!(response.status, StatusCode::OK);
@@ -1978,7 +2016,7 @@ mod tests {
         let database = temp_database("pack-dl");
         let service = open_test_service_with_fetcher(&database, std::sync::Arc::new(PackFetcher))
             .expect("service");
-        let router = app(service);
+        let router = app(service, DEFAULT_BIND.parse().expect("default bind"));
         let trip = create_trip_direct(&router).await;
         let trip_id = trip["id"].as_str().expect("id");
 
@@ -2036,7 +2074,7 @@ mod tests {
     async fn rejects_tauri_origins_and_unexpected_hosts() {
         let database = temp_database("origin");
         let service = open_test_service(&database).expect("service");
-        let router = app(service);
+        let router = app(service, DEFAULT_BIND.parse().expect("default bind"));
         let response = router
             .clone()
             .oneshot(
@@ -2086,6 +2124,69 @@ mod tests {
     struct TestResponse {
         status: StatusCode,
         json: Value,
+    }
+
+    /// Send one request under a chosen `Host`, for the rebinding guard's own
+    /// tests. Everything else goes through [`request`], which sends the default.
+    async fn status_for_host(router: Router, host: &str, uri: &str) -> StatusCode {
+        let request = Request::builder()
+            .method(Method::GET)
+            .uri(uri)
+            .header(header::HOST, host)
+            .body(Body::empty())
+            .expect("request");
+        router.oneshot(request).await.expect("response").status()
+    }
+
+    /// A server told to listen somewhere else answers requests addressed there.
+    ///
+    /// The allowlist used to hardcode the default port while `VOYALIER_BIND`
+    /// stayed configurable, so any other port produced a server that bound,
+    /// logged "ready", and then refused everything — health included — with a
+    /// 403 from its own rebinding guard.
+    #[tokio::test]
+    async fn a_server_on_a_chosen_port_answers_requests_addressed_to_that_port() {
+        let database = temp_database("bind-port");
+        let service = open_test_service(&database).expect("service");
+        let router = app(service, "127.0.0.1:8799".parse().expect("address"));
+
+        assert_eq!(
+            status_for_host(router.clone(), "127.0.0.1:8799", "/api/health").await,
+            StatusCode::OK
+        );
+        assert_eq!(
+            status_for_host(router.clone(), "localhost:8799", "/api/health").await,
+            StatusCode::OK
+        );
+
+        // The guard still bites, which is the half that must not regress: a
+        // name that resolves to loopback is the rebinding attack it exists for.
+        assert_eq!(
+            status_for_host(router.clone(), "evil.example.com", "/api/health").await,
+            StatusCode::FORBIDDEN
+        );
+        // And a port this server never bound is not an address it answers as.
+        assert_eq!(
+            status_for_host(router, "127.0.0.1:8787", "/api/health").await,
+            StatusCode::FORBIDDEN
+        );
+
+        cleanup_database(database);
+    }
+
+    /// The IPv6 loopback is the same trust level and the same trap.
+    #[tokio::test]
+    async fn an_ipv6_loopback_bind_is_answerable_too() {
+        let database = temp_database("bind-v6");
+        let service = open_test_service(&database).expect("service");
+        let router = app(service, "[::1]:9001".parse().expect("address"));
+
+        assert_eq!(
+            status_for_host(router, "[::1]:9001", "/api/health").await,
+            StatusCode::OK
+        );
+
+        cleanup_database(database);
     }
 
     async fn request(
@@ -2511,7 +2612,7 @@ mod tests {
 
         let database = temp_database("route_parity");
         let service = open_test_service(&database).expect("service");
-        let router = app(service);
+        let router = app(service, DEFAULT_BIND.parse().expect("default bind"));
 
         // A positive control: route_probe's whole discrimination rests on "not
         // (404 with an empty body)" meaning routed. Prove that a path nothing

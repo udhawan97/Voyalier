@@ -352,6 +352,10 @@ pub fn offline_map_download_url(asset_name: &str) -> String {
 pub struct PackPlace {
     pub name: String,
     pub category: String,
+    /// Overture's source-agreement score when the published row carried one.
+    /// Optional so packs downloaded before this field shipped still open.
+    #[serde(default)]
+    pub source_confidence: Option<f64>,
     pub lat: f64,
     pub lon: f64,
 }
@@ -387,6 +391,9 @@ pub enum AmenityKind {
 pub struct PackAmenity {
     pub name: String,
     pub kind: AmenityKind,
+    /// Overture's source-agreement score when the published row carried one.
+    #[serde(default)]
+    pub source_confidence: Option<f64>,
     pub lat: f64,
     pub lon: f64,
 }
@@ -1062,6 +1069,7 @@ mod tests {
         assert_eq!(content.articles.len(), 1);
         assert!(content.offline_map.is_none());
         assert_eq!(content.places[0].name, "Ryman Auditorium");
+        assert_eq!(content.places[0].source_confidence, None);
         // The body above is a two-layer pack, the shape every pack published
         // before the amenities layer has. It must still open: those packs are
         // sitting in travelers' databases and on the release right now.
@@ -1072,6 +1080,7 @@ mod tests {
             "packId": "us-nashville",
             "places": [],
             "amenities": [{ "name": "Corner Pharmacy", "kind": "pharmacy",
+                            "sourceConfidence": 0.86,
                             "lat": 36.16, "lon": -86.78 },
                           { "name": "Riverfront Lookout", "kind": "viewpoint",
                             "lat": 36.17, "lon": -86.77 }],
@@ -1080,7 +1089,9 @@ mod tests {
         let three = parse_pack_content("us-nashville", with_amenities).expect("content");
         assert_eq!(three.amenities.len(), 2);
         assert_eq!(three.amenities[0].kind, AmenityKind::Pharmacy);
+        assert_eq!(three.amenities[0].source_confidence, Some(0.86));
         assert_eq!(three.amenities[1].kind, AmenityKind::Viewpoint);
+        assert_eq!(three.amenities[1].source_confidence, None);
 
         // A body for a different pack is refused.
         assert_eq!(

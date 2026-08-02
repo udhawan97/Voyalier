@@ -33,10 +33,10 @@ impl AppService {
             ));
         };
         let mut salt = [0u8; VAULT_SALT_LEN];
-        getrandom::getrandom(&mut salt).map_err(|_| nonce_error())?;
+        getrandom::fill(&mut salt).map_err(|_| nonce_error())?;
         let kek = vault_derive_key(passphrase, &salt)?;
         let mut nonce = [0u8; VAULT_NONCE_LEN];
-        getrandom::getrandom(&mut nonce).map_err(|_| nonce_error())?;
+        getrandom::fill(&mut nonce).map_err(|_| nonce_error())?;
         let wrapped = vault_seal(&kek, &nonce, &data_key)?;
         self.connection()?
             .execute(

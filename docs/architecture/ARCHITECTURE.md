@@ -269,5 +269,6 @@ Related decisions, in order:
 - [ADR-0010](ADR-0010-appservice-splits-its-implementation.md) — AppService splits by subsystem
 - [ADR-0011](ADR-0011-the-route-manifest-is-used-not-only-asserted.md) — the route manifest is used, not only asserted
 - [ADR-0012](ADR-0012-the-route-manifest-declares-its-payloads.md) — the manifest declares its payloads
+- [ADR-0013](ADR-0013-city-pack-selection-preserves-source-confidence.md) — pack selection preserves source confidence
 
 Plus [map architecture](MAPS.md).

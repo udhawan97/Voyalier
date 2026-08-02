@@ -415,7 +415,7 @@ describe("traveler-owned planning workflows", () => {
     expect(alert).toHaveTextContent(/same as or later than Start/i);
     expect(end).toHaveAttribute("aria-invalid", "true");
     expect(end.getAttribute("aria-describedby")).toContain(alert.id);
-    expect(end).toHaveFocus();
+    await waitFor(() => expect(end).toHaveFocus());
     expect(within(items).queryByRole("button", { name: "Retry" })).toBeNull();
 
     fireEvent.change(end, { target: { value: "2026-11-05T13:00" } });

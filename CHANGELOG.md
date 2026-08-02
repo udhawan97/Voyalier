@@ -6,6 +6,46 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+### Fixed
+
+- **City packs now select useful places across the whole city instead of one
+  parquet-scan corner.** The builder ranks rows by Overture confidence with a
+  deterministic visible-field tie-break, gives places and practical amenities
+  separate budgets, and excludes categories that do not belong in a travel
+  workspace. A failed or empty places query still stops publication, including
+  when DuckDB prints an error but exits successfully.
+
+  The source confidence used to choose each row is now retained in the pack
+  instead of being discarded after sorting. Older downloaded packs remain
+  readable because the field is optional. The category allowlist is deliberately
+  conservative; newly introduced Overture categories stay out until reviewed,
+  and migrating from the source's deprecated primary-category field remains
+  separate work.
+
+- **Recommendations no longer mistake substrings for travel categories, and
+  religious and heritage sights are no longer invisible.** `barber` no longer
+  becomes nightlife because it contains "bar", and `apartment_building` no
+  longer becomes culture because it contains "art". Temples, shrines, churches,
+  mosques, synagogues, castles, palaces and monasteries now score as culture.
+
+  Hotels, hostels and ryokan remain unranked because Voyalier has no stay
+  dimension; they continue to appear through place-name suggestions rather than
+  being assigned a misleading persona score.
+
+- **A configured local API address now agrees with the address the server
+  actually bound.** Alternate loopback addresses and an operating-system-chosen
+  port no longer fail their own Host check. Non-loopback bind requests are
+  rejected before listening, so this does not turn the local engine into a
+  network service.
+
+### Changed
+
+- **Runtime, test, and CI dependencies were brought forward together.** This
+  includes MapLibre GL 6, current Rust cryptography utilities, the JavaScript
+  toolchain, and maintained GitHub Actions. The getrandom and SHA-256 call sites
+  were migrated explicitly rather than suppressing their breaking API changes;
+  no hosted service or new product capability was added.
+
 ## [0.8.3] - 2026-08-01 — The request payload is declared
 
 ### Changed

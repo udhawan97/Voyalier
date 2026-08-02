@@ -25,6 +25,34 @@ async function openTrip() {
 describe("Recommendations", () => {
   afterEach(() => setLocalePreference("en"));
 
+  it("keeps the mock's category boundaries aligned with the Rust ranker", async () => {
+    const gateway = createMockGateway();
+    await gateway.downloadPack("trip_kyoto", "jp-kyoto");
+
+    const cultureOnly = await gateway.getRecommendations("trip_kyoto", {
+      food: 0,
+      culture: 1,
+      nature: 0,
+      nightlife: 0,
+      shopping: 0,
+    });
+    expect(cultureOnly.map((place) => place.name)).toContain("Kiyomizu-dera");
+    expect(cultureOnly.map((place) => place.name)).not.toContain(
+      "Mock Apartment",
+    );
+
+    const nightlifeOnly = await gateway.getRecommendations("trip_kyoto", {
+      food: 0,
+      culture: 0,
+      nature: 0,
+      nightlife: 1,
+      shopping: 0,
+    });
+    expect(nightlifeOnly.map((place) => place.name)).not.toContain(
+      "Mock Barber",
+    );
+  });
+
   it("guides to download a pack first, then ranks by persona", async () => {
     const base = createMockGateway();
     let saveWeights: PersonaWeights | undefined;

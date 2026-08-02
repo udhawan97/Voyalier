@@ -3104,7 +3104,7 @@ fn offline_map_download_is_verified_stored_ranged_and_removed() {
     }
 
     let bytes = b"PMTiles fixture bytes".to_vec();
-    let sha256 = format!("{:x}", Sha256::digest(&bytes));
+    let sha256 = sha256_hex(&bytes);
     let database = temp_database("offline-map");
     let service = open_test_service_with_fetcher(
         &database,

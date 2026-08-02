@@ -622,7 +622,7 @@ impl Vault {
             },
             Ok(None) => {
                 let mut key = [0u8; VAULT_KEY_LEN];
-                if getrandom::getrandom(&mut key).is_err() {
+                if getrandom::fill(&mut key).is_err() {
                     VaultState::default()
                 } else if secrets.set(VAULT_KEY_ACCOUNT, &BASE64.encode(key)).is_ok() {
                     VaultState {
@@ -1190,7 +1190,7 @@ fn offline_map_is_ready(
     }
     fs::read(path)
         .ok()
-        .is_some_and(|bytes| format!("{:x}", Sha256::digest(bytes)) == descriptor.sha256)
+        .is_some_and(|bytes| sha256_hex(&bytes) == descriptor.sha256)
 }
 
 fn store_offline_map(
@@ -1199,9 +1199,7 @@ fn store_offline_map(
     descriptor: &OfflineMapDescriptor,
     bytes: &[u8],
 ) -> Result<(), AppError> {
-    if bytes.len() as u64 != descriptor.byte_length
-        || format!("{:x}", Sha256::digest(bytes)) != descriptor.sha256
-    {
+    if bytes.len() as u64 != descriptor.byte_length || sha256_hex(bytes) != descriptor.sha256 {
         return Err(AppError::new(
             ErrorCode::PackDownloadFailed,
             "the offline map failed its size or checksum verification",
