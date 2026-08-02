@@ -1,5 +1,5 @@
 {
-  "caseCount": 15,
+  "caseCount": 16,
   "cases": [
     {
       "destination": "CA",
@@ -633,6 +633,50 @@
       },
       "name": "authority-named-without-a-route",
       "nationality": "JP"
+    },
+    {
+      "destination": "GB",
+      "expected": {
+        "documentIds": null,
+        "entryPath": {
+          "curatedAsOf": "2026-07-31",
+          "language": "en",
+          "path": "unknown",
+          "sourceName": "UK Visas and Immigration (GOV.UK)",
+          "sourceUrl": "https://www.gov.uk/check-uk-visa"
+        },
+        "ordinals": null,
+        "playbook": {
+          "documentIds": [
+            "playbook-passport",
+            "playbook-photos",
+            "playbook-funds",
+            "playbook-itinerary",
+            "playbook-ties",
+            "playbook-insurance"
+          ],
+          "ordinals": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "stepIds": [
+            "pb.01-authority",
+            "pb.02-path",
+            "pb.03-documents",
+            "pb.04-file",
+            "pb.05-track",
+            "pb.06-entry"
+          ]
+        },
+        "routeLabel": null,
+        "stepIds": null
+      },
+      "name": "questionnaire-not-an-answer-gets-the-playbook",
+      "nationality": "IN"
     }
   ],
   "note": "Curated visa journeys, asserted from crates/voyalier-core/src/tests.rs and apps/web/src/parity.test.ts. Pins structure -- entry-path quotes, step ids and ordinals, document ids -- and deliberately not the curated prose: the interface renders that verbatim from core, so pinning it here would turn every copy edit into golden churn without catching anything. Adding a case fails both sides until caseCount is bumped in this file and in both tests. Regenerate expectations with VOYALIER_REGENERATE_GOLDEN=1 and read the diff. The playbook field pins the universal playbook's structure for every case a journey does not cover; the mock synthesizes the playbook from it (spec 2026-08-02)."

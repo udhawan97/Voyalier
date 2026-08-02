@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { AppGateway } from "@voyalier/contracts";
 import { createMockGateway } from "@voyalier/contracts";
 
+import { setLocalePreference } from "./app/locale";
 import { findA11yViolations, renderApp } from "./test/helpers";
 
 /**
@@ -55,12 +56,21 @@ async function pickPassport(region: HTMLElement, code = "IN") {
  * ward, Akasaka, rather than under Tokyo.
  */
 describe("diplomatic missions", () => {
-  it("names the mission and says to confirm it elsewhere", async () => {
+  it("names the mission behind its disclosure and says to confirm it elsewhere", async () => {
     const region = await openVisa();
     fireEvent.change(within(region).getByLabelText("Passport country code"), {
       target: { value: "CA" },
     });
     fireEvent.click(within(region).getByRole("button", { name: "Save" }));
+
+    // Reference material, not a step: collapsed until asked for.
+    const toggle = await within(region).findByRole("button", {
+      name: /Your country's missions here/i,
+    });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(within(region).queryByText(/Embassy in Akasaka/i)).toBeNull();
+    fireEvent.click(toggle);
+
     expect(
       await within(region).findByText(/Embassy in Akasaka/i),
     ).toBeInTheDocument();
@@ -119,14 +129,24 @@ describe("visa preparation", () => {
     await screen.findByRole("heading", { name: "Trips", level: 1 });
     const lisbon = await openVisaFor("Lisbon spring draft");
 
-    // A passport does not change per trip, so the picker starts where the
-    // traveler left off rather than asking again.
+    // Offered as a one-tap chip, never applied on their behalf: the field
+    // stays empty and nothing resolves until the traveler acts. (This used to
+    // prefill the field itself, which read as already-chosen.)
     expect(within(lisbon).getByLabelText("Passport country code")).toHaveValue(
-      "IN",
+      "",
     );
-    // Offered, not applied: a trip may not be for them, so nothing resolves
-    // until they save it themselves.
     expect(within(lisbon).queryByText(/Step 1/)).toBeNull();
+    const chip = within(lisbon).getByRole("button", {
+      name: /the passport from your last trip/i,
+    });
+    expect(chip).toHaveTextContent("IN");
+
+    // One tap applies and saves — the curated Canada journey resolves.
+    fireEvent.click(chip);
+    await within(lisbon).findByText(/Step 1/);
+    expect(
+      within(lisbon).getByText(/read from .* on \d{4}-\d{2}-\d{2}/i),
+    ).toBeInTheDocument();
   });
 
   it("quotes the entry path with its source and the date it was read", async () => {
@@ -200,17 +220,25 @@ describe("visa preparation", () => {
     expect(within(region).queryByText(/Step 1/)).toBeNull();
   });
 
-  it("shows links and no journey when the route is not curated", async () => {
+  it("fills an uncurated route with the playbook, labelled as Voyalier's own", async () => {
     const region = await openVisa();
-    // Canada publishes conditions for Mexico rather than an answer, so the
-    // golden resolves it to unknown and the panel must not fill the gap.
+    // Japan's exemption for Thailand turns on a passport type Voyalier cannot
+    // see, so no curated journey resolves — and that is no longer a dead end:
+    // the universal playbook renders, wearing its authorship on its sleeve.
     fireEvent.change(within(region).getByLabelText("Passport country code"), {
-      target: { value: "MX" },
+      target: { value: "TH" },
     });
     fireEvent.click(within(region).getByRole("button", { name: "Save" }));
 
-    await within(region).findByText(/No step-by-step guide for this route yet/);
-    expect(within(region).queryByText(/Step 1/)).toBeNull();
+    await within(region).findByText(/written by Voyalier/);
+    expect(
+      within(region).getByText(/not read from any authority/),
+    ).toBeInTheDocument();
+    expect(
+      await within(region).findByRole("button", {
+        name: /Mock playbook step 1/,
+      }),
+    ).toBeInTheDocument();
   });
 
   it("reaches its own total once every document is ticked", async () => {
@@ -315,13 +343,13 @@ describe("visa preparation", () => {
     ).toBeInTheDocument();
   });
 
-  it("builds the no-journey state without nesting blocks inside a paragraph", async () => {
+  it("builds the playbook state without nesting blocks inside a paragraph", async () => {
     const region = await openVisa();
     fireEvent.change(within(region).getByLabelText("Passport country code"), {
-      target: { value: "MX" },
+      target: { value: "TH" },
     });
     fireEvent.click(within(region).getByRole("button", { name: "Save" }));
-    await within(region).findByText(/No step-by-step guide for this route yet/);
+    await within(region).findByText(/written by Voyalier/);
 
     // React only warns about this; the DOM it builds is genuinely invalid, and
     // would not survive being parsed rather than constructed.
@@ -387,3 +415,279 @@ describe("visa preparation", () => {
     expect(await findA11yViolations()).toEqual([]);
   });
 });
+
+/**
+ * The two zones this release added: the playbook for every route a journey
+ * does not cover (spec 2026-08-02), and the ADR-0014 statistics card whose
+ * figures exist only after this device read them from the authority.
+ */
+describe("visa cockpit v2", () => {
+  afterEach(() => setLocalePreference("en"));
+
+  /** A trip whose destination the mock maps to an uncurated country (FR). */
+  async function openParis(gateway = createMockGateway()) {
+    await gateway.createTrip({
+      title: "Paris scouting",
+      origin: "Delhi",
+      destination: "Paris",
+      startDate: "2027-04-01",
+      endDate: "2027-04-10",
+    });
+    renderApp(gateway);
+    const region = await openVisaFor("Paris scouting");
+    return { gateway, region };
+  }
+
+  it("renders the playbook for India → France instead of a dead end", async () => {
+    const { region } = await openParis();
+    await pickPassportViaField(region, "IN");
+
+    await within(region).findByText(/written by Voyalier/);
+    // Six steps, first one focusable through the rail like any journey.
+    expect(
+      within(region).getAllByRole("button", { name: /Mock playbook step/ }),
+    ).toHaveLength(6);
+    // France names no authority, and the panel says exactly that.
+    expect(
+      within(region).getByText(/has not curated an authority/),
+    ).toBeInTheDocument();
+    // No stats zone for a destination with no named authority.
+    expect(within(region).queryByText(/published times/i)).toBeNull();
+  });
+
+  it("still prefers the curated journey where one exists", async () => {
+    const region = await openVisa();
+    await pickPassport(region);
+    expect(
+      within(region).getByText(/read from Ministry of Foreign Affairs/),
+    ).toBeInTheDocument();
+    expect(within(region).queryByText(/written by Voyalier/)).toBeNull();
+  });
+
+  it("moves focus into a playbook step like any other", async () => {
+    const { region } = await openParis();
+    await pickPassportViaField(region, "IN");
+    await within(region).findByText(/written by Voyalier/);
+
+    fireEvent.click(
+      within(region).getByRole("button", { name: /Mock playbook step 5/ }),
+    );
+    await waitFor(() =>
+      expect(
+        within(region).getByRole("heading", { name: /Step 5/ }),
+      ).toHaveFocus(),
+    );
+  });
+
+  it("suggests countries by name and accepts the picked code", async () => {
+    const region = await openVisa();
+    const field = within(region).getByLabelText("Passport country code");
+    fireEvent.focus(field);
+    fireEvent.change(field, { target: { value: "Ind" } });
+
+    await screen.findByRole("option", { name: /India — IN/ });
+    // ArrowDown activates the first suggestion, Enter commits it — the
+    // component's canonical path. India is the first name match for "Ind",
+    // and the committed value is the code the contract takes.
+    fireEvent.keyDown(field, { key: "ArrowDown" });
+    fireEvent.keyDown(field, { key: "Enter" });
+    await waitFor(() => expect(field).toHaveValue("IN"));
+
+    fireEvent.click(within(region).getByRole("button", { name: "Save" }));
+    await within(region).findByText(/Step 1/);
+  });
+
+  it("says an authority blocks reading where no dataset is published", async () => {
+    // Kyoto → Japan: a named authority, no readable dataset. The card renders
+    // in every state under the authority's own name.
+    const region = await openVisa();
+    await pickPassport(region);
+
+    const stats = within(region).getByRole("region", {
+      name: "Ministry of Foreign Affairs of Japan",
+    });
+    expect(
+      within(stats).getByText(/Read them yourself at the official page/),
+    ).toBeInTheDocument();
+    expect(
+      within(stats).queryByRole("button", {
+        name: /Fetch current published times/,
+      }),
+    ).toBeNull();
+    expect(
+      within(stats).getByRole("link", {
+        name: /Check current published times/,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("fetches on consent, quotes verbatim, and names the source's own date", async () => {
+    const gateway = createMockGateway();
+    await gateway.createTrip({
+      title: "London filing",
+      origin: "Delhi",
+      destination: "London",
+      startDate: "2027-05-01",
+      endDate: "2027-05-10",
+    });
+    renderApp(gateway);
+    const region = await openVisaFor("London filing");
+    await pickPassportViaField(region, "IN");
+    await within(region).findByText(/written by Voyalier/);
+
+    const stats = within(region).getByRole("region", {
+      name: /UK Visas and Immigration/,
+    });
+    // The consent sentence names the host and the payload before any fetch.
+    expect(
+      within(stats).getByText(/Nothing about you or your trip is sent/),
+    ).toBeInTheDocument();
+    expect(within(stats).queryByRole("table")).toBeNull();
+
+    fireEvent.click(
+      within(stats).getByRole("button", {
+        name: /Fetch current published times/,
+      }),
+    );
+
+    expect(await within(stats).findByRole("table")).toBeInTheDocument();
+    expect(within(stats).getByText("Standard Visitor")).toBeInTheDocument();
+    expect(within(stats).getAllByText("3 weeks").length).toBeGreaterThan(0);
+    // The source's own as-of date is never omitted when it publishes one.
+    expect(
+      within(stats).getByText(/states these figures as of/),
+    ).toBeInTheDocument();
+    // The licence rides with the figures.
+    expect(
+      within(stats).getByText(/Open Government Licence v3.0/),
+    ).toBeInTheDocument();
+  });
+
+  it("marks the traveler's own row with text, never color alone", async () => {
+    // Lisbon maps to Canada in the mock, and IRCC publishes per-country rows.
+    const gateway = createMockGateway();
+    renderApp(gateway);
+    const region = await openVisaFor("Lisbon spring draft");
+    await pickPassportViaField(region, "IN");
+    await within(region).findByText(/Step 1/);
+
+    const stats = within(region).getByRole("region", {
+      name: /Immigration, Refugees and Citizenship Canada/,
+    });
+    fireEvent.click(
+      within(stats).getByRole("button", {
+        name: /Fetch current published times/,
+      }),
+    );
+    await within(stats).findByRole("table");
+
+    expect(within(stats).getAllByText(/your passport/).length).toBeGreaterThan(
+      0,
+    );
+    expect(within(stats).getByText(/confirm it is yours/)).toBeInTheDocument();
+  });
+
+  it("keeps the stored copy visible and loud when a refresh fails", async () => {
+    const base = createMockGateway();
+    await base.createTrip({
+      title: "London filing",
+      origin: "Delhi",
+      destination: "London",
+      startDate: "2027-05-01",
+      endDate: "2027-05-10",
+    });
+    const trips = await base.listTrips();
+    const london = trips.find((trip) => trip.title === "London filing")!;
+    await base.setVisaNationality({
+      tripId: london.id,
+      nationalityIso2: "IN",
+    });
+    // A copy is stored, then the authority goes unreachable.
+    await base.refreshVisaStats(london.id);
+    const gateway = {
+      ...base,
+      refreshVisaStats: () =>
+        Promise.reject({
+          code: "advice/fetch_failed",
+          message: "unreachable",
+        }),
+    };
+    renderApp(gateway as typeof base);
+    const region = await openVisaFor("London filing");
+    await within(region).findByText(/written by Voyalier/);
+
+    const stats = within(region).getByRole("region", {
+      name: /UK Visas and Immigration/,
+    });
+    // The kept copy renders without any fetch this session.
+    expect(await within(stats).findByRole("table")).toBeInTheDocument();
+
+    fireEvent.click(
+      within(stats).getByRole("button", {
+        name: /Fetch current published times/,
+      }),
+    );
+    // Loud, and the copy survives.
+    expect(
+      await within(stats).findByText(/showing the copy saved/),
+    ).toBeInTheDocument();
+    expect(within(stats).getByRole("table")).toBeInTheDocument();
+  });
+
+  it("renders the playbook banner in Spanish chrome around English steps", async () => {
+    setLocalePreference("es");
+    const gateway = createMockGateway();
+    await gateway.createTrip({
+      title: "Paris scouting",
+      origin: "Delhi",
+      destination: "Paris",
+      startDate: "2027-04-01",
+      endDate: "2027-04-10",
+    });
+    renderApp(gateway);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Paris scouting/ }),
+    );
+    await screen.findByRole("heading", { name: "Paris scouting", level: 1 });
+    const region = await screen.findByRole("region", {
+      name: "Visado y preparación de entrada",
+    });
+    const field = await within(region).findByLabelText(
+      "Código de país del pasaporte",
+    );
+    fireEvent.change(field, { target: { value: "IN" } });
+    fireEvent.click(within(region).getByRole("button", { name: "Guardar" }));
+
+    // The banner is chrome and translates; the steps carry their own language
+    // tag so a screen reader is not misled.
+    await within(region).findByText(/escrita por Voyalier/);
+    const guide = document.querySelector(".voy-visa__journey");
+    expect(guide).toHaveAttribute("lang", "en");
+  });
+
+  it("has no accessibility violations with playbook, stats, and missions open", async () => {
+    const gateway = createMockGateway();
+    renderApp(gateway);
+    const region = await openVisaFor("Lisbon spring draft");
+    await pickPassportViaField(region, "IN");
+    await within(region).findByText(/Step 1/);
+
+    const missionsToggle = within(region).queryByRole("button", {
+      name: /Your country's missions here/i,
+    });
+    if (missionsToggle) fireEvent.click(missionsToggle);
+    const fetchButton = within(region).queryByRole("button", {
+      name: /Fetch current published times/,
+    });
+    if (fetchButton) fireEvent.click(fetchButton);
+    await waitFor(async () => expect(await findA11yViolations()).toEqual([]));
+  });
+});
+
+/** Type a code into the combobox field and save — no suggestion interaction. */
+async function pickPassportViaField(region: HTMLElement, code: string) {
+  fireEvent.change(within(region).getByLabelText("Passport country code"), {
+    target: { value: code },
+  });
+  fireEvent.click(within(region).getByRole("button", { name: "Save" }));
+}

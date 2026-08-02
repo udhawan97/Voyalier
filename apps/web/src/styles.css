@@ -1050,86 +1050,82 @@ h3 {
 
 /* ===== Visa & entry preparation ======================================== */
 
+/* Hallmark · component: visa-cockpit · genre: editorial · theme: project system
+ * pre-emit critique: P4 H5 E4 S4 R5 V4
+ * states: default · hover · focus-visible · active · disabled · busy · error · kept
+ * spacing: --voy-space-* ladder (first consumer) · carve-out: --voy-visa-indent
+ */
 .voy-visa {
-  margin-top: 2.6rem;
-  padding-top: 1.8rem;
+  --voy-visa-indent: 1.55rem; /* checkbox-text alignment, a control-width constant, not rhythm */
+  margin-top: var(--voy-space-2xl);
+  padding-top: var(--voy-space-lg);
   border-top: 1px solid var(--voy-line);
 }
 
 /* The product's position, not a dismissible notice — it reads as a standing
    statement rather than an alert the traveler can resolve. */
 .voy-visa__disclaimer {
-  margin: 0.6rem 0 1.4rem;
-  padding: 0.85rem 1rem;
+  margin: var(--voy-space-xs) 0 var(--voy-space-lg);
+  padding: var(--voy-space-sm) var(--voy-space-md);
   border-left: 3px solid var(--voy-vermilion);
   background: var(--voy-tint-vermilion);
   border-radius: 0 var(--voy-radius-sm) var(--voy-radius-sm) 0;
-  font-size: 0.88rem;
+  font-size: var(--voy-text-base);
   line-height: 1.55;
 }
 
 .voy-visa__hint,
 .voy-visa__help {
-  margin: 0.5rem 0 0;
-  font-size: 0.85rem;
+  margin: var(--voy-space-xs) 0 0;
+  font-size: var(--voy-text-base);
   color: var(--voy-ink-muted);
   line-height: 1.5;
 }
 
-/* The picker is a standard `Field` plus its submit, so the label, hint, error,
-   aria-invalid and aria-describedby wiring all come from the shared primitive.
-   It used to hand-roll the row and print errors through a class that was never
-   given a colour. */
+/* Zone 1 — the route header's picker row. The combobox field keeps its own
+   label/hint/error wiring; Save and the last-passport chip sit beside the
+   input on wide screens and wrap under it on narrow ones. */
 .voy-visa__nationality {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 0.6rem;
-  margin-bottom: 1.2rem;
+  gap: var(--voy-space-xs) var(--voy-space-sm);
+  margin-bottom: var(--voy-space-lg);
 }
 
-/* `display: contents` so the field's own parts join this row rather than
-   stacking inside a block: the label and hint take a line each, and Save stays
-   beside the two-character input it submits instead of being pushed to the far
-   end of the field's box. The error follows the input by `order`, so it lands
-   under the control it is about. */
-.voy-visa__nationality .voy-field {
-  display: contents;
-}
-
-.voy-visa__nationality .voy-field__label {
-  order: 1;
-  flex-basis: 100%;
-}
-
-.voy-visa__nationality .voy-field__hint {
-  order: 2;
-  flex-basis: 100%;
-  margin: 0;
-}
-
-.voy-visa__nationality .voy-input {
-  order: 3;
-  width: 5rem;
-  text-transform: uppercase;
+.voy-visa__nationality .voy-combobox {
+  flex: 1 1 16rem;
+  max-width: 24rem;
 }
 
 .voy-visa__nationality .voy-btn {
-  order: 4;
+  margin-bottom: 2px;
 }
 
-.voy-visa__nationality .voy-field__error {
-  order: 5;
-  flex-basis: 100%;
-  margin: 0;
+/* The last trip's passport as one tap. A suggestion wearing suggestion
+   clothes: quiet tint, pill shape, and it disappears once a passport is set. */
+.voy-visa__chip {
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-lg);
+  background: var(--voy-tint-indigo);
+  color: var(--voy-ink);
+  font: inherit;
+  font-size: var(--voy-text-sm);
+  padding: var(--voy-space-2xs) var(--voy-space-sm);
+  margin-bottom: 4px;
+  cursor: pointer;
+}
+
+.voy-visa__chip:hover {
+  border-color: var(--voy-indigo);
 }
 
 .voy-visa__quote {
-  padding: 0.9rem 1rem;
+  padding: var(--voy-space-sm) var(--voy-space-md);
   border: 1px solid var(--voy-line);
   border-radius: var(--voy-radius-sm);
   background: var(--voy-paper-raised);
-  margin-bottom: 1.2rem;
+  margin-bottom: var(--voy-space-lg);
 }
 
 .voy-visa__route {
@@ -1138,14 +1134,36 @@ h3 {
 }
 
 .voy-visa__attribution {
-  margin: 0.25rem 0 0;
-  font-size: 0.82rem;
+  margin: var(--voy-space-2xs) 0 0;
+  font-size: var(--voy-text-sm);
   color: var(--voy-ink-muted);
 }
 
+/* Zone 2 — the guide. The provenance banner is the zone's opening sentence:
+   who wrote what the traveler is about to read. */
+.voy-visa__provenance {
+  margin: 0 0 var(--voy-space-sm);
+  padding: var(--voy-space-xs) var(--voy-space-sm);
+  font-size: var(--voy-text-sm);
+  line-height: 1.5;
+  border-radius: 0 var(--voy-radius-sm) var(--voy-radius-sm) 0;
+}
+
+.voy-visa__provenance--curated {
+  border-left: 3px solid var(--voy-indigo);
+  background: var(--voy-tint-indigo);
+}
+
+/* Voyalier's own writing carries a deliberately plainer dress than a quote:
+   sunken paper, muted rule — labelled authorship, not borrowed authority. */
+.voy-visa__provenance--playbook {
+  border-left: 3px solid var(--voy-ink-muted);
+  background: var(--voy-paper-sunken);
+}
+
 .voy-visa__progress {
-  margin: 0 0 1rem;
-  font-size: 0.88rem;
+  margin: 0 0 var(--voy-space-md);
+  font-size: var(--voy-text-base);
   color: var(--voy-ink-muted);
 }
 
@@ -1153,14 +1171,14 @@ h3 {
    the heading on narrow ones. */
 .voy-visa__cockpit {
   display: grid;
-  grid-template-columns: minmax(12rem, 17rem) 1fr;
-  gap: 1.4rem;
+  grid-template-columns: minmax(12rem, 17rem) minmax(0, 1fr);
+  gap: var(--voy-space-lg);
   align-items: start;
 }
 
 @media (width <= 48rem) {
   .voy-visa__cockpit {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1170,7 +1188,7 @@ h3 {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 2px;
   border-right: 1px solid var(--voy-line);
 }
 
@@ -1178,7 +1196,7 @@ h3 {
   .voy-visa__rail {
     border-right: none;
     border-bottom: 1px solid var(--voy-line);
-    padding-bottom: 0.6rem;
+    padding-bottom: var(--voy-space-xs);
   }
 }
 
@@ -1186,14 +1204,14 @@ h3 {
   width: 100%;
   display: flex;
   align-items: baseline;
-  gap: 0.55rem;
-  padding: 0.45rem 0.6rem;
+  gap: var(--voy-space-xs);
+  padding: var(--voy-space-2xs) var(--voy-space-xs);
   border: none;
   border-left: 3px solid transparent;
   background: none;
   color: inherit;
   font: inherit;
-  font-size: 0.88rem;
+  font-size: var(--voy-text-base);
   text-align: left;
   cursor: pointer;
   border-radius: 0 var(--voy-radius-sm) var(--voy-radius-sm) 0;
@@ -1216,35 +1234,35 @@ h3 {
 
 .voy-visa__rail-state {
   margin-left: auto;
-  font-size: 0.78rem;
+  font-size: var(--voy-text-xs);
   color: var(--voy-success);
 }
 
 .voy-visa__step-title {
-  margin: 0 0 0.2rem;
-  font-size: 1.02rem;
+  margin: 0 0 var(--voy-space-2xs);
+  font-size: var(--voy-text-md);
 }
 
 .voy-visa__authority-term {
-  margin: 0 0 0.5rem;
-  font-size: 0.82rem;
+  margin: 0 0 var(--voy-space-xs);
+  font-size: var(--voy-text-sm);
   color: var(--voy-ink-muted);
 }
 
 .voy-visa__plain {
-  margin: 0 0 1rem;
+  margin: 0 0 var(--voy-space-md);
   line-height: 1.6;
 }
 
 .voy-visa__doc {
-  padding: 0.8rem 0;
+  padding: var(--voy-space-sm) 0;
   border-top: 1px solid var(--voy-line);
 }
 
 .voy-visa__doc-check {
   display: flex;
   align-items: baseline;
-  gap: 0.5rem;
+  gap: var(--voy-space-xs);
   cursor: pointer;
 }
 
@@ -1253,8 +1271,8 @@ h3 {
 }
 
 .voy-visa__doc-plain {
-  margin: 0.25rem 0 0 1.55rem;
-  font-size: 0.88rem;
+  margin: var(--voy-space-2xs) 0 0 var(--voy-visa-indent);
+  font-size: var(--voy-text-base);
   color: var(--voy-ink-muted);
   line-height: 1.55;
 }
@@ -1262,36 +1280,172 @@ h3 {
 /* A caution, not an error. Marked with a rule as well as a color so it does
    not depend on hue alone. */
 .voy-visa__gotcha {
-  margin: 0.4rem 0 0 1.55rem;
-  padding-left: 0.6rem;
+  margin: var(--voy-space-2xs) 0 0 var(--voy-visa-indent);
+  padding-left: var(--voy-space-xs);
   border-left: 2px solid var(--voy-vermilion);
-  font-size: 0.85rem;
+  font-size: var(--voy-text-base);
   line-height: 1.55;
 }
 
 .voy-visa__doc-note {
   display: block;
-  margin: 0.6rem 0 0.25rem 1.55rem;
-  font-size: 0.8rem;
+  margin: var(--voy-space-xs) 0 var(--voy-space-2xs) var(--voy-visa-indent);
+  font-size: var(--voy-text-sm);
   color: var(--voy-ink-muted);
 }
 
 .voy-visa__doc textarea.voy-input {
-  margin-left: 1.55rem;
-  width: calc(100% - 1.55rem);
+  margin-left: var(--voy-visa-indent);
+  width: calc(100% - var(--voy-visa-indent));
+}
+
+/* Zone 3 — route statistics (ADR-0014). The authority's name is the heading in
+   every state, so even a cropped screenshot names whose numbers these are. */
+.voy-visa__stats {
+  margin-top: var(--voy-space-xl);
+  padding: var(--voy-space-md);
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-sm);
+  background: var(--voy-paper-raised);
+}
+
+.voy-visa__stats-title {
+  margin: 0 0 var(--voy-space-sm);
+  font-size: var(--voy-text-md);
+}
+
+.voy-visa__stats-consent {
+  margin: 0 0 var(--voy-space-sm);
+  font-size: var(--voy-text-base);
+  color: var(--voy-ink-muted);
+  line-height: 1.55;
+}
+
+/* Failure and age both wear the caution dress — never silence. */
+.voy-visa__stats-kept,
+.voy-visa__stats-stale {
+  margin: 0 0 var(--voy-space-sm);
+  padding: var(--voy-space-2xs) var(--voy-space-sm);
+  border-left: 3px solid var(--voy-vermilion);
+  background: var(--voy-tint-vermilion);
+  font-size: var(--voy-text-sm);
+  line-height: 1.5;
+  border-radius: 0 var(--voy-radius-sm) var(--voy-radius-sm) 0;
+}
+
+/* Wider than the viewport scrolls here, never the page. */
+.voy-visa__stats-scroll {
+  overflow-x: auto;
+}
+
+.voy-visa__stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--voy-text-base);
+}
+
+.voy-visa__stats-table th,
+.voy-visa__stats-table td {
+  text-align: left;
+  padding: var(--voy-space-2xs) var(--voy-space-sm) var(--voy-space-2xs) 0;
+  border-bottom: 1px solid var(--voy-line);
+  font-weight: var(--voy-w-regular);
+}
+
+.voy-visa__stats-table thead th {
+  font-size: var(--voy-text-xs);
+  color: var(--voy-ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.voy-visa__stats-table td {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.voy-visa__stats-audience {
+  color: var(--voy-ink-muted);
+}
+
+/* The traveler's own row: tint plus a text marker, never color alone. */
+.voy-visa__stats-row--mine th,
+.voy-visa__stats-row--mine td {
+  background: var(--voy-tint-indigo);
+}
+
+.voy-visa__stats-mine {
+  display: inline-block;
+  margin-left: var(--voy-space-xs);
+  font-size: var(--voy-text-xs);
+  color: var(--voy-indigo);
+  font-weight: var(--voy-w-medium);
+}
+
+.voy-visa__stats-highlight-note,
+.voy-visa__stats-sourceline {
+  margin: var(--voy-space-xs) 0 0;
+  font-size: var(--voy-text-sm);
+  color: var(--voy-ink-muted);
+}
+
+.voy-visa__stats-licence {
+  margin: var(--voy-space-2xs) 0 0;
+  font-size: var(--voy-text-xs);
+  color: var(--voy-ink-muted);
+}
+
+.voy-visa__stats-actions {
+  margin-top: var(--voy-space-sm);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--voy-space-sm);
+}
+
+/* Zone 4 — missions, collapsed reference material. */
+.voy-visa__missions {
+  margin-top: var(--voy-space-xl);
+}
+
+.voy-visa__missions-title {
+  margin: 0;
+  font-size: var(--voy-text-md);
+}
+
+.voy-visa__missions-toggle {
+  display: flex;
+  align-items: baseline;
+  gap: var(--voy-space-xs);
+  border: none;
+  background: none;
+  padding: var(--voy-space-2xs) 0;
+  color: inherit;
+  font: inherit;
+  font-weight: var(--voy-w-medium);
+  cursor: pointer;
+}
+
+.voy-visa__missions-toggle:hover {
+  color: var(--voy-indigo);
+}
+
+.voy-visa__missions-marker {
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
 }
 
 .voy-visa__links {
   list-style: none;
-  margin: 0.55rem 0 0;
+  margin: var(--voy-space-xs) 0 0;
   padding: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.9rem;
+  gap: var(--voy-space-sm) var(--voy-space-md);
 }
 
 .voy-visa__links a {
-  font-size: 0.85rem;
+  font-size: var(--voy-text-base);
   color: var(--voy-indigo);
   text-decoration: underline;
   text-underline-offset: 0.2em;

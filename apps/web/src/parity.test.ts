@@ -304,7 +304,7 @@ describe("parity: visa journeys", () => {
   const cases = visaGolden.cases;
 
   it("covers every golden case", () => {
-    expect(cases).toHaveLength(15);
+    expect(cases).toHaveLength(16);
     expect(cases).toHaveLength(visaGolden.caseCount);
   });
 
