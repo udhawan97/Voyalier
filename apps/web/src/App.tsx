@@ -125,17 +125,21 @@ function viewFromLocation(): View | null {
 
 function urlForView(view: View): string {
   const path = window.location.pathname;
+  // Carried by every view except the list, and that is load-bearing: Settings
+  // and Search are detours a trip returns from, so dropping the section hash on
+  // the way out would land the traveler back at the top of a trip they had
+  // scrolled halfway through. The list is the one view that genuinely owns no
+  // section, and `clearTripSectionHash` strips it there.
+  const hash = isTripSectionHash(window.location.hash)
+    ? window.location.hash
+    : "";
   switch (view.name) {
     case "settings":
-      return `${path}?view=settings`;
+      return `${path}?view=settings${hash}`;
     case "search":
-      return `${path}?view=search`;
-    // Only a trip keeps the section hash: it is the only view whose sections
-    // those ids name.
+      return `${path}?view=search${hash}`;
     case "trip":
-      return `${path}?trip=${encodeURIComponent(view.tripId)}${
-        isTripSectionHash(window.location.hash) ? window.location.hash : ""
-      }`;
+      return `${path}?trip=${encodeURIComponent(view.tripId)}${hash}`;
     default:
       return path;
   }

@@ -111,7 +111,16 @@ test("planning persists through the real loopback service and a browser reload",
     ),
   ).toBe(true);
 
+  // Since ADR-0015 the URL is what a reload restores, and this reload happens
+  // while Settings is open — so Settings is what comes back, which is the
+  // point. Going back to the trip first keeps this assertion about what it was
+  // always about: that the trip's own planning data survived the round trip.
   await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Configuración", level: 1 }),
+  ).toBeVisible();
+  await page.goBack();
+
   await expect(
     page.getByRole("heading", { name: "Loopback release trip", level: 1 }),
   ).toBeVisible();
@@ -187,8 +196,10 @@ test("the visa passport field keeps its Save button and suggestions attached", a
   // The suggestion list hangs off the combobox box, so an inflated wrapper
   // detaches it from the input it belongs to.
   await page.setViewportSize({ width: 1280, height: 900 });
+  // "Ind" also matches the British Indian Ocean Territory and Indonesia, so
+  // name the one the ranking puts first rather than the substring.
   await row.locator("input").fill("Ind");
-  await expect(page.getByRole("option", { name: /India/ })).toBeVisible();
+  await expect(page.getByRole("option", { name: "India — IN" })).toBeVisible();
   const listOffset = await row.evaluate((form) => {
     const input = form.querySelector("input") as HTMLElement;
     const list = form.querySelector(".voy-combobox__list") as HTMLElement;
