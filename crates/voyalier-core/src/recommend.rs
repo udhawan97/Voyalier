@@ -111,7 +111,15 @@ impl Dimension {
 /// if it doesn't clearly belong to one (those places are not recommended).
 fn dimension_for(category: &str) -> Option<Dimension> {
     let c = category.to_ascii_lowercase();
-    let has = |needles: &[&str]| needles.iter().any(|needle| c.contains(needle));
+    // A keyword must end a category token — the next byte is `_` or the string
+    // ends. Plain `contains` claimed any category that merely spelled a keyword
+    // inside a longer word: `barber` read as a bar, `apartment_building` as art.
+    let has = |needles: &[&str]| {
+        needles.iter().any(|needle| {
+            c.match_indices(needle)
+                .any(|(at, _)| matches!(c.as_bytes().get(at + needle.len()), None | Some(b'_')))
+        })
+    };
     if has(&[
         "restaurant",
         "cafe",
@@ -123,8 +131,33 @@ fn dimension_for(category: &str) -> Option<Dimension> {
     ]) {
         Some(Dimension::Food)
     } else if has(&[
-        "museum", "gallery", "art", "histor", "landmark", "monument", "theatre", "theater",
-        "cultural", "heritage",
+        // Anchoring retires stems: `histor` can never end a token, and plurals
+        // are their own word, so each real form is listed.
+        "museum",
+        "gallery",
+        "art",
+        "arts",
+        "history",
+        "historic",
+        "historical",
+        "landmark",
+        "monument",
+        "theatre",
+        "theater",
+        "cultural",
+        "heritage",
+        // Religious and heritage sites. These are a large share of why a
+        // traveler downloads a pack at all, but no keyword above reaches them,
+        // so every one of them scored nothing and was dropped from results.
+        "temple",
+        "shrine",
+        "church",
+        "cathedral",
+        "mosque",
+        "synagogue",
+        "castle",
+        "palace",
+        "monastery",
     ]) {
         Some(Dimension::Culture)
     } else if has(&[
@@ -150,7 +183,9 @@ fn dimension_for(category: &str) -> Option<Dimension> {
         "winery",
     ]) {
         Some(Dimension::Nightlife)
-    } else if has(&["shop", "store", "retail", "market", "mall", "boutique"]) {
+    } else if has(&[
+        "shop", "shopping", "store", "retail", "market", "mall", "boutique",
+    ]) {
         Some(Dimension::Shopping)
     } else {
         None
@@ -342,6 +377,93 @@ mod tests {
 
         let error = invalid.validate().expect_err("weight above one");
         assert_eq!(error.code, crate::ErrorCode::ValidationInvalidInput);
+    }
+
+    /// Keywords are substrings, so an unanchored match claimed any category
+    /// that merely contained one: `barber` is not a bar, and
+    /// `apartment_building` is not art. Both were observed in the published
+    /// packs — 47 rows of the first alone.
+    #[test]
+    fn keywords_do_not_match_inside_a_longer_word() {
+        assert_eq!(dimension_for("barber"), None);
+        assert_eq!(dimension_for("apartment_building"), None);
+        // The same keywords still match where they end a category token.
+        assert_eq!(dimension_for("cigar_bar"), Some(Dimension::Nightlife));
+        assert_eq!(dimension_for("public_art"), Some(Dimension::Culture));
+    }
+
+    /// Temples, shrines and castles are why many travelers download a pack at
+    /// all, but no Culture keyword reached them, so they scored nothing and
+    /// were dropped from every recommendation — most visibly in `jp-kyoto`.
+    #[test]
+    fn religious_and_heritage_sites_score_as_culture() {
+        for category in [
+            "buddhist_temple",
+            "shinto_shrine",
+            "church_cathedral",
+            "mosque",
+            "synagogue",
+            "castle",
+            "palace",
+            "monastery",
+        ] {
+            assert_eq!(
+                dimension_for(category),
+                Some(Dimension::Culture),
+                "{category}"
+            );
+        }
+    }
+
+    /// Accommodation is deliberately unranked. There is no "stay" persona
+    /// dimension, and filing a hotel under culture or shopping would be a wrong
+    /// answer rather than a missing one. Hotels still reach the traveler
+    /// through pack place-name suggestions, which is a separate path from
+    /// ranking. This test pins that decision so it is not silently reversed.
+    #[test]
+    fn accommodation_is_deliberately_unranked() {
+        for category in ["hotel", "hostel", "ryokan", "resort", "bed_and_breakfast"] {
+            assert_eq!(dimension_for(category), None, "{category}");
+        }
+    }
+
+    /// Categories the ranker already scored must keep their dimension. Losing
+    /// one to a newly-anchored keyword is the same defect as a category that
+    /// never had a keyword — it just fails in the other direction.
+    #[test]
+    fn known_categories_keep_their_dimension() {
+        let expected = [
+            ("restaurant", Dimension::Food),
+            ("japanese_restaurant", Dimension::Food),
+            ("coffee_shop", Dimension::Food),
+            ("fast_food_restaurant", Dimension::Food),
+            ("bakery", Dimension::Food),
+            ("art_museum", Dimension::Culture),
+            ("art_gallery", Dimension::Culture),
+            ("history_museum", Dimension::Culture),
+            ("historic_site", Dimension::Culture),
+            ("historical_landmark", Dimension::Culture),
+            ("performing_arts", Dimension::Culture),
+            ("cultural_center", Dimension::Culture),
+            ("monument", Dimension::Culture),
+            ("public_park", Dimension::Nature),
+            ("national_park", Dimension::Nature),
+            ("botanical_garden", Dimension::Nature),
+            ("hiking_trail", Dimension::Nature),
+            ("beach", Dimension::Nature),
+            ("cocktail_bar", Dimension::Nightlife),
+            ("nightclub", Dimension::Nightlife),
+            ("brewery", Dimension::Nightlife),
+            ("pub", Dimension::Nightlife),
+            ("shopping_center", Dimension::Shopping),
+            ("shopping_mall", Dimension::Shopping),
+            ("clothing_store", Dimension::Shopping),
+            ("flea_market", Dimension::Shopping),
+        ];
+
+        for (category, dimension) in expected {
+            assert_eq!(dimension_for(category), Some(dimension), "{category}");
+        }
     }
 
     #[test]

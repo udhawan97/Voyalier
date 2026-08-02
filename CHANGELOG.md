@@ -365,6 +365,35 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
   Left out on purpose: more destinations. Each is a fresh reading of a fresh
   authority, and two in one branch would halve the attention each got.
 
+### Fixed
+
+- **Recommendations were reading category names as substrings, and a whole class
+  of sights had no category at all.** The ranker matched an Overture category by
+  asking whether it _contained_ a keyword, so `barber` contained "bar" and was
+  recommended as nightlife — forty-seven of them across the published packs — and
+  `apartment_building` contained "art" and was recommended as culture. A keyword
+  now has to end a category token, which is what separates `art_museum` from
+  `apartment_building` without needing a list of exceptions.
+
+  The larger repair is what the keywords never reached. Temples, shrines,
+  churches, cathedrals, castles, palaces and monasteries matched no culture
+  keyword, scored nothing, and were silently dropped from every result — in
+  Kyoto, that is most of what a traveler opens the app to find. They are scored
+  as culture now, along with mosques and synagogues, which the same gap covered
+  in Singapore and Bangkok.
+
+  Anchoring is not free, and two smaller repairs came with it: a keyword stem
+  like `histor` can never end a token, so each real form is spelled out, and
+  `shopping_center` needed "shopping" once "shop" no longer matched inside it.
+  A test pins the categories that already ranked, because losing one to the fix
+  is the same defect as never having had it.
+
+  Left out on purpose: hotels, hostels and ryokan stay unranked. There is no
+  "stay" dimension to weigh them against, and filing a hotel under culture would
+  be a wrong answer rather than a missing one — they already reach the traveler
+  through place-name suggestions, which never went through ranking. A test pins
+  that decision so it is not reversed by accident.
+
 ## [0.6.2] - 2026-07-29 — Honest search, readable engine
 
 ### Fixed

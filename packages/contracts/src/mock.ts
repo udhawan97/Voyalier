@@ -771,7 +771,10 @@ const MOCK_PLACES: {
 /** Mirrors voyalier-core::recommend::dimension_for. */
 function mockDimensionFor(category: string): keyof PersonaWeights | null {
   const c = category.toLowerCase();
-  const has = (arr: string[]) => arr.some((n) => c.includes(n));
+  // A keyword must end a category token, matching the Rust anchoring: plain
+  // `includes` read `barber` as a bar and `apartment_building` as art.
+  const has = (arr: string[]) =>
+    arr.some((n) => new RegExp(`${n}(_|$)`).test(c));
   if (
     has(["restaurant", "cafe", "coffee", "food", "bakery", "eatery", "bistro"])
   )
@@ -781,13 +784,25 @@ function mockDimensionFor(category: string): keyof PersonaWeights | null {
       "museum",
       "gallery",
       "art",
-      "histor",
+      "arts",
+      "history",
+      "historic",
+      "historical",
       "landmark",
       "monument",
       "theatre",
       "theater",
       "cultural",
       "heritage",
+      "temple",
+      "shrine",
+      "church",
+      "cathedral",
+      "mosque",
+      "synagogue",
+      "castle",
+      "palace",
+      "monastery",
     ])
   )
     return "culture";
@@ -808,7 +823,9 @@ function mockDimensionFor(category: string): keyof PersonaWeights | null {
     return "nature";
   if (has(["bar", "club", "pub", "nightlife", "lounge", "brewery", "winery"]))
     return "nightlife";
-  if (has(["shop", "store", "retail", "market", "mall", "boutique"]))
+  if (
+    has(["shop", "shopping", "store", "retail", "market", "mall", "boutique"])
+  )
     return "shopping";
   return null;
 }
