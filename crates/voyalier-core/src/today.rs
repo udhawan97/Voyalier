@@ -40,6 +40,12 @@ pub enum TripPhaseState {
 pub enum TodayItemKind {
     FlightDeparture,
     FlightArrival,
+    /// A confirmed surface departure — rail, coach, ferry, or a hire-car
+    /// pickup. Distinct from `Rail`, which is a traveler-authored *plan*: the
+    /// two must not merge, because one is evidence and one is an intention.
+    JourneyDeparture,
+    /// A confirmed surface arrival, or a hire car going back.
+    JourneyArrival,
     Checkin,
     Checkout,
     StayingTonight,
@@ -171,6 +177,30 @@ fn property_subject(payload: &FactPayload) -> Option<String> {
     payload.property_name.clone()
 }
 
+/// A surface journey's endpoints, named in the operator's own words rather than
+/// in codes. A hire car reads the same pair as pickup → drop-off.
+fn journey_route(payload: &FactPayload) -> String {
+    match (
+        payload.departure_place.as_deref(),
+        payload.arrival_place.as_deref(),
+    ) {
+        (Some(from), Some(to)) => format!("{from} → {to}"),
+        _ => String::new(),
+    }
+}
+
+fn journey_subject(payload: &FactPayload) -> Option<String> {
+    let service: String = [
+        payload.carrier_name.as_deref(),
+        payload.service_number.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>()
+    .join(" ");
+    (!service.is_empty()).then_some(service)
+}
+
 /// Build the Today view for `trip` and `facts` against `today` (YYYY-MM-DD).
 pub fn build_today_view(
     trip: &Trip,
@@ -217,6 +247,49 @@ pub fn build_today_view(
                             ),
                             subject,
                             detail: flight_route(payload),
+                            date: date.to_owned(),
+                            time: time_part(arrival),
+                        });
+                    }
+                }
+            }
+            FactType::RailJourney
+            | FactType::CoachJourney
+            | FactType::FerryCrossing
+            | FactType::CarRental => {
+                let payload = &fact.payload;
+                let subject = journey_subject(payload);
+                let detail = journey_route(payload);
+                if let Some(departure) = payload.departure_local.as_deref() {
+                    let date = date_part(departure);
+                    let item = TodayItem {
+                        kind: TodayItemKind::JourneyDeparture,
+                        title: subject.as_ref().map_or_else(
+                            || "Depart".to_owned(),
+                            |value| format!("Depart — {value}"),
+                        ),
+                        subject: subject.clone(),
+                        detail: detail.clone(),
+                        date: date.to_owned(),
+                        time: time_part(departure),
+                    };
+                    if date == today {
+                        today_items.push(item);
+                    } else if date > today {
+                        anchors.push(item);
+                    }
+                }
+                if let Some(arrival) = payload.arrival_local.as_deref() {
+                    let date = date_part(arrival);
+                    if date == today {
+                        today_items.push(TodayItem {
+                            kind: TodayItemKind::JourneyArrival,
+                            title: subject.as_ref().map_or_else(
+                                || "Arrive".to_owned(),
+                                |value| format!("Arrive — {value}"),
+                            ),
+                            subject,
+                            detail,
                             date: date.to_owned(),
                             time: time_part(arrival),
                         });
@@ -329,11 +402,13 @@ fn kind_order(kind: TodayItemKind) -> u8 {
         TodayItemKind::Checkout => 0,
         TodayItemKind::FlightDeparture => 1,
         TodayItemKind::FlightArrival => 2,
-        TodayItemKind::Checkin => 3,
-        TodayItemKind::StayingTonight => 4,
-        TodayItemKind::Activity => 5,
-        TodayItemKind::Rail => 6,
-        TodayItemKind::Transfer => 7,
+        TodayItemKind::JourneyDeparture => 3,
+        TodayItemKind::JourneyArrival => 4,
+        TodayItemKind::Checkin => 5,
+        TodayItemKind::StayingTonight => 6,
+        TodayItemKind::Activity => 7,
+        TodayItemKind::Rail => 8,
+        TodayItemKind::Transfer => 9,
     }
 }
 

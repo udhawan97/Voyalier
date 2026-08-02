@@ -1,0 +1,16 @@
+{
+  "parser": "jsonld.v1",
+  "exact": true,
+  "expectedCandidates": [
+    {
+      "factType": "rail_journey",
+      "method": "structured",
+      "payload": {
+        "carrierName": "Meridian Rail",
+        "confirmationCode": "RL77ZZ"
+      },
+      "warnings": ["missing_locations", "missing_dates"]
+    }
+  ],
+  "expectedDiagnostics": []
+}

@@ -1,0 +1,21 @@
+{
+  "parser": "jsonld.v1",
+  "exact": true,
+  "expectedCandidates": [
+    {
+      "factType": "coach_journey",
+      "method": "structured",
+      "payload": {
+        "carrierName": "Overnight Coast Service",
+        "serviceNumber": "N51",
+        "departurePlace": "Lisbon Sete Rios",
+        "arrivalPlace": "Porto Campanha",
+        "departureLocal": "2026-08-05T23:15",
+        "arrivalLocal": "2026-08-06T05:40",
+        "confirmationCode": "CB7731",
+        "passengerName": "Alex Example"
+      }
+    }
+  ],
+  "expectedDiagnostics": []
+}
