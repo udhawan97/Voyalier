@@ -769,3 +769,48 @@ async function pickPassportViaField(region: HTMLElement, code: string) {
   });
   fireEvent.click(within(region).getByRole("button", { name: "Save" }));
 }
+
+/**
+ * A step and one of its documents may name the same authority page — the
+ * curated data does exactly that, and `ca.trv.07-submit` even builds both lists
+ * from one `biometrics_links()` helper. Rendering both verbatim printed the
+ * identical label and href one line apart, in 14 places across all four curated
+ * journeys, where a repeated link reads as a second requirement.
+ *
+ * The mock deals the same link to both levels, so this fails without the filter.
+ */
+describe("official links within a step", () => {
+  it("never prints the same link twice in one step", async () => {
+    const region = await openVisa();
+    await pickPassport(region, "IN");
+
+    // Step 1 orients and carries no documents, so move to one that does.
+    fireEvent.click(
+      within(region).getByRole("button", { name: /Mock step 2/ }),
+    );
+    await within(region).findByText(/Step 2/);
+
+    const step = region.querySelector(".voy-visa__step") as HTMLElement;
+    const lists = [...step.querySelectorAll(".voy-visa__links")];
+    const href = (list: Element) =>
+      [...list.querySelectorAll("a")].map(
+        (link) => `${link.textContent} ${link.getAttribute("href")}`,
+      );
+
+    // Two sibling documents may each cite the same page — those are two
+    // requirements that happen to share a source, and both rows keep their own
+    // link. What must not happen is the step repeating one underneath them.
+    const documentLists = lists.filter((list) =>
+      list.parentElement?.classList.contains("voy-visa__doc"),
+    );
+    const stepList = lists.find(
+      (list) => !list.parentElement?.classList.contains("voy-visa__doc"),
+    );
+    const alreadyShown = new Set(documentLists.flatMap(href));
+
+    expect(alreadyShown.size).toBeGreaterThan(0);
+    for (const link of stepList ? href(stepList) : []) {
+      expect(alreadyShown.has(link)).toBe(false);
+    }
+  });
+});

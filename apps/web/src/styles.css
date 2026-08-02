@@ -1093,7 +1093,17 @@ h3 {
   margin-bottom: var(--voy-space-lg);
 }
 
-.voy-visa__nationality .voy-combobox {
+/* Sized on `.voy-field`, not on `.voy-combobox` inside it, and that distinction
+   is the whole rule. `Combobox` always renders itself inside a `Field` wrapper,
+   and `.voy-field` is `flex-direction: column` — so a `flex` basis landing on
+   the combobox resolves against the BLOCK axis. `flex: 1 1 16rem` there made a
+   44px input compute 256px tall, which stranded Save 166px below the field it
+   submits and detached the suggestion list from the input by 216px.
+   `.voy-field` is the actual flex child of this row. Both declarations belong
+   on it: leaving `max-width` behind would cap the inner div while the label,
+   hint and error stretched past it. Never move this to bare `.voy-field` —
+   that is the primitive behind every form in the app. */
+.voy-visa__nationality .voy-field {
   flex: 1 1 16rem;
   max-width: 24rem;
 }
@@ -3218,6 +3228,30 @@ h3 {
 .voy-workspace-search {
   max-width: 52rem;
   margin-inline: auto;
+}
+
+/* Carries the section-heading look this view had when it was an h2, so
+   promoting it to the page's h1 changed the document outline and nothing
+   visible. */
+.voy-workspace-search__title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0 0.9rem;
+  font-size: var(--voy-text-xl);
+  font-family: var(--voy-font-display);
+}
+
+.voy-workspace-search__title svg {
+  flex: none;
+  color: var(--voy-indigo);
+}
+
+.voy-workspace-search__recover {
+  margin-top: var(--voy-space-2xs);
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+  max-width: 46rem;
 }
 
 .voy-workspace-search__form {

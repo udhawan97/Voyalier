@@ -228,3 +228,43 @@ describe("workspace search", () => {
     expect(fact.label).toBe("ORD → HND");
   });
 });
+
+/**
+ * Every other top-level view — the trip list, a trip, Settings, the vault
+ * unlock — hand-rolls its own `h1`. This one used `SectionTitle`, which renders
+ * an `h2` because it titles sections inside a page, so the search view was the
+ * only destination in the app with no top-level heading at all.
+ *
+ * Asserted on the level directly rather than through axe: `findA11yViolations`
+ * runs axe against `document.body`, and axe skips page-level rules such as
+ * `page-has-heading-one` when the context is not the whole document — so an
+ * accessibility sweep would have gone on passing either way.
+ */
+describe("workspace search heading", () => {
+  it("titles itself with the page's h1", async () => {
+    renderApp(createMockGateway());
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Search workspace",
+        level: 1,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers a way forward when nothing matches", async () => {
+    renderApp(createMockGateway());
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+    fireEvent.change(await screen.findByLabelText("Search all trips"), {
+      target: { value: "zzzznotathing" },
+    });
+
+    expect(
+      await screen.findByText("No matches in this workspace."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Search covers imported documents/),
+    ).toBeInTheDocument();
+  });
+});

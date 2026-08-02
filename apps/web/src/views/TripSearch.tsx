@@ -153,6 +153,12 @@ export function TripSearch({ tripId }: { tripId: string }) {
         <label className="voy-sr-only" htmlFor={inputId}>
           {t("search.label")}
         </label>
+        {/* Deliberately still a hard cap, unlike the trip form's place fields.
+            `maxLength` truncates in UTF-16 units, which is wrong in principle —
+            but this is a query, not authored content: nothing the traveler wrote
+            is lost, the whole value stays visible in the box, and a
+            200-character search is already past the point of usefulness.
+            Trading a silent cut for an error message would be worse here. */}
         <input
           id={inputId}
           className="voy-search__input"

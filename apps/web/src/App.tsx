@@ -42,7 +42,9 @@ type View =
       searchTarget?: Pick<WorkspaceSearchHit, "source" | "recordId">;
     }
   | { name: "settings" }
-  | { name: "search" };
+  // The query rides on the view, not inside WorkspaceSearch: leaving for
+  // Settings unmounts that subtree, and a query held below here died with it.
+  | { name: "search"; query: string };
 
 type AppProps = { gateway?: AppGateway; updater?: UpdaterGateway };
 
@@ -97,6 +99,53 @@ function clearTripSectionHash(): void {
 }
 
 /**
+ * The view, written into the URL and read back out (ADR-0015).
+ *
+ * A query string rather than a path, because this app is served by a loopback
+ * Axum process and by Tauri's asset protocol, and neither would rewrite a path
+ * route without being taught to. The section hash keeps its own job unchanged:
+ * the query says which view, the hash says where inside it.
+ *
+ * The search query is deliberately absent. It is the traveler's own text about
+ * their own trips, and the address bar is the one place in this product where
+ * such text would outlive the moment — into history, screenshots, screen
+ * shares. It rides in view state, which already survives a detour.
+ */
+function viewFromLocation(): View | null {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  const named = params.get("view");
+  if (named === "settings") return { name: "settings" };
+  if (named === "search") return { name: "search", query: "" };
+  const tripId = params.get("trip")?.trim();
+  if (tripId && tripId.length <= 128) return { name: "trip", tripId };
+  if (params.has("view") || params.has("trip")) return { name: "list" };
+  return null;
+}
+
+function urlForView(view: View): string {
+  const path = window.location.pathname;
+  // Carried by every view except the list, and that is load-bearing: Settings
+  // and Search are detours a trip returns from, so dropping the section hash on
+  // the way out would land the traveler back at the top of a trip they had
+  // scrolled halfway through. The list is the one view that genuinely owns no
+  // section, and `clearTripSectionHash` strips it there.
+  const hash = isTripSectionHash(window.location.hash)
+    ? window.location.hash
+    : "";
+  switch (view.name) {
+    case "settings":
+      return `${path}?view=settings${hash}`;
+    case "search":
+      return `${path}?view=search${hash}`;
+    case "trip":
+      return `${path}?trip=${encodeURIComponent(view.tripId)}${hash}`;
+    default:
+      return path;
+  }
+}
+
+/**
  * Revalidation has to wrap the workspace, because the workspace revalidates:
  * `retry` refetches everything after the engine goes unreachable. Splitting the
  * provider out keeps `<App gateway={...}/>` the whole mounting story for tests.
@@ -125,9 +174,17 @@ function Workspace({
   const updaterController = useUpdater(updater);
   const revalidateAll = useRevalidateAll();
   const [view, setView] = useState<View>(() => {
+    // The URL wins when it says anything; the session's last trip is the
+    // fallback, so an address bar with no query keeps the pre-0.9.1 behaviour
+    // of returning the traveler to where they were.
+    const fromUrl = viewFromLocation();
+    if (fromUrl) return fromUrl;
     const tripId = readActiveTrip();
     return tripId ? { name: "trip", tripId } : { name: "list" };
   });
+  // True while a popstate is being applied, so the effect that writes the URL
+  // does not push a second entry for a move the browser already made.
+  const poppingRef = useRef(false);
   // Where "Back" from Settings returns to (the view Settings was opened from).
   const [returnView, setReturnView] = useState<View>({ name: "list" });
   const [health, setHealth] = useState<HealthState>("checking");
@@ -197,21 +254,74 @@ function Workspace({
     probeHealth();
   }, [probeHealth]);
 
+  // Which trip the section hash belongs to. `#section-visa` is an id every trip
+  // shares, so a hash left over from trip A silently re-applies to trip B — and
+  // on a search jump it is the *reload* that shows it, because the search
+  // target wins on the first render and hides the stale hash until then.
+  const hashOwner = useRef<string | null>(null);
+
   useEffect(() => {
     if (view.name === "trip") {
+      if (hashOwner.current !== null && hashOwner.current !== view.tripId) {
+        clearTripSectionHash();
+      }
+      hashOwner.current = view.tripId;
       rememberActiveTrip(view.tripId);
     } else if (view.name === "list") {
+      hashOwner.current = null;
       clearActiveTrip();
       clearTripSectionHash();
     }
+
+    // ADR-0015: give the move a history entry, so Back undoes it. Skipped when
+    // the move *came from* Back, and when the URL already says this — the
+    // latter keeps a first render, or a section-hash rewrite, from stacking a
+    // duplicate entry the traveler would have to press Back twice to escape.
+    if (typeof window === "undefined") return;
+    if (poppingRef.current) {
+      poppingRef.current = false;
+      return;
+    }
+    const next = urlForView(view);
+    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (next !== current) window.history.pushState(null, "", next);
   }, [view]);
+
+  // Back and Forward move the view rather than leaving the workspace.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onPop = () => {
+      poppingRef.current = true;
+      setView(viewFromLocation() ?? { name: "list" });
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   const openTrip = useCallback(
     (tripId: string) => setView({ name: "trip", tripId }),
     [],
   );
   const openList = useCallback(() => setView({ name: "list" }), []);
-  const openSearch = useCallback(() => setView({ name: "search" }), []);
+  // Search is a detour too, and used not to be: it recorded nothing and its
+  // Back was hard-wired to the trip list, so opening it from inside a trip
+  // dropped the traveler out of that trip. Settings has always done this
+  // correctly; the two topbar buttons beside each other now agree.
+  const openSearch = useCallback(
+    () =>
+      setView((current) => {
+        if (current.name !== "search") setReturnView(current);
+        return { name: "search", query: "" };
+      }),
+    [],
+  );
+  const setSearchQuery = useCallback(
+    (query: string) =>
+      setView((current) =>
+        current.name === "search" ? { ...current, query } : current,
+      ),
+    [],
+  );
   const openSearchResult = useCallback(
     (hit: WorkspaceSearchHit) =>
       setView({
@@ -232,7 +342,8 @@ function Workspace({
       }),
     [],
   );
-  const leaveSettings = useCallback(() => setView(returnView), [returnView]);
+  // Shared by Settings and Search — both are detours over the same return slot.
+  const leaveDetour = useCallback(() => setView(returnView), [returnView]);
 
   const retry = useCallback(() => {
     setHealth("checking");
@@ -271,11 +382,13 @@ function Workspace({
                       <UpdatesPanel />
                     </>
                   ) : view.name === "settings" ? (
-                    <SettingsView onBack={leaveSettings} />
+                    <SettingsView onBack={leaveDetour} />
                   ) : view.name === "search" ? (
                     <WorkspaceSearch
-                      onBack={openList}
+                      onBack={leaveDetour}
                       onOpenResult={openSearchResult}
+                      initialQuery={view.query}
+                      onQueryChange={setSearchQuery}
                     />
                   ) : view.name === "list" ? (
                     <TripListView onOpenTrip={openTrip} />

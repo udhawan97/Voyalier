@@ -477,6 +477,8 @@ const en = {
   "prompts.save": "Save instruction",
   "prompts.reset": "Reset to default",
   "prompts.error": "Couldn't save that — nothing was changed.",
+  "prompts.tooLong":
+    "That instruction is longer than {max} characters. Shorten it to save.",
   "prompts.announce.saved": "{name} saved.",
   "prompts.announce.reset": "{name} reset to default.",
   "prompts.scope":
@@ -599,7 +601,7 @@ const en = {
   "planning.items.removeLabel": "Remove {name}",
   "planning.items.save": "Save changes",
   "topbar.search": "Search workspace",
-  "workspaceSearch.back": "All trips",
+  "workspaceSearch.back": "Back",
   "workspaceSearch.title": "Search workspace",
   "workspaceSearch.intro":
     "Search imported documents, confirmed facts, notes, saved places, and traveler-authored plans across every trip. Pending suggestions stay out until you confirm them.",
@@ -607,6 +609,8 @@ const en = {
   "workspaceSearch.placeholder": "Search all trips",
   "workspaceSearch.search": "Search",
   "workspaceSearch.none": "No matches in this workspace.",
+  "workspaceSearch.none.recover":
+    "Search covers imported documents, confirmed facts, notes, saved places and your own plans. Visa checklists, suggestions you have not confirmed, and trip names are not included — try a word from the record itself, or a shorter one.",
   "workspaceSearch.source.document": "Source document",
   "workspaceSearch.source.confirmed_fact": "Confirmed fact",
   "workspaceSearch.source.note": "Trip notes",
@@ -1947,6 +1951,8 @@ const es: Record<MessageKey, string> = {
   "prompts.save": "Guardar instrucción",
   "prompts.reset": "Restablecer a predeterminado",
   "prompts.error": "No se pudo guardar; no hubo cambios.",
+  "prompts.tooLong":
+    "Esa instrucción supera los {max} caracteres. Acórtala para guardar.",
   "prompts.announce.saved": "{name} guardado.",
   "prompts.announce.reset": "{name} restablecido a predeterminado.",
   "prompts.scope":
@@ -2066,7 +2072,7 @@ const es: Record<MessageKey, string> = {
   "planning.items.removeLabel": "Eliminar {name}",
   "planning.items.save": "Guardar cambios",
   "topbar.search": "Buscar en el espacio de trabajo",
-  "workspaceSearch.back": "Todos los viajes",
+  "workspaceSearch.back": "Volver",
   "workspaceSearch.title": "Buscar en el espacio de trabajo",
   "workspaceSearch.intro":
     "Busca documentos importados, datos confirmados, notas, lugares guardados y planes creados por el viajero en todos los viajes. Las sugerencias pendientes se excluyen hasta que las confirmes.",
@@ -2074,6 +2080,8 @@ const es: Record<MessageKey, string> = {
   "workspaceSearch.placeholder": "Buscar en todos los viajes",
   "workspaceSearch.search": "Buscar",
   "workspaceSearch.none": "No hay coincidencias en este espacio de trabajo.",
+  "workspaceSearch.none.recover":
+    "La búsqueda abarca documentos importados, datos confirmados, notas, lugares guardados y tus propios planes. No incluye las listas de visado, las sugerencias sin confirmar ni los nombres de los viajes: prueba con una palabra del propio registro, o con una más corta.",
   "workspaceSearch.source.document": "Documento de origen",
   "workspaceSearch.source.confirmed_fact": "Dato confirmado",
   "workspaceSearch.source.note": "Notas del viaje",

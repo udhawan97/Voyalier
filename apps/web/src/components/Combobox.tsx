@@ -137,6 +137,20 @@ export function Combobox({
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    /**
+     * While an IME is composing, these keys are not ours.
+     *
+     * A Japanese or Chinese input method opens a candidate window and drives it
+     * with the same arrows this list uses, commits with Enter, and cancels with
+     * Escape. Without this guard the combobox called `preventDefault` on the
+     * ArrowDown meant for the candidate list and swallowed the Escape meant to
+     * cancel the composition — in the passport picker, among others, on a
+     * product that ships a curated Japanese visa journey.
+     *
+     * Chrome still delivers keydown during composition (keyCode 229), so the
+     * flag is the only thing that distinguishes the two cases.
+     */
+    if (event.nativeEvent.isComposing) return;
     if (event.key === "ArrowDown") {
       event.preventDefault();
       if (!open) {

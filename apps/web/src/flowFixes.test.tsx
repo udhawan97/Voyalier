@@ -321,4 +321,135 @@ describe("User-flow gap fixes", () => {
       within(dialog).getByText("Enter where the trip starts."),
     ).toBeInTheDocument();
   });
+
+  /**
+   * The form and the engine have to agree on what a character is.
+   *
+   * `.length` counts UTF-16 code units, so a place name carrying astral
+   * characters counted double and the form refused a name the engine accepts —
+   * exactly the failure the doc block above `MAX_LOCATION_LEN` warns about. 61
+   * astral characters is 122 code units: over the old check, under the real
+   * limit.
+   */
+  it("accepts a place name the engine accepts, counting characters not code units", async () => {
+    renderApp(createMockGateway());
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: "Create a trip" }))[0],
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Create a trip" });
+
+    const astral = "\u{1F3D4}".repeat(61);
+    expect(astral.length).toBe(122);
+    expect([...astral].length).toBe(61);
+
+    fireEvent.change(within(dialog).getByLabelText(/^From/), {
+      target: { value: astral },
+    });
+    fireEvent.change(within(dialog).getByLabelText(/^To/), {
+      target: { value: "Kyoto" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Create trip" }),
+    );
+
+    await waitFor(() =>
+      expect(
+        within(dialog).queryByText("Keep this under 120 characters."),
+      ).toBeNull(),
+    );
+  });
+
+  /**
+   * Search is a detour, like Settings beside it in the topbar.
+   *
+   * It recorded no return view and hard-wired its Back to the trip list, so
+   * opening it from inside a trip dropped the traveler out of that trip — while
+   * the button next to it returned correctly. Two adjacent controls, opposite
+   * semantics.
+   */
+  it("returns to the trip that search was opened from", async () => {
+    renderApp(createMockGateway());
+    await openFixtureTrip();
+    expect(
+      screen.getByRole("heading", { name: "Kyoto autumn journey", level: 1 }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+    await screen.findByRole("heading", { name: "Search workspace" });
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Kyoto autumn journey",
+        level: 1,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  /**
+   * ADR-0015 — the platform's Back affordance does something.
+   *
+   * Opening a trip used to leave `history.length` untouched, so Back walked
+   * straight out of the workspace. On a phone, where the back swipe is the
+   * primary way back, that is the affordance the traveler reaches for first.
+   */
+  it("gives in-app navigation a history entry and answers Back", async () => {
+    renderApp(createMockGateway());
+    await screen.findByRole("heading", { name: "Trips", level: 1 });
+    expect(window.location.search).toBe("");
+
+    await openFixtureTrip();
+    expect(window.location.search).toContain("trip=");
+
+    // What the browser does on Back: rewind the URL, then announce it.
+    window.history.replaceState(null, "", window.location.pathname);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+
+    expect(
+      await screen.findByRole("heading", { name: "Trips", level: 1 }),
+    ).toBeInTheDocument();
+  });
+
+  /**
+   * And the query survives the round trip, because Settings replaces the whole
+   * main subtree: a query held inside WorkspaceSearch died on the way out and
+   * the traveler came back to an empty box having done nothing wrong.
+   */
+  it("keeps the workspace search query across a Settings detour", async () => {
+    renderApp(createMockGateway());
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+    const field = await screen.findByLabelText("Search all trips");
+    fireEvent.change(field, { target: { value: "Kyoto" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await screen.findByRole("heading", { name: "Settings", level: 1 });
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(await screen.findByLabelText("Search all trips")).toHaveValue(
+      "Kyoto",
+    );
+  });
+
+  /**
+   * And still refuses one that is genuinely too long, so the fix above did not
+   * simply delete the limit.
+   */
+  it("still refuses a place name past the real character limit", async () => {
+    renderApp(createMockGateway());
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: "Create a trip" }))[0],
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Create a trip" });
+
+    fireEvent.change(within(dialog).getByLabelText(/^From/), {
+      target: { value: "a".repeat(121) },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Create trip" }),
+    );
+
+    expect(
+      await within(dialog).findByText("Keep this under 120 characters."),
+    ).toBeInTheDocument();
+  });
 });

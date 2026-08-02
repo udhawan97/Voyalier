@@ -676,6 +676,28 @@ function StepDetail({
     if (takeFocus) titleRef.current?.focus();
   }, [takeFocus]);
 
+  /**
+   * The step's own links, minus whatever its documents already offered.
+   *
+   * A curated step and a document inside it legitimately cite the same
+   * authority page — `ca.trv.07-submit` even builds both lists from one
+   * `biometrics_links()` helper. Rendering both lists verbatim printed the
+   * identical label and href one line apart, in 14 places across all four
+   * curated journeys, and a repeated link reads as a second requirement.
+   *
+   * Filtered here rather than in core: the data is right, and only this
+   * rendering repeats it. Core has no way to know the two lists land next to
+   * each other on screen.
+   */
+  const documentLinks = new Set(
+    step.documents.flatMap((document) =>
+      document.links.map((link) => `${link.label} ${link.url}`),
+    ),
+  );
+  const stepLinks = step.links.filter(
+    (link) => !documentLinks.has(`${link.label} ${link.url}`),
+  );
+
   return (
     <div className="voy-visa__step">
       <h3 className="voy-visa__step-title" ref={titleRef} tabIndex={-1}>
@@ -704,7 +726,7 @@ function StepDetail({
         />
       ))}
 
-      <OfficialLinks links={step.links} />
+      <OfficialLinks links={stepLinks} />
     </div>
   );
 }

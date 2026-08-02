@@ -38,5 +38,19 @@ afterEach(() => {
   } catch {
     // A test may deliberately stub storage as unavailable.
   }
+  /**
+   * Put the address bar back to a fresh load.
+   *
+   * jsdom keeps one `window.location` for a whole file, so once ADR-0015 wired
+   * the view into the query string, a test that opened a trip left `?trip=…`
+   * behind and the next test's first render restored that trip instead of
+   * starting on the list. A real browser gives each visit a clean URL; without
+   * this, the suite is the only place that does not.
+   */
+  try {
+    window.history.replaceState(null, "", window.location.pathname);
+  } catch {
+    // Ignore environments without a usable history.
+  }
   vi.unstubAllGlobals();
 });

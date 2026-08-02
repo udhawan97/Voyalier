@@ -7,7 +7,6 @@ import { searchSourceKey, t } from "../app/i18n";
 import { useAsyncAction } from "../app/useAsync";
 import { Button } from "../components/Button";
 import { ArrowLeftIcon, SearchIcon } from "../components/icons";
-import { SectionTitle } from "../components/primitives";
 
 /**
  * What to call a result.
@@ -28,15 +27,29 @@ function resultLabel(hit: WorkspaceSearchHit): string {
   return hit.label;
 }
 
+/**
+ * The query lives above this component, in the App's view state.
+ *
+ * Leaving for Settings unmounts this whole subtree, so a query held only in
+ * local state died on the way out and the traveler came back to an empty box
+ * having typed nothing wrong. `initialQuery` seeds it on the way in and
+ * `onQueryChange` reports it on the way out; the debounce, the request-id
+ * guard and the hits stay local, because none of those are worth restoring —
+ * re-running the search on return is cheap and always correct.
+ */
 export function WorkspaceSearch({
   onBack,
   onOpenResult,
+  initialQuery = "",
+  onQueryChange,
 }: {
   onBack: () => void;
   onOpenResult: (hit: WorkspaceSearchHit) => void;
+  initialQuery?: string;
+  onQueryChange?: (query: string) => void;
 }) {
   const gateway = useGateway();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [hits, setHits] = useState<WorkspaceSearchHit[] | null>(null);
   const requestIdRef = useRef(0);
   const action = useAsyncAction(
@@ -54,6 +67,18 @@ export function WorkspaceSearch({
     };
   }, []);
 
+  // Coming back from a detour: the box is refilled, so the results have to
+  // follow it. Restoring the text and leaving the list empty would read as
+  // "your query now matches nothing", which is a worse lie than losing it was.
+  useEffect(() => {
+    if (!initialQuery.trim()) return;
+    requestIdRef.current += 1;
+    void action.run(initialQuery.trim(), requestIdRef.current);
+    // Mount only: this seeds from the view state, and every later keystroke is
+    // handled by handleQueryChange's own debounce.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function runSearch(value: string) {
     requestIdRef.current += 1;
     void action.run(value, requestIdRef.current);
@@ -61,6 +86,7 @@ export function WorkspaceSearch({
 
   function handleQueryChange(next: string) {
     setQuery(next);
+    onQueryChange?.(next);
     if (timerRef.current) clearTimeout(timerRef.current);
     if (!next.trim()) {
       requestIdRef.current += 1;
@@ -76,9 +102,15 @@ export function WorkspaceSearch({
         <ArrowLeftIcon aria-hidden="true" />
         <span>{t("workspaceSearch.back")}</span>
       </button>
-      <SectionTitle id="workspace-search-title" icon={<SearchIcon />}>
-        {t("workspaceSearch.title")}
-      </SectionTitle>
+      {/* A hand-rolled h1, matching what the trip list, trip detail, Settings
+          and the vault unlock each already do. This was the one top-level view
+          without one, because `SectionTitle` renders an h2 — correct where it
+          titles a section inside a page, wrong as this view's only heading, and
+          not something to change on the shared primitive. */}
+      <h1 id="workspace-search-title" className="voy-workspace-search__title">
+        <SearchIcon aria-hidden="true" />
+        <span>{t("workspaceSearch.title")}</span>
+      </h1>
       <p>{t("workspaceSearch.intro")}</p>
       <form
         className="voy-workspace-search__form"
@@ -106,7 +138,16 @@ export function WorkspaceSearch({
       ) : null}
       {hits ? (
         hits.length === 0 ? (
-          <p>{t("workspaceSearch.none")}</p>
+          <>
+            <p>{t("workspaceSearch.none")}</p>
+            {/* The intro above says what is searched, but it is three lines up
+                and was written before the traveler had a failure to explain.
+                Saying it again here, where the failure is, is the difference
+                between a dead end and a next step. */}
+            <p className="voy-workspace-search__recover">
+              {t("workspaceSearch.none.recover")}
+            </p>
+          </>
         ) : (
           <ul className="voy-workspace-search__results">
             {hits.map((hit) => (
