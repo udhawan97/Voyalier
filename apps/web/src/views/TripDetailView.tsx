@@ -1018,9 +1018,14 @@ export function TripDetailView({
 
         <header className="voy-detail__head">
           <div className="voy-detail__headmain">
-            <p className="voy-eyebrow">
-              {tripRoute(trip.origin, trip.destination)}
-            </p>
+            {/* Same rule as the trip card: the eyebrow earns its place only
+                when it differs from the title beneath it, and a trip created
+                without a name is titled exactly what tripRoute draws. */}
+            {tripRoute(trip.origin, trip.destination) === trip.title ? null : (
+              <p className="voy-eyebrow">
+                {tripRoute(trip.origin, trip.destination)}
+              </p>
+            )}
             <h1 id="detail-heading">{trip.title}</h1>
             <p className="voy-detail__dates">
               {formatDateRange(trip.startDate, trip.endDate)}

@@ -51,9 +51,17 @@ function TripCard({
         </h2>
         <TripStatusBadge status={trip.status} />
       </div>
-      <p className="voy-tripcard__route">
-        {tripRoute(trip.origin, trip.destination)}
-      </p>
+      {/* Only when it says something the title did not. A trip created without
+          a name is titled "From → To" by the engine, which is byte-identical to
+          what tripRoute draws — so the default case, which is most trips,
+          printed the same string twice, one line apart. The engine keeps
+          producing that title (the contract needs a non-empty one); the view
+          just stops repeating it. */}
+      {tripRoute(trip.origin, trip.destination) === trip.title ? null : (
+        <p className="voy-tripcard__route">
+          {tripRoute(trip.origin, trip.destination)}
+        </p>
+      )}
       <p className="voy-tripcard__dates">
         {formatDateRange(trip.startDate, trip.endDate)}
       </p>
