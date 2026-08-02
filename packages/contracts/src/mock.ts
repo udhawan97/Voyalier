@@ -758,6 +758,12 @@ const MOCK_PLACES: {
     lon: -86.79,
   },
   { name: "Frist Art Museum", category: "art_museum", lat: 36.16, lon: -86.78 },
+  {
+    name: "Kiyomizu-dera",
+    category: "buddhist_temple",
+    lat: 34.99,
+    lon: 135.79,
+  },
   { name: "Centennial Park", category: "public_park", lat: 36.15, lon: -86.81 },
   {
     name: "The Bluebird Cafe",
@@ -766,6 +772,15 @@ const MOCK_PLACES: {
     lon: -86.82,
   },
   { name: "Hatch Show Print", category: "print_shop", lat: 36.16, lon: -86.78 },
+  // Negative controls for the token-boundary rule. Neither should ever reach a
+  // recommendation even though its category contains an old keyword.
+  { name: "Mock Barber", category: "barber", lat: 36.17, lon: -86.8 },
+  {
+    name: "Mock Apartment",
+    category: "apartment_building",
+    lat: 36.18,
+    lon: -86.81,
+  },
 ];
 
 /** Mirrors voyalier-core::recommend::dimension_for. */
