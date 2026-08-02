@@ -622,7 +622,7 @@ impl Vault {
             },
             Ok(None) => {
                 let mut key = [0u8; VAULT_KEY_LEN];
-                if getrandom::getrandom(&mut key).is_err() {
+                if getrandom::fill(&mut key).is_err() {
                     VaultState::default()
                 } else if secrets.set(VAULT_KEY_ACCOUNT, &BASE64.encode(key)).is_ok() {
                     VaultState {

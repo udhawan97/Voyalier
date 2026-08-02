@@ -67,7 +67,7 @@ impl Vault {
             };
         };
         let mut nonce = [0u8; VAULT_NONCE_LEN];
-        getrandom::getrandom(&mut nonce).map_err(|_| nonce_error())?;
+        getrandom::fill(&mut nonce).map_err(|_| nonce_error())?;
         let sealed = vault_seal(&key, &nonce, plaintext.as_bytes())?;
         Ok(Sealed(format!("{VAULT_PREFIX}{}", BASE64.encode(sealed))))
     }
