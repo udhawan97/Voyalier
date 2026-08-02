@@ -232,3 +232,28 @@ export const GearIcon = (p: SVGProps<SVGSVGElement>) => (
     <circle cx="12" cy="12" r="2.8" />
   </Base>
 );
+
+/*
+ * A branching path: one line that forks and rejoins.
+ *
+ * Deliberately not a warning triangle. The disruption panel states exposure,
+ * not alarm, and a hazard mark beside "your connection has 45 minutes" would
+ * read as a prediction that something will go wrong.
+ */
+export const RouteIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <circle cx="5.5" cy="18.5" r="2.5" />
+    <circle cx="18.5" cy="5.5" r="2.5" />
+    <path d="M5.5 16V9a3.5 3.5 0 0 1 3.5-3.5h6.5" />
+    <path d="M18.5 8v7a3.5 3.5 0 0 1-3.5 3.5H8.5" />
+  </Base>
+);
+
+/* Two arrows chasing each other: ask again, on purpose, once. */
+export const SweepIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <path d="M20.5 11a8.5 8.5 0 0 0-14.6-5.4L3 8.5" />
+    <path d="M3.5 13a8.5 8.5 0 0 0 14.6 5.4L21 15.5" />
+    <path d="M3 4v4.5h4.5M21 20v-4.5h-4.5" />
+  </Base>
+);

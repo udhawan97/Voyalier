@@ -27,9 +27,9 @@ function phaseHeadline(phase: TripPhase): string {
 
 function itemTitle(item: TodayItem): string {
   switch (item.kind) {
-    case "flight_departure":
     // A confirmed surface departure is still a departure: same sentence, and
     // the subject already carries the operator's own words.
+    case "flight_departure":
     case "journey_departure":
       return item.subject
         ? t("today.item.depart", { subject: item.subject })
