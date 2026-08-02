@@ -1,6 +1,8 @@
 use std::{
     collections::HashMap,
-    env, fs,
+    env,
+    fmt::Write as _,
+    fs,
     io::{Read, Seek, SeekFrom},
     path::{Path, PathBuf},
     sync::{Arc, Mutex, MutexGuard},
@@ -555,7 +557,61 @@ fn keyring_failure(error: keyring::Error) -> AppError {
 
 /// The keychain account holding the vault's data key. Present in keychain-only
 /// mode; absent once a passphrase guards the key instead.
+///
+/// The name a *default* install uses, and the reason `vault_key_account` exists:
+/// every shipped install already has this account, so it must keep it.
 const VAULT_KEY_ACCOUNT: &str = "vault.data_key";
+
+/// The keychain account this database's data key lives under (ADR-0016).
+///
+/// `VOYALIER_DATA_DIR` moves the database. It used to be the *only* thing that
+/// moved: the keychain service and account were constants, so every data
+/// directory belonging to one OS user read and wrote one key — and setting a
+/// passphrase, opening a passphrase-protected directory, or restoring a backup
+/// in any one of them deleted or overwrote the key the others' sealed columns
+/// depend on. Nothing named the cause, because a keychain error opens the vault
+/// inactive rather than failing.
+///
+/// The platform default path keeps the legacy account unchanged, so no shipped
+/// install migrates or notices. Anything else is namespaced by its own path.
+fn vault_key_account(database_path: &Path) -> String {
+    // Only the platform default, never `VOYALIER_DATA_DIR`'s answer — the whole
+    // point is that a moved data directory gets its own account.
+    if platform_database_path().is_ok_and(|default| default == database_path) {
+        return VAULT_KEY_ACCOUNT.to_owned();
+    }
+    let mut hasher = Sha256::new();
+    hasher.update(database_path.to_string_lossy().as_bytes());
+    let digest = hasher.finalize();
+    let mut suffix = String::with_capacity(16);
+    for byte in digest.iter().take(8) {
+        let _ = write!(suffix, "{byte:02x}");
+    }
+    format!("{VAULT_KEY_ACCOUNT}.{suffix}")
+}
+
+/// Resolve the account, adopting a legacy key rather than minting a new one.
+///
+/// An install that has been running with `VOYALIER_DATA_DIR` set since before
+/// the account was namespaced has data sealed under the legacy account. Reading
+/// the namespaced account first and generating on a miss would have re-sealed
+/// nothing and left every existing row unreadable — the same data loss this
+/// change exists to prevent, pointing the other way. So on first use the legacy
+/// value is **copied** across. Copied, not moved: the default install is still
+/// using it.
+fn resolve_vault_key_account(secrets: &dyn SecretStore, database_path: &Path) -> String {
+    let account = vault_key_account(database_path);
+    if account == VAULT_KEY_ACCOUNT || secrets.has(&account) {
+        return account;
+    }
+    if let Ok(Some(legacy)) = secrets.get(VAULT_KEY_ACCOUNT) {
+        // A failure here is not fatal: the caller falls through to generating a
+        // fresh key, which is the correct outcome for a directory that has no
+        // sealed rows yet.
+        let _ = secrets.set(&account, &legacy);
+    }
+    account
+}
 /// Tag marking a stored field as sealed; anything without it is legacy plaintext.
 const VAULT_PREFIX: &str = "v1:";
 /// Minimum passphrase length. Deliberately low friction — this is a second
@@ -604,18 +660,22 @@ impl Vault {
     /// wrapped until unlock. Otherwise the raw data key is read from — or, on
     /// first run, generated into — the OS keychain. Any keychain error leaves the
     /// vault inactive (plaintext), which keeps CI and keychain-less hosts working.
-    fn load_or_init(secrets: &dyn SecretStore, connection: &Connection) -> Result<Self, AppError> {
+    fn load_or_init(
+        secrets: &dyn SecretStore,
+        connection: &Connection,
+        account: &str,
+    ) -> Result<Self, AppError> {
         if read_vault_wrap(connection)?.is_some() {
             // A passphrase guards the key, so the raw key must not linger in the
             // keychain — best-effort clean up in case a crash interrupted
             // set_vault_passphrase between writing the wrap and deleting the key.
-            let _ = secrets.delete(VAULT_KEY_ACCOUNT);
+            let _ = secrets.delete(account);
             return Ok(Self::new(VaultState {
                 key: None,
                 protected: true,
             }));
         }
-        let state = match secrets.get(VAULT_KEY_ACCOUNT) {
+        let state = match secrets.get(account) {
             Ok(Some(encoded)) => VaultState {
                 key: decode_key(&encoded),
                 protected: false,
@@ -624,7 +684,7 @@ impl Vault {
                 let mut key = [0u8; VAULT_KEY_LEN];
                 if getrandom::fill(&mut key).is_err() {
                     VaultState::default()
-                } else if secrets.set(VAULT_KEY_ACCOUNT, &BASE64.encode(key)).is_ok() {
+                } else if secrets.set(account, &BASE64.encode(key)).is_ok() {
                     VaultState {
                         key: Some(key),
                         protected: false,
@@ -807,6 +867,10 @@ pub struct AppService {
     fetcher: Arc<dyn AdviceFetcher>,
     secrets: Arc<dyn SecretStore>,
     vault: Vault,
+    /// The keychain account this database's data key lives under. Resolved once
+    /// at open, because every later write to it (set a passphrase, restore a
+    /// backup) must reach the same account this vault was loaded from.
+    vault_account: String,
 }
 
 /// Metadata for a pre-update database backup returned to the caller/UI. Holds
@@ -874,7 +938,10 @@ impl AppService {
             // here if the traveler wants one.
             clear_vault_wrap(&connection)?;
         }
-        let vault = Vault::load_or_init(secrets.as_ref(), &connection)?;
+        // Namespaced by the database's own path, so a second data directory
+        // cannot delete the key this one's sealed columns depend on (ADR-0016).
+        let vault_account = resolve_vault_key_account(secrets.as_ref(), path);
+        let vault = Vault::load_or_init(secrets.as_ref(), &connection, &vault_account)?;
         // Encrypt any pre-existing plaintext payloads now the vault is available.
         migrate_encrypt_sensitive_columns(&connection, &vault)?;
         Ok(Self {
@@ -883,6 +950,7 @@ impl AppService {
             fetcher,
             secrets,
             vault,
+            vault_account,
         })
     }
 
@@ -1042,6 +1110,9 @@ fn apply_pending_restore(
     let Some(dir) = database_path.parent() else {
         return Ok(false);
     };
+    // This database's own account, never the shared default — a restore here
+    // must not overwrite the key another data directory is still using.
+    let restored_account = vault_key_account(database_path);
     let marker_path = dir.join(PENDING_RESTORE_MARKER);
     let staged_path = dir.join(PENDING_RESTORE_FILE);
     // Both halves must be present; a lone marker or a lone snapshot is the
@@ -1090,9 +1161,9 @@ fn apply_pending_restore(
     // a carried key the restored rows are plaintext and a fresh key is
     // generated on open, which then seals them.
     match (marker.key_present, secrets.get(VAULT_PENDING_KEY_ACCOUNT)?) {
-        (true, Some(key)) => secrets.set(VAULT_KEY_ACCOUNT, &key)?,
+        (true, Some(key)) => secrets.set(&restored_account, &key)?,
         _ => {
-            let _ = secrets.delete(VAULT_KEY_ACCOUNT);
+            let _ = secrets.delete(&restored_account);
         }
     }
     let _ = secrets.delete(VAULT_PENDING_KEY_ACCOUNT);
@@ -1149,6 +1220,15 @@ fn default_database_path() -> Result<PathBuf, AppError> {
     if let Ok(path) = env::var("VOYALIER_DATA_DIR") {
         return Ok(PathBuf::from(path).join(DATABASE_FILE));
     }
+    platform_database_path()
+}
+
+/// Where the OS says this app's data belongs, ignoring `VOYALIER_DATA_DIR`.
+///
+/// Split out because `vault_key_account` needs the answer the environment
+/// cannot override: an install pointed elsewhere must be told apart from the
+/// one whose keychain account it would otherwise share.
+fn platform_database_path() -> Result<PathBuf, AppError> {
     let project_dirs = ProjectDirs::from("com", "voyalier", "Voyalier").ok_or_else(|| {
         AppError::new(
             ErrorCode::StorageFailure,

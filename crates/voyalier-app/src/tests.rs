@@ -2600,6 +2600,122 @@ fn vault_encrypts_confirmed_fact_payloads_at_rest_and_migrates_legacy_rows() {
     cleanup_database(database);
 }
 
+/// Two data directories on one machine share one OS keychain, because the
+/// keychain service and account are compile-time constants and the only
+/// environment override the crate has moves the *database*. Setting a
+/// passphrase on the second one used to delete the account the first one's
+/// sealed columns depend on, and `load_or_init` folds a keychain error into
+/// "vault inactive", so nothing named the cause.
+#[test]
+fn a_second_data_directory_cannot_delete_the_first_ones_vault_key() {
+    let database_a = temp_database("vault-namespace-a");
+    let database_b = temp_database("vault-namespace-b");
+    // One store, because one machine has one keychain.
+    let secrets = Arc::new(MemorySecretStore::default());
+
+    let service_a = AppService::open_path_with_deps(
+        &database_a,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .expect("service a");
+    let trip = service_a
+        .create_trip(CreateTripInput {
+            origin: "London".to_owned(),
+            destination: "Tokyo".to_owned(),
+            start_date: "2026-10-12".to_owned(),
+            end_date: "2026-10-22".to_owned(),
+            title: None,
+        })
+        .expect("trip");
+    // A note, because `trip_notes.body` is a SEALED column. A trip's title is
+    // not, so asserting on the trip alone would pass even when the key that
+    // opens the sealed rows had been replaced with a fresh one.
+    service_a
+        .set_trip_notes(&trip.id, "gate 42, terminal 3")
+        .expect("note");
+
+    // A second workspace sets a passphrase — an ordinary thing to do, and the
+    // step that reaches for `secrets.delete`.
+    let service_b = AppService::open_path_with_deps(
+        &database_b,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .expect("service b");
+    service_b
+        .set_vault_passphrase("correct horse battery")
+        .expect("passphrase on b");
+
+    // A's sealed columns must still open after reopening — the key it wrote is
+    // its own, not one B was free to remove.
+    let reopened_a = AppService::open_path_with_deps(
+        &database_a,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .expect("reopen a");
+    let status = reopened_a.get_vault_status().expect("status");
+    assert!(
+        status.active && !status.protected && !status.locked,
+        "the first workspace lost its keychain vault: {status:?}"
+    );
+    assert_eq!(
+        reopened_a
+            .get_trip_notes(&trip.id)
+            .expect("the sealed note still opens")
+            .body,
+        "gate 42, terminal 3",
+        "A's sealed rows were encrypted with a key another workspace deleted"
+    );
+
+    cleanup_database(database_a);
+    cleanup_database(database_b);
+}
+
+/// The other half of the same rule: a directory that already holds data sealed
+/// under the legacy shared account must keep reading it. Adoption copies the
+/// legacy key into the namespaced account rather than minting a new one.
+#[test]
+fn a_non_default_directory_adopts_the_legacy_key_rather_than_minting_a_new_one() {
+    let database = temp_database("vault-adopt");
+    let secrets = Arc::new(MemorySecretStore::default());
+    // Stand in for an install that has been running with VOYALIER_DATA_DIR set
+    // since before the account was namespaced.
+    let legacy = BASE64.encode([7u8; 32]);
+    secrets.set("vault.data_key", &legacy).expect("seed legacy");
+
+    let service = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .expect("service");
+    service
+        .create_trip(CreateTripInput {
+            origin: "London".to_owned(),
+            destination: "Tokyo".to_owned(),
+            start_date: "2026-10-12".to_owned(),
+            end_date: "2026-10-22".to_owned(),
+            title: None,
+        })
+        .expect("trip");
+
+    let adopted = vault_key_account(&database);
+    assert_ne!(adopted, "vault.data_key", "a temp path is not the default");
+    assert_eq!(
+        secrets.get(&adopted).expect("adopted").as_deref(),
+        Some(legacy.as_str()),
+        "the namespaced account must carry the key the data was sealed under"
+    );
+    assert!(
+        secrets.has("vault.data_key"),
+        "adoption copies; moving it would be the same bug pointing the other way"
+    );
+
+    cleanup_database(database);
+}
+
 #[test]
 fn optional_passphrase_locks_the_vault_and_unlock_restores_access() {
     let database = temp_database("vault-passphrase");
@@ -2643,8 +2759,11 @@ fn optional_passphrase_locks_the_vault_and_unlock_restores_access() {
         .set_vault_passphrase("correct horse battery")
         .expect("set passphrase");
     assert!(status.active && status.protected && !status.locked);
+    // The account this database owns, not the shared default — a temp path is
+    // namespaced by ADR-0016, and that is the account a passphrase clears.
+    let account = vault_key_account(&database);
     assert!(
-        !secrets.has(VAULT_KEY_ACCOUNT),
+        !secrets.has(&account),
         "the raw key must leave the keychain once a passphrase guards it"
     );
     assert_eq!(
@@ -2712,7 +2831,7 @@ fn optional_passphrase_locks_the_vault_and_unlock_restores_access() {
         .remove_vault_passphrase("correct horse battery")
         .expect("remove");
     assert!(status.active && !status.protected && !status.locked);
-    assert!(secrets.has(VAULT_KEY_ACCOUNT));
+    assert!(secrets.has(&account));
     let reopened_plain = AppService::open_path_with_deps(
         &database,
         Arc::new(FakeFetcher::offline()),

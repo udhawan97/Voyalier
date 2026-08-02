@@ -49,7 +49,7 @@ impl AppService {
         // that removal fails, roll back the passphrase record — otherwise the raw
         // key would linger in the keychain and defeat the passphrase, while disk
         // claims the vault is protected.
-        if let Err(error) = self.secrets.delete(VAULT_KEY_ACCOUNT) {
+        if let Err(error) = self.secrets.delete(&self.vault_account) {
             let _ = self
                 .connection()?
                 .execute("DELETE FROM vault_meta WHERE id = 1", []);
@@ -87,7 +87,7 @@ impl AppService {
     pub fn remove_vault_passphrase(&self, passphrase: &str) -> Result<VaultStatus, AppError> {
         let data_key = self.unwrap_data_key(passphrase)?;
         self.secrets
-            .set(VAULT_KEY_ACCOUNT, &BASE64.encode(data_key))?;
+            .set(&self.vault_account, &BASE64.encode(data_key))?;
         self.connection()?
             .execute("DELETE FROM vault_meta WHERE id = 1", [])
             .map_err(storage_error)?;
