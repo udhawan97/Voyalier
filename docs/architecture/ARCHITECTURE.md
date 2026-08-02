@@ -255,7 +255,19 @@ aggregation, background scraping, or silent document upload.
 - Voyalier surfaces official links and dated snapshots; it does not claim legal,
   medical, safety, pricing, availability, or opening-hours authority.
 
-Related decisions: [ADR-0001](ADR-0001-system-shape.md),
-[ADR-0002](ADR-0002-desktop-transport.md),
-[ADR-0003](ADR-0003-phase2-contract.md), [ADR-0004](ADR-0004-mock-parity.md), and
-[map architecture](MAPS.md).
+Related decisions, in order:
+
+- [ADR-0001](ADR-0001-system-shape.md) — the system's shape
+- [ADR-0002](ADR-0002-desktop-transport.md) — the desktop transport
+- [ADR-0003](ADR-0003-phase2-contract.md) — the phase-2 contract
+- [ADR-0004](ADR-0004-mock-parity.md) — a mirrored rule needs a golden
+- [ADR-0005](ADR-0005-user-owned-planning.md) — planning belongs to the traveler
+- [ADR-0006](ADR-0006-visa-preparation-pointers.md) — visa preparation points, never decides
+- [ADR-0007](ADR-0007-sealed-columns-are-a-type.md) — a sealed column is a type
+- [ADR-0008](ADR-0008-source-protocol-lives-with-its-parser.md) — a source's URL lives beside its parser
+- [ADR-0009](ADR-0009-mock-field-coverage.md) — the mock is held to the contract's fields
+- [ADR-0010](ADR-0010-appservice-splits-its-implementation.md) — AppService splits by subsystem
+- [ADR-0011](ADR-0011-the-route-manifest-is-used-not-only-asserted.md) — the route manifest is used, not only asserted
+- [ADR-0012](ADR-0012-the-route-manifest-declares-its-payloads.md) — the manifest declares its payloads
+
+Plus [map architecture](MAPS.md).

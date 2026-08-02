@@ -6,6 +6,38 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-08-01 — The request payload is declared
+
+### Changed
+
+- **Voyalier's two ways of talking to its own engine are now held to the same
+  field names.** The browser reaches the local engine over HTTP and the desktop
+  app reaches it over Tauri commands, and 72 of the 81 operations write a field
+  name by hand on one side and read it by name on the other. Nothing compared
+  the two halves, so renaming one field in the desktop bridge left the trip
+  editor dead with the entire test suite green.
+
+  The route manifest now declares each request's payload, checked from three
+  sides: what each transport actually puts on the wire, what the local server
+  reads, and what the desktop app reads. Any two agreeing while the third
+  disagrees fails the build.
+
+  Nothing a traveler can see changed. Writing the guard did surface a case the
+  earlier review missed — five operations forward a whole object to a struct
+  the desktop app re-declares locally rather than sharing — and both facts are
+  now recorded and checked.
+
+  What this does not cover: when an operation forwards a whole object, the
+  guard proves the forward happened, not that both languages describe that
+  object with the same field names. That gap is 18 request bodies and 16
+  desktop commands wide and is stated in ADR-0012 rather than left implicit.
+
+### Documentation
+
+- **The decision index listed four records out of twelve, and the agent guide
+  described a manifest that had since grown.** Both are corrected, and v0.8.2 —
+  which shipped without release notes of its own — now has them.
+
 ## [0.8.2] - 2026-08-01 — One copy of each rule
 
 ### Fixed
