@@ -6,6 +6,100 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-08-02 — Where the evidence actually came from
+
+0.9.2 said the import and candidate-review flow had never been exercised, and
+named it as where the next pass should start. This is that pass. Eleven things,
+all reproduced against a running build before anything was changed.
+
+### Fixed
+
+- **A second data directory can no longer destroy the first one's vault key.**
+  This is the one to read even if you skip the rest. `VOYALIER_DATA_DIR` is the
+  documented way to run a second workspace, and it moved the database and
+  nothing else: the keychain service and account were compile-time constants, so
+  every data directory belonging to one OS user read and wrote a single key.
+  Three ordinary actions then deleted or overwrote it — opening a
+  passphrase-protected workspace, setting a passphrase, restoring a backup —
+  each correct for the database it was acting on and wrong for every other one.
+  Afterwards nothing in the other workspace would open: confirmed facts,
+  imported documents, notes, packing labels, traveler-authored items, the
+  passport nationality. It failed loudly deep in storage, but a keychain error
+  opens the vault inactive rather than failing, so the app kept running and
+  nothing on screen said why. The account is now derived from the database's own
+  path. A default install keeps the name it has always used and does not migrate;
+  anything else gets its own, adopting the old key on first use rather than
+  minting a new one, because minting would have been the same data loss arriving
+  through the fix. ADR-0016 carries it. Your own `make check` was never exposed —
+  it injects an in-memory key store on purpose.
+- **The evidence quote comes from where the value actually was.** A booking page
+  repeats its structured values in presentational attributes, and the span was
+  anchored on the first occurrence anywhere in the document — so a
+  `data-flight` attribute won over the reservation field the value was read
+  from, and the stored provenance pointed somewhere the fact had not come from.
+  Values are now located inside the block they were parsed from. The offsets are
+  a sealed column and a wire contract field, so this was quietly wrong data, not
+  a display bug.
+- **The quote shows the document's words rather than its markup.** The excerpt
+  took forty characters either side and stripped tags afterwards, and the
+  stripper starts outside a tag: a window opening inside one published the tag's
+  attributes as prose, and a window closing inside one swallowed everything
+  after it — including the value the quote was evidence for. One real quote read
+  simply "tml". The document is cleaned first now, and a clipped quote says it
+  was clipped, which the workspace search has always done for the same job.
+  Still verbatim, so a page carrying JSON-LD still quotes JSON. That is what the
+  document says.
+- **The review step can be reached by keyboard.** Pressing "Review N
+  suggestions" on the import summary closes one dialog and opens another in a
+  single step, and the closing one handed focus back to the page a moment too
+  late — landing it behind an open modal. Tab then walked the page underneath,
+  Escape did nothing, and the queue you had just been sent to could not be
+  reached at all without a mouse. Five keyboard tests were green the whole time:
+  every one of them opens that dialog the other way, from the trip itself, which
+  always worked.
+- **The review dialog scrolls with the keyboard.** Focus landed on the dialog
+  while the part that scrolls was inside it, and a browser scrolls outwards, not
+  inwards — so PageDown and the arrow keys did nothing, and a keyboard reader
+  could tab to Confirm without being able to read the evidence in between.
+- **A failed import says so where you are looking.** The explanation appears at
+  the top of a panel you may have scrolled past, and nothing moved you to it, so
+  importing the same document twice looked exactly like a button that did
+  nothing at all.
+- **The visa heading names the two things it means.** "Neither is published for
+  this passport" began mid-thought: the other of the two — an electronic travel
+  authorization — appears nowhere a reader can see it. It stays a statement
+  about what the authority published, never about whether you may enter; that
+  distinction is ADR-0006's and the wording keeps it.
+- **A long import label is cut where it can be explained.** The browser's own
+  limit counts differently from the rest of the app, so a label written with
+  emoji lost half its allowance without a word. There is no engine limit behind
+  that field to agree with, so 200 is Voyalier's own number — now counted the way
+  everything else here counts, with the count visible before it bites.
+
+### Added
+
+- **A pasted booking page can be read as one.** The format chooses the parser,
+  and pasting has always defaulted to plain text, so a page pasted rather than
+  dropped as a file was read by the wrong parser and quietly gave up most of what
+  it held. Voyalier now offers to switch. Offers, rather than switching: letting
+  pasted content select its own parser hands that decision to whoever wrote it.
+- **An import that finds nothing offers a way onward.** It used to end at
+  "Done", with hand entry sitting two controls away in the view behind it.
+
+### Not fixed
+
+- The audit opened 7 of 38 screens. The Plan panel, the AI assist consent and
+  preview gate, delete confirmation, offline and retry, the vault, and
+  backup/restore were never exercised — the last two deliberately, because
+  running them against a second data directory is what would have destroyed the
+  key described above. Tablet and wide viewports, system theme, 200% zoom,
+  touch, reduced motion and a second tab were not run either, and neither was
+  any screen reader or the packaged desktop shell. Everything here is verified
+  in the web shell in Chromium only.
+- The visa-statistics error code that cannot tell "unreachable" from
+  "unreadable" is still one code. It was named in 0.9.1 as needing an ADR and
+  still does.
+
 ## [0.9.2] - 2026-08-02 — The gesture that Back became
 
 0.9.1 was cut but never published. This supersedes it and carries everything in

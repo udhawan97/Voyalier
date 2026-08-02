@@ -23,6 +23,7 @@ describe("ImportDialog — email format", () => {
           onClose={() => {}}
           onImported={() => {}}
           onReview={() => {}}
+          onAddByHand={() => {}}
         />
       </GatewayContext.Provider>,
     );
@@ -63,6 +64,7 @@ describe("ImportDialog — email format", () => {
           onClose={() => {}}
           onImported={() => {}}
           onReview={() => {}}
+          onAddByHand={() => {}}
         />
       </GatewayContext.Provider>,
     );
@@ -104,6 +106,7 @@ describe("ImportDialog — email format", () => {
           onClose={() => {}}
           onImported={() => {}}
           onReview={() => {}}
+          onAddByHand={() => {}}
         />
       </GatewayContext.Provider>,
     );
