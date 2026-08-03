@@ -1,18 +1,19 @@
 ---
 title: Getting started (from source)
-description: Build Voyalier from source and run it in your browser on a system supported by Node.js 24 and Rust.
+description: Build Voyalier from source and run it in your browser on a supported macOS or Linux development host.
 ---
 
-This is the build-it-yourself path. It runs Voyalier in your browser on systems
-supported by both Node.js 24 and the current stable Rust toolchain. That includes
-supported Linux distributions and Intel Macs that meet those tool requirements,
-as well as anyone who would rather read the source than trust a binary.
+This is the build-it-yourself path. It runs Voyalier in your browser on macOS or
+Linux development hosts supported by both Node.js 24 and the current stable Rust
+toolchain. That includes supported Linux distributions and Intel Macs that meet
+those tool requirements, as well as anyone who would rather read the source than
+trust a binary.
 
 If you just want the app, [download it](/Voyalier/download/) for Apple Silicon
 macOS or Windows instead.
 
-Requirements are Node.js 24+, pnpm 11+, and the stable Rust toolchain. Node.js 24
-requires macOS 13.5 or newer; check the official
+Requirements are Bash, Make, Node.js 24+, pnpm 11+, and the stable Rust toolchain.
+Node.js 24 requires macOS 13.5 or newer; check the official
 [Node.js 24 platform list](https://github.com/nodejs/node/blob/v24.x/BUILDING.md#platform-list)
 and [Rust platform support](https://doc.rust-lang.org/rustc/platform-support.html)
 before choosing this route.
@@ -26,7 +27,7 @@ make dev
 
 The React interface runs at `127.0.0.1:5173`, with the local Axum API at `127.0.0.1:8787`. The desktop build uses direct Tauri IPC instead of this development server path.
 
-Open a trip to try it out: import a confirmation (paste, a local file, HTML, or a raw email), fetch official advice and a weather outlook, save a recommended place, save a link or file as a research resource to read later, build a packing checklist, add a manual activity or transfer, search the workspace, download offline city data, view the map, and use AI assist. AI is optional — everything above works without it. For on-device assist, a guided setup under **AI providers** walks you through installing [Ollama](https://ollama.com), starting it, and pulling a recommended model in-app (no terminal required, though a copyable `ollama pull` command is offered too); for cloud assist, paste an OpenAI or Anthropic key and choose **Validate & save**, and it is checked before being stored in your OS keychain. Every request that could leave your device shows a full preview before anything is sent; the local chat has no preview because it never leaves.
+Open a trip to try it out: import a confirmation (paste, a local file, HTML, or a raw email), fetch official advice and a weather outlook, save a recommended place, save a link or file as a research resource to read later, build a packing checklist, add a manual activity or transfer, search the workspace, download offline city data, view the map, and use AI assist. AI is optional — every non-AI feature above works without it. For on-device assist, a guided setup under **AI providers** walks you through installing [Ollama](https://ollama.com), starting it, and pulling a recommended model in-app (no terminal required, though a copyable `ollama pull` command is offered too); for cloud assist, paste an OpenAI or Anthropic key and choose **Validate & save**, and it is checked before being stored in your OS keychain. Every AI request that could leave your device shows a full preview before anything is sent; the local chat has no preview because it never leaves.
 
 Run `make check` before submitting changes.
 
