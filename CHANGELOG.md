@@ -6,6 +6,39 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.10.5] - 2026-08-02 — What the lock screen was still saying
+
+The first audited pass had to skip the vault entirely: exercising it against a
+second data directory was what would have destroyed the real installation's key.
+0.10.3 fixed that, so this is the pass that could finally be run — and it found
+three things.
+
+### Fixed
+
+- **The address bar no longer shows a trip id while the vault is locked.** 0.9.2
+  said it had closed this and shipped without a guard, so it never held: the
+  write is skipped while `locked`, but `locked` is unknown — and unknown reads as
+  falsy — until the vault answers. The first render, which is the only render a
+  locked traveler ever sees, wrote the restored trip id and nothing took it back
+  out. It is now removed the moment there is an answer, which also cleans a trip
+  id someone pasted in as a link. Unlocking still lands on the trip you were on.
+- **A wrong passphrase leaves you in the field, with the failed attempt
+  selected.** Submitting disables the button while it works, and a focused
+  element that becomes disabled drops focus to the page — so on the app's only
+  gate, guarding a secret with no recovery, a typo meant hunting for the single
+  input again and clearing it by hand.
+- **Recovering from an outage re-asks whether the vault is locked.** The ordinary
+  reason the engine goes away is that it restarted, and a restart re-locks a
+  passphrase-protected vault. Retry cleared the banner and reloaded every view
+  but never re-checked, so the traveler was handed back what looked like their
+  workspace while every encrypted field quietly answered "locked".
+
+### Not fixed
+
+- Back up & restore still cannot be exercised from the browser build — it needs
+  the desktop app, where the file dialogs live. It is safe to test now; it is
+  just not reachable here.
+
 ## [0.10.4] - 2026-08-02 — A way to put the keys back
 
 ### Added

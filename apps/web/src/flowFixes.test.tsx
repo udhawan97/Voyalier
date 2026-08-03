@@ -411,6 +411,86 @@ describe("User-flow gap fixes", () => {
   });
 
   /**
+   * Recovering from an outage re-asks whether the vault is locked.
+   *
+   * The engine restarting is the ordinary cause of an outage — an update, a
+   * crash — and a restart re-locks a passphrase-protected vault. Retry cleared
+   * the banner and revalidated every view, but never re-checked the vault, so
+   * the traveler was returned to what looked like their workspace while every
+   * sealed read answered 423. `checkVault` ran only on mount, and the mount had
+   * already happened.
+   */
+  it("re-checks the vault when recovering from an outage", async () => {
+    let locked = false;
+    let healthy = false;
+    const base = createMockGateway();
+    renderApp({
+      ...base,
+      health: () =>
+        healthy
+          ? base.health()
+          : Promise.reject({ code: "transport/failure", message: "down" }),
+      getVaultStatus: () =>
+        Promise.resolve({ active: !locked, protected: true, locked }),
+    });
+
+    // The engine is unreachable, so the recovery banner stands.
+    const retry = await screen.findByRole("button", { name: "Retry" });
+
+    // It comes back — restarted, and therefore locked again.
+    healthy = true;
+    locked = true;
+    fireEvent.click(retry);
+
+    expect(
+      await screen.findByRole("heading", { name: "Your vault is locked" }),
+    ).toBeInTheDocument();
+  });
+
+  /**
+   * The address bar stays empty while the vault is locked.
+   *
+   * 0.9.2 said it had closed this and shipped without a guard, so it never
+   * actually held: the effect that writes the URL is skipped when `locked`, but
+   * `locked` starts as `null` while the vault status is still in flight — and
+   * `null` is falsy. The restored trip id was therefore written on the very
+   * first render, which is the only render a locked traveler ever sees, and
+   * nothing took it back out. The address bar is the one surface here that
+   * someone standing behind you can read.
+   */
+  it("keeps a restored trip id out of the address bar while the vault is locked", async () => {
+    window.sessionStorage.setItem("voyalier-active-trip", "trip_kyoto");
+    window.history.replaceState(null, "", "/");
+    const gateway = createMockGateway();
+    renderApp({
+      ...gateway,
+      getVaultStatus: () =>
+        Promise.resolve({ active: true, protected: true, locked: true }),
+    });
+
+    await screen.findByRole("heading", { name: "Your vault is locked" });
+    expect(window.location.search).toBe("");
+
+    window.sessionStorage.removeItem("voyalier-active-trip");
+  });
+
+  /**
+   * And the ordinary case still writes it, so the guard above cannot be
+   * "never write the URL" wearing a privacy argument.
+   */
+  it("still writes the trip id once the vault is known to be unlocked", async () => {
+    window.sessionStorage.setItem("voyalier-active-trip", "trip_kyoto");
+    window.history.replaceState(null, "", "/");
+    renderApp(createMockGateway());
+
+    await waitFor(() =>
+      expect(window.location.search).toBe("?trip=trip_kyoto"),
+    );
+
+    window.sessionStorage.removeItem("voyalier-active-trip");
+  });
+
+  /**
    * Back into the search view restores the query too.
    *
    * The query is deliberately kept out of the URL (ADR-0015), so a popstate

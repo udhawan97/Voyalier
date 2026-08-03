@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { useGateway } from "../app/context";
 import { t } from "../app/i18n";
@@ -15,6 +15,7 @@ export function VaultUnlock({ onUnlocked }: { onUnlocked: () => void }) {
   const [passphrase, setPassphrase] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fieldRef = useRef<HTMLInputElement>(null);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -26,6 +27,13 @@ export function VaultUnlock({ onUnlocked }: { onUnlocked: () => void }) {
       onUnlocked();
     } catch {
       setError(t("vault.unlock.error"));
+      // Put the traveler back in the field with the failed attempt selected, so
+      // a wrong guess costs one retype and nothing else. Submitting disables
+      // the button while busy, and a focused element that becomes disabled
+      // drops focus to <body> — which left the only field on the app's only
+      // gate needing to be found again, with the wrong passphrase still in it.
+      fieldRef.current?.focus();
+      fieldRef.current?.select();
     } finally {
       setBusy(false);
     }
@@ -45,6 +53,7 @@ export function VaultUnlock({ onUnlocked }: { onUnlocked: () => void }) {
           </label>
           <input
             id="unlock-input"
+            ref={fieldRef}
             className="voy-unlock__input"
             type="password"
             autoComplete="current-password"

@@ -318,15 +318,36 @@ function Workspace({
     // rewrite, from stacking a duplicate entry the traveler would have to press
     // Back twice to escape.
     //
-    // Also skipped while the vault is locked: nothing of the workspace is on
-    // screen yet, and writing `?trip=<id>` would put a restored trip id in the
-    // address bar — the one surface here that is shoulder-surfable — before the
-    // traveler has unlocked anything.
     if (typeof window === "undefined" || locked) return;
     const next = urlForView(view);
     const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
     if (next !== current) window.history.pushState(null, "", next);
   }, [view, locked]);
+
+  /**
+   * Take the view back out of the address bar once the vault says it is locked.
+   *
+   * The effect above skips the write while `locked`, but `locked` is `null`
+   * until the status arrives and `null` is falsy — so the first render, which is
+   * the only render a locked traveler ever sees, wrote the restored trip id and
+   * nothing removed it. Guarding that effect on `locked !== false` instead is
+   * the obvious fix and is wrong: the section navigation depends on the address
+   * that first write leaves behind, and deferring it strands the jump to
+   * `#section-<name>` on a cold load.
+   *
+   * So the write stands and this takes it back, the moment there is an answer.
+   * `replaceState`, not `pushState`: the entry it is correcting is one the
+   * traveler never chose and must not have to press Back through.
+   */
+  useEffect(() => {
+    if (typeof window === "undefined" || locked !== true) return;
+    if (!window.location.search) return;
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${window.location.pathname}${window.location.hash}`,
+    );
+  }, [locked]);
 
   // Back and Forward move the view rather than leaving the workspace.
   useEffect(() => {
@@ -400,7 +421,14 @@ function Workspace({
     // reach its engine, so nothing on screen is trustworthy.
     revalidateAll();
     probeHealth();
-  }, [probeHealth, revalidateAll]);
+    // Including whether the vault is still open. The ordinary reason an engine
+    // goes away is that it restarted — an update, a crash — and a restart
+    // re-locks a passphrase-protected vault. Without this the traveler was
+    // handed back what looked like their workspace while every sealed read
+    // answered 423, because `checkVault` only ever ran on mount and the mount
+    // had already happened.
+    checkVault();
+  }, [checkVault, probeHealth, revalidateAll]);
 
   return (
     <GatewayContext.Provider value={gateway}>

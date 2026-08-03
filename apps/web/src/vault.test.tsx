@@ -110,9 +110,17 @@ describe("encrypted vault — optional passphrase", () => {
       target: { value: "wrong-guess" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Unlock" }));
-    expect(
-      await screen.findByText("That passphrase didn't work."),
-    ).toBeInTheDocument();
+    const failure = await screen.findByText("That passphrase didn't work.");
+    expect(failure).toBeInTheDocument();
+
+    // And the traveler can just retype. The submit button disables itself while
+    // busy, and a focused element that becomes disabled drops focus to <body> —
+    // so after a wrong guess the only field on the app's only gate had to be
+    // hunted for again, with the failed text still sitting in it.
+    const field = screen.getByLabelText("Passphrase") as HTMLInputElement;
+    expect(document.activeElement).toBe(field);
+    expect(field.selectionStart).toBe(0);
+    expect(field.selectionEnd).toBe(field.value.length);
 
     // Correct passphrase opens the workspace.
     fireEvent.change(screen.getByLabelText("Passphrase"), {
