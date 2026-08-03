@@ -6,6 +6,33 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-08-02 — Where the evidence actually came from
+
+0.10.1 was tagged but never published, and a review of it found four things
+worth not shipping. This supersedes it and carries everything in it; read
+0.10.1's notes below for the substance.
+
+### Fixed
+
+- **The troubleshooting page named a version that never existed.** It said each
+  data directory keeps its own vault key "from 0.9.3 on" — a number this work
+  carried before it was renumbered onto 0.10.x. Someone reading it on 0.10.0
+  would have concluded they were already covered, run a second workspace, set a
+  passphrase, and lost the first one's encrypted fields: precisely the failure
+  the page claims is fixed, told to the people most likely to act on it.
+- **One directory spelled two ways is one workspace again.** The keychain
+  account was a hash of the path text, so `./data` and `/home/u/data` resolved
+  to two accounts — and the second, finding neither its own nor a legacy one,
+  minted a fresh key and left every already-sealed row unopenable. The same
+  defect the release exists to prevent, arriving through the fix. The path is
+  canonicalized before hashing now. ADR-0017 had called this case cosmetic; it
+  says otherwise now.
+- **A staged restore no longer parks its key on the shared account.** Two
+  workspaces staging a restore before either restarts would have met there.
+- **Three ADR citations belonging to the multi-modal itinerary work** were
+  caught by the renumber that moved this release's ADR from 0016 to 0017, and
+  pointed at sections ADR-0017 does not have. Restored.
+
 ## [0.10.1] - 2026-08-02 — Where the evidence actually came from
 
 0.9.2 said the import and candidate-review flow had never been exercised, and
