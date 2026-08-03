@@ -2674,6 +2674,37 @@ fn a_second_data_directory_cannot_delete_the_first_ones_vault_key() {
     cleanup_database(database_b);
 }
 
+/// A directory spelled two ways is still one database. Hashing the path text
+/// gave each spelling its own account, and the second one — finding neither its
+/// own account nor a legacy one — would mint a fresh key and leave every sealed
+/// row already on disk unopenable.
+#[test]
+fn one_directory_spelled_two_ways_keeps_one_vault_key() {
+    let database = temp_database("vault-canonical");
+    let directory = database.parent().expect("parent");
+    // The same file, reached through a relative detour: `<dir>/./voyalier.sqlite3`.
+    let indirect = directory.join(".").join(
+        database
+            .file_name()
+            .expect("file name")
+            .to_str()
+            .expect("utf-8"),
+    );
+
+    assert_ne!(
+        indirect.to_string_lossy(),
+        database.to_string_lossy(),
+        "the two spellings must differ, or this test proves nothing"
+    );
+    assert_eq!(
+        vault_key_account(&database),
+        vault_key_account(&indirect),
+        "two spellings of one directory resolved to two keychain accounts"
+    );
+
+    cleanup_database(database);
+}
+
 /// The other half of the same rule: a directory that already holds data sealed
 /// under the legacy shared account must keep reading it. Adoption copies the
 /// legacy key into the namespaced account rather than minting a new one.
@@ -5584,7 +5615,7 @@ fn a_weather_network_failure_is_a_weather_error_not_an_advice_one() {
     cleanup_database(database);
 }
 
-/// ADR-0017 §2: the playbook is derived on read, and it is advisory — a tight
+/// ADR-0016 §2: the playbook is derived on read, and it is advisory — a tight
 /// connection is a choice some travelers make deliberately, so it must never
 /// move a plan-completeness rollup.
 #[test]
@@ -5777,7 +5808,7 @@ fn storage_accepts_every_declared_fact_type() {
     cleanup_database(database);
 }
 
-/// ADR-0017 §4: a sweep never invents a first fetch, never refetches something
+/// ADR-0016 §4: a sweep never invents a first fetch, never refetches something
 /// still fresh, and never lets a failure read as an all-clear.
 #[test]
 fn a_recheck_reports_never_fetched_before_it_reports_anything_else() {

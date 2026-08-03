@@ -154,12 +154,15 @@ Everything is stored locally in a single SQLite file, `voyalier.sqlite3`:
 - **Windows:** `%APPDATA%\voyalier\Voyalier\data\`
 - **Linux:** `~/.local/share/voyalier/`
 
-Set `VOYALIER_DATA_DIR` to point Voyalier at a different location. Each data
-directory keeps its own vault key from 0.9.3 on, so a second workspace can set a
-passphrase or restore a backup without affecting the first. Before 0.9.3 they
-shared one key and either action would have left the other workspace's encrypted
-fields unreadable — if you ran two workspaces on an older version and one of them
-stopped opening its saved trips, that is why.
+Set `VOYALIER_DATA_DIR` to point Voyalier at a different location, and use the
+same absolute path each time — a directory spelled two ways is two workspaces.
+
+Each data directory keeps its own vault key **from 0.10.1 on**, so a second
+workspace can set a passphrase or restore a backup without affecting the first.
+**On 0.10.0 and earlier they shared one key**, and either action would have left
+the other workspace's encrypted fields unreadable. If you ran two workspaces on
+one of those versions and one of them stopped opening its saved trips, that is
+why.
 
 - **Back up:** copy that `voyalier.sqlite3` file somewhere safe while the app is
   closed. Sensitive fields inside it are already encrypted at rest.

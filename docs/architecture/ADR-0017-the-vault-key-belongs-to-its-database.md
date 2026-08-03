@@ -77,11 +77,21 @@ legacy account holds — correct when they are migrating a workspace, and
 harmless when they are not, because a directory with no sealed rows has nothing
 to lose either way.
 
-Path identity is textual, not canonical. Two spellings of one directory —
-a symlink, a trailing slash — resolve to two accounts, and the second one adopts
-from the legacy entry rather than from the first. That is a cosmetic duplicate,
-not data loss, and canonicalizing would mean touching the filesystem on a path
-that may not exist yet.
+**Path identity is canonical, and the first draft of this ADR was wrong about
+that.** It said two spellings of one directory would resolve to two accounts and
+called the result "a cosmetic duplicate, not data loss". It is not. A directory
+reached as `./data` and then as `/home/u/data` is one database; the second
+spelling finds neither its own account nor — on an install created after this
+change — a legacy one, so it mints a fresh key and every `v1:` row already on
+disk stops opening. That is precisely the defect this ADR exists to prevent,
+arriving through the fix. The parent directory is therefore canonicalized before
+hashing (the parent, because `open_path_with_deps` creates it before this runs
+while the database file itself may not exist yet), falling back to the raw text
+when it cannot be resolved.
+
+The staged-restore key, `vault.pending_data_key`, carries the same suffix for
+the same reason, and was missed on the first pass: two workspaces that each
+stage a restore before either restarts would otherwise meet at one account.
 
 `crates/voyalier-app/src/tests.rs` carries the guard: two data directories over
 one secret store, a passphrase set on the second, and the first one's _sealed_

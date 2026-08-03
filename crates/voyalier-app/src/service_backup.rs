@@ -144,11 +144,14 @@ impl AppService {
         // signal to apply, so writing it last means an interrupted stage is
         // inert debris rather than a half-restore.
         match opened.data_key {
-            Some(key) => self
-                .secrets
-                .set(VAULT_PENDING_KEY_ACCOUNT, &BASE64.encode(key))?,
+            Some(key) => self.secrets.set(
+                &vault_pending_key_account(&self.database_path),
+                &BASE64.encode(key),
+            )?,
             None => {
-                let _ = self.secrets.delete(VAULT_PENDING_KEY_ACCOUNT);
+                let _ = self
+                    .secrets
+                    .delete(&vault_pending_key_account(&self.database_path));
             }
         }
         fs::write(dir.join(PENDING_RESTORE_FILE), &opened.snapshot).map_err(storage_error)?;

@@ -108,6 +108,36 @@ describe("i18n message catalog", () => {
     expect(plural("tripcard.facts", 2)).toBe("datos confirmados");
   });
 
+  it("names both instruments in the exempt heading, in every locale", () => {
+    // "Neither is published for this passport" began mid-thought: the two it
+    // meant live in sibling strings that render on their own branches, so an
+    // electronic travel authorization was named nowhere the reader could see.
+    // ADR-0006 also forbids turning a publication state into an entry outcome,
+    // so this must stay a sentence about what was published.
+    expect(t("visa.path.exempt")).toBe(
+      "Neither a visa nor an electronic travel authorization is published for this passport",
+    );
+
+    setLocalePreference("es");
+    expect(t("visa.path.exempt")).toBe(
+      "No se publica ni visado ni autorización electrónica de viaje para este pasaporte",
+    );
+
+    for (const locale of ["en", "es"] as const) {
+      const copy = catalogs[locale]["visa.path.exempt"];
+      // Never an eligibility claim — the failure mode ADR-0006's amendment names
+      // is someone reading "no visa required" and arriving without one.
+      for (const forbidden of [
+        "visa-free",
+        "sin visado",
+        "no visa is required",
+        "no requiere visado",
+      ]) {
+        expect(copy.toLowerCase(), locale).not.toContain(forbidden);
+      }
+    }
+  });
+
   it("distinguishes visa checklist totals from visible guide steps", () => {
     expect(plural("visa.progress", 4, { done: 0, total: 1 })).toBe(
       "Checklist: 0 of 1 complete across 4 guide steps. Voyalier has not verified any item.",

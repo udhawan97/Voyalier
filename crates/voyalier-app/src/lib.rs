@@ -583,13 +583,40 @@ fn vault_key_account(database_path: &Path) -> String {
         return VAULT_KEY_ACCOUNT.to_owned();
     }
     let mut hasher = Sha256::new();
-    hasher.update(database_path.to_string_lossy().as_bytes());
+    hasher.update(
+        canonical_key_path(database_path)
+            .to_string_lossy()
+            .as_bytes(),
+    );
     let digest = hasher.finalize();
     let mut suffix = String::with_capacity(16);
     for byte in digest.iter().take(8) {
         let _ = write!(suffix, "{byte:02x}");
     }
     format!("{VAULT_KEY_ACCOUNT}.{suffix}")
+}
+
+/// One spelling of a directory, so one account.
+///
+/// The account is a hash of the path, and a path is not its own identity:
+/// `./data`, `data/`, and `/home/u/data` are one database with three spellings.
+/// Hashing the text would give each of them an account of its own, and the
+/// second spelling would find neither its own account nor a legacy one and mint
+/// a fresh key — leaving every `v1:` row already on disk unopenable. That is the
+/// defect this whole seam exists to prevent, arriving through a back door.
+///
+/// The parent is canonicalized rather than the file: `open_path_with_deps`
+/// creates the directory before anything here runs, but the database file itself
+/// may not exist yet on a first launch. A path that cannot be resolved falls
+/// back to its own text, which is no worse than hashing it directly.
+fn canonical_key_path(database_path: &Path) -> PathBuf {
+    let (Some(parent), Some(file)) = (database_path.parent(), database_path.file_name()) else {
+        return database_path.to_path_buf();
+    };
+    match parent.canonicalize() {
+        Ok(resolved) => resolved.join(file),
+        Err(_) => database_path.to_path_buf(),
+    }
 }
 
 /// Resolve the account, adopting a legacy key rather than minting a new one.
@@ -1085,6 +1112,21 @@ const PENDING_RESTORE_MARKER: &str = "pending-restore.json";
 /// Where the backup's data key waits between staging and applying.
 const VAULT_PENDING_KEY_ACCOUNT: &str = "vault.pending_data_key";
 
+/// Where a staged restore parks the key its backup carried, for this database.
+///
+/// Namespaced for the same reason the data key is (ADR-0017), and it was missed
+/// on the first pass: two workspaces that each stage a restore before either
+/// restarts would otherwise meet at one account — the second `set` overwriting
+/// the key the first is about to restore under, or a keyless backup's `delete`
+/// taking the first one's with it. Same silence, same unreadable rows.
+fn vault_pending_key_account(database_path: &Path) -> String {
+    match vault_key_account(database_path).strip_prefix(VAULT_KEY_ACCOUNT) {
+        // The default install keeps the bare account it always had.
+        Some("") | None => VAULT_PENDING_KEY_ACCOUNT.to_owned(),
+        Some(suffix) => format!("{VAULT_PENDING_KEY_ACCOUNT}{suffix}"),
+    }
+}
+
 /// The marker's contents. Metadata only — the snapshot holds the trip data and
 /// the keychain holds the key.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1162,13 +1204,14 @@ fn apply_pending_restore(
     // Install the key the backup carried, so its sealed rows open here. Without
     // a carried key the restored rows are plaintext and a fresh key is
     // generated on open, which then seals them.
-    match (marker.key_present, secrets.get(VAULT_PENDING_KEY_ACCOUNT)?) {
+    let pending_account = vault_pending_key_account(database_path);
+    match (marker.key_present, secrets.get(&pending_account)?) {
         (true, Some(key)) => secrets.set(&restored_account, &key)?,
         _ => {
             let _ = secrets.delete(&restored_account);
         }
     }
-    let _ = secrets.delete(VAULT_PENDING_KEY_ACCOUNT);
+    let _ = secrets.delete(&pending_account);
     fs::remove_file(&marker_path).map_err(storage_error)?;
     Ok(true)
 }
@@ -2404,7 +2447,7 @@ fn migrate_method_check(connection: &Connection) -> Result<(), AppError> {
     rebuilt
 }
 
-/// Let both fact tables hold the four surface kinds (ADR-0017 §1).
+/// Let both fact tables hold the four surface kinds (ADR-0016 §1).
 ///
 /// SQLite cannot alter a CHECK constraint, so both tables are rebuilt — the
 /// same shape as `migrate_method_check`, which widened the `method` list for
