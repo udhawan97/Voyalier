@@ -16,6 +16,10 @@ parser over it:
 - **HTML** confirmations are read for structured `schema.org` reservation data
   when present.
 - **Pasted text** is scanned for recognizable flight and lodging details.
+  The format you choose picks the parser, so a booking page left on **Plain
+  text** is read by the wrong one. Paste something that looks like a page and
+  Voyalier offers to read it as HTML — it offers rather than switching, because
+  the content is untrusted and should not choose its own parser.
 - **Email** is not itself a stored format: Voyalier reads the raw message,
   prefers the HTML part if the email has one (so the same structured-data
   parser can run), decodes quoted-printable and base64 encoding, and stores
@@ -33,11 +37,20 @@ happens to each one:
   confirmed fact on the Blueprint.
 - **Reject** it, and it is discarded.
 
-The review dialog starts at its title and description rather than jumping down
-to the first action. From there, Tab reaches the controls in order; resolving a
-suggestion moves focus to the next card, and finishing the queue returns focus
-to the trip's Blueprint. Escape and **Close** still leave unresolved candidates
-pending.
+The evidence excerpt is quoted from the document as the document reads it —
+markup stripped, and an `…` wherever the quote was clipped, so a fragment is
+never mistaken for the whole sentence. It is taken from the part of the document
+the value was actually parsed out of, which matters on booking pages that repeat
+the same flight number in their own markup.
+
+The review dialog starts at its description rather than jumping down to the
+first action, and that starting point is the part that scrolls — so PageDown and
+the arrow keys move through the evidence before you reach the buttons. From
+there, Tab reaches the controls in order; resolving a suggestion moves focus to
+the next card, and finishing the queue returns focus to the trip's Blueprint.
+Escape and **Close** still leave unresolved candidates pending. Arriving here
+from the import summary's **Review N suggestions** button lands inside the
+dialog too, so the whole flow works without a mouse.
 
 Because untrusted text can contain misleading instructions, imported content is
 treated as data, not commands: nothing an imported document "says" can mark a

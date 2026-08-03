@@ -377,6 +377,12 @@ const en = {
   "import.format.email": "Email",
   "import.label": "Label (optional)",
   "import.label.placeholder": "Flight confirmation",
+  "import.label.tooLong": "Shorten the label to 200 characters or fewer.",
+  "import.looksLikeHtml.title": "This looks like a booking page",
+  "import.looksLikeHtml.body":
+    "Reading it as HTML finds structured bookings that plain text cannot see. Your content is unchanged either way.",
+  "import.looksLikeHtml.action": "Read it as HTML",
+  "import.done.addByHand": "Add a flight or stay by hand",
   "import.file.label": "Add a file",
   "import.file.button": "Choose a file",
   "import.file.drop": "Drop a file here",
@@ -1146,7 +1152,8 @@ const en = {
   "visa.path.visaRequired": "A visa is published as required for this passport",
   "visa.path.electronicAuthorization":
     "An electronic authorization is published for this passport",
-  "visa.path.exempt": "Neither is published for this passport",
+  "visa.path.exempt":
+    "Neither a visa nor an electronic travel authorization is published for this passport",
   "visa.path.unknown":
     "No single answer is published for this passport — check the official source",
   "visa.progress.one":
@@ -1942,6 +1949,12 @@ const es: Record<MessageKey, string> = {
   "import.format.email": "Correo electrónico",
   "import.label": "Etiqueta (opcional)",
   "import.label.placeholder": "Confirmación de vuelo",
+  "import.label.tooLong": "Acorta la etiqueta a 200 caracteres o menos.",
+  "import.looksLikeHtml.title": "Esto parece una página de reserva",
+  "import.looksLikeHtml.body":
+    "Leerla como HTML encuentra reservas estructuradas que el texto plano no ve. Tu contenido no cambia en ningún caso.",
+  "import.looksLikeHtml.action": "Leerla como HTML",
+  "import.done.addByHand": "Añadir un vuelo o alojamiento a mano",
   "import.file.label": "Agregar archivo",
   "import.file.button": "Elegir archivo",
   "import.file.drop": "Suelta un archivo aquí",
@@ -2690,7 +2703,8 @@ const es: Record<MessageKey, string> = {
   "visa.path.visaRequired": "Se publica que este pasaporte requiere visado",
   "visa.path.electronicAuthorization":
     "Se publica una autorización electrónica para este pasaporte",
-  "visa.path.exempt": "No se publica ninguno de los dos para este pasaporte",
+  "visa.path.exempt":
+    "No se publica ni visado ni autorización electrónica de viaje para este pasaporte",
   "visa.path.unknown":
     "No se publica una única respuesta para este pasaporte: consulta la fuente oficial",
   "visa.progress.one":

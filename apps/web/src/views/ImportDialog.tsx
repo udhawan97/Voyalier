@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   MAX_DOCUMENT_CHARS,
   countChars,
@@ -7,6 +7,18 @@ import {
   type DocumentKind,
   type ImportResult,
 } from "@voyalier/contracts";
+
+/**
+ * How long a label may be.
+ *
+ * Voyalier's own limit, not the engine's — nothing behind this field counts, so
+ * unlike the trip form's place fields there is no core constant to agree with.
+ * It is declared here so the count the traveler sees and the cut they get are
+ * the same number, measured the way the rest of the app measures (AGENTS.md:
+ * limits count Unicode characters). The old `maxLength={200}` counted UTF-16
+ * code units, so a label written with emoji was cut at 100 without a word.
+ */
+const MAX_IMPORT_LABEL_CHARS = 200;
 
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError } from "../app/format";
@@ -26,16 +38,30 @@ function kindForFilename(name: string): DocumentKind {
   return "pasted_text";
 }
 
+/** Whether pasted content looks like the booking *page* the dialog invites. */
+function looksLikeHtml(content: string): boolean {
+  const head = content.trimStart().slice(0, 2000).toLowerCase();
+  return (
+    head.startsWith("<!doctype html") ||
+    head.startsWith("<html") ||
+    head.includes("application/ld+json") ||
+    /<(div|table|body|span|section|article)[\s>]/.test(head)
+  );
+}
+
 export function ImportDialog({
   tripId,
   onClose,
   onImported,
   onReview,
+  onAddByHand,
 }: {
   tripId: string;
   onClose: () => void;
   onImported: (result: ImportResult) => void;
   onReview: (candidates: CandidateFact[]) => void;
+  /** Offered when a document yields nothing, so the flow is not a dead end. */
+  onAddByHand: () => void;
 }) {
   const gateway = useGateway();
   const announce = useAnnounce();
@@ -49,9 +75,28 @@ export function ImportDialog({
   const [result, setResult] = useState<ImportResult | null>(null);
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // A failed submit renders its explanation at the top of a body the traveler
+  // may have scrolled past. Nothing moved them to it, so a duplicate import
+  // looked exactly like a button that did nothing.
+  const alertRef = useRef<HTMLDivElement>(null);
 
   const charCount = countChars(content);
   const over = charCount > MAX_DOCUMENT_CHARS;
+  const labelCount = countChars(label);
+  const labelOver = labelCount > MAX_IMPORT_LABEL_CHARS;
+  // Offered, never taken: the format picks the parser, and letting pasted
+  // content choose its own parser hands that decision to whoever wrote it.
+  const suggestHtml = kind === "pasted_text" && looksLikeHtml(content);
+
+  useEffect(() => {
+    if (!error && duplicateId === null) return;
+    const node = alertRef.current;
+    if (!node) return;
+    // Absent in jsdom, and only ever an enhancement: focusing already reveals
+    // the banner in a browser, so a missing implementation must not throw.
+    node.scrollIntoView?.({ block: "nearest" });
+    node.focus();
+  }, [error, duplicateId]);
 
   // Read a local file's text on-device (no upload) and prime the form: infer the
   // format from the extension, default the label to the filename, and drop the
@@ -138,7 +183,14 @@ export function ImportDialog({
               >
                 {plural("import.review", found)}
               </Button>
-            ) : null}
+            ) : (
+              // Nothing found is a truthful answer and used to be the whole
+              // answer: one "Done" and no way onward, though hand entry sits
+              // two controls away in the view behind this dialog.
+              <Button variant="primary" onClick={onAddByHand}>
+                {t("import.done.addByHand")}
+              </Button>
+            )}
             <Button variant="ghost" onClick={onClose}>
               {t("action.done")}
             </Button>
@@ -174,7 +226,7 @@ export function ImportDialog({
             type="submit"
             form="import-form"
             busy={submitting}
-            disabled={over || content.trim().length === 0}
+            disabled={over || labelOver || content.trim().length === 0}
           >
             {t("import.submit")}
           </Button>
@@ -187,17 +239,30 @@ export function ImportDialog({
         onSubmit={handleSubmit}
         noValidate
       >
-        {error ? (
-          <Banner tone="error" role="alert" title={describeError(error).title}>
-            {describeError(error).body}
-          </Banner>
-        ) : null}
-        {duplicateId !== null ? (
-          <Banner tone="warn" role="alert" title={t("import.duplicate.title")}>
-            {/* The internal document id is a debug token, not user copy. */}
-            {t("import.duplicate.body", { doc: "" })}
-          </Banner>
-        ) : null}
+        {/* `tabIndex` so the effect above can move the traveler to whichever of
+            these appeared, rather than leaving them looking at an unchanged
+            screen while the reason sits above the fold. */}
+        <div ref={alertRef} tabIndex={-1}>
+          {error ? (
+            <Banner
+              tone="error"
+              role="alert"
+              title={describeError(error).title}
+            >
+              {describeError(error).body}
+            </Banner>
+          ) : null}
+          {duplicateId !== null ? (
+            <Banner
+              tone="warn"
+              role="alert"
+              title={t("import.duplicate.title")}
+            >
+              {/* The internal document id is a debug token, not user copy. */}
+              {t("import.duplicate.body", { doc: "" })}
+            </Banner>
+          ) : null}
+        </div>
         <div
           className={`voy-dropzone${dragging ? " is-dragging" : ""}`}
           onDragOver={(event) => {
@@ -239,22 +304,30 @@ export function ImportDialog({
             ]}
           />
         </div>
-        {/* Left as a hard cap on purpose. It has the same UTF-16 flaw as the
-            trip form's place fields did, but this dialog is the one surface the
-            0.9.0 audit never exercised, and swapping a silent truncation for a
-            new refusal path in an untested flow trades a small known problem
-            for an unknown one. The literal 200 is also unexplained — it merely
-            coincides with MAX_QUERY_LEN — so both want a pass with the import
-            flow actually under test. */}
+        {/* No `maxLength`: the browser counts UTF-16 code units and cuts
+            without a word, so an emoji-bearing label lost half its allowance
+            silently. The limit is Voyalier's own (nothing behind this field
+            counts), so it is enforced where it can be explained. */}
         <TextField
           id="import-label"
           label={t("import.label")}
           value={label}
           onChange={(event) => setLabel(event.target.value)}
-          maxLength={200}
+          error={labelOver ? t("import.label.tooLong") : undefined}
           autoComplete="off"
           placeholder={t("import.label.placeholder")}
         />
+        {labelCount > MAX_IMPORT_LABEL_CHARS - 40 ? (
+          <p
+            className={`voy-charcount${labelOver ? " is-over" : ""}`}
+            aria-live="polite"
+          >
+            {t("import.charcount", {
+              count: labelCount.toLocaleString(APP_LOCALE),
+              max: MAX_IMPORT_LABEL_CHARS.toLocaleString(APP_LOCALE),
+            })}
+          </p>
+        ) : null}
         <TextArea
           id="import-content"
           label={t("import.content")}
@@ -278,6 +351,17 @@ export function ImportDialog({
             max: MAX_DOCUMENT_CHARS.toLocaleString(APP_LOCALE),
           })}
         </p>
+        {/* The format chooses the parser, so a booking page read as plain text
+            is read by the wrong one. Offered rather than applied: inferring it
+            would let whoever wrote the content pick the parser. */}
+        {suggestHtml ? (
+          <Banner tone="info" title={t("import.looksLikeHtml.title")}>
+            <p>{t("import.looksLikeHtml.body")}</p>
+            <Button variant="secondary" onClick={() => setKind("html")}>
+              {t("import.looksLikeHtml.action")}
+            </Button>
+          </Banner>
+        ) : null}
       </form>
     </Dialog>
   );

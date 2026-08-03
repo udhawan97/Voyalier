@@ -190,7 +190,10 @@ states:
 
 - **Active:** a data key is available from the OS keychain, or the traveler has
   unlocked a passphrase-protected vault. Sensitive fields are sealed/opened
-  transparently.
+  transparently. The keychain account is derived from the database's own path
+  (ADR-0017), so two data directories never share a key — and never delete each
+  other's. The platform default path keeps the original account name, so no
+  shipped install migrates.
 - **Locked:** a passphrase wraps the data key and has not been entered for this
   process. Reads and writes that need sealed content fail closed.
 - **Inactive:** no recoverable key store exists, such as a keychain-less CI
@@ -271,5 +274,7 @@ Related decisions, in order:
 - [ADR-0011](ADR-0011-the-route-manifest-is-used-not-only-asserted.md) — the route manifest is used, not only asserted
 - [ADR-0012](ADR-0012-the-route-manifest-declares-its-payloads.md) — the manifest declares its payloads
 - [ADR-0013](ADR-0013-city-pack-selection-preserves-source-confidence.md) — pack selection preserves source confidence
+- [ADR-0015](ADR-0015-the-workspace-answers-the-back-button.md) — the workspace answers the Back button
+- [ADR-0017](ADR-0017-the-vault-key-belongs-to-its-database.md) — the vault key belongs to its database
 
 Plus [map architecture](MAPS.md).

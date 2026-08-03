@@ -112,9 +112,16 @@ export function Dialog({
   useEffect(() => {
     const previouslyFocused = previouslyFocusedRef.current;
     const dialog = dialogRef.current;
+    // The body, not the dialog, when top-level context is what matters: the
+    // body is the element that scrolls, and a browser scrolls the nearest
+    // scrollable *ancestor* of what has focus. Focusing the dialog left the
+    // scroller a descendant, so PageDown and the arrow keys did nothing at all
+    // and a keyboard reader could tab to Confirm without ever being able to
+    // read the evidence between the controls. Focus stays inside the labelled,
+    // aria-modal dialog either way.
     const initial =
       initialFocus === "dialog"
-        ? dialog
+        ? (bodyRef.current ?? dialog)
         : (initialFocusRef?.current ??
           (dialog ? (focusableWithin(dialog)[0] ?? dialog) : null));
     if (initialFocus === "dialog") overlayRef.current!.scrollTop = 0;
@@ -134,6 +141,19 @@ export function Dialog({
         // Ignore that development-only cleanup so it cannot steal focus back
         // from the dialog after the replayed setup focuses it.
         if (dialog?.isConnected) return;
+        // Another dialog has already claimed focus, so this restore is not the
+        // last word on where the traveler is. One dialog opening another in a
+        // single commit — the import summary handing off to the review queue —
+        // runs this cleanup first and the incoming dialog's focus second, and
+        // this microtask third: without the check it dragged focus back out to
+        // the page behind an open modal, where Tab walks the background, Esc
+        // does nothing (the handler lives on the dialog), and the queue the
+        // traveler was sent to cannot be reached by keyboard at all.
+        //
+        // Deliberately inside the microtask: read synchronously in cleanup,
+        // `activeElement` is still the closing dialog and this would swallow
+        // every ordinary restore.
+        if (document.activeElement?.closest('[role="dialog"]')) return;
         const explicit = latestReturnFocusRef.current?.current;
         // The trigger can be unmounted by the action that closed the dialog —
         // the empty state's "Create a trip" button stops existing the moment a
@@ -227,9 +247,14 @@ export function Dialog({
             with 2,241px of evidence in a 600px window showed no scrollbar, no
             edge, and only a Close button — while the Confirm the traveler came
             for sat 826px further down. */}
+        {/* `tabIndex` so this can hold focus: it is the scroll container, and
+            a scroll container the keyboard cannot focus is one the keyboard
+            cannot scroll. Not in the Tab order — `focusableWithin` excludes
+            `tabindex="-1"`, so the trap still cycles the controls only. */}
         <div
           ref={bodyRef}
           className="voy-dialog__body"
+          tabIndex={-1}
           data-overflowing={overflowing ? "true" : undefined}
         >
           {children}

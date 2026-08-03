@@ -1377,6 +1377,10 @@ export function TripDetailView({
               reload();
               refreshAfterImport();
             }}
+            onAddByHand={() => {
+              setShowImport(false);
+              setShowAddFact(true);
+            }}
           />
         ) : null}
 

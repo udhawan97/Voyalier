@@ -176,16 +176,21 @@ impl ConfirmationParser for JsonLdParser {
 
             let mut reservations = Vec::new();
             collect_reservations(&parsed, &mut reservations);
+            // Values are located inside the block they were parsed from, never
+            // the whole page — a booking page routinely repeats them in
+            // `data-` attributes, and the first match would be the decoy.
+            let region = SearchRegion::slice_of(raw, script.content, script.content_start);
             for reservation in reservations {
                 let candidate = if type_matches(reservation, "FlightReservation") {
-                    flight_candidate(raw, reservation)
+                    flight_candidate(raw, region, reservation)
                 } else if type_matches(reservation, "LodgingReservation") {
-                    lodging_candidate(raw, reservation)
+                    lodging_candidate(raw, region, reservation)
                 } else if type_matches(reservation, "RentalCarReservation") {
-                    rental_candidate(raw, reservation)
+                    rental_candidate(raw, region, reservation)
                 } else {
-                    reservation_journey_type(reservation)
-                        .and_then(|fact_type| journey_candidate(raw, reservation, fact_type))
+                    reservation_journey_type(reservation).and_then(|fact_type| {
+                        journey_candidate(raw, region, reservation, fact_type)
+                    })
                 };
                 if let Some(candidate) = candidate {
                     outcome.candidates.push(candidate);
@@ -240,7 +245,15 @@ impl ConfirmationParser for PlaintextParser {
             payload.arrival_local = Some(second.clone());
         }
 
-        add_payload_spans(raw, &payload, FactType::FlightSegment, &mut field_spans);
+        // Plain text has no markup to be fooled by, so the whole document is
+        // the region.
+        add_payload_spans(
+            raw,
+            SearchRegion::whole(raw),
+            &payload,
+            FactType::FlightSegment,
+            &mut field_spans,
+        );
 
         if payload.confirmation_code.is_none()
             && payload.departure_airport_iata.is_none()
@@ -277,6 +290,9 @@ impl ConfirmationParser for PlaintextParser {
 
 struct JsonLdScript<'a> {
     content: &'a str,
+    /// Byte offset of `content` within the raw document, so a span found inside
+    /// this block can be rebased onto the document the reader will see quoted.
+    content_start: usize,
     truncated: bool,
 }
 
@@ -289,6 +305,7 @@ fn find_jsonld_scripts(raw: &str) -> Vec<JsonLdScript<'_>> {
         let Some(relative_tag_end) = lower[script_start..].find('>') else {
             scripts.push(JsonLdScript {
                 content: "",
+                content_start: raw.len(),
                 truncated: true,
             });
             break;
@@ -300,6 +317,7 @@ fn find_jsonld_scripts(raw: &str) -> Vec<JsonLdScript<'_>> {
             if header.contains("application/ld+json") {
                 scripts.push(JsonLdScript {
                     content: &raw[content_start..],
+                    content_start,
                     truncated: true,
                 });
             }
@@ -309,6 +327,7 @@ fn find_jsonld_scripts(raw: &str) -> Vec<JsonLdScript<'_>> {
         if header.contains("application/ld+json") {
             scripts.push(JsonLdScript {
                 content: &raw[content_start..close_start],
+                content_start,
                 truncated: false,
             });
         }
@@ -384,7 +403,11 @@ fn type_matches(value: &Value, expected: &str) -> bool {
     }
 }
 
-fn flight_candidate(raw: &str, reservation: &Value) -> Option<ParsedCandidate> {
+fn flight_candidate(
+    raw: &str,
+    region: SearchRegion<'_>,
+    reservation: &Value,
+) -> Option<ParsedCandidate> {
     let flight = reservation.get("reservationFor").unwrap_or(reservation);
     let airline = flight.get("airline").or_else(|| reservation.get("airline"));
     let mut payload = FactPayload {
@@ -415,7 +438,13 @@ fn flight_candidate(raw: &str, reservation: &Value) -> Option<ParsedCandidate> {
     }
 
     let mut field_spans = Vec::new();
-    add_payload_spans(raw, &payload, FactType::FlightSegment, &mut field_spans);
+    add_payload_spans(
+        raw,
+        region,
+        &payload,
+        FactType::FlightSegment,
+        &mut field_spans,
+    );
 
     let mut warnings = Vec::new();
     if payload.departure_airport_iata.is_none() || payload.arrival_airport_iata.is_none() {
@@ -434,7 +463,11 @@ fn flight_candidate(raw: &str, reservation: &Value) -> Option<ParsedCandidate> {
     })
 }
 
-fn lodging_candidate(raw: &str, reservation: &Value) -> Option<ParsedCandidate> {
+fn lodging_candidate(
+    raw: &str,
+    region: SearchRegion<'_>,
+    reservation: &Value,
+) -> Option<ParsedCandidate> {
     let lodging = reservation.get("reservationFor").unwrap_or(reservation);
     let mut payload = FactPayload {
         property_name: string_at(lodging, "name"),
@@ -459,7 +492,13 @@ fn lodging_candidate(raw: &str, reservation: &Value) -> Option<ParsedCandidate> 
     }
 
     let mut field_spans = Vec::new();
-    add_payload_spans(raw, &payload, FactType::LodgingStay, &mut field_spans);
+    add_payload_spans(
+        raw,
+        region,
+        &payload,
+        FactType::LodgingStay,
+        &mut field_spans,
+    );
 
     let mut warnings = Vec::new();
     if payload.checkin_date.is_none() || payload.checkout_date.is_none() {
@@ -480,6 +519,7 @@ fn lodging_candidate(raw: &str, reservation: &Value) -> Option<ParsedCandidate> 
 /// because the difference is a key name, not a shape.
 fn journey_candidate(
     raw: &str,
+    region: SearchRegion<'_>,
     reservation: &Value,
     fact_type: FactType,
 ) -> Option<ParsedCandidate> {
@@ -519,7 +559,7 @@ fn journey_candidate(
     }
 
     let mut field_spans = Vec::new();
-    add_payload_spans(raw, &payload, fact_type, &mut field_spans);
+    add_payload_spans(raw, region, &payload, fact_type, &mut field_spans);
 
     let mut warnings = Vec::new();
     if payload.departure_place.is_none() || payload.arrival_place.is_none() {
@@ -540,7 +580,11 @@ fn journey_candidate(
 
 /// A hire car reads pickup/drop-off onto the same departure/arrival pair every
 /// other journey uses (ADR-0016 §1).
-fn rental_candidate(raw: &str, reservation: &Value) -> Option<ParsedCandidate> {
+fn rental_candidate(
+    raw: &str,
+    region: SearchRegion<'_>,
+    reservation: &Value,
+) -> Option<ParsedCandidate> {
     let car = reservation.get("reservationFor").unwrap_or(reservation);
     let company = car
         .get("rentalCompany")
@@ -567,7 +611,7 @@ fn rental_candidate(raw: &str, reservation: &Value) -> Option<ParsedCandidate> {
     }
 
     let mut field_spans = Vec::new();
-    add_payload_spans(raw, &payload, FactType::CarRental, &mut field_spans);
+    add_payload_spans(raw, region, &payload, FactType::CarRental, &mut field_spans);
 
     let mut warnings = Vec::new();
     if payload.departure_place.is_none() || payload.arrival_place.is_none() {
@@ -676,6 +720,7 @@ fn trim_payload_strings(payload: &mut FactPayload) {
 
 fn add_payload_spans(
     raw: &str,
+    region: SearchRegion<'_>,
     payload: &FactPayload,
     fact_type: FactType,
     field_spans: &mut Vec<FieldSpan>,
@@ -743,40 +788,149 @@ fn add_payload_spans(
         ],
     };
 
+    let quotable = QuotableText::new(raw);
     for (field_path, maybe_value) in values {
         if let Some(value) = maybe_value {
             if value.is_empty() {
                 continue;
             }
-            if let Some(span) = span_for_value(raw, field_path, value) {
+            if let Some(span) = span_for_value(raw, region, &quotable, field_path, value) {
                 field_spans.push(span);
             }
         }
     }
 }
 
-fn span_for_value(raw: &str, field_path: &str, value: &str) -> Option<FieldSpan> {
-    let byte_start = raw.find(value).or_else(|| {
+/// Where a parser is allowed to look for the value it read.
+///
+/// A JSON-LD reservation is parsed out of one `<script>` block, but the values
+/// it holds — an IATA code, a flight number — routinely appear earlier in the
+/// page's own markup as `data-` attributes. Anchoring on the first occurrence in
+/// the whole document therefore recorded a span pointing at a decoy, and
+/// `FieldSpan` is persisted provenance rather than display state. The region
+/// keeps the search inside the block the value actually came from; `char_offset`
+/// rebases the result so spans stay raw-document-relative and the wire contract
+/// is unchanged.
+#[derive(Clone, Copy)]
+struct SearchRegion<'a> {
+    text: &'a str,
+    char_offset: usize,
+}
+
+impl<'a> SearchRegion<'a> {
+    fn whole(raw: &'a str) -> Self {
+        Self {
+            text: raw,
+            char_offset: 0,
+        }
+    }
+
+    fn slice_of(raw: &'a str, text: &'a str, byte_start: usize) -> Self {
+        Self {
+            text,
+            char_offset: raw[..byte_start].chars().count(),
+        }
+    }
+}
+
+/// The document as a reader will see it quoted: tags removed and whitespace
+/// collapsed, carrying a map back to raw character offsets.
+///
+/// Built once per candidate, because the alternative — slicing a window out of
+/// the raw text and stripping afterwards — cannot know whether it opened or
+/// closed inside a tag. A window opening inside one emitted the tag's attribute
+/// text as prose; a window closing inside one swallowed everything after the
+/// `<`, including the value it was evidence for.
+struct QuotableText {
+    cleaned: Vec<char>,
+    /// `raw_index[i]` is the raw character offset that cleaned character `i`
+    /// came from, so a span located in the raw text can be quoted from here.
+    raw_index: Vec<usize>,
+}
+
+impl QuotableText {
+    fn new(raw: &str) -> Self {
+        let mut cleaned = Vec::new();
+        let mut raw_index = Vec::new();
+        let mut in_tag = false;
+        let mut previous_space = false;
+        for (index, character) in raw.chars().enumerate() {
+            match character {
+                '<' => in_tag = true,
+                '>' => {
+                    in_tag = false;
+                    if !previous_space {
+                        cleaned.push(' ');
+                        raw_index.push(index);
+                        previous_space = true;
+                    }
+                }
+                _ if in_tag => {}
+                _ if character.is_whitespace() => {
+                    if !previous_space {
+                        cleaned.push(' ');
+                        raw_index.push(index);
+                        previous_space = true;
+                    }
+                }
+                _ => {
+                    cleaned.push(character);
+                    raw_index.push(index);
+                    previous_space = false;
+                }
+            }
+        }
+        Self { cleaned, raw_index }
+    }
+
+    /// `CONTEXT` characters of readable text either side of the span, with `…`
+    /// wherever the text was cut — the same courtesy `search.rs` has always
+    /// extended to its own snippets.
+    fn excerpt(&self, start: usize, end: usize) -> String {
+        const CONTEXT: usize = 40;
+        let Some(first) = self.raw_index.iter().position(|index| *index >= start) else {
+            return String::new();
+        };
+        let last = self
+            .raw_index
+            .iter()
+            .rposition(|index| *index < end)
+            .unwrap_or(first);
+        let from = first.saturating_sub(CONTEXT);
+        let to = (last + 1 + CONTEXT).min(self.cleaned.len());
+        let mut snippet: String = self.cleaned[from..to].iter().collect();
+        snippet = snippet.trim().to_owned();
+        if from > 0 {
+            snippet = format!("…{snippet}");
+        }
+        if to < self.cleaned.len() {
+            snippet = format!("{snippet}…");
+        }
+        snippet
+    }
+}
+
+fn span_for_value(
+    raw: &str,
+    region: SearchRegion<'_>,
+    quotable: &QuotableText,
+    field_path: &str,
+    value: &str,
+) -> Option<FieldSpan> {
+    let byte_start = region.text.find(value).or_else(|| {
         serde_json::to_string(value)
             .ok()
-            .and_then(|quoted| raw.find(&quoted))
+            .and_then(|quoted| region.text.find(&quoted))
     })?;
-    let char_start = raw[..byte_start].chars().count();
+    let char_start = region.char_offset + region.text[..byte_start].chars().count();
     let char_end = char_start + value.chars().count();
+    debug_assert!(char_end <= raw.chars().count());
     Some(FieldSpan {
         field_path: field_path.to_owned(),
         start: char_start,
         end: char_end,
-        excerpt: excerpt(raw, char_start, char_end),
+        excerpt: quotable.excerpt(char_start, char_end),
     })
-}
-
-fn excerpt(raw: &str, start: usize, end: usize) -> String {
-    let chars: Vec<char> = raw.chars().collect();
-    let excerpt_start = start.saturating_sub(40);
-    let excerpt_end = (end + 40).min(chars.len());
-    let snippet = chars[excerpt_start..excerpt_end].iter().collect::<String>();
-    strip_tags_and_collapse(&snippet)
 }
 
 pub(crate) fn strip_tags_and_collapse(value: &str) -> String {
@@ -933,6 +1087,108 @@ mod tests {
         assert_eq!(parsed.label_hint, None);
         assert_eq!(parsed.candidates.len(), 1);
         assert_eq!(parsed.candidates[0].fact_type, FactType::FlightSegment);
+    }
+
+    /// A booking page that repeats its JSON-LD values in presentational
+    /// attributes — the shape a real airline page has, and the one that shows
+    /// whether a span is anchored where the value was read or merely where the
+    /// characters first occur.
+    const ATTRIBUTE_DECOY_JSONLD: &str = r#"<html><body><div class="seg" data-origin="ZRH" data-flight="LX0318" aria-label="Zurich to Vienna departure row">Flight LX0318</div><script type="application/ld+json">{"@type":"FlightReservation","reservationNumber":"ZV5512","reservationFor":{"@type":"Flight","flightNumber":"LX0318","departureAirport":{"iataCode":"ZRH"},"arrivalAirport":{"iataCode":"VIE"},"departureTime":"2026-10-20T06:45","arrivalTime":"2026-10-20T08:10"}}</script></body></html>"#;
+
+    fn span_for<'a>(candidate: &'a ParsedCandidate, field: &str) -> &'a FieldSpan {
+        candidate
+            .field_spans
+            .iter()
+            .find(|span| span.field_path == format!("payload.{field}"))
+            .unwrap_or_else(|| panic!("no span for {field}"))
+    }
+
+    #[test]
+    fn a_jsonld_span_points_at_the_field_it_was_read_from_not_a_lookalike_attribute() {
+        let parsed = parse_import(DocumentKind::Html, ATTRIBUTE_DECOY_JSONLD).expect("parses");
+        let candidate = &parsed.candidates[0];
+        let span = span_for(candidate, "flightNumber");
+
+        // The decoy `data-flight="LX0318"` sits earlier in the document. The
+        // span must land inside the JSON-LD block the value was parsed from,
+        // because `FieldSpan` is persisted provenance, not display state.
+        let script_start = ATTRIBUTE_DECOY_JSONLD
+            .find("application/ld+json")
+            .expect("script")
+            .to_owned();
+        let script_start_chars = ATTRIBUTE_DECOY_JSONLD[..script_start].chars().count();
+        assert!(
+            span.start > script_start_chars,
+            "flightNumber span landed at {} — before the JSON-LD block starts at {script_start_chars}",
+            span.start
+        );
+    }
+
+    #[test]
+    fn an_excerpt_quotes_the_document_s_words_never_its_markup() {
+        let parsed = parse_import(DocumentKind::Html, ATTRIBUTE_DECOY_JSONLD).expect("parses");
+        let candidate = &parsed.candidates[0];
+
+        for span in &candidate.field_spans {
+            // Attribute names leak when the ±40 window opens inside a tag and
+            // the stripper starts with `in_tag = false`.
+            for leaked in ["data-flight", "aria-label", "class=", "data-origin"] {
+                assert!(
+                    !span.excerpt.contains(leaked),
+                    "{} quoted markup: {:?}",
+                    span.field_path,
+                    span.excerpt
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn an_excerpt_contains_the_value_it_is_evidence_for() {
+        // A window that *closes* inside a tag used to swallow everything after
+        // the `<`, including the value — one real quote rendered as just "tml".
+        let parsed = parse_import(DocumentKind::Html, ATTRIBUTE_DECOY_JSONLD).expect("parses");
+        let candidate = &parsed.candidates[0];
+        let span = span_for(candidate, "departureAirportIata");
+
+        assert!(
+            span.excerpt.contains("ZRH"),
+            "the excerpt for ZRH does not contain it: {:?}",
+            span.excerpt
+        );
+    }
+
+    #[test]
+    fn a_clipped_excerpt_says_it_was_clipped() {
+        // Parity with `search.rs`, which has always marked its own truncation.
+        let long = format!(
+            "{}Confirmation: ZZZ999 Route: LHR-HND Departure 2026-10-12T11:40{}",
+            "padding ".repeat(20),
+            " trailing".repeat(20)
+        );
+        let parsed = parse_import(DocumentKind::PastedText, &long).expect("parses");
+        let candidate = &parsed.candidates[0];
+        let span = span_for(candidate, "confirmationCode");
+
+        assert!(
+            span.excerpt.starts_with('…') && span.excerpt.ends_with('…'),
+            "a clipped excerpt must say so on both ends: {:?}",
+            span.excerpt
+        );
+    }
+
+    #[test]
+    fn an_unclipped_excerpt_carries_no_ellipsis() {
+        let parsed =
+            parse_import(DocumentKind::PastedText, "Confirmation: ZZZ999").expect("parses");
+        let candidate = &parsed.candidates[0];
+        let span = span_for(candidate, "confirmationCode");
+
+        assert!(
+            !span.excerpt.contains('…'),
+            "nothing was cut, so nothing should claim it was: {:?}",
+            span.excerpt
+        );
     }
 
     #[test]
