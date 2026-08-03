@@ -14,11 +14,11 @@ import DownloadDeck from "../../components/DownloadDeck.astro";
 
 <div className="install-note">
   <strong>Public beta, unsigned installers.</strong>
-  <p>
+  <div>
     The macOS and Windows builds are not yet backed by paid platform
     certificates. Your operating system will show a one-time warning; the exact
     steps and optional checksum checks are below.
-  </p>
+  </div>
 </div>
 
 ## macOS 13 or newer — Apple Silicon
@@ -34,8 +34,8 @@ On first launch, macOS may say it cannot identify the developer:
 3. Find the Voyalier message, choose **Open Anyway**, then authenticate.
 
 That exception is remembered. Later launches are normal. Voyalier currently
-ships for Apple Silicon on macOS 13 or newer; Intel Mac and older-macOS users
-should use the from-source route.
+ships for Apple Silicon on macOS 13 or newer. Intel Mac users may use the
+from-source route only if their system meets its Node.js and Rust prerequisites.
 
 ## Windows — 64-bit
 

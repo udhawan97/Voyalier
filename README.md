@@ -36,14 +36,14 @@ matching installer and keeps the GitHub Releases page as a fallback.
 <p align="center">
   <a href="https://udhawan97.github.io/Voyalier/download/"><img src="packages/brand/src/download-macos.svg" alt="Download Voyalier for Apple Silicon on macOS 13 or newer" width="280"></a>&nbsp;
   <a href="https://udhawan97.github.io/Voyalier/download/"><img src="packages/brand/src/download-windows.svg" alt="Download Voyalier for 64-bit Windows" width="280"></a>&nbsp;
-  <a href="https://udhawan97.github.io/Voyalier/getting-started/"><img src="packages/brand/src/download-source.svg" alt="Build Voyalier from source on any operating system" width="280"></a>
+  <a href="https://udhawan97.github.io/Voyalier/getting-started/"><img src="packages/brand/src/download-source.svg" alt="Build Voyalier from source on a system supported by Node.js 24 and Rust" width="280"></a>
 </p>
 
-| Route           | Best for                                 | What you get                                                 |
-| --------------- | ---------------------------------------- | ------------------------------------------------------------ |
-| **macOS**       | Apple Silicon · macOS 13 or newer        | Native `.dmg` desktop app                                    |
-| **Windows**     | 64-bit Windows                           | Standard `.exe`; `.msi` also published                       |
-| **From source** | Linux, Intel Mac, contributors, auditors | Same React interface through the guarded local browser stack |
+| Route           | Best for                                                | What you get                                                 |
+| --------------- | ------------------------------------------------------- | ------------------------------------------------------------ |
+| **macOS**       | Apple Silicon · macOS 13 or newer                       | Native `.dmg` desktop app                                    |
+| **Windows**     | 64-bit Windows                                          | Standard `.exe`; `.msi` also published                       |
+| **From source** | Supported Linux or Intel Mac; contributors and auditors | Same React interface through the guarded local browser stack |
 
 > [!IMPORTANT]
 > The desktop installers are public beta builds and are not yet code-signed.
@@ -54,7 +54,7 @@ matching installer and keeps the GitHub Releases page as a fallback.
 > source of truth for downloadable version.
 
 <p align="center">
-  <img src="docs-site/public/assets/screenshots/voyalier-trip-workspace.jpg" alt="Current Voyalier workspace for a fictional Kyoto trip, with Today, pending suggestions, and the Blueprint" width="1100">
+  <img src="docs-site/public/assets/screenshots/voyalier-trip-workspace.jpg" alt="Current-source Voyalier workspace for a fictional Kyoto trip, with Today, pending suggestions, and the Blueprint" width="1100">
 </p>
 
 ## The simple version
