@@ -6,6 +6,29 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.10.4] - 2026-08-02 — A way to put the keys back
+
+### Added
+
+- **`voyalier-server vault-prune` removes the keys of workspaces you no longer
+  have.** Each data directory keeps its own vault key, and 0.10.3 bought that
+  guarantee by _copying_: a new workspace adopts the existing key so nothing
+  becomes unreadable. The copies then outlived the workspaces, and could not be
+  found again — the OS keychain cannot be listed, so there was no way to ask
+  which accounts exist. Voyalier now keeps that list itself, beside the default
+  installation's database, recording account names and paths and never a key.
+
+  The command reports by default and removes only with `--apply`, because the
+  mistake it could make — taking a key a workspace still needs — is the one this
+  whole line of work exists to prevent. It uses one signal, whether the database
+  file is still there, and keeps anything it cannot prove gone. It never touches
+  the default installation's key.
+
+  Two limits it prints rather than hides: it can only see workspaces opened
+  since this version, because the keychain still cannot be enumerated, and
+  anything older has to be removed by hand in Keychain Access under the service
+  `com.voyalier.keys`.
+
 ## [0.10.3] - 2026-08-02 — The third account
 
 ### Fixed

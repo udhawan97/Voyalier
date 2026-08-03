@@ -294,6 +294,17 @@ pub trait SecretStore: Send + Sync {
     /// path to place the key in an outgoing request header — never logged,
     /// returned to the UI, or written anywhere else.
     fn get(&self, account: &str) -> Result<Option<String>, AppError>;
+
+    /// Whether accounts here outlive the process.
+    ///
+    /// Only a persistent store can accumulate the orphaned accounts ADR-0017's
+    /// prune exists to remove, so only a persistent store is worth registering.
+    /// This is what keeps `cargo test` from writing a registry of temporary
+    /// database paths into the developer's real application data directory —
+    /// the same reason the network and the keychain have fakes at all.
+    fn is_persistent(&self) -> bool {
+        true
+    }
 }
 
 const KEYRING_SERVICE: &str = "com.voyalier.keys";
@@ -346,6 +357,12 @@ pub struct MemorySecretStore {
 }
 
 impl SecretStore for MemorySecretStore {
+    /// Nothing here survives the process, so there is nothing to prune later
+    /// and nothing worth recording in a machine-wide registry.
+    fn is_persistent(&self) -> bool {
+        false
+    }
+
     fn set(&self, account: &str, secret: &str) -> Result<(), AppError> {
         self.entries
             .lock()
@@ -630,7 +647,18 @@ fn canonical_key_path(database_path: &Path) -> PathBuf {
 /// using it.
 fn resolve_vault_key_account(secrets: &dyn SecretStore, database_path: &Path) -> String {
     let account = vault_key_account(database_path);
-    if account == VAULT_KEY_ACCOUNT || secrets.has(&account) {
+    if account == VAULT_KEY_ACCOUNT {
+        return account;
+    }
+    // Registered on every open, not only the first: a registry lost or written
+    // before this existed then repairs itself the next time the workspace is
+    // used, rather than staying invisible to prune forever.
+    if secrets.is_persistent() {
+        if let Ok(registry) = vault_account_registry_path() {
+            register_vault_account(&registry, database_path, &account);
+        }
+    }
+    if secrets.has(&account) {
         return account;
     }
     if let Ok(Some(legacy)) = secrets.get(VAULT_KEY_ACCOUNT) {
@@ -2986,6 +3014,199 @@ fn fetch_weather_snapshot(
 }
 
 /// The keychain account name under which a provider's API key is stored.
+/// The file recording which namespaced keychain accounts exist, and for which
+/// database (ADR-0017).
+///
+/// ADR-0017 buys its guarantee by copying: a non-default data directory adopts
+/// the vault key into an account of its own, and nothing ever removes it,
+/// because `SecretStore` cannot enumerate — there is no way to ask the OS "which
+/// `vault.data_key.*` accounts exist". Every workspace a traveler ever opened
+/// therefore left a copy of their vault key behind, permanently and invisibly.
+///
+/// This is the missing enumeration, kept where it can outlive any one database:
+/// beside the **platform default** database, never `VOYALIER_DATA_DIR`'s answer,
+/// because a registry inside a workspace could not describe the others.
+///
+/// It records only account names and paths — never a key.
+fn vault_account_registry_path() -> Result<PathBuf, AppError> {
+    let default = platform_database_path()?;
+    let directory = default.parent().ok_or_else(|| {
+        AppError::new(
+            ErrorCode::StorageFailure,
+            "could not resolve application data directory",
+        )
+    })?;
+    Ok(directory.join(VAULT_REGISTRY_FILE))
+}
+
+const VAULT_REGISTRY_FILE: &str = "vault-accounts.json";
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct VaultAccountRecord {
+    account: String,
+    database: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct VaultAccountRegistry {
+    #[serde(default)]
+    accounts: Vec<VaultAccountRecord>,
+}
+
+fn read_vault_registry(path: &Path) -> VaultAccountRegistry {
+    // A missing or unreadable registry is an empty one: prune must degrade to
+    // "found nothing", never to an error that blocks the caller.
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or_default()
+}
+
+/// Record that `account` belongs to `database_path`, if it is not already known.
+///
+/// Best-effort by design: failing to record leaves an entry prune cannot see,
+/// which is the situation that already existed. It must never fail an open.
+pub(crate) fn register_vault_account(registry_path: &Path, database_path: &Path, account: &str) {
+    // The default install's bare account is deliberately absent. It has no
+    // suffix to identify it and no second workspace to confuse it with, and a
+    // registry row for it would be a row prune could act on.
+    if account == VAULT_KEY_ACCOUNT {
+        return;
+    }
+    let mut registry = read_vault_registry(registry_path);
+    let database = canonical_key_path(database_path)
+        .to_string_lossy()
+        .into_owned();
+    if registry
+        .accounts
+        .iter()
+        .any(|record| record.account == account && record.database == database)
+    {
+        return;
+    }
+    registry.accounts.push(VaultAccountRecord {
+        account: account.to_owned(),
+        database,
+    });
+    if let Some(parent) = registry_path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    if let Ok(encoded) = serde_json::to_string_pretty(&registry) {
+        let _ = fs::write(registry_path, encoded);
+    }
+}
+
+/// Whether [`prune_vault_accounts`] reports or also removes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PruneMode {
+    /// Report what would go, change nothing.
+    DryRun,
+    Delete,
+}
+
+/// One registered workspace and every keychain account that belongs to it.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PrunedWorkspace {
+    pub database: String,
+    pub accounts: Vec<String>,
+}
+
+/// What a prune found.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultPruneReport {
+    /// Workspaces whose database is gone. Removed unless this was a dry run.
+    pub removed: Vec<PrunedWorkspace>,
+    /// Workspaces whose database is still there. Never touched.
+    pub kept: Vec<PrunedWorkspace>,
+}
+
+/// Remove the keychain accounts of workspaces whose database no longer exists.
+///
+/// The half that must never be wrong is `kept`: a living workspace's rows are
+/// sealed under its key, so removing it would do exactly the damage ADR-0017
+/// exists to prevent. Existence of the database file is therefore the only
+/// signal used, and anything it cannot prove gone is left alone.
+pub fn prune_vault_accounts(
+    secrets: &dyn SecretStore,
+    registry_path: &Path,
+    mode: PruneMode,
+) -> Result<VaultPruneReport, AppError> {
+    let registry = read_vault_registry(registry_path);
+    let mut report = VaultPruneReport::default();
+    let mut survivors: Vec<VaultAccountRecord> = Vec::new();
+
+    for record in registry.accounts {
+        let database = PathBuf::from(&record.database);
+        // Every family shares the vault account's suffix, so one row is enough
+        // to name all of them.
+        let suffix = record
+            .account
+            .strip_prefix(VAULT_KEY_ACCOUNT)
+            .unwrap_or_default()
+            .to_owned();
+        if suffix.is_empty() {
+            // Not a namespaced account — nothing here is safe to reason about.
+            survivors.push(record);
+            continue;
+        }
+        let mut accounts = vec![
+            record.account.clone(),
+            format!("{VAULT_PENDING_KEY_ACCOUNT}{suffix}"),
+        ];
+        accounts.extend(
+            PROVIDERS
+                .iter()
+                .map(|info| format!("api_key.{}{suffix}", info.id.as_str())),
+        );
+        accounts.retain(|account| secrets.has(account));
+
+        let workspace = PrunedWorkspace {
+            database: record.database.clone(),
+            accounts,
+        };
+        if database.exists() {
+            report.kept.push(workspace);
+            survivors.push(record);
+            continue;
+        }
+        if mode == PruneMode::Delete {
+            for account in &workspace.accounts {
+                secrets.delete(account)?;
+            }
+        } else {
+            survivors.push(record);
+        }
+        report.removed.push(workspace);
+    }
+
+    if mode == PruneMode::Delete {
+        let encoded = serde_json::to_string_pretty(&VaultAccountRegistry {
+            accounts: survivors,
+        })
+        .map_err(|error| AppError::new(ErrorCode::StorageFailure, error.to_string()))?;
+        if let Some(parent) = registry_path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        fs::write(registry_path, encoded).map_err(storage_error)?;
+    }
+    Ok(report)
+}
+
+/// Prune the real keychain against the registry beside the platform default
+/// database — the whole of what the `vault-prune` command does.
+///
+/// Takes no store: `KeyringSecretStore` stays private, the way every other
+/// production seam in this crate does. Tests drive [`prune_vault_accounts`]
+/// with a fake and their own registry path instead.
+pub fn prune_default_vault_accounts(mode: PruneMode) -> Result<VaultPruneReport, AppError> {
+    let registry = vault_account_registry_path()?;
+    prune_vault_accounts(&KeyringSecretStore, &registry, mode)
+}
+
 /// Where a provider's BYOK key lives, for this database (ADR-0017).
 ///
 /// The last account family the ADR had not reached. Two data directories shared

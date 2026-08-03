@@ -2676,6 +2676,105 @@ fn a_second_data_directory_cannot_delete_the_first_ones_vault_key() {
     cleanup_database(database_b);
 }
 
+/// ADR-0017 buys its guarantee by copying: every data directory leaves a vault
+/// key behind under its own account, and `SecretStore` cannot enumerate, so
+/// nothing could ever find them again. The registry is what makes them findable;
+/// prune is what removes the ones whose database is gone.
+#[test]
+fn prune_removes_the_accounts_of_workspaces_that_no_longer_exist() {
+    let living = temp_database("prune-living");
+    let departed = temp_database("prune-departed");
+    let registry = living.parent().expect("parent").join("prune-registry.json");
+    let secrets = Arc::new(MemorySecretStore::default());
+
+    for database in [&living, &departed] {
+        let service = AppService::open_path_with_deps(
+            database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .expect("service");
+        service
+            .set_provider_key("openai", "sk-per-workspace")
+            .expect("key");
+        register_vault_account(&registry, database, &vault_key_account(database));
+    }
+
+    // The departed workspace's database is deleted; its keychain accounts are
+    // not, because nothing deletes them.
+    let _ = fs::remove_file(&departed);
+    let departed_vault = vault_key_account(&departed);
+    let departed_key = provider_key_account(&departed, ProviderId::OpenAi);
+    assert!(secrets.has(&departed_vault) && secrets.has(&departed_key));
+
+    let report =
+        prune_vault_accounts(secrets.as_ref(), &registry, PruneMode::DryRun).expect("dry run");
+    assert_eq!(report.removed.len(), 1, "one workspace is gone");
+    assert_eq!(report.kept.len(), 1, "one is still here");
+    assert!(
+        secrets.has(&departed_vault),
+        "a dry run must not delete anything"
+    );
+
+    let report =
+        prune_vault_accounts(secrets.as_ref(), &registry, PruneMode::Delete).expect("prune");
+    assert_eq!(report.removed.len(), 1);
+    assert!(
+        !secrets.has(&departed_vault) && !secrets.has(&departed_key),
+        "the departed workspace's vault key and provider key must both go"
+    );
+    // The living workspace is untouched — this is the half that must never be
+    // wrong, because its database is still sealed under that key.
+    assert!(
+        secrets.has(&vault_key_account(&living))
+            && secrets.has(&provider_key_account(&living, ProviderId::OpenAi)),
+        "prune removed a key a living workspace still needs"
+    );
+
+    // Pruning twice is not an error, and finds nothing the second time.
+    let again =
+        prune_vault_accounts(secrets.as_ref(), &registry, PruneMode::Delete).expect("prune again");
+    assert!(again.removed.is_empty());
+
+    let _ = fs::remove_file(&registry);
+    cleanup_database(living);
+    cleanup_database(departed);
+}
+
+/// The default install's bare account is never registered and never pruned: it
+/// has no suffix, and losing it would take the platform workspace with it.
+#[test]
+fn prune_never_touches_the_default_installs_account() {
+    let database = temp_database("prune-default");
+    let registry = database
+        .parent()
+        .expect("parent")
+        .join("prune-default-registry.json");
+    let secrets = Arc::new(MemorySecretStore::default());
+    secrets
+        .set(VAULT_KEY_ACCOUNT, "the-real-installs-key")
+        .expect("seed");
+
+    let service = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .expect("service");
+    drop(service);
+    register_vault_account(&registry, &database, &vault_key_account(&database));
+    let _ = fs::remove_file(&database);
+
+    prune_vault_accounts(secrets.as_ref(), &registry, PruneMode::Delete).expect("prune");
+    assert!(
+        secrets.has(VAULT_KEY_ACCOUNT),
+        "prune removed the default install's key"
+    );
+
+    let _ = fs::remove_file(&registry);
+    cleanup_database(database);
+}
+
 /// The last account family ADR-0017 had not reached. Clearing a provider key in
 /// one workspace removed the key the other was still using — the same defect as
 /// the vault key, minus the encryption, so it costs a re-entry rather than the

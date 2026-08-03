@@ -114,11 +114,41 @@ alternative is destroying data, and only then.**
 
 That leaves a consequence worth naming rather than discovering later. Adoption
 copies, so every data directory a traveler points Voyalier at leaves a permanent
-copy of the vault data key under a new account, and nothing prunes them —
-`SecretStore` cannot enumerate. The audit behind this ADR left one such orphan on
-the author's own machine. It is the honest cost of the guarantee, but a
-`voyalier vault prune` that lists namespaced accounts with no database behind
-them is the obvious follow-up, and is not in this decision.
+copy of the vault data key under a new account. It is the honest cost of the
+guarantee — and it needs a way out, which the next section is.
+
+## Amendment — the registry, and `vault-prune`
+
+The copies could not be found again. `SecretStore` has no enumeration and the
+`keyring` crate offers none we would take a dependency for, so there was no way
+to ask the OS which `vault.data_key.*` accounts exist. Every workspace ever
+opened left a key behind, invisibly and permanently.
+
+The missing enumeration is kept ourselves: `vault-accounts.json`, beside the
+**platform default** database — never `VOYALIER_DATA_DIR`'s answer, because a
+registry living inside one workspace could not describe the others. It records
+account names and database paths, never a key. A workspace registers itself on
+**every** open rather than only its first, so a registry that is lost, or that
+predates this decision, repairs itself the next time that workspace is used.
+
+`voyalier-server vault-prune` reads it, and removes the accounts of workspaces
+whose database no longer exists — the vault key, the staged-restore key, and
+each provider key, since all three carry the same suffix. It reports by default
+and removes only with `--apply`, because the mistake it could make is precisely
+the one this ADR exists to prevent. Existence of the database file is the only
+signal it uses: anything it cannot prove gone is kept.
+
+Two limits, stated in the command's own output rather than left to be found:
+
+- It can only see workspaces opened since the registry existed. An older orphan
+  has to be removed by hand.
+- The default installation's bare account is never registered and never pruned.
+
+`MemorySecretStore` reports `is_persistent() == false` and is therefore never
+registered — which is what stops `cargo test` writing a registry of temporary
+database paths into a developer's real application data directory. That is not a
+test convenience bolted on; it is a true property of an in-memory store, and it
+belongs on the trait beside the network and keychain fakes.
 
 `crates/voyalier-app/src/tests.rs` carries the guard: two data directories over
 one secret store, a passphrase set on the second, and the first one's _sealed_

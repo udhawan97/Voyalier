@@ -11,6 +11,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .init();
 
+    // One maintenance subcommand, and it deliberately never opens a database or
+    // binds a port: the accounts it removes belong to workspaces whose database
+    // is gone, so there is nothing to open (ADR-0017).
+    let argument = env::args().nth(1);
+    if let Some(command) = argument.as_deref() {
+        return match command {
+            "vault-prune" => run_vault_prune(env::args().any(|arg| arg == "--apply")),
+            other => Err(format!(
+                "unknown command {other:?}; the only one is `vault-prune [--apply]`"
+            )
+            .into()),
+        };
+    }
+
     let bind =
         env::var("VOYALIER_BIND").unwrap_or_else(|_| voyalier_server::DEFAULT_BIND.to_owned());
     let requested: SocketAddr = bind.parse()?;
@@ -41,6 +55,54 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 
+    Ok(())
+}
+
+/// Remove the keychain accounts of workspaces whose database no longer exists.
+///
+/// ADR-0017 gives every data directory its own vault key and copies the old one
+/// in so nothing becomes unreadable. Copying is why this exists: the copies
+/// outlive the workspaces, `SecretStore` cannot enumerate, and so a traveler who
+/// has tried a few data directories is carrying a key apiece with no way to see
+/// or remove them.
+///
+/// Reports by default and removes only with `--apply`, because the failure this
+/// could cause — deleting a key a living workspace still needs — is the one
+/// ADR-0017 exists to prevent.
+fn run_vault_prune(apply: bool) -> Result<(), Box<dyn std::error::Error>> {
+    let mode = if apply {
+        voyalier_app::PruneMode::Delete
+    } else {
+        voyalier_app::PruneMode::DryRun
+    };
+    let report = voyalier_app::prune_default_vault_accounts(mode)?;
+
+    for workspace in &report.kept {
+        println!(
+            "keeping  {} ({} account(s))",
+            workspace.database,
+            workspace.accounts.len()
+        );
+    }
+    if report.removed.is_empty() {
+        println!("Nothing to prune.");
+    }
+    for workspace in &report.removed {
+        let verb = if apply { "removed" } else { "would remove" };
+        println!("{verb} {}", workspace.database);
+        for account in &workspace.accounts {
+            println!("    {account}");
+        }
+    }
+    if !apply && !report.removed.is_empty() {
+        println!("\nNothing was changed. Re-run with --apply to remove them.");
+    }
+    // Said plainly rather than left to be discovered: the registry only knows
+    // about workspaces opened since it existed, so an older orphan is invisible
+    // here and has to be removed by hand.
+    println!(
+        "\nOnly workspaces opened since this version can be listed — the OS keychain\ncannot be enumerated, so anything older is invisible to this command."
+    );
     Ok(())
 }
 

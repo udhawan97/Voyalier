@@ -176,3 +176,20 @@ earlier version and one of them stopped opening its saved trips, that is why.
 Your provider API keys and the vault key live separately in the OS keychain
 (service `com.voyalier.keys`), not in that file. Removing a provider key is done
 from the **AI providers** panel.
+
+### Clearing up after workspaces you no longer use
+
+Each data directory keeps its own keys, and deleting the directory does not
+remove them — the keychain has no idea the database is gone. If you have tried a
+few `VOYALIER_DATA_DIR` locations, run:
+
+```sh
+voyalier-server vault-prune            # lists what it would remove
+voyalier-server vault-prune --apply    # removes it
+```
+
+It only removes accounts whose database no longer exists, and never the default
+installation's. It also cannot see workspaces you last opened before 0.10.4 —
+the keychain cannot be listed, so Voyalier only knows about the ones it has
+recorded since. Anything older has to be removed by hand in Keychain Access,
+under the service `com.voyalier.keys`.
