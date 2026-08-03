@@ -2674,6 +2674,42 @@ fn a_second_data_directory_cannot_delete_the_first_ones_vault_key() {
     cleanup_database(database_b);
 }
 
+/// The staged-restore key needs the same namespace as the data key, and shipped
+/// on a doc comment while its sibling got a test. Two workspaces that each stage
+/// a restore before either restarts would otherwise meet at one account: the
+/// second `set` overwriting the key the first is about to restore under, or a
+/// keyless backup's `delete` taking the first one's with it.
+#[test]
+fn a_staged_restore_parks_its_key_where_only_its_own_database_looks() {
+    let default_path = platform_database_path().expect("platform path");
+    assert_eq!(
+        vault_pending_key_account(&default_path),
+        VAULT_PENDING_KEY_ACCOUNT,
+        "a default install must keep the bare account it has always used"
+    );
+
+    let a = temp_database("pending-a");
+    let b = temp_database("pending-b");
+    assert_ne!(
+        vault_pending_key_account(&a),
+        vault_pending_key_account(&b),
+        "two workspaces staging a restore would collide on one account"
+    );
+    // And it tracks the data key's namespace rather than inventing its own, so
+    // the two never disagree about which workspace they belong to.
+    for path in [&a, &b] {
+        let suffix = vault_key_account(path);
+        let suffix = suffix.strip_prefix(VAULT_KEY_ACCOUNT).expect("namespaced");
+        assert_eq!(
+            vault_pending_key_account(path),
+            format!("{VAULT_PENDING_KEY_ACCOUNT}{suffix}")
+        );
+    }
+
+    cleanup_database(a);
+    cleanup_database(b);
+}
+
 /// A directory spelled two ways is still one database. Hashing the path text
 /// gave each spelling its own account, and the second one — finding neither its
 /// own account nor a legacy one — would mint a fresh key and leave every sealed
