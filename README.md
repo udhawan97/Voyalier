@@ -182,10 +182,13 @@ community, and model content. AI can help explain a trip; it cannot clear one.
 
 ## Run from source
 
-The browser route works on macOS, Windows, and Linux.
+The browser source route is supported on compatible macOS and Linux development
+hosts.
 
-Requirements: Node.js 24+, pnpm 11+, and a current stable Rust toolchain with
-`rustfmt` and `clippy`.
+Requirements: Bash, Make, Node.js 24+, pnpm 11+, and a current stable Rust
+toolchain with `rustfmt` and `clippy`. Node.js 24 requires macOS 13.5 or newer;
+the [setup guide](https://udhawan97.github.io/Voyalier/getting-started/) links to
+the complete Node and Rust platform lists.
 
 ```bash
 git clone https://github.com/udhawan97/Voyalier.git
