@@ -119,6 +119,7 @@ h3 {
 }
 
 .skip-link:focus-visible {
+  inset-block-start: calc(var(--space-sm) + 3.5rem + var(--space-xs));
   transform: translateY(0);
 }
 

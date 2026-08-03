@@ -1,28 +1,27 @@
 ---
 title: Download and install
-description: Choose Voyalier for Apple Silicon macOS, Windows x64, or a local from-source browser build.
+description: Choose Voyalier for Apple Silicon on macOS 13 or newer, Windows x64, or a local from-source browser build.
 ---
 
 import DownloadDeck from "../../components/DownloadDeck.astro";
 
-<p class="download-lede">
-  Choose your machine first. Each route runs the same Voyalier workspace
-  locally; the difference is how the interface reaches the shared application
-  service.
-</p>
+<div className="download-lede">
+  Choose your machine first. Each option keeps your trips on this computer; only
+  how you open Voyalier changes.
+</div>
 
 <DownloadDeck />
 
-<div class="install-note">
+<div className="install-note">
   <strong>Public beta, unsigned installers.</strong>
-  <span>
+  <p>
     The macOS and Windows builds are not yet backed by paid platform
     certificates. Your operating system will show a one-time warning; the exact
     steps and optional checksum checks are below.
-  </span>
+  </p>
 </div>
 
-## macOS — Apple Silicon
+## macOS 13 or newer — Apple Silicon
 
 Download the `.dmg`, open it, then **drag Voyalier into Applications**. Running
 the app from Applications matters because the verified in-app updater needs a
@@ -35,7 +34,8 @@ On first launch, macOS may say it cannot identify the developer:
 3. Find the Voyalier message, choose **Open Anyway**, then authenticate.
 
 That exception is remembered. Later launches are normal. Voyalier currently
-ships for Apple Silicon; Intel Mac users should use the from-source route.
+ships for Apple Silicon on macOS 13 or newer; Intel Mac and older-macOS users
+should use the from-source route.
 
 ## Windows — 64-bit
 

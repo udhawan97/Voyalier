@@ -34,14 +34,14 @@ Choose your machine. The website resolves the current stable release into the
 matching installer and keeps the GitHub Releases page as a fallback.
 
 <p align="center">
-  <a href="https://udhawan97.github.io/Voyalier/download/"><img src="packages/brand/src/download-macos.svg" alt="Download Voyalier for Apple Silicon macOS" width="280"></a>&nbsp;
+  <a href="https://udhawan97.github.io/Voyalier/download/"><img src="packages/brand/src/download-macos.svg" alt="Download Voyalier for Apple Silicon on macOS 13 or newer" width="280"></a>&nbsp;
   <a href="https://udhawan97.github.io/Voyalier/download/"><img src="packages/brand/src/download-windows.svg" alt="Download Voyalier for 64-bit Windows" width="280"></a>&nbsp;
   <a href="https://udhawan97.github.io/Voyalier/getting-started/"><img src="packages/brand/src/download-source.svg" alt="Build Voyalier from source on any operating system" width="280"></a>
 </p>
 
 | Route           | Best for                                 | What you get                                                 |
 | --------------- | ---------------------------------------- | ------------------------------------------------------------ |
-| **macOS**       | Apple Silicon                            | Native `.dmg` desktop app                                    |
+| **macOS**       | Apple Silicon · macOS 13 or newer        | Native `.dmg` desktop app                                    |
 | **Windows**     | 64-bit Windows                           | Standard `.exe`; `.msi` also published                       |
 | **From source** | Linux, Intel Mac, contributors, auditors | Same React interface through the guarded local browser stack |
 

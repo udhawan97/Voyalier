@@ -54,8 +54,8 @@
   <path class="rule" d="M84 486H1356" />
   <path class="connected" d="M144 610H1296" />
   <g transform="translate(84 542)"><rect class="card" width="286" height="156" rx="24"/><circle class="dot" cx="30" cy="34" r="6"/><text class="label" x="50" y="40">YOU ASK</text><text class="title" x="28" y="91">Fetch</text><text class="body" x="28" y="127">Advice · weather · packs</text></g>
-  <g transform="translate(420 542)"><rect class="gate" width="286" height="156" rx="24"/><circle class="dot" cx="30" cy="34" r="6"/><text class="label" x="50" y="40">BOUNDARY</text><text class="title" x="28" y="91">Preview</text><text class="body" x="28" y="127">What leaves · what stays</text></g>
+  <g transform="translate(420 542)"><rect class="gate" width="286" height="156" rx="24"/><circle class="dot" cx="30" cy="34" r="6"/><text class="label" x="50" y="40">BOUNDARY</text><text class="title" x="28" y="91">Disclose</text><text class="body" x="28" y="127">What connects · what stays</text></g>
   <g transform="translate(756 542)"><rect class="card" width="286" height="156" rx="24"/><circle class="dot" cx="30" cy="34" r="6"/><text class="label" x="50" y="40">DATED COPY</text><text class="title" x="28" y="91">Store</text><text class="body" x="28" y="127">Source · fetched time · license</text></g>
   <g transform="translate(1092 542)"><rect class="card" width="264" height="156" rx="24"/><circle class="dot-i" cx="30" cy="34" r="6"/><text class="label" x="50" y="40">STILL SEPARATE</text><text class="title" x="28" y="91">Use</text><text class="body" x="28" y="127">Context, never authority</text></g>
-  <text class="body" x="84" y="786">No background refresh. No provider output becomes a confirmed fact.</text>
+  <text class="body" x="84" y="786">No background trip refresh. No provider output becomes a confirmed fact.</text>
 </svg>

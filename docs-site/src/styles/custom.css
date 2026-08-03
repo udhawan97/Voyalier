@@ -99,6 +99,7 @@ header.header {
   max-width: 65ch;
 }
 
+h1#_top,
 .sl-markdown-content h1,
 .sl-markdown-content h2,
 .sl-markdown-content h3 {
@@ -112,6 +113,7 @@ header.header {
   text-wrap: balance;
 }
 
+h1#_top,
 .sl-markdown-content h1 {
   font-size: clamp(var(--text-2xl), 5vw, var(--text-4xl));
   line-height: 1.08;
@@ -176,6 +178,10 @@ header.header {
   font-size: var(--text-md);
 }
 
+.sl-markdown-content .download-lede p {
+  margin: 0;
+}
+
 .sl-markdown-content .install-note {
   display: grid;
   gap: var(--space-xs);
@@ -183,6 +189,10 @@ header.header {
   padding: var(--space-md);
   border-block: var(--rule-hair) solid var(--color-rule);
   color: var(--color-muted);
+}
+
+.sl-markdown-content .install-note p {
+  margin: 0;
 }
 
 @media (pointer: coarse) {
