@@ -154,8 +154,8 @@ Everything is stored locally in a single SQLite file, `voyalier.sqlite3`:
 - **Windows:** `%APPDATA%\voyalier\Voyalier\data\`
 - **Linux:** `~/.local/share/voyalier/`
 
-Set `VOYALIER_DATA_DIR` to point Voyalier at a different location, and use the
-same absolute path each time — a directory spelled two ways is two workspaces.
+Set `VOYALIER_DATA_DIR` to point Voyalier at a different location. Voyalier
+resolves the path, so two spellings of one directory are one workspace.
 
 Each data directory keeps its own vault key **from 0.10.2 on**, so a second
 workspace can set a passphrase or restore a backup without affecting the first.
