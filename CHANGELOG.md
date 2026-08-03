@@ -99,6 +99,7 @@ all reproduced against a running build before anything was changed.
 - The visa-statistics error code that cannot tell "unreachable" from
   "unreadable" is still one code. It was named in 0.9.1 as needing an ADR and
   still does.
+
 ## [0.10.0] - 2026-08-02 — The legs that were not flights
 
 ### Added
