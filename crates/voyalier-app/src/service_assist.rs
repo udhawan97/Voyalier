@@ -318,14 +318,16 @@ impl AppService {
 
     /// Read the BYOK key for a cloud provider, or a clear "add a key" error.
     fn require_provider_key(&self, id: ProviderId) -> Result<String, AppError> {
-        self.secrets.get(&key_account(id))?.ok_or_else(|| {
-            AppError::with_detail(
-                ErrorCode::ValidationInvalidInput,
-                "add an API key for this provider under AI providers, then try again",
-                "field",
-                "provider",
-            )
-        })
+        self.secrets
+            .get(&provider_key_account(&self.database_path, id))?
+            .ok_or_else(|| {
+                AppError::with_detail(
+                    ErrorCode::ValidationInvalidInput,
+                    "add an API key for this provider under AI providers, then try again",
+                    "field",
+                    "provider",
+                )
+            })
     }
 
     /// The visible per-trip log of assist calls, most recent first. Metadata

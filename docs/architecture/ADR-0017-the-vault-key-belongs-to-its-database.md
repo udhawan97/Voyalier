@@ -93,6 +93,33 @@ The staged-restore key, `vault.pending_data_key`, carries the same suffix for
 the same reason, and was missed on the first pass: two workspaces that each
 stage a restore before either restarts would otherwise meet at one account.
 
+## Amendment — the provider keys, and why they do not adopt
+
+`api_key.<provider>` was the third account family and the last to be reached.
+It had the same defect without the encryption: two data directories shared one
+entry per provider, so clearing a key in one removed the key the other was
+still using. It now carries the same suffix, so all three families agree about
+which workspace they belong to.
+
+It deliberately does **not** adopt. Adoption exists for exactly one reason — a
+data key that goes missing makes sealed rows unreadable, and minting a fresh one
+in its place destroys them. A provider key that goes missing makes nothing
+unreadable: the panel says no key and the traveler pastes one in. Copying a live
+credential into a second account to save that paste would spread the secret
+further in exchange for a convenience, and this is the one family here that is
+someone else's credential rather than a key to the traveler's own data.
+
+So the rule is not "namespace everything the same way". It is: **adopt when the
+alternative is destroying data, and only then.**
+
+That leaves a consequence worth naming rather than discovering later. Adoption
+copies, so every data directory a traveler points Voyalier at leaves a permanent
+copy of the vault data key under a new account, and nothing prunes them —
+`SecretStore` cannot enumerate. The audit behind this ADR left one such orphan on
+the author's own machine. It is the honest cost of the guarantee, but a
+`voyalier vault prune` that lists namespaced accounts with no database behind
+them is the obvious follow-up, and is not in this decision.
+
 `crates/voyalier-app/src/tests.rs` carries the guard: two data directories over
 one secret store, a passphrase set on the second, and the first one's _sealed_
 note still readable afterwards. It was mutation-checked — restoring the shared

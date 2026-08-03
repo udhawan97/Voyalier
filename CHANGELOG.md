@@ -6,6 +6,27 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.10.3] - 2026-08-02 — The third account
+
+### Fixed
+
+- **Clearing an AI provider key in one workspace no longer clears it in the
+  others.** 0.10.2 gave the vault key and the staged-restore key an account of
+  their own per data directory; the BYOK provider keys were the family it did
+  not reach, so two workspaces still shared one entry per provider and removing
+  a key in either took it from both. The same defect, minus the encryption — it
+  costs a re-entry rather than the data, which is why it was the one left
+  standing.
+
+  A namespaced provider account deliberately does **not** inherit the shared
+  one, and that asymmetry is the decision worth knowing about: the vault key
+  adopts because a missing data key makes sealed rows unreadable, while a
+  missing API key makes nothing unreadable — the panel says no key and you paste
+  one. Copying a live credential to save that paste would spread the secret for
+  a convenience. ADR-0017 carries the amendment, along with a cost it had not
+  admitted: adoption copies, so every data directory you point Voyalier at
+  leaves a permanent copy of the vault key behind, and nothing prunes them yet.
+
 ## [0.10.2] - 2026-08-02 — Where the evidence actually came from
 
 0.10.1 was tagged but never published, and a review of it found four things

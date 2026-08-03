@@ -2986,8 +2986,28 @@ fn fetch_weather_snapshot(
 }
 
 /// The keychain account name under which a provider's API key is stored.
-fn key_account(id: ProviderId) -> String {
-    format!("api_key.{}", id.as_str())
+/// Where a provider's BYOK key lives, for this database (ADR-0017).
+///
+/// The last account family the ADR had not reached. Two data directories shared
+/// one entry per provider, so clearing a key in one removed the key the other
+/// was still using — the vault key's defect without the encryption, costing a
+/// re-entry rather than the data.
+///
+/// Unlike the vault key, a namespaced provider account does **not** adopt the
+/// bare one. Adoption exists to stop sealed rows becoming unreadable, and a
+/// missing API key makes nothing unreadable: the panel says no key and the
+/// traveler pastes one. Copying a live credential into a second account to save
+/// that paste would spread the secret further for a convenience — the wrong
+/// trade for the one thing here that is a credential rather than a key to the
+/// traveler's own data.
+fn provider_key_account(database_path: &Path, id: ProviderId) -> String {
+    let base = format!("api_key.{}", id.as_str());
+    // The same suffix the vault key and the staged-restore key carry, so all
+    // three families agree about which workspace they belong to.
+    match vault_key_account(database_path).strip_prefix(VAULT_KEY_ACCOUNT) {
+        Some("") | None => base,
+        Some(suffix) => format!("{base}{suffix}"),
+    }
 }
 
 /// Flag a proposed stay whose dates fall outside the trip window, so review

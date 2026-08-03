@@ -31,7 +31,8 @@ impl AppService {
             ));
         }
         let key = validate_api_key(key)?;
-        self.secrets.set(&key_account(id), &key)?;
+        self.secrets
+            .set(&provider_key_account(&self.database_path, id), &key)?;
         let connection = self.connection()?;
         self.build_provider_config(&connection, id)
     }
@@ -39,7 +40,8 @@ impl AppService {
     /// Remove a provider's stored API key from the keychain.
     pub fn clear_provider_key(&self, provider: &str) -> Result<ProviderConfig, AppError> {
         let id = validate_provider_id(provider)?;
-        self.secrets.delete(&key_account(id))?;
+        self.secrets
+            .delete(&provider_key_account(&self.database_path, id))?;
         let connection = self.connection()?;
         self.build_provider_config(&connection, id)
     }
@@ -132,7 +134,10 @@ impl AppService {
             )
             .optional()
             .map_err(storage_error)?;
-        let has_key = info.key_required && self.secrets.has(&key_account(id));
+        let has_key = info.key_required
+            && self
+                .secrets
+                .has(&provider_key_account(&self.database_path, id));
         Ok(ProviderConfig {
             id,
             label: info.label.to_owned(),

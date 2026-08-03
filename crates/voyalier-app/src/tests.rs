@@ -1801,7 +1801,9 @@ fn provider_keys_live_in_the_secret_store_never_the_config_or_db() {
         .expect("set key");
     assert!(config.has_key);
     assert_eq!(config.id, ProviderId::OpenAi);
-    assert!(secrets.has("api_key.openai"));
+    // The account this database owns, not the bare one — a temp path is
+    // namespaced by ADR-0017 so a second workspace cannot clear this key.
+    assert!(secrets.has(&provider_key_account(&database, ProviderId::OpenAi)));
     // The returned config must not carry the key anywhere.
     let serialized = serde_json::to_string(&config).expect("ser");
     assert!(!serialized.contains("sk-fake-123"));
@@ -2668,6 +2670,63 @@ fn a_second_data_directory_cannot_delete_the_first_ones_vault_key() {
             .body,
         "gate 42, terminal 3",
         "A's sealed rows were encrypted with a key another workspace deleted"
+    );
+
+    cleanup_database(database_a);
+    cleanup_database(database_b);
+}
+
+/// The last account family ADR-0017 had not reached. Clearing a provider key in
+/// one workspace removed the key the other was still using — the same defect as
+/// the vault key, minus the encryption, so it costs a re-entry rather than the
+/// data. It is still not workspace B's key to delete.
+#[test]
+fn clearing_a_provider_key_in_one_workspace_leaves_the_others_alone() {
+    let database_a = temp_database("provider-key-a");
+    let database_b = temp_database("provider-key-b");
+    // One machine, one keychain.
+    let secrets = Arc::new(MemorySecretStore::default());
+
+    let service_a = AppService::open_path_with_deps(
+        &database_a,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .expect("service a");
+    service_a
+        .set_provider_key("openai", "sk-workspace-a")
+        .expect("key on a");
+
+    let service_b = AppService::open_path_with_deps(
+        &database_b,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .expect("service b");
+    // B never had a key of its own: a provider key is not adopted the way the
+    // vault key is, because copying a credential to reach a second workspace
+    // spreads it rather than rescuing anything.
+    let openai = |service: &AppService| {
+        service
+            .list_providers()
+            .expect("providers")
+            .into_iter()
+            .find(|config| config.id == ProviderId::OpenAi)
+            .expect("openai")
+    };
+    assert!(
+        !openai(&service_b).has_key,
+        "a second workspace must not inherit the first one's provider key"
+    );
+
+    service_b
+        .set_provider_key("openai", "sk-workspace-b")
+        .expect("key on b");
+    service_b.clear_provider_key("openai").expect("clear on b");
+
+    assert!(
+        openai(&service_a).has_key,
+        "workspace B cleared the key workspace A was using"
     );
 
     cleanup_database(database_a);
