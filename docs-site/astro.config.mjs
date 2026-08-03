@@ -10,6 +10,10 @@ export default defineConfig({
       description:
         "Documentation for the local-first Voyalier travel workspace.",
       favicon: "/favicon.svg",
+      logo: {
+        src: "./public/favicon.svg",
+        alt: "Voyalier folded-route mark",
+      },
       social: [
         {
           icon: "github",

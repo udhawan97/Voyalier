@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 180" role="img" aria-labelledby="title desc">
+  <title id="title">Explore Voyalier</title>
+  <desc id="desc">Open the Voyalier product story, downloads, and documentation.</desc>
+  <style>
+    :root { --paper:#f3efe4; --raised:#faf7ef; --ink:#1a1917; --muted:#5f5b52; --line:#c7c1b3; --indigo:#46536b; --accent:#c34e33; }
+    @media (prefers-color-scheme:dark) { :root { --paper:#171614; --raised:#1e1c19; --ink:#f2ede1; --muted:#a7a297; --line:#4d4942; --indigo:#93a0b8; --accent:#d97a5f; } }
+    .paper{fill:var(--raised);stroke:var(--line)} .route{fill:none;stroke:var(--indigo);stroke-linecap:round;stroke-linejoin:round;stroke-width:6}.stop{fill:var(--paper);stroke:var(--indigo);stroke-width:4}.waypoint{fill:var(--accent)}
+    .word{fill:var(--ink);font:600 40px "Shippori Mincho",Georgia,serif}.body{fill:var(--muted);font:500 19px "Zen Kaku Gothic New",sans-serif;letter-spacing:.04em}.action{fill:var(--ink);font:700 20px "Zen Kaku Gothic New",sans-serif}
+  </style>
+  <rect class="paper" x="2" y="2" width="1076" height="176" rx="28" />
+  <path class="route" d="M52 55h58l22 24h66l22-24h58"/><circle class="stop" cx="52" cy="55" r="10"/><circle class="stop" cx="132" cy="79" r="10"/><circle class="stop" cx="220" cy="55" r="10"/><circle class="waypoint" cx="278" cy="55" r="7"/>
+  <text class="word" x="52" y="138">Voyalier</text>
+  <text class="body" x="356" y="71">PLAN THE TRIP · KEEP THE EVIDENCE</text>
+  <text class="action" x="356" y="119">Product tour, platform downloads, and plain-language docs →</text>
+</svg>

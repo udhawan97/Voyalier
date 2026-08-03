@@ -3,9 +3,21 @@
   "version": "0.4.3",
   "private": true,
   "exports": {
+    "./download-macos.svg": "./src/download-macos.svg",
+    "./download-source.svg": "./src/download-source.svg",
+    "./download-windows.svg": "./src/download-windows.svg",
+    "./explore-voyalier.svg": "./src/explore-voyalier.svg",
+    "./icon-ai.svg": "./src/icon-ai.svg",
+    "./icon-evidence.svg": "./src/icon-evidence.svg",
+    "./icon-offline.svg": "./src/icon-offline.svg",
+    "./icon-plan.svg": "./src/icon-plan.svg",
+    "./icon-privacy.svg": "./src/icon-privacy.svg",
+    "./icon-review.svg": "./src/icon-review.svg",
     "./voyalier-app-icon.svg": "./src/voyalier-app-icon.svg",
-    "./voyalier-mark.svg": "./src/voyalier-mark.svg",
     "./voyalier-mark-dark.svg": "./src/voyalier-mark-dark.svg",
+    "./voyalier-mark-static-dark.svg": "./src/voyalier-mark-static-dark.svg",
+    "./voyalier-mark-static.svg": "./src/voyalier-mark-static.svg",
+    "./voyalier-mark.svg": "./src/voyalier-mark.svg",
     "./voyalier-lockup.svg": "./src/voyalier-lockup.svg",
     "./voyalier-lockup-dark.svg": "./src/voyalier-lockup-dark.svg"
   }

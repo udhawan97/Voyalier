@@ -1,44 +1,66 @@
 ---
 title: Introduction
-description: What Voyalier is building and what it will not pretend to be.
+description: What Voyalier does, how it treats evidence, and where its authority stops.
 ---
 
-Voyalier is a local-first, evidence-backed trip workspace. It turns scattered
-confirmations, research, trip constraints, and half-made plans into a reviewed
-Blueprint, an honest readiness check, and a redaction-first brief.
+Voyalier is a local-first, evidence-backed trip workspace. It brings scattered
+confirmations, research, readiness, and traveler-authored plans into a reviewed
+Blueprint, a quiet Today view, and a redaction-first brief.
 
-![The Voyalier Kyoto trip workspace with Today, pending suggestions, and a deterministic Blueprint.](/Voyalier/assets/screenshots/voyalier-trip-workspace.jpg)
+![The current Voyalier Kyoto sample workspace with Today, pending suggestions, and a deterministic Blueprint.](/Voyalier/assets/screenshots/voyalier-trip-workspace.jpg)
 
-![How the Voyalier trip workspace works: a trip moves from setup through gathering sourced evidence, reviewing extracted facts, deterministic planning, offline preparation, travel-day use of the Today view, optional consented AI help, and redacted sharing.](/Voyalier/assets/voyalier-trip-workspace-flow.svg)
+## The simple version
 
-The current public beta covers the full local trip loop: create and
-edit a trip; import confirmation text, HTML, email, or a local file; review every
-suggestion; check conflicts and readiness; keep the links and files you want to
-read as research resources, separate from evidence; save consented advice,
-weather, city packs, recommendations, saved places, packing, manual
-activities/transfers, and maps; search the whole local workspace; travel with
-Today; switch between English and Spanish; protect sensitive evidence in the
-encrypted vault; and share a redacted brief.
+1. Create a trip.
+2. Bring in a confirmation or add your own plan.
+3. Review every suggested fact against its source.
+4. Use deterministic checks to find overlaps, gaps, and missing review.
+5. Add only the connected context you ask for, then keep the useful result
+   locally.
 
-Optional Ollama, OpenAI, and Anthropic assistance sits beside that loop. It adds
-guided setup, validated keys, editable instructions, lodging-date drafts, and an
-exact outbound-payload preview—but never replaces deterministic rules or the
-traveler's review. Asking questions about a trip in conversation is on-device
-only: it runs against a local Ollama model, and cloud providers are deliberately
-not offered there, because a conversation cannot be previewed send by send. The in-app updater is minisign-verified and carries checksums
-and build provenance. OS-signed installers still require paid platform
-certificates, so the packaged builds trip a one-time "unidentified developer"
-warning on first launch — [Download and install](/Voyalier/download/) covers that,
-and the from-source browser path, for every OS.
+![Voyalier’s product flow from source through review, planning, preparation, and travel day.](/Voyalier/assets/voyalier-trip-workspace-flow.svg)
+
+## What already works
+
+The current source tree covers trip creation and editing; confirmation import
+from pasted text, HTML, raw email, or local files; human review; deterministic
+planning and readiness; official-advice and weather snapshots; research links
+and files; offline city packs, recommendations, saved places, packing, manual
+activities, rail, transfers, and maps; workspace search; Today; English and
+Spanish; an encrypted vault; backup and restore; redacted sharing; and verified
+in-app updates.
+
+Optional Ollama, OpenAI, and Anthropic assistance sits beside that workflow. A
+remote request requires explicit consent and an exact preview of the redacted
+content leaving the device. Trip chat is on-device only and uses the local
+Ollama path.
+
+## What review looks like
+
+![Voyalier’s review dialog showing fictional candidates beside quoted source evidence and explicit confirm, edit, or dismiss actions.](/Voyalier/assets/screenshots/voyalier-evidence-review.jpg)
+
+Imported documents, retrieved pages, provider output, and model output are
+untrusted. A parser may suggest a flight or stay, but it remains a candidate
+until the traveler confirms or corrects it. Source spans, retrieval time,
+license, and confidence stay attached where they matter.
+
+## Where authority stops
+
+![Voyalier’s visa and entry preparation cockpit with a clear non-authority warning and an official-source link.](/Voyalier/assets/screenshots/voyalier-visa-cockpit.jpg)
+
+Voyalier does not decide whether you need a visa, declare a destination safe,
+give medical clearance, guarantee a price, confirm availability, or promise an
+opening time. It can organize a preparation route and point to a dated official
+source; the traveler still confirms the real case with that authority.
 
 ## Product promise
 
 - Useful deterministic planning without an AI key.
-- Optional on-device or BYOK cloud intelligence.
+- Optional on-device or bring-your-own-key intelligence.
 - Sources, freshness, confidence, and unknown states attached to factual claims.
-- Explicit review before extracted document facts change a trip.
+- Explicit review before extracted details change a trip.
 - Redaction before sharing.
+- No telemetry, account, or silent background refresh.
 
-## Non-goals
-
-Voyalier does not initially book travel, guarantee the cheapest inventory, scrape restricted sites, or issue authoritative visa or safety determinations.
+Ready to try it? [Choose a download](/Voyalier/download/) or
+[run it from source](/Voyalier/getting-started/).

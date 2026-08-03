@@ -1,17 +1,18 @@
 {
   "version": 1,
-  "scannedAt": "2026-07-20",
-  "packageMtime": 1784524260,
+  "scannedAt": "2026-08-02",
   "framework": "Astro 7.1.1 with Starlight 0.41.3",
   "fonts": ["Shippori Mincho", "Zen Kaku Gothic New"],
-  "palette": "Quiet Journey: washi, sumi, ai indigo, shu vermilion",
+  "palette": "Quiet Transit: app charcoal, warm ivory, structural indigo, waypoint vermilion",
   "spacing": "4-point custom-property scale",
-  "motion": "CSS-only; no motion runtime",
+  "motion": "CSS-only; one initial reveal plus control feedback",
+  "macrostructure": "Workbench marketing, Long Document docs, Index-first downloads",
   "preserve": [
     "self-hosted fonts",
-    "brand palette",
-    "folded-route mark",
+    "existing folded-route logos",
+    "app light and dark palettes",
     "reduced-motion contract",
-    "documentation readability"
+    "documentation readability",
+    "product trust boundaries"
   ]
 }

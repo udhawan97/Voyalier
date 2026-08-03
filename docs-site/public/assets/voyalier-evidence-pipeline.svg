@@ -1,151 +1,61 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1010" viewBox="0 0 1440 1010" role="img" aria-labelledby="title desc">
-  <title id="title">Voyalier evidence and trust pipeline</title>
-  <desc id="desc">Imported confirmations become candidates, not facts. The traveler reviews them before confirmed facts can drive local trip views. Official sources remain dated snapshots, and AI is a separate optional branch with payload preview and explicit consent.</desc>
-  <defs>
-    <pattern id="grain" width="40" height="40" patternUnits="userSpaceOnUse">
-      <circle cx="4" cy="4" r="1" fill="#1a1917" opacity=".035"/>
-      <circle cx="28" cy="19" r=".8" fill="#1a1917" opacity=".025"/>
-    </pattern>
-    <filter id="shadow" x="-20%" y="-25%" width="140%" height="160%">
-      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#1a1917" flood-opacity=".08"/>
-    </filter>
-    <marker id="arrow-indigo" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
-      <path d="M0 0l10 5-10 5z" fill="#46536b"/>
-    </marker>
-    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
-      <path d="M0 0l10 5-10 5z" fill="#c34e33"/>
-    </marker>
-    <style>
-      .sans{font-family:"Zen Kaku Gothic New",Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.serif{font-family:"Shippori Mincho","Iowan Old Style",Georgia,serif}.eyebrow{font-size:14px;font-weight:700;letter-spacing:2.4px;fill:#c34e33}.title{font-size:38px;font-weight:600;fill:#1a1917}.subtitle{font-size:17px;fill:#5f5b52}.lane{font-size:14px;font-weight:700;letter-spacing:1.7px;fill:#46536b}.card-title{font-size:22px;font-weight:700;fill:#1a1917}.copy{font-size:16px;fill:#5f5b52}.tech{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;fill:#46536b}.small{font-size:14px;fill:#5f5b52}.dark-title{font-size:22px;font-weight:700;fill:#f2ede1}.dark-copy{font-size:16px;fill:#d8d2c5}.dark-tech{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;fill:#aeb8cc}.local{fill:none;stroke:#46536b;stroke-width:2.4;marker-end:url(#arrow-indigo)}.remote{fill:none;stroke:#c34e33;stroke-width:2.4;stroke-dasharray:9 7;marker-end:url(#arrow-red)}@keyframes march{to{stroke-dashoffset:-32}}@keyframes soft-pulse{0%,100%{stroke-opacity:.7}50%{stroke-opacity:1}}@media (prefers-reduced-motion:no-preference){.remote{animation:march 3.8s linear infinite}.review{animation:soft-pulse 3.2s ease-in-out infinite}}
-    </style>
-  </defs>
-
-  <rect width="1440" height="1010" rx="26" fill="#f3efe4"/>
-  <rect width="1440" height="1010" rx="26" fill="url(#grain)"/>
-
-  <text x="64" y="62" class="sans eyebrow">EVIDENCE LIFECYCLE · REVIEW BEFORE AUTHORITY</text>
-  <text x="64" y="108" class="serif title">Nothing becomes a fact without you.</text>
-  <text x="64" y="140" class="sans subtitle">The casual rule is simple; the developer trail underneath stays complete and testable.</text>
-
-  <g transform="translate(64 170)">
-    <rect width="1312" height="72" rx="18" fill="#1a1917"/>
-    <circle cx="30" cy="36" r="9" fill="#c34e33"/>
-    <text x="56" y="31" class="sans" font-size="16" font-weight="700" fill="#f2ede1">The trust rule</text>
-    <text x="56" y="53" class="sans" font-size="15" fill="#c8c3b8">Documents, websites, provider data, and model replies enter as untrusted input. The traveler controls promotion.</text>
-    <rect x="1072" y="19" width="216" height="34" rx="17" fill="#46536b"/>
-    <text x="1180" y="41" class="sans" font-size="14" font-weight="700" text-anchor="middle" fill="#f2ede1">REVIEW IS A HARD GATE</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 880" role="img" aria-labelledby="title desc">
+  <title id="title">Voyalier evidence pipeline</title>
+  <desc id="desc">Untrusted documents produce candidate facts. A traveler review gate alone promotes them to confirmed facts, which deterministic rules use. Connected sources and optional AI remain a separate consented lane.</desc>
+  <style>
+    :root { --paper: oklch(18.7% .008 78); --raised: oklch(22% .01 78); --raised-2: oklch(27% .012 78); --ink: oklch(94.8% .014 87); --muted: oklch(72% .013 87); --line: oklch(35% .012 78); --indigo: oklch(70% .04 257); --accent: oklch(69% .13 35); }
+    .paper { fill: var(--paper); } .card { fill: var(--raised); stroke: var(--line); } .gate { fill: var(--raised-2); stroke: var(--accent); }
+    .rule { fill: none; stroke: var(--line); stroke-width: 2; } .trusted { fill: none; stroke: var(--indigo); stroke-width: 4; stroke-linecap: round; }
+    .connected { fill: none; stroke: var(--accent); stroke-width: 3; stroke-dasharray: 10 12; stroke-linecap: round; }
+    .dot { fill: var(--accent); } .dot-i { fill: var(--indigo); }
+    .label { fill: var(--muted); font: 500 16px "Zen Kaku Gothic New", sans-serif; letter-spacing: .12em; }
+    .title { fill: var(--ink); font: 600 31px "Shippori Mincho", serif; }
+    .body { fill: var(--muted); font: 400 18px "Zen Kaku Gothic New", sans-serif; }
+  </style>
+  <rect class="paper" width="1440" height="880" rx="36" />
+  <text class="label" x="84" y="66">LOCAL EVIDENCE LANE</text>
+  <path class="rule" d="M84 92H1356" />
+  <g transform="translate(84 150)">
+    <rect class="card" width="250" height="178" rx="24" />
+    <circle class="dot" cx="30" cy="34" r="6" />
+    <text class="label" x="50" y="40">UNTRUSTED</text>
+    <text class="title" x="28" y="92">Source</text>
+    <text class="body" x="28" y="128">Text · email · HTML</text>
+    <text class="body" x="28" y="156">Local file · saved page</text>
   </g>
-
-  <text x="64" y="278" class="sans lane">A · YOUR LOCAL CONFIRMATION FLOW</text>
-
-  <!-- Four primary cards with dedicated 40px connector gutters -->
-  <g filter="url(#shadow)">
-    <rect x="64" y="300" width="270" height="214" rx="20" fill="#faf7ef" stroke="#a9a69c" stroke-width="1.5"/>
-    <circle cx="96" cy="334" r="17" fill="#46536b"/>
-    <text x="96" y="340" class="sans" font-size="14" font-weight="700" text-anchor="middle" fill="#fff">1</text>
-    <text x="124" y="341" class="sans card-title">Bring the details</text>
-    <text x="92" y="382" class="sans copy">Paste, pick, or drop text, HTML,</text>
-    <text x="92" y="406" class="sans copy">email, or a saved .eml file.</text>
-    <rect x="92" y="432" width="214" height="50" rx="12" fill="#ebe6d7"/>
-    <text x="106" y="454" class="sans small">Raw content stays local.</text>
-    <text x="106" y="474" class="sans tech">hash · label · importedAt</text>
-    <text x="92" y="501" class="sans tech">SQLite · vault-sealed</text>
+  <path class="trusted" d="M334 239H408" />
+  <g transform="translate(408 150)">
+    <rect class="card" width="250" height="178" rx="24" />
+    <circle class="dot-i" cx="30" cy="34" r="6" />
+    <text class="label" x="50" y="40">PENDING</text>
+    <text class="title" x="28" y="92">Candidate</text>
+    <text class="body" x="28" y="128">Value + field span</text>
+    <text class="body" x="28" y="156">Excerpt + warning</text>
   </g>
-
-  <path d="M334 407h30" class="local"/>
-
-  <g filter="url(#shadow)">
-    <rect x="374" y="300" width="270" height="214" rx="20" fill="#faf7ef" stroke="#a9a69c" stroke-width="1.5"/>
-    <circle cx="406" cy="334" r="17" fill="#46536b"/>
-    <text x="406" y="340" class="sans" font-size="14" font-weight="700" text-anchor="middle" fill="#fff">2</text>
-    <text x="434" y="341" class="sans card-title">Extract candidates</text>
-    <text x="402" y="382" class="sans copy">Deterministic parsers suggest</text>
-    <text x="402" y="406" class="sans copy">flights and stays.</text>
-    <rect x="402" y="432" width="214" height="50" rx="12" fill="#ebe6d7"/>
-    <text x="416" y="454" class="sans small">Still not trip truth.</text>
-    <text x="416" y="474" class="sans tech">candidate · warnings[]</text>
-    <text x="402" y="501" class="sans tech">fieldSpans[] · parserRunId</text>
+  <path class="trusted" d="M658 239H732" />
+  <g transform="translate(732 132)">
+    <rect class="gate" width="250" height="214" rx="24" />
+    <circle class="dot" cx="30" cy="34" r="6" />
+    <text class="label" x="50" y="40">HUMAN GATE</text>
+    <text class="title" x="28" y="92">Review</text>
+    <text class="body" x="28" y="130">Confirm</text>
+    <text class="body" x="28" y="160">Edit and confirm</text>
+    <text class="body" x="28" y="190">Dismiss or undo</text>
   </g>
-
-  <path d="M644 407h30" class="local"/>
-
-  <g filter="url(#shadow)">
-    <rect x="684" y="300" width="270" height="214" rx="20" fill="#fff8f4" stroke="#c34e33" stroke-width="2.5" class="review"/>
-    <circle cx="716" cy="334" r="17" fill="#c34e33"/>
-    <text x="716" y="340" class="sans" font-size="14" font-weight="700" text-anchor="middle" fill="#fff">3</text>
-    <text x="744" y="341" class="sans card-title">You decide</text>
-    <text x="712" y="382" class="sans copy">Compare every field with its</text>
-    <text x="712" y="406" class="sans copy">source excerpt and warnings.</text>
-    <rect x="712" y="432" width="214" height="38" rx="12" fill="#c34e33"/>
-    <text x="819" y="457" class="sans" font-size="14" font-weight="700" text-anchor="middle" fill="#fff">CONFIRM · FIX · REJECT</text>
-    <text x="712" y="495" class="sans tech">human gate · undo → pending</text>
+  <path class="trusted" d="M982 239H1056" />
+  <g transform="translate(1056 150)">
+    <rect class="card" width="300" height="178" rx="24" />
+    <circle class="dot-i" cx="30" cy="34" r="6" />
+    <text class="label" x="50" y="40">TRAVELER-APPROVED</text>
+    <text class="title" x="28" y="92">Confirmed fact</text>
+    <text class="body" x="28" y="128">Blueprint · checks · Today</text>
+    <text class="body" x="28" y="156">Redacted brief · calendar</text>
   </g>
-
-  <path d="M954 407h30" class="local"/>
-
-  <g filter="url(#shadow)">
-    <rect x="994" y="300" width="382" height="214" rx="20" fill="#46536b"/>
-    <circle cx="1026" cy="334" r="17" fill="#c34e33"/>
-    <text x="1026" y="340" class="sans" font-size="14" font-weight="700" text-anchor="middle" fill="#fff">4</text>
-    <text x="1054" y="341" class="sans dark-title">Confirmed local truth</text>
-    <text x="1022" y="382" class="sans dark-copy">Only approved facts can drive the</text>
-    <text x="1022" y="406" class="sans dark-copy">trip’s deterministic views.</text>
-    <text x="1022" y="446" class="sans dark-tech">candidateId · method · correctedFields[]</text>
-    <text x="1022" y="472" class="sans dark-tech">confirmedAt · sensitive payload sealed</text>
-    <text x="1022" y="500" class="sans" font-size="14" font-weight="700" fill="#f2ede1">Audit trail retained. Guesswork excluded.</text>
-  </g>
-
-  <path d="M1185 514v30" class="local"/>
-
-  <!-- Deterministic outputs -->
-  <g>
-    <rect x="64" y="554" width="1312" height="112" rx="20" fill="#faf7ef" stroke="#46536b" stroke-width="1.7"/>
-    <text x="92" y="586" class="sans lane">B · WHAT CONFIRMED FACTS CAN POWER</text>
-    <g class="sans" font-size="16" font-weight="700" fill="#1a1917">
-      <rect x="92" y="606" width="214" height="38" rx="12" fill="#ebe6d7"/><text x="199" y="631" text-anchor="middle">Blueprint</text>
-      <rect x="320" y="606" width="214" height="38" rx="12" fill="#ebe6d7"/><text x="427" y="631" text-anchor="middle">Conflict checks</text>
-      <rect x="548" y="606" width="214" height="38" rx="12" fill="#ebe6d7"/><text x="655" y="631" text-anchor="middle">Readiness</text>
-      <rect x="776" y="606" width="214" height="38" rx="12" fill="#ebe6d7"/><text x="883" y="631" text-anchor="middle">Today</text>
-      <rect x="1004" y="606" width="344" height="38" rx="12" fill="#ebe6d7"/><text x="1176" y="631" text-anchor="middle">Redacted printable brief</text>
-    </g>
-  </g>
-
-  <!-- Remote evidence lane -->
-  <text x="64" y="710" class="sans lane">C · LIVE CONTEXT STAYS A DATED SNAPSHOT</text>
-  <g>
-    <rect x="64" y="730" width="1312" height="100" rx="20" fill="#faf7ef" stroke="#a9a69c" stroke-width="1.5"/>
-    <rect x="88" y="752" width="260" height="56" rx="14" fill="#fff8f4" stroke="#c34e33"/>
-    <text x="108" y="776" class="sans" font-size="16" font-weight="700" fill="#1a1917">Traveler clicks</text>
-    <text x="108" y="798" class="sans small">advice · weather · pack · map</text>
-    <path d="M348 780h46" class="remote"/>
-    <rect x="404" y="752" width="300" height="56" rx="14" fill="#ebe6d7"/>
-    <text x="424" y="776" class="sans" font-size="16" font-weight="700" fill="#1a1917">Identified source</text>
-    <text x="424" y="798" class="sans tech">FCDO · Open-Meteo · open data</text>
-    <path d="M704 780h46" class="local"/>
-    <rect x="760" y="752" width="336" height="56" rx="14" fill="#ebe6d7"/>
-    <text x="780" y="776" class="sans" font-size="16" font-weight="700" fill="#1a1917">Provenance retained</text>
-    <text x="780" y="798" class="sans tech">URL · time · license · freshness</text>
-    <path d="M1096 780h46" class="local"/>
-    <text x="1164" y="773" class="sans" font-size="16" font-weight="700" fill="#1a1917">Shown beside the trip</text>
-    <text x="1164" y="798" class="sans small">Never “clears” readiness.</text>
-  </g>
-
-  <!-- Optional AI side branch -->
-  <text x="64" y="870" class="sans lane">D · OPTIONAL AI SIDECAR — NEVER REQUIRED TO REACH SHARE</text>
-  <g>
-    <rect x="64" y="890" width="1312" height="58" rx="18" fill="#1a1917"/>
-    <g class="sans" font-size="15" fill="#f2ede1">
-      <text x="92" y="924" font-weight="700">Confirmed facts</text>
-      <text x="328" y="924">→</text>
-      <text x="376" y="924" font-weight="700">Exact redacted preview</text>
-      <text x="654" y="924">→</text>
-      <text x="702" y="924" font-weight="700">Traveler consents</text>
-      <text x="914" y="924">→</text>
-      <text x="962" y="924" font-weight="700">Reply stays labeled</text>
-      <text x="1184" y="924">→</text>
-      <text x="1232" y="924" font-weight="700">Metadata logged</text>
-    </g>
-  </g>
-
-  <text x="64" y="988" class="sans small">Indigo = deterministic local flow · Vermilion = human judgment or user-triggered network flow · Sumi = durable trust boundary</text>
+  <text class="label" x="84" y="460">EXPLICIT CONNECTED LANE</text>
+  <path class="rule" d="M84 486H1356" />
+  <path class="connected" d="M144 610H1296" />
+  <g transform="translate(84 542)"><rect class="card" width="286" height="156" rx="24"/><circle class="dot" cx="30" cy="34" r="6"/><text class="label" x="50" y="40">YOU ASK</text><text class="title" x="28" y="91">Fetch</text><text class="body" x="28" y="127">Advice · weather · packs</text></g>
+  <g transform="translate(420 542)"><rect class="gate" width="286" height="156" rx="24"/><circle class="dot" cx="30" cy="34" r="6"/><text class="label" x="50" y="40">BOUNDARY</text><text class="title" x="28" y="91">Preview</text><text class="body" x="28" y="127">What leaves · what stays</text></g>
+  <g transform="translate(756 542)"><rect class="card" width="286" height="156" rx="24"/><circle class="dot" cx="30" cy="34" r="6"/><text class="label" x="50" y="40">DATED COPY</text><text class="title" x="28" y="91">Store</text><text class="body" x="28" y="127">Source · fetched time · license</text></g>
+  <g transform="translate(1092 542)"><rect class="card" width="264" height="156" rx="24"/><circle class="dot-i" cx="30" cy="34" r="6"/><text class="label" x="50" y="40">STILL SEPARATE</text><text class="title" x="28" y="91">Use</text><text class="body" x="28" y="127">Context, never authority</text></g>
+  <text class="body" x="84" y="786">No background refresh. No provider output becomes a confirmed fact.</text>
 </svg>

@@ -1,0 +1,247 @@
+---
+const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+const releasesUrl = 'https://github.com/udhawan97/Voyalier/releases/latest'
+---
+
+<section class="download-deck" aria-label="Choose a Voyalier download" data-download-deck>
+  <article class="download-card" data-download-card="macos">
+    <div class="download-card__head">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M15.8 12.8c0-2.3 1.9-3.5 2-3.6a4.3 4.3 0 0 0-3.4-1.8c-1.4-.1-2.8.9-3.5.9-.8 0-1.9-.9-3.1-.8a4.6 4.6 0 0 0-3.9 2.4c-1.7 2.9-.4 7.2 1.2 9.5.8 1.1 1.7 2.4 3 2.3 1.1-.1 1.6-.8 3-.8s1.8.8 3.1.8 2.1-1.2 2.9-2.3a10.3 10.3 0 0 0 1.3-2.7 4.1 4.1 0 0 1-2.6-3.9Z" />
+        <path d="M13.5 5.9a4.1 4.1 0 0 0 1-2.9 4.2 4.2 0 0 0-2.8 1.4 3.9 3.9 0 0 0-1 2.8 3.5 3.5 0 0 0 2.8-1.3Z" />
+      </svg>
+      <div>
+        <h3>macOS</h3>
+        <p>Apple Silicon · DMG</p>
+      </div>
+    </div>
+    <p>Install the native desktop app, then move it to Applications so future updates can replace it safely.</p>
+    <a class="download-card__action" href={releasesUrl} data-download-asset="macos">
+      Download for macOS <span aria-hidden="true">↓</span>
+    </a>
+  </article>
+
+  <article class="download-card" data-download-card="windows">
+    <div class="download-card__head">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 4.6 10.5 3v8.2H3V4.6Zm8.7-1.8L21 1v10.2h-9.3V2.8ZM3 12.5h7.5v8.2L3 19.2v-6.7Zm8.7 0H21v10.3L11.7 21v-8.5Z" />
+      </svg>
+      <div>
+        <h3>Windows</h3>
+        <p>64-bit · EXE</p>
+      </div>
+    </div>
+    <p>Use the standard setup app. An MSI package remains available on the release page for managed installs.</p>
+    <a class="download-card__action" href={releasesUrl} data-download-asset="windows">
+      Download for Windows <span aria-hidden="true">↓</span>
+    </a>
+  </article>
+
+  <article class="download-card" data-download-card="source">
+    <div class="download-card__head">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="6" cy="5" r="2" />
+        <circle cx="18" cy="7" r="2" />
+        <circle cx="8" cy="19" r="2" />
+        <path d="M6 7v5a7 7 0 0 0 7 7h3M8 5h5a5 5 0 0 1 5 5v5" />
+      </svg>
+      <div>
+        <h3>Build from source</h3>
+        <p>Any OS · browser</p>
+      </div>
+    </div>
+    <p>Run the same React workspace against the guarded local server. This is the supported route for Linux and Intel Mac.</p>
+    <a class="download-card__action" href={`${base}/getting-started/`}>
+      Open setup guide <span aria-hidden="true">→</span>
+    </a>
+  </article>
+
+  <p class="download-deck__status" data-release-status aria-live="polite">
+    Latest stable installers are resolved from GitHub Releases. The fallback always opens the release page.
+  </p>
+</section>
+
+<script>
+  const releaseEndpoint = 'https://api.github.com/repos/udhawan97/Voyalier/releases/latest'
+  const releaseHost = 'github.com'
+  const deck = document.querySelector<HTMLElement>('[data-download-deck]')
+
+  if (deck) {
+    const status = deck.querySelector<HTMLElement>('[data-release-status]')
+    const links = {
+      macos: deck.querySelector<HTMLAnchorElement>('[data-download-asset="macos"]'),
+      windows: deck.querySelector<HTMLAnchorElement>('[data-download-asset="windows"]'),
+    }
+
+    const setAsset = (link: HTMLAnchorElement | null, url: string | undefined) => {
+      if (!link || !url) return false
+      const parsed = new URL(url)
+      if (parsed.protocol !== 'https:' || parsed.hostname !== releaseHost) return false
+      link.href = parsed.href
+      link.dataset.direct = 'true'
+      return true
+    }
+
+    fetch(releaseEndpoint, { headers: { Accept: 'application/vnd.github+json' } })
+      .then((response) => {
+        if (!response.ok) throw new Error(`release lookup returned ${response.status}`)
+        return response.json()
+      })
+      .then((release: { tag_name?: string; assets?: Array<{ name?: string; browser_download_url?: string }> }) => {
+        const assets = Array.isArray(release.assets) ? release.assets : []
+        const macos = assets.find((asset) => /_aarch64\.dmg$/i.test(asset.name || ''))
+        const windows = assets.find((asset) => /_x64-setup\.exe$/i.test(asset.name || ''))
+        const resolved = [
+          setAsset(links.macos, macos?.browser_download_url),
+          setAsset(links.windows, windows?.browser_download_url),
+        ].filter(Boolean).length
+        if (status && resolved > 0) {
+          status.textContent = `${release.tag_name || 'Latest stable'} · ${resolved} direct installer${resolved === 1 ? '' : 's'} ready.`
+        }
+      })
+      .catch(() => {
+        if (status) {
+          status.textContent = 'Direct lookup is unavailable right now. Download links open the latest GitHub release instead.'
+        }
+      })
+  }
+</script>
+
+<style>
+  .download-deck {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-sm);
+    margin-block: var(--space-xl);
+  }
+
+  .download-card {
+    display: grid;
+    min-width: 0;
+    min-height: 19rem;
+    align-content: start;
+    gap: var(--space-md);
+    padding: var(--space-lg);
+    border: var(--rule-hair) solid var(--color-rule);
+    border-radius: var(--radius-card);
+    background: var(--color-paper-2);
+    color: var(--color-ink);
+  }
+
+  .download-card__head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+  .download-card__head svg {
+    width: 2.75rem;
+    height: 2.75rem;
+    flex: 0 0 auto;
+    fill: none;
+    stroke: var(--color-indigo);
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.35;
+  }
+
+  .download-card__head svg path:first-child:not(:only-child) {
+    fill: var(--color-indigo);
+    stroke: none;
+  }
+
+  .download-card h3,
+  .download-card p {
+    margin: 0;
+  }
+
+  .download-card h3 {
+    color: var(--color-ink);
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    font-style: normal;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+  }
+
+  .download-card__head p,
+  .download-deck__status {
+    color: var(--color-muted);
+    font-family: var(--font-body);
+    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .download-card > p {
+    max-width: 45ch;
+    color: var(--color-muted);
+    line-height: 1.6;
+  }
+
+  .download-card__action {
+    display: inline-flex;
+    min-height: 48px;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    margin-block-start: auto;
+    padding: var(--space-xs) var(--space-sm);
+    border: var(--rule-hair) solid var(--color-control-rule);
+    border-radius: var(--radius-pill);
+    color: var(--color-ink);
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+    transition:
+      background-color var(--dur-short) var(--ease-out),
+      color var(--dur-short) var(--ease-out),
+      transform var(--dur-micro) var(--ease-out);
+  }
+
+  .download-card__action[data-direct="true"] {
+    border-color: var(--color-accent);
+    background: var(--color-accent);
+    color: var(--color-accent-ink);
+  }
+
+  .download-card__action:focus-visible {
+    outline-color: var(--color-paper);
+    box-shadow: 0 0 0 0.35rem var(--color-focus);
+  }
+
+  .download-card__action[aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: 0.55;
+    pointer-events: none;
+  }
+
+  .download-card__action:active {
+    transform: translateY(1px);
+  }
+
+  .download-deck__status {
+    grid-column: 1 / -1;
+    min-height: 1.5em;
+    margin: var(--space-xs) 0 0;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .download-card__action:hover {
+      background: var(--color-ink);
+      color: var(--color-paper);
+    }
+  }
+
+  @media (min-width: 48rem) {
+    .download-deck {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .download-card__action {
+      transition-duration: 0ms;
+    }
+  }
+</style>

@@ -1,28 +1,47 @@
+/* Hallmark · docs system: Quiet Transit · macrostructure: Long Document / Index-first
+ * typography: Shippori Mincho + Zen Kaku Gothic New · surfaces match the current app
+ * interaction: static reading first; native Starlight controls keep their full state model
+ */
+
 @import "./fonts.css";
 @import "@voyalier/ui/tokens.css";
 @import "../../../tokens.css";
-
-/* Folded-route palette: washi/ivory surfaces, ai-indigo accents, sumi ink.
- * Starlight themes switch on [data-theme], so values are literal, not
- * prefers-color-scheme tokens. */
 
 :root {
   --sl-color-accent-low: var(--color-paper-3);
   --sl-color-accent: var(--color-indigo);
   --sl-color-accent-high: var(--color-indigo-deep);
-  --sl-color-bg: var(--color-paper-2);
-  --sl-color-bg-nav: var(--color-paper);
-  --sl-color-bg-sidebar: var(--color-paper);
+  --sl-color-white: var(--color-ink);
+  --sl-color-gray-1: var(--color-ink);
+  --sl-color-gray-2: var(--color-ink-2);
+  --sl-color-gray-3: var(--color-muted);
+  --sl-color-gray-4: var(--color-neutral);
+  --sl-color-gray-5: var(--color-rule);
+  --sl-color-gray-6: var(--color-rule-2);
+  --sl-color-black: var(--color-paper);
+  --sl-color-bg: var(--color-paper);
+  --sl-color-bg-nav: var(--color-paper-veil);
+  --sl-color-bg-sidebar: var(--color-paper-2);
   --sl-font: var(--font-body);
-  --sl-content-width: 52rem;
+  --sl-font-mono: var(--font-outlier);
+  --sl-content-width: 54rem;
+  --sl-sidebar-width: 18rem;
 }
 
 :root[data-theme="dark"] {
   --sl-color-accent-low: var(--color-night-3);
-  --sl-color-accent: var(--color-indigo-soft);
+  --sl-color-accent: var(--color-indigo);
   --sl-color-accent-high: var(--color-night-ink);
+  --sl-color-white: var(--color-night-ink);
+  --sl-color-gray-1: var(--color-night-ink);
+  --sl-color-gray-2: var(--color-ink-2);
+  --sl-color-gray-3: var(--color-night-muted);
+  --sl-color-gray-4: var(--color-neutral);
+  --sl-color-gray-5: var(--color-night-rule);
+  --sl-color-gray-6: var(--color-rule-2);
+  --sl-color-black: var(--color-night);
   --sl-color-bg: var(--color-night);
-  --sl-color-bg-nav: var(--color-night-2);
+  --sl-color-bg-nav: var(--color-night-veil);
   --sl-color-bg-sidebar: var(--color-night-2);
 }
 
@@ -31,39 +50,84 @@ body {
   overflow-x: clip;
 }
 
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: 1.65;
+}
+
 ::selection {
   background: var(--color-accent);
   color: var(--color-accent-ink);
 }
 
 :focus-visible {
-  outline: var(--rule-strong) solid var(--color-focus);
+  outline: var(--rule-fine) solid var(--color-focus);
   outline-offset: var(--space-2xs);
 }
 
-:root[data-theme="dark"] :focus-visible {
-  outline-color: var(--color-focus-on-dark);
+header.header {
+  border-block-end: var(--rule-hair) solid var(--color-rule);
+  background: var(--color-paper-veil);
+  box-shadow: none;
+  backdrop-filter: blur(14px) saturate(120%);
 }
 
 .site-title {
+  font-family: var(--font-wordmark);
+  font-size: var(--text-sm);
   font-weight: 700;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
-header.header {
-  border-block-end: var(--rule-hair) solid var(--sl-color-hairline-light);
-  box-shadow: none;
+.sidebar-pane {
+  border-inline-end: var(--rule-hair) solid var(--color-rule);
+}
+
+.sidebar-content a {
+  border-radius: var(--radius-input);
+}
+
+.sl-markdown-content {
+  font-size: var(--text-base);
+}
+
+.sl-markdown-content > :where(p, ul, ol):not(:where(.not-content *)) {
+  max-width: 65ch;
 }
 
 .sl-markdown-content h1,
 .sl-markdown-content h2,
 .sl-markdown-content h3 {
+  min-width: 0;
   overflow-wrap: anywhere;
+  color: var(--color-ink);
   font-family: var(--font-display);
   font-style: normal;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+.sl-markdown-content h1 {
+  font-size: clamp(var(--text-2xl), 5vw, var(--text-4xl));
+  line-height: 1.08;
+}
+
+.sl-markdown-content h2 {
+  margin-block-start: var(--space-2xl);
+  padding-block-start: var(--space-lg);
+  border-block-start: var(--rule-hair) solid var(--color-rule);
+  font-size: var(--text-2xl);
+  line-height: 1.15;
+}
+
+.sl-markdown-content h3 {
+  font-size: var(--text-xl);
+  line-height: 1.2;
 }
 
 .sl-markdown-content a:not([class]) {
@@ -71,63 +135,60 @@ header.header {
   text-underline-offset: var(--space-2xs);
 }
 
-.download-chooser {
-  display: grid;
-  gap: var(--space-xl);
-  margin-block: var(--space-2xl);
-  padding: var(--space-xl);
-  border-block: var(--rule-hair) solid var(--sl-color-hairline-light);
-  background: var(--sl-color-bg-nav);
+.sl-markdown-content img[src*="/screenshots/"] {
+  width: 100%;
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-card);
+  background: var(--color-night);
 }
 
-.download-choice {
-  display: grid;
-  align-content: start;
-  gap: var(--space-sm);
-  min-width: 0;
+.sl-markdown-content img[src$=".svg"] {
+  width: 100%;
+  margin-block: var(--space-xl);
 }
 
-.download-choice + .download-choice {
-  padding-block-start: var(--space-xl);
-  border-block-start: var(--rule-hair) solid var(--sl-color-hairline-light);
+.sl-markdown-content code {
+  font-variant-numeric: tabular-nums;
 }
 
-.download-choice p {
-  margin: 0;
+.sl-markdown-content details {
+  padding: var(--space-sm) var(--space-md);
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-input);
+  background: var(--color-paper-2);
 }
 
-.download-choice-platform {
-  font-family: var(--font-display);
-  font-size: var(--text-xl);
-  font-weight: 600;
-  letter-spacing: -0.025em;
+.sl-markdown-content details + details {
+  margin-block-start: var(--space-sm);
 }
 
-.download-choice a {
-  justify-self: start;
+.sl-markdown-content summary {
   min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  border-block-end: var(--rule-hair) solid currentColor;
+  align-content: center;
+  color: var(--color-ink);
   font-weight: 700;
-  text-decoration: none;
-  white-space: nowrap;
+  cursor: pointer;
 }
 
-@media (min-width: 50rem) {
-  .download-chooser {
-    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
-  }
+.sl-markdown-content .download-lede {
+  max-width: 58ch;
+  color: var(--color-muted);
+  font-size: var(--text-md);
+}
 
-  .download-choice-primary {
-    grid-row: 1 / 3;
-    padding-inline-end: var(--space-xl);
-    border-inline-end: var(--rule-hair) solid var(--sl-color-hairline-light);
-  }
+.sl-markdown-content .install-note {
+  display: grid;
+  gap: var(--space-xs);
+  margin-block: var(--space-xl);
+  padding: var(--space-md);
+  border-block: var(--rule-hair) solid var(--color-rule);
+  color: var(--color-muted);
+}
 
-  .download-choice + .download-choice {
-    padding-block-start: 0;
-    border-block-start: 0;
+@media (pointer: coarse) {
+  .sl-markdown-content a,
+  .sl-markdown-content summary {
+    min-height: 44px;
   }
 }
 

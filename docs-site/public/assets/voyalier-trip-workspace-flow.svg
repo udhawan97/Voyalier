@@ -1,135 +1,39 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1040" viewBox="0 0 1440 1040" role="img" aria-labelledby="title desc">
-  <title id="title">How the Voyalier trip workspace works</title>
-  <desc id="desc">A clear six-stage journey: frame the trip, gather and review evidence, pressure-test the plan, prepare it for offline use, travel with the Today view, and share a redacted brief. Optional AI branches from the main flow and is never required.</desc>
-  <defs>
-    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
-      <path d="M32 0H0V32" fill="none" stroke="#faf7ef" stroke-opacity=".045"/>
-    </pattern>
-    <filter id="shadow" x="-20%" y="-25%" width="140%" height="160%">
-      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity=".22"/>
-    </filter>
-    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
-      <path d="M0 0l10 5-10 5z" fill="#93a0b8"/>
-    </marker>
-    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
-      <path d="M0 0l10 5-10 5z" fill="#d97a5f"/>
-    </marker>
-    <style>
-      .sans{font-family:"Zen Kaku Gothic New",Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.serif{font-family:"Shippori Mincho","Iowan Old Style",Georgia,serif}.eyebrow{font-size:14px;font-weight:700;letter-spacing:2.4px;fill:#d97a5f}.title{font-size:38px;font-weight:600;fill:#f2ede1}.subtitle{font-size:17px;fill:#a9a69c}.step{font-size:14px;font-weight:700;fill:#fff}.card-title{font-size:23px;font-weight:700;fill:#1a1917}.copy{font-size:16px;fill:#5f5b52}.tech{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;fill:#46536b}.small{font-size:14px;fill:#5f5b52}.dark-title{font-size:23px;font-weight:700;fill:#f2ede1}.dark-copy{font-size:16px;fill:#d8d2c5}.route{fill:none;stroke:#93a0b8;stroke-width:2.6;marker-end:url(#arrow)}.optional{fill:none;stroke:#d97a5f;stroke-width:2.5;stroke-dasharray:9 7;marker-end:url(#arrow-red)}@keyframes march{to{stroke-dashoffset:-32}}@keyframes pulse{0%,100%{opacity:.58}50%{opacity:1}}@media (prefers-reduced-motion:no-preference){.optional{animation:march 3.6s linear infinite}.pulse{animation:pulse 2.8s ease-in-out infinite}}
-    </style>
-  </defs>
-
-  <rect width="1440" height="1040" rx="26" fill="#171614"/>
-  <rect width="1440" height="1040" rx="26" fill="url(#grid)"/>
-
-  <text x="64" y="62" class="sans eyebrow">PRODUCT FLOW · ONE TRIP, FOLDED INTO FOCUS</text>
-  <text x="64" y="108" class="serif title">A clear route from “we should go” to “we are ready.”</text>
-  <text x="64" y="140" class="sans subtitle">Plain-language steps lead; technical labels explain what keeps each step trustworthy.</text>
-
-  <!-- Three promises that help casual readers decode the whole diagram -->
-  <g class="sans" font-size="14" font-weight="700">
-    <rect x="64" y="170" width="222" height="38" rx="19" fill="#46536b"/><text x="175" y="195" text-anchor="middle" fill="#f2ede1">WORKS WITHOUT AI</text>
-    <rect x="300" y="170" width="254" height="38" rx="19" fill="#2a2a28" stroke="#46536b"/><text x="427" y="195" text-anchor="middle" fill="#f2ede1">NETWORK ONLY ON CLICK</text>
-    <rect x="568" y="170" width="238" height="38" rx="19" fill="#2a2a28" stroke="#c34e33"/><text x="687" y="195" text-anchor="middle" fill="#f2ede1">AI IS A SIDE BRANCH</text>
-  </g>
-
-  <!-- Top row: 1 → 2 → 3 -->
-  <g filter="url(#shadow)">
-    <rect x="64" y="250" width="380" height="236" rx="20" fill="#faf7ef"/>
-    <circle cx="100" cy="286" r="19" fill="#c34e33"/>
-    <text x="100" y="292" class="sans step" text-anchor="middle">01</text>
-    <text x="132" y="293" class="sans card-title">Frame the trip</text>
-    <text x="94" y="340" class="sans copy">Add origin, destination, and dates.</text>
-    <text x="94" y="366" class="sans copy">Voyalier answers with a useful starting plan.</text>
-    <rect x="94" y="398" width="320" height="44" rx="13" fill="#ebe6d7"/>
-    <text x="254" y="425" class="sans" font-size="15" font-weight="700" text-anchor="middle" fill="#46536b">DETERMINISTIC BLUEPRINT</text>
-    <text x="94" y="470" class="sans tech">pure rules · no model required</text>
-  </g>
-
-  <path d="M444 360h76" class="route"/>
-
-  <g filter="url(#shadow)">
-    <rect x="530" y="250" width="380" height="236" rx="20" fill="#faf7ef"/>
-    <circle cx="566" cy="286" r="19" fill="#c34e33"/>
-    <text x="566" y="292" class="sans step" text-anchor="middle">02</text>
-    <text x="598" y="293" class="sans card-title">Gather, then review</text>
-    <text x="560" y="340" class="sans copy">Paste, pick, or drop confirmations, then</text>
-    <text x="560" y="366" class="sans copy">compare every suggestion with its source.</text>
-    <rect x="560" y="398" width="320" height="44" rx="13" fill="#c34e33"/>
-    <text x="720" y="425" class="sans" font-size="15" font-weight="700" text-anchor="middle" fill="#fff">CONFIRM · FIX · REJECT</text>
-    <text x="560" y="470" class="sans tech">candidate → confirmed · review gate</text>
-  </g>
-
-  <path d="M910 360h76" class="route"/>
-
-  <g filter="url(#shadow)">
-    <rect x="996" y="250" width="380" height="236" rx="20" fill="#faf7ef"/>
-    <circle cx="1032" cy="286" r="19" fill="#c34e33" class="pulse"/>
-    <text x="1032" y="292" class="sans step" text-anchor="middle">03</text>
-    <text x="1064" y="293" class="sans card-title">Pressure-test it</text>
-    <text x="1026" y="340" class="sans copy">Find overlaps, hotel gaps, and unfinished</text>
-    <text x="1026" y="366" class="sans copy">review before they become travel-day surprises.</text>
-    <rect x="1026" y="398" width="320" height="44" rx="13" fill="#ebe6d7"/>
-    <text x="1186" y="425" class="sans" font-size="15" font-weight="700" text-anchor="middle" fill="#46536b">READINESS EXPLAINS, NEVER “CLEARS”</text>
-    <text x="1026" y="470" class="sans tech">conflicts · readiness · pure rules</text>
-  </g>
-
-  <!-- Downward turn, entirely within the right gutter -->
-  <path d="M1186 486v74" class="route"/>
-
-  <!-- Bottom row runs right → left: 4 → 5 → 6 -->
-  <g filter="url(#shadow)">
-    <rect x="996" y="570" width="380" height="236" rx="20" fill="#faf7ef"/>
-    <circle cx="1032" cy="606" r="19" fill="#c34e33"/>
-    <text x="1032" y="612" class="sans step" text-anchor="middle">04</text>
-    <text x="1064" y="613" class="sans card-title">Prepare for offline</text>
-    <text x="1026" y="660" class="sans copy">Download a city pack and keep sourced</text>
-    <text x="1026" y="686" class="sans copy">places, attribution, and the plan on-device.</text>
-    <rect x="1026" y="718" width="320" height="44" rx="13" fill="#ebe6d7"/>
-    <text x="1186" y="745" class="sans" font-size="15" font-weight="700" text-anchor="middle" fill="#46536b">PACKS · PERSONA WEIGHTS · MAP</text>
-    <text x="1026" y="792" class="sans tech">open data · licensed · explicit download</text>
-  </g>
-
-  <path d="M996 680h-76" class="route"/>
-
-  <g filter="url(#shadow)">
-    <rect x="530" y="570" width="380" height="236" rx="20" fill="#faf7ef"/>
-    <circle cx="566" cy="606" r="19" fill="#c34e33"/>
-    <text x="566" y="612" class="sans step" text-anchor="middle">05</text>
-    <text x="598" y="613" class="sans card-title">Travel with Today</text>
-    <text x="560" y="660" class="sans copy">See what is happening now and what comes</text>
-    <text x="560" y="686" class="sans copy">next—even when the signal wanders off.</text>
-    <rect x="560" y="718" width="320" height="44" rx="13" fill="#ebe6d7"/>
-    <text x="720" y="745" class="sans" font-size="15" font-weight="700" text-anchor="middle" fill="#46536b">OFFLINE · DATE + CONFIRMED FACTS</text>
-    <text x="560" y="792" class="sans tech">offline · confirmed facts · stable order</text>
-  </g>
-
-  <path d="M530 680h-76" class="route"/>
-
-  <g filter="url(#shadow)">
-    <rect x="64" y="570" width="380" height="236" rx="20" fill="#46536b"/>
-    <circle cx="100" cy="606" r="19" fill="#c34e33"/>
-    <text x="100" y="612" class="sans step" text-anchor="middle">06</text>
-    <text x="132" y="613" class="sans dark-title">Share deliberately</text>
-    <text x="94" y="660" class="sans dark-copy">Preview a useful brief that leaves traveler</text>
-    <text x="94" y="686" class="sans dark-copy">names and confirmation codes behind.</text>
-    <rect x="94" y="718" width="320" height="44" rx="13" fill="#1a1917"/>
-    <text x="254" y="745" class="sans" font-size="15" font-weight="700" text-anchor="middle" fill="#f2ede1">REDACTED BEFORE RENDERING</text>
-    <text x="94" y="792" class="sans" font-size="14" fill="#c8c3b8">print/PDF · no raw document body</text>
-  </g>
-
-  <!-- Optional branch from Today; main route to Share stays direct -->
-  <path d="M720 806v34" class="optional"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 840" role="img" aria-labelledby="title desc">
+  <title id="title">The Voyalier trip route</title>
+  <desc id="desc">A folded route connects source, review, plan, prepare, and travel day. Optional AI branches away from the core path and rejoins only through traveler review.</desc>
+  <style>
+    :root { --paper: oklch(18.7% .008 78); --raised: oklch(22% .01 78); --ink: oklch(94.8% .014 87); --muted: oklch(72% .013 87); --line: oklch(35% .012 78); --indigo: oklch(70% .04 257); --accent: oklch(69% .13 35); --accent-soft: oklch(69% .13 35 / .16); }
+    .paper { fill: var(--paper); } .raised { fill: var(--raised); } .rule { stroke: var(--line); }
+    .route { fill: none; stroke: var(--indigo); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+    .route-dash { fill: none; stroke: var(--line); stroke-width: 2; stroke-dasharray: 9 12; }
+    .stop { fill: var(--paper); stroke: var(--indigo); stroke-width: 4; } .waypoint { fill: var(--accent); }
+    .label { fill: var(--muted); font: 500 17px "Zen Kaku Gothic New", sans-serif; letter-spacing: .12em; }
+    .title { fill: var(--ink); font: 600 34px "Shippori Mincho", serif; }
+    .body { fill: var(--muted); font: 400 20px "Zen Kaku Gothic New", sans-serif; }
+    .small { fill: var(--muted); font: 500 16px "Zen Kaku Gothic New", sans-serif; }
+  </style>
+  <rect class="paper" width="1440" height="840" rx="36" />
+  <path class="rule" d="M82 84H1358" />
+  <text class="label" x="82" y="58">ONE TRIP · FIVE DISTINCT STATES</text>
+  <text class="title" x="82" y="148">The route stays legible because uncertainty has a place.</text>
+  <path class="route" d="M120 360H372L422 410H664L714 360H956L1006 410H1320" />
   <g>
-    <rect x="530" y="850" width="380" height="90" rx="18" fill="#211f1c" stroke="#d97a5f" stroke-width="1.7" stroke-dasharray="8 6"/>
-    <text x="558" y="882" class="sans" font-size="14" font-weight="700" letter-spacing="1.5" fill="#d97a5f">OPTIONAL AI SIDECAR</text>
-    <text x="558" y="911" class="sans" font-size="16" fill="#f2ede1">Set up → preview → consent → labeled reply</text>
-    <text x="558" y="926" class="sans" font-size="14" fill="#a9a69c">Ollama setup · cloud BYOK · editable instructions · activity log</text>
+    <circle class="stop" cx="120" cy="360" r="14" /><circle class="waypoint" cx="120" cy="360" r="5" />
+    <circle class="stop" cx="422" cy="410" r="14" /><circle class="waypoint" cx="422" cy="410" r="5" />
+    <circle class="stop" cx="714" cy="360" r="14" /><circle class="waypoint" cx="714" cy="360" r="5" />
+    <circle class="stop" cx="1006" cy="410" r="14" /><circle class="waypoint" cx="1006" cy="410" r="5" />
+    <circle class="stop" cx="1320" cy="410" r="14" /><circle class="waypoint" cx="1320" cy="410" r="5" />
   </g>
-
   <g>
-    <rect x="64" y="970" width="1312" height="44" rx="22" fill="#1e1c19" stroke="#46536b" stroke-width="1.5"/>
-    <circle cx="92" cy="992" r="7" fill="#c34e33"/>
-    <text x="720" y="998" class="sans" font-size="15" text-anchor="middle" fill="#a9a69c">The deterministic route reaches Share without AI or a live source. Connected context is additive, explicit, and attributable.</text>
+    <text class="label" x="82" y="318">SOURCE</text><text class="title" x="82" y="470">Bring it in</text><text class="body" x="82" y="506">Paste, email, HTML,</text><text class="body" x="82" y="536">or a local file.</text>
+    <text class="label" x="360" y="362">REVIEW</text><text class="title" x="360" y="520">Compare it</text><text class="body" x="360" y="556">Candidate beside</text><text class="body" x="360" y="586">quoted evidence.</text>
+    <text class="label" x="656" y="318">PLAN</text><text class="title" x="656" y="470">Confirm it</text><text class="body" x="656" y="506">Rules find overlaps,</text><text class="body" x="656" y="536">gaps, and unknowns.</text>
+    <text class="label" x="944" y="362">PREPARE</text><text class="title" x="944" y="520">Carry it</text><text class="body" x="944" y="556">Packs, checks, notes,</text><text class="body" x="944" y="586">and a redacted brief.</text>
+    <text class="label" x="1254" y="362">GO</text><text class="title" x="1204" y="520">Use Today</text><text class="body" x="1172" y="556">Local, stable, and</text><text class="body" x="1172" y="586">quiet under pressure.</text>
   </g>
+  <path class="route-dash" d="M422 410C500 690 788 720 890 610" />
+  <rect class="raised rule" x="650" y="644" width="420" height="112" rx="22" />
+  <circle class="waypoint" cx="686" cy="680" r="6" />
+  <text class="label" x="708" y="685">OPTIONAL AI · SIDE LANE</text>
+  <text class="small" x="686" y="724">Preview → consent → review. Never the route’s authority.</text>
 </svg>

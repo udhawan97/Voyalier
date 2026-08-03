@@ -1,175 +1,191 @@
 <p align="center">
-  <img src="packages/brand/src/voyalier-app-icon.svg" alt="Voyalier app icon: the folded-route mark — one paper strip folded into a V with a vermilion waypoint — on a deep indigo tile" width="170">
+  <img src="packages/brand/src/voyalier-app-icon.svg" alt="Voyalier folded-route app icon" width="152">
 </p>
 
 <h1 align="center">Voyalier</h1>
 
-<p align="center"><em>One trip, folded into focus.</em></p>
+<p align="center"><strong>Plan the trip. Keep the evidence.</strong></p>
 
 <p align="center">
-  A calm, local-first trip workspace for the reservations, research tabs,<br>
-  weather checks, half-made plans, and one PDF named <code>boarding-pass-FINAL.pdf</code>.<br>
-  Voyalier turns the pile into a reviewed itinerary, an honest readiness check,<br>
-  and a brief you can share without also sharing your confirmation codes.
+  A calm, local-first workspace for confirmations, research, readiness,<br>
+  traveler-authored plans, and the details you need on travel day.
 </p>
 
 <p align="center">
-  <strong>No account</strong>&nbsp;&nbsp;·&nbsp;&nbsp;<strong>No silent uploads</strong>&nbsp;&nbsp;·&nbsp;&nbsp;<strong>No AI required</strong>
+  <strong>No account</strong>&nbsp;&nbsp;·&nbsp;&nbsp;<strong>No telemetry</strong>&nbsp;&nbsp;·&nbsp;&nbsp;<strong>No AI required</strong>
 </p>
 
 <p align="center">
   <a href="https://github.com/udhawan97/Voyalier/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/udhawan97/Voyalier/ci.yml?branch=main&style=flat-square&label=CI" alt="CI status"></a>
+  <a href="https://github.com/udhawan97/Voyalier/releases/latest"><img src="https://img.shields.io/github/v/release/udhawan97/Voyalier?style=flat-square&label=stable&color=c34e33" alt="Latest stable release"></a>
   <img src="https://img.shields.io/badge/core-Rust-46536b?style=flat-square&logo=rust&logoColor=white" alt="Rust core">
   <img src="https://img.shields.io/badge/desktop-Tauri_2-46536b?style=flat-square&logo=tauri&logoColor=white" alt="Tauri 2 desktop">
-  <img src="https://img.shields.io/badge/privacy-local--first-6f7a64?style=flat-square" alt="Local-first privacy">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-46536b?style=flat-square" alt="Apache 2.0 license"></a>
-  <a href="https://github.com/udhawan97/Voyalier/releases/latest"><img src="https://img.shields.io/github/v/release/udhawan97/Voyalier?style=flat-square&label=release&color=c34e33" alt="Latest release"></a>
-  <img src="https://img.shields.io/badge/status-public_beta-c34e33?style=flat-square" alt="Public beta">
-  <img src="https://img.shields.io/badge/installers-unsigned-6f7a64?style=flat-square" alt="Installers are not yet code-signed">
+  <img src="https://img.shields.io/badge/status-public_beta-6f7a64?style=flat-square" alt="Public beta">
 </p>
 
 <p align="center">
-  <sub>折&nbsp;&nbsp;one route, folded&nbsp;&nbsp;·&nbsp;&nbsp;間&nbsp;&nbsp;room to think&nbsp;&nbsp;·&nbsp;&nbsp;朱&nbsp;&nbsp;the waypoint&nbsp;&nbsp;·&nbsp;&nbsp;息&nbsp;&nbsp;motion with breath</sub>
+  <a href="https://udhawan97.github.io/Voyalier/"><img src="packages/brand/src/explore-voyalier.svg" alt="Explore the Voyalier product story, platform downloads, and documentation" width="900"></a>
 </p>
+
+## Download
+
+Choose your machine. The website resolves the current stable release into the
+matching installer and keeps the GitHub Releases page as a fallback.
 
 <p align="center">
-  <strong><a href="https://udhawan97.github.io/Voyalier/">Explore the Voyalier product story →</a></strong><br>
-  <sub>The “Quiet Wonder” site pairs real product captures with a reduced-motion-aware path from source to travel day, and carries System, Light, or Dark appearance into the docs.</sub>
+  <a href="https://udhawan97.github.io/Voyalier/download/"><img src="packages/brand/src/download-macos.svg" alt="Download Voyalier for Apple Silicon macOS" width="280"></a>&nbsp;
+  <a href="https://udhawan97.github.io/Voyalier/download/"><img src="packages/brand/src/download-windows.svg" alt="Download Voyalier for 64-bit Windows" width="280"></a>&nbsp;
+  <a href="https://udhawan97.github.io/Voyalier/getting-started/"><img src="packages/brand/src/download-source.svg" alt="Build Voyalier from source on any operating system" width="280"></a>
 </p>
+
+| Route           | Best for                                 | What you get                                                 |
+| --------------- | ---------------------------------------- | ------------------------------------------------------------ |
+| **macOS**       | Apple Silicon                            | Native `.dmg` desktop app                                    |
+| **Windows**     | 64-bit Windows                           | Standard `.exe`; `.msi` also published                       |
+| **From source** | Linux, Intel Mac, contributors, auditors | Same React interface through the guarded local browser stack |
+
+> [!IMPORTANT]
+> The desktop installers are public beta builds and are not yet code-signed.
+> macOS and Windows show a one-time publisher warning. The
+> [install guide](https://udhawan97.github.io/Voyalier/download/) explains the
+> exact steps, optional SHA-256 checks, and verified updater. The repository can
+> be ahead of the latest published installer; the **stable** badge above is the
+> source of truth for downloadable version.
 
 <p align="center">
-  <a href="https://udhawan97.github.io/Voyalier/"><kbd>&nbsp;🧭&nbsp;Website&nbsp;</kbd></a>&nbsp;
-  <a href="https://udhawan97.github.io/Voyalier/introduction/"><kbd>&nbsp;📖&nbsp;Docs&nbsp;</kbd></a>&nbsp;
-  <a href="#what-it-does"><kbd>&nbsp;✨&nbsp;Features&nbsp;</kbd></a>&nbsp;
-  <a href="https://github.com/udhawan97/Voyalier/releases/latest"><kbd>&nbsp;⬇️&nbsp;Download&nbsp;</kbd></a>&nbsp;
-  <a href="#run-it"><kbd>&nbsp;🚀&nbsp;Run&nbsp;it&nbsp;</kbd></a>&nbsp;
-  <a href="#privacy"><kbd>&nbsp;🔒&nbsp;Privacy&nbsp;</kbd></a>&nbsp;
-  <a href="#under-the-hood"><kbd>&nbsp;⚙️&nbsp;Under&nbsp;the&nbsp;hood&nbsp;</kbd></a>
+  <img src="docs-site/public/assets/screenshots/voyalier-trip-workspace.jpg" alt="Current Voyalier workspace for a fictional Kyoto trip, with Today, pending suggestions, and the Blueprint" width="1100">
 </p>
 
-> [!NOTE]
-> Voyalier is a **public beta**, built in the open. [Download it](https://github.com/udhawan97/Voyalier/releases/latest) for Apple Silicon macOS or Windows x64, or [run it in a browser from source](#run-it) on any OS. The working app already covers trip creation and editing, deterministic planning, confirmation review (paste, HTML, an `.eml` file, or drag-and-drop), conflicts, readiness, official advice, weather, saved places, an explicit packing checklist, manual activities and transfers, research links and files you keep for reading, workspace search, offline city packs and maps, Spanish and English UI, encrypted local storage, redacted sharing, an in-app updater, and optional Ollama/OpenAI/Anthropic assistance with a guided on-device setup, validated cloud keys, and editable instructions, and an on-device chat that answers from the trip's own material. Signed and notarized installers are still waiting for the traditional travel document of software distribution: paid certificates.
+## The simple version
 
-<p align="center">
-  <img src="docs-site/public/assets/screenshots/voyalier-trip-workspace.jpg" alt="Voyalier trip workspace showing the Kyoto journey, Today summary, pending evidence review, and deterministic Blueprint" width="1100">
-</p>
+A trip usually arrives as scattered PDFs, email threads, research tabs, notes,
+and half-made decisions. Voyalier gives that pile one shape without pretending
+uncertain information is settled.
 
-## At a glance
+1. Create a trip.
+2. Import a confirmation or add your own plan.
+3. Review every suggested detail against its source.
+4. Let deterministic rules find overlaps, gaps, and missing review.
+5. Add connected context only when you ask, then keep the useful result locally.
 
-| For a traveler                                                                       | For a developer                                                                                      |
-| ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| One calm workspace for confirmations, plans, checks, offline context, and travel day | One versioned gateway across React, Axum, and direct Tauri IPC                                       |
-| Suggestions stay reviewable until you confirm, edit, or dismiss them                 | Candidate facts, confirmed facts, retrieved snapshots, and model replies stay separate               |
-| Advice, weather, maps, packs, and cloud AI connect only after an explicit action     | Framework-independent Rust rules remain authoritative; connected providers are replaceable seams     |
-| Sensitive evidence stays local, keychain-backed, and optionally passphrase-wrapped   | Fixtures and tests cover parsing, ranking, readiness, redaction, transport parity, and accessibility |
-
-**Casual read:** [see what Voyalier does](#what-it-does) · **Build it:** [run from source](#run-it) · **Audit it:** [under the hood](#under-the-hood)
-
-## The route
-
-A “simple trip” is rarely simple. It is seventeen tabs, two time zones, a hotel
-email, a screenshot of a train, a note that says “museum Tuesday?” and a group
-chat whose final decision was apparently a thumbs-up from someone named Alex.
-
-Traditional itinerary apps are good at making colored rectangles. AI trip
-planners are good at sounding certain. Neither is especially comforting when
-the rectangle overlaps your flight or the certainty was invented six tokens
-ago.
-
-Voyalier takes a different route: **keep the trip local, keep the evidence
-attached, and keep the traveler in charge**. Import details become candidates,
-not facts. Official information keeps its source and retrieval time. Rules find
-the conflicts. AI is optional, previewed, and never promoted to border agent,
-meteorologist, doctor, or booking clerk.
-
-<p align="center">
-  <img src="docs-site/public/assets/voyalier-trip-workspace-flow.svg" alt="Six-stage Voyalier product flow: frame a trip, gather and review evidence, pressure-test the plan, prepare it for offline use, travel with Today, and share a redacted brief; optional AI appears as a separate side branch" width="1100">
-</p>
+Voyalier does **not** book travel, monitor a trip in the background, guarantee a
+price or opening time, or issue authoritative visa, safety, or health decisions.
 
 ## What it does
 
-The useful parts work without a paid AI key. The connected parts ask first.
+The useful parts work without a paid model or provider key.
 
-|     | Do this                                                                                                      | Get this                                                                                                                                             |
-| :-: | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 🧭  | **Frame the trip** — add origin, destination, and dates                                                      | A deterministic Blueprint instead of a blank canvas asking you to “start dreaming”                                                                   |
-| 📥  | **Bring the confirmations** — paste reservation text, structured HTML, or a raw confirmation email           | Candidate flights and stays with source excerpts, warnings, and zero silent promotion                                                                |
-| ✅  | **Review the facts** — confirm, correct, reject, or undo                                                     | A trusted itinerary whose mistakes can be traced back to the source instead of blamed on “the algorithm”                                             |
-| 🧩  | **Pressure-test the plan** — check overlaps, lodging gaps, and pending review                                | Readiness that explains what is missing without pretending it knows whether a government will admit you                                              |
-| 🛂  | **Prepare the visa** — pick your passport and work the steps of any route                                    | A four-zone cockpit: curated journeys or a labelled universal playbook, plus the authority's own published processing times fetched on your click    |
-| 🌦️  | **Fetch live context** — request official advice or destination weather                                      | Dated, attributed snapshots with honest stale, partial, and unavailable states                                                                       |
-| 🗺️  | **Discover locally** — download an open-data city pack, choose persona weights, and show the map             | Ranked places with source, license, score, and “because” reasons — not a mystery listicle in a trench coat                                           |
-| 📌  | **Keep the useful ideas** — save a recommended place, add notes, or promote it into the plan                 | A traveler-owned shortlist that keeps its source and license without pretending an idea is a booking                                                 |
-| 🎒  | **Pack deliberately** — accept an evidence-backed suggestion or add your own checklist item                  | A persistent checklist where suggestions never add themselves                                                                                        |
-| 🚆  | **Add the missing plan** — enter an activity, rail leg, or transfer and its local time                       | Editable manual plans, overlap notices, Today anchors, and safe brief/calendar projections                                                           |
-| 🔍  | **Find anything** — search documents, confirmed facts, notes, saved places, manual plans, and saved research | Local workspace results with trip/source provenance and transparent occurrence-based ranking                                                         |
-| 🕰️  | **Travel with Today** — open the trip before or during the journey                                           | A stable offline “now / next” view from confirmed facts plus clearly separate traveler-authored plans                                                |
-| 📚  | **Keep what you read** — save a link or file to a trip, with your note and tags                              | Reading material that never becomes evidence: no candidates, no readiness effect, and a dated page snapshot only after you allow fetching            |
-| ✨  | **Ask carefully** — preview an Ollama, OpenAI, or Anthropic request                                          | Optional assistance with the exact outbound payload, withheld fields, token estimate, and activity record                                            |
-| 💬  | **Ask about this trip** — talk to a local model about your own plans and research                            | On-device only, grounded by the same deterministic search, citing what it used; codes and names stay withheld, and transcripts never re-enter search |
-| 🔐  | **Lock it down** — use the OS keychain or add a passphrase                                                   | Sensitive trip evidence sealed at rest, with no recovery theatre if the passphrase is forgotten                                                      |
-| 🧾  | **Share deliberately** — preview the traveler brief and print or save it as PDF                              | A useful handoff that excludes names and confirmation codes by construction                                                                          |
+|                                                                    | Part of the trip             | What Voyalier does                                                                                                                                    |
+| :----------------------------------------------------------------: | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| <img src="packages/brand/src/icon-evidence.svg" alt="" width="34"> | **Bring in evidence**        | Imports pasted text, HTML, raw email, or local files and keeps source excerpts attached to what it found.                                             |
+|  <img src="packages/brand/src/icon-review.svg" alt="" width="34">  | **Review before belief**     | Leaves extracted flights, stays, rail, coach, ferry, and hire-car details pending until you confirm, correct, or dismiss them.                        |
+|   <img src="packages/brand/src/icon-plan.svg" alt="" width="34">   | **Plan and pressure-test**   | Builds a deterministic Blueprint, finds overlaps and lodging gaps, shows Today, and makes traveler-authored activities and transfers first-class.     |
+| <img src="packages/brand/src/icon-offline.svg" alt="" width="34">  | **Prepare for weak signal**  | Keeps research, destination facts, city packs, recommendations, saved places, packing, maps, and a redacted brief available from the local workspace. |
+| <img src="packages/brand/src/icon-privacy.svg" alt="" width="34">  | **Protect the workspace**    | Stores one local SQLite workspace, seals sensitive evidence with a keychain-backed vault, supports backup and restore, and sends no telemetry.        |
+|    <img src="packages/brand/src/icon-ai.svg" alt="" width="34">    | **Ask carefully, if useful** | Offers optional on-device Ollama and previewed BYOK cloud assistance. Remote content leaves only after explicit consent.                              |
 
 <details>
-<summary>&nbsp;📋&nbsp; The full capability list, without the brochure voice</summary>
+<summary><strong>See the complete capability map</strong></summary>
 
-<br>
-
-| Area                  | What Voyalier does                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Trips**             | Create, edit, archive, unarchive, delete, and persist trips with a deterministic Blueprint; an active trip and section resume within the browser session, while an accessible combobox suggests places from your history and the pack catalog                                                                                                                                                                                                                              |
-| **Confirmations**     | Import pasted text, HTML, or a raw confirmation email (`.eml`) — by paste, file picker, or drag-and-drop; detect JSON-LD and plain-text flight/lodging facts; retain parser runs, field spans, excerpts, and warnings                                                                                                                                                                                                                                                      |
-| **Review**            | Keep extracted candidates pending until the traveler confirms or corrects them; reject candidates or undo confirmed facts back to review; preserve top-to-bottom dialog context and stable keyboard focus as the queue changes                                                                                                                                                                                                                                             |
-| **Itinerary**         | Order confirmed flights and stays; flag flight overlaps, lodging overlaps, and uncovered-night gaps without blocking the traveler                                                                                                                                                                                                                                                                                                                                          |
-| **Manual planning**   | Add, edit, and remove traveler-authored activities, rail legs, and transfers; validate floating local times; flag literal overlaps as notices without changing confirmed-plan readiness; project title/location/time—but never private notes—into Today, the brief, and `.ics` export                                                                                                                                                                                      |
-| **Readiness**         | Roll up logistics checks and surface link-only official entry/health resources without making authoritative claims; report the traveler's own visa-prep tally attributed to them, still excluded from the rollup                                                                                                                                                                                                                                                           |
-| **Visa preparation**  | Quote a destination's published entry path with its source and the date it was read; walk a curated route (Canada, Japan, Australia) or the universal playbook — Voyalier-authored, labelled as such — step by step with plain-language cautions and official links; fetch the authority's own published processing times on explicit consent (IRCC, UKVI), kept as dated copies with staleness marking; persist ticks and sealed notes per trip. Nothing is ever asserted |
-| **Official advice**   | Fetch a consented, dated GOV.UK FCDO snapshot with attribution, source URL, update metadata, and staleness handling                                                                                                                                                                                                                                                                                                                                                        |
-| **Weather**           | Fetch a consented Open-Meteo outlook with resolved place, trip-window coverage, retrieval time, and honest forecast-horizon limits                                                                                                                                                                                                                                                                                                                                         |
-| **Offline packs**     | Browse a validated catalog and download per-trip packs from GitHub Releases with three separately licensed layers — Overture places, Overture amenities, and Wikivoyage prose; every catalog pack offers a bounded verified PMTiles basemap                                                                                                                                                                                                                                |
-| **Destination facts** | Derive an offline sky (sunrise, sunset, golden hour, moon), the country's languages, plugs, driving side, and emergency numbers, nearest airports, time difference, and an estimated flight carbon figure labelled as an estimate                                                                                                                                                                                                                                          |
-| **Recommendations**   | Persist persona weights; rank downloaded places with transparent scores, reasons, provenance, and a cross-dimension wildcard; explicitly save a result with its source/license snapshot and notes                                                                                                                                                                                                                                                                          |
-| **Packing**           | Derive suggestions only from trip/weather evidence, then let the traveler explicitly accept or ignore each one alongside custom persistent checklist items; blank custom and manual-plan actions expose their prerequisites                                                                                                                                                                                                                                                |
-| **Map**               | Lazy-load a consent-gated MapLibre/OpenFreeMap view; request no tiles before the traveler selects **Show map**                                                                                                                                                                                                                                                                                                                                                             |
-| **Search**            | Scan every trip's source documents, confirmed facts, notes, saved places, manual plans, and saved research locally, returning bounded snippets and provenance with deterministic ranking; pending candidates remain excluded                                                                                                                                                                                                                                               |
-| **Today**             | Build an offline upcoming/active/completed view with today’s confirmed anchors and clearly separate traveler-authored activities, rail legs, and transfers                                                                                                                                                                                                                                                                                                                 |
-| **Research**          | Keep links and files with a trip, with your own title, note, and tags; never evidence and never readiness-affecting; one reversible setting allows fetching a page, stored as a dated readable snapshot you can read offline and search                                                                                                                                                                                                                                    |
-| **AI assist**         | Guided on-device Ollama setup (install → start → in-app model pull); BYOK OpenAI/Anthropic with **Validate & save**; editable, resettable system instructions; on-device lodging-date drafts you review; preview the exact redacted request; run only after consent; record metadata-only activity                                                                                                                                                                         |
-| **Local chat**        | Ask about one trip on a local Ollama; grounded by the deterministic search and citing what it used; the same withheld codes and names as the cloud path; sealed per-trip transcripts kept out of search, brief, and exports; app-authored pointers on entry, health, safety, and price questions                                                                                                                                                                           |
-| **Vault**             | Seal source text, pending evidence, and sensitive fact payloads with an OS-keychain data key; optionally wrap it with a local Argon2id passphrase                                                                                                                                                                                                                                                                                                                          |
-| **Share**             | Generate a redaction-first printable brief from confirmed facts; names and confirmation codes never enter the output model                                                                                                                                                                                                                                                                                                                                                 |
-| **Trust & language**  | Show the 20-entry source/license register grouped by built-in, consent-fetched, offline-download, and optional-AI inputs; switch immediately among System, complete English, and complete Español catalogs stored only on this device                                                                                                                                                                                                                                      |
-| **Accessibility**     | Support coherent engine recovery, synchronized theme controls, 320 px topbar reflow, keyboard flows, focus containment/return, reduced motion, semantic labeling, contrast review, and automated axe-core gates                                                                                                                                                                                                                                                            |
+| Area                    | Current source behavior                                                                                                                                                |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Trips**               | Create, edit, archive, restore, and delete trips; remember the active trip and section; build a deterministic Blueprint.                                               |
+| **Confirmations**       | Import text, HTML, `.eml`, or local files; preserve parser runs, excerpts, field spans, and warnings.                                                                  |
+| **Review**              | Confirm, edit and confirm, dismiss, or undo; nothing is promoted silently.                                                                                             |
+| **Itinerary**           | Order confirmed transport and stays; report literal overlaps, lodging gaps, handoff slack, and exposed connections without inventing predictions.                      |
+| **Readiness**           | Explain logistics gaps and link to official entry/health sources without making authority claims.                                                                      |
+| **Visa preparation**    | Keep passport-specific preparation, dated official sources, a universal guide, traveler ticks, and sealed notes clearly separated from a visa decision.                |
+| **Live context**        | Fetch official advice, destination weather, page snapshots, packs, maps, or a manual trip re-check only after an explicit action. There is no background monitoring.   |
+| **Offline discovery**   | Rank licensed city-pack places with visible scores and reasons; save places with provenance and optional notes.                                                        |
+| **Traveler plans**      | Keep packing items, activities, rail legs, and transfers separate from imported confirmed facts while including safe projections in Today, calendar, and brief output. |
+| **Search and research** | Search local source documents, confirmed facts, notes, saved places, plans, and saved reading with trip/source provenance. Pending candidates stay out.                |
+| **AI assist**           | Guide local Ollama setup; validate BYOK cloud keys; preview the exact redacted payload; keep cloud help optional; keep trip chat on-device only.                       |
+| **Vault and sharing**   | Seal sensitive columns at rest; optionally passphrase-wrap the key; generate a brief whose model excludes traveler names and confirmation codes.                       |
+| **Language and access** | Complete English and Spanish catalogs, keyboard flows, focus containment and return, reduced motion, contrast checks, 320 px reflow, and automated axe gates.          |
 
 </details>
 
+## See the work
+
+### Evidence stays beside the decision
+
 <p align="center">
-  <img src="docs-site/public/assets/screenshots/voyalier-evidence-review.jpg" alt="Voyalier evidence review dialog comparing a suggested flight with a quoted source excerpt before it can become a confirmed fact" width="1100">
+  <img src="docs-site/public/assets/screenshots/voyalier-evidence-review.jpg" alt="Voyalier review dialog showing fictional candidates beside quoted source excerpts and explicit confirm, edit, and dismiss actions" width="1100">
 </p>
 
-## Run it
+The importer proposes. The traveler decides. A candidate keeps the excerpt that
+supports it so a correction is grounded in the document, not a confident guess.
 
-**Download the app** from the
-[latest release](https://github.com/udhawan97/Voyalier/releases/latest) — a
-`.dmg` for Apple Silicon macOS, an `.exe` or `.msi` for Windows x64. Neither is
-code-signed yet, so the first launch needs one trip through **System Settings** →
-**Privacy & Security** → **Open Anyway** on macOS, or **More info** → **Run
-anyway** on Windows. The
-[install page](https://udhawan97.github.io/Voyalier/download/) walks through both,
-and explains what that warning does and doesn't mean.
+### Preparation says where its authority stops
 
-**Or build it yourself** and run it in a browser. This works on any OS, which
-makes it the route for Intel Macs and Linux — and it is a carry-on you assemble
-yourself, though it has fewer pieces than an airport lounge chair.
+<p align="center">
+  <img src="docs-site/public/assets/screenshots/voyalier-visa-cockpit.jpg" alt="Voyalier visa and entry cockpit showing a non-authority warning, official source, and six-step preparation guide" width="1100">
+</p>
 
-Requirements:
+Visa and entry preparation points to the official source, records when it was
+read, and says plainly what Voyalier has not verified. It organizes the work; it
+does not decide the case.
 
-- Node.js 24+
-- pnpm 11+
-- Current stable Rust toolchain with `rustfmt` and `clippy`
+### The route remains readable
 
-`make bootstrap` also installs the pinned Chromium runtime used by the required
-real-loopback Playwright gate.
+<p align="center">
+  <img src="docs-site/public/assets/voyalier-trip-workspace-flow.svg" alt="Voyalier route from source through review, deterministic planning, preparation, and travel day, with optional AI in a separate consented lane" width="1100">
+</p>
+
+## Trust by design
+
+- **Local is the default.** Trips, evidence, confirmed facts, notes, packs,
+  provider settings, and activity metadata live on your machine.
+- **Imports are untrusted.** Suggested details remain candidates until you
+  confirm or correct them.
+- **Connected features wait.** Advice, weather, page fetches, packs, maps, a
+  trip re-check, and AI do not refresh quietly.
+- **Remote AI is previewed.** You see the exact redacted payload before an
+  OpenAI or Anthropic request leaves the device.
+- **Sharing starts with exclusion.** Traveler names and confirmation codes never
+  enter the brief output model.
+- **There is no recovery theater.** If you passphrase-lock the vault and forget
+  the passphrase, Voyalier cannot recover it.
+
+<p align="center">
+  <img src="docs-site/public/assets/voyalier-evidence-pipeline.svg" alt="Voyalier evidence pipeline separating untrusted input, candidates, human review, confirmed facts, deterministic views, and explicit connected context" width="1100">
+</p>
+
+<details>
+<summary><strong>What can use the network?</strong></summary>
+
+| Connection                            | Explicit trigger                      | What leaves the device                                                                               |
+| ------------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **GOV.UK FCDO**                       | Fetch official advice                 | Selected country slug                                                                                |
+| **Open-Meteo**                        | Fetch weather                         | Destination for geocoding, then coordinates                                                          |
+| **Government processing-time source** | Fetch published times                 | The route values needed by that authority’s public tool                                              |
+| **GitHub Releases**                   | Download a pack, update, or installer | Public asset request; no trip content                                                                |
+| **OpenFreeMap**                       | Show map                              | Map viewport tile requests                                                                           |
+| **A saved page**                      | Fetch page details                    | Only the address you saved; the response is size-capped and reduced to readable text                 |
+| **Ollama**                            | Run assist or send local chat         | Redacted trip material to localhost; chat also includes the question and retrieved local context     |
+| **OpenAI / Anthropic**                | Run assist after preview              | Exactly the redacted payload shown in the consent step; the BYOK key is used only for authentication |
+
+Official entry, health, and safety sources outrank commercial, editorial,
+community, and model content. AI can help explain a trip; it cannot clear one.
+
+</details>
+
+## Four ways it can think
+
+| Mode                          | Contract                                                                                                            |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| **Deterministic local rules** | Parsing, validation, itinerary checks, readiness, search, ranking, Today, and brief redaction. Always the baseline. |
+| **Offline snapshots**         | Saved evidence, downloaded packs, and derived views. Old live information stays dated instead of aging into fact.   |
+| **On-device AI**              | Optional Ollama on localhost. No cloud key and never required.                                                      |
+| **Cloud AI**                  | BYOK OpenAI or Anthropic after an exact redacted-payload preview. Keys stay in the OS keychain.                     |
+
+## Run from source
+
+The browser route works on macOS, Windows, and Linux.
+
+Requirements: Node.js 24+, pnpm 11+, and a current stable Rust toolchain with
+`rustfmt` and `clippy`.
 
 ```bash
 git clone https://github.com/udhawan97/Voyalier.git
@@ -178,219 +194,63 @@ make bootstrap
 make dev
 ```
 
-Open `http://127.0.0.1:5173`. The Vite app proxies `/api` to the guarded Axum
-service at `http://127.0.0.1:8787`.
-
-> [!TIP]
-> Want to inspect the interface without keeping a boarding pass safe? The component tests use a deterministic in-memory gateway, so fixtures can exercise the full UI without touching your keychain, database, or network.
+Open `http://127.0.0.1:5173`. Vite proxies `/api` to the loopback-only Axum
+service at `http://127.0.0.1:8787`. The desktop app uses the same React
+interface through direct Tauri IPC and does not bind a TCP port in release mode.
 
 <details>
-<summary>&nbsp;🛠️&nbsp; Useful development commands</summary>
-
-<br>
+<summary><strong>Useful contributor commands</strong></summary>
 
 ```bash
 pnpm dev:web      # React interface only
 pnpm dev:docs     # Astro/Starlight documentation
-make check        # Web/Rust/desktop checks plus live HTTP and Chromium acceptance
-pnpm test:e2e     # Chromium acceptance against the real browser development stack
+make check        # formatting, types, lint, Rust, desktop, integration, and browser gates
+pnpm test:e2e     # Chromium acceptance against the real local stack
 ```
 
-The desktop app uses the same React interface through direct Tauri IPC. It does
-not start the Axum server or bind a TCP port in release mode.
+Use `make check` as the repository gate. A bare `cargo test` skips the desktop
+crate and is not equivalent.
 
 </details>
 
-## Four ways it can think
-
-Only one of them requires giving a model anything, and even then Voyalier shows
-you the envelope before it leaves the building.
-
-| Mode                   | Contract                                                                                                                       |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| **Local intelligence** | Deterministic parsing, validation, search, readiness, ranking, Today, and brief redaction. Always the baseline.                |
-| **Offline snapshot**   | Saved trips, evidence, downloaded packs, and derived views. Stale live facts stay labeled rather than aging into folklore.     |
-| **On-device AI**       | Optional Ollama on localhost. No key, no cloud, and never required for the product to be useful.                               |
-| **Cloud AI**           | BYOK OpenAI or Anthropic after an exact redacted-payload preview. Keys stay in the OS keychain; every completed run is logged. |
-
-## Privacy
-
-Voyalier is local-first by architecture, not by a checkbox hidden under “More
-settings.” Your confirmation code is not a networking opportunity.
-
-- 🖥️ **The trip lives on your machine.** Trips, imported evidence, confirmed facts, packs, provider settings, and activity metadata are stored locally.
-- 🛡️ **Sensitive evidence is sealed at rest.** The OS keychain protects the vault data key; an optional passphrase can wrap that key and lock the workspace between launches.
-- 👀 **Imports are reviewed, not believed.** Parsed details remain candidates until you confirm or correct them.
-- 📡 **Connected features wait for a click.** Advice, weather, city packs, maps, page fetches for saved links, and AI requests do not quietly “refresh for your convenience.”
-- ✂️ **Sharing starts with exclusion.** Traveler names and confirmation codes are removed while the brief is built, not painted over afterward.
-- 📊 **Zero telemetry.** No analytics pipeline, shared provider account, ad profile, or inspirational heat map of where everyone wants to go.
+## Architecture
 
 <p align="center">
-  <img src="docs-site/public/assets/voyalier-evidence-pipeline.svg" alt="Voyalier evidence pipeline: imported content is locally stored and deterministically parsed into candidates, a traveler review gate promotes only approved candidates to confirmed facts, and pure rules derive trip views; retrieved sources and optional AI remain separate consent-gated lanes" width="1100">
+  <img src="docs-site/public/assets/voyalier-system-architecture.svg" alt="Voyalier architecture: one React interface reaches AppService through Tauri IPC or loopback Axum, with a deterministic Rust core, local SQLite and vault state, and explicit connected seams" width="1100">
 </p>
 
-<details>
-<summary>&nbsp;🔍&nbsp; The fine print — what can use the network</summary>
+| Layer                    | Owns                                                                                                           |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `crates/voyalier-core`   | Domain types, deterministic rules, validation, parsing, readiness, ranking, search, Today, and redaction—no IO |
+| `crates/voyalier-app`    | `AppService`, SQLite, vault, backup/restore, network and keychain seams                                        |
+| `crates/voyalier-server` | Thin loopback-only Axum adapter                                                                                |
+| `apps/desktop/src-tauri` | Thin native Tauri adapter                                                                                      |
+| `apps/web`               | Shared React product interface over the versioned `AppGateway`                                                 |
+| `docs-site`              | Static product story and documentation; it does not host the local backend                                     |
 
-<br>
+Read the [architecture guide](https://udhawan97.github.io/Voyalier/architecture/)
+or the repository’s [architecture decisions](docs/architecture/) before changing
+contracts, transport, storage, or provider behavior.
 
-| Connection             | Trigger                                           | What leaves the device                                                                                 |
-| ---------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **GOV.UK FCDO**        | **Fetch official advice**                         | Selected country slug; the dated response is stored locally                                            |
-| **Open-Meteo**         | **Fetch weather**                                 | Destination name for geocoding, then coordinates for the forecast                                      |
-| **GitHub Releases**    | **Download for this trip**                        | Requested public pack ID; no trip content is uploaded                                                  |
-| **OpenFreeMap**        | **Show map**                                      | Map viewport tile requests; trip records are not sent                                                  |
-| **A page you saved**   | **Fetch page details**, once you allow fetching   | Only the address you saved; http/https only, size-capped, reduced to readable text                     |
-| **Ollama**             | **Run assist** after preview, or **Send** in chat | Redacted payload to localhost only; chat adds your question and the trip material it retrieved         |
-| **OpenAI / Anthropic** | **Run assist** after preview                      | The exact redacted payload displayed in the consent step; the BYOK key is used only in the auth header |
+## Product boundaries
 
-Official entry, health, and safety sources outrank commercial, editorial,
-community, and model content. AI can help explain a trip; it cannot clear one.
+Voyalier is a public beta. The current scope deliberately leaves out autonomous
+booking, payments, inbox monitoring, shared accounts, hosted sync, background
+trip monitoring, authoritative visa/safety/health decisions, and guaranteed
+prices, availability, or opening hours.
 
-</details>
+That is not missing brochure copy. It is the trust boundary.
 
-## Under the hood
+## Documentation and project
 
-_For contributors, privacy reviewers, and anyone who reads architecture diagrams
-for fun. We see you._
+- [Product story](https://udhawan97.github.io/Voyalier/)
+- [Download and install](https://udhawan97.github.io/Voyalier/download/)
+- [Getting started](https://udhawan97.github.io/Voyalier/getting-started/)
+- [Privacy and trust](https://udhawan97.github.io/Voyalier/privacy/)
+- [Troubleshooting](https://udhawan97.github.io/Voyalier/troubleshooting/)
+- [Roadmap](https://udhawan97.github.io/Voyalier/roadmap/)
+- [Changelog](CHANGELOG.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
 
-|                       |                                                                                                                                                          |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Interface**         | React + TypeScript + Vite, shared by browser development and the Tauri desktop shell                                                                     |
-| **Core**              | Framework-independent Rust rules for validation, parsing, readiness, itinerary checks, search, recommendations, Today, redaction, and vault cryptography |
-| **Application layer** | `voyalier-app` orchestration, SQLite transactions, provider seams, keychain access, and encrypted persistence                                            |
-| **Transports**        | Guarded Axum loopback HTTP for browser development · direct Tauri IPC for desktop                                                                        |
-| **Storage**           | SQLite with WAL, foreign keys, busy timeout, and versioned migrations · OS keychain for BYOK and vault keys                                              |
-| **Trust model**       | Documents, retrieved pages, provider data, and model replies are untrusted until the appropriate review or consent boundary                              |
-| **Quality gates**     | TypeScript checks, React tests, Rust fmt/clippy/tests, desktop IPC round trips, accessibility checks, dependency review, and CodeQL                      |
-
-<p align="center">
-  <img src="docs-site/public/assets/voyalier-system-architecture.svg" alt="Voyalier architecture: one React interface selects an Axum loopback gateway in browser development or direct Tauri IPC on desktop, then converges on shared Rust application services, deterministic domain rules, SQLite, and OS keychain storage; remote calls are explicit consent-gated edges" width="1100">
-</p>
-
-<details>
-<summary>&nbsp;📁&nbsp; Project layout</summary>
-
-<br>
-
-```text
-apps/
-  web/                 React + Vite product interface
-  desktop/             Thin Tauri 2 native shell
-crates/
-  voyalier-core/       Domain types, parsers, deterministic rules, validation
-  voyalier-app/        SQLite-backed services, providers, vault, persistence
-  voyalier-server/     Guarded Axum API for browser development
-packages/
-  brand/               Folded-route mark, lockup, and app-icon assets
-  contracts/           Versioned TypeScript API/domain contract and mock
-  ui/                  Shared palette, type, spacing, and motion tokens
-docs-site/             Astro + Starlight public documentation
-docs/                  Architecture, product, security, data, design, and tests
-.github/                CI, Pages, security, pack-building, and release automation
-```
-
-</details>
-
-<details>
-<summary>&nbsp;🧠&nbsp; Why there are two transports</summary>
-
-<br>
-
-The UI speaks one `AppGateway` contract:
-
-- Browser development sends same-origin JSON through Vite to Axum on
-  `127.0.0.1:8787`, guarded by Host, Origin, and CORS checks.
-- The desktop build selects the Tauri gateway and invokes the same Rust
-  `AppService` directly — no local web server, no fixed-port listener.
-- Component tests select an in-memory mock with deterministic fixtures.
-- Playwright starts disposable SQLite plus the real Axum and Vite stack, then
-  proves planning, search, localization, and reload persistence in Chromium.
-
-That keeps product behavior in Rust services and domain rules instead of slowly
-collecting three slightly different answers to “is this hotel night missing?”
-
-</details>
-
-See the full [architecture guide](docs/architecture/ARCHITECTURE.md),
-[product brief](docs/product/PRODUCT_BRIEF.md),
-[threat model](docs/security/THREAT_MODEL.md), and
-[data-source policy](docs/data/DATA_SOURCES.md).
-
-## Roadmap
-
-The core trip loop is working: create → import → review → check → prepare → use
-offline → share. Grounded intelligence and the first public-beta surfaces have
-landed. The remaining work is less “invent the product” and more “make it safe
-to hand to someone who has a flight tomorrow.”
-
-- **OS-signed installers** — notarized macOS and signed Windows packages, blocked on paid certificates. (The free in-app updater — minisign verification, checksums, and build provenance — has already shipped and is independent of this.)
-- **More offline city coverage** — every catalog pack now offers a bounded verified PMTiles basemap; adding cities to the catalog remains incremental work
-- **More sourced readiness** — only where licensing, retrieval, and authority boundaries stay honest. (Visa preparation curates Canada, Japan, and Australia, and the universal playbook now covers every other route with labelled, non-authoritative guidance; more curated destinations and statistics parsers are incremental work.)
-- **More locales** — English and Spanish now ship with a system-language preference; additional translations remain catalog work
-- **Performance and support hardening** — larger trips, slower machines, clearer recovery paths, fewer reasons to open an issue from an airport floor
-
-Live booking, payment, authoritative visa determinations, price prediction,
-silent email ingestion, and real-time group collaboration remain deliberately
-deferred. Voyalier would rather be reliably useful than theatrically omniscient.
-
-See the full [roadmap](docs/roadmap/ROADMAP.md).
-
-## Troubleshooting
-
-<details>
-<summary>The app says a connected feature is unavailable</summary>
-
-<br>
-
-Your saved trip still works. Advice, weather, pack downloads, maps, and cloud AI
-are additive network features; retry the specific action when connected. Voyalier
-does not reinterpret “could not fetch” as “everything is probably fine.”
-
-</details>
-
-<details>
-<summary>On-device AI is not detected</summary>
-
-<br>
-
-Start Ollama, install at least one model, then select **Check for on-device AI**
-again. AI is optional; every deterministic trip feature remains available
-without it.
-
-</details>
-
-<details>
-<summary>I forgot the vault passphrase</summary>
-
-<br>
-
-There is intentionally no recovery copy or backdoor. The passphrase never
-leaves the device and is not stored. Back up the local data directory before
-enabling passphrase protection, and store the passphrase somewhere you trust.
-
-</details>
-
-More help lives in the [troubleshooting guide](https://udhawan97.github.io/Voyalier/troubleshooting/).
-
-## Contributing
-
-Issues and focused pull requests are welcome. Please read
-[CONTRIBUTING.md](CONTRIBUTING.md), the [Code of Conduct](CODE_OF_CONDUCT.md),
-and the [security policy](SECURITY.md) before boarding.
-
-If a change parses, ranks, validates, redacts, retrieves, or encrypts something,
-bring a fixture and a test. “It looked right on my trip” is useful feedback, but
-it is not yet a release gate.
-
-## License
-
-Voyalier is open source under the [Apache License 2.0](LICENSE).
-
-<p align="center">
-  <img src="packages/brand/src/voyalier-mark.svg" alt="Voyalier folded-route mark" width="48">
-</p>
-
-<p align="center">
-  <sub>Plan carefully. Travel lightly. Keep the confirmation code to yourself.</sub>
-</p>
+Apache-2.0 licensed. Built in the open for trips that should remain yours.
