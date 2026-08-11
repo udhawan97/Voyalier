@@ -316,7 +316,7 @@ export function isTripSectionHash(hash: string): boolean {
 export function tripSectionForSearchSource(
   source: WorkspaceSearchHit["source"],
 ): "section-plan" | "section-prepare" {
-  return source === "document" || source === "note"
+  return source === "document" || source === "note" || source === "resource"
     ? "section-prepare"
     : "section-plan";
 }

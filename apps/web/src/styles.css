@@ -3260,6 +3260,12 @@ h3 {
   max-width: 46rem;
 }
 
+.voy-workspace-search__count {
+  margin: 0 0 var(--voy-space-sm);
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+}
+
 .voy-workspace-search__form {
   display: flex;
   gap: 0.75rem;

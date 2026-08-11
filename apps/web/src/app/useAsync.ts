@@ -117,13 +117,16 @@ export interface AsyncAction<Args extends unknown[]> {
 export function useAsyncAction<Args extends unknown[], T>(
   action: (...args: Args) => Promise<T>,
   onSuccess?: (result: T, ...args: Args) => void,
+  onFailure?: (error: AppError, ...args: Args) => void,
 ): AsyncAction<Args> {
   const transportHealth = useTransportHealth();
   const actionRef = useRef(action);
   const successRef = useRef(onSuccess);
+  const failureRef = useRef(onFailure);
   useEffect(() => {
     actionRef.current = action;
     successRef.current = onSuccess;
+    failureRef.current = onFailure;
   });
 
   const mounted = useRef(true);
@@ -200,6 +203,7 @@ export function useAsyncAction<Args extends unknown[], T>(
           const error = toAppError(caught, "internal/unexpected");
           transportHealth.reportTransportFailure(error);
           setFailure({ error, recoveries: recoveriesRef.current });
+          failureRef.current?.(error, ...args);
         }
       } finally {
         // A superseded run leaves `busy` alone: the run that superseded it is
