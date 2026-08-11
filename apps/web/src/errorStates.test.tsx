@@ -433,20 +433,25 @@ describe("AppError rendered states", () => {
   function unpluggableGateway() {
     const base = createMockGateway();
     const state = { offline: false };
+    const searchQueries: string[] = [];
     const gateway = new Proxy(base, {
       get(target, property, receiver) {
         const value = Reflect.get(target, property, receiver);
         if (typeof value !== "function") return value;
-        return (...args: unknown[]) =>
-          state.offline
+        return (...args: unknown[]) => {
+          if (property === "searchWorkspace") {
+            searchQueries.push(String(args[0]));
+          }
+          return state.offline
             ? Promise.reject({
                 code: "transport/failure",
                 message: "engine unreachable",
               })
             : (value as (...rest: unknown[]) => unknown).apply(target, args);
+        };
       },
     });
-    return { gateway, state };
+    return { gateway, state, searchQueries };
   }
 
   /**
@@ -502,5 +507,122 @@ describe("AppError rendered states", () => {
         screen.queryByText("Voyalier can't reach its engine"),
       ).not.toBeInTheDocument(),
     );
+  });
+
+  it("replays the exact transport-failed Search once after global recovery", async () => {
+    const { gateway, state, searchQueries } = unpluggableGateway();
+    renderApp(gateway);
+    await screen.findByText("Ready");
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+    const input = await screen.findByLabelText("Search all trips");
+    state.offline = true;
+    fireEvent.change(input, { target: { value: "Kyoto" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await screen.findByText("Offline");
+    expect(searchQueries).toEqual(["Kyoto"]);
+
+    state.offline = false;
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText("Kyoto confirmations")).toBeInTheDocument();
+    await waitFor(() => expect(searchQueries).toEqual(["Kyoto", "Kyoto"]));
+    expect(await screen.findByText(/matches? in this workspace/i)).toHaveRole(
+      "status",
+    );
+    await waitFor(() => expect(input).toHaveFocus());
+  });
+
+  it("does not replay a failed Search after the query is cleared", async () => {
+    const { gateway, state, searchQueries } = unpluggableGateway();
+    renderApp(gateway);
+    await screen.findByText("Ready");
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+    const input = await screen.findByLabelText("Search all trips");
+    state.offline = true;
+    fireEvent.change(input, { target: { value: "Kyoto" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await screen.findByText("Offline");
+
+    fireEvent.change(input, { target: { value: "" } });
+    state.offline = false;
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await screen.findByText("Ready");
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    expect(searchQueries).toEqual(["Kyoto"]);
+  });
+
+  it("never replays an older failed query after a newer query takes over", async () => {
+    const { gateway, state, searchQueries } = unpluggableGateway();
+    renderApp(gateway);
+    await screen.findByText("Ready");
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+    const input = await screen.findByLabelText("Search all trips");
+    state.offline = true;
+    fireEvent.change(input, { target: { value: "Kyoto" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await screen.findByText("Offline");
+
+    fireEvent.change(input, { target: { value: "Fjord" } });
+    state.offline = false;
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText("Archived Oslo notes")).toBeInTheDocument();
+    await waitFor(() => expect(searchQueries).toEqual(["Kyoto", "Fjord"]));
+  });
+
+  it("a newer manual Search success consumes the old replay eligibility", async () => {
+    const { gateway, state, searchQueries } = unpluggableGateway();
+    renderApp(gateway);
+    await screen.findByText("Ready");
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+    const input = await screen.findByLabelText("Search all trips");
+    state.offline = true;
+    fireEvent.change(input, { target: { value: "Kyoto" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await screen.findByText("Offline");
+
+    state.offline = false;
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    expect(await screen.findByText("Kyoto confirmations")).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(searchQueries).toEqual(["Kyoto", "Kyoto"]);
+  });
+
+  it("hides results that belong to an older query when the next Search fails", async () => {
+    const { gateway, state } = unpluggableGateway();
+    renderApp(gateway);
+    await screen.findByText("Ready");
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+    const input = await screen.findByLabelText("Search all trips");
+    fireEvent.change(input, { target: { value: "Kyoto" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    expect(await screen.findByText("Kyoto confirmations")).toBeInTheDocument();
+
+    state.offline = true;
+    fireEvent.change(input, { target: { value: "Fjord" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    await screen.findByText("Offline");
+    expect(screen.queryByText("Kyoto confirmations")).not.toBeInTheDocument();
+  });
+
+  it("does not replay a failed Search after leaving the Search view", async () => {
+    const { gateway, state, searchQueries } = unpluggableGateway();
+    renderApp(gateway);
+    await screen.findByText("Ready");
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+    const input = await screen.findByLabelText("Search all trips");
+    state.offline = true;
+    fireEvent.change(input, { target: { value: "Kyoto" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await screen.findByText("Offline");
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    state.offline = false;
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await screen.findByText("Ready");
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(searchQueries).toEqual(["Kyoto"]);
   });
 });
