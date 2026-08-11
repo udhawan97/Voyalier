@@ -41,8 +41,8 @@ to Visa after the transient search target disappears.
 
 Acceptance:
 
-- A document or note result writes `#section-prepare`; a confirmed fact, saved place, or trip item
-  writes `#section-plan`.
+- A document, note, or saved-resource result writes `#section-prepare`; a confirmed fact, saved
+  place, or trip item writes `#section-plan`.
 - The search detour's own history entry remains intact, so Back/Forward semantics still satisfy
   ADR-0015.
 - Same-trip and cross-trip search results focus the exact record on entry and re-enter the owning

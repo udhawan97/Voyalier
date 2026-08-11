@@ -36,6 +36,10 @@ not re-prove.
   error cancels that eligibility. Mutations are deliberately never replayed,
   because repeating a write after an uncertain failure could duplicate a user
   action.
+- **The public-docs build no longer resolves known-vulnerable parser and id
+  generator versions.** Same-major overrides keep `js-yaml`, `nanoid`, and
+  PostCSS on patched releases; the production dependency audit now reports no
+  known vulnerabilities without changing the app's runtime or network surface.
 
 ### Changed
 
