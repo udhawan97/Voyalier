@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { WorkspaceSearchHit } from "@voyalier/contracts";
 
-import { useGateway } from "../app/context";
+import { useGateway, useTransportRecovery } from "../app/context";
 import { describeError, formatInstantDate } from "../app/format";
 import { searchSourceKey, t } from "../app/i18n";
 import { useAsyncAction } from "../app/useAsync";
@@ -49,21 +49,61 @@ export function WorkspaceSearch({
   onQueryChange?: (query: string) => void;
 }) {
   const gateway = useGateway();
+  const recoveries = useTransportRecovery();
   const [query, setQuery] = useState(initialQuery);
   const [hits, setHits] = useState<WorkspaceSearchHit[] | null>(null);
   const requestIdRef = useRef(0);
+  const recoveriesRef = useRef(recoveries);
+  const failedSearchRef = useRef<{
+    query: string;
+    requestId: number;
+    recoveries: number;
+  } | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    recoveriesRef.current = recoveries;
+  });
   const action = useAsyncAction(
     (...args: [value: string, requestId: number]) =>
       gateway.searchWorkspace(args[0]),
     (result, _value, requestId) => {
       if (requestId === requestIdRef.current) setHits(result);
     },
+    (error, value, requestId) => {
+      if (
+        requestId === requestIdRef.current &&
+        error.code === "transport/failure"
+      ) {
+        failedSearchRef.current = {
+          query: value,
+          requestId,
+          recoveries: recoveriesRef.current,
+        };
+      }
+    },
   );
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const runSearch = useCallback(
+    (value: string, restoreFocus = false) => {
+      const normalized = value.trim();
+      if (!normalized) return;
+      requestIdRef.current += 1;
+      const requestId = requestIdRef.current;
+      failedSearchRef.current = null;
+      // Results belong to the query that produced them. Keeping Kyoto cards
+      // below a failed Oslo search makes stale evidence look current.
+      setHits(null);
+      void action.run(normalized, requestId);
+      if (restoreFocus) inputRef.current?.focus();
+    },
+    [action.run],
+  );
 
   useEffect(() => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
+      failedSearchRef.current = null;
     };
   }, []);
 
@@ -72,25 +112,39 @@ export function WorkspaceSearch({
   // "your query now matches nothing", which is a worse lie than losing it was.
   useEffect(() => {
     if (!initialQuery.trim()) return;
-    requestIdRef.current += 1;
-    void action.run(initialQuery.trim(), requestIdRef.current);
+    runSearch(initialQuery);
     // Mount only: this seeds from the view state, and every later keystroke is
     // handled by handleQueryChange's own debounce.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function runSearch(value: string) {
-    requestIdRef.current += 1;
-    void action.run(value, requestIdRef.current);
-  }
+  // Global Retry proves only that the transport has answered. Search owns the
+  // one safe action that may be replayed: the exact unchanged read query that
+  // failed. Consume the failed generation before replay so later recovery
+  // edges cannot repeat it; edits and newer runs clear it below.
+  useEffect(() => {
+    const failed = failedSearchRef.current;
+    if (!failed || recoveries <= failed.recoveries) return;
+    failedSearchRef.current = null;
+    if (
+      failed.requestId !== requestIdRef.current ||
+      query.trim() !== failed.query
+    ) {
+      return;
+    }
+    runSearch(failed.query, true);
+  }, [query, recoveries, runSearch]);
 
   function handleQueryChange(next: string) {
     setQuery(next);
     onQueryChange?.(next);
     if (timerRef.current) clearTimeout(timerRef.current);
+    // Editing makes the old result set and failed request stale immediately,
+    // before the replacement request starts after its debounce.
+    requestIdRef.current += 1;
+    failedSearchRef.current = null;
+    setHits(null);
     if (!next.trim()) {
-      requestIdRef.current += 1;
-      setHits(null);
       return;
     }
     timerRef.current = setTimeout(() => runSearch(next.trim()), 250);
@@ -123,6 +177,7 @@ export function WorkspaceSearch({
         <label>
           <span className="voy-sr-only">{t("workspaceSearch.label")}</span>
           <input
+            ref={inputRef}
             type="search"
             value={query}
             placeholder={t("workspaceSearch.placeholder")}
@@ -141,7 +196,7 @@ export function WorkspaceSearch({
       {hits ? (
         hits.length === 0 ? (
           <>
-            <p>{t("workspaceSearch.none")}</p>
+            <p role="status">{t("workspaceSearch.none")}</p>
             {/* The intro above says what is searched, but it is three lines up
                 and was written before the traveler had a failure to explain.
                 Saying it again here, where the failure is, is the difference
@@ -151,31 +206,41 @@ export function WorkspaceSearch({
             </p>
           </>
         ) : (
-          <ul className="voy-workspace-search__results">
-            {hits.map((hit) => (
-              <li key={`${hit.source}:${hit.recordId}`}>
-                <button type="button" onClick={() => onOpenResult(hit)}>
-                  <strong>{resultLabel(hit)}</strong>
-                  <span>
-                    <span>{hit.tripTitle}</span> ·{" "}
-                    <span>{t(searchSourceKey(hit.source))}</span>
-                    {hit.tripStatus === "archived" ? (
-                      <>
-                        {" · "}
-                        <span>{t("workspaceSearch.archived")}</span>
-                      </>
-                    ) : null}
-                  </span>
-                  <span>
-                    {t("workspaceSearch.updated", {
-                      date: formatInstantDate(hit.tripUpdatedAt),
-                    })}
-                  </span>
-                  <span>{hit.snippet}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <>
+            <p className="voy-workspace-search__count" role="status">
+              {t(
+                hits.length === 1
+                  ? "workspaceSearch.results.one"
+                  : "workspaceSearch.results.many",
+                { count: hits.length },
+              )}
+            </p>
+            <ul className="voy-workspace-search__results">
+              {hits.map((hit) => (
+                <li key={`${hit.source}:${hit.recordId}`}>
+                  <button type="button" onClick={() => onOpenResult(hit)}>
+                    <strong>{resultLabel(hit)}</strong>
+                    <span>
+                      <span>{hit.tripTitle}</span> ·{" "}
+                      <span>{t(searchSourceKey(hit.source))}</span>
+                      {hit.tripStatus === "archived" ? (
+                        <>
+                          {" · "}
+                          <span>{t("workspaceSearch.archived")}</span>
+                        </>
+                      ) : null}
+                    </span>
+                    <span>
+                      {t("workspaceSearch.updated", {
+                        date: formatInstantDate(hit.tripUpdatedAt),
+                      })}
+                    </span>
+                    <span>{hit.snippet}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
         )
       ) : null}
     </div>

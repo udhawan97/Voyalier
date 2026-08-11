@@ -562,12 +562,12 @@ describe("AppError rendered states", () => {
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     await screen.findByText("Offline");
 
-    fireEvent.change(input, { target: { value: "Fjord" } });
+    fireEvent.change(input, { target: { value: "FP18" } });
     state.offline = false;
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
-    expect(await screen.findByText("Archived Oslo notes")).toBeInTheDocument();
-    await waitFor(() => expect(searchQueries).toEqual(["Kyoto", "Fjord"]));
+    expect(await screen.findByText("ORD → HND")).toBeInTheDocument();
+    await waitFor(() => expect(searchQueries).toEqual(["Kyoto", "FP18"]));
   });
 
   it("a newer manual Search success consumes the old replay eligibility", async () => {

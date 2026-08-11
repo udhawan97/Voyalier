@@ -612,13 +612,15 @@ const en = {
   "workspaceSearch.back": "Back",
   "workspaceSearch.title": "Search workspace",
   "workspaceSearch.intro":
-    "Search imported documents, confirmed facts, notes, saved places, and traveler-authored plans across every trip. Pending suggestions stay out until you confirm them.",
+    "Search imported documents, confirmed facts, notes, saved places, saved resources, and traveler-authored plans across every trip. Pending suggestions stay out until you confirm them.",
   "workspaceSearch.label": "Search all trips",
   "workspaceSearch.placeholder": "Search all trips",
   "workspaceSearch.search": "Search",
   "workspaceSearch.none": "No matches in this workspace.",
   "workspaceSearch.none.recover":
-    "Search covers imported documents, confirmed facts, notes, saved places and your own plans. Visa checklists, suggestions you have not confirmed, and trip names are not included — try a word from the record itself, or a shorter one.",
+    "Search covers imported documents, confirmed facts, notes, saved places, saved resources, and your own plans. Visa checklists, suggestions you have not confirmed, and trip names are not included — try a word from the record itself, or a shorter one.",
+  "workspaceSearch.results.one": "1 match in this workspace.",
+  "workspaceSearch.results.many": "{count} matches in this workspace.",
   "workspaceSearch.source.document": "Source document",
   "workspaceSearch.source.confirmed_fact": "Confirmed fact",
   "workspaceSearch.source.note": "Trip notes",
@@ -2187,13 +2189,16 @@ const es: Record<MessageKey, string> = {
   "workspaceSearch.back": "Volver",
   "workspaceSearch.title": "Buscar en el espacio de trabajo",
   "workspaceSearch.intro":
-    "Busca documentos importados, datos confirmados, notas, lugares guardados y planes creados por el viajero en todos los viajes. Las sugerencias pendientes se excluyen hasta que las confirmes.",
+    "Busca documentos importados, datos confirmados, notas, lugares guardados, recursos guardados y planes creados por el viajero en todos los viajes. Las sugerencias pendientes se excluyen hasta que las confirmes.",
   "workspaceSearch.label": "Buscar en todos los viajes",
   "workspaceSearch.placeholder": "Buscar en todos los viajes",
   "workspaceSearch.search": "Buscar",
   "workspaceSearch.none": "No hay coincidencias en este espacio de trabajo.",
   "workspaceSearch.none.recover":
-    "La búsqueda abarca documentos importados, datos confirmados, notas, lugares guardados y tus propios planes. No incluye las listas de visado, las sugerencias sin confirmar ni los nombres de los viajes: prueba con una palabra del propio registro, o con una más corta.",
+    "La búsqueda abarca documentos importados, datos confirmados, notas, lugares guardados, recursos guardados y tus propios planes. No incluye las listas de visado, las sugerencias sin confirmar ni los nombres de los viajes: prueba con una palabra del propio registro, o con una más corta.",
+  "workspaceSearch.results.one": "1 coincidencia en este espacio de trabajo.",
+  "workspaceSearch.results.many":
+    "{count} coincidencias en este espacio de trabajo.",
   "workspaceSearch.source.document": "Documento de origen",
   "workspaceSearch.source.confirmed_fact": "Dato confirmado",
   "workspaceSearch.source.note": "Notas del viaje",
