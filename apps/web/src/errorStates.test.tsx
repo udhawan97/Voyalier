@@ -264,6 +264,85 @@ describe("AppError rendered states", () => {
     ).toBeInTheDocument();
   });
 
+  it("lets the workspace banner own a trip-list transport failure", async () => {
+    const down = rejectWith({
+      code: "transport/failure",
+      message: "engine unreachable",
+    });
+    renderApp(failingGateway({ health: down, listTrips: down }));
+
+    await screen.findByText("Offline");
+    expect(screen.getAllByText("Voyalier can't reach its engine")).toHaveLength(
+      1,
+    );
+    expect(screen.getAllByRole("button", { name: "Retry" })).toHaveLength(1);
+  });
+
+  it("keeps a trip-list action transport failure under the same owner", async () => {
+    const { gateway, state } = unpluggableGateway();
+    renderApp(gateway);
+    await screen.findByText("Ready");
+    state.offline = true;
+
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: "Archive" }))[0],
+    );
+
+    await screen.findByText("Offline");
+    expect(screen.getAllByText("Voyalier can't reach its engine")).toHaveLength(
+      1,
+    );
+    expect(screen.getAllByRole("button", { name: "Retry" })).toHaveLength(1);
+  });
+
+  it("lets the workspace banner own a Search transport failure and recovery", async () => {
+    const { gateway, state } = unpluggableGateway();
+    renderApp(gateway);
+    await screen.findByText("Ready");
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+    state.offline = true;
+
+    fireEvent.change(await screen.findByLabelText("Search all trips"), {
+      target: { value: "Kyoto" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    await screen.findByText("Offline");
+    expect(screen.getAllByText("Voyalier can't reach its engine")).toHaveLength(
+      1,
+    );
+    expect(screen.getAllByRole("button", { name: "Retry" })).toHaveLength(1);
+
+    state.offline = false;
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.getByText("Ready")).toBeInTheDocument());
+    expect(screen.queryByText("Voyalier can't reach its engine")).toBeNull();
+  });
+
+  it("keeps a non-transport Search failure local", async () => {
+    renderApp(
+      failingGateway({
+        searchWorkspace: rejectWith({
+          code: "storage/failure",
+          message: "database unavailable",
+        }),
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Search workspace" }),
+    );
+    fireEvent.change(await screen.findByLabelText("Search all trips"), {
+      target: { value: "Kyoto" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    expect(
+      await screen.findByText("Local storage is unavailable"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Ready")).toBeInTheDocument();
+    expect(screen.queryByText("Offline")).toBeNull();
+  });
+
   it("keeps shell health aligned with a failed trip load and its recovery", async () => {
     const base = createMockGateway();
     let offline = false;
