@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { WorkspaceSearchHit } from "@voyalier/contracts";
 
 import { useGateway, useTransportRecovery } from "../app/context";
@@ -63,7 +63,11 @@ export function WorkspaceSearch({
   useEffect(() => {
     recoveriesRef.current = recoveries;
   });
-  const action = useAsyncAction(
+  const {
+    run: runAction,
+    busy,
+    error,
+  } = useAsyncAction(
     (...args: [value: string, requestId: number]) =>
       gateway.searchWorkspace(args[0]),
     (result, _value, requestId) => {
@@ -84,21 +88,17 @@ export function WorkspaceSearch({
   );
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const runSearch = useCallback(
-    (value: string, restoreFocus = false) => {
-      const normalized = value.trim();
-      if (!normalized) return;
-      requestIdRef.current += 1;
-      const requestId = requestIdRef.current;
-      failedSearchRef.current = null;
-      // Results belong to the query that produced them. Keeping Kyoto cards
-      // below a failed Oslo search makes stale evidence look current.
-      setHits(null);
-      void action.run(normalized, requestId);
-      if (restoreFocus) inputRef.current?.focus();
-    },
-    [action.run],
-  );
+  function runSearch(value: string) {
+    const normalized = value.trim();
+    if (!normalized) return;
+    requestIdRef.current += 1;
+    const requestId = requestIdRef.current;
+    failedSearchRef.current = null;
+    // Results belong to the query that produced them. Keeping Kyoto cards
+    // below a failed Oslo search makes stale evidence look current.
+    setHits(null);
+    void runAction(normalized, requestId);
+  }
 
   useEffect(() => {
     return () => {
@@ -112,7 +112,8 @@ export function WorkspaceSearch({
   // "your query now matches nothing", which is a worse lie than losing it was.
   useEffect(() => {
     if (!initialQuery.trim()) return;
-    runSearch(initialQuery);
+    requestIdRef.current += 1;
+    void runAction(initialQuery.trim(), requestIdRef.current);
     // Mount only: this seeds from the view state, and every later keystroke is
     // handled by handleQueryChange's own debounce.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -132,8 +133,10 @@ export function WorkspaceSearch({
     ) {
       return;
     }
-    runSearch(failed.query, true);
-  }, [query, recoveries, runSearch]);
+    requestIdRef.current += 1;
+    void runAction(failed.query, requestIdRef.current);
+    inputRef.current?.focus();
+  }, [query, recoveries, runAction]);
 
   function handleQueryChange(next: string) {
     setQuery(next);
@@ -184,14 +187,14 @@ export function WorkspaceSearch({
             onChange={(event) => handleQueryChange(event.target.value)}
           />
         </label>
-        <Button type="submit" busy={action.busy} icon={<SearchIcon />}>
+        <Button type="submit" busy={busy} icon={<SearchIcon />}>
           {t("workspaceSearch.search")}
         </Button>
       </form>
       {/* Transport reachability belongs to the workspace banner and its global
           Retry. Search still owns validation, storage and domain failures. */}
-      {action.error && action.error.code !== "transport/failure" ? (
-        <p role="alert">{describeError(action.error).title}</p>
+      {error && error.code !== "transport/failure" ? (
+        <p role="alert">{describeError(error).title}</p>
       ) : null}
       {hits ? (
         hits.length === 0 ? (
@@ -211,7 +214,7 @@ export function WorkspaceSearch({
               {t(
                 hits.length === 1
                   ? "workspaceSearch.results.one"
-                  : "workspaceSearch.results.many",
+                  : "workspaceSearch.results.other",
                 { count: hits.length },
               )}
             </p>
