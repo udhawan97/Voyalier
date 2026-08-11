@@ -198,7 +198,10 @@ export function TripListView({
         </Button>
       </header>
 
-      {actionError ? (
+      {/* The shell owns transport reachability and the one Retry that
+          revalidates the whole workspace. Keep request-specific errors here,
+          but do not print the same engine failure a second time. */}
+      {actionError && actionError.code !== "transport/failure" ? (
         <Banner
           tone="error"
           role="alert"
@@ -225,7 +228,13 @@ export function TripListView({
         </div>
       ) : null}
 
-      {status === "error" && !data ? (
+      {status === "error" && !data && error!.code === "transport/failure" ? (
+        <p className="voy-triplist__offline">
+          {t("triplist.offlinePlaceholder")}
+        </p>
+      ) : null}
+
+      {status === "error" && !data && error!.code !== "transport/failure" ? (
         <Banner
           tone="error"
           role="alert"

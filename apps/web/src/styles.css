@@ -682,6 +682,12 @@ h3 {
   gap: 1.1rem;
 }
 
+.voy-triplist__offline {
+  margin: 0;
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+}
+
 .voy-triplist__allarchived {
   margin: 0 0 1.1rem;
   color: var(--voy-ink-muted);

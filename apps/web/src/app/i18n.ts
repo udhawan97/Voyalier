@@ -187,6 +187,8 @@ const en = {
   "triplist.title": "Trips",
   "triplist.create": "Create a trip",
   "triplist.loading": "Loading trips…",
+  "triplist.offlinePlaceholder":
+    "Your trips will load once Voyalier can reach its engine.",
   "triplist.empty.title": "No trips yet",
   "triplist.empty.body":
     "Voyalier turns scattered confirmations and notes into one trustworthy journey — create a trip to begin.",
@@ -1768,6 +1770,8 @@ const es: Record<MessageKey, string> = {
   "triplist.title": "Tus viajes",
   "triplist.create": "Crear un viaje",
   "triplist.loading": "Cargando viajes…",
+  "triplist.offlinePlaceholder":
+    "Tus viajes se cargarán cuando Voyalier pueda comunicarse con su motor.",
   "triplist.empty.title": "Aún no hay viajes",
   "triplist.empty.body":
     "Voyalier convierte confirmaciones y notas dispersas en un itinerario confiable — crea un viaje para comenzar.",
