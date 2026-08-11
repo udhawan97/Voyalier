@@ -305,6 +305,22 @@ export function isTripSectionHash(hash: string): boolean {
   return TRIP_NAV.some((item) => item.target === id);
 }
 
+/**
+ * The durable section that owns each transient workspace-search target.
+ *
+ * Search can focus an exact record only for the current render; a reload has
+ * just the URL. Keeping this mapping beside the section navigation and using it
+ * for both the URL and the focus fallback prevents those two re-entry stories
+ * from drifting apart.
+ */
+export function tripSectionForSearchSource(
+  source: WorkspaceSearchHit["source"],
+): "section-plan" | "section-prepare" {
+  return source === "document" || source === "note"
+    ? "section-prepare"
+    : "section-plan";
+}
+
 function TripSectionNav({ skipHash }: { skipHash: boolean }) {
   const mountAllSections = useMountAllSections();
   const [current, setCurrent] = useState<string | null>(null);
@@ -845,21 +861,15 @@ export function TripDetailView({
         return;
       }
       attempts += 1;
-      if (
-        attempts === 1 &&
-        (searchTarget.source === "document" || searchTarget.source === "note")
-      ) {
-        document.getElementById("section-prepare")?.scrollIntoView?.();
+      const owningSection = tripSectionForSearchSource(searchTarget.source);
+      if (attempts === 1 && owningSection === "section-prepare") {
+        document.getElementById(owningSection)?.scrollIntoView?.();
       }
       if (attempts < 20) {
         timer = setTimeout(focusTarget, 50);
         return;
       }
-      const fallback = document.getElementById(
-        searchTarget.source === "document" || searchTarget.source === "note"
-          ? "section-prepare"
-          : "section-plan",
-      );
+      const fallback = document.getElementById(owningSection);
       searchTargetConsumed.current = true;
       fallback?.setAttribute("tabindex", "-1");
       fallback?.focus({ preventScroll: true });

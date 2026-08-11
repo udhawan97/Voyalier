@@ -28,7 +28,11 @@ import { useUpdater } from "./updater/useUpdater";
 import { OfflineBanner } from "./components/OfflineBanner";
 import { Topbar, type HealthState } from "./components/Topbar";
 import { SettingsView } from "./views/SettingsView";
-import { TripDetailView, isTripSectionHash } from "./views/TripDetailView";
+import {
+  TripDetailView,
+  isTripSectionHash,
+  tripSectionForSearchSource,
+} from "./views/TripDetailView";
 import { TripListView } from "./views/TripListView";
 import { UpdatesPanel } from "./views/UpdatesPanel";
 import { VaultUnlock } from "./views/VaultUnlock";
@@ -151,9 +155,12 @@ function urlForView(view: View): string {
   // the way out would land the traveler back at the top of a trip they had
   // scrolled halfway through. The list is the one view that genuinely owns no
   // section, and `clearTripSectionHash` strips it there.
-  const hash = isTripSectionHash(window.location.hash)
-    ? window.location.hash
-    : "";
+  const hash =
+    view.name === "trip" && view.searchTarget
+      ? `#${tripSectionForSearchSource(view.searchTarget.source)}`
+      : isTripSectionHash(window.location.hash)
+        ? window.location.hash
+        : "";
   switch (view.name) {
     case "settings":
       return `${path}?view=settings${hash}`;

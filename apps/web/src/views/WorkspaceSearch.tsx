@@ -133,7 +133,9 @@ export function WorkspaceSearch({
           {t("workspaceSearch.search")}
         </Button>
       </form>
-      {action.error ? (
+      {/* Transport reachability belongs to the workspace banner and its global
+          Retry. Search still owns validation, storage and domain failures. */}
+      {action.error && action.error.code !== "transport/failure" ? (
         <p role="alert">{describeError(action.error).title}</p>
       ) : null}
       {hits ? (
