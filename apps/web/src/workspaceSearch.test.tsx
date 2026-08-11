@@ -18,10 +18,115 @@ describe("workspace search", () => {
   it("maps every search source to its durable owning section", () => {
     expect(tripSectionForSearchSource("document")).toBe("section-prepare");
     expect(tripSectionForSearchSource("note")).toBe("section-prepare");
+    expect(tripSectionForSearchSource("resource")).toBe("section-prepare");
     expect(tripSectionForSearchSource("confirmed_fact")).toBe("section-plan");
     expect(tripSectionForSearchSource("saved_place")).toBe("section-plan");
     expect(tripSectionForSearchSource("trip_item")).toBe("section-plan");
   });
+
+  it.each([
+    ["document", "section-prepare"],
+    ["note", "section-prepare"],
+    ["resource", "section-prepare"],
+    ["confirmed_fact", "section-plan"],
+    ["saved_place", "section-plan"],
+    ["trip_item", "section-plan"],
+  ] as const)(
+    "writes and reloads the owning section for a same-trip %s result",
+    async (source, section) => {
+      const base = createMockGateway();
+      const gateway = {
+        ...base,
+        searchWorkspace: async () => [
+          {
+            source,
+            tripId: "trip_kyoto",
+            tripTitle: "Kyoto autumn journey",
+            tripStatus: "draft" as const,
+            tripUpdatedAt: "2026-01-01T00:00:00Z",
+            recordId: `same-${source}`,
+            label: `Same ${source}`,
+            snippet: "same trip result",
+            score: 1,
+          },
+        ],
+      };
+      const first = renderApp(gateway);
+      await openFixtureTrip();
+      window.history.replaceState(null, "", "/?trip=trip_kyoto#section-visa");
+
+      fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+      fireEvent.change(await screen.findByLabelText("Search all trips"), {
+        target: { value: "same" },
+      });
+      fireEvent.click(
+        (await screen.findByText("Kyoto autumn journey")).closest("button")!,
+      );
+
+      await waitFor(() => expect(window.location.hash).toBe(`#${section}`));
+      expect(window.location.search).toBe("?trip=trip_kyoto");
+      expect(window.location.href).not.toContain(`same-${source}`);
+      first.unmount();
+      renderApp(gateway);
+      await screen.findByRole("heading", {
+        name: "Kyoto autumn journey",
+        level: 1,
+      });
+      expect(window.location.hash).toBe(`#${section}`);
+    },
+  );
+
+  it.each([
+    ["document", "section-prepare"],
+    ["note", "section-prepare"],
+    ["resource", "section-prepare"],
+    ["confirmed_fact", "section-plan"],
+    ["saved_place", "section-plan"],
+    ["trip_item", "section-plan"],
+  ] as const)(
+    "writes and reloads the owning section for a cross-trip %s result",
+    async (source, section) => {
+      const base = createMockGateway();
+      const gateway = {
+        ...base,
+        searchWorkspace: async () => [
+          {
+            source,
+            tripId: "trip_oslo",
+            tripTitle: "Archived Oslo notes",
+            tripStatus: "archived" as const,
+            tripUpdatedAt: "2026-01-01T00:00:00Z",
+            recordId: `cross-${source}`,
+            label: `Cross ${source}`,
+            snippet: "different trip result",
+            score: 1,
+          },
+        ],
+      };
+      const first = renderApp(gateway);
+      await openFixtureTrip();
+      window.history.replaceState(null, "", "/?trip=trip_kyoto#section-visa");
+
+      fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+      fireEvent.change(await screen.findByLabelText("Search all trips"), {
+        target: { value: "cross" },
+      });
+      fireEvent.click(
+        (await screen.findByText("Archived Oslo notes")).closest("button")!,
+      );
+
+      await waitFor(() => expect(window.location.hash).toBe(`#${section}`));
+      expect(window.location.search).toBe("?trip=trip_oslo");
+      expect(window.location.href).not.toContain(`cross-${source}`);
+      first.unmount();
+      renderApp(gateway);
+      await screen.findByRole("heading", {
+        name: "Archived Oslo notes",
+        level: 1,
+      });
+      expect(window.location.hash).toBe(`#${section}`);
+    },
+  );
 
   it("matches any query word and ranks records covering more words", async () => {
     const gateway = createMockGateway();
