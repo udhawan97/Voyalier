@@ -6,6 +6,52 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.10.6] - 2026-08-11 — Retry finishes the search
+
+This is the first published desktop release after 0.9.2. It carries the
+0.10.0–0.10.5 work recorded below: first-class rail, coach, ferry, and hire-car
+evidence; deterministic connection exposure and one-click re-checks; the deeper
+import and evidence-review pass; per-workspace key isolation and key pruning;
+and the lock-screen and post-restart recovery fixes. Those sections remain the
+full cumulative notes rather than being compressed into claims this release did
+not re-prove.
+
+### Fixed
+
+- **A search result's URL now names the section that owns it.** Documents,
+  notes, and saved reading return to Prepare; confirmed facts, saved places, and
+  traveler-authored plans return to Plan. The exact record can be focused only
+  during the live transition, while the section survives reload, bookmark,
+  Back, and Forward. The query and record id remain out of the address bar, so
+  durable navigation does not become a new privacy surface.
+- **An engine outage has one recovery owner.** All Trips and Workspace Search
+  no longer repeat the app-level transport alert or offer competing Retry
+  controls. Local storage, validation, and domain failures still appear in the
+  view that can explain them; only the duplicate transport presentation is
+  suppressed.
+- **Retry now completes the failed workspace search.** Once the engine answers,
+  Voyalier replays exactly the latest unchanged read query, once, and announces
+  the restored result count. Editing or clearing the query, starting a newer
+  search, succeeding manually, leaving Search, or receiving a non-transport
+  error cancels that eligibility. Mutations are deliberately never replayed,
+  because repeating a write after an uncertain failure could duplicate a user
+  action.
+
+### Changed
+
+- **Search describes and counts the records it actually covers.** Saved reading
+  is now named beside documents, facts, notes, places, and traveler-authored
+  plans, and successful result sets expose a localized count. A newer query also
+  hides the older result set immediately, so an offline failure cannot leave
+  stale evidence looking current.
+
+### Not fixed
+
+- This pass did not manually listen with a screen reader, exercise the Windows
+  runtime, or test a production advice/provider reconnect. Those remain
+  separate from the semantic accessibility assertions, signed Windows artifact
+  checks, and disposable offline fixture used for this release.
+
 ## [0.10.5] - 2026-08-02 — What the lock screen was still saying
 
 The first audited pass had to skip the vault entirely: exercising it against a
