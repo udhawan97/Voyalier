@@ -9,10 +9,19 @@ import type { WorkspaceSearchHit } from "@voyalier/contracts";
 import { createMockGateway } from "@voyalier/contracts";
 
 import { setLocalePreference } from "./app/locale";
-import { renderApp } from "./test/helpers";
+import { openFixtureTrip, renderApp } from "./test/helpers";
+import { tripSectionForSearchSource } from "./views/TripDetailView";
 
 describe("workspace search", () => {
   afterEach(() => setLocalePreference("en"));
+
+  it("maps every search source to its durable owning section", () => {
+    expect(tripSectionForSearchSource("document")).toBe("section-prepare");
+    expect(tripSectionForSearchSource("note")).toBe("section-prepare");
+    expect(tripSectionForSearchSource("confirmed_fact")).toBe("section-plan");
+    expect(tripSectionForSearchSource("saved_place")).toBe("section-plan");
+    expect(tripSectionForSearchSource("trip_item")).toBe("section-plan");
+  });
 
   it("matches any query word and ranks records covering more words", async () => {
     const gateway = createMockGateway();
@@ -150,6 +159,84 @@ describe("workspace search", () => {
     fireEvent.click(add);
     await screen.findByText("Revalidation marker");
     expect(add).toHaveFocus();
+  });
+
+  /**
+   * A search target is transient, but its owning section is durable navigation.
+   *
+   * Opening a Plan result from Visa used to focus the right record while
+   * carrying `#section-visa` into the new URL. The target hid the conflict until
+   * reload, when it disappeared and the stale hash moved the traveler back to
+   * Visa. Keep the record id and query out of the URL, but make the section
+   * truthful enough to survive reload.
+   */
+  it("writes the owning Plan section when a same-trip result opens", async () => {
+    const gateway = createMockGateway();
+    const item = await gateway.createTripItem({
+      tripId: "trip_kyoto",
+      kind: "activity",
+      title: "Evening walk",
+      location: "Gion",
+      startAt: "2026-11-05T18:00",
+      endAt: "2026-11-05T19:00",
+    });
+    const first = renderApp(gateway);
+    await openFixtureTrip();
+    window.history.replaceState(null, "", "/?trip=trip_kyoto#section-visa");
+
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+    fireEvent.change(await screen.findByLabelText("Search all trips"), {
+      target: { value: "Evening walk" },
+    });
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /Evening walk.*Kyoto autumn journey/,
+      }),
+    );
+
+    const target = await screen.findByTestId(
+      `search-target-trip_item-${item.id}`,
+    );
+    await waitFor(() => expect(target).toHaveFocus());
+    expect(window.location.search).toBe("?trip=trip_kyoto");
+    expect(window.location.hash).toBe("#section-plan");
+    expect(window.location.href).not.toContain(item.id);
+    expect(window.location.href).not.toContain("Evening%20walk");
+
+    // A reload rebuilds the view from the URL without a transient target. The
+    // URL must therefore retain the truthful section on its own.
+    first.unmount();
+    renderApp(gateway);
+    await screen.findByRole("heading", {
+      name: "Kyoto autumn journey",
+      level: 1,
+    });
+    expect(window.location.hash).toBe("#section-plan");
+  });
+
+  it("writes Prepare when a result opens a different trip's note", async () => {
+    const gateway = createMockGateway();
+    await gateway.setTripNotes("trip_oslo", "Fjord museum ideas");
+    renderApp(gateway);
+    await openFixtureTrip();
+    window.history.replaceState(null, "", "/?trip=trip_kyoto#section-visa");
+
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+    fireEvent.change(await screen.findByLabelText("Search all trips"), {
+      target: { value: "Fjord museum" },
+    });
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /Archived Oslo notes.*Trip notes/,
+      }),
+    );
+
+    await screen.findByRole("heading", {
+      name: "Archived Oslo notes",
+      level: 1,
+    });
+    await waitFor(() => expect(window.location.search).toBe("?trip=trip_oslo"));
+    expect(window.location.hash).toBe("#section-prepare");
   });
 
   it("localizes product-owned result labels while preserving source text", async () => {
