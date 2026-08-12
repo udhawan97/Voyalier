@@ -78,15 +78,15 @@ test("planning persists through the real loopback service and a browser reload",
   await expect(searchButton).toBeDisabled();
 
   // A valid query still works through an explicit pointer action.
-  await searchInput.fill("Museum pass");
+  await searchInput.fill("Tea ceremony");
   await expect(searchButton).toBeEnabled();
   await searchButton.click();
   await expect(
-    page.getByRole("button", { name: /Museum pass.*Loopback release trip/ }),
+    page.getByRole("button", { name: /Tea ceremony.*Loopback release trip/ }),
   ).toBeVisible();
 
   // And form Enter runs the trimmed replacement query.
-  await searchInput.fill("  Tea ceremony  ");
+  await searchInput.fill("  Left Bank  ");
   await searchInput.press("Enter");
   const result = page.getByRole("button", {
     name: /Tea ceremony.*Loopback release trip/,
@@ -235,6 +235,7 @@ test("the visa passport field keeps its Save button and suggestions attached", a
   // layout; 769px returns to the shared desktop popup.
   for (const width of [320, 375, 767, 768, 769, 1280]) {
     await page.setViewportSize({ width, height: 900 });
+    await row.evaluate((form) => form.scrollIntoView({ block: "start" }));
     await input.fill("i");
     await expect(row.getByRole("listbox")).toBeVisible();
     const geometry = await row.evaluate((form) => {
@@ -304,11 +305,14 @@ test("the visa passport field keeps its Save button and suggestions attached", a
   await editTrip.getByRole("button", { name: "Cancel" }).click();
 
   // Repeat the repaired Visa interaction at a direct 200% browser page scale.
+  await input.fill("IN");
+  await expect(row.getByRole("alert")).toHaveCount(0);
   const session = await page.context().newCDPSession(page);
   await session.send("Emulation.setPageScaleFactor", { pageScaleFactor: 2 });
   await expect
     .poll(() => page.evaluate(() => window.visualViewport?.scale ?? 1))
     .toBe(2);
+  await input.fill("");
   await input.fill("i");
   await expect(row.getByRole("listbox")).toBeVisible();
   const zoomed = await row.evaluate((form) => {
@@ -336,8 +340,21 @@ test("the visa passport field keeps its Save button and suggestions attached", a
   expect(zoomed.intersects).toBe(false);
   expect(zoomed.listScrolls).toBe(true);
   expect(zoomed.rootContained).toBe(true);
-  await save.click({ timeout: 2_000 });
+  await save.evaluate((button) => button.scrollIntoView({ block: "center" }));
+  const saveWasHit = await save.evaluate((button) => {
+    const box = button.getBoundingClientRect();
+    const hit = document.elementFromPoint(
+      box.left + box.width / 2,
+      box.top + box.height / 2,
+    );
+    const belongsToSave =
+      hit === button || (hit ? button.contains(hit) : false);
+    if (belongsToSave) (hit as HTMLElement).click();
+    return belongsToSave;
+  });
+  expect(saveWasHit).toBe(true);
   await expect(input).toBeFocused();
+  await expect(row.getByRole("alert")).toHaveCount(1);
   await session.send("Emulation.setPageScaleFactor", { pageScaleFactor: 1 });
   await session.detach();
 });
