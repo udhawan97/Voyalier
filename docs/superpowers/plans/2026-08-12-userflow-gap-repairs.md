@@ -108,9 +108,9 @@ Acceptance:
 5. Refresh Graphify, verify a scoped query, run all gates below, and review the diff for accidental
    contract, provider, or release changes.
 6. Before merging, run `git diff --check origin/main...HEAD` and inspect `git diff
-   origin/main...HEAD`; fetch again and require local `main == origin/main`. If remote main moved,
+origin/main...HEAD`; fetch again and require local `main == origin/main`. If remote main moved,
    integrate it on the feature branch and rerun every gate. Close with `Merge: user-flow gap
-   repairs`, merge into `main` without force, push `main`, and verify local HEAD, fetched
+repairs`, merge into `main` without force, push `main`, and verify local HEAD, fetched
    `origin/main`, and `git ls-remote origin refs/heads/main` agree. Wait for CI,
    `dependencies-and-secrets`, CodeQL `analyze`, and Docs build/deploy on that exact SHA. Do not tag,
    create release artifacts, or manually trigger a deployment. Because the required committed plan
