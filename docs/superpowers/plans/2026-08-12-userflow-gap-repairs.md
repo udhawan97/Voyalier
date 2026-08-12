@@ -126,9 +126,10 @@ repairs`, merge into `main` without force, push `main`, and verify local HEAD, f
   769×900, and 1280×900, covering open suggestions, zero rectangle intersection, actual pointer
   Save, list scrollability (`scrollHeight > clientHeight`), invalid focus, empty/whitespace Search,
   valid Enter/pointer Search, localized guidance, non-Visa popup positioning, and root containment.
-  Add a direct 200% browser-zoom/reflow pass for Visa and the longer Spanish Search helper, asserting
-  zero list/Save intersection, pointer-operable Save, bounded list scrollability, no root overflow,
-  and associated/readable Spanish guidance.
+  Add a 200%-equivalent desktop-zoom reflow pass for Visa and the longer Spanish Search helper on a
+  640×720 physical surface by halving the CSS viewport to the app's supported 320px minimum and
+  doubling device pixels. Assert zero list/Save intersection, a real pointer-operable Save, bounded
+  list scrollability, no root overflow, and associated/readable Spanish guidance.
 - Safari: run the three repaired interactions against the same disposable loopback runtime as a
   supplemental manual pass. Keep Chromium Playwright as the durable automated layout gate.
 - Repository gates: `make check`, `git diff --check`, `git diff --check origin/main...HEAD`,

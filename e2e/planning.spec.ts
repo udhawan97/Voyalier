@@ -1,9 +1,31 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 function isoDay(offset: number): string {
   const date = new Date();
   date.setUTCDate(date.getUTCDate() + offset);
   return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Model desktop browser zoom: keep the same physical surface, halve the CSS
+ * viewport, and double device pixels. Unlike page-scale/pinch emulation, this
+ * makes media queries and layout reflow at the effective zoomed width.
+ */
+async function emulateDesktopZoom(
+  page: Page,
+  viewport: { width: number; height: number },
+  factor: number,
+) {
+  const session = await page.context().newCDPSession(page);
+  await session.send("Emulation.setDeviceMetricsOverride", {
+    width: Math.ceil(viewport.width / factor),
+    height: Math.ceil(viewport.height / factor),
+    deviceScaleFactor: factor,
+    mobile: false,
+    screenWidth: viewport.width,
+    screenHeight: viewport.height,
+  });
+  return session;
 }
 
 test("planning persists through the real loopback service and a browser reload", async ({
@@ -183,12 +205,17 @@ test("planning persists through the real loopback service and a browser reload",
     await spanishHint.getAttribute("id"),
   );
 
-  // Exercise the engine's own 200% page scale rather than a CSS transform.
-  const session = await page.context().newCDPSession(page);
-  await session.send("Emulation.setPageScaleFactor", { pageScaleFactor: 2 });
-  await expect
-    .poll(() => page.evaluate(() => window.visualViewport?.scale ?? 1))
-    .toBe(2);
+  // Exercise 200%-equivalent desktop zoom reflow: a 320×360 CSS viewport on
+  // a 640×720 physical surface, with two device pixels per CSS pixel. This is
+  // the app's supported 320px minimum layout width under desktop zoom.
+  await page.setViewportSize({ width: 640, height: 720 });
+  const session = await emulateDesktopZoom(
+    page,
+    { width: 640, height: 720 },
+    2,
+  );
+  await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(320);
+  await expect.poll(() => page.evaluate(() => devicePixelRatio)).toBe(2);
   await expect(spanishHint).toBeVisible();
   expect(
     await page.evaluate(
@@ -197,7 +224,7 @@ test("planning persists through the real loopback service and a browser reload",
         document.documentElement.clientWidth,
     ),
   ).toBe(true);
-  await session.send("Emulation.setPageScaleFactor", { pageScaleFactor: 1 });
+  await session.send("Emulation.clearDeviceMetricsOverride");
   await session.detach();
 });
 
@@ -232,10 +259,19 @@ test("the visa passport field keeps its Save button and suggestions attached", a
   const save = row.getByRole("button", { name: "Save" });
 
   // The breakpoint edges are intentional: 768px is still the narrow in-flow
-  // layout; 769px returns to the shared desktop popup.
-  for (const width of [320, 375, 767, 768, 769, 1280]) {
-    await page.setViewportSize({ width, height: 900 });
+  // layout; 769px returns to the shared desktop popup. The two smallest cases
+  // retain the exact audited heights because the list cap depends on dvh.
+  for (const viewport of [
+    { width: 320, height: 720 },
+    { width: 375, height: 812 },
+    { width: 767, height: 900 },
+    { width: 768, height: 900 },
+    { width: 769, height: 900 },
+    { width: 1280, height: 900 },
+  ]) {
+    await page.setViewportSize(viewport);
     await row.evaluate((form) => form.scrollIntoView({ block: "start" }));
+    await input.fill("");
     await input.fill("i");
     await expect(row.getByRole("listbox")).toBeVisible();
     const geometry = await row.evaluate((form) => {
@@ -277,7 +313,7 @@ test("the visa passport field keeps its Save button and suggestions attached", a
     expect(geometry.overlapArea).toBe(0);
     expect(geometry.saveInViewport).toBe(true);
     expect(geometry.rootContained).toBe(true);
-    if (width <= 768) {
+    if (viewport.width <= 768) {
       expect(geometry.listPosition).toBe("static");
       expect(geometry.listScrolls).toBe(true);
     } else {
@@ -304,14 +340,20 @@ test("the visa passport field keeps its Save button and suggestions attached", a
   ).toBe("absolute");
   await editTrip.getByRole("button", { name: "Cancel" }).click();
 
-  // Repeat the repaired Visa interaction at a direct 200% browser page scale.
+  // Repeat the repaired Visa interaction with 200%-equivalent desktop zoom
+  // reflow on a 640×720 physical surface (320×360 CSS pixels, DPR 2).
+  await page.setViewportSize({ width: 640, height: 720 });
+  await row.evaluate((form) => form.scrollIntoView({ block: "start" }));
   await input.fill("IN");
   await expect(row.getByRole("alert")).toHaveCount(0);
-  const session = await page.context().newCDPSession(page);
-  await session.send("Emulation.setPageScaleFactor", { pageScaleFactor: 2 });
-  await expect
-    .poll(() => page.evaluate(() => window.visualViewport?.scale ?? 1))
-    .toBe(2);
+  const session = await emulateDesktopZoom(
+    page,
+    { width: 640, height: 720 },
+    2,
+  );
+  await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(320);
+  await expect.poll(() => page.evaluate(() => devicePixelRatio)).toBe(2);
+  await row.evaluate((form) => form.scrollIntoView({ block: "start" }));
   await input.fill("");
   await input.fill("i");
   await expect(row.getByRole("listbox")).toBeVisible();
@@ -340,21 +382,9 @@ test("the visa passport field keeps its Save button and suggestions attached", a
   expect(zoomed.intersects).toBe(false);
   expect(zoomed.listScrolls).toBe(true);
   expect(zoomed.rootContained).toBe(true);
-  await save.evaluate((button) => button.scrollIntoView({ block: "center" }));
-  const saveWasHit = await save.evaluate((button) => {
-    const box = button.getBoundingClientRect();
-    const hit = document.elementFromPoint(
-      box.left + box.width / 2,
-      box.top + box.height / 2,
-    );
-    const belongsToSave =
-      hit === button || (hit ? button.contains(hit) : false);
-    if (belongsToSave) (hit as HTMLElement).click();
-    return belongsToSave;
-  });
-  expect(saveWasHit).toBe(true);
+  await save.click({ timeout: 2_000 });
   await expect(input).toBeFocused();
   await expect(row.getByRole("alert")).toHaveCount(1);
-  await session.send("Emulation.setPageScaleFactor", { pageScaleFactor: 1 });
+  await session.send("Emulation.clearDeviceMetricsOverride");
   await session.detach();
 });
