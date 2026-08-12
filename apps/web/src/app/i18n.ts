@@ -616,6 +616,7 @@ const en = {
   "workspaceSearch.label": "Search all trips",
   "workspaceSearch.placeholder": "Search all trips",
   "workspaceSearch.search": "Search",
+  "workspaceSearch.emptyHint": "Enter a search term to enable Search.",
   "workspaceSearch.none": "No matches in this workspace.",
   "workspaceSearch.none.recover":
     "Search covers imported documents, confirmed facts, notes, saved places, saved resources, and your own plans. Visa checklists, suggestions you have not confirmed, and trip names are not included — try a word from the record itself, or a shorter one.",
@@ -2193,6 +2194,8 @@ const es: Record<MessageKey, string> = {
   "workspaceSearch.label": "Buscar en todos los viajes",
   "workspaceSearch.placeholder": "Buscar en todos los viajes",
   "workspaceSearch.search": "Buscar",
+  "workspaceSearch.emptyHint":
+    "Escribe un término de búsqueda para activar Buscar.",
   "workspaceSearch.none": "No hay coincidencias en este espacio de trabajo.",
   "workspaceSearch.none.recover":
     "La búsqueda abarca documentos importados, datos confirmados, notas, lugares guardados, recursos guardados y tus propios planes. No incluye las listas de visado, las sugerencias sin confirmar ni los nombres de los viajes: prueba con una palabra del propio registro, o con una más corta.",
