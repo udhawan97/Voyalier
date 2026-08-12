@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { WorkspaceSearchHit } from "@voyalier/contracts";
 
 import { useGateway, useTransportRecovery } from "../app/context";
@@ -50,6 +50,8 @@ export function WorkspaceSearch({
 }) {
   const gateway = useGateway();
   const recoveries = useTransportRecovery();
+  const inputId = useId();
+  const emptyHintId = useId();
   const [query, setQuery] = useState(initialQuery);
   const [hits, setHits] = useState<WorkspaceSearchHit[] | null>(null);
   const requestIdRef = useRef(0);
@@ -87,6 +89,7 @@ export function WorkspaceSearch({
     },
   );
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasQuery = Boolean(query.trim());
 
   function runSearch(value: string) {
     const normalized = value.trim();
@@ -177,17 +180,31 @@ export function WorkspaceSearch({
           if (query.trim()) runSearch(query.trim());
         }}
       >
-        <label>
-          <span className="voy-sr-only">{t("workspaceSearch.label")}</span>
+        <div className="voy-workspace-search__field">
+          <label className="voy-sr-only" htmlFor={inputId}>
+            {t("workspaceSearch.label")}
+          </label>
           <input
+            id={inputId}
             ref={inputRef}
             type="search"
             value={query}
+            aria-describedby={!hasQuery ? emptyHintId : undefined}
             placeholder={t("workspaceSearch.placeholder")}
             onChange={(event) => handleQueryChange(event.target.value)}
           />
-        </label>
-        <Button type="submit" busy={busy} icon={<SearchIcon />}>
+          {!hasQuery ? (
+            <small id={emptyHintId} className="voy-field-hint">
+              {t("workspaceSearch.emptyHint")}
+            </small>
+          ) : null}
+        </div>
+        <Button
+          type="submit"
+          busy={busy}
+          disabled={!hasQuery}
+          icon={<SearchIcon />}
+        >
           {t("workspaceSearch.search")}
         </Button>
       </form>

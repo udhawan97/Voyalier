@@ -6,6 +6,17 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+### Fixed
+
+- **Passport suggestions no longer cover Save on narrow screens, and a refused code now returns
+  focus to its field.** The Visa-only list joins the page flow at the existing narrow breakpoint,
+  stays bounded and scrollable, and replaces a prior save failure with one associated validation
+  alert. Origin, destination, and other shared combobox popups keep their existing behavior.
+- **Workspace Search now explains why an empty action is unavailable.** Empty and whitespace-only
+  queries show localized enabling guidance associated with the field and keep Search disabled;
+  valid Enter, pointer, debounce, and recovery paths are unchanged. Search terms remain local to
+  the app gateway and are neither persisted nor sent to an external provider.
+
 ## [0.10.6] - 2026-08-11 — Retry finishes the search
 
 This is the first published desktop release after 0.9.2. It carries the

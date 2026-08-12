@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import type { WorkspaceSearchHit } from "@voyalier/contracts";
 import { createMockGateway } from "@voyalier/contracts";
+import { vi } from "vitest";
 
 import { setLocalePreference } from "./app/locale";
 import { openFixtureTrip, renderApp } from "./test/helpers";
@@ -22,6 +23,70 @@ describe("workspace search", () => {
     expect(tripSectionForSearchSource("confirmed_fact")).toBe("section-plan");
     expect(tripSectionForSearchSource("saved_place")).toBe("section-plan");
     expect(tripSectionForSearchSource("trip_item")).toBe("section-plan");
+  });
+
+  it("explains and disables an empty or whitespace-only search", async () => {
+    renderApp(createMockGateway());
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Search workspace" }),
+    );
+    const input = screen.getByLabelText("Search all trips");
+    const submit = screen.getByRole("button", { name: "Search" });
+    const hint = screen.getByText("Enter a search term to enable Search.");
+
+    expect(submit).toBeDisabled();
+    expect(input.getAttribute("aria-describedby")).toContain(hint.id);
+
+    fireEvent.change(input, { target: { value: "   " } });
+    expect(submit).toBeDisabled();
+    expect(input.getAttribute("aria-describedby")).toContain(hint.id);
+
+    fireEvent.change(input, { target: { value: "Maple" } });
+    expect(submit).toBeEnabled();
+    expect(input).not.toHaveAttribute("aria-describedby");
+    expect(
+      screen.queryByText("Enter a search term to enable Search."),
+    ).toBeNull();
+  });
+
+  it("localizes the empty-search guidance in Spanish", async () => {
+    setLocalePreference("es");
+    renderApp(createMockGateway());
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Buscar en el espacio de trabajo",
+      }),
+    );
+
+    const input = screen.getByLabelText("Buscar en todos los viajes");
+    const hint = screen.getByText(
+      "Escribe un término de búsqueda para activar Buscar.",
+    );
+    expect(screen.getByRole("button", { name: "Buscar" })).toBeDisabled();
+    expect(input.getAttribute("aria-describedby")).toContain(hint.id);
+  });
+
+  it("runs a trimmed valid query from both form Enter and the Search button", async () => {
+    const base = createMockGateway();
+    const searchWorkspace = vi.fn((query: string) =>
+      base.searchWorkspace(query),
+    );
+    renderApp({ ...base, searchWorkspace });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Search workspace" }),
+    );
+    const input = screen.getByLabelText("Search all trips");
+    const form = input.closest("form")!;
+
+    fireEvent.change(input, { target: { value: "  Maple Lantern  " } });
+    fireEvent.submit(form);
+    await waitFor(() =>
+      expect(searchWorkspace).toHaveBeenCalledWith("Maple Lantern"),
+    );
+
+    fireEvent.change(input, { target: { value: "  Fjord  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => expect(searchWorkspace).toHaveBeenCalledWith("Fjord"));
   });
 
   it.each([

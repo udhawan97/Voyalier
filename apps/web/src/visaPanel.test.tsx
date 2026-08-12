@@ -299,7 +299,9 @@ describe("visa preparation", () => {
     const region = await openVisa();
     const field = within(region).getByLabelText("Passport country code");
     fireEvent.change(field, { target: { value: "I" } });
-    fireEvent.click(within(region).getByRole("button", { name: "Save" }));
+    const save = within(region).getByRole("button", { name: "Save" });
+    save.focus();
+    fireEvent.click(save);
 
     const error = await within(region).findByRole("alert");
     // Not the multi-field banner title. "Check the highlighted fields" pointed
@@ -307,18 +309,64 @@ describe("visa preparation", () => {
     expect(error).toHaveTextContent(/two letters/i);
     expect(field).toHaveAttribute("aria-invalid", "true");
     expect(field.getAttribute("aria-describedby")).toContain(error.id);
+    expect(field).toHaveFocus();
   });
 
   it("answers when Save is pressed with nothing typed", async () => {
     const region = await openVisa();
-    fireEvent.click(within(region).getByRole("button", { name: "Save" }));
+    const field = within(region).getByLabelText("Passport country code");
+    const save = within(region).getByRole("button", { name: "Save" });
+    save.focus();
+    fireEvent.click(save);
 
     // It used to return silently, so a real button did nothing observable.
     const error = await within(region).findByRole("alert");
     expect(error).toHaveTextContent(/two letters/i);
-    expect(
-      within(region).getByLabelText("Passport country code"),
-    ).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveFocus();
+  });
+
+  it("clears the local refusal as soon as the passport code is corrected", async () => {
+    const region = await openVisa();
+    const field = within(region).getByLabelText("Passport country code");
+    fireEvent.change(field, { target: { value: "I" } });
+    fireEvent.click(within(region).getByRole("button", { name: "Save" }));
+    await within(region).findByRole("alert");
+
+    fireEvent.change(field, { target: { value: "IN" } });
+    expect(field).not.toHaveAttribute("aria-invalid");
+    expect(within(region).queryByRole("alert")).toBeNull();
+
+    fireEvent.click(within(region).getByRole("button", { name: "Save" }));
+    expect(await within(region).findByText(/Step 1/)).toBeInTheDocument();
+  });
+
+  it("replaces a failed-save alert with one local validation alert", async () => {
+    const base = createMockGateway();
+    const region = await openVisa({
+      ...base,
+      setVisaNationality: () =>
+        Promise.reject({
+          code: "storage/failure",
+          message: "fixture write failure",
+        }),
+    });
+    const field = within(region).getByLabelText("Passport country code");
+    const save = within(region).getByRole("button", { name: "Save" });
+
+    fireEvent.change(field, { target: { value: "US" } });
+    fireEvent.click(save);
+    await within(region).findByRole("alert");
+
+    fireEvent.change(field, { target: { value: "U" } });
+    save.focus();
+    fireEvent.click(save);
+
+    const alerts = await within(region).findAllByRole("alert");
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]).toHaveTextContent(/two letters/i);
+    expect(field.getAttribute("aria-describedby")).toContain(alerts[0].id);
+    expect(field).toHaveFocus();
   });
 
   it("does not call valid passport input invalid when the engine is offline", async () => {

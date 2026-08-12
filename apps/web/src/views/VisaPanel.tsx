@@ -189,6 +189,7 @@ function NationalityPicker({
   const gateway = useGateway();
   const announce = useAnnounce();
   const fieldId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
   const suggested = prep.suggestedNationalityIso2 ?? "";
   const [draft, setDraft] = useState<string | null>(null);
   const [invalid, setInvalid] = useState(false);
@@ -226,7 +227,11 @@ function NationalityPicker({
       ? t("visa.nationalityInvalid")
       : undefined;
   const actionError: AppError | undefined =
-    save.error && !serverValidation && save.error.code !== "transport/failure"
+    save.error &&
+    submittedCode !== null &&
+    (submittedCode === value || (!value && submittedCode === suggested)) &&
+    !serverValidation &&
+    save.error.code !== "transport/failure"
       ? save.error
       : undefined;
 
@@ -276,7 +281,9 @@ function NationalityPicker({
         // An empty submit used to return here silently, so a real button did
         // nothing observable at all.
         if (!/^[A-Z]{2}$/.test(code)) {
+          setSubmittedCode(null);
           setInvalid(true);
+          inputRef.current?.focus();
           return;
         }
         setInvalid(false);
@@ -286,10 +293,12 @@ function NationalityPicker({
     >
       <Combobox
         id={fieldId}
+        inputRef={inputRef}
         label={t("visa.nationalityLabel")}
         value={value}
         onChange={(next) => {
           setDraft(next);
+          setSubmittedCode(null);
           if (/^[A-Za-z]{2}$/.test(next.trim())) setInvalid(false);
         }}
         fetchSuggestions={suggestions}
@@ -298,7 +307,14 @@ function NationalityPicker({
         autoComplete="off"
         spellCheck={false}
       />
-      <Button type="submit" busy={save.busy}>
+      <Button
+        type="submit"
+        busy={save.busy}
+        // In the narrow in-flow layout, blurring the combobox removes its list
+        // before pointer-up and moves this target. Preserve the field's focus
+        // through the click; submit still runs and owns the final focus state.
+        onMouseDown={(event) => event.preventDefault()}
+      >
         {t("visa.nationalitySave")}
       </Button>
       {/* Offered, never applied: the last trip's passport as one tap — a trip
@@ -311,7 +327,11 @@ function NationalityPicker({
             name: countryName(suggested, APP_LOCALE),
             code: suggested,
           })}
-          onClick={() => void save.run(suggested)}
+          onClick={() => {
+            setInvalid(false);
+            setSubmittedCode(suggested);
+            void save.run(suggested);
+          }}
         >
           {countryName(suggested, APP_LOCALE)} — {suggested}
         </button>
