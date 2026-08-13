@@ -468,4 +468,22 @@ test("nested workspace detours preserve route, query, and page focus", async ({
   await expect(
     page.getByRole("heading", { name: "Trips", level: 1 }),
   ).toBeFocused();
+
+  // Search text belongs to one private history entry, not to every Search
+  // visit in the tab. A fresh visit stays blank through its own Settings
+  // detour even after an older visit held text.
+  await page.getByRole("button", { name: "Search workspace" }).click();
+  await page.getByLabel("Search all trips").fill("First visit");
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Trips", level: 1 }),
+  ).toBeFocused();
+  await page.getByRole("button", { name: "Search workspace" }).click();
+  await expect(page.getByLabel("Search all trips")).toHaveValue("");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(page.getByLabel("Search all trips")).toHaveValue("");
+  await expect(
+    page.getByRole("heading", { name: "Search workspace", level: 1 }),
+  ).toBeFocused();
 });

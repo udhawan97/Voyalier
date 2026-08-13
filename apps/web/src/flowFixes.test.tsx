@@ -483,6 +483,35 @@ describe("User-flow gap fixes", () => {
     expect(window.location.hash).toBe("");
   });
 
+  it("unwinds Settings through Search to the exact trip section", async () => {
+    renderApp(createMockGateway());
+    await openFixtureTrip();
+    window.history.replaceState(
+      window.history.state,
+      "",
+      "/?trip=trip_kyoto#section-visa",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Back" }));
+    const settingsHeading = await screen.findByRole("heading", {
+      name: "Settings",
+      level: 1,
+    });
+    await waitFor(() => expect(settingsHeading).toHaveFocus());
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    const tripHeading = await screen.findByRole("heading", {
+      name: "Kyoto autumn journey",
+      level: 1,
+    });
+    await waitFor(() => expect(tripHeading).toHaveFocus());
+    expect(window.location.search).toBe("?trip=trip_kyoto");
+    expect(window.location.hash).toBe("#section-visa");
+  });
+
   it("falls back safely from a direct Search URL and focuses All Trips", async () => {
     window.history.replaceState(null, "", "/?view=search");
     renderApp(createMockGateway());
@@ -518,10 +547,46 @@ describe("User-flow gap fixes", () => {
     fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
     const query = await screen.findByLabelText("Search all trips");
     fireEvent.change(query, { target: { value: "Kyoto" } });
+    const historyLength = window.history.length;
 
     fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
 
     expect(screen.getByLabelText("Search all trips")).toHaveValue("Kyoto");
+    expect(window.history.length).toBe(historyLength);
+  });
+
+  it("does not add a detour when the active Settings action repeats", async () => {
+    renderApp(createMockGateway());
+    await openFixtureTrip();
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await screen.findByRole("heading", { name: "Settings", level: 1 });
+    const historyLength = window.history.length;
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+
+    expect(
+      screen.getByRole("heading", { name: "Settings", level: 1 }),
+    ).toBeInTheDocument();
+    expect(window.history.length).toBe(historyLength);
+  });
+
+  it("does not leak an older query into a fresh Search history entry", async () => {
+    renderApp(createMockGateway());
+    await screen.findByRole("heading", { name: "Trips", level: 1 });
+
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+    fireEvent.change(await screen.findByLabelText("Search all trips"), {
+      target: { value: "First visit" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    await screen.findByRole("heading", { name: "Trips", level: 1 });
+
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+    expect(await screen.findByLabelText("Search all trips")).toHaveValue("");
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Back" }));
+
+    expect(await screen.findByLabelText("Search all trips")).toHaveValue("");
   });
 
   it("does not steal focus for a hash-only history change", async () => {
@@ -666,11 +731,12 @@ describe("User-flow gap fixes", () => {
     fireEvent.change(await screen.findByLabelText("Search all trips"), {
       target: { value: "Kyoto" },
     });
+    const searchState = window.history.state;
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     await screen.findByRole("heading", { name: "Settings", level: 1 });
 
-    window.history.replaceState(null, "", "/?view=search");
-    window.dispatchEvent(new PopStateEvent("popstate"));
+    window.history.replaceState(searchState, "", "/?view=search");
+    window.dispatchEvent(new PopStateEvent("popstate", { state: searchState }));
 
     expect(await screen.findByLabelText("Search all trips")).toHaveValue(
       "Kyoto",
