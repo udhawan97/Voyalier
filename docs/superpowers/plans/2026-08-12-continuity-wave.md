@@ -106,7 +106,8 @@ Acceptance:
 1. `Docs:` commit this plan before product implementation.
 2. `Test:` add focused failing cases for readiness routing, planned-item and stale conflict jumps,
    duplicate recovery/missing-row behavior, collapsed document privacy, combined queue filters,
-   no-match recovery, live counts, and post-resolution focus.
+   no-match recovery, live counts, post-resolution focus, and failed/concurrently raced resolution
+   retention.
 3. `Web:` add the bounded focus navigator, readiness/conflict actions, duplicate banner action,
    queue filters, exhaustive fact labels, translated copy, and scoped styles.
 4. `Docs:` record the user-visible continuity improvements under `CHANGELOG.md` Unreleased without
@@ -125,10 +126,10 @@ Acceptance:
 Durable evidence comes from feature-named Vitest/Testing Library cases, the full web/Rust/desktop
 gate, Graphify refresh, dependency audit, credential scan, and exact remote-SHA verification.
 Semantic tests cover focus and collapsed-body behavior. Before merge, a supplemental Safari pass
-against disposable data must exercise keyboard navigation, a 320px viewport, and 200% zoom reflow
-for the three changed surfaces. This does not imply manual screen-reader listening, physical touch,
-native packaged-Tauri, Windows, or release acceptance. Chromium is not required for this UI-only
-wave.
+against disposable data must exercise keyboard navigation, a 320px viewport, 200% zoom reflow, and
+reduced-motion mode for the three changed surfaces, confirming that navigation adds no animated
+scrolling. This does not imply manual screen-reader listening, physical touch, native packaged-
+Tauri, Windows, or release acceptance. Chromium is not required for this UI-only wave.
 
 Not expanded by this plan: new providers, booking actions, hosted services, entry or health
 decisions, document-body prefetching, bulk candidate resolution, contract/schema changes, version
