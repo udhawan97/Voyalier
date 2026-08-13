@@ -6,6 +6,20 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+### Added
+
+- **Readiness checks now carry travelers into the matching local workspace.** Schedule and lodging
+  findings open the existing review or plan context, pending suggestions open their one-at-a-time
+  queue, and entry and health pointers open Visa or Prepare beside the official links. These are
+  navigation aids only: they do not clear readiness or decide entry, health, safety, or bookings.
+- **Duplicate imports can open the existing stored document.** Recovery focuses the collapsed
+  document summary without putting its internal id in the URL or fetching the sealed body; if the
+  record disappeared, Voyalier opens Imported documents and says so instead of failing silently.
+- **Suggestion review can be narrowed without becoming a bulk workflow.** Local filters cover
+  extraction warnings, all six fact types, and all four extraction methods, with live result counts
+  and deterministic keyboard focus. Confirm, edit-and-confirm, and dismiss still apply to one
+  suggestion at a time, and raced failures remain visible when a filter is restored.
+
 ### Fixed
 
 - **Passport suggestions no longer cover Save on narrow screens, and a refused code now returns
