@@ -25,6 +25,12 @@ describe("language preference", () => {
     ).toBeInTheDocument();
     expect(document.documentElement.lang).toBe("es");
     expect(screen.getByRole("combobox", { name: "Idioma" })).toHaveFocus();
+    expect(
+      await screen.findByText(
+        "Los códigos de confirmación y los nombres de los viajeros están cifrados en este dispositivo. Añade una frase de contraseña para una segunda capa que proteja tus datos incluso en una computadora desbloqueada.",
+        { selector: ".voy-vault__intro" },
+      ),
+    ).toBeInTheDocument();
   });
 
   it("localizes trip status badges", async () => {

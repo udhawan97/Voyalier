@@ -10,7 +10,7 @@ for command in node pnpm rustc cargo; do
 done
 
 pnpm install
-pnpm exec playwright install chromium
+pnpm exec playwright install chromium webkit
 cargo fetch
 
-echo "Voyalier dependencies and the Chromium acceptance runtime are ready. Run: make dev"
+echo "Voyalier dependencies and the Chromium/WebKit acceptance runtimes are ready. Run: make dev"

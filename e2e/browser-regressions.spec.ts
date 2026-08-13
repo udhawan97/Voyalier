@@ -1,0 +1,102 @@
+import { expect, test } from "@playwright/test";
+
+function isoDay(offset: number): string {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + offset);
+  return date.toISOString().slice(0, 10);
+}
+
+test("Create Trip returns focus to its exact opener", async ({ page }) => {
+  await page.goto("/");
+  const opener = page.getByRole("button", { name: "Create a trip" }).first();
+
+  await opener.click();
+  const dialog = page.getByRole("dialog", { name: "Create a trip" });
+  await expect(dialog.getByLabel("From")).toBeFocused();
+  await dialog.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(opener).toBeFocused();
+
+  await opener.click();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(opener).toBeFocused();
+});
+
+test("the planning register stays inside a 320px viewport after search focus", async ({
+  browserName,
+  page,
+}) => {
+  const tripTitle = `Narrow ${browserName} trip`;
+  const itemTitle = `Museum transfer ${browserName}`;
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Create a trip" }).first().click();
+  const createTrip = page.getByRole("dialog", { name: "Create a trip" });
+  await createTrip.getByLabel("From").fill("Chicago");
+  await createTrip.getByLabel("To").fill("Kyoto");
+  await createTrip.getByLabel("Start date").fill(isoDay(30));
+  await createTrip.getByLabel("End date").fill(isoDay(37));
+  await createTrip.getByLabel("Trip name (optional)").fill(tripTitle);
+  await createTrip.getByRole("button", { name: "Create trip" }).click();
+  await page.getByRole("button", { name: `Open ${tripTitle}` }).click();
+  await page.getByRole("link", { name: "Plan", exact: true }).click();
+  await page.setViewportSize({ width: 320, height: 720 });
+
+  const planning = page.locator(".voy-planning");
+  await expect(planning).toBeVisible();
+  const initialGeometry = await planning.evaluate((grid) => {
+    const parent = grid.parentElement!.getBoundingClientRect();
+    const own = grid.getBoundingClientRect();
+    return {
+      viewportWidth: document.documentElement.clientWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      parentRight: parent.right,
+      gridRight: own.right,
+      widestSectionRight: Math.max(
+        ...Array.from(
+          grid.children,
+          (child) => child.getBoundingClientRect().right,
+        ),
+      ),
+    };
+  });
+  expect(initialGeometry.documentWidth).toBeLessThanOrEqual(
+    initialGeometry.viewportWidth,
+  );
+  expect(initialGeometry.gridRight).toBeLessThanOrEqual(
+    initialGeometry.parentRight + 1,
+  );
+  expect(initialGeometry.widestSectionRight).toBeLessThanOrEqual(
+    initialGeometry.parentRight + 1,
+  );
+
+  const plans = page.getByRole("region", { name: "Activities & transfers" });
+  await plans.getByLabel("Name").fill(itemTitle);
+  await plans.getByRole("button", { name: "Add to plan" }).click();
+  await expect(plans.getByText(itemTitle, { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Search workspace" }).click();
+  await page.getByLabel("Search all trips").fill(itemTitle);
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await page.getByRole("button", { name: new RegExp(itemTitle) }).click();
+
+  const target = page
+    .locator('[data-search-source="trip_item"]')
+    .filter({ hasText: itemTitle });
+  await expect(target).toBeFocused();
+  const focusedGeometry = await target.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      left: rect.left,
+      right: rect.right,
+      viewportWidth: document.documentElement.clientWidth,
+      scrollX: window.scrollX,
+    };
+  });
+  expect(focusedGeometry.scrollX).toBe(0);
+  expect(focusedGeometry.left).toBeGreaterThanOrEqual(0);
+  expect(focusedGeometry.right).toBeLessThanOrEqual(
+    focusedGeometry.viewportWidth,
+  );
+});
