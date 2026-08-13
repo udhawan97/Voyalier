@@ -457,7 +457,7 @@ export function PlanningPanel({
       </section>
 
       <section aria-labelledby="manual-plan-title">
-        <SectionTitle id="manual-plan-title" icon={<PlusIcon />}>
+        <SectionTitle id="manual-plan-title" icon={<PlusIcon />} tabIndex={-1}>
           {t("planning.items.title")}
         </SectionTitle>
         <p>{t("planning.items.intro")}</p>

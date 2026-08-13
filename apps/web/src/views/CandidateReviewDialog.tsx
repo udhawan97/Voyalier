@@ -2,7 +2,9 @@ import { useEffect, useRef, useState, type Ref, type RefObject } from "react";
 import type {
   CandidateFact,
   ConfirmedFact,
+  ExtractionMethod,
   FactPayload,
+  FactType,
 } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
@@ -15,6 +17,7 @@ import {
   fieldLabel,
   fieldsForType,
   formatFieldValue,
+  methodLabel,
   payloadToDraft,
   warningSentence,
   type PayloadDraft,
@@ -31,14 +34,50 @@ import { Empty, EvidenceQuote, MethodChip } from "../components/primitives";
 
 type Values = Record<string, string | undefined>;
 
+const FACT_TYPES: FactType[] = [
+  "flight_segment",
+  "lodging_stay",
+  "rail_journey",
+  "coach_journey",
+  "ferry_crossing",
+  "car_rental",
+];
+
+const EXTRACTION_METHODS: ExtractionMethod[] = [
+  "structured",
+  "inferred",
+  "manual",
+  "assisted",
+];
+
+type ReviewFilters = {
+  warningsOnly: boolean;
+  factType: FactType | "all";
+  method: ExtractionMethod | "all";
+};
+
+function filterCandidates(
+  candidates: CandidateFact[],
+  filters: ReviewFilters,
+): CandidateFact[] {
+  return candidates.filter(
+    (candidate) =>
+      (!filters.warningsOnly || candidate.warnings.length > 0) &&
+      (filters.factType === "all" || candidate.factType === filters.factType) &&
+      (filters.method === "all" || candidate.method === filters.method),
+  );
+}
+
 function ReviewCard({
   candidate,
   onDone,
   confirmRef,
+  hidden,
 }: {
   candidate: CandidateFact;
   onDone: (id: string) => void;
   confirmRef: Ref<HTMLButtonElement>;
+  hidden: boolean;
 }) {
   const gateway = useGateway();
   const announce = useAnnounce();
@@ -98,7 +137,7 @@ function ReviewCard({
   const error = confirmAction.error ?? rejectAction.error;
 
   return (
-    <li className="voy-review">
+    <li className="voy-review" hidden={hidden}>
       <div className="voy-review__head">
         <span className="voy-review__icon" aria-hidden="true">
           {candidate.factType === "flight_segment" ? (
@@ -240,9 +279,19 @@ export function CandidateReviewDialog({
   completionFocusRef?: RefObject<HTMLElement | null>;
 }) {
   const [queue, setQueue] = useState<CandidateFact[]>(() => candidates);
+  const [warningsOnly, setWarningsOnly] = useState(false);
+  const [factType, setFactType] = useState<FactType | "all">("all");
+  const [method, setMethod] = useState<ExtractionMethod | "all">("all");
   const pendingFocus = useRef<string | null>(null);
   const confirmRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const doneRef = useRef<HTMLButtonElement>(null);
+  const warningsRef = useRef<HTMLInputElement>(null);
+  const factTypeRef = useRef<HTMLSelectElement>(null);
+  const methodRef = useRef<HTMLSelectElement>(null);
+
+  const filters = { warningsOnly, factType, method } satisfies ReviewFilters;
+  const visibleQueue = filterCandidates(queue, filters);
+  const visibleIds = new Set(visibleQueue.map((candidate) => candidate.id));
 
   // After a resolution shrinks the queue, move focus to the next actionable
   // control so the keyboard flow never lands on a removed element.
@@ -251,18 +300,39 @@ export function CandidateReviewDialog({
     if (!target) return;
     pendingFocus.current = null;
     if (target === "__done__") doneRef.current?.focus();
+    else if (target === "__filters__") {
+      (
+        (method !== "all" ? methodRef.current : null) ??
+        (factType !== "all" ? factTypeRef.current : null) ??
+        (warningsOnly ? warningsRef.current : null) ??
+        factTypeRef.current
+      )?.focus();
+    }
     // The next card's primary button (Confirm or, in edit mode, Save & confirm);
     // fall back to the footer so focus never escapes the dialog.
     else (confirmRefs.current[target] ?? doneRef.current)?.focus();
-  }, [queue]);
+  }, [queue, warningsOnly, factType, method]);
 
   function handleDone(id: string) {
-    const index = queue.findIndex((candidate) => candidate.id === id);
+    const index = visibleQueue.findIndex((candidate) => candidate.id === id);
     const next = queue.filter((candidate) => candidate.id !== id);
-    const nextItem = next[index] ?? next[next.length - 1] ?? null;
-    pendingFocus.current = nextItem ? nextItem.id : "__done__";
+    const nextVisible = filterCandidates(next, filters);
+    const nextItem = nextVisible[index] ?? nextVisible[nextVisible.length - 1];
+    pendingFocus.current = nextItem
+      ? nextItem.id
+      : next.length > 0
+        ? "__filters__"
+        : "__done__";
     setQueue(next);
     onResolved();
+  }
+
+  function resetFilters() {
+    setWarningsOnly(false);
+    setFactType("all");
+    setMethod("all");
+    pendingFocus.current =
+      visibleQueue.length === 0 ? (queue[0]?.id ?? null) : null;
   }
 
   const remaining = queue.length;
@@ -290,14 +360,83 @@ export function CandidateReviewDialog({
       ) : (
         <>
           <p className="voy-review__count" role="status">
-            {plural("review.count", remaining)}
+            {visibleQueue.length === remaining
+              ? plural("review.count", remaining)
+              : t("review.filters.count", {
+                  shown: visibleQueue.length,
+                  total: remaining,
+                })}
           </p>
+          <div
+            className="voy-review__filters"
+            role="group"
+            aria-label={t("review.filters.label")}
+          >
+            <label className="voy-review__filter voy-review__filter--check">
+              <input
+                ref={warningsRef}
+                type="checkbox"
+                checked={warningsOnly}
+                onChange={(event) => setWarningsOnly(event.target.checked)}
+              />
+              <span>{t("review.filters.warnings")}</span>
+            </label>
+            <label className="voy-review__filter">
+              <span>{t("review.filters.factType")}</span>
+              <select
+                ref={factTypeRef}
+                className="voy-input"
+                value={factType}
+                onChange={(event) =>
+                  setFactType(event.target.value as FactType | "all")
+                }
+              >
+                <option value="all">{t("review.filters.allTypes")}</option>
+                {FACT_TYPES.map((value) => (
+                  <option key={value} value={value}>
+                    {factTypeLabel(value)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="voy-review__filter">
+              <span>{t("review.filters.method")}</span>
+              <select
+                ref={methodRef}
+                className="voy-input"
+                value={method}
+                onChange={(event) =>
+                  setMethod(event.target.value as ExtractionMethod | "all")
+                }
+              >
+                <option value="all">{t("review.filters.allMethods")}</option>
+                {EXTRACTION_METHODS.map((value) => (
+                  <option key={value} value={value}>
+                    {methodLabel(value)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {visibleQueue.length === 0 ? (
+            <Empty
+              title={t("review.filters.empty.title")}
+              action={
+                <Button variant="secondary" onClick={resetFilters}>
+                  {t("review.filters.reset")}
+                </Button>
+              }
+            >
+              {t("review.filters.empty.body")}
+            </Empty>
+          ) : null}
           <ul className="voy-review__list">
             {queue.map((candidate) => (
               <ReviewCard
                 key={candidate.id}
                 candidate={candidate}
                 onDone={handleDone}
+                hidden={!visibleIds.has(candidate.id)}
                 confirmRef={(node) => {
                   confirmRefs.current[candidate.id] = node;
                 }}

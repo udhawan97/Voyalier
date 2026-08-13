@@ -169,7 +169,7 @@ export function DocumentsPanel({ tripId }: { tripId: string }) {
 
   return (
     <section className="voy-docs" aria-labelledby="documents-title">
-      <SectionTitle id="documents-title" icon={<FileTextIcon />}>
+      <SectionTitle id="documents-title" icon={<FileTextIcon />} tabIndex={-1}>
         {t("documents.title")}
       </SectionTitle>
       <p className="voy-docs__intro">{t("documents.intro")}</p>

@@ -546,6 +546,89 @@ function readinessDetail(item: ReadinessItem): string {
   return key ? t(key) : "";
 }
 
+type ContinuityTarget = {
+  requestId: number;
+  destination:
+    | { kind: "element"; elementId: string }
+    | {
+        kind: "record";
+        source: "confirmed_fact" | "trip_item" | "document";
+        recordId: string;
+      };
+  fallbackId: string;
+  unavailable?: MessageKey;
+  announcement?: MessageKey;
+};
+
+/**
+ * Complete one transient in-page handoff after deferred panels have mounted.
+ *
+ * This must be a child of `DeferredMountProvider`; consuming the hook in
+ * `TripDetailView` itself would see the context outside the provider it returns.
+ */
+function ContinuityNavigator({
+  target,
+  onSettled,
+}: {
+  target: ContinuityTarget | null;
+  onSettled: (requestId: number) => void;
+}) {
+  const mountAllSections = useMountAllSections();
+  const announce = useAnnounce();
+
+  useEffect(() => {
+    if (!target) return;
+    mountAllSections();
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let attempts = 0;
+
+    const finish = (node: HTMLElement, message?: MessageKey) => {
+      if (cancelled) return;
+      node.scrollIntoView?.({ block: "center" });
+      node.focus({ preventScroll: true });
+      if (message) announce(t(message));
+      onSettled(target.requestId);
+    };
+
+    const findRecord = () =>
+      [...document.querySelectorAll<HTMLElement>("[data-search-source]")].find(
+        (element) =>
+          target.destination.kind === "record" &&
+          element.dataset.searchSource === target.destination.source &&
+          element.dataset.searchRecord === target.destination.recordId,
+      );
+
+    const tryFocus = () => {
+      if (cancelled) return;
+      const exact =
+        target.destination.kind === "element"
+          ? document.getElementById(target.destination.elementId)
+          : findRecord();
+      if (exact) {
+        finish(exact, target.announcement);
+        return;
+      }
+      attempts += 1;
+      if (attempts < 12) {
+        timer = setTimeout(tryFocus, 25);
+        return;
+      }
+      const fallback = document.getElementById(target.fallbackId);
+      if (fallback) finish(fallback, target.unavailable);
+      else onSettled(target.requestId);
+    };
+
+    timer = setTimeout(tryFocus, 0);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [announce, mountAllSections, onSettled, target]);
+
+  return null;
+}
+
 /**
  * Deterministic plan-completeness rollup plus a link-only entry-requirements
  * reference. Status is always spelled out in words, never conveyed by color
@@ -555,10 +638,29 @@ function readinessDetail(item: ReadinessItem): string {
 function ReadinessPanel({
   readiness,
   selfReport,
+  onNavigate,
+  onReview,
 }: {
   readiness: ReadinessSummary;
   selfReport?: VisaSelfReport;
+  onNavigate: (check: ReadinessCheck) => void;
+  onReview: (trigger: HTMLElement) => void;
 }) {
+  function actionLabel(item: ReadinessItem): MessageKey | null {
+    switch (item.id) {
+      case "schedule_conflicts":
+        return item.status === "clear" ? null : "readiness.action.schedule";
+      case "lodging_coverage":
+        return item.status === "clear" ? null : "readiness.action.plan";
+      case "pending_review":
+        return (item.finding.count ?? 0) > 0 ? "readiness.action.review" : null;
+      case "entry_requirements":
+        return "readiness.action.visa";
+      case "health_notices":
+        return "readiness.action.prepare";
+    }
+  }
+
   return (
     <section className="voy-readiness" aria-labelledby="readiness-title">
       <div className="voy-readiness__head">
@@ -621,6 +723,19 @@ function ReadinessPanel({
                   ))}
                 </ul>
               ) : null}
+              {actionLabel(item) ? (
+                <button
+                  type="button"
+                  className="voy-linkbtn voy-readiness__action"
+                  onClick={(event) =>
+                    item.id === "pending_review"
+                      ? onReview(event.currentTarget)
+                      : onNavigate(item.id)
+                  }
+                >
+                  {t(actionLabel(item)!)}
+                </button>
+              ) : null}
             </span>
           </li>
         ))}
@@ -634,11 +749,19 @@ function ReadinessPanel({
  * Deterministic, advisory schedule review over the confirmed itinerary.
  * Severity is always carried by the text badge, never by color/icon alone.
  */
-function ScheduleCheck({ conflicts }: { conflicts: ItineraryConflict[] }) {
+function ScheduleCheck({
+  conflicts,
+  onFocusFact,
+  onFocusPlannedItem,
+}: {
+  conflicts: ItineraryConflict[];
+  onFocusFact: (id: string) => void;
+  onFocusPlannedItem: (id: string) => void;
+}) {
   if (conflicts.length === 0) {
     return (
       <section className="voy-schedule" aria-labelledby="schedule-title">
-        <h2 id="schedule-title" className="voy-schedule__title">
+        <h2 id="schedule-title" className="voy-schedule__title" tabIndex={-1}>
           {t("schedule.title")}
         </h2>
         <p className="voy-schedule__clear">
@@ -692,21 +815,6 @@ function ScheduleCheck({ conflicts }: { conflicts: ItineraryConflict[] }) {
     }
   }
 
-  /**
-   * Put a named fact on screen and in focus.
-   *
-   * The same landing mechanism a search result uses, reused rather than
-   * reinvented: the Blueprint cards already carry the data attributes.
-   */
-  function focusFact(factId: string) {
-    const card = document.querySelector<HTMLElement>(
-      `[data-search-source="confirmed_fact"][data-search-record="${CSS.escape(factId)}"]`,
-    );
-    if (!card) return;
-    card.scrollIntoView?.({ block: "center" });
-    card.focus({ preventScroll: true });
-  }
-
   /** Turn a finding into the sentence a traveler reads. */
   function conflictSentence(conflict: ItineraryConflict): string {
     const [first, second] = conflict.subjects.map(conflictSubject);
@@ -744,9 +852,9 @@ function ScheduleCheck({ conflicts }: { conflicts: ItineraryConflict[] }) {
   }
 
   return (
-    <section className="voy-schedule" aria-labelledby="schedule-title">
-      <h2 className="voy-schedule__title">
-        <span id="schedule-title">{t("schedule.title")}</span>
+    <section className="voy-schedule" aria-labelledby="schedule-label">
+      <h2 id="schedule-title" className="voy-schedule__title" tabIndex={-1}>
+        <span id="schedule-label">{t("schedule.title")}</span>
         <span className="voy-schedule__count">{conflicts.length}</span>
       </h2>
       <ul className="voy-schedule__list">
@@ -772,7 +880,7 @@ function ScheduleCheck({ conflicts }: { conflicts: ItineraryConflict[] }) {
                   key={factId}
                   type="button"
                   className="voy-linkbtn voy-schedule__jump"
-                  onClick={() => focusFact(factId)}
+                  onClick={() => onFocusFact(factId)}
                 >
                   {t("schedule.jumpToFact", {
                     subject:
@@ -780,6 +888,22 @@ function ScheduleCheck({ conflicts }: { conflicts: ItineraryConflict[] }) {
                         ? conflictSubject(conflict.subjects[index])
                         : String(index + 1),
                   })}
+                </button>
+              ))}
+              {(conflict.plannedItemIds ?? []).map((itemId, index) => (
+                <button
+                  key={itemId}
+                  type="button"
+                  className="voy-linkbtn voy-schedule__jump"
+                  onClick={() => onFocusPlannedItem(itemId)}
+                >
+                  {conflict.plannedItemTitles?.[index]
+                    ? t("schedule.jumpToPlan", {
+                        title: conflict.plannedItemTitles[index],
+                      })
+                    : t("schedule.jumpToPlanGeneric", {
+                        number: index + 1,
+                      })}
                 </button>
               ))}
             </span>
@@ -839,8 +963,43 @@ export function TripDetailView({
     revalidate(tripScope(tripId), visaScope(tripId));
   }, [revalidate, tripId]);
   const searchTargetConsumed = useRef(false);
-  const reviewTriggerRef = useRef<HTMLElement | null>(null);
+  const pendingReviewTriggerRef = useRef<HTMLElement | null>(null);
+  const reviewReturnFocusRef = useRef<HTMLElement | null>(null);
   const reviewCompletionFocusRef = useRef<HTMLElement | null>(null);
+  const navigationSequence = useRef(0);
+  const [continuityTarget, setContinuityTarget] =
+    useState<ContinuityTarget | null>(null);
+
+  const settleContinuityTarget = useCallback((requestId: number) => {
+    setContinuityTarget((current) =>
+      current?.requestId === requestId ? null : current,
+    );
+  }, []);
+
+  function navigateToElement(elementId: string, announcement?: MessageKey) {
+    setContinuityTarget({
+      requestId: ++navigationSequence.current,
+      destination: { kind: "element", elementId },
+      fallbackId: elementId,
+      announcement,
+    });
+  }
+
+  function navigateToRecord(
+    source: "confirmed_fact" | "trip_item" | "document",
+    recordId: string,
+    fallbackId: string,
+    unavailable: MessageKey,
+    announcement?: MessageKey,
+  ) {
+    setContinuityTarget({
+      requestId: ++navigationSequence.current,
+      destination: { kind: "record", source, recordId },
+      fallbackId,
+      unavailable,
+      announcement,
+    });
+  }
 
   useEffect(() => {
     if (!data || !searchTarget || searchTargetConsumed.current) return;
@@ -891,6 +1050,11 @@ export function TripDetailView({
   const [showBrief, setShowBrief] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [unconfirmingId, setUnconfirmingId] = useState<string | null>(null);
+
+  function openReview(candidates: CandidateFact[], trigger?: HTMLElement) {
+    reviewReturnFocusRef.current = trigger ?? pendingReviewTriggerRef.current;
+    setReviewCandidates(candidates);
+  }
 
   /**
    * Save the trip as an .ics file. Everything happens on this device: the brief
@@ -1062,6 +1226,10 @@ export function TripDetailView({
 
   return (
     <DeferredMountProvider>
+      <ContinuityNavigator
+        target={continuityTarget}
+        onSettled={settleContinuityTarget}
+      />
       <section className="voy-detail" aria-labelledby="detail-heading">
         {backButton}
 
@@ -1161,11 +1329,11 @@ export function TripDetailView({
         {pendingCount > 0 ? (
           <button
             ref={(node) => {
-              reviewTriggerRef.current = node;
+              pendingReviewTriggerRef.current = node;
             }}
             type="button"
             className="voy-pending-entry"
-            onClick={() => setReviewCandidates(pending)}
+            onClick={(event) => openReview(pending, event.currentTarget)}
           >
             <CountBadge
               count={pendingCount}
@@ -1261,10 +1429,51 @@ export function TripDetailView({
           <ReadinessPanel
             readiness={readiness}
             selfReport={data.detail.visaSelfReport}
+            onReview={(trigger) => openReview(pending, trigger)}
+            onNavigate={(check) => {
+              switch (check) {
+                case "schedule_conflicts":
+                  navigateToElement(
+                    hasItinerary ? "schedule-title" : "blueprint-title",
+                  );
+                  break;
+                case "lodging_coverage":
+                  navigateToElement("manual-plan-title");
+                  break;
+                case "entry_requirements":
+                  navigateToElement("visa-title");
+                  break;
+                case "health_notices":
+                  navigateToElement("prepare-title");
+                  break;
+                case "pending_review":
+                  break;
+              }
+            }}
           />
         ) : null}
 
-        {hasItinerary ? <ScheduleCheck conflicts={itineraryConflicts} /> : null}
+        {hasItinerary ? (
+          <ScheduleCheck
+            conflicts={itineraryConflicts}
+            onFocusFact={(id) =>
+              navigateToRecord(
+                "confirmed_fact",
+                id,
+                "blueprint-title",
+                "continuity.fact.unavailable",
+              )
+            }
+            onFocusPlannedItem={(id) =>
+              navigateToRecord(
+                "trip_item",
+                id,
+                "manual-plan-title",
+                "continuity.plan.unavailable",
+              )
+            }
+          />
+        ) : null}
 
         {/* Advisory, and deliberately below the schedule check: what is already
           wrong outranks what could go wrong. */}
@@ -1273,6 +1482,13 @@ export function TripDetailView({
         {/* Everything from here down is below the fold and several of these fetch
           on mount, so they wait until they are nearly on screen. */}
         <DeferredSection id="section-prepare">
+          <h2
+            id="prepare-title"
+            className="voy-detail__blueprint-title"
+            tabIndex={-1}
+          >
+            {t("prepare.title")}
+          </h2>
           <RecheckPanel tripId={tripId} onChecked={() => reload()} />
 
           <TravelAdvice
@@ -1367,7 +1583,7 @@ export function TripDetailView({
           <AssistDraft
             tripId={tripId}
             onDrafted={(candidates) => {
-              setReviewCandidates(candidates);
+              openReview(candidates);
               reload();
             }}
           />
@@ -1383,13 +1599,30 @@ export function TripDetailView({
             }}
             onReview={(candidates) => {
               setShowImport(false);
-              setReviewCandidates(candidates);
+              openReview(candidates);
               reload();
               refreshAfterImport();
             }}
             onAddByHand={() => {
               setShowImport(false);
               setShowAddFact(true);
+            }}
+            onOpenExisting={(documentId) => {
+              setShowImport(false);
+              if (documentId) {
+                navigateToRecord(
+                  "document",
+                  documentId,
+                  "documents-title",
+                  "continuity.document.unavailable",
+                  "continuity.document.opened",
+                );
+              } else {
+                navigateToElement(
+                  "documents-title",
+                  "continuity.document.unavailable",
+                );
+              }
             }}
           />
         ) : null}
@@ -1418,7 +1651,7 @@ export function TripDetailView({
               reload();
               refreshAfterImport();
             }}
-            returnFocusRef={reviewTriggerRef}
+            returnFocusRef={reviewReturnFocusRef}
             completionFocusRef={reviewCompletionFocusRef}
           />
         ) : null}

@@ -99,14 +99,16 @@ export function EvidenceQuote({
 export function SectionTitle({
   id,
   icon,
+  tabIndex,
   children,
 }: {
   id?: string;
   icon: ReactNode;
+  tabIndex?: number;
   children: ReactNode;
 }) {
   return (
-    <h2 id={id} className="voy-shead">
+    <h2 id={id} className="voy-shead" tabIndex={tabIndex}>
       <span className="voy-shead__icon" aria-hidden="true">
         {icon}
       </span>

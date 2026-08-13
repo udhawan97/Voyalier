@@ -69,7 +69,7 @@ export function VisaPanel({ tripId }: { tripId: string }) {
 
   return (
     <section className="voy-visa" aria-labelledby="visa-title">
-      <SectionTitle id="visa-title" icon={<FileTextIcon />}>
+      <SectionTitle id="visa-title" icon={<FileTextIcon />} tabIndex={-1}>
         {t("visa.title")}
       </SectionTitle>
 

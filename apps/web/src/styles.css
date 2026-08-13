@@ -1054,6 +1054,12 @@ h3 {
   font-style: italic;
 }
 
+.voy-readiness__action {
+  align-self: flex-start;
+  margin-top: 0.35rem;
+  font-size: 0.86rem;
+}
+
 /* ===== Visa & entry preparation ======================================== */
 
 /* Hallmark · component: visa-cockpit · genre: editorial · theme: project system
@@ -4160,8 +4166,10 @@ h3 {
 }
 
 .voy-schedule__text {
+  min-width: 0;
   font-size: 0.92rem;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .voy-schedule__badge {
@@ -4417,6 +4425,41 @@ h3 {
   margin: 0 0 1rem;
   color: var(--voy-ink-muted);
   font-size: 0.85rem;
+}
+
+.voy-review__filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  align-items: end;
+  gap: 0.8rem;
+  margin: 0 0 1.2rem;
+  padding: 0.9rem;
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-sunken);
+}
+
+.voy-review__filter {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: var(--voy-ink);
+  font-size: 0.85rem;
+  font-weight: var(--voy-w-medium);
+}
+
+.voy-review__filter--check {
+  min-height: 2.75rem;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.voy-review__filter--check input {
+  inline-size: 1rem;
+  block-size: 1rem;
+  flex: none;
 }
 
 .voy-review__list {
@@ -5121,7 +5164,9 @@ body::before {
 }
 
 .voy-schedule__jump {
-  margin-left: 0.5rem;
+  display: inline;
+  margin: 0 0 0 0.5rem;
+  overflow-wrap: anywhere;
 }
 
 /* --- Trip cover ---------------------------------------------------------

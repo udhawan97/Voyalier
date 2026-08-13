@@ -55,6 +55,7 @@ export function ImportDialog({
   onImported,
   onReview,
   onAddByHand,
+  onOpenExisting,
 }: {
   tripId: string;
   onClose: () => void;
@@ -62,6 +63,8 @@ export function ImportDialog({
   onReview: (candidates: CandidateFact[]) => void;
   /** Offered when a document yields nothing, so the flow is not a dead end. */
   onAddByHand: () => void;
+  /** Continue a duplicate import at its existing collapsed document row. */
+  onOpenExisting?: (documentId: string | null) => void;
 }) {
   const gateway = useGateway();
   const announce = useAnnounce();
@@ -257,6 +260,18 @@ export function ImportDialog({
               tone="warn"
               role="alert"
               title={t("import.duplicate.title")}
+              action={
+                onOpenExisting ? (
+                  <Button
+                    variant="secondary"
+                    onClick={() => onOpenExisting(duplicateId.trim() || null)}
+                  >
+                    {duplicateId.trim()
+                      ? t("import.duplicate.openExisting")
+                      : t("import.duplicate.goToDocuments")}
+                  </Button>
+                ) : null
+              }
             >
               {/* The internal document id is a debug token, not user copy. */}
               {t("import.duplicate.body", { doc: "" })}

@@ -165,9 +165,20 @@ export function candidateStatusLabel(status: CandidateStatus): string {
 }
 
 export function factTypeLabel(factType: FactType): string {
-  return factType === "flight_segment"
-    ? t("factType.flight")
-    : t("factType.stay");
+  switch (factType) {
+    case "flight_segment":
+      return t("factType.flight");
+    case "lodging_stay":
+      return t("factType.stay");
+    case "rail_journey":
+      return t("factType.rail");
+    case "coach_journey":
+      return t("factType.coach");
+    case "ferry_crossing":
+      return t("factType.ferry");
+    case "car_rental":
+      return t("factType.rental");
+  }
 }
 
 /** A short headline for a fact/candidate ("Flight NS204" / "River Paper Inn"). */

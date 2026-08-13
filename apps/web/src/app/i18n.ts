@@ -372,6 +372,8 @@ const en = {
   "import.duplicate.body":
     "This exact content was imported before{doc}. Edit the content to import something new.",
   "import.duplicate.docSuffix": " (document {id})",
+  "import.duplicate.openExisting": "Open existing document",
+  "import.duplicate.goToDocuments": "Go to imported documents",
   "import.format": "Format",
   "import.formatChoice": "Document format",
   "import.format.text": "Plain text",
@@ -434,6 +436,17 @@ const en = {
   "review.dismiss": "Dismiss",
   "review.empty.title": "All caught up",
   "review.empty.body": "Every suggestion has been confirmed or dismissed.",
+  "review.filters.label": "Review filters",
+  "review.filters.warnings": "Has extraction warnings",
+  "review.filters.factType": "Fact type",
+  "review.filters.method": "Extraction method",
+  "review.filters.allTypes": "All fact types",
+  "review.filters.allMethods": "All extraction methods",
+  "review.filters.count": "Showing {shown} of {total} suggestions to review",
+  "review.filters.empty.title": "No suggestions match these filters",
+  "review.filters.empty.body":
+    "The remaining suggestions are still here. Change or reset the filters to continue.",
+  "review.filters.reset": "Reset filters",
 
   "providers.title": "AI providers",
   "providers.intro":
@@ -1093,6 +1106,11 @@ const en = {
   "readiness.check.pending_review": "Suggestions to review",
   "readiness.check.entry_requirements": "Entry & travel requirements",
   "readiness.check.health_notices": "Health notices",
+  "readiness.action.schedule": "Review schedule",
+  "readiness.action.plan": "Open trip plan",
+  "readiness.action.review": "Review suggestions",
+  "readiness.action.visa": "Open visa preparation",
+  "readiness.action.prepare": "Open trip preparation",
 
   // Item details, keyed by ReadinessFindingCode. The core sends the finding and
   // its count; pluralization happens here, through Intl.PluralRules.
@@ -1328,6 +1346,16 @@ const en = {
     "Your plans “{first}” and “{second}” overlap. Check whether that is intentional.",
   "schedule.planned_item_fact_overlap":
     "Your plan “{plan}” overlaps {fact}. Check whether that is intentional; readiness is unchanged.",
+  "schedule.jumpToPlan": "Open {title}",
+  "schedule.jumpToPlanGeneric": "Open trip item {number}",
+  "prepare.title": "Trip preparation",
+  "continuity.fact.unavailable":
+    "That confirmed plan is no longer available. Trip plan opened.",
+  "continuity.plan.unavailable":
+    "That trip item is no longer available. Trip plan opened.",
+  "continuity.document.opened": "Existing document opened.",
+  "continuity.document.unavailable":
+    "The existing document could not be located. Imported documents opened.",
 
   "map.title": "Map",
   "map.intro":
@@ -1949,6 +1977,8 @@ const es: Record<MessageKey, string> = {
   "import.duplicate.body":
     "Este contenido exacto ya se importó antes{doc}. Edita el contenido para importar algo nuevo.",
   "import.duplicate.docSuffix": " (documento {id})",
+  "import.duplicate.openExisting": "Abrir documento existente",
+  "import.duplicate.goToDocuments": "Ir a documentos importados",
   "import.format": "Formato",
   "import.formatChoice": "Formato de documento",
   "import.format.text": "Texto plano",
@@ -2012,6 +2042,18 @@ const es: Record<MessageKey, string> = {
   "review.empty.title": "Todo al día",
   "review.empty.body":
     "Todas las sugerencias han sido confirmadas o descartadas.",
+  "review.filters.label": "Filtros de revisión",
+  "review.filters.warnings": "Tiene advertencias de extracción",
+  "review.filters.factType": "Tipo de dato",
+  "review.filters.method": "Método de extracción",
+  "review.filters.allTypes": "Todos los tipos de datos",
+  "review.filters.allMethods": "Todos los métodos de extracción",
+  "review.filters.count":
+    "Mostrando {shown} de {total} sugerencias para revisar",
+  "review.filters.empty.title": "Ninguna sugerencia coincide con estos filtros",
+  "review.filters.empty.body":
+    "Las sugerencias restantes siguen aquí. Cambia o restablece los filtros para continuar.",
+  "review.filters.reset": "Restablecer filtros",
   "providers.title": "Proveedores de IA",
   "providers.intro":
     "Usa tu propia clave de OpenAI o Anthropic para asistencia opcional en la nube. Las claves se guardan en el llavero de tu dispositivo; nunca en los archivos de Voyalier ni en ningún servidor compartido.",
@@ -2657,6 +2699,11 @@ const es: Record<MessageKey, string> = {
   "readiness.check.pending_review": "Sugerencias para revisar",
   "readiness.check.entry_requirements": "Requisitos de entrada y viaje",
   "readiness.check.health_notices": "Avisos de salud",
+  "readiness.action.schedule": "Revisar horario",
+  "readiness.action.plan": "Abrir plan del viaje",
+  "readiness.action.review": "Revisar sugerencias",
+  "readiness.action.visa": "Abrir preparación de visado",
+  "readiness.action.prepare": "Abrir preparación del viaje",
   "readiness.finding.no_facts_yet":
     "Agrega vuelos o estancias para verificar traslapes.",
   "readiness.finding.schedule_conflicts.one":
@@ -2878,6 +2925,16 @@ const es: Record<MessageKey, string> = {
     "Tus planes “{first}” y “{second}” se superponen. Verifica si esto es intencional.",
   "schedule.planned_item_fact_overlap":
     "Tu plan “{plan}” se traslapa con {fact}. Verifica si es intencional; el estado de preparación no ha cambiado.",
+  "schedule.jumpToPlan": "Abrir {title}",
+  "schedule.jumpToPlanGeneric": "Abrir elemento del viaje {number}",
+  "prepare.title": "Preparación del viaje",
+  "continuity.fact.unavailable":
+    "Ese plan confirmado ya no está disponible. Se abrió el plan del viaje.",
+  "continuity.plan.unavailable":
+    "Ese elemento del viaje ya no está disponible. Se abrió el plan del viaje.",
+  "continuity.document.opened": "Se abrió el documento existente.",
+  "continuity.document.unavailable":
+    "No se pudo encontrar el documento existente. Se abrieron los documentos importados.",
   "map.title": "Mapa",
   "map.intro":
     "Mira tu destino y los lugares recomendados en un mapa. Un mapa base sin conexión descargado permanece en este dispositivo; de lo contrario, mostrar el mapa descarga mosaicos desde OpenFreeMap. No se envía información sobre tu viaje.",
