@@ -3372,6 +3372,7 @@ h3 {
 
 .voy-planning {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 2rem;
   margin-block: 2rem;
 }
@@ -3423,7 +3424,14 @@ h3 {
 .voy-planning__inline-form label {
   display: grid;
   flex: 1 1 12rem;
+  min-width: 0;
   gap: 0.5rem;
+}
+
+.voy-planning__item-form :is(input, select, textarea),
+.voy-planning__inline-form :is(input, select, textarea) {
+  width: 100%;
+  min-width: 0;
 }
 
 .voy-planning__error {
@@ -3808,6 +3816,7 @@ h3 {
 
 .voy-search__input {
   flex: 1;
+  min-width: 0;
   padding: 0.6rem 0.9rem;
   border: 1px solid var(--voy-line-strong);
   border-radius: var(--voy-radius-sm);

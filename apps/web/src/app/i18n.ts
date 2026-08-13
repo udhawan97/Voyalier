@@ -61,9 +61,9 @@ const en = {
   "vault.intro.base":
     "Confirmation codes and traveler names are encrypted on this device.",
   "vault.intro.protected":
-    " A passphrase you chose also guards the key — Voyalier asks for it when it launches.",
+    "A passphrase you chose also guards the key — Voyalier asks for it when it launches.",
   "vault.intro.unprotected":
-    " Add a passphrase for a second layer that protects your data even on an unlocked computer.",
+    "Add a passphrase for a second layer that protects your data even on an unlocked computer.",
   "vault.state.on": "Passphrase protection is on.",
   "vault.state.off": "Passphrase protection is off.",
   "vault.currentPassphrase": "Current passphrase",

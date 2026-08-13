@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type RefObject } from "react";
 import type { AppError, CreateTripInput, Trip } from "@voyalier/contracts";
 import { MAX_LOCATION_LEN, countChars } from "@voyalier/contracts";
 
@@ -21,9 +21,11 @@ interface FieldErrors {
 export function CreateTripDialog({
   onClose,
   onCreated,
+  returnFocusRef,
 }: {
   onClose: () => void;
   onCreated: (trip: Trip) => void;
+  returnFocusRef: RefObject<HTMLElement | null>;
 }) {
   const gateway = useGateway();
   const [title, setTitle] = useState("");
@@ -141,6 +143,7 @@ export function CreateTripDialog({
       title={t("createTrip.title")}
       onClose={onClose}
       initialFocusRef={originRef}
+      returnFocusRef={returnFocusRef}
       description={t("createTrip.description")}
       footer={
         <>

@@ -119,7 +119,16 @@ export function TripListView({
   const [deleteTarget, setDeleteTarget] = useState<TripSummary | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
-  const createBtnRef = useRef<HTMLButtonElement>(null);
+  const [createReturnTarget, setCreateReturnTarget] = useState<
+    "header" | "empty"
+  >("header");
+  const headerCreateRef = useRef<HTMLButtonElement>(null);
+  const emptyCreateRef = useRef<HTMLButtonElement>(null);
+
+  function openCreate(returnTarget: "header" | "empty") {
+    setCreateReturnTarget(returnTarget);
+    setShowCreate(true);
+  }
 
   /**
    * Build the demo trip and open it, so the newcomer lands where the product
@@ -191,10 +200,10 @@ export function TripListView({
           </h1>
         </div>
         <Button
-          ref={createBtnRef}
+          ref={headerCreateRef}
           variant="primary"
           icon={<PlusIcon />}
-          onClick={() => setShowCreate(true)}
+          onClick={() => openCreate("header")}
         >
           {t("triplist.create")}
         </Button>
@@ -257,9 +266,10 @@ export function TripListView({
           action={
             <div className="voy-empty__actions">
               <Button
+                ref={emptyCreateRef}
                 variant="primary"
                 icon={<PlusIcon />}
-                onClick={() => setShowCreate(true)}
+                onClick={() => openCreate("empty")}
               >
                 {t("triplist.create")}
               </Button>
@@ -348,6 +358,9 @@ export function TripListView({
 
       {showCreate ? (
         <CreateTripDialog
+          returnFocusRef={
+            createReturnTarget === "header" ? headerCreateRef : emptyCreateRef
+          }
           onClose={() => setShowCreate(false)}
           onCreated={(trip) => {
             setShowCreate(false);

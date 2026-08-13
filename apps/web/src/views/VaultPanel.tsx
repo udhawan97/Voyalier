@@ -86,7 +86,7 @@ export function VaultPanel() {
       ) : (
         <>
           <p className="voy-vault__intro">
-            {t("vault.intro.base")}
+            {t("vault.intro.base")}{" "}
             {status.protected
               ? t("vault.intro.protected")
               : t("vault.intro.unprotected")}
