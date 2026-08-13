@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -53,6 +54,31 @@ type View =
 type AppProps = { gateway?: AppGateway; updater?: UpdaterGateway };
 
 const ACTIVE_TRIP_KEY = "voyalier-active-trip";
+const HISTORY_INDEX_KEY = "__voyalierViewIndex";
+const VIEW_HEADING_SELECTOR = "[data-voy-view-heading]";
+
+function historyIndex(state: unknown): number | null {
+  if (!state || typeof state !== "object" || Array.isArray(state)) return null;
+  const value = (state as Record<string, unknown>)[HISTORY_INDEX_KEY];
+  return Number.isInteger(value) && Number(value) >= 0 ? Number(value) : null;
+}
+
+function historyStateAt(index: number): Record<string, unknown> {
+  const current = window.history.state;
+  const state =
+    current && typeof current === "object" && !Array.isArray(current)
+      ? current
+      : {};
+  return { ...state, [HISTORY_INDEX_KEY]: index };
+}
+
+function sameViewPage(left: View, right: View): boolean {
+  if (left.name !== right.name) return false;
+  if (left.name === "trip" && right.name === "trip") {
+    return left.tripId === right.tripId;
+  }
+  return true;
+}
 
 /**
  * Whether a trip id from outside the app is one the workspace will adopt.
@@ -210,14 +236,20 @@ function Workspace({
     const tripId = readActiveTrip();
     return tripId ? { name: "trip", tripId } : { name: "list" };
   });
+  const currentViewRef = useRef(view);
+  const pendingViewFocus = useRef(false);
+  const mainRef = useRef<HTMLElement>(null);
+  const historyIndexRef = useRef(
+    typeof window === "undefined"
+      ? 0
+      : (historyIndex(window.history.state) ?? 0),
+  );
   // True while a popstate is being applied, so the effect that writes the URL
   // does not push a second entry for a move the browser already made.
   const poppingRef = useRef(false);
   // The query the search view last held. It stays out of the URL on purpose
   // (ADR-0015), so this is what lets Back restore it rather than an empty box.
   const lastSearchQuery = useRef("");
-  // Where "Back" from Settings returns to (the view Settings was opened from).
-  const [returnView, setReturnView] = useState<View>({ name: "list" });
   const [health, setHealth] = useState<HealthState>("checking");
   const [healthError, setHealthError] = useState<AppError | null>(null);
   const asyncTransportFailureSeen = useRef(false);
@@ -328,8 +360,51 @@ function Workspace({
     if (typeof window === "undefined" || locked) return;
     const next = urlForView(view);
     const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    if (next !== current) window.history.pushState(null, "", next);
+    if (next !== current) {
+      const nextIndex = historyIndexRef.current + 1;
+      historyIndexRef.current = nextIndex;
+      window.history.pushState(historyStateAt(nextIndex), "", next);
+    } else if (historyIndex(window.history.state) === null) {
+      // A direct load owns index zero. Marking the entry lets a detour know
+      // whether there is an in-app predecessor without exposing anything in
+      // the address bar or guessing from the browser's global history length.
+      window.history.replaceState(
+        historyStateAt(historyIndexRef.current),
+        "",
+        current,
+      );
+    }
   }, [view, locked]);
+
+  useLayoutEffect(() => {
+    currentViewRef.current = view;
+  }, [view]);
+
+  useLayoutEffect(() => {
+    if (!pendingViewFocus.current) return;
+    const focusHeading = () => {
+      const heading = mainRef.current?.querySelector<HTMLElement>(
+        VIEW_HEADING_SELECTOR,
+      );
+      if (!heading) return false;
+      pendingViewFocus.current = false;
+      heading.focus({ preventScroll: true });
+      return true;
+    };
+    if (focusHeading()) return;
+
+    // Trip data is asynchronous, so its h1 may not exist in the first commit.
+    // Observe only the current main subtree and stop as soon as that one
+    // destination supplies its heading. A refresh without navigation never
+    // sets the one-shot intent and therefore never starts this observer.
+    const observer = new MutationObserver(() => {
+      if (focusHeading()) observer.disconnect();
+    });
+    if (mainRef.current) {
+      observer.observe(mainRef.current, { childList: true, subtree: true });
+    }
+    return () => observer.disconnect();
+  }, [view]);
 
   /**
    * Take the view back out of the address bar once the vault says it is locked.
@@ -359,17 +434,22 @@ function Workspace({
   // Back and Forward move the view rather than leaving the workspace.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const onPop = () => {
+    const onPop = (event: PopStateEvent) => {
       poppingRef.current = true;
       const restored = viewFromLocation() ?? { name: "list" as const };
       // The query is deliberately not in the URL (ADR-0015), so Back into the
       // search view would otherwise land on an empty box — the very symptom
       // G4 closed, coming back through the door this release just opened.
-      setView(
+      const next =
         restored.name === "search"
           ? { ...restored, query: lastSearchQuery.current }
-          : restored,
-      );
+          : restored;
+      historyIndexRef.current = historyIndex(event.state) ?? 0;
+      if (!sameViewPage(currentViewRef.current, next)) {
+        pendingViewFocus.current = true;
+      }
+      currentViewRef.current = next;
+      setView(next);
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -380,18 +460,11 @@ function Workspace({
     [],
   );
   const openList = useCallback(() => setView({ name: "list" }), []);
-  // Search is a detour too, and used not to be: it recorded nothing and its
-  // Back was hard-wired to the trip list, so opening it from inside a trip
-  // dropped the traveler out of that trip. Settings has always done this
-  // correctly; the two topbar buttons beside each other now agree.
-  const openSearch = useCallback(
-    () =>
-      setView((current) => {
-        if (current.name !== "search") setReturnView(current);
-        return { name: "search", query: "" };
-      }),
-    [],
-  );
+  const openSearch = useCallback(() => {
+    if (currentViewRef.current.name === "search") return;
+    pendingViewFocus.current = true;
+    setView({ name: "search", query: "" });
+  }, []);
   const setSearchQuery = useCallback((query: string) => {
     lastSearchQuery.current = query;
     setView((current) =>
@@ -407,19 +480,23 @@ function Workspace({
       }),
     [],
   );
-  // Settings is a detour, not a destination: remember where the user was so
-  // "Back" returns them there instead of dumping them on the home list. Opening
-  // Settings from Settings must not make Back a no-op loop.
-  const openSettings = useCallback(
-    () =>
-      setView((current) => {
-        if (current.name !== "settings") setReturnView(current);
-        return { name: "settings" };
-      }),
-    [],
-  );
-  // Shared by Settings and Search — both are detours over the same return slot.
-  const leaveDetour = useCallback(() => setView(returnView), [returnView]);
+  const openSettings = useCallback(() => {
+    if (currentViewRef.current.name === "settings") return;
+    pendingViewFocus.current = true;
+    setView({ name: "settings" });
+  }, []);
+  // Search and Settings already receive one ADR-0015 history entry per move.
+  // Their own Back controls unwind those entries instead of maintaining a
+  // second, lossy return slot. A direct URL has no app-owned predecessor, so
+  // its safe "up" destination is All Trips.
+  const leaveDetour = useCallback(() => {
+    if (historyIndexRef.current > 0) {
+      window.history.back();
+      return;
+    }
+    pendingViewFocus.current = true;
+    setView({ name: "list" });
+  }, []);
 
   const retry = useCallback(() => {
     setHealth("checking");
@@ -453,7 +530,7 @@ function Workspace({
                   onSearch={openSearch}
                   health={health}
                 />
-                <main className="voy-main" id="main">
+                <main ref={mainRef} className="voy-main" id="main">
                   {health === "offline" && healthError ? (
                     <OfflineBanner error={healthError} onRetry={retry} />
                   ) : null}

@@ -1,10 +1,12 @@
 import type { BackupGateway } from "./types";
 
 /**
- * Outside the desktop app there is no local database file, no OS keychain, and
- * no native picker, so backup and restore genuinely cannot work. The panel says
- * so plainly rather than offering a button that would fail — the same way the
- * updater degrades in a plain browser.
+ * A browser-from-source build can still be backed by AppService's local SQLite
+ * workspace and, where available, its OS-keychain vault. What the browser lacks
+ * is the packaged desktop's native file picker and portable encrypted backup
+ * bridge, so those integrated export/restore controls genuinely cannot work
+ * here. The panel names that capability boundary instead of denying the data
+ * that needs protection.
  */
 export function createUnsupportedBackup(): BackupGateway {
   const unavailable = () =>

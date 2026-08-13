@@ -1076,7 +1076,9 @@ export function TripDetailView({
                 {tripRoute(trip.origin, trip.destination)}
               </p>
             )}
-            <h1 id="detail-heading">{trip.title}</h1>
+            <h1 id="detail-heading" data-voy-view-heading tabIndex={-1}>
+              {trip.title}
+            </h1>
             <p className="voy-detail__dates">
               {formatDateRange(trip.startDate, trip.endDate)}
               <span aria-hidden="true"> · </span>

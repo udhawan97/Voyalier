@@ -24,7 +24,7 @@ const en = {
   "backup.intro":
     "Save your whole workspace — trips, imported confirmations, and offline packs — to a single encrypted file you can keep somewhere safe or move to another computer.",
   "backup.unsupported":
-    "Backing up needs the desktop app, which is where your data actually lives. In a browser there is no local database to save.",
+    "Portable encrypted backup and restore are available in the desktop app. This browser-from-source build still stores your workspace in local SQLite; it does not have the desktop file picker or portable encrypted backup bridge.",
   "backup.export.title": "Save a backup",
   "backup.export.hint":
     "You choose a passphrase for the file. It travels with the backup, so the same file opens on any computer.",
@@ -1608,7 +1608,7 @@ const es: Record<MessageKey, string> = {
   "backup.intro":
     "Guarda todo tu espacio de trabajo —viajes, confirmaciones importadas y paquetes sin conexión— en un solo archivo cifrado que puedes guardar en un lugar seguro o mover a otra computadora.",
   "backup.unsupported":
-    "La copia de seguridad requiere la aplicación de escritorio, que es donde realmente reside tu información. En el navegador no hay una base de datos local para guardar.",
+    "La copia de seguridad cifrada portátil y la restauración están disponibles en la aplicación de escritorio. Esta versión desde código fuente en el navegador sigue guardando tu espacio de trabajo en SQLite local; no dispone del selector de archivos ni del puente de copia de seguridad cifrada portátil de la aplicación de escritorio.",
   "backup.export.title": "Guardar copia de seguridad",
   "backup.export.hint":
     "Tú eliges una frase de contraseña para el archivo. Esta acompaña a la copia, por lo que el mismo archivo se abrirá en cualquier computadora.",

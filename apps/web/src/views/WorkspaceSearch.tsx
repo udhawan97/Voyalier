@@ -167,7 +167,12 @@ export function WorkspaceSearch({
           without one, because `SectionTitle` renders an h2 — correct where it
           titles a section inside a page, wrong as this view's only heading, and
           not something to change on the shared primitive. */}
-      <h1 id="workspace-search-title" className="voy-workspace-search__title">
+      <h1
+        id="workspace-search-title"
+        className="voy-workspace-search__title"
+        data-voy-view-heading
+        tabIndex={-1}
+      >
         <SearchIcon aria-hidden="true" />
         <span>{t("workspaceSearch.title")}</span>
       </h1>
