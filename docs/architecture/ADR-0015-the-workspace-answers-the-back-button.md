@@ -88,8 +88,10 @@ returns the traveler to the top of a trip they had scrolled halfway through —
 so every view except the list keeps it. And because the search query is
 deliberately absent from the URL, a Back into the search view would rebuild it
 empty; the query is held in a ref so the gesture restores what the traveler
-typed. Both were regressions this ADR introduced before they were closed, and
-both now carry tests.
+typed. The 2026-08-13 amendment narrows that storage to an in-memory map keyed
+by the private app-owned history index, so a fresh Search entry cannot inherit
+an older visit's text. Both were regressions this ADR introduced before they
+were closed, and both now carry tests.
 
 What this ADR does **not** do: it does not make every panel addressable, and it
 does not put record ids in the URL. A search result still opens a trip and
@@ -114,12 +116,15 @@ detour URL. An owned predecessor uses `history.back()`. A direct
 `?view=search` or `?view=settings` entry has no owned predecessor, so Back
 returns safely to All Trips without leaving the workspace. Browser Back and
 Forward therefore remain the single traversal model, while a direct URL still
-has a deterministic "up" destination.
+has a deterministic "up" destination. That fallback writes All Trips as a new
+app entry instead of replacing or erasing the pasted entry, so browser Back can
+still revisit the direct detour.
 
-Top-level transitions also carry a one-shot focus intent. After an explicit
-move to All Trips, a trip, Search, or Settings, the destination `h1` receives
-programmatic focus; an observer covers the trip heading's asynchronous load.
-Initial mount does not steal focus. Section-hash changes do not move it, and a
-Search result continues to focus the exact record it opened. The heading
-marker is presentation-neutral and the intent is consumed once, so restoring
-history does not turn every render into a focus reset.
+The audited top-level transitions also carry a one-shot focus intent. Explicit
+Search and Settings entries focus their destination `h1`; detour Back and
+browser history restoration focus the restored Search, Settings, All Trips, or
+trip `h1`. An observer covers the trip heading's asynchronous load. Initial
+mount does not steal focus. Section-hash changes do not move it, and a Search
+result continues to focus the exact record it opened. The heading marker is
+presentation-neutral and the intent is consumed once, so restoring history
+does not turn every render into a focus reset.
