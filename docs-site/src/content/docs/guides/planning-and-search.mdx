@@ -64,6 +64,14 @@ browser session storage for this re-entry hint—never the trip's content,
 evidence, notes, or search text. Choosing **All trips** clears the hint and any
 stale section link.
 
+Search and Settings are temporary detours rather than new owners of the trip.
+In-app Back and browser Back/Forward unwind nested detours in order, restore the
+private Search query attached to that history entry, return to the prior trip
+section, and focus the restored page heading. A direct Search or Settings URL
+has no app-owned predecessor, so its Back action falls safely to All Trips.
+Individual panel names, search queries, and exact record ids remain out of the
+durable URL.
+
 ## Language and source transparency
 
 Settings includes **Language** (System, English, or Español) and **Data sources &

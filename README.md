@@ -46,16 +46,34 @@ matching installer and keeps the GitHub Releases page as a fallback.
 | **From source** | Supported Linux or Intel Mac; contributors and auditors | Same React interface through the guarded local browser stack |
 
 > [!IMPORTANT]
-> The desktop installers are public beta builds and are not yet code-signed.
-> macOS and Windows show a one-time publisher warning. The
+> The desktop installers are public beta builds without paid platform publisher
+> identity; macOS is not notarized and Windows may show SmartScreen. Updater
+> artifacts are signed by Voyalier, and releases publish SHA-256 checksums. The
 > [install guide](https://udhawan97.github.io/Voyalier/download/) explains the
-> exact steps, optional SHA-256 checks, and verified updater. The repository can
+> exact warning, optional checksum checks, and verified updater. The repository can
 > be ahead of the latest published installer; the **stable** badge above is the
 > source of truth for downloadable version.
 
 <p align="center">
   <img src="docs-site/public/assets/screenshots/voyalier-trip-workspace.jpg" alt="Current-source Voyalier workspace for a fictional Kyoto trip, with Today, pending suggestions, and the Blueprint" width="1100">
 </p>
+
+## What changed in 0.10.7
+
+- Readiness findings now open the exact local next step: the matching schedule
+  context, a preselected Stay form, the pending review queue, Visa, or Prepare.
+- Duplicate imports can open the existing stored document without fetching or
+  expanding its sealed body.
+- Review filters combine extraction warnings, fact type, and extraction method
+  while every confirm, edit, and dismiss decision remains one at a time.
+- Search and Settings detours unwind through in-app Back and browser history to
+  the prior trip section and page heading; private queries and record ids stay
+  out of durable URLs.
+- The 320 px Plan layout and Create Trip focus return are now exercised in both
+  Chromium and WebKit.
+
+Read the [full changelog](CHANGELOG.md) for tradeoffs and intentionally unchanged
+authority boundaries.
 
 ## The simple version
 
@@ -92,14 +110,14 @@ The useful parts work without a paid model or provider key.
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Trips**               | Create, edit, archive, restore, and delete trips; remember the active trip and section; build a deterministic Blueprint.                                               |
 | **Confirmations**       | Import text, HTML, `.eml`, or local files; preserve parser runs, excerpts, field spans, and warnings.                                                                  |
-| **Review**              | Confirm, edit and confirm, dismiss, or undo; nothing is promoted silently.                                                                                             |
+| **Review**              | Filter locally by warning, fact type, or extraction method, then confirm, edit and confirm, dismiss, or undo one candidate at a time; nothing is promoted silently.    |
 | **Itinerary**           | Order confirmed transport and stays; report literal overlaps, lodging gaps, handoff slack, and exposed connections without inventing predictions.                      |
-| **Readiness**           | Explain logistics gaps and link to official entry/health sources without making authority claims.                                                                      |
+| **Readiness**           | Explain logistics gaps, open the local context that can address each finding, and link to official entry/health sources without making authority claims.               |
 | **Visa preparation**    | Keep passport-specific preparation, dated official sources, a universal guide, traveler ticks, and sealed notes clearly separated from a visa decision.                |
 | **Live context**        | Fetch official advice, destination weather, page snapshots, packs, maps, or a manual trip re-check only after an explicit action. There is no background monitoring.   |
 | **Offline discovery**   | Rank licensed city-pack places with visible scores and reasons; save places with provenance and optional notes.                                                        |
 | **Traveler plans**      | Keep packing items, activities, rail legs, and transfers separate from imported confirmed facts while including safe projections in Today, calendar, and brief output. |
-| **Search and research** | Search local source documents, confirmed facts, notes, saved places, plans, and saved reading with trip/source provenance. Pending candidates stay out.                |
+| **Search and research** | Search local source documents, confirmed facts, notes, saved places, plans, and saved reading with trip/source provenance; nested detours return to their exact entry. |
 | **AI assist**           | Guide local Ollama setup; validate BYOK cloud keys; preview the exact redacted payload; keep cloud help optional; keep trip chat on-device only.                       |
 | **Vault and sharing**   | Seal sensitive columns at rest; optionally passphrase-wrap the key; generate a brief whose model excludes traveler names and confirmation codes.                       |
 | **Language and access** | Complete English and Spanish catalogs, keyboard flows, focus containment and return, reduced motion, contrast checks, 320 px reflow, and automated axe gates.          |
@@ -116,6 +134,17 @@ The useful parts work without a paid model or provider key.
 
 The importer proposes. The traveler decides. A candidate keeps the excerpt that
 supports it so a correction is grounded in the document, not a confident guess.
+Local filters shorten a long queue without turning review into a bulk action.
+
+### Readiness points to the next local step
+
+<p align="center">
+  <img src="docs-site/public/assets/screenshots/voyalier-readiness-route.jpg" alt="Voyalier readiness panel for a fictional trip, with local next-step actions for schedule, lodging, pending review, entry, and health context" width="1100">
+</p>
+
+A logistics finding can take you to the exact confirmed fact, traveler-authored
+plan, Stay form, or review queue it names. Entry and health remain link-only,
+traveler-confirmed work; navigation never turns them into cleared requirements.
 
 ### Preparation says where its authority stops
 
@@ -208,7 +237,7 @@ interface through direct Tauri IPC and does not bind a TCP port in release mode.
 pnpm dev:web      # React interface only
 pnpm dev:docs     # Astro/Starlight documentation
 make check        # formatting, types, lint, Rust, desktop, integration, and browser gates
-pnpm test:e2e     # Chromium acceptance against the real local stack
+pnpm test:e2e     # Chromium journeys plus shared Chromium/WebKit regressions
 ```
 
 Use `make check` as the repository gate. A bare `cargo test` skips the desktop

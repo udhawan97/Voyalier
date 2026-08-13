@@ -13,11 +13,11 @@ import DownloadDeck from "../../components/DownloadDeck.astro";
 <DownloadDeck />
 
 <div className="install-note">
-  <strong>Public beta, unsigned installers.</strong>
+  <strong>Public beta, without paid platform publisher identity.</strong>
   <div>
-    The macOS and Windows builds are not yet backed by paid platform
-    certificates. Your operating system will show a one-time warning; the exact
-    steps and optional checksum checks are below.
+    macOS is not notarized and Windows may show SmartScreen. Voyalier signs its
+    updater artifacts and publishes SHA-256 checksums; the exact platform
+    warning and optional manual checks are below.
   </div>
 </div>
 
@@ -63,11 +63,12 @@ requirements and a full first-run walkthrough.
 
 ## Why the warning appears
 
-Apple and Microsoft use paid developer certificates to identify packaged apps.
-Voyalier has not bought those certificates yet, so the platforms cannot attach a
-verified publisher identity to the installer. The warning does **not** inspect
-or endorse what the app does; it tells you that publisher verification is
-missing.
+Apple and Microsoft use paid developer programs and certificates to attach a
+verified publisher identity to packaged apps. Voyalier does not have that
+platform identity yet, and the macOS build is not notarized. The warning does
+**not** inspect or endorse what the app does; it tells you that platform
+publisher verification is missing. This is separate from Voyalier's updater
+signature, which the installed app verifies before applying an update.
 
 This guide is asking you to make one specific exception for a release you chose
 from the project’s GitHub page—not to weaken system security or ignore unrelated

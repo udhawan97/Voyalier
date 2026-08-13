@@ -12,6 +12,13 @@ The **readiness** rollup checks plan completeness — schedule conflicts, lodgin
 coverage, and items still pending review — and shows an overall status. This is
 logistics only, computed on your device from your confirmed facts.
 
+Each non-clear logistics finding offers a local next step. Schedule findings
+open the matching confirmed fact or traveler-authored plan, a lodging gap opens
+**Add reservation** already set to Stay, and pending work opens its one-at-a-time
+review queue. If the named record disappeared, Voyalier falls back to the owning
+section and says the exact target was unavailable rather than pretending the
+finding was resolved.
+
 ## Sourced items are link-only or consented
 
 Entry requirements, health notices, and government advisories are never asserted
@@ -19,6 +26,10 @@ or "cleared" by Voyalier, and never authored by a model. They appear as
 **link-only** items pointing to the official source (for example, the US State
 Department advisories index, or the CDC and WHO travel-health pages), and are
 excluded from the readiness rollup so they never give a false sense of "done."
+
+Their actions open Visa or Prepare beside the official links. That is
+navigation, not clearance: Voyalier still cannot determine whether a requirement
+applies or whether the traveler has completed it.
 
 The entry-requirements item also reports your own tally from
 [visa preparation](/Voyalier/guides/visa-preparation/) when you have set a passport for

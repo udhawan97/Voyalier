@@ -6,6 +6,13 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.10.7] - 2026-08-13 — The next step carries you back
+
+This release closes the remaining continuity gaps in the current-source
+workspace. Findings now lead to the local context that can address them,
+temporary detours preserve their return path, and the narrowest supported
+layout keeps that path usable in both Chromium and WebKit.
+
 ### Added
 
 - **Readiness checks now carry travelers into the matching local workspace.** Schedule findings
@@ -42,6 +49,29 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
   queries show localized enabling guidance associated with the field and keep Search disabled;
   valid Enter, pointer, debounce, and recovery paths are unchanged. Search terms remain local to
   the app gateway and are neither persisted nor sent to an external provider.
+- **The Plan register now stays inside the supported 320-pixel viewport in
+  WebKit.** Flexible form fields and the trip search can shrink with their
+  parent, and focusing a workspace-search result no longer shifts the page
+  sideways. Chromium remains the full journey engine; the shared regression
+  now runs in both Chromium and WebKit.
+- **Create Trip returns keyboard focus to the exact button that opened it.**
+  The header and empty-state actions use the dialog's existing explicit return
+  seam, so Escape and Cancel no longer fall back to the start of the main
+  content in WebKit. If an action removes its opener, the existing reachable
+  main-content fallback remains.
+- **Vault guidance now forms complete sentences in both languages.** JSX owns
+  the sentence boundary instead of relying on leading whitespace inside one
+  translation, preventing Spanish Settings from joining two sentences into one
+  word.
+
+### Not changed
+
+- Review remains one suggestion at a time: filters reduce the visible queue but
+  never authorize bulk confirmation or dismissal. Search queries and exact
+  record targets remain private, entry-scoped state rather than durable URLs.
+- Voyalier still does not decide entry, health, safety, availability, prices,
+  or bookings. Readiness actions are local navigation aids, not evidence that a
+  requirement is cleared.
 
 ## [0.10.6] - 2026-08-11 — Retry finishes the search
 

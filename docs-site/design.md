@@ -1,6 +1,6 @@
 # Quiet Transit — Voyalier public design system
 
-Status: locked on 2026-08-02
+Status: locked on 2026-08-02; evidence-register amendment on 2026-08-13
 Scope: marketing landing page, Starlight documentation, public diagrams, social
 preview, and README presentation.
 
@@ -30,8 +30,9 @@ engine, or an AI oracle.
   current screenshots in reading order.
 - Downloads: **F6 Product Card Grid** — 3-up, landscape, uniform products, one
   primary action per platform.
-- Signature: a folded-route ledger line carries `source → review → plan → go`
-  through the page. It is wayfinding with semantic labels, not ambient art.
+- Signature: a folded-route evidence register carries
+  `source → review → plan → return` through the page. Each stop names the trust
+  state and continuity promise; it is wayfinding, not ambient art.
 
 ## Voice
 

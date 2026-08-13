@@ -52,6 +52,18 @@ Escape and **Close** still leave unresolved candidates pending. Arriving here
 from the import summary's **Review N suggestions** button lands inside the
 dialog too, so the whole flow works without a mouse.
 
+For a longer queue, the local filters combine **Has extraction warnings**, fact
+type, and extraction method and show the visible count. They never become a
+bulk action: confirm, edit and confirm, or dismiss still applies to exactly one
+candidate. If a filter hides the last visible candidate, focus returns to the
+filters instead of escaping the dialog.
+
+Importing the same source twice does not create a second document. Voyalier
+offers to open the existing stored summary in **Imported documents** without
+fetching or expanding its sealed body. If that record is no longer available,
+it opens the section and says so instead of leaving the duplicate warning as a
+dead end.
+
 Because untrusted text can contain misleading instructions, imported content is
 treated as data, not commands: nothing an imported document "says" can mark a
 trip ready, confirm a fact, or trigger an action. Only your review does.
