@@ -43,7 +43,7 @@ Acceptance:
 
 - Each action is a real keyboard-visible button with translated English and Spanish copy.
 - Labels are destination-oriented (`Review schedule`, `Open visa preparation`, and `Open trip
-  preparation`), never claims to resolve, complete, make safe, or determine eligibility or health.
+preparation`), never claims to resolve, complete, make safe, or determine eligibility or health.
 - Pending review opens the same one-at-a-time review dialog, returns to the readiness action on
   Close or Escape, and retains the stable Blueprint return after the final candidate is resolved.
 - Section actions mount deferred content, scroll, and focus a meaningful named heading or region.
