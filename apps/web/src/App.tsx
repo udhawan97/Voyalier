@@ -247,9 +247,11 @@ function Workspace({
   // True while a popstate is being applied, so the effect that writes the URL
   // does not push a second entry for a move the browser already made.
   const poppingRef = useRef(false);
-  // The query the search view last held. It stays out of the URL on purpose
-  // (ADR-0015), so this is what lets Back restore it rather than an empty box.
-  const lastSearchQuery = useRef("");
+  // Search text stays out of the URL and history.state on purpose (ADR-0015).
+  // Key it to the private app-owned history index instead of keeping one
+  // global slot: two distinct Search entries may legitimately hold different
+  // text, and a later blank visit must not inherit an older visit's query.
+  const searchQueriesByHistory = useRef(new Map<number, string>());
   const [health, setHealth] = useState<HealthState>("checking");
   const [healthError, setHealthError] = useState<AppError | null>(null);
   const asyncTransportFailureSeen = useRef(false);
@@ -363,6 +365,9 @@ function Workspace({
     if (next !== current) {
       const nextIndex = historyIndexRef.current + 1;
       historyIndexRef.current = nextIndex;
+      if (view.name === "search") {
+        searchQueriesByHistory.current.set(nextIndex, view.query);
+      }
       window.history.pushState(historyStateAt(nextIndex), "", next);
     } else if (historyIndex(window.history.state) === null) {
       // A direct load owns index zero. Marking the entry lets a detour know
@@ -373,6 +378,9 @@ function Workspace({
         "",
         current,
       );
+      if (view.name === "search") {
+        searchQueriesByHistory.current.set(historyIndexRef.current, view.query);
+      }
     }
   }, [view, locked]);
 
@@ -437,14 +445,19 @@ function Workspace({
     const onPop = (event: PopStateEvent) => {
       poppingRef.current = true;
       const restored = viewFromLocation() ?? { name: "list" as const };
+      const restoredIndex = historyIndex(event.state) ?? 0;
       // The query is deliberately not in the URL (ADR-0015), so Back into the
-      // search view would otherwise land on an empty box — the very symptom
-      // G4 closed, coming back through the door this release just opened.
+      // search view reads only the text owned by that history entry. This
+      // preserves an actual detour without leaking a prior Search visit into a
+      // newer blank one.
       const next =
         restored.name === "search"
-          ? { ...restored, query: lastSearchQuery.current }
+          ? {
+              ...restored,
+              query: searchQueriesByHistory.current.get(restoredIndex) ?? "",
+            }
           : restored;
-      historyIndexRef.current = historyIndex(event.state) ?? 0;
+      historyIndexRef.current = restoredIndex;
       if (!sameViewPage(currentViewRef.current, next)) {
         pendingViewFocus.current = true;
       }
@@ -466,7 +479,7 @@ function Workspace({
     setView({ name: "search", query: "" });
   }, []);
   const setSearchQuery = useCallback((query: string) => {
-    lastSearchQuery.current = query;
+    searchQueriesByHistory.current.set(historyIndexRef.current, query);
     setView((current) =>
       current.name === "search" ? { ...current, query } : current,
     );
