@@ -459,6 +459,30 @@ describe("User-flow gap fixes", () => {
     expect(window.location.hash).toBe("#section-visa");
   });
 
+  it("unwinds nested Search and Settings detours to the trip list", async () => {
+    renderApp(createMockGateway());
+    await screen.findByRole("heading", { name: "Trips", level: 1 });
+
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+    const query = await screen.findByLabelText("Search all trips");
+    fireEvent.change(query, { target: { value: "Kyoto" } });
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Back" }));
+    expect(await screen.findByLabelText("Search all trips")).toHaveValue(
+      "Kyoto",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    const tripsHeading = await screen.findByRole("heading", {
+      name: "Trips",
+      level: 1,
+    });
+    await waitFor(() => expect(tripsHeading).toHaveFocus());
+    expect(window.location.search).toBe("");
+    expect(window.location.hash).toBe("");
+  });
+
   it("falls back safely from a direct Search URL and focuses All Trips", async () => {
     window.history.replaceState(null, "", "/?view=search");
     renderApp(createMockGateway());
