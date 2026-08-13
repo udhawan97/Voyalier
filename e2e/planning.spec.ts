@@ -388,3 +388,62 @@ test("the visa passport field keeps its Save button and suggestions attached", a
   await session.send("Emulation.clearDeviceMetricsOverride");
   await session.detach();
 });
+
+test("nested workspace detours preserve route, query, and page focus", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Create a trip" }).first().click();
+  const createTrip = page.getByRole("dialog", { name: "Create a trip" });
+  await createTrip.getByLabel("From").fill("Chicago");
+  await createTrip.getByLabel("To").fill("Lisbon");
+  await createTrip.getByLabel("Start date").fill(isoDay(50));
+  await createTrip.getByLabel("End date").fill(isoDay(57));
+  await createTrip
+    .getByLabel("Trip name (optional)")
+    .fill("Nested detour trip");
+  await createTrip.getByRole("button", { name: "Create trip" }).click();
+  await page.getByRole("button", { name: "Open Nested detour trip" }).click();
+  await page.getByRole("link", { name: "Visa" }).click();
+  await expect(page).toHaveURL(/#section-visa$/);
+
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.getByRole("button", { name: "Search workspace" }).click();
+  const searchHeading = page.getByRole("heading", {
+    name: "Search workspace",
+    level: 1,
+  });
+  await expect(searchHeading).toBeFocused();
+  await page.getByLabel("Search all trips").fill("Nested detour");
+
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const settingsHeading = page.getByRole("heading", {
+    name: "Settings",
+    level: 1,
+  });
+  await expect(settingsHeading).toBeFocused();
+  await expect(
+    page.getByText(
+      /browser-from-source build still stores your workspace in local SQLite/i,
+    ),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(searchHeading).toBeFocused();
+  await expect(page.getByLabel("Search all trips")).toHaveValue(
+    "Nested detour",
+  );
+
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Nested detour trip", level: 1 }),
+  ).toBeFocused();
+  await expect(page).toHaveURL(/#section-visa$/);
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+});

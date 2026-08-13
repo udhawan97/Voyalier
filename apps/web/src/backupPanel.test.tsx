@@ -1,7 +1,9 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach } from "vitest";
 
 import type { BackupGateway, RestorePreview } from "./backup";
 import { createUnsupportedBackup } from "./backup";
+import { setLocalePreference } from "./app/locale";
 import { BackupPanel } from "./views/BackupPanel";
 
 function fakeBackup(overrides: Partial<BackupGateway> = {}): BackupGateway {
@@ -31,6 +33,8 @@ function typeInto(label: string, value: string) {
  * plainly that a restore has not happened yet.
  */
 describe("Backup & restore panel", () => {
+  afterEach(() => setLocalePreference("en"));
+
   it("exports with a confirmed passphrase and reports where it landed", async () => {
     const calls: string[] = [];
     render(
@@ -173,14 +177,31 @@ describe("Backup & restore panel", () => {
     );
   });
 
-  it("offers nothing to click in a plain browser, and says why", async () => {
+  it("separates source-mode SQLite persistence from portable desktop backup", async () => {
     render(<BackupPanel backup={createUnsupportedBackup()} />);
 
-    await waitFor(() =>
-      expect(screen.getByText(/needs the desktop app/)).toBeInTheDocument(),
+    const explanation = await screen.findByText(
+      /browser-from-source build still stores your workspace in local SQLite/i,
     );
+    expect(explanation).toHaveTextContent(/portable encrypted backup/i);
+    expect(explanation).not.toHaveTextContent(/no local database/i);
     expect(
       screen.queryByRole("button", { name: "Save a backup" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("keeps the same storage/capability distinction in Spanish", async () => {
+    setLocalePreference("es");
+    render(<BackupPanel backup={createUnsupportedBackup()} />);
+
+    const explanation = await screen.findByText(
+      /versión desde código fuente en el navegador sigue guardando tu espacio de trabajo en SQLite local/i,
+    );
+    expect(explanation).toHaveTextContent(
+      /copia de seguridad cifrada portátil/i,
+    );
+    expect(explanation).not.toHaveTextContent(
+      /no hay una base de datos local/i,
+    );
   });
 });

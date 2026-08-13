@@ -387,6 +387,120 @@ describe("User-flow gap fixes", () => {
   });
 
   /**
+   * VY-UF-01 — a page-level detour has to announce its destination through
+   * focus, not only by replacing the main subtree under a persistent topbar.
+   */
+  it("focuses the destination heading for explicit detour transitions", async () => {
+    renderApp(createMockGateway());
+    await openFixtureTrip();
+
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+    const searchHeading = await screen.findByRole("heading", {
+      name: "Search workspace",
+      level: 1,
+    });
+    await waitFor(() => expect(searchHeading).toHaveFocus());
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    const settingsHeading = await screen.findByRole("heading", {
+      name: "Settings",
+      level: 1,
+    });
+    await waitFor(() => expect(settingsHeading).toHaveFocus());
+  });
+
+  /**
+   * VY-UF-03 — Search and Settings used one mutable return slot. Settings
+   * correctly returned to Search, but it had overwritten Search's Trip parent,
+   * so the next Back returned Search to itself and visibly did nothing.
+   */
+  it("unwinds nested Search and Settings detours to the exact trip section", async () => {
+    renderApp(createMockGateway());
+    await openFixtureTrip();
+    window.history.replaceState(
+      window.history.state,
+      "",
+      "/?trip=trip_kyoto#section-visa",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+    const query = await screen.findByLabelText("Search all trips");
+    fireEvent.change(query, { target: { value: "Kyoto" } });
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await screen.findByRole("heading", { name: "Settings", level: 1 });
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    const restoredSearch = await screen.findByRole("heading", {
+      name: "Search workspace",
+      level: 1,
+    });
+    await waitFor(() => expect(restoredSearch).toHaveFocus());
+    expect(await screen.findByLabelText("Search all trips")).toHaveValue(
+      "Kyoto",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    const restoredTrip = await screen.findByRole("heading", {
+      name: "Kyoto autumn journey",
+      level: 1,
+    });
+    await waitFor(() => expect(restoredTrip).toHaveFocus());
+    expect(window.location.search).toBe("?trip=trip_kyoto");
+    expect(window.location.hash).toBe("#section-visa");
+  });
+
+  it("falls back safely from a direct Search URL and focuses All Trips", async () => {
+    window.history.replaceState(null, "", "/?view=search");
+    renderApp(createMockGateway());
+    await screen.findByRole("heading", {
+      name: "Search workspace",
+      level: 1,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    const tripsHeading = await screen.findByRole("heading", {
+      name: "Trips",
+      level: 1,
+    });
+    await waitFor(() => expect(tripsHeading).toHaveFocus());
+  });
+
+  it("does not reset Search or add a detour when its active topbar action repeats", async () => {
+    renderApp(createMockGateway());
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+    const query = await screen.findByLabelText("Search all trips");
+    fireEvent.change(query, { target: { value: "Kyoto" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+
+    expect(screen.getByLabelText("Search all trips")).toHaveValue("Kyoto");
+  });
+
+  it("does not steal focus for a hash-only history change", async () => {
+    renderApp(createMockGateway());
+    await openFixtureTrip();
+    const settings = screen.getByRole("button", { name: "Settings" });
+    settings.focus();
+
+    window.history.replaceState(
+      window.history.state,
+      "",
+      "/?trip=trip_kyoto#section-visa",
+    );
+    window.dispatchEvent(
+      new PopStateEvent("popstate", { state: window.history.state }),
+    );
+
+    await waitFor(() => expect(settings).toHaveFocus());
+    expect(
+      screen.getByRole("heading", {
+        name: "Kyoto autumn journey",
+        level: 1,
+      }),
+    ).not.toHaveFocus();
+  });
+
+  /**
    * ADR-0015 — the platform's Back affordance does something.
    *
    * Opening a trip used to leave `history.length` untouched, so Back walked
