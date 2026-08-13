@@ -610,8 +610,8 @@ function ContinuityNavigator({
         return;
       }
       attempts += 1;
-      if (attempts < 12) {
-        timer = setTimeout(tryFocus, 25);
+      if (attempts < 20) {
+        timer = setTimeout(tryFocus, 50);
         return;
       }
       const fallback = document.getElementById(target.fallbackId);

@@ -75,7 +75,9 @@ describe("trip continuity wave", () => {
     const heading = await screen.findByRole("heading", {
       name: "Imported documents",
     });
-    await waitFor(() => expect(document.activeElement).toBe(heading));
+    await waitFor(() => expect(document.activeElement).toBe(heading), {
+      timeout: 1_500,
+    });
     expect(document.body).toHaveTextContent(
       "The existing document could not be located. Imported documents opened.",
     );

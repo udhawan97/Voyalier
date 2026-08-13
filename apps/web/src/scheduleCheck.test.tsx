@@ -156,7 +156,9 @@ describe("schedule check", () => {
     );
 
     const fallback = document.getElementById("manual-plan-title")!;
-    await waitFor(() => expect(document.activeElement).toBe(fallback));
+    await waitFor(() => expect(document.activeElement).toBe(fallback), {
+      timeout: 1_500,
+    });
     expect(document.body).toHaveTextContent(
       "That trip item is no longer available. Trip plan opened.",
     );
