@@ -6,7 +6,9 @@ async function openReview() {
   fireEvent.click(
     await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
   );
-  fireEvent.click(await screen.findByRole("button", { name: /Review/ }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: /Review \d+ suggestions/ }),
+  );
   return screen.findByRole("dialog", { name: "Review suggestions" });
 }
 
