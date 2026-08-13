@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
 
 import { renderApp } from "./test/helpers";
@@ -66,6 +66,65 @@ describe("readiness", () => {
       "href",
       "https://wwwnc.cdc.gov/travel/destinations/list",
     );
+  });
+
+  it("routes each readiness check to its existing next step", async () => {
+    renderApp(createMockGateway());
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    );
+    const readiness = await screen.findByRole("region", { name: "Readiness" });
+
+    fireEvent.click(
+      within(readiness).getByRole("button", { name: "Review schedule" }),
+    );
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("heading", { name: "Schedule check" }),
+      ),
+    );
+
+    fireEvent.click(
+      within(readiness).getByRole("button", {
+        name: "Open visa preparation",
+      }),
+    );
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("heading", { name: "Visa & entry preparation" }),
+      ),
+    );
+
+    fireEvent.click(
+      within(readiness).getByRole("button", {
+        name: "Open trip preparation",
+      }),
+    );
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("heading", { name: "Trip preparation" }),
+      ),
+    );
+  });
+
+  it("returns a readiness-opened review dialog to the readiness action", async () => {
+    renderApp(createMockGateway());
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    );
+    const readiness = await screen.findByRole("region", { name: "Readiness" });
+    const review = within(readiness).getByRole("button", {
+      name: "Review suggestions",
+    });
+    review.focus();
+    fireEvent.click(review);
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Review suggestions",
+    });
+    fireEvent.keyDown(dialog, { key: "Escape" });
+
+    await waitFor(() => expect(document.activeElement).toBe(review));
   });
 
   it("pluralizes a finding's count in the interface, not the core", async () => {

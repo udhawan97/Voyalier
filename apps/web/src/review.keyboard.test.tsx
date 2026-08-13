@@ -7,6 +7,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { vi } from "vitest";
 
 import { App } from "./App";
 import { Dialog } from "./components/Dialog";
@@ -228,5 +229,78 @@ describe("candidate review — keyboard", () => {
     const blueprint = document.getElementById("blueprint-title")!;
     await waitFor(() => expect(document.activeElement).toBe(blueprint));
     expect(document.activeElement).not.toBe(document.body);
+  });
+
+  it("combines warning, fact-type, and extraction-method filters locally", async () => {
+    const gateway = createMockGateway();
+    const listSpy = vi.spyOn(gateway, "listCandidates");
+    renderApp(gateway);
+    const { dialog } = await openReview();
+    const callsBeforeFiltering = listSpy.mock.calls.length;
+
+    fireEvent.click(
+      within(dialog).getByRole("checkbox", {
+        name: "Has extraction warnings",
+      }),
+    );
+    expect(
+      within(dialog).getByText("Showing 1 of 3 suggestions to review"),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText("Maple Lantern House")).toBeInTheDocument();
+
+    fireEvent.change(
+      within(dialog).getByRole("combobox", { name: "Fact type" }),
+      { target: { value: "flight_segment" } },
+    );
+    expect(
+      within(dialog).getByText("No suggestions match these filters"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Reset filters" }));
+    fireEvent.change(
+      within(dialog).getByRole("combobox", { name: "Extraction method" }),
+      { target: { value: "inferred" } },
+    );
+    expect(
+      within(dialog).getByText("Showing 1 of 3 suggestions to review"),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText("Flight")).toBeInTheDocument();
+    expect(listSpy).toHaveBeenCalledTimes(callsBeforeFiltering);
+  });
+
+  it("keeps one-at-a-time focus inside the visible filtered queue", async () => {
+    renderApp();
+    const { dialog } = await openReview();
+    fireEvent.change(
+      within(dialog).getByRole("combobox", { name: "Fact type" }),
+      { target: { value: "flight_segment" } },
+    );
+    const firstConfirm = within(dialog).getAllByRole("button", {
+      name: "Confirm",
+    })[0];
+    fireEvent.click(firstConfirm);
+
+    await waitFor(() =>
+      expect(
+        within(dialog).getByText("Showing 1 of 2 suggestions to review"),
+      ).toBeInTheDocument(),
+    );
+    expect(document.activeElement).toBe(
+      within(dialog).getByRole("button", { name: "Confirm" }),
+    );
+  });
+
+  it("focuses the filters when the last visible match is resolved", async () => {
+    renderApp();
+    const { dialog } = await openReview();
+    const method = within(dialog).getByRole("combobox", {
+      name: "Extraction method",
+    });
+    fireEvent.change(method, { target: { value: "inferred" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm" }));
+
+    await within(dialog).findByText("No suggestions match these filters");
+    await waitFor(() => expect(document.activeElement).toBe(method));
+    expect(within(dialog).getByText(/2 suggestions to review/)).toBeInTheDocument();
   });
 });
