@@ -156,9 +156,24 @@ export function WorkspaceSearch({
     timerRef.current = setTimeout(() => runSearch(next.trim()), 250);
   }
 
+  function leaveSearch() {
+    // The in-app Back control now delegates to browser history, whose
+    // `popstate` arrives after this click. Revoke Search-owned work before
+    // starting that asynchronous traversal so a same-turn global Retry cannot
+    // replay the failed query, and a pending debounce cannot fire while the
+    // old view is still mounted.
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    requestIdRef.current += 1;
+    failedSearchRef.current = null;
+    onBack();
+  }
+
   return (
     <div className="voy-workspace-search">
-      <button type="button" className="voy-back" onClick={onBack}>
+      <button type="button" className="voy-back" onClick={leaveSearch}>
         <ArrowLeftIcon aria-hidden="true" />
         <span>{t("workspaceSearch.back")}</span>
       </button>
