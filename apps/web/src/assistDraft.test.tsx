@@ -57,10 +57,14 @@ describe("On-device AI lodging draft", () => {
     const dialog = await screen.findByRole("dialog", {
       name: "Review suggestions",
     });
-    expect(within(dialog).getByText("AI-suggested")).toBeInTheDocument();
-    expect(within(dialog).getAllByText("Drafted stay").length).toBeGreaterThan(
-      0,
+    const visibleCard = dialog.querySelector<HTMLElement>(
+      ".voy-review:not([hidden])",
     );
+    expect(visibleCard).not.toBeNull();
+    expect(within(visibleCard!).getByText("AI-suggested")).toBeInTheDocument();
+    expect(
+      within(visibleCard!).getAllByText("Drafted stay").length,
+    ).toBeGreaterThan(0);
   });
 
   it("asks you to import a booking when there is nothing to read", async () => {

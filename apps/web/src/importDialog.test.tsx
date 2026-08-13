@@ -164,7 +164,8 @@ describe("ImportDialog — the audited repairs", () => {
   }
 
   it("moves the traveler to the reason a duplicate import did nothing", async () => {
-    const { gateway, trip } = await mount();
+    const onOpenExisting = vi.fn();
+    const { gateway, trip } = await mount({ onOpenExisting });
     const content = "Confirmation DUPE1\nRoute SFO-NRT";
     await gateway.importDocument({
       tripId: trip.id,
@@ -183,6 +184,15 @@ describe("ImportDialog — the audited repairs", () => {
     expect(alert).toHaveTextContent("Already imported");
     await waitFor(() =>
       expect(document.activeElement?.contains(alert)).toBe(true),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open existing document" }),
+    );
+    expect(onOpenExisting).toHaveBeenCalledWith(
+      expect.stringMatching(/^document_/),
+    );
+    expect(document.body).not.toHaveTextContent(
+      onOpenExisting.mock.calls[0][0] as string,
     );
   });
 
