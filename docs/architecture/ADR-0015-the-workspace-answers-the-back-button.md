@@ -96,3 +96,30 @@ does not put record ids in the URL. A search result still opens a trip and
 scrolls to a record by way of view state, not a URL that names the record.
 Those remain deferred, and this time the deferral is written where the work is
 rather than in a plan document that outlived its own accuracy.
+
+## Amendment — nested detours and focus, 2026-08-13
+
+The first implementation made the URL durable but kept an ephemeral
+`returnView` slot for the in-app Back controls. That slot could remember only
+one parent: Trip → Search → Settings overwrote the Trip parent with Search, so
+the second Back visibly returned Search to itself. Replacing one return slot
+with a stack beside browser history would create two navigation models that
+could drift. Search and Settings now unwind the app-owned history entries that
+already represent those transitions instead.
+
+Each entry carries a private, monotonic index in `history.state`. The index is
+not a product contract and never appears in the URL; it only lets an in-app
+Back control distinguish an app-owned predecessor from a pasted or reloaded
+detour URL. An owned predecessor uses `history.back()`. A direct
+`?view=search` or `?view=settings` entry has no owned predecessor, so Back
+returns safely to All Trips without leaving the workspace. Browser Back and
+Forward therefore remain the single traversal model, while a direct URL still
+has a deterministic "up" destination.
+
+Top-level transitions also carry a one-shot focus intent. After an explicit
+move to All Trips, a trip, Search, or Settings, the destination `h1` receives
+programmatic focus; an observer covers the trip heading's asynchronous load.
+Initial mount does not steal focus. Section-hash changes do not move it, and a
+Search result continues to focus the exact record it opened. The heading
+marker is presentation-neutral and the intent is consumed once, so restoring
+history does not turn every render into a focus reset.
