@@ -129,6 +129,11 @@ test("planning persists through the real loopback service and a browser reload",
   await expect(
     page.getByRole("heading", { name: "Configuración", level: 1 }),
   ).toBeVisible();
+  await expect(
+    page.getByText(
+      /versión desde código fuente en el navegador sigue guardando tu espacio de trabajo en SQLite local/i,
+    ),
+  ).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "es");
   const themeGroups = page.getByRole("radiogroup", {
     name: "Tema de color",
@@ -387,4 +392,98 @@ test("the visa passport field keeps its Save button and suggestions attached", a
   await expect(row.getByRole("alert")).toHaveCount(1);
   await session.send("Emulation.clearDeviceMetricsOverride");
   await session.detach();
+});
+
+test("nested workspace detours preserve route, query, and page focus", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Create a trip" }).first().click();
+  const createTrip = page.getByRole("dialog", { name: "Create a trip" });
+  await createTrip.getByLabel("From").fill("Chicago");
+  await createTrip.getByLabel("To").fill("Lisbon");
+  await createTrip.getByLabel("Start date").fill(isoDay(50));
+  await createTrip.getByLabel("End date").fill(isoDay(57));
+  await createTrip
+    .getByLabel("Trip name (optional)")
+    .fill("Nested detour trip");
+  await createTrip.getByRole("button", { name: "Create trip" }).click();
+  await page.getByRole("button", { name: "Open Nested detour trip" }).click();
+  await page.getByRole("link", { name: "Visa" }).click();
+  await expect(page).toHaveURL(/#section-visa$/);
+
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.getByRole("button", { name: "Search workspace" }).click();
+  const searchHeading = page.getByRole("heading", {
+    name: "Search workspace",
+    level: 1,
+  });
+  await expect(searchHeading).toBeFocused();
+  await page.getByLabel("Search all trips").fill("Nested detour");
+
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const settingsHeading = page.getByRole("heading", {
+    name: "Settings",
+    level: 1,
+  });
+  await expect(settingsHeading).toBeFocused();
+  await expect(
+    page.getByText(
+      /browser-from-source build still stores your workspace in local SQLite/i,
+    ),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(searchHeading).toBeFocused();
+  await expect(page.getByLabel("Search all trips")).toHaveValue(
+    "Nested detour",
+  );
+
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Nested detour trip", level: 1 }),
+  ).toBeFocused();
+  await expect(page).toHaveURL(/#section-visa$/);
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+
+  await page.goForward();
+  await expect(searchHeading).toBeFocused();
+  await expect(page.getByLabel("Search all trips")).toHaveValue(
+    "Nested detour",
+  );
+  await page.goForward();
+  await expect(settingsHeading).toBeFocused();
+
+  // A pasted/deep-linked detour has no app-owned predecessor. Its in-app Back
+  // goes safely up to All Trips instead of escaping the workspace or doing
+  // nothing, even though this browser tab has older cross-document history.
+  await page.goto("/?view=search");
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Trips", level: 1 }),
+  ).toBeFocused();
+
+  // Search text belongs to one private history entry, not to every Search
+  // visit in the tab. A fresh visit stays blank through its own Settings
+  // detour even after an older visit held text.
+  await page.getByRole("button", { name: "Search workspace" }).click();
+  await page.getByLabel("Search all trips").fill("First visit");
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Trips", level: 1 }),
+  ).toBeFocused();
+  await page.getByRole("button", { name: "Search workspace" }).click();
+  await expect(page.getByLabel("Search all trips")).toHaveValue("");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(page.getByLabel("Search all trips")).toHaveValue("");
+  await expect(
+    page.getByRole("heading", { name: "Search workspace", level: 1 }),
+  ).toBeFocused();
 });

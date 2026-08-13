@@ -31,7 +31,9 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
         <ArrowLeftIcon aria-hidden="true" />
         <span>{t("settings.back")}</span>
       </button>
-      <h1 className="voy-settings__title">{t("settings.title")}</h1>
+      <h1 className="voy-settings__title" data-voy-view-heading tabIndex={-1}>
+        {t("settings.title")}
+      </h1>
       <p className="voy-settings__intro">{t("settings.intro")}</p>
 
       <section

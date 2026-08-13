@@ -186,7 +186,9 @@ export function TripListView({
       <header className="voy-triplist__head">
         <div>
           <p className="voy-eyebrow">{t("triplist.eyebrow")}</p>
-          <h1 id="triplist-heading">{t("triplist.title")}</h1>
+          <h1 id="triplist-heading" data-voy-view-heading tabIndex={-1}>
+            {t("triplist.title")}
+          </h1>
         </div>
         <Button
           ref={createBtnRef}

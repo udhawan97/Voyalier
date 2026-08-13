@@ -8,6 +8,17 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Fixed
 
+- **Nested Search and Settings detours now unwind in order and focus each
+  destination heading.** In-app Back, browser Back, and browser Forward share the same
+  history entries, preserve the private Search query and trip section, and
+  focus the restored page heading. A direct Search or Settings URL falls back
+  to All Trips; individual panels and search-record ids remain intentionally
+  outside the URL.
+- **The browser-source backup panel no longer claims there is no local
+  database.** It now says the workspace still lives in local SQLite and names
+  the desktop-only file picker and portable encrypted-backup bridge as the
+  unavailable pieces. This corrects the English and Spanish trust copy without
+  pretending the browser build can create or restore desktop backup files.
 - **Passport suggestions no longer cover Save on narrow screens, and a refused code now returns
   focus to its field.** The Visa-only list joins the page flow at the existing narrow breakpoint,
   stays bounded and scrollable, and replaces a prior save failure with one associated validation
