@@ -35,7 +35,8 @@ versioned types:
 
 Decision: give non-clear deterministic checks a contextual navigational action, and always give the two
 link-only checks an in-product preparation action alongside their official links. Schedule
-conflicts route to the schedule review (or Plan when no schedule exists), lodging to Plan, pending
+conflicts route to the schedule review (or Plan when no schedule exists), lodging to the existing
+Add reservation dialog preselected to Stay, pending
 suggestions to the existing review dialog, entry requirements to Visa, and health notices to
 Prepare. Schedule findings expose jumps for every named confirmed fact and planned item.
 

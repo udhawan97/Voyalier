@@ -1107,7 +1107,7 @@ const en = {
   "readiness.check.entry_requirements": "Entry & travel requirements",
   "readiness.check.health_notices": "Health notices",
   "readiness.action.schedule": "Review schedule",
-  "readiness.action.plan": "Open trip plan",
+  "readiness.action.plan": "Add a stay",
   "readiness.action.review": "Review suggestions",
   "readiness.action.visa": "Open visa preparation",
   "readiness.action.prepare": "Open trip preparation",
@@ -1350,7 +1350,7 @@ const en = {
   "schedule.jumpToPlanGeneric": "Open trip item {number}",
   "prepare.title": "Trip preparation",
   "continuity.fact.unavailable":
-    "That confirmed plan is no longer available. Trip plan opened.",
+    "That confirmed reservation is no longer available. Blueprint opened.",
   "continuity.plan.unavailable":
     "That trip item is no longer available. Trip plan opened.",
   "continuity.document.opened": "Existing document opened.",
@@ -2700,7 +2700,7 @@ const es: Record<MessageKey, string> = {
   "readiness.check.entry_requirements": "Requisitos de entrada y viaje",
   "readiness.check.health_notices": "Avisos de salud",
   "readiness.action.schedule": "Revisar horario",
-  "readiness.action.plan": "Abrir plan del viaje",
+  "readiness.action.plan": "Añadir una estancia",
   "readiness.action.review": "Revisar sugerencias",
   "readiness.action.visa": "Abrir preparación de visado",
   "readiness.action.prepare": "Abrir preparación del viaje",
@@ -2929,7 +2929,7 @@ const es: Record<MessageKey, string> = {
   "schedule.jumpToPlanGeneric": "Abrir elemento del viaje {number}",
   "prepare.title": "Preparación del viaje",
   "continuity.fact.unavailable":
-    "Ese plan confirmado ya no está disponible. Se abrió el plan del viaje.",
+    "Esa reserva confirmada ya no está disponible. Se abrió el itinerario.",
   "continuity.plan.unavailable":
     "Ese elemento del viaje ya no está disponible. Se abrió el plan del viaje.",
   "continuity.document.opened": "Se abrió el documento existente.",

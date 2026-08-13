@@ -1040,7 +1040,7 @@ export function TripDetailView({
   }, [data, searchTarget]);
 
   const [showImport, setShowImport] = useState(false);
-  const [showAddFact, setShowAddFact] = useState(false);
+  const [addFactType, setAddFactType] = useState<FactType | null>(null);
   // Holds the exact candidates to review (from the pending list or a fresh
   // import) so the dialog never depends on an in-flight refetch settling first.
   const [reviewCandidates, setReviewCandidates] = useState<
@@ -1260,7 +1260,10 @@ export function TripDetailView({
             >
               {t("detail.import")}
             </Button>
-            <Button variant="secondary" onClick={() => setShowAddFact(true)}>
+            <Button
+              variant="secondary"
+              onClick={() => setAddFactType("flight_segment")}
+            >
               {t("detail.addFact")}
             </Button>
             <Button variant="ghost" onClick={() => setShowEdit(true)}>
@@ -1379,7 +1382,7 @@ export function TripDetailView({
                   </Button>
                   <Button
                     variant="secondary"
-                    onClick={() => setShowAddFact(true)}
+                    onClick={() => setAddFactType("flight_segment")}
                   >
                     {t("detail.addFact")}
                   </Button>
@@ -1438,7 +1441,7 @@ export function TripDetailView({
                   );
                   break;
                 case "lodging_coverage":
-                  navigateToElement("manual-plan-title");
+                  setAddFactType("lodging_stay");
                   break;
                 case "entry_requirements":
                   navigateToElement("visa-title");
@@ -1605,7 +1608,7 @@ export function TripDetailView({
             }}
             onAddByHand={() => {
               setShowImport(false);
-              setShowAddFact(true);
+              setAddFactType("flight_segment");
             }}
             onOpenExisting={(documentId) => {
               setShowImport(false);
@@ -1627,12 +1630,13 @@ export function TripDetailView({
           />
         ) : null}
 
-        {showAddFact ? (
+        {addFactType ? (
           <AddFactDialog
             tripId={tripId}
-            onClose={() => setShowAddFact(false)}
+            initialFactType={addFactType}
+            onClose={() => setAddFactType(null)}
             onAdded={(fact) => {
-              setShowAddFact(false);
+              setAddFactType(null);
               announce(
                 t("detail.announce.added", {
                   fact: factTitle(fact.factType, fact.payload),

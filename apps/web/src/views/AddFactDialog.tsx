@@ -22,15 +22,17 @@ import { FactPayloadForm } from "../components/FactPayloadForm";
 
 export function AddFactDialog({
   tripId,
+  initialFactType = "flight_segment",
   onClose,
   onAdded,
 }: {
   tripId: string;
+  initialFactType?: FactType;
   onClose: () => void;
   onAdded: (fact: ConfirmedFact) => void;
 }) {
   const gateway = useGateway();
-  const [factType, setFactType] = useState<FactType>("flight_segment");
+  const [factType, setFactType] = useState<FactType>(initialFactType);
   const [draft, setDraft] = useState<PayloadDraft>({});
   const [error, setError] = useState<AppError | null>(null);
   const [emptyError, setEmptyError] = useState(false);

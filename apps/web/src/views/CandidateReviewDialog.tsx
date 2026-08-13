@@ -189,12 +189,14 @@ function ReviewCard({
             return (
               <div className="voy-review__field" key={key}>
                 <dt>{fieldLabel(key)}</dt>
-                <dd>{formatFieldValue(key, values[key] as string)}</dd>
-                {span ? (
-                  <EvidenceQuote caption={t("review.evidence")}>
-                    {span.excerpt}
-                  </EvidenceQuote>
-                ) : null}
+                <dd>
+                  {formatFieldValue(key, values[key] as string)}
+                  {span ? (
+                    <EvidenceQuote caption={t("review.evidence")}>
+                      {span.excerpt}
+                    </EvidenceQuote>
+                  ) : null}
+                </dd>
               </div>
             );
           })}
