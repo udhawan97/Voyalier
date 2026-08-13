@@ -409,6 +409,16 @@ describe("User-flow gap fixes", () => {
     await waitFor(() => expect(settingsHeading).toHaveFocus());
   });
 
+  it("does not focus a page heading on the initial workspace mount", async () => {
+    renderApp(createMockGateway());
+    const tripsHeading = await screen.findByRole("heading", {
+      name: "Trips",
+      level: 1,
+    });
+
+    expect(tripsHeading).not.toHaveFocus();
+  });
+
   /**
    * VY-UF-03 — Search and Settings used one mutable return slot. Settings
    * correctly returned to Search, but it had overwritten Search's Trip parent,
@@ -458,6 +468,20 @@ describe("User-flow gap fixes", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    const tripsHeading = await screen.findByRole("heading", {
+      name: "Trips",
+      level: 1,
+    });
+    await waitFor(() => expect(tripsHeading).toHaveFocus());
+  });
+
+  it("falls back safely from a direct Settings URL", async () => {
+    window.history.replaceState(null, "", "/?view=settings");
+    renderApp(createMockGateway());
+    await screen.findByRole("heading", { name: "Settings", level: 1 });
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+
     const tripsHeading = await screen.findByRole("heading", {
       name: "Trips",
       level: 1,

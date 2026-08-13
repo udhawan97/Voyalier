@@ -129,6 +129,11 @@ test("planning persists through the real loopback service and a browser reload",
   await expect(
     page.getByRole("heading", { name: "Configuración", level: 1 }),
   ).toBeVisible();
+  await expect(
+    page.getByText(
+      /versión desde código fuente en el navegador sigue guardando tu espacio de trabajo en SQLite local/i,
+    ),
+  ).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "es");
   const themeGroups = page.getByRole("radiogroup", {
     name: "Tema de color",
@@ -446,4 +451,21 @@ test("nested workspace detours preserve route, query, and page focus", async ({
         document.documentElement.clientWidth,
     ),
   ).toBe(true);
+
+  await page.goForward();
+  await expect(searchHeading).toBeFocused();
+  await expect(page.getByLabel("Search all trips")).toHaveValue(
+    "Nested detour",
+  );
+  await page.goForward();
+  await expect(settingsHeading).toBeFocused();
+
+  // A pasted/deep-linked detour has no app-owned predecessor. Its in-app Back
+  // goes safely up to All Trips instead of escaping the workspace or doing
+  // nothing, even though this browser tab has older cross-document history.
+  await page.goto("/?view=search");
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Trips", level: 1 }),
+  ).toBeFocused();
 });
