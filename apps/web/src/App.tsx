@@ -365,6 +365,12 @@ function Workspace({
     if (next !== current) {
       const nextIndex = historyIndexRef.current + 1;
       historyIndexRef.current = nextIndex;
+      // A push after Back discards the browser's Forward branch. Mirror that
+      // lifecycle in the private query map so text owned only by discarded
+      // Search entries is not retained for the rest of the tab session.
+      for (const index of searchQueriesByHistory.current.keys()) {
+        if (index >= nextIndex) searchQueriesByHistory.current.delete(index);
+      }
       if (view.name === "search") {
         searchQueriesByHistory.current.set(nextIndex, view.query);
       }

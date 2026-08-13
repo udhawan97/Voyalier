@@ -8,8 +8,8 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Fixed
 
-- **Nested Search and Settings detours now unwind in order and announce each
-  destination.** In-app Back, browser Back, and browser Forward share the same
+- **Nested Search and Settings detours now unwind in order and focus each
+  destination heading.** In-app Back, browser Back, and browser Forward share the same
   history entries, preserve the private Search query and trip section, and
   focus the restored page heading. A direct Search or Settings URL falls back
   to All Trips; individual panels and search-record ids remain intentionally
