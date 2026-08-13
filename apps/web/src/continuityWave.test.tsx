@@ -83,4 +83,33 @@ describe("trip continuity wave", () => {
     );
     expect(getDocument).not.toHaveBeenCalled();
   });
+
+  it("falls back when a nonempty duplicate record id no longer has a row", async () => {
+    const gateway = createMockGateway();
+    const duplicate: AppError = {
+      code: "document/duplicate",
+      message: "duplicate",
+      details: { existingDocumentId: "document_vanished" },
+    };
+    vi.spyOn(gateway, "importDocument").mockRejectedValue(duplicate);
+    const getDocument = vi.spyOn(gateway, "getDocument");
+    renderApp(gateway);
+    await openImport();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open existing document" }),
+    );
+
+    const heading = await screen.findByRole("heading", {
+      name: "Imported documents",
+    });
+    await waitFor(() => expect(document.activeElement).toBe(heading), {
+      timeout: 1_500,
+    });
+    expect(document.body).toHaveTextContent(
+      "The existing document could not be located. Imported documents opened.",
+    );
+    expect(getDocument).not.toHaveBeenCalled();
+    expect(window.location.href).not.toContain("document_vanished");
+  });
 });

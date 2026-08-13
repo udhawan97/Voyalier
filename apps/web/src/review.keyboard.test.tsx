@@ -237,6 +237,36 @@ describe("candidate review — keyboard", () => {
     renderApp(gateway);
     const { dialog } = await openReview();
     const callsBeforeFiltering = listSpy.mock.calls.length;
+    const factType = within(dialog).getByRole("combobox", {
+      name: "Fact type",
+    });
+    const method = within(dialog).getByRole("combobox", {
+      name: "Extraction method",
+    });
+    expect(
+      within(factType)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual([
+      "All fact types",
+      "Flight",
+      "Stay",
+      "Train",
+      "Coach",
+      "Ferry",
+      "Hire car",
+    ]);
+    expect(
+      within(method)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual([
+      "All extraction methods",
+      "Structured",
+      "Inferred",
+      "Manual",
+      "AI-suggested",
+    ]);
 
     fireEvent.click(
       within(dialog).getByRole("checkbox", {
@@ -250,17 +280,11 @@ describe("candidate review — keyboard", () => {
       within(dialog).getAllByText("Maple Lantern House").length,
     ).toBeGreaterThan(0);
 
-    fireEvent.change(
-      within(dialog).getByRole("combobox", { name: "Fact type" }),
-      { target: { value: "lodging_stay" } },
-    );
+    fireEvent.change(factType, { target: { value: "lodging_stay" } });
     expect(
       within(dialog).getByText("Showing 1 of 3 suggestions to review"),
     ).toBeInTheDocument();
-    fireEvent.change(
-      within(dialog).getByRole("combobox", { name: "Extraction method" }),
-      { target: { value: "inferred" } },
-    );
+    fireEvent.change(method, { target: { value: "inferred" } });
     expect(
       within(dialog).getByText("No suggestions match these filters"),
     ).toBeInTheDocument();
@@ -268,10 +292,7 @@ describe("candidate review — keyboard", () => {
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Reset filters" }),
     );
-    fireEvent.change(
-      within(dialog).getByRole("combobox", { name: "Extraction method" }),
-      { target: { value: "inferred" } },
-    );
+    fireEvent.change(method, { target: { value: "inferred" } });
     expect(
       within(dialog).getByText("Showing 1 of 3 suggestions to review"),
     ).toBeInTheDocument();

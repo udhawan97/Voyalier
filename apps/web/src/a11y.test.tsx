@@ -53,6 +53,20 @@ describe("accessibility", () => {
     expect(violations, violations.join("\n\n")).toEqual([]);
   });
 
+  it("the suggestion review dialog has no violations", async () => {
+    renderApp(createMockGateway());
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Review 3 suggestions/ }),
+    );
+    await screen.findByRole("dialog", { name: "Review suggestions" });
+
+    const violations = await findA11yViolations();
+    expect(violations, violations.join("\n\n")).toEqual([]);
+  });
+
   it("the vault unlock gate has no violations", async () => {
     const base = createMockGateway();
     const gateway = {

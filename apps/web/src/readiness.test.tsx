@@ -1,5 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { createMockGateway } from "@voyalier/contracts";
+import { createMockGateway, type AppGateway } from "@voyalier/contracts";
+import { vi } from "vitest";
 
 import { renderApp } from "./test/helpers";
 
@@ -85,6 +86,22 @@ describe("readiness", () => {
     );
 
     fireEvent.click(
+      within(readiness).getByRole("button", { name: "Add a stay" }),
+    );
+    const addStay = await screen.findByRole("dialog", {
+      name: "Add a reservation",
+    });
+    expect(
+      within(addStay).getByRole("radio", { name: "Stay" }),
+    ).toHaveAttribute("aria-checked", "true");
+    fireEvent.keyDown(addStay, { key: "Escape" });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Add a reservation" }),
+      ).toBeNull(),
+    );
+
+    fireEvent.click(
       within(readiness).getByRole("button", {
         name: "Open visa preparation",
       }),
@@ -105,6 +122,60 @@ describe("readiness", () => {
         screen.getByRole("heading", { name: "Trip preparation" }),
       ),
     );
+  });
+
+  it("routes a schedule check without an itinerary to Blueprint", async () => {
+    const gateway = createMockGateway();
+    const getTrip = gateway.getTrip.bind(gateway);
+    vi.spyOn(gateway, "getTrip").mockImplementation(async (tripId) => {
+      const detail = await getTrip(tripId);
+      return {
+        ...detail,
+        confirmedFacts: [],
+        tripItems: [],
+        itineraryConflicts: [],
+      };
+    });
+    renderApp(gateway as AppGateway);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    );
+    const readiness = await screen.findByRole("region", { name: "Readiness" });
+
+    fireEvent.click(
+      within(readiness).getByRole("button", { name: "Review schedule" }),
+    );
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        document.getElementById("blueprint-title"),
+      ),
+    );
+    expect(document.getElementById("schedule-title")).toBeNull();
+  });
+
+  it("keeps the latest destination when readiness actions are replaced rapidly", async () => {
+    renderApp(createMockGateway());
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    );
+    const readiness = await screen.findByRole("region", { name: "Readiness" });
+
+    fireEvent.click(
+      within(readiness).getByRole("button", { name: "Review schedule" }),
+    );
+    fireEvent.click(
+      within(readiness).getByRole("button", {
+        name: "Open visa preparation",
+      }),
+    );
+
+    const visa = await screen.findByRole("heading", {
+      name: "Visa & entry preparation",
+    });
+    await waitFor(() => expect(document.activeElement).toBe(visa));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(document.activeElement).toBe(visa);
   });
 
   it("returns a readiness-opened review dialog to the readiness action", async () => {
