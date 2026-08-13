@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { createMockGateway, type AppError } from "@voyalier/contracts";
 import { vi } from "vitest";
 
@@ -11,11 +11,18 @@ async function openImport(content = DUPLICATE_DOCUMENT) {
   fireEvent.click(
     await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
   );
-  fireEvent.click(screen.getByRole("button", { name: "Import confirmation" }));
+  await screen.findByRole("heading", {
+    name: "Kyoto autumn journey",
+    level: 1,
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Import" }));
+  const dialog = await screen.findByRole("dialog", {
+    name: "Import a document",
+  });
   fireEvent.change(screen.getByLabelText("Content"), {
     target: { value: content },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Import" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Import" }));
   await screen.findByText("Already imported");
 }
 

@@ -188,7 +188,9 @@ describe("ImportDialog — the audited repairs", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Open existing document" }),
     );
-    expect(onOpenExisting).toHaveBeenCalledWith(expect.stringMatching(/^document_/));
+    expect(onOpenExisting).toHaveBeenCalledWith(
+      expect.stringMatching(/^document_/),
+    );
     expect(document.body).not.toHaveTextContent(
       onOpenExisting.mock.calls[0][0] as string,
     );

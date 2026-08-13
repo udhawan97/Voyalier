@@ -80,7 +80,7 @@ describe("readiness", () => {
     );
     await waitFor(() =>
       expect(document.activeElement).toBe(
-        screen.getByRole("heading", { name: "Schedule check" }),
+        document.getElementById("schedule-title"),
       ),
     );
 
