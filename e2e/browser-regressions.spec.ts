@@ -59,7 +59,7 @@ test("the planning register stays inside a 320px viewport after search focus", a
   page,
 }) => {
   const tripTitle = `Narrow ${browserName} retry ${test.info().retry} trip`;
-  const itemTitle = `Museum transfer ${browserName}`;
+  const itemTitle = `Museum transfer ${browserName} retry ${test.info().retry}`;
 
   await page.goto("/");
   await page.getByRole("button", { name: "Create a trip" }).first().click();
