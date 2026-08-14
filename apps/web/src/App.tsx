@@ -435,7 +435,7 @@ function Workspace({
    * `replaceState`, not `pushState`: the entry it is correcting is one the
    * traveler never chose and must not have to press Back through.
    */
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (typeof window === "undefined" || locked !== true) return;
     if (!window.location.search) return;
     window.history.replaceState(

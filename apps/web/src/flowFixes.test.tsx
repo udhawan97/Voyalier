@@ -155,19 +155,84 @@ describe("User-flow gap fixes", () => {
     expect(document.activeElement).not.toBe(document.body);
   });
 
-  // Same gap, the harder half: the empty state's Create button unmounts the
-  // moment the trip exists, so the captured trigger is gone by the time focus
-  // should return to it.
-  it("keeps focus reachable when the trigger itself disappears", async () => {
+  // The second Create button owns a distinct return path. A generic "focus is
+  // not body" assertion missed regressions that returned to the persistent
+  // header button instead of the empty-state action the traveler used.
+  it("returns focus to the exact empty-state Create Trip opener", async () => {
     renderApp(failingGateway({ listTrips: () => Promise.resolve([]) }));
-    const create = await screen.findAllByRole("button", {
+    const empty = (await screen.findByText("No trips yet")).closest(
+      ".voy-empty",
+    ) as HTMLElement;
+    const emptyStateCreate = within(empty).getByRole("button", {
       name: "Create a trip",
     });
-    fireEvent.click(create[create.length - 1]);
+    fireEvent.click(emptyStateCreate);
     const dialog = await screen.findByRole("dialog", { name: "Create a trip" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(document.activeElement).not.toBe(document.body);
+    expect(emptyStateCreate).toHaveFocus();
+  });
+
+  // Successful creation removes the empty-state opener after the refreshed
+  // trip list arrives. The page heading is the stable, meaningful destination;
+  // leaving focus on the now-detached button drops it back to body.
+  it("focuses the Trips heading when successful creation removes its opener", async () => {
+    const base = createMockGateway();
+    let createdTrip: Awaited<ReturnType<typeof base.createTrip>> | null = null;
+    renderApp({
+      ...base,
+      listTrips: () =>
+        Promise.resolve(
+          createdTrip
+            ? [
+                {
+                  ...createdTrip,
+                  confirmedFactCount: 0,
+                  pendingCandidateCount: 0,
+                },
+              ]
+            : [],
+        ),
+      createTrip: async (input) => {
+        const trip = await base.createTrip(input);
+        createdTrip = trip;
+        return trip;
+      },
+    });
+
+    const empty = (await screen.findByText("No trips yet")).closest(
+      ".voy-empty",
+    ) as HTMLElement;
+    fireEvent.click(
+      within(empty).getByRole("button", { name: "Create a trip" }),
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Create a trip" });
+    fireEvent.change(within(dialog).getByLabelText(/^From/), {
+      target: { value: "Chicago" },
+    });
+    fireEvent.change(within(dialog).getByLabelText(/^To/), {
+      target: { value: "Kyoto" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Start date"), {
+      target: { value: "2027-04-02" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("End date"), {
+      target: { value: "2027-04-06" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Create trip" }),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole("button", { name: "Create a trip" }),
+      ).toHaveLength(1),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("heading", { name: "Trips", level: 1 }),
+      ).toHaveFocus(),
+    );
   });
 
   // The audit's gap #8: after a failed submit, a field kept its red error while

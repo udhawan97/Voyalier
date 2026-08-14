@@ -7,20 +7,51 @@ function isoDay(offset: number): string {
 }
 
 test("Create Trip returns focus to its exact opener", async ({ page }) => {
+  let showEmptyState = true;
+  await page.route("**/api/v1/trips", async (route) => {
+    if (showEmptyState && route.request().method() === "GET") {
+      await route.fulfill({ json: [] });
+      return;
+    }
+    await route.continue();
+  });
   await page.goto("/");
-  const opener = page.getByRole("button", { name: "Create a trip" }).first();
+  const openers = page.getByRole("button", { name: "Create a trip" });
+  await expect(openers).toHaveCount(2);
+  const headerOpener = openers.first();
+  const emptyStateOpener = openers.last();
 
-  await opener.click();
+  await headerOpener.click();
   const dialog = page.getByRole("dialog", { name: "Create a trip" });
   await expect(dialog.getByLabel("From")).toBeFocused();
   await dialog.press("Escape");
   await expect(dialog).toBeHidden();
-  await expect(opener).toBeFocused();
+  await expect(headerOpener).toBeFocused();
 
-  await opener.click();
+  await headerOpener.click();
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(dialog).toBeHidden();
-  await expect(opener).toBeFocused();
+  await expect(headerOpener).toBeFocused();
+
+  await emptyStateOpener.click();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(emptyStateOpener).toBeFocused();
+
+  await emptyStateOpener.click();
+  await dialog.getByLabel("From").fill("Chicago");
+  await dialog.getByLabel("To").fill("Kyoto");
+  await dialog.getByLabel("Start date").fill(isoDay(30));
+  await dialog.getByLabel("End date").fill(isoDay(37));
+  await dialog
+    .getByLabel("Trip name (optional)")
+    .fill(`Focus fallback ${test.info().project.name}`);
+  showEmptyState = false;
+  await dialog.getByRole("button", { name: "Create trip" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(
+    page.getByRole("heading", { name: "Trips", level: 1 }),
+  ).toBeFocused();
 });
 
 test("the planning register stays inside a 320px viewport after search focus", async ({

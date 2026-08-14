@@ -124,9 +124,15 @@ export function TripListView({
   >("header");
   const headerCreateRef = useRef<HTMLButtonElement>(null);
   const emptyCreateRef = useRef<HTMLButtonElement>(null);
+  const tripListHeadingRef = useRef<HTMLHeadingElement>(null);
+  const createReturnFocusRef = useRef<HTMLElement | null>(null);
 
   function openCreate(returnTarget: "header" | "empty") {
     setCreateReturnTarget(returnTarget);
+    createReturnFocusRef.current =
+      returnTarget === "header"
+        ? headerCreateRef.current
+        : emptyCreateRef.current;
     setShowCreate(true);
   }
 
@@ -195,7 +201,12 @@ export function TripListView({
       <header className="voy-triplist__head">
         <div>
           <p className="voy-eyebrow">{t("triplist.eyebrow")}</p>
-          <h1 id="triplist-heading" data-voy-view-heading tabIndex={-1}>
+          <h1
+            ref={tripListHeadingRef}
+            id="triplist-heading"
+            data-voy-view-heading
+            tabIndex={-1}
+          >
             {t("triplist.title")}
           </h1>
         </div>
@@ -358,11 +369,15 @@ export function TripListView({
 
       {showCreate ? (
         <CreateTripDialog
-          returnFocusRef={
-            createReturnTarget === "header" ? headerCreateRef : emptyCreateRef
-          }
+          returnFocusRef={createReturnFocusRef}
           onClose={() => setShowCreate(false)}
           onCreated={(trip) => {
+            if (createReturnTarget === "empty") {
+              // A first trip removes its empty-state opener. Retarget before
+              // closing so Dialog's normal restoration lands on stable page
+              // context without a timing race against the list refresh.
+              createReturnFocusRef.current = tripListHeadingRef.current;
+            }
             setShowCreate(false);
             announce(t("triplist.announce.created", { title: trip.title }));
             revalidate(tripsScope);
