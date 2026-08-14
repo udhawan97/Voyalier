@@ -67,8 +67,8 @@ matching installer and keeps the GitHub Releases page as a fallback.
 - Review filters combine extraction warnings, fact type, and extraction method
   while every confirm, edit, and dismiss decision remains one at a time.
 - Search and Settings detours unwind through in-app Back and browser history to
-  the prior trip section and page heading; private queries and record ids stay
-  out of durable URLs.
+  the prior trip section and page heading; private queries and exact
+  search-result record ids stay out of durable URLs.
 - The 320 px Plan layout and Create Trip focus return are now exercised in both
   Chromium and WebKit.
 
