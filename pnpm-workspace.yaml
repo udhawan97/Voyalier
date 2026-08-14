@@ -9,13 +9,14 @@ overrides:
   # GHSA-5p4m-2wfm-xmqj: js-yaml before 4.3.1 can spend quadratic CPU while
   # resolving an untrusted !!omap. The docs toolchain is the only consumer.
   js-yaml: 4.3.1
-  # GHSA-28wg-ghj8-5hjv and GHSA-2v37-7h3g-55p8: nanoid before 3.3.17 can
+  # GHSA-28wg-ghj8-5hjv and GHSA-2v37-7h3g-55p8: nanoid before 3.3.18 can
   # loop indefinitely for invalid generator sizes. Reached through PostCSS.
-  nanoid: 3.3.17
+  nanoid: 3.3.18
   # GHSA-r28c-9q8g-f849 and GHSA-fxqj-rqcc-2cmp: postcss before 8.5.23 can
   # disclose arbitrary .map files via sourceMappingURL auto-loading. Reached
   # only transitively through docs-site > starlight > astro > vite.
   postcss: ">=8.5.23"
 minimumReleaseAgeExclude:
+  - nanoid@3.3.18
   - prettier@3.9.5
   - vite@8.1.4

@@ -63,6 +63,10 @@ layout keeps that path usable in both Chromium and WebKit.
   the sentence boundary instead of relying on leading whitespace inside one
   translation, preventing Spanish Settings from joining two sentences into one
   word.
+- **The public-docs build no longer resolves the newly vulnerable `nanoid`
+  patch.** The existing same-major override now selects 3.3.18, closing the
+  current invalid-generator advisory without changing the app runtime or its
+  network surface.
 
 ### Not changed
 
