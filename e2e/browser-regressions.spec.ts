@@ -100,6 +100,16 @@ test("the planning register stays inside a 320px viewport after search focus", a
               element.id ? `#${element.id}` : "",
               ...Array.from(element.classList, (name) => `.${name}`),
             ].join(""),
+            text: element.textContent?.trim().replace(/\s+/g, " ").slice(0, 80),
+            parent: element.parentElement
+              ? [
+                  element.parentElement.tagName.toLowerCase(),
+                  ...Array.from(
+                    element.parentElement.classList,
+                    (name) => `.${name}`,
+                  ),
+                ].join("")
+              : null,
             left: rect.left,
             right: rect.right,
             width: rect.width,
