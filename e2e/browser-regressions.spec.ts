@@ -58,7 +58,7 @@ test("the planning register stays inside a 320px viewport after search focus", a
   browserName,
   page,
 }) => {
-  const tripTitle = `Narrow ${browserName} trip`;
+  const tripTitle = `Narrow ${browserName} retry ${test.info().retry} trip`;
   const itemTitle = `Museum transfer ${browserName}`;
 
   await page.goto("/");

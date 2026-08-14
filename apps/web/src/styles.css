@@ -13,7 +13,10 @@ html {
 
 body {
   margin: 0;
-  min-width: 320px;
+  /* A hard 320px floor spills by the scrollbar width in WebKit builds that
+     reserve a non-overlay gutter. The layout itself owns its responsive
+     minimums, so the document must be allowed to use the full content box. */
+  min-width: 0;
   min-height: 100vh;
   background:
     radial-gradient(circle at 92% -4%, var(--voy-tint-moss), transparent 26rem),
