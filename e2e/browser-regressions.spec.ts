@@ -77,10 +77,11 @@ test("the planning register stays inside a 320px viewport after search focus", a
   const planning = page.locator(".voy-planning");
   await expect(planning).toBeVisible();
   const initialGeometry = await planning.evaluate((grid) => {
+    const viewportWidth = document.documentElement.clientWidth;
     const parent = grid.parentElement!.getBoundingClientRect();
     const own = grid.getBoundingClientRect();
     return {
-      viewportWidth: document.documentElement.clientWidth,
+      viewportWidth,
       documentWidth: document.documentElement.scrollWidth,
       parentRight: parent.right,
       gridRight: own.right,
@@ -90,11 +91,34 @@ test("the planning register stays inside a 320px viewport after search focus", a
           (child) => child.getBoundingClientRect().right,
         ),
       ),
+      overflowingElements: Array.from(document.querySelectorAll("*"))
+        .map((element) => {
+          const rect = element.getBoundingClientRect();
+          return {
+            element: [
+              element.tagName.toLowerCase(),
+              element.id ? `#${element.id}` : "",
+              ...Array.from(element.classList, (name) => `.${name}`),
+            ].join(""),
+            left: rect.left,
+            right: rect.right,
+            width: rect.width,
+            clientWidth: element.clientWidth,
+            scrollWidth: element.scrollWidth,
+            overflowX: getComputedStyle(element).overflowX,
+          };
+        })
+        .filter(
+          ({ left, right }) => left < -0.01 || right > viewportWidth + 0.01,
+        )
+        .sort((a, b) => b.right - a.right)
+        .slice(0, 20),
     };
   });
-  expect(initialGeometry.documentWidth).toBeLessThanOrEqual(
-    initialGeometry.viewportWidth,
-  );
+  expect(
+    initialGeometry.documentWidth,
+    JSON.stringify(initialGeometry, null, 2),
+  ).toBeLessThanOrEqual(initialGeometry.viewportWidth);
   expect(initialGeometry.gridRight).toBeLessThanOrEqual(
     initialGeometry.parentRight + 1,
   );
