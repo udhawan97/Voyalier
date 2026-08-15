@@ -34,5 +34,5 @@
   <rect class="raised rule" x="650" y="644" width="420" height="112" rx="22" />
   <circle class="waypoint" cx="686" cy="680" r="6" />
   <text class="label" x="708" y="685">OPTIONAL AI · SIDE LANE</text>
-  <text class="small" x="686" y="724">Preview → consent → review. Never the route’s authority.</text>
+  <text class="small" x="686" y="716"><tspan x="686">Preview → consent → review.</tspan>&#32;<tspan x="686" dy="24">Never the route’s authority.</tspan></text>
 </svg>
