@@ -64,8 +64,14 @@ describe("User-flow gap fixes", () => {
       await screen.findByRole("button", { name: "Open Archived Oslo notes" })
     ).closest("article") as HTMLElement;
 
-    // Unarchive it → it moves back into the active workspace.
-    fireEvent.click(within(oslo).getByRole("button", { name: "Unarchive" }));
+    // Unarchive it → it moves back into the active workspace. Named exactly,
+    // because archived cards never reach the a11y naming guard (the list hides
+    // them by default), so this is the only thing pinning `unarchiveTrip`.
+    fireEvent.click(
+      within(oslo).getByRole("button", {
+        name: "Unarchive Archived Oslo notes",
+      }),
+    );
     expect(
       await screen.findByText("Archived Oslo notes unarchived."),
     ).toBeInTheDocument();
@@ -331,7 +337,7 @@ describe("User-flow gap fixes", () => {
     const card = (
       await screen.findByRole("button", { name: "Open Kyoto autumn journey" })
     ).closest("article") as HTMLElement;
-    fireEvent.click(within(card).getByRole("button", { name: "Archive" }));
+    fireEvent.click(within(card).getByRole("button", { name: /^Archive\b/ }));
 
     const undo = await screen.findByRole("button", { name: "Undo" });
     fireEvent.click(undo);

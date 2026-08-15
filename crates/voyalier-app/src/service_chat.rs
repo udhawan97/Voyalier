@@ -142,46 +142,19 @@ impl AppService {
         let Ok(query) = validate_search_query(message) else {
             return Ok(Vec::new());
         };
-        let documents = self.records(connection).trip_document_texts(trip_id)?;
-        let searchable: Vec<SearchableDocument<'_>> = documents
-            .iter()
-            .map(|(id, label, content)| SearchableDocument { id, label, content })
-            .collect();
-        let facts = self.records(connection).confirmed_facts(trip_id)?;
-        let resources = self.records(connection).resources(trip_id)?;
-        let resource_texts: Vec<(String, String, String)> = resources
-            .iter()
-            .map(|resource| {
-                (
-                    resource.id.clone(),
-                    resource.title.clone(),
-                    resource_search_text(resource),
-                )
-            })
-            .collect();
-        let searchable_resources: Vec<SearchableResource<'_>> = resource_texts
-            .iter()
-            .map(|(id, title, text)| SearchableResource { id, title, text })
-            .collect();
-
-        let hits = search_trip_corpus(&query, &searchable, &facts, &searchable_resources);
-        Ok(hits
+        // The same corpus `search_trip` ranks, by construction rather than by
+        // a second reading of it: what the traveler can find and what the model
+        // may be grounded in must not be able to drift apart.
+        let corpus = self.trip_corpus(connection, trip_id)?;
+        Ok(corpus
+            .search(&query)
             .into_iter()
             .take(MAX_CHAT_CONTEXT_RECORDS)
             .filter_map(|hit| {
-                let excerpt = match hit.source {
-                    SearchHitSource::Resource => resource_texts
-                        .iter()
-                        .find(|(id, _, _)| *id == hit.record_id)
-                        .map(|(_, _, text)| text.clone()),
-                    SearchHitSource::Document => documents
-                        .iter()
-                        .find(|(id, _, _)| *id == hit.record_id)
-                        .map(|(_, _, content)| content.clone()),
-                    // A confirmed fact is already in the redacted itinerary
-                    // baseline; quoting it again would only spend context.
-                    SearchHitSource::ConfirmedFact => None,
-                }?;
+                // A confirmed fact yields no stored text, and is already in the
+                // redacted itinerary baseline; quoting it would only spend
+                // context.
+                let excerpt = corpus.stored_text(&hit)?;
                 Some(OwnedChatContext {
                     source: hit.source,
                     record_id: hit.record_id,

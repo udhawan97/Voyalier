@@ -82,7 +82,12 @@ function TripCard({
       </div>
       <div className="voy-tripcard__actions">
         {trip.status === "archived" ? (
-          <Button variant="ghost" onClick={() => onUnarchive(trip)} busy={busy}>
+          <Button
+            variant="ghost"
+            onClick={() => onUnarchive(trip)}
+            busy={busy}
+            aria-label={t("tripcard.unarchiveTrip", { title: trip.title })}
+          >
             {t("tripcard.unarchive")}
           </Button>
         ) : (
@@ -91,11 +96,16 @@ function TripCard({
             onClick={() => onArchive(trip)}
             busy={busy}
             icon={<ArchiveIcon />}
+            aria-label={t("tripcard.archiveTrip", { title: trip.title })}
           >
             {t("tripcard.archive")}
           </Button>
         )}
-        <Button variant="ghost" onClick={() => onDelete(trip)}>
+        <Button
+          variant="ghost"
+          onClick={() => onDelete(trip)}
+          aria-label={t("tripcard.deleteTrip", { title: trip.title })}
+        >
           {t("tripcard.delete")}
         </Button>
       </div>
