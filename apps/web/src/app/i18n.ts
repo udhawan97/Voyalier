@@ -204,6 +204,12 @@ const en = {
   "tripcard.archive": "Archive",
   "tripcard.unarchive": "Unarchive",
   "tripcard.delete": "Delete",
+  // The card's controls repeat once per trip, so the visible word alone is not
+  // an answer to "which trip". Each accessible name opens with the visible
+  // label so it still satisfies Label in Name.
+  "tripcard.archiveTrip": "Archive {title}",
+  "tripcard.unarchiveTrip": "Unarchive {title}",
+  "tripcard.deleteTrip": "Delete {title}",
   "tripcard.toReview": "to review",
 
   "status.trip.draft": "Draft",
@@ -1818,6 +1824,9 @@ const es: Record<MessageKey, string> = {
   "tripcard.archive": "Archivar",
   "tripcard.unarchive": "Desarchivar",
   "tripcard.delete": "Eliminar",
+  "tripcard.archiveTrip": "Archivar {title}",
+  "tripcard.unarchiveTrip": "Desarchivar {title}",
+  "tripcard.deleteTrip": "Eliminar {title}",
   "tripcard.toReview": "por revisar",
   "status.trip.draft": "Borrador",
   "status.trip.active": "Activo",

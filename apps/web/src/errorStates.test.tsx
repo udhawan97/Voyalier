@@ -149,7 +149,7 @@ describe("AppError rendered states", () => {
     const card = (
       await screen.findByRole("button", { name: "Open Kyoto autumn journey" })
     ).closest("article") as HTMLElement;
-    fireEvent.click(within(card).getByRole("button", { name: "Archive" }));
+    fireEvent.click(within(card).getByRole("button", { name: /^Archive\b/ }));
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Local storage is unavailable");
@@ -164,7 +164,7 @@ describe("AppError rendered states", () => {
       }),
     );
     await openFixtureTrip();
-    fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Archive\b/ }));
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Local storage is unavailable");
@@ -285,7 +285,7 @@ describe("AppError rendered states", () => {
     state.offline = true;
 
     fireEvent.click(
-      (await screen.findAllByRole("button", { name: "Archive" }))[0],
+      (await screen.findAllByRole("button", { name: /^Archive\b/ }))[0],
     );
 
     await screen.findByText("Offline");
@@ -467,7 +467,7 @@ describe("AppError rendered states", () => {
     await openFixtureTrip();
 
     state.offline = true;
-    fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Archive\b/ }));
 
     await screen.findByText("Offline");
     // Scoped to the banner component on purpose. Individual panels below still
@@ -495,7 +495,7 @@ describe("AppError rendered states", () => {
     await openFixtureTrip();
 
     state.offline = true;
-    fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Archive\b/ }));
     await screen.findByText("Offline");
 
     state.offline = false;

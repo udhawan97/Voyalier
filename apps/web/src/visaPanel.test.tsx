@@ -771,8 +771,11 @@ describe("visa cockpit v2", () => {
       endDate: "2027-04-10",
     });
     renderApp(gateway);
+    // Named exactly, the way `openVisaFor` does: every control on the card now
+    // carries the trip title, so a bare /Paris scouting/ matches Open, Archive
+    // and Delete alike.
     fireEvent.click(
-      await screen.findByRole("button", { name: /Paris scouting/ }),
+      await screen.findByRole("button", { name: "Abrir Paris scouting" }),
     );
     await screen.findByRole("heading", { name: "Paris scouting", level: 1 });
     const region = await screen.findByRole("region", {
