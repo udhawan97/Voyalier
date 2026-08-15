@@ -6,6 +6,41 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.10.8] - 2026-08-15 — Say which one
+
+A maintenance release: one accessibility fix travelers will hear, and two
+internal consolidations they will not notice. Nothing here changes what
+Voyalier claims or how any number is calculated.
+
+### Fixed
+
+- **Every control on a trip card now says which trip it acts on.** Archive and
+  Delete were labelled with the bare verb, so a screen reader moving through a
+  workspace of several trips heard "Archive, Delete, Archive, Delete" with
+  nothing to tell them apart — while Open beside them had carried the trip's
+  name all along. The visible labels are unchanged. This does not make either
+  action safer, and is not meant to: deleting a trip already required typing a
+  word into a dialog that names it, and archiving is still undone from the
+  banner that follows it.
+
+### Changed
+
+- **A trip's searchable records now have one definition.** What the traveler can
+  find by searching a trip and what an on-device model may be grounded in were
+  assembled separately, which left room for the two to drift. They are now the
+  same corpus by construction. Transcripts stay out of it: an earlier answer
+  still cannot be retrieved as local knowledge.
+
+- **The journey-leg time rule is written once instead of three times.** No
+  behaviour changes. A journey whose arrival reads earlier than its departure is
+  still recorded as given and still keeps its connection in the disruption plan
+  — an eastbound crossing of the date line is an ordinary itinerary, and these
+  are naive local times with no zone to judge them against.
+
+- **Dependencies.** Twelve JavaScript and four Rust minor and patch updates
+  ride along in this release. `pnpm audit --prod` reports no known
+  vulnerabilities.
+
 ## [0.10.7] - 2026-08-13 — The next step carries you back
 
 This release closes the remaining continuity gaps in the current-source
