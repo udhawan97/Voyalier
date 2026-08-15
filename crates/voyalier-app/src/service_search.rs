@@ -8,40 +8,99 @@
 use super::*;
 use crate::service_chat::resource_search_text;
 
+/// Everything one trip's local search reads, owned so the borrowed views the
+/// core search takes can be built from it.
+///
+/// The three reads and their borrow-shaping were written twice: once for
+/// `search_trip`, once for `chat_context` — and `chat_context` is what decides
+/// which local records the on-device model may be grounded in. Two statements
+/// of "what is in this trip's corpus" is two answers to a question that has
+/// one: a record kind added to one copy becomes searchable but not citable, or
+/// citable but never surfaced to the traveler who owns it.
+///
+/// The lifetimes are why it was copied rather than extracted — the views
+/// borrow from these buffers, so a helper that returns the views cannot also
+/// own what they point at. So the corpus owns the buffers and lends the views.
+pub(crate) struct TripCorpus {
+    documents: Vec<(String, String, String)>,
+    facts: Vec<ConfirmedFact>,
+    resources: Vec<(String, String, String)>,
+}
+
+impl TripCorpus {
+    fn document_views(&self) -> Vec<SearchableDocument<'_>> {
+        self.documents
+            .iter()
+            .map(|(id, label, content)| SearchableDocument { id, label, content })
+            .collect()
+    }
+
+    fn resource_views(&self) -> Vec<SearchableResource<'_>> {
+        self.resources
+            .iter()
+            .map(|(id, title, text)| SearchableResource { id, title, text })
+            .collect()
+    }
+
+    /// Rank this corpus against a validated query.
+    pub(crate) fn search(&self, query: &str) -> Vec<SearchHit> {
+        search_trip_corpus(
+            query,
+            &self.document_views(),
+            &self.facts,
+            &self.resource_views(),
+        )
+    }
+
+    /// The full stored text behind a hit, when the corpus holds one.
+    ///
+    /// A confirmed fact has none: its searchable text is assembled from the
+    /// fact's own fields rather than stored as a body, so there is nothing to
+    /// quote back that the caller does not already have.
+    pub(crate) fn stored_text(&self, hit: &SearchHit) -> Option<String> {
+        let rows = match hit.source {
+            SearchHitSource::Document => &self.documents,
+            SearchHitSource::Resource => &self.resources,
+            SearchHitSource::ConfirmedFact => return None,
+        };
+        rows.iter()
+            .find(|(id, _, _)| *id == hit.record_id)
+            .map(|(_, _, text)| text.clone())
+    }
+}
+
 impl AppService {
+    /// Read one trip's searchable corpus. The single place that decides what a
+    /// trip's local records are for both search and chat grounding.
+    pub(crate) fn trip_corpus(
+        &self,
+        connection: &Connection,
+        trip_id: &str,
+    ) -> Result<TripCorpus, AppError> {
+        let records = self.records(connection);
+        Ok(TripCorpus {
+            documents: records.trip_document_texts(trip_id)?,
+            facts: records.confirmed_facts(trip_id)?,
+            resources: records
+                .resources(trip_id)?
+                .iter()
+                .map(|resource| {
+                    (
+                        resource.id.clone(),
+                        resource.title.clone(),
+                        resource_search_text(resource),
+                    )
+                })
+                .collect(),
+        })
+    }
     /// Deterministic search over this trip's stored documents and confirmed
     /// facts. Purely local; ranking is transparent occurrence counting.
     pub fn search_trip(&self, trip_id: &str, query: &str) -> Result<Vec<SearchHit>, AppError> {
         let query = validate_search_query(query)?;
         let connection = self.connection()?;
         self.records(&connection).trip(trip_id)?;
-        let documents = self.records(&connection).trip_document_texts(trip_id)?;
-        let searchable: Vec<SearchableDocument<'_>> = documents
-            .iter()
-            .map(|(id, label, content)| SearchableDocument { id, label, content })
-            .collect();
-        let facts = self.records(&connection).confirmed_facts(trip_id)?;
-        let resources = self.records(&connection).resources(trip_id)?;
-        let resource_texts: Vec<(String, String, String)> = resources
-            .iter()
-            .map(|resource| {
-                (
-                    resource.id.clone(),
-                    resource.title.clone(),
-                    resource_search_text(resource),
-                )
-            })
-            .collect();
-        let searchable_resources: Vec<SearchableResource<'_>> = resource_texts
-            .iter()
-            .map(|(id, title, text)| SearchableResource { id, title, text })
-            .collect();
-        Ok(search_trip_corpus(
-            &query,
-            &searchable,
-            &facts,
-            &searchable_resources,
-        ))
+        Ok(self.trip_corpus(&connection, trip_id)?.search(&query))
     }
 
     /// Search traveler-visible local records across every trip. Pending parser
