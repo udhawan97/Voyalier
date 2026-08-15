@@ -28,7 +28,7 @@ use jiff::civil::DateTime;
 use serde::{Deserialize, Serialize};
 
 use crate::airports::NearbyAirport;
-use crate::itinerary::fact_label;
+use crate::itinerary::{fact_label, leg_times};
 use crate::missions::{Mission, MissionKind};
 use crate::types::{ConfirmedFact, FactLabel, FactType};
 
@@ -198,16 +198,23 @@ pub fn build_disruption_plan(
 /// Legs of the requested kinds whose two times both parse, in departure order.
 ///
 /// A missing or unreadable time yields no leg rather than an assumed one — the
-/// rule the itinerary checks already follow.
+/// parse rule the itinerary checks follow, now by calling `leg_times` rather
+/// than by restating it.
+///
+/// An arrival before its own departure is kept, on purpose. The itinerary
+/// checks drop it because an inverted interval breaks their overlap
+/// arithmetic; slack here is measured between two *different* legs at one
+/// airport, so an eastbound date-line crossing still yields the right number.
 fn legs_of(facts: &[ConfirmedFact], wanted: impl Fn(FactType) -> bool) -> Vec<Leg<'_>> {
     let mut legs: Vec<Leg<'_>> = facts
         .iter()
         .filter(|fact| wanted(fact.fact_type))
         .filter_map(|fact| {
+            let (departure, arrival) = leg_times(fact)?;
             Some(Leg {
                 fact,
-                departure: parse_datetime(fact.payload.departure_local.as_deref()?)?,
-                arrival: parse_datetime(fact.payload.arrival_local.as_deref()?)?,
+                departure,
+                arrival,
             })
         })
         .collect();
@@ -418,10 +425,6 @@ fn minutes_between(from: DateTime, to: DateTime) -> i64 {
         .unwrap_or(0)
 }
 
-fn parse_datetime(value: &str) -> Option<DateTime> {
-    value.trim().parse::<DateTime>().ok()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -463,6 +466,38 @@ mod tests {
     fn an_empty_trip_yields_an_empty_plan() {
         let plan = build_disruption_plan(&[], DisruptionContext::default());
         assert!(plan.is_empty());
+    }
+
+    #[test]
+    fn a_date_line_crossing_still_carries_its_connection() {
+        // An eastbound crossing lands at a local wall clock earlier than the
+        // one it left. `validate_journey_times` records it deliberately, and
+        // the slack out of it is measured against the *next* leg's departure
+        // at the same airport, so the number is right even though the leg
+        // reads backwards. The itinerary checks drop such a leg for their own
+        // reason (interval arithmetic); that filter must not travel here.
+        let facts = [
+            leg(
+                "fact_qf11",
+                FactType::FlightSegment,
+                "2026-08-03T09:50",
+                "2026-08-03T06:25",
+            ),
+            leg(
+                "fact_aa118",
+                FactType::FlightSegment,
+                "2026-08-03T11:00",
+                "2026-08-03T19:20",
+            ),
+        ];
+        let plan = build_disruption_plan(&facts, DisruptionContext::default());
+        let connection = plan
+            .handoffs
+            .iter()
+            .find(|handoff| handoff.from_fact_id == "fact_qf11")
+            .expect("the crossing keeps its hand-off");
+        assert_eq!(connection.to_fact_id, "fact_aa118");
+        assert_eq!(connection.slack_minutes, 275);
     }
 
     #[test]

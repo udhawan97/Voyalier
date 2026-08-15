@@ -71,26 +71,7 @@ pub fn detect_planned_item_conflicts(
             }
         }
     }
-    // Every scheduled service, not only flights: an activity booked during a
-    // confirmed ferry crossing is the same notice as one booked during a flight.
-    // A hire car is excluded for the reason `flight_overlaps` gives.
-    let flights: Vec<(&ConfirmedFact, DateTime, DateTime)> = facts
-        .iter()
-        .filter(|fact| fact.fact_type.is_journey() && fact.fact_type != FactType::CarRental)
-        .filter_map(|fact| {
-            let departure = fact
-                .payload
-                .departure_local
-                .as_deref()
-                .and_then(parse_datetime)?;
-            let arrival = fact
-                .payload
-                .arrival_local
-                .as_deref()
-                .and_then(parse_datetime)?;
-            (arrival >= departure).then_some((fact, departure, arrival))
-        })
-        .collect();
+    let flights = scheduled_legs(facts);
     for item in timed {
         let Some(item_start) = item.start_at.as_deref().and_then(parse_datetime) else {
             continue;
@@ -121,6 +102,46 @@ pub fn detect_planned_item_conflicts(
     conflicts
 }
 
+/// The two times of a journey fact, when both are readable.
+///
+/// The parse half of the leg rule, and only that half. It was written three
+/// times — twice here, once in `contingency::legs_of` — along with a
+/// byte-identical `parse_datetime` in each module.
+///
+/// Deliberately no "arrival before departure" rule here, matching
+/// `validate_journey_times`: an eastbound crossing of the date line lands at a
+/// local wall clock earlier than the one it left, and these are naive local
+/// times with no zone to resolve it against, so an inverted pair is ordinary
+/// evidence rather than a malformed record. The overlap checks below apply
+/// that ordering filter for their own reason — an inverted interval breaks
+/// interval-overlap arithmetic — and the disruption plan deliberately does
+/// not, because slack between two legs is measured at one airport in one zone
+/// and stays correct across such a crossing.
+pub(crate) fn leg_times(fact: &ConfirmedFact) -> Option<(DateTime, DateTime)> {
+    let departure = parse_datetime(fact.payload.departure_local.as_deref()?)?;
+    let arrival = parse_datetime(fact.payload.arrival_local.as_deref()?)?;
+    Some((departure, arrival))
+}
+
+/// Every scheduled service, not only flights: an activity booked during a
+/// confirmed ferry crossing is the same notice as one booked during a flight.
+/// A hire car is excluded for the reason `flight_overlaps` gives.
+///
+/// The `arrival >= departure` filter belongs to these two checks alone: both
+/// treat a leg as a closed interval, and an inverted interval would report
+/// overlaps that are not there. It is not a judgement that the evidence is
+/// wrong, and it deliberately does not travel to the disruption plan.
+fn scheduled_legs(facts: &[ConfirmedFact]) -> Vec<(&ConfirmedFact, DateTime, DateTime)> {
+    facts
+        .iter()
+        .filter(|fact| fact.fact_type.is_journey() && fact.fact_type != FactType::CarRental)
+        .filter_map(|fact| {
+            let (departure, arrival) = leg_times(fact)?;
+            (arrival >= departure).then_some((fact, departure, arrival))
+        })
+        .collect()
+}
+
 /// Two things that both carry the traveler somewhere cannot run at once.
 ///
 /// Scheduled services only — flights, rail, coach, ferry. A hire car is
@@ -131,23 +152,7 @@ pub fn detect_planned_item_conflicts(
 /// as it did before surface legs existed; any pair involving a surface journey
 /// reports as `JourneyOverlap` so an interface can name the right nouns.
 fn flight_overlaps(facts: &[ConfirmedFact]) -> Vec<ItineraryConflict> {
-    let scheduled: Vec<(&ConfirmedFact, DateTime, DateTime)> = facts
-        .iter()
-        .filter(|fact| fact.fact_type.is_journey() && fact.fact_type != FactType::CarRental)
-        .filter_map(|fact| {
-            let departure = fact
-                .payload
-                .departure_local
-                .as_deref()
-                .and_then(parse_datetime)?;
-            let arrival = fact
-                .payload
-                .arrival_local
-                .as_deref()
-                .and_then(parse_datetime)?;
-            (arrival >= departure).then_some((fact, departure, arrival))
-        })
-        .collect();
+    let scheduled = scheduled_legs(facts);
 
     let mut conflicts = Vec::new();
     for left_index in 0..scheduled.len() {
