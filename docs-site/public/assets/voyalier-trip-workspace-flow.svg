@@ -1,16 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 840" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="840" viewBox="0 0 1440 840" role="img" aria-labelledby="title desc">
   <title id="title">The Voyalier trip route</title>
   <desc id="desc">A folded route connects source, review, plan, prepare, and travel day. Optional AI branches away from the core path and rejoins only through traveler review.</desc>
   <style>
-    :root { --paper: oklch(18.7% .008 78); --raised: oklch(22% .01 78); --ink: oklch(94.8% .014 87); --muted: oklch(72% .013 87); --line: oklch(35% .012 78); --indigo: oklch(70% .04 257); --accent: oklch(69% .13 35); --accent-soft: oklch(69% .13 35 / .16); }
-    .paper { fill: var(--paper); } .raised { fill: var(--raised); } .rule { stroke: var(--line); }
-    .route { fill: none; stroke: var(--indigo); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
-    .route-dash { fill: none; stroke: var(--line); stroke-width: 2; stroke-dasharray: 9 12; }
-    .stop { fill: var(--paper); stroke: var(--indigo); stroke-width: 4; } .waypoint { fill: var(--accent); }
-    .label { fill: var(--muted); font: 500 17px "Zen Kaku Gothic New", sans-serif; letter-spacing: .12em; }
-    .title { fill: var(--ink); font: 600 34px "Shippori Mincho", serif; }
-    .body { fill: var(--muted); font: 400 20px "Zen Kaku Gothic New", sans-serif; }
-    .small { fill: var(--muted); font: 500 16px "Zen Kaku Gothic New", sans-serif; }
+    .paper { fill: #171614; } .raised { fill: #1e1c19; } .rule { stroke: #4d4942; }
+    .route { fill: none; stroke: #93a0b8; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+    .route-dash { fill: none; stroke: #a9a69c; stroke-opacity: .55; stroke-width: 2; stroke-linecap: round; stroke-dasharray: 9 12; stroke-dashoffset: 9; }
+    .stop { fill: #171614; stroke: #93a0b8; stroke-width: 4; } .waypoint { fill: #d97a5f; }
+    .label { fill: #a9a69c; font: 500 17px "Zen Kaku Gothic New", sans-serif; letter-spacing: .12em; }
+    .title { fill: #f2ede1; font: 600 34px "Shippori Mincho", serif; }
+    .body { fill: #a9a69c; font: 400 20px "Zen Kaku Gothic New", sans-serif; }
+    .small { fill: #a9a69c; font: 500 16px "Zen Kaku Gothic New", sans-serif; }
   </style>
   <rect class="paper" width="1440" height="840" rx="36" />
   <path class="rule" d="M82 84H1358" />
@@ -24,14 +23,14 @@
     <circle class="stop" cx="1006" cy="410" r="14" /><circle class="waypoint" cx="1006" cy="410" r="5" />
     <circle class="stop" cx="1320" cy="410" r="14" /><circle class="waypoint" cx="1320" cy="410" r="5" />
   </g>
+  <path class="route-dash" d="M422 410C390 446 330 458 330 520V600C330 662 520 700 650 700" />
   <g>
     <text class="label" x="82" y="318">SOURCE</text><text class="title" x="82" y="470">Bring it in</text><text class="body" x="82" y="506">Paste, email, HTML,</text><text class="body" x="82" y="536">or a local file.</text>
-    <text class="label" x="360" y="362">REVIEW</text><text class="title" x="360" y="520">Compare it</text><text class="body" x="360" y="556">Candidate beside</text><text class="body" x="360" y="586">quoted evidence.</text>
+    <text class="label" x="360" y="334">REVIEW</text><text class="title" x="360" y="520">Compare it</text><text class="body" x="360" y="556">Candidate beside</text><text class="body" x="360" y="586">quoted evidence.</text>
     <text class="label" x="656" y="318">PLAN</text><text class="title" x="656" y="470">Confirm it</text><text class="body" x="656" y="506">Rules find overlaps,</text><text class="body" x="656" y="536">gaps, and unknowns.</text>
-    <text class="label" x="944" y="362">PREPARE</text><text class="title" x="944" y="520">Carry it</text><text class="body" x="944" y="556">Packs, checks, notes,</text><text class="body" x="944" y="586">and a redacted brief.</text>
+    <text class="label" x="944" y="334">PREPARE</text><text class="title" x="944" y="520">Carry it</text><text class="body" x="944" y="556">Packs, checks, notes,</text><text class="body" x="944" y="586">and a redacted brief.</text>
     <text class="label" x="1254" y="362">GO</text><text class="title" x="1204" y="520">Use Today</text><text class="body" x="1172" y="556">Local, stable, and</text><text class="body" x="1172" y="586">quiet under pressure.</text>
   </g>
-  <path class="route-dash" d="M422 410C500 690 788 720 890 610" />
   <rect class="raised rule" x="650" y="644" width="420" height="112" rx="22" />
   <circle class="waypoint" cx="686" cy="680" r="6" />
   <text class="label" x="708" y="685">OPTIONAL AI · SIDE LANE</text>
