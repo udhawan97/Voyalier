@@ -15,19 +15,9 @@ use crate::{
     AddManualFactInput, AppError, CandidateFact, CandidateStatus, ConfirmCandidateInput,
     ConfirmedFact, CreateTripInput, DocumentKind, ErrorCode, ExtractionMethod, FactPayload,
     FactType, FieldSpan, HealthResponse, ImportDocumentInput, ImportResult, IntelligenceMode,
-    ReadinessStatus, SourceDocument, Trip, TripDraft, TripStatus, WarningCode,
-    changed_payload_fields, new_id, schema_validation::SchemaSet, validate_create_trip,
-    validate_fact_payload,
+    ReadinessStatus, SourceDocument, Trip, TripStatus, WarningCode, changed_payload_fields, new_id,
+    schema_validation::SchemaSet, validate_create_trip, validate_fact_payload,
 };
-
-#[test]
-fn creates_a_trimmed_trip_draft() {
-    let trip =
-        TripDraft::new(" Chicago ", " Kyoto ", "2027-04-01", "2027-04-10").expect("valid trip");
-
-    assert_eq!(trip.origin, "Chicago");
-    assert_eq!(trip.destination, "Kyoto");
-}
 
 #[test]
 fn data_source_register_has_unique_rows_and_a_pinned_count() {
@@ -114,16 +104,39 @@ fn data_source_register_has_unique_rows_and_a_pinned_count() {
 
 #[test]
 fn rejects_a_missing_destination() {
-    let error = TripDraft::new("Chicago", " ", "2027-04-01", "2027-04-10")
-        .expect_err("destination must be required");
+    let error = validate_create_trip(CreateTripInput {
+        title: None,
+        origin: "Chicago".to_owned(),
+        destination: " ".to_owned(),
+        start_date: "2027-04-01".to_owned(),
+        end_date: "2027-04-10".to_owned(),
+    })
+    .expect_err("destination must be required");
 
-    assert!(error.to_string().contains("destination"));
+    assert_eq!(error.code, ErrorCode::ValidationInvalidInput);
+    // The interface marks the offending input from this detail, so a message
+    // that merely mentions the word would not be enough to place the error.
+    assert_eq!(
+        error
+            .details
+            .as_ref()
+            .and_then(|details| details.get("field")),
+        Some(&"destination".to_owned())
+    );
 }
 
 #[test]
-fn serializes_trip_draft_with_camel_case_wire_fields() {
-    let trip = TripDraft::new("Chicago", "Kyoto", "2027-04-01", "2027-04-10").expect("trip");
-    let json = serde_json::to_value(trip).expect("serialize trip");
+fn serializes_create_trip_input_with_camel_case_wire_fields() {
+    // ADR-0018: `ValidatedTripInput` never crosses a wire, so the camelCase
+    // guarantee on the create path belongs to the payload a client sends.
+    let json = serde_json::to_value(CreateTripInput {
+        title: None,
+        origin: "Chicago".to_owned(),
+        destination: "Kyoto".to_owned(),
+        start_date: "2027-04-01".to_owned(),
+        end_date: "2027-04-10".to_owned(),
+    })
+    .expect("serialize create trip input");
 
     assert_eq!(json["startDate"], "2027-04-01");
     assert!(json.get("start_date").is_none());
@@ -144,6 +157,7 @@ fn validates_trip_inputs_with_contract_rules() {
     // everywhere else, so a card never shows "A -> B" above the route "A → B".
     assert_eq!(validated.title, "Chicago → Kyoto");
     assert_eq!(validated.origin, "Chicago");
+    assert_eq!(validated.destination, "Kyoto");
 
     let error = validate_create_trip(CreateTripInput {
         title: None,
