@@ -123,6 +123,8 @@ function FactCard({
   const present = fieldsForType(fact.factType).filter(
     (key) => values[key] != null && values[key] !== "",
   );
+  // The card's heading, and the name both of its controls act under.
+  const title = factTitle(fact.factType, fact.payload);
   return (
     <article
       className="voy-fact"
@@ -135,9 +137,7 @@ function FactCard({
           {factIcon(fact.factType)}
         </span>
         <div className="voy-fact__heading">
-          <p className="voy-fact__title">
-            {factTitle(fact.factType, fact.payload)}
-          </p>
+          <p className="voy-fact__title">{title}</p>
           <p className="voy-fact__sub">
             {factSubtitle(fact.factType, fact.payload)}
           </p>
@@ -176,12 +176,14 @@ function FactCard({
         {fact.candidateId === null ? (
           <ConfirmButton
             label={t("detail.remove")}
+            ariaLabel={t("detail.remove.label", { fact: title })}
             onConfirm={() => onUnconfirm(fact)}
             busy={unconfirming}
           />
         ) : (
           <Button
             variant="ghost"
+            aria-label={t("detail.unconfirm.label", { fact: title })}
             onClick={() => onUnconfirm(fact)}
             busy={unconfirming}
           >

@@ -22,7 +22,9 @@ describe("User-flow gap fixes", () => {
       within(factCard).queryByRole("button", { name: "Unconfirm" }),
     ).toBeNull();
     // Remove is a two-step confirm on a manual fact (arm, then confirm).
-    const remove = within(factCard).getByRole("button", { name: "Remove" });
+    const remove = within(factCard).getByRole("button", {
+      name: "Remove Flight FP18",
+    });
     fireEvent.click(remove);
     fireEvent.click(remove);
 

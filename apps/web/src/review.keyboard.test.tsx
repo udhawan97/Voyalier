@@ -180,7 +180,7 @@ describe("candidate review — keyboard", () => {
     const { dialog } = await openReview();
 
     const firstConfirm = within(dialog).getAllByRole("button", {
-      name: "Confirm",
+      name: /^Confirm /,
     })[0];
     fireEvent.click(firstConfirm);
 
@@ -206,7 +206,7 @@ describe("candidate review — keyboard", () => {
 
     for (const remaining of [2, 1]) {
       fireEvent.click(
-        within(dialog).getAllByRole("button", { name: "Confirm" })[0],
+        within(dialog).getAllByRole("button", { name: /^Confirm / })[0],
       );
       await waitFor(() =>
         expect(
@@ -218,7 +218,7 @@ describe("candidate review — keyboard", () => {
     }
 
     fireEvent.click(
-      within(dialog).getAllByRole("button", { name: "Confirm" })[0],
+      within(dialog).getAllByRole("button", { name: /^Confirm / })[0],
     );
     await within(dialog).findByText("All caught up");
     await screen.findByText(
@@ -308,7 +308,7 @@ describe("candidate review — keyboard", () => {
       { target: { value: "flight_segment" } },
     );
     const firstConfirm = within(dialog).getAllByRole("button", {
-      name: "Confirm",
+      name: /^Confirm /,
     })[0];
     fireEvent.click(firstConfirm);
 
@@ -318,7 +318,7 @@ describe("candidate review — keyboard", () => {
       ).toBeInTheDocument(),
     );
     expect(document.activeElement).toBe(
-      within(dialog).getByRole("button", { name: "Confirm" }),
+      within(dialog).getByRole("button", { name: /^Confirm / }),
     );
   });
 
@@ -329,7 +329,7 @@ describe("candidate review — keyboard", () => {
       name: "Extraction method",
     });
     fireEvent.change(method, { target: { value: "inferred" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^Confirm / }));
 
     await within(dialog).findByText("No suggestions match these filters");
     await waitFor(() => expect(document.activeElement).toBe(method));
@@ -351,7 +351,7 @@ describe("candidate review — keyboard", () => {
       name: "Extraction method",
     });
     fireEvent.change(method, { target: { value: "inferred" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^Confirm / }));
 
     const errorTitle = await within(dialog).findByText("Already resolved");
     expect(errorTitle.closest("li")).not.toHaveAttribute("hidden");

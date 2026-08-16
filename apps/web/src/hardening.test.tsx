@@ -80,15 +80,15 @@ describe("review hardening", () => {
     const flightCard = cardByTitle(dialog, "Flight NS204");
 
     fireEvent.click(
-      within(flightCard).getByRole("button", { name: "Confirm" }),
+      within(flightCard).getByRole("button", { name: /^Confirm / }),
     );
 
     // Mid-flight: the sibling actions must not be clickable.
     expect(
-      within(flightCard).getByRole("button", { name: "Dismiss" }),
+      within(flightCard).getByRole("button", { name: /^Dismiss / }),
     ).toBeDisabled();
     expect(
-      within(flightCard).getByRole("button", { name: "Edit & confirm" }),
+      within(flightCard).getByRole("button", { name: /^Edit & confirm / }),
     ).toBeDisabled();
 
     // Let it settle so the queue shrinks and no act() warning leaks.
@@ -106,17 +106,17 @@ describe("review hardening", () => {
     // Put the second card (lodging) into edit mode first.
     const lodgingCard = cardByTitle(dialog, "Maple Lantern House");
     fireEvent.click(
-      within(lodgingCard).getByRole("button", { name: "Edit & confirm" }),
+      within(lodgingCard).getByRole("button", { name: /^Edit & confirm / }),
     );
     const saveButton = within(lodgingCard).getByRole("button", {
-      name: "Save & confirm",
+      name: /^Save & confirm /,
     });
 
     // Resolve the first card; focus should land on the next card's primary
     // button, which is now "Save & confirm" (not a missing "Confirm").
     const flightCard = cardByTitle(dialog, "Flight NS204");
     fireEvent.click(
-      within(flightCard).getByRole("button", { name: "Confirm" }),
+      within(flightCard).getByRole("button", { name: /^Confirm / }),
     );
 
     await waitFor(() => expect(document.activeElement).toBe(saveButton));

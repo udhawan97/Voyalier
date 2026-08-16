@@ -106,7 +106,7 @@ describe("AppError rendered states", () => {
       name: "Review suggestions",
     });
     fireEvent.click(
-      within(dialog).getAllByRole("button", { name: "Confirm" })[0],
+      within(dialog).getAllByRole("button", { name: /^Confirm / })[0],
     );
     expect(
       await within(dialog).findByText("This suggestion is no longer here"),
@@ -131,7 +131,7 @@ describe("AppError rendered states", () => {
     });
     // Dismiss is a two-step confirm: arm, then confirm.
     const dismiss = within(dialog).getAllByRole("button", {
-      name: "Dismiss",
+      name: /^Dismiss /,
     })[0];
     fireEvent.click(dismiss);
     fireEvent.click(dismiss);
@@ -182,7 +182,9 @@ describe("AppError rendered states", () => {
     ) as HTMLElement;
     // FP18 is a hand-entered (manual) fact, so the action is a "Remove" that
     // takes a two-step confirm (arm, then confirm).
-    const remove = within(factCard).getByRole("button", { name: "Remove" });
+    const remove = within(factCard).getByRole("button", {
+      name: "Remove Flight FP18",
+    });
     fireEvent.click(remove);
     fireEvent.click(remove);
     expect(

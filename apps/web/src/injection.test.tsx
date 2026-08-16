@@ -29,10 +29,10 @@ describe("untrusted excerpt inertness", () => {
     // The candidate is still treated as data: its actions remain available.
     const injectionCard = excerpt.closest("li") as HTMLElement;
     expect(
-      within(injectionCard).getByRole("button", { name: "Confirm" }),
+      within(injectionCard).getByRole("button", { name: /^Confirm / }),
     ).toBeInTheDocument();
     expect(
-      within(injectionCard).getByRole("button", { name: "Dismiss" }),
+      within(injectionCard).getByRole("button", { name: /^Dismiss / }),
     ).toBeInTheDocument();
   });
 
