@@ -809,7 +809,14 @@ describe("visa cockpit v2", () => {
       name: /Fetch current published times/,
     });
     if (fetchButton) fireEvent.click(fetchButton);
-    await waitFor(async () => expect(await findA11yViolations()).toEqual([]));
+    // The retry is for the fetch above settling, but each attempt is a full-body
+    // axe scan of the longest page in the app, which on its own costs about the
+    // default one-second budget — so on a loaded machine this timed out before
+    // finishing a single pass and reported it as a failure. The budget has to
+    // fit a scan, not just a re-render.
+    await waitFor(async () => expect(await findA11yViolations()).toEqual([]), {
+      timeout: 10_000,
+    });
   });
 });
 
