@@ -41,11 +41,19 @@ describe("imported documents", () => {
     const kyoto = await within(region).findByText("Kyoto confirmations");
     const row = kyoto.closest(".voy-doc") as HTMLElement;
 
-    fireEvent.click(within(row).getByRole("button", { name: "Show original" }));
+    fireEvent.click(
+      within(row).getByRole("button", {
+        name: "Show original of Kyoto confirmations",
+      }),
+    );
     // The stored body comes back verbatim — that is the whole point.
     expect(await within(row).findByText(/KY7M2Q/)).toBeInTheDocument();
 
-    fireEvent.click(within(row).getByRole("button", { name: "Hide original" }));
+    fireEvent.click(
+      within(row).getByRole("button", {
+        name: "Hide original of Kyoto confirmations",
+      }),
+    );
     expect(within(row).queryByText(/KY7M2Q/)).toBeNull();
   });
 
@@ -65,11 +73,15 @@ describe("imported documents", () => {
     const row = kyoto.closest(".voy-doc") as HTMLElement;
 
     // First click arms; it must not delete on a single click.
-    fireEvent.click(within(row).getByRole("button", { name: "Remove" }));
+    fireEvent.click(
+      within(row).getByRole("button", { name: "Remove Kyoto confirmations" }),
+    );
     expect(screen.getByText("Kyoto confirmations")).toBeInTheDocument();
 
     fireEvent.click(
-      within(row).getByRole("button", { name: "Remove — sure?" }),
+      within(row).getByRole("button", {
+        name: "Remove Kyoto confirmations — sure?",
+      }),
     );
     await waitFor(() =>
       expect(screen.queryByText("Kyoto confirmations")).toBeNull(),
@@ -92,9 +104,13 @@ describe("imported documents", () => {
     const row = kyoto.closest(".voy-doc") as HTMLElement;
     expect(within(row).getByText(/1 confirmed/)).toBeInTheDocument();
 
-    fireEvent.click(within(row).getByRole("button", { name: "Remove" }));
     fireEvent.click(
-      within(row).getByRole("button", { name: "Remove — sure?" }),
+      within(row).getByRole("button", { name: "Remove Kyoto confirmations" }),
+    );
+    fireEvent.click(
+      within(row).getByRole("button", {
+        name: "Remove Kyoto confirmations — sure?",
+      }),
     );
 
     // The fact survives — the traveler approved it — but the UI admits its

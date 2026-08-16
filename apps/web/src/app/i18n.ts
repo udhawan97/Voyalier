@@ -440,6 +440,14 @@ const en = {
   "review.confirm": "Confirm",
   "review.editConfirm": "Edit & confirm",
   "review.dismiss": "Dismiss",
+  // One card per candidate, five verbs repeated down the queue. Confirming the
+  // wrong one writes a fact into the trip, so each name says which suggestion
+  // it acts on; each opens with its visible label to keep Label in Name.
+  "review.cancelEdit.label": "Cancel edit of {fact}",
+  "review.saveConfirm.label": "Save & confirm {fact}",
+  "review.confirm.label": "Confirm {fact}",
+  "review.editConfirm.label": "Edit & confirm {fact}",
+  "review.dismiss.label": "Dismiss {fact}",
   "review.empty.title": "All caught up",
   "review.empty.body": "Every suggestion has been confirmed or dismissed.",
   "review.filters.label": "Review filters",
@@ -467,6 +475,7 @@ const en = {
   "providers.keyRejected": "That API key was rejected. Check it and try again.",
   "providers.stored": "API key stored in your keychain.",
   "providers.removeKey": "Remove key",
+  "providers.removeKey.label": "Remove key for {provider}",
   "providers.apiKey": "{provider} API key",
   "providers.apiKey.placeholder": "Paste your API key",
   "providers.saveKey": "Save key",
@@ -474,6 +483,7 @@ const en = {
   "providers.model.label": "{provider} model",
   "providers.model.placeholder": "Model (optional)",
   "providers.saveModel": "Save model",
+  "providers.saveModel.label": "Save model for {provider}",
   "providers.announce.keyRemoved": "{provider} key removed.",
   "providers.announce.keySaved": "{provider} key saved.",
   "providers.announce.keyVerified": "{provider} key saved and verified.",
@@ -539,7 +549,9 @@ const en = {
   "packs.browse": "Browse city packs",
   "packs.layers.aria": "{name} data layers",
   "packs.remove": "Remove",
+  "packs.remove.label": "Remove {name}",
   "packs.download": "Download for this trip",
+  "packs.download.label": "Download for this trip: {name}",
   "packs.includesOfflineMap":
     "Includes a verified offline map download; size varies by city.",
   "packs.scope":
@@ -571,6 +583,9 @@ const en = {
   "recs.preset.explorer": "Explorer",
   "recs.save": "Save place",
   "recs.savedAlready": "Saved",
+  // The control keeps its place once used, so both states need the name.
+  "recs.save.label": "Save place {name}",
+  "recs.savedAlready.label": "Saved {name}",
   "recs.saved": "Saved {name} to this trip.",
   "recs.interests.save": "Save interests",
   "recs.interests.unsaved": "Interests not saved",
@@ -1091,6 +1106,11 @@ const en = {
   "detail.edited": "Edited before confirming: {fields}",
   "detail.unconfirm": "Back to review",
   "detail.remove": "Remove",
+  // One of these per confirmed fact, in a card structured like a trip card.
+  // Remove is the irreversible one — a hand-typed fact, or one whose source
+  // document is already gone — so the name has to say which fact it destroys.
+  "detail.unconfirm.label": "Back to review: {fact}",
+  "detail.remove.label": "Remove {fact}",
   "detail.announce.archived": "Trip archived.",
   "detail.announce.unconfirmed": "{fact} moved back to review.",
   "detail.announce.removed": "{fact} removed.",
@@ -1450,8 +1470,11 @@ const en = {
   "documents.counts.confirmed.other": "{count} confirmed",
   "documents.view": "Show original",
   "documents.hide": "Hide original",
+  "documents.view.label": "Show original of {label}",
+  "documents.hide.label": "Hide original of {label}",
   "documents.viewError": "Couldn't open that document.",
   "documents.remove": "Remove",
+  "documents.remove.label": "Remove {label}",
   "documents.removeError": "Couldn't remove that document.",
   "documents.removed": "Removed {label}.",
   // Said before deleting, because the consequences differ per candidate state
@@ -2048,6 +2071,11 @@ const es: Record<MessageKey, string> = {
   "review.confirm": "Confirmar",
   "review.editConfirm": "Editar y confirmar",
   "review.dismiss": "Descartar",
+  "review.cancelEdit.label": "Cancelar edición de {fact}",
+  "review.saveConfirm.label": "Guardar y confirmar {fact}",
+  "review.confirm.label": "Confirmar {fact}",
+  "review.editConfirm.label": "Editar y confirmar {fact}",
+  "review.dismiss.label": "Descartar {fact}",
   "review.empty.title": "Todo al día",
   "review.empty.body":
     "Todas las sugerencias han sido confirmadas o descartadas.",
@@ -2077,6 +2105,7 @@ const es: Record<MessageKey, string> = {
     "Esa clave de API fue rechazada. Revísala e inténtalo de nuevo.",
   "providers.stored": "Clave API guardada en tu llavero.",
   "providers.removeKey": "Eliminar clave",
+  "providers.removeKey.label": "Eliminar clave de {provider}",
   "providers.apiKey": "Clave API de {provider}",
   "providers.apiKey.placeholder": "Pega tu clave API",
   "providers.saveKey": "Guardar clave",
@@ -2085,6 +2114,7 @@ const es: Record<MessageKey, string> = {
   "providers.model.label": "Modelo de {provider}",
   "providers.model.placeholder": "Modelo (opcional)",
   "providers.saveModel": "Guardar modelo",
+  "providers.saveModel.label": "Guardar modelo de {provider}",
   "providers.announce.keyRemoved": "Clave de {provider} eliminada.",
   "providers.announce.keySaved": "Clave de {provider} guardada.",
   "providers.announce.keyVerified":
@@ -2150,7 +2180,9 @@ const es: Record<MessageKey, string> = {
   "packs.browse": "Explorar paquetes de ciudades",
   "packs.layers.aria": "Capas de datos de {name}",
   "packs.remove": "Eliminar",
+  "packs.remove.label": "Eliminar {name}",
   "packs.download": "Descargar para este viaje",
+  "packs.download.label": "Descargar para este viaje: {name}",
   "packs.includesOfflineMap":
     "Incluye una descarga verificada de mapa sin conexión; el tamaño varía según la ciudad.",
   "packs.scope":
@@ -2181,6 +2213,8 @@ const es: Record<MessageKey, string> = {
   "recs.preset.explorer": "Explorador",
   "recs.save": "Guardar lugar",
   "recs.savedAlready": "Guardado",
+  "recs.save.label": "Guardar lugar {name}",
+  "recs.savedAlready.label": "Guardado {name}",
   "recs.saved": "Se guardó {name} en este viaje.",
   "recs.interests.save": "Guardar intereses",
   "recs.interests.unsaved": "Intereses no guardados",
@@ -2690,6 +2724,8 @@ const es: Record<MessageKey, string> = {
   "detail.edited": "Editado antes de confirmar: {fields}",
   "detail.unconfirm": "Volver a revisar",
   "detail.remove": "Eliminar",
+  "detail.unconfirm.label": "Volver a revisar: {fact}",
+  "detail.remove.label": "Eliminar {fact}",
   "detail.announce.archived": "Viaje archivado.",
   "detail.announce.unconfirmed": "{fact} volvió a revisión.",
   "detail.announce.removed": "{fact} eliminado.",
@@ -3022,8 +3058,11 @@ const es: Record<MessageKey, string> = {
   "documents.counts.confirmed.other": "{count} confirmados",
   "documents.view": "Mostrar original",
   "documents.hide": "Ocultar original",
+  "documents.view.label": "Mostrar original de {label}",
+  "documents.hide.label": "Ocultar original de {label}",
   "documents.viewError": "No se pudo abrir ese documento.",
   "documents.remove": "Eliminar",
+  "documents.remove.label": "Eliminar {label}",
   "documents.removeError": "No se pudo eliminar ese documento.",
   "documents.removed": "Se eliminó {label}.",
   "documents.removeWarning.pending.one":

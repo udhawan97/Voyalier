@@ -58,7 +58,7 @@ describe("AI providers (BYOK)", () => {
     expect(within(region).queryByText(/sk-secret-value/)).toBeNull();
     // A remove control replaces the input.
     expect(
-      within(openaiRow).getByRole("button", { name: "Remove key" }),
+      within(openaiRow).getByRole("button", { name: "Remove key for OpenAI" }),
     ).toBeInTheDocument();
   });
 

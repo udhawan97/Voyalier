@@ -86,6 +86,10 @@ function ReviewCard({
     payloadToDraft(candidate.payload),
   );
 
+  // The card's heading, and the name its four actions act under: a queue of
+  // these reads "Confirm, Edit & confirm, Dismiss" over and over otherwise, and
+  // confirming the wrong one writes a fact into the trip.
+  const title = factTitle(candidate.factType, candidate.payload);
   const values = candidate.payload as Values;
   const spans = new Map(
     candidate.fieldSpans.map((span) => [span.fieldPath, span]),
@@ -112,11 +116,7 @@ function ReviewCard({
     // parameters, and a zero-argument onSuccess narrows the action's optional
     // payload straight out of the signature.
     () => {
-      announce(
-        t("review.announce.confirmed", {
-          fact: factTitle(candidate.factType, candidate.payload),
-        }),
-      );
+      announce(t("review.announce.confirmed", { fact: title }));
       onDone(candidate.id);
     },
   );
@@ -124,11 +124,7 @@ function ReviewCard({
   const rejectAction = useAsyncAction(
     () => gateway.rejectCandidate(candidate.id),
     () => {
-      announce(
-        t("review.announce.dismissed", {
-          fact: factTitle(candidate.factType, candidate.payload),
-        }),
-      );
+      announce(t("review.announce.dismissed", { fact: title }));
       onDone(candidate.id);
     },
   );
@@ -147,9 +143,7 @@ function ReviewCard({
           )}
         </span>
         <div className="voy-review__heading">
-          <p className="voy-review__title">
-            {factTitle(candidate.factType, candidate.payload)}
-          </p>
+          <p className="voy-review__title">{title}</p>
           <p className="voy-review__sub">
             {factTypeLabel(candidate.factType)} ·{" "}
             {factSubtitle(candidate.factType, candidate.payload)}
@@ -214,6 +208,7 @@ function ReviewCard({
           <>
             <Button
               variant="ghost"
+              aria-label={t("review.cancelEdit.label", { fact: title })}
               disabled={busy}
               onClick={() => {
                 setEditing(false);
@@ -225,6 +220,7 @@ function ReviewCard({
             <Button
               ref={confirmRef}
               variant="primary"
+              aria-label={t("review.saveConfirm.label", { fact: title })}
               busy={confirmAction.busy}
               disabled={busy}
               onClick={() =>
@@ -241,6 +237,7 @@ function ReviewCard({
             <Button
               ref={confirmRef}
               variant="primary"
+              aria-label={t("review.confirm.label", { fact: title })}
               busy={confirmAction.busy}
               disabled={busy}
               onClick={() => void confirmAction.run()}
@@ -249,6 +246,7 @@ function ReviewCard({
             </Button>
             <Button
               variant="secondary"
+              aria-label={t("review.editConfirm.label", { fact: title })}
               disabled={busy}
               onClick={() => setEditing(true)}
             >
@@ -256,6 +254,7 @@ function ReviewCard({
             </Button>
             <ConfirmButton
               label={t("review.dismiss")}
+              ariaLabel={t("review.dismiss.label", { fact: title })}
               busy={rejectAction.busy}
               disabled={busy}
               onConfirm={() => void rejectAction.run()}

@@ -286,6 +286,10 @@ export function Recommendations({
                   </p>
                   <Button
                     variant="ghost"
+                    aria-label={t(
+                      saved ? "recs.savedAlready.label" : "recs.save.label",
+                      { name: rec.name },
+                    )}
                     busy={savingId === id}
                     disabled={saved}
                     onClick={() => save(rec)}
