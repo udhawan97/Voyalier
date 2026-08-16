@@ -906,47 +906,6 @@ pub struct AddManualFactInput {
     pub payload: FactPayload,
 }
 
-/// The minimum information required to start a trip Blueprint.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TripDraft {
-    pub id: Uuid,
-    pub origin: String,
-    pub destination: String,
-    pub start_date: String,
-    pub end_date: String,
-}
-
-impl TripDraft {
-    pub fn new(
-        origin: impl Into<String>,
-        destination: impl Into<String>,
-        start_date: impl Into<String>,
-        end_date: impl Into<String>,
-    ) -> Result<Self, TripDraftError> {
-        let origin = trim_required(origin, "origin").map_err(TripDraftError::Validation)?;
-        let destination =
-            trim_required(destination, "destination").map_err(TripDraftError::Validation)?;
-        let start_date = start_date.into().trim().to_owned();
-        let end_date = end_date.into().trim().to_owned();
-        validate_date_range(&start_date, &end_date).map_err(TripDraftError::Validation)?;
-
-        Ok(Self {
-            id: Uuid::new_v4(),
-            origin,
-            destination,
-            start_date,
-            end_date,
-        })
-    }
-}
-
-#[derive(Debug, Error, PartialEq, Eq)]
-pub enum TripDraftError {
-    #[error("{0}")]
-    Validation(AppError),
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedTripInput {
     pub title: String,

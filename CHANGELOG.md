@@ -6,6 +6,17 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+### Changed
+
+- **A new trip is checked in one place.** A second, unreachable copy of the
+  create-trip rules had been sitting beside the real one since the first week of
+  the project, along with a versioned schema file nothing ever loaded. Both are
+  retired (ADR-0018). No rule changes: the same trimming, the same required
+  origin and destination, the same date-range check that every trip has always
+  been created under. The one thing this did surface is that the test for
+  rejecting a trip with no destination had been pointed at the unreachable copy,
+  so the live path is now guarded for it too.
+
 ## [0.10.8] - 2026-08-15 — Say which one
 
 A maintenance release: one accessibility fix travelers will hear, and two
