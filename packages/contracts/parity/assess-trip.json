@@ -661,6 +661,153 @@
     },
     {
       "expected": {
+        "conflicts": [
+          {
+            "factIds": ["f1", "j1"],
+            "kind": "journey_overlap",
+            "severity": "warning",
+            "subjects": [
+              {
+                "code": "flight_number",
+                "number": "F1"
+              },
+              {
+                "code": "journey_service",
+                "mode": "rail",
+                "service": "R1"
+              }
+            ]
+          }
+        ],
+        "readiness": {
+          "items": [
+            {
+              "finding": {
+                "code": "schedule_conflicts",
+                "count": 1
+              },
+              "id": "schedule_conflicts",
+              "status": "action_needed"
+            },
+            {
+              "finding": {
+                "code": "no_lodging_yet"
+              },
+              "id": "lodging_coverage",
+              "status": "not_checked"
+            },
+            {
+              "finding": {
+                "code": "nothing_pending"
+              },
+              "id": "pending_review",
+              "status": "clear"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "entry_requirements",
+              "links": [
+                {
+                  "label": "UK FCDO travel advice — entry requirements by country",
+                  "url": "https://www.gov.uk/foreign-travel-advice"
+                },
+                {
+                  "label": "US State Dept — travel advisories by country",
+                  "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html"
+                },
+                {
+                  "label": "US State Dept — international travel",
+                  "url": "https://travel.state.gov/content/travel/en/international-travel.html"
+                }
+              ],
+              "status": "not_checked"
+            },
+            {
+              "finding": {
+                "code": "link_only"
+              },
+              "id": "health_notices",
+              "links": [
+                {
+                  "label": "US CDC — Travelers' Health, destination notices",
+                  "url": "https://wwwnc.cdc.gov/travel/destinations/list"
+                },
+                {
+                  "label": "WHO — International travel and health",
+                  "url": "https://www.who.int/travel-advice"
+                }
+              ],
+              "status": "not_checked"
+            }
+          ],
+          "status": "action_needed"
+        }
+      },
+      "facts": [
+        {
+          "candidateId": null,
+          "confirmedAt": "2027-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "flight_segment",
+          "id": "f1",
+          "method": "manual",
+          "payload": {
+            "arrivalLocal": "2027-04-01T13:00",
+            "departureLocal": "2027-04-01T09:00",
+            "flightNumber": "F1"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_parity"
+        },
+        {
+          "candidateId": null,
+          "confirmedAt": "2027-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "rail_journey",
+          "id": "j1",
+          "method": "manual",
+          "payload": {
+            "arrivalLocal": "2027-04-01T15:00",
+            "departureLocal": "2027-04-01T12:00",
+            "serviceNumber": "R1"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_parity"
+        },
+        {
+          "candidateId": null,
+          "confirmedAt": "2027-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "car_rental",
+          "id": "r1",
+          "method": "manual",
+          "payload": {
+            "arrivalLocal": "2027-04-03T18:00",
+            "carrierName": "Kyoto Rentacar",
+            "departureLocal": "2027-04-01T08:00"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_parity"
+        }
+      ],
+      "name": "rail journey crossing a flight, hire car ignored",
+      "pendingCandidateCount": 0,
+      "trip": {
+        "createdAt": "2027-01-01T00:00:00Z",
+        "destination": "Kyoto",
+        "endDate": "2027-04-05",
+        "id": "trip_parity",
+        "origin": "Chicago",
+        "startDate": "2027-04-01",
+        "status": "active",
+        "title": "Chicago -> Kyoto",
+        "updatedAt": "2027-01-01T00:00:00Z"
+      }
+    },
+    {
+      "expected": {
         "conflicts": [],
         "readiness": {
           "items": [

@@ -706,7 +706,7 @@ fn parity_assess_trip_matches_the_contract() {
         fs::write(&path, written).expect("rewrite golden");
         panic!("golden regenerated — review the diff, then run without the flag");
     }
-    assert_eq!(cases.len(), 12, "every golden case must be checked");
+    assert_eq!(cases.len(), 13, "every golden case must be checked");
 }
 
 /// Packing suggestions are implemented twice — here and in the mock gateway.
