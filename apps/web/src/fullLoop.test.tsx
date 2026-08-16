@@ -90,7 +90,7 @@ describe("full trip loop", () => {
       .getByText("Flight NS204")
       .closest("li") as HTMLElement;
     fireEvent.click(
-      within(flightCard).getByRole("button", { name: "Confirm" }),
+      within(flightCard).getByRole("button", { name: /^Confirm / }),
     );
 
     // Queue shrinks to two remaining.
@@ -114,7 +114,9 @@ describe("full trip loop", () => {
       .getByText("Flight NS204")
       .closest("article") as HTMLElement;
     fireEvent.click(
-      within(ns204Fact).getByRole("button", { name: "Back to review" }),
+      within(ns204Fact).getByRole("button", {
+        name: "Back to review: Flight NS204",
+      }),
     );
 
     await waitFor(() =>

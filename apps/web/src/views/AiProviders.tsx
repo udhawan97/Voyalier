@@ -119,6 +119,9 @@ function ProviderRow({
             </span>
             <ConfirmButton
               label={t("providers.removeKey")}
+              ariaLabel={t("providers.removeKey.label", {
+                provider: config.label,
+              })}
               busy={busy === "clear"}
               onConfirm={() =>
                 run(
@@ -203,6 +206,9 @@ function ProviderRow({
         />
         <Button
           variant="ghost"
+          aria-label={t("providers.saveModel.label", {
+            provider: config.label,
+          })}
           busy={busy === "model"}
           disabled={!modelDirty}
           onClick={() =>

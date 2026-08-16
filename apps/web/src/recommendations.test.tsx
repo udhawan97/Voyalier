@@ -84,7 +84,9 @@ describe("Recommendations", () => {
     fireEvent.click(packs.getByRole("button", { name: "Browse city packs" }));
     const nashville = (await packs.findByText("Nashville")).closest("li")!;
     fireEvent.click(
-      within(nashville).getByRole("button", { name: "Download for this trip" }),
+      within(nashville).getByRole("button", {
+        name: "Download for this trip: Nashville",
+      }),
     );
     await within(nashville).findByText(/offline/);
 
@@ -118,7 +120,7 @@ describe("Recommendations", () => {
     // list even if the controls change before the traveler saves a place.
     fireEvent.click(within(region).getByRole("button", { name: "Explorer" }));
     fireEvent.click(
-      within(items[0]).getByRole("button", { name: "Save place" }),
+      within(items[0]).getByRole("button", { name: /^Save place / }),
     );
     const savedPlaces = screen.getByRole("region", { name: "Saved places" });
     expect(
@@ -195,7 +197,7 @@ describe("Recommendations", () => {
     const saved = await waitFor(() => within(region).getByText("Saved"));
     expect(
       within(saved.closest("li")!).queryByRole("button", {
-        name: "Save place",
+        name: /^Save place /,
       }),
     ).toBeNull();
   });
@@ -237,7 +239,7 @@ describe("Recommendations", () => {
       name: "Recommended places",
     });
     fireEvent.click(
-      within(list).getAllByRole("button", { name: "Save place" })[0],
+      within(list).getAllByRole("button", { name: /^Save place / })[0],
     );
     expect(await within(region).findByRole("alert")).toBeInTheDocument();
   });

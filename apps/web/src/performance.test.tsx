@@ -123,7 +123,9 @@ describe("review performance", () => {
       makeCandidate(index),
     );
     renderReview(candidates);
-    expect(screen.getAllByRole("button", { name: "Confirm" })).toHaveLength(50);
+    expect(screen.getAllByRole("button", { name: /^Confirm / })).toHaveLength(
+      50,
+    );
   });
 
   it("keeps render cost ~linear in candidate count (no O(n²)/thrash)", () => {

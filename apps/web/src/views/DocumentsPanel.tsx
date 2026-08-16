@@ -132,11 +132,22 @@ function DocumentRow({
       ) : null}
 
       <div className="voy-doc__actions">
-        <Button variant="ghost" onClick={toggle} busy={busy && !open}>
+        <Button
+          variant="ghost"
+          aria-label={t(
+            open ? "documents.hide.label" : "documents.view.label",
+            {
+              label: document.label,
+            },
+          )}
+          onClick={toggle}
+          busy={busy && !open}
+        >
           {open ? t("documents.hide") : t("documents.view")}
         </Button>
         <ConfirmButton
           label={t("documents.remove")}
+          ariaLabel={t("documents.remove.label", { label: document.label })}
           onConfirm={() => removeAction.run()}
           busy={busy}
         />

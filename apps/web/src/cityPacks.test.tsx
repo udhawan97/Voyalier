@@ -107,19 +107,23 @@ describe("City packs", () => {
       within(kyoto).getByText(/offline map download; size varies by city/),
     ).toBeInTheDocument();
     fireEvent.click(
-      within(nashville).getByRole("button", { name: "Download for this trip" }),
+      within(nashville).getByRole("button", {
+        name: "Download for this trip: Nashville",
+      }),
     );
 
     // Once downloaded, the row shows offline counts and a remove control.
     expect(await within(nashville).findByText(/offline/)).toBeInTheDocument();
-    const remove = within(nashville).getByRole("button", { name: "Remove" });
+    const remove = within(nashville).getByRole("button", {
+      name: "Remove Nashville",
+    });
     fireEvent.click(remove); // arm
     fireEvent.click(remove); // confirm
 
     // Removing restores the download affordance.
     expect(
       await within(nashville).findByRole("button", {
-        name: "Download for this trip",
+        name: "Download for this trip: Nashville",
       }),
     ).toBeInTheDocument();
   });

@@ -121,7 +121,14 @@ export function CityPacks({
 
   const error = downloadAction.error ?? removeAction.error ?? loadAction.error;
 
-  function packControl(pack: PackInfo, downloadLabel: string) {
+  // `downloadAriaLabel` is only needed by the browse list: the suggested list's
+  // visible label already carries the pack's name, and the browse list's does
+  // not — it repeats "Download for this trip" once per city.
+  function packControl(
+    pack: PackInfo,
+    downloadLabel: string,
+    downloadAriaLabel?: string,
+  ) {
     const mine = downloaded.get(pack.id);
     if (mine) {
       return (
@@ -138,6 +145,7 @@ export function CityPacks({
           </span>
           <ConfirmButton
             label={t("packs.remove")}
+            ariaLabel={t("packs.remove.label", { name: pack.name })}
             busy={busyId === pack.id}
             onConfirm={() => remove(pack)}
           />
@@ -147,6 +155,7 @@ export function CityPacks({
     return (
       <Button
         variant="secondary"
+        aria-label={downloadAriaLabel}
         busy={busyId === pack.id}
         onClick={() => download(pack)}
       >
@@ -239,7 +248,11 @@ export function CityPacks({
                   {t("packs.includesOfflineMap")}
                 </p>
               ) : null}
-              {packControl(pack, t("packs.download"))}
+              {packControl(
+                pack,
+                t("packs.download"),
+                t("packs.download.label", { name: pack.name }),
+              )}
             </li>
           ))}
         </ul>
