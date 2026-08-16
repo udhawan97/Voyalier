@@ -127,7 +127,7 @@ fn rejects_a_missing_destination() {
 
 #[test]
 fn serializes_create_trip_input_with_camel_case_wire_fields() {
-    // ADR-0018: `ValidatedTripInput` never crosses a wire, so the camelCase
+    // ADR-0019: `ValidatedTripInput` never crosses a wire, so the camelCase
     // guarantee on the create path belongs to the payload a client sends.
     let json = serde_json::to_value(CreateTripInput {
         title: None,

@@ -1,4 +1,4 @@
-# ADR-0018 — Trip creation has one validation path
+# ADR-0019 — Trip creation has one validation path
 
 **Status:** Accepted · 2026-08-15
 
