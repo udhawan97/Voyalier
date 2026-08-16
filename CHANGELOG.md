@@ -6,6 +6,19 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+### Fixed
+
+- **The rest of the repeated controls now say which row they act on.** 0.10.8
+  gave the trip card's Archive and Delete the trip's name and stopped there,
+  which left the same "Remove, Remove, Remove" everywhere else a list repeats a
+  verb: confirmed facts, imported documents, city packs, recommended places,
+  candidates under review, and the per-provider AI key controls. Each accessible
+  name now opens with its visible word and then names the row, so speech input
+  and Label in Name both still work; nothing visible on screen changed. The two
+  that matter most are Remove on a confirmed fact — which destroys a hand-typed
+  fact outright — and Confirm in the review queue, which writes one into the
+  trip. Neither is made safer by being named, only identifiable.
+
 ## [0.10.8] - 2026-08-15 — Say which one
 
 A maintenance release: one accessibility fix travelers will hear, and two
