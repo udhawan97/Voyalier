@@ -208,7 +208,7 @@ describe("parity: assessTrip", () => {
   const cases = assessTripGolden.cases;
 
   it("covers every golden case", () => {
-    expect(cases).toHaveLength(12);
+    expect(cases).toHaveLength(13);
   });
 
   it.each(cases)(

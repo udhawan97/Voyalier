@@ -430,14 +430,38 @@ function nextDayN(date: string, offset: number): string {
   return current;
 }
 
-/** Which identifying detail this flight actually has, in preference order. */
-function flightLabel(payload: FlightSegmentPayload): FactLabel {
-  const number = payload.flightNumber?.trim();
-  if (number) return { code: "flight_number", number };
-  const from = payload.departureAirportIata?.trim();
-  const to = payload.arrivalAirportIata?.trim();
-  if (from && to) return { code: "flight_route", from, to };
-  return { code: "flight" };
+/**
+ * Mirrors voyalier-core::itinerary::scheduled_legs. Every scheduled service —
+ * flight, rail, coach, ferry — and never a hire car, which sits in a car park
+ * while its holder takes a train, so its window legitimately overlaps
+ * everything else in the trip.
+ *
+ * The `arrival >= departure` filter belongs to the two overlap checks alone:
+ * both read a leg as a closed interval, and an inverted one would report
+ * overlaps that are not there. It is not a judgement that the evidence is
+ * wrong, and it deliberately does not travel to the disruption plan, whose
+ * `legsOf` keeps its own rule.
+ */
+function scheduledLegs(facts: ConfirmedFact[]) {
+  return facts
+    .filter(
+      (fact) =>
+        fact.factType !== "lodging_stay" && fact.factType !== "car_rental",
+    )
+    .map((fact) => {
+      // Flights and surface journeys name this pair identically.
+      const payload = fact.payload as SurfaceJourneyPayload;
+      const departure = payload.departureLocal
+        ? normalizeDateTime(payload.departureLocal)
+        : null;
+      const arrival = payload.arrivalLocal
+        ? normalizeDateTime(payload.arrivalLocal)
+        : null;
+      return departure && arrival && arrival >= departure
+        ? { fact, departure, arrival }
+        : null;
+    })
+    .filter((entry) => entry !== null);
 }
 
 function lodgingLabel(payload: LodgingStayPayload): FactLabel {
@@ -475,30 +499,23 @@ export function detectItineraryConflicts(
 ): ItineraryConflict[] {
   const conflicts: ItineraryConflict[] = [];
 
-  const flights = facts
-    .filter((fact) => fact.factType === "flight_segment")
-    .map((fact) => {
-      const payload = fact.payload as FlightSegmentPayload;
-      const departure = payload.departureLocal
-        ? normalizeDateTime(payload.departureLocal)
-        : null;
-      const arrival = payload.arrivalLocal
-        ? normalizeDateTime(payload.arrivalLocal)
-        : null;
-      return departure && arrival && arrival >= departure
-        ? { fact, departure, arrival, payload }
-        : null;
-    })
-    .filter((entry) => entry !== null);
-  for (let left = 0; left < flights.length; left += 1) {
-    for (let right = left + 1; right < flights.length; right += 1) {
-      const a = flights[left];
-      const b = flights[right];
+  // A flight-against-flight finding keeps reporting as `flight_overlap`,
+  // exactly as it did before surface legs existed; any pair involving a surface
+  // journey reports as `journey_overlap` so an interface can name the right
+  // nouns.
+  const scheduled = scheduledLegs(facts);
+  for (let left = 0; left < scheduled.length; left += 1) {
+    for (let right = left + 1; right < scheduled.length; right += 1) {
+      const a = scheduled[left];
+      const b = scheduled[right];
       if (a.departure < b.arrival && b.departure < a.arrival) {
+        const bothFlights =
+          a.fact.factType === "flight_segment" &&
+          b.fact.factType === "flight_segment";
         conflicts.push({
-          kind: "flight_overlap",
+          kind: bothFlights ? "flight_overlap" : "journey_overlap",
           severity: "warning",
-          subjects: [flightLabel(a.payload), flightLabel(b.payload)],
+          subjects: [factLabelFor(a.fact), factLabelFor(b.fact)],
           factIds: [a.fact.id, b.fact.id].sort(),
         });
       }
@@ -595,29 +612,17 @@ function detectPlannedItemConflicts(
       }
     }
   }
-  const flights = facts
-    .filter((fact) => fact.factType === "flight_segment")
-    .map((fact) => {
-      const payload = fact.payload as FlightSegmentPayload;
-      const departure = payload.departureLocal
-        ? normalizeDateTime(payload.departureLocal)
-        : null;
-      const arrival = payload.arrivalLocal
-        ? normalizeDateTime(payload.arrivalLocal)
-        : null;
-      return departure && arrival && arrival >= departure
-        ? { fact, departure, arrival, payload }
-        : null;
-    })
-    .filter((entry) => entry !== null);
+  // An activity booked during a confirmed ferry crossing is the same notice as
+  // one booked during a flight.
+  const scheduled = scheduledLegs(facts);
   for (const item of timed) {
-    for (const flight of flights) {
-      if (item.startAt! < flight.arrival && flight.departure < item.endAt!) {
+    for (const leg of scheduled) {
+      if (item.startAt! < leg.arrival && leg.departure < item.endAt!) {
         conflicts.push({
           kind: "planned_item_overlap",
           severity: "notice",
-          subjects: [flightLabel(flight.payload)],
-          factIds: [flight.fact.id],
+          subjects: [factLabelFor(leg.fact)],
+          factIds: [leg.fact.id],
           plannedItemIds: [item.id],
           plannedItemTitles: [item.title],
         });
