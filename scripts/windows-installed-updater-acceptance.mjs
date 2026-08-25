@@ -40,7 +40,9 @@ const EVIDENCE_ROOT = path.join(ROOT, "windows-acceptance-evidence");
 const KEY_PATH = path.join(TEMP_ROOT, "ephemeral-updater.key");
 const DRIVER_URL = "http://127.0.0.1:4444";
 const GIT = process.platform === "win32" ? "git.exe" : "git";
-const PNPM = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+const PNPM_CLI = process.env.PNPM_HOME
+  ? path.resolve(process.env.PNPM_HOME, "..", "pnpm", "bin", "pnpm.cjs")
+  : null;
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -61,6 +63,14 @@ function run(command, args, options = {}) {
     );
   }
   return (result.stdout ?? "").trim();
+}
+
+function runPnpm(args, options = {}) {
+  if (process.platform === "win32") {
+    assert.ok(PNPM_CLI, "PNPM_HOME is required on Windows");
+    return run(process.execPath, [PNPM_CLI, ...args], options);
+  }
+  return run("pnpm", args, options);
 }
 
 function psQuote(value) {
@@ -461,11 +471,10 @@ async function main() {
   try {
     run(GIT, ["worktree", "add", "--detach", BASE_ROOT, BASE_TAG]);
     baseWorktreeAdded = true;
-    run(PNPM, ["install", "--frozen-lockfile"], { cwd: BASE_ROOT });
+    runPnpm(["install", "--frozen-lockfile"], { cwd: BASE_ROOT });
 
     const password = randomBytes(32).toString("base64url");
-    run(
-      PNPM,
+    runPnpm(
       [
         "--dir",
         path.join(ROOT, "apps/desktop"),
@@ -516,8 +525,7 @@ async function main() {
     );
 
     try {
-      run(
-        PNPM,
+      runPnpm(
         [
           "--dir",
           path.join(ROOT, "apps/desktop"),
@@ -557,8 +565,7 @@ async function main() {
       await readFile(`${candidateInstaller}.sig`, "utf8")
     ).trim();
 
-    run(
-      PNPM,
+    runPnpm(
       [
         "--dir",
         path.join(BASE_ROOT, "apps/desktop"),
