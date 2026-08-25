@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
+import { once } from "node:events";
 import { createReadStream, createWriteStream } from "node:fs";
 import {
   copyFile,
@@ -158,6 +159,7 @@ async function startDriver(application, suffix) {
   );
   const logPath = path.join(EVIDENCE_ROOT, `tauri-driver-${suffix}.log`);
   const log = createWriteStream(logPath, { flags: "a" });
+  await once(log, "open");
   const processHandle = spawn(driverBinary, [], {
     cwd: ROOT,
     env: { ...process.env, VOYALIER_DATA_DIR: DATA_ROOT },
