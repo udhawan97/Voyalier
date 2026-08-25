@@ -1388,6 +1388,11 @@ const en = {
     "See your destination and recommended places on a map. A downloaded offline basemap stays on this device; otherwise showing the map fetches tiles from OpenFreeMap. Nothing about your trip is sent.",
   "map.show": "Show map",
   "map.aria": "Trip map",
+  "map.legend.aria": "Map marker legend",
+  "map.point.saved": "Saved place",
+  "map.point.suggested": "Suggested place",
+  "map.points.summary": "Mapped places ({count})",
+  "map.points.aria": "Places shown on the map",
   "map.scope": "Basemap © OpenFreeMap · map data © OpenStreetMap contributors.",
   "map.scope.offline":
     "Offline basemap from {source} · map data © OpenStreetMap contributors. No tile request left this device.",
@@ -2985,6 +2990,11 @@ const es: Record<MessageKey, string> = {
     "Mira tu destino y los lugares recomendados en un mapa. Un mapa base sin conexión descargado permanece en este dispositivo; de lo contrario, mostrar el mapa descarga mosaicos desde OpenFreeMap. No se envía información sobre tu viaje.",
   "map.show": "Mostrar mapa",
   "map.aria": "Mapa del viaje",
+  "map.legend.aria": "Leyenda de marcadores del mapa",
+  "map.point.saved": "Lugar guardado",
+  "map.point.suggested": "Lugar sugerido",
+  "map.points.summary": "Lugares en el mapa ({count})",
+  "map.points.aria": "Lugares mostrados en el mapa",
   "map.scope":
     "Mapa base © OpenFreeMap · datos del mapa © colaboradores de OpenStreetMap.",
   "map.scope.offline":

@@ -1569,6 +1569,7 @@ export function TripDetailView({
 
           <MapPanel
             tripId={tripId}
+            savedPlaces={data.detail.savedPlaces}
             center={
               data.detail.weather
                 ? {

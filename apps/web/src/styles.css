@@ -3248,6 +3248,74 @@ h3 {
   line-height: 1.5;
 }
 
+.voy-map__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  margin-top: 0.9rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.84rem;
+}
+
+.voy-map__legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.voy-map__dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 2px solid var(--voy-paper-raised);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--voy-line-strong);
+}
+
+.voy-map__dot--saved {
+  background: var(--voy-vermilion);
+}
+
+.voy-map__dot--suggested {
+  background: var(--voy-indigo);
+}
+
+.voy-map__points {
+  margin-top: 0.8rem;
+  max-width: 42rem;
+}
+
+.voy-map__points summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--voy-ink-muted);
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.voy-map__points ul {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.voy-map__points li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 0.8rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-sm);
+  background: var(--voy-paper-sunken);
+  font-size: 0.84rem;
+}
+
+.voy-map__points li span {
+  color: var(--voy-ink-muted);
+}
+
 .voy-map__failure {
   display: flex;
   flex-direction: column;
