@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import {
   allowedUpdaterPath,
   buildWindowsDriverCapabilities,
   buildWindowsUpdaterManifest,
+  mirrorWebViewDevToolsPort,
   validateWindowsAcceptanceReport,
 } from "./windows-updater-fixture.mjs";
 
@@ -91,6 +95,33 @@ test("nests an isolated WebView2 data directory under tauri options", () => {
       }),
     /absolute Windows path/,
   );
+});
+
+test("mirrors WebView2's nested DevTools port for EdgeDriver", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "voyalier-webview-port-"));
+  try {
+    const nested = path.join(root, "EBWebView");
+    await mkdir(nested);
+    await writeFile(path.join(nested, "DevToolsActivePort"), "48137\n/ws\n");
+
+    const result = await mirrorWebViewDevToolsPort({
+      userDataFolder: root,
+      signal: new AbortController().signal,
+      pollInterval: 1,
+    });
+
+    assert.deepEqual(result, {
+      nestedPortObserved: true,
+      rootPortMirrored: true,
+      copyErrorCode: null,
+    });
+    assert.equal(
+      await readFile(path.join(root, "DevToolsActivePort"), "utf8"),
+      "48137\n/ws\n",
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("pins installed, data-preservation, backup, and loopback evidence", () => {

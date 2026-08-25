@@ -1,3 +1,4 @@
+import { copyFile } from "node:fs/promises";
 import path from "node:path";
 
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
@@ -100,6 +101,40 @@ export function buildWindowsDriverCapabilities({
         },
       },
     },
+  };
+}
+
+export async function mirrorWebViewDevToolsPort({
+  userDataFolder,
+  signal,
+  pollInterval = 100,
+}) {
+  userDataFolder = requireString(userDataFolder, "userDataFolder");
+  if (!path.isAbsolute(userDataFolder)) {
+    throw new Error("userDataFolder must be absolute");
+  }
+  const nested = path.join(userDataFolder, "EBWebView", "DevToolsActivePort");
+  const destination = path.join(userDataFolder, "DevToolsActivePort");
+  let lastErrorCode = null;
+
+  while (!signal?.aborted) {
+    try {
+      await copyFile(nested, destination);
+      return {
+        nestedPortObserved: true,
+        rootPortMirrored: true,
+        copyErrorCode: null,
+      };
+    } catch (error) {
+      lastErrorCode = error?.code ?? "UNKNOWN";
+    }
+    await new Promise((resolve) => setTimeout(resolve, pollInterval));
+  }
+
+  return {
+    nestedPortObserved: false,
+    rootPortMirrored: false,
+    copyErrorCode: lastErrorCode,
   };
 }
 

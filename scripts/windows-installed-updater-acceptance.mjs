@@ -21,6 +21,7 @@ import {
   allowedUpdaterPath,
   buildWindowsDriverCapabilities,
   buildWindowsUpdaterManifest,
+  mirrorWebViewDevToolsPort,
   validateWindowsAcceptanceReport,
 } from "./windows-updater-fixture.mjs";
 
@@ -45,6 +46,7 @@ const GIT = process.platform === "win32" ? "git.exe" : "git";
 const PNPM_CLI = process.env.PNPM_HOME
   ? path.resolve(process.env.PNPM_HOME, "..", "pnpm", "bin", "pnpm.cjs")
   : null;
+const DRIVER_DIAGNOSTICS = [];
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -190,16 +192,38 @@ async function startDriver(application, suffix) {
     "tauri-driver",
     60_000,
   );
-  const value = await fetchDriver(
-    "/session",
-    {
-      method: "POST",
-      body: JSON.stringify(
-        buildWindowsDriverCapabilities({ application, userDataFolder }),
-      ),
-    },
-    180_000,
-  );
+  const diagnostic = {
+    session: suffix,
+    isolatedUserDataFolder: true,
+    nestedPortObserved: false,
+    rootPortMirrored: false,
+    copyErrorCode: null,
+  };
+  DRIVER_DIAGNOSTICS.push(diagnostic);
+  const mirrorAbort = new AbortController();
+  // WebView2 writes this file below EBWebView while EdgeDriver watches the
+  // configured data-directory root. Mirror it while POST /session is blocked.
+  // https://github.com/MicrosoftEdge/EdgeWebDriver/issues/109
+  const mirrorPromise = mirrorWebViewDevToolsPort({
+    userDataFolder,
+    signal: mirrorAbort.signal,
+  });
+  let value;
+  try {
+    value = await fetchDriver(
+      "/session",
+      {
+        method: "POST",
+        body: JSON.stringify(
+          buildWindowsDriverCapabilities({ application, userDataFolder }),
+        ),
+      },
+      180_000,
+    );
+  } finally {
+    mirrorAbort.abort();
+    Object.assign(diagnostic, await mirrorPromise);
+  }
   const sessionId = value.sessionId;
   assert.ok(sessionId, "tauri-driver did not return a session id");
   await waitFor(
@@ -478,6 +502,7 @@ async function main() {
       runId: process.env.GITHUB_RUN_ID ?? null,
       runAttempt: process.env.GITHUB_RUN_ATTEMPT ?? null,
     },
+    driver: { sessions: DRIVER_DIAGNOSTICS },
   };
 
   try {
