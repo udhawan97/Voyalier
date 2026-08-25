@@ -159,8 +159,15 @@ jobs:
           cargo install tauri-driver --version 2.0.6 --locked
           cargo install --git https://github.com/chippers/msedgedriver-tool `
             --rev 8c4b34f51b45f5cf08013366d703de464ab871d1 --locked
-          & "$HOME/.cargo/bin/msedgedriver-tool.exe"
-          $PWD.Path >> $env:GITHUB_PATH
+          $driverDir = Join-Path $env:RUNNER_TEMP "voyalier-edge-driver"
+          New-Item -ItemType Directory -Force $driverDir | Out-Null
+          Push-Location $driverDir
+          try {
+            & "$HOME/.cargo/bin/msedgedriver-tool.exe"
+          } finally {
+            Pop-Location
+          }
+          $driverDir >> $env:GITHUB_PATH
       - name: Install, update, reopen, and recover on Windows
         run: node scripts/windows-installed-updater-acceptance.mjs
       - name: Upload sanitized Windows acceptance evidence

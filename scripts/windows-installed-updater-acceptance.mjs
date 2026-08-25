@@ -407,7 +407,25 @@ async function main() {
     "this acceptance harness requires real Windows",
   );
   assert.ok(process.env.LOCALAPPDATA, "LOCALAPPDATA is required");
-  assert.equal(run(GIT, ["status", "--porcelain"], { quiet: true }), "");
+  await rm(EVIDENCE_ROOT, { recursive: true, force: true });
+  await mkdir(EVIDENCE_ROOT, { recursive: true });
+  try {
+    assert.equal(run(GIT, ["status", "--porcelain"], { quiet: true }), "");
+  } catch (error) {
+    await writeFile(
+      path.join(EVIDENCE_ROOT, "windows-installed-updater.json"),
+      `${JSON.stringify(
+        {
+          verdict: "FAIL",
+          stage: "source-tree-guard",
+          error: error instanceof Error ? error.message : String(error),
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    throw error;
+  }
   const candidateSha = run(GIT, ["rev-parse", "HEAD"], { quiet: true });
   const baseSha = run(GIT, ["rev-parse", `${BASE_TAG}^{commit}`], {
     quiet: true,
@@ -423,8 +441,6 @@ async function main() {
   await mkdir(TEMP_ROOT, { recursive: true });
   await mkdir(FIXTURE_ROOT, { recursive: true });
   await mkdir(DATA_ROOT, { recursive: true });
-  await rm(EVIDENCE_ROOT, { recursive: true, force: true });
-  await mkdir(EVIDENCE_ROOT, { recursive: true });
 
   let driver;
   let server;
