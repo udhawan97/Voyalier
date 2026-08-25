@@ -158,7 +158,9 @@ into a readiness or safety claim.
 Flights, stays, surface journeys, and traveler-authored plans (including undated
 ideas) can be
 printed, saved as PDF, or copied as plain text. The clipboard path receives the
-same redacted projection and has its own safe-field allowlist.
+same redacted projection and has its own safe-field allowlist. System clipboard
+history, cross-device sync, or a clipboard manager can retain copied text, so
+review the audience and clear the clipboard when that matters.
 
 ### Evidence stays beside the decision
 

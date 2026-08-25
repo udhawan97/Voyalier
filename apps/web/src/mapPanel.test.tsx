@@ -13,10 +13,12 @@ import {
 } from "@voyalier/contracts";
 
 import { renderApp } from "./test/helpers";
+import { setLocalePreference } from "./app/locale";
 import { setThemeChoice } from "./app/theme";
 
 const maplibreMocks = vi.hoisted(() => ({
   markerColors: [] as string[],
+  popupTexts: [] as string[],
 }));
 
 vi.mock("maplibre-gl/dist/maplibre-gl.css", () => ({}));
@@ -50,7 +52,8 @@ vi.mock("maplibre-gl", () => {
     remove() {}
   }
   class FakePopup {
-    setText() {
+    setText(text: string) {
+      maplibreMocks.popupTexts.push(text);
       return this;
     }
   }
@@ -92,6 +95,7 @@ async function openMap() {
 describe("Map panel", () => {
   beforeEach(() => {
     maplibreMocks.markerColors.length = 0;
+    maplibreMocks.popupTexts.length = 0;
     // Pretend a WebGL context is available so the consent path renders the
     // canvas (real tile rendering still no-ops in jsdom and is verified live).
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
@@ -99,6 +103,7 @@ describe("Map panel", () => {
     );
   });
   afterEach(() => {
+    setLocalePreference("en");
     setThemeChoice("system");
     document.documentElement.style.removeProperty("--voy-vermilion");
     document.documentElement.style.removeProperty("--voy-indigo");
@@ -156,7 +161,35 @@ describe("Map panel", () => {
     expect(offlineMapCalls).toBe(1);
   });
 
-  it("rebuilds saved and suggested markers with the active theme colors", async () => {
+  it("rebuilds markers for unavailable storage, system theme, explicit theme, and locale changes", async () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new DOMException("Storage unavailable", "SecurityError");
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("Storage unavailable", "SecurityError");
+    });
+    let colorSchemeListener: ((event: MediaQueryListEvent) => void) | undefined;
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(
+        () =>
+          ({
+            matches: false,
+            media: "(prefers-color-scheme: dark)",
+            onchange: null,
+            addEventListener: (
+              _type: string,
+              listener: (event: MediaQueryListEvent) => void,
+            ) => {
+              colorSchemeListener = listener;
+            },
+            removeEventListener: vi.fn(),
+            addListener: vi.fn(),
+            removeListener: vi.fn(),
+            dispatchEvent: vi.fn(),
+          }) as MediaQueryList,
+      ),
+    );
     const base = createMockGateway();
     const savedPlace: SavedPlace = {
       id: "saved_market",
@@ -209,12 +242,32 @@ describe("Map panel", () => {
       ),
     );
 
+    document.documentElement.style.setProperty("--voy-vermilion", "#bb2200");
+    document.documentElement.style.setProperty("--voy-indigo", "#1122bb");
+    act(() => colorSchemeListener?.({} as MediaQueryListEvent));
+    await waitFor(() =>
+      expect(maplibreMocks.markerColors).toEqual(
+        expect.arrayContaining(["#bb2200", "#1122bb"]),
+      ),
+    );
+
     document.documentElement.style.setProperty("--voy-vermilion", "#cc3300");
     document.documentElement.style.setProperty("--voy-indigo", "#2233cc");
     act(() => setThemeChoice("dark"));
     await waitFor(() =>
       expect(maplibreMocks.markerColors).toEqual(
         expect.arrayContaining(["#cc3300", "#2233cc"]),
+      ),
+    );
+
+    maplibreMocks.popupTexts.length = 0;
+    act(() => setLocalePreference("es"));
+    await waitFor(() =>
+      expect(maplibreMocks.popupTexts).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining("Lugar guardado"),
+          expect.stringContaining("Lugar sugerido"),
+        ]),
       ),
     );
   });

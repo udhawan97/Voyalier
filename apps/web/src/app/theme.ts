@@ -4,17 +4,25 @@ export type ThemeChoice = "light" | "dark" | "system";
 
 const STORAGE_KEY = "voyalier-theme";
 const CHOICES: readonly ThemeChoice[] = ["light", "dark", "system"];
+let sessionThemeChoice: ThemeChoice | undefined;
+
+function validThemeChoice(value: string | null): ThemeChoice | undefined {
+  return value && CHOICES.includes(value as ThemeChoice)
+    ? (value as ThemeChoice)
+    : undefined;
+}
 
 export function readThemeChoice(): ThemeChoice {
+  if (sessionThemeChoice) return sessionThemeChoice;
   try {
-    const stored = globalThis.localStorage?.getItem(STORAGE_KEY);
-    if (stored && CHOICES.includes(stored as ThemeChoice)) {
-      return stored as ThemeChoice;
-    }
+    sessionThemeChoice =
+      validThemeChoice(globalThis.localStorage?.getItem(STORAGE_KEY) ?? null) ??
+      "system";
   } catch {
     // localStorage may be unavailable (private mode) — fall back to system.
+    sessionThemeChoice = "system";
   }
-  return "system";
+  return sessionThemeChoice;
 }
 
 /**
@@ -46,7 +54,10 @@ function subscribeTheme(listener: () => void): () => void {
   listeners.add(listener);
 
   const handleStorage = (event: StorageEvent) => {
-    if (event.key === STORAGE_KEY) listener();
+    if (event.key === STORAGE_KEY) {
+      sessionThemeChoice = validThemeChoice(event.newValue) ?? "system";
+      listener();
+    }
   };
   globalThis.addEventListener?.("storage", handleStorage);
 
@@ -57,6 +68,7 @@ function subscribeTheme(listener: () => void): () => void {
 }
 
 export function setThemeChoice(next: ThemeChoice): void {
+  sessionThemeChoice = next;
   persistThemeChoice(next);
   applyThemeChoice(next);
   listeners.forEach((listener) => listener());

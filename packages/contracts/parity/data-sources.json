@@ -153,7 +153,7 @@
       "endpoint": "https://tiles.openfreemap.org/styles/liberty",
       "license": "MIT service project; OpenStreetMap data under ODbL-1.0",
       "attribution": "OpenFreeMap © OpenMapTiles Data from OpenStreetMap",
-      "network": "Fetched only after you select Show map without an offline basemap",
+      "network": "Fetched only after you select Show map without an offline basemap; tile requests reveal the displayed area and can reflect destination or saved-place coordinates, but do not send names, notes, or itinerary records",
       "authority": "Visual map context with no routing, live-access, or availability claim"
     },
     {

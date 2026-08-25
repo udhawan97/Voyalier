@@ -413,7 +413,7 @@ const en = {
   "action.close": "Close",
   "brief.title": "Shareable brief",
   "brief.description":
-    "A copy you can share. Confirmation codes and traveler names are removed before it leaves this device.",
+    "A copy you can share. Confirmation codes and traveler names are removed before it leaves this device. Copying hands the redacted text to your system clipboard, whose history or sync may retain it.",
   "brief.print": "Print / Save as PDF",
   "brief.copy": "Copy brief",
   "brief.copy.done": "Copied",
@@ -2060,7 +2060,7 @@ const es: Record<MessageKey, string> = {
   "action.close": "Cerrar",
   "brief.title": "Resumen para compartir",
   "brief.description":
-    "Una copia que puedes compartir. Los códigos de confirmación y los nombres de los viajeros se eliminan antes de salir de este dispositivo.",
+    "Una copia que puedes compartir. Los códigos de confirmación y los nombres de los viajeros se eliminan antes de salir de este dispositivo. Al copiar, el texto redactado pasa al portapapeles del sistema, cuyo historial o sincronización puede conservarlo.",
   "brief.print": "Imprimir / Guardar como PDF",
   "brief.copy": "Copiar resumen",
   "brief.copy.done": "Copiado",

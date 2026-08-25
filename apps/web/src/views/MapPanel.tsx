@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type {
   Map as MaplibreMap,
   Marker as MaplibreMarker,
@@ -16,6 +22,7 @@ import { savedPlaceIdentity } from "@voyalier/contracts";
 
 import { useGateway } from "../app/context";
 import { t } from "../app/i18n";
+import { localeSnapshot, subscribeLocale } from "../app/locale";
 import { useTheme } from "../app/theme";
 import { SectionTitle } from "../components/primitives";
 import { MapIcon } from "../components/icons";
@@ -237,6 +244,12 @@ export function MapPanel({
 }) {
   const gateway = useGateway();
   const [themeChoice] = useTheme();
+  const locale = useSyncExternalStore(
+    subscribeLocale,
+    localeSnapshot,
+    localeSnapshot,
+  );
+  const [systemThemeRevision, setSystemThemeRevision] = useState(0);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
   const pointMarkersRef = useRef<MaplibreMarker[]>([]);
@@ -252,6 +265,14 @@ export function MapPanel({
   // A visible reason the canvas is empty: "load" (library failed to import) or
   // "webgl" (the map couldn't initialize). null means no error.
   const [failure, setFailure] = useState<"load" | "webgl" | null>(null);
+
+  useEffect(() => {
+    if (themeChoice !== "system" || !globalThis.matchMedia) return;
+    const colorScheme = globalThis.matchMedia("(prefers-color-scheme: dark)");
+    const refreshMarkers = () => setSystemThemeRevision((value) => value + 1);
+    colorScheme.addEventListener("change", refreshMarkers);
+    return () => colorScheme.removeEventListener("change", refreshMarkers);
+  }, [themeChoice]);
 
   async function show() {
     setShown(true);
@@ -384,7 +405,7 @@ export function MapPanel({
       pointMarkersRef.current.forEach((marker) => marker.remove());
       pointMarkersRef.current = [];
     };
-  }, [points, ml, themeChoice]);
+  }, [points, ml, themeChoice, systemThemeRevision, locale]);
 
   return (
     <section className="voy-map" aria-labelledby="map-title">
