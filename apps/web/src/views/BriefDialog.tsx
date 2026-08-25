@@ -1,6 +1,13 @@
-import type { FactPayload, FactType } from "@voyalier/contracts";
+import { useState } from "react";
+import type {
+  FactPayload,
+  FactType,
+  SurfaceJourneyPayload,
+  CarRentalPayload,
+} from "@voyalier/contracts";
 
-import { useGateway } from "../app/context";
+import { buildBriefText } from "../app/briefText";
+import { useAnnounce, useGateway } from "../app/context";
 import {
   describeError,
   factSubtitle,
@@ -19,7 +26,7 @@ import { useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 import { Dialog } from "../components/Dialog";
-import { BedIcon, PlaneIcon } from "../components/icons";
+import { BedIcon, PlaneIcon, RouteIcon } from "../components/icons";
 import { Skeleton } from "../components/primitives";
 
 type Values = Record<string, string | undefined>;
@@ -84,6 +91,48 @@ function BriefEntry({
   );
 }
 
+function BriefJourneyEntry({
+  payload,
+}: {
+  payload: SurfaceJourneyPayload | CarRentalPayload;
+}) {
+  const values = payload as Values;
+  const present = [
+    "carrierName",
+    "vehicleDescription",
+    "departureLocal",
+    "arrivalLocal",
+  ].filter((key) => values[key] != null && values[key] !== "");
+  const title =
+    values.serviceNumber ??
+    values.carrierName ??
+    values.vehicleDescription ??
+    t("brief.journey");
+  const subtitle =
+    payload.departurePlace && payload.arrivalPlace
+      ? `${payload.departurePlace} → ${payload.arrivalPlace}`
+      : (payload.departurePlace ?? payload.arrivalPlace);
+  return (
+    <article className="voy-brief__entry">
+      <span className="voy-brief__entry-icon" aria-hidden="true">
+        <RouteIcon />
+      </span>
+      <div className="voy-brief__entry-body">
+        <p className="voy-brief__entry-title">{title}</p>
+        {subtitle ? <p className="voy-brief__entry-sub">{subtitle}</p> : null}
+        <dl className="voy-brief__fields">
+          {present.map((key) => (
+            <div className="voy-brief__field" key={key}>
+              <dt>{fieldLabel(key)}</dt>
+              <dd>{formatFieldValue(key, values[key] as string)}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    </article>
+  );
+}
+
 /**
  * A shareable, print-friendly brief. The gateway returns it already redacted by
  * the core, so nothing sensitive is ever in this component's data. "Print /
@@ -98,15 +147,57 @@ export function BriefDialog({
   onClose: () => void;
 }) {
   const gateway = useGateway();
+  const announce = useAnnounce();
+  const [copyState, setCopyState] = useState<
+    "idle" | "copying" | "copied" | "failed"
+  >("idle");
   const { status, data, error, reload } = useAsyncData(
     () => gateway.getTripBrief(tripId),
     `brief:${tripId}`,
   );
 
+  async function copyBrief() {
+    if (!data || !navigator.clipboard) {
+      setCopyState("failed");
+      return;
+    }
+    setCopyState("copying");
+    try {
+      const text = buildBriefText(data, {
+        flights: t("brief.flights"),
+        stays: t("brief.stays"),
+        journeys: t("brief.journeys"),
+        plans: t("brief.plans"),
+        journey: t("brief.journey"),
+        empty: t("brief.empty"),
+        redaction: (fields) =>
+          t("brief.redaction", {
+            fields: fields
+              .map(redactedFieldLabel)
+              .join(", ")
+              .toLocaleLowerCase(APP_LOCALE),
+          }),
+      });
+      await navigator.clipboard.writeText(text);
+      setCopyState("copied");
+      announce(t("brief.copy.done"));
+    } catch {
+      setCopyState("failed");
+    }
+  }
+
   const footer = (
     <>
       <Button variant="ghost" onClick={onClose}>
         {t("action.close")}
+      </Button>
+      <Button
+        variant="secondary"
+        onClick={() => void copyBrief()}
+        disabled={!data}
+        busy={copyState === "copying"}
+      >
+        {copyState === "copied" ? t("brief.copy.done") : t("brief.copy")}
       </Button>
       <Button variant="primary" onClick={() => window.print()} disabled={!data}>
         {t("brief.print")}
@@ -185,6 +276,20 @@ export function BriefDialog({
             </section>
           ) : null}
 
+          {data.journeys.length > 0 ? (
+            <section
+              className="voy-brief__section"
+              aria-label={t("brief.journeys")}
+            >
+              <h4 className="voy-brief__section-title">
+                {t("brief.journeys")}
+              </h4>
+              {data.journeys.map((journey, index) => (
+                <BriefJourneyEntry key={`journey-${index}`} payload={journey} />
+              ))}
+            </section>
+          ) : null}
+
           {data.tripItems.length > 0 ? (
             <section
               className="voy-brief__section"
@@ -214,6 +319,7 @@ export function BriefDialog({
 
           {data.flights.length === 0 &&
           data.stays.length === 0 &&
+          data.journeys.length === 0 &&
           data.tripItems.length === 0 ? (
             <p className="voy-brief__empty">{t("brief.empty")}</p>
           ) : null}
@@ -226,6 +332,11 @@ export function BriefDialog({
                   .join(", ")
                   .toLocaleLowerCase(APP_LOCALE),
               })}
+            </p>
+          ) : null}
+          {copyState === "failed" ? (
+            <p className="voy-brief__copy-error" role="status">
+              {t("brief.copy.failed")}
             </p>
           ) : null}
         </div>

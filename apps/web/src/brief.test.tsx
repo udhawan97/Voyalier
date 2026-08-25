@@ -1,5 +1,6 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
+import { vi } from "vitest";
 
 import { setLocalePreference } from "./app/locale";
 import { renderApp } from "./test/helpers";
@@ -14,6 +15,11 @@ describe("shareable brief", () => {
   afterEach(() => setLocalePreference("en"));
 
   it("renders a redacted brief with confirmation codes removed", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
     renderApp(createMockGateway());
 
     fireEvent.click(
@@ -32,6 +38,7 @@ describe("shareable brief", () => {
     // Itinerary detail is present in the brief.
     expect(await within(dialog).findByText("Flight FP18")).toBeInTheDocument();
     expect(within(dialog).getByText("River Paper Inn")).toBeInTheDocument();
+    expect(within(dialog).getByText("NX41")).toBeInTheDocument();
 
     // Secrets are excluded from the brief (scoped to the dialog — the Blueprint
     // behind it still shows the traveler their own codes).
@@ -42,6 +49,39 @@ describe("shareable brief", () => {
     expect(
       within(dialog).getByText(/Hidden from this brief/),
     ).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Copy brief" }));
+    expect(
+      await within(dialog).findByRole("button", { name: "Copied" }),
+    ).toBeInTheDocument();
+    expect(writeText).toHaveBeenCalledTimes(1);
+    const copied = writeText.mock.calls[0][0] as string;
+    expect(copied).toContain("NX41");
+    expect(copied).not.toContain("VOY182");
+    expect(copied).not.toContain("RAIL55");
+  });
+
+  it("reports an unavailable clipboard without claiming success", async () => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: undefined,
+    });
+    renderApp(createMockGateway());
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Share brief" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Shareable brief",
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Copy brief" }));
+    expect(
+      within(dialog).getByText(/Clipboard access is unavailable/),
+    ).toHaveAttribute("role", "status");
+    expect(within(dialog).queryByRole("button", { name: "Copied" })).toBeNull();
+    expect(
+      within(dialog).getByRole("button", { name: "Print / Save as PDF" }),
+    ).toBeEnabled();
   });
 
   it("excludes traveler names and confirmation codes at the gateway", async () => {

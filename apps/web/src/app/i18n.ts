@@ -415,10 +415,15 @@ const en = {
   "brief.description":
     "A copy you can share. Confirmation codes and traveler names are removed before it leaves this device.",
   "brief.print": "Print / Save as PDF",
+  "brief.copy": "Copy brief",
+  "brief.copy.done": "Copied",
+  "brief.copy.failed":
+    "Clipboard access is unavailable. Print or save the brief as a PDF instead.",
   "brief.loading": "Preparing the brief…",
   "brief.flights": "Flights",
   "brief.stays": "Stays",
   "brief.plans": "Activities & transfers",
+  "brief.journey": "Surface journey",
   "brief.empty":
     "No confirmed flights or stays yet. Confirm some plans to fill the brief.",
   "brief.redaction": "Hidden from this brief: {fields}.",
@@ -2056,10 +2061,15 @@ const es: Record<MessageKey, string> = {
   "brief.description":
     "Una copia que puedes compartir. Los códigos de confirmación y los nombres de los viajeros se eliminan antes de salir de este dispositivo.",
   "brief.print": "Imprimir / Guardar como PDF",
+  "brief.copy": "Copiar resumen",
+  "brief.copy.done": "Copiado",
+  "brief.copy.failed":
+    "El acceso al portapapeles no está disponible. Imprime o guarda el resumen como PDF.",
   "brief.loading": "Preparando el resumen…",
   "brief.flights": "Vuelos",
   "brief.stays": "Estancias",
   "brief.plans": "Actividades y traslados",
+  "brief.journey": "Trayecto terrestre",
   "brief.empty":
     "Aún no hay vuelos ni estancias confirmados. Confirma algunos planes para completar el resumen.",
   "brief.redaction": "Oculto en este resumen: {fields}.",
