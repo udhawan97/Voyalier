@@ -81,8 +81,9 @@ plan labels as the dialog. The UI writes that text to the clipboard only after t
 
 Acceptance:
 
-- The formatter includes route, title, dates, flights, stays, and scheduled traveler-authored plans
-  that exist in `TripBrief`.
+- The formatter includes route, title, dates, flights, stays, and the traveler-authored plans that
+  already exist in `TripBrief`, including undated ideas. The pre-existing brief projection makes
+  those titles and optional locations shareable while excluding their private notes.
 - It cannot include confirmation codes, traveler names, imported document text, resources, or
   private plan notes because those fields are absent from the formatter input; tests pin the
   generation-time exclusion boundary.

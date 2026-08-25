@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, vi } from "vitest";
-import { fireEvent, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import {
   createMockGateway,
   type Recommendation,
@@ -7,6 +13,11 @@ import {
 } from "@voyalier/contracts";
 
 import { renderApp } from "./test/helpers";
+import { setThemeChoice } from "./app/theme";
+
+const maplibreMocks = vi.hoisted(() => ({
+  markerColors: [] as string[],
+}));
 
 vi.mock("maplibre-gl/dist/maplibre-gl.css", () => ({}));
 vi.mock("maplibre-gl", () => {
@@ -24,6 +35,9 @@ vi.mock("maplibre-gl", () => {
     remove() {}
   }
   class FakeMarker {
+    constructor(options?: { color?: string }) {
+      if (options?.color) maplibreMocks.markerColors.push(options.color);
+    }
     setLngLat() {
       return this;
     }
@@ -77,6 +91,7 @@ async function openMap() {
  */
 describe("Map panel", () => {
   beforeEach(() => {
+    maplibreMocks.markerColors.length = 0;
     // Pretend a WebGL context is available so the consent path renders the
     // canvas (real tile rendering still no-ops in jsdom and is verified live).
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
@@ -84,6 +99,9 @@ describe("Map panel", () => {
     );
   });
   afterEach(() => {
+    setThemeChoice("system");
+    document.documentElement.style.removeProperty("--voy-vermilion");
+    document.documentElement.style.removeProperty("--voy-indigo");
     vi.restoreAllMocks();
   });
 
@@ -110,6 +128,11 @@ describe("Map panel", () => {
     const region = await openMap();
     // Lazy: the "Show map" affordance is present and nothing has been fetched.
     const showButton = within(region).getByRole("button", { name: "Show map" });
+    expect(
+      within(region).getByText(/OpenFreeMap receives tile requests/),
+    ).toHaveTextContent(
+      /can reflect destination and saved-place coordinates.*place names, notes, and itinerary records are not sent/,
+    );
     expect(recommendationCalls).toBe(0);
     expect(offlineMapCalls).toBe(0);
 
@@ -122,10 +145,78 @@ describe("Map panel", () => {
     ).toBeInTheDocument();
     expect(within(region).getByText(/OpenFreeMap/)).toBeInTheDocument();
     expect(
+      within(region).getByText(
+        /Online tile requests reveal the displayed area/,
+      ),
+    ).toBeInTheDocument();
+    expect(
       within(region).queryByRole("button", { name: "Show map" }),
     ).toBeNull();
     expect(recommendationCalls).toBe(1);
     expect(offlineMapCalls).toBe(1);
+  });
+
+  it("rebuilds saved and suggested markers with the active theme colors", async () => {
+    const base = createMockGateway();
+    const savedPlace: SavedPlace = {
+      id: "saved_market",
+      tripId: "trip_kyoto",
+      packId: "jp-kyoto",
+      sourcePackAvailable: true,
+      name: "Nishiki Market",
+      category: "food",
+      dimension: "food",
+      lat: 35.005,
+      lon: 135.764,
+      source: "Overture Maps",
+      license: "ODbL 1.0",
+      reasons: ["food"],
+      wildcard: false,
+      notes: "",
+      createdAt: "2026-08-01T00:00:00Z",
+      updatedAt: "2026-08-01T00:00:00Z",
+    };
+    const suggestion: Recommendation = {
+      packId: "jp-kyoto",
+      name: "Kyoto Station",
+      category: "travel",
+      dimension: "culture",
+      lat: 34.9858,
+      lon: 135.7588,
+      source: "Overture Maps",
+      license: "ODbL 1.0",
+      score: 0.8,
+      reasons: ["culture"],
+      wildcard: false,
+    };
+    const gateway = {
+      ...base,
+      getTrip: async (tripId: string) => ({
+        ...(await base.getTrip(tripId)),
+        savedPlaces: [savedPlace],
+      }),
+      getRecommendations: () => Promise.resolve([suggestion]),
+    };
+    document.documentElement.style.setProperty("--voy-vermilion", "#aa1100");
+    document.documentElement.style.setProperty("--voy-indigo", "#0011aa");
+    renderApp(gateway);
+
+    const region = await openMap();
+    fireEvent.click(within(region).getByRole("button", { name: "Show map" }));
+    await waitFor(() =>
+      expect(maplibreMocks.markerColors).toEqual(
+        expect.arrayContaining(["#aa1100", "#0011aa"]),
+      ),
+    );
+
+    document.documentElement.style.setProperty("--voy-vermilion", "#cc3300");
+    document.documentElement.style.setProperty("--voy-indigo", "#2233cc");
+    act(() => setThemeChoice("dark"));
+    await waitFor(() =>
+      expect(maplibreMocks.markerColors).toEqual(
+        expect.arrayContaining(["#cc3300", "#2233cc"]),
+      ),
+    );
   });
 
   it("keeps saved places visible when recommendation loading fails", async () => {

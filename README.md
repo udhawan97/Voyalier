@@ -155,7 +155,8 @@ into a readiness or safety claim.
   <img src="docs-site/public/assets/screenshots/voyalier-brief-copy.jpg" alt="Voyalier shareable brief for a fictional trip showing a flight, stay, surface journey, redaction disclosure, and a successful Copied action" width="720">
 </p>
 
-Flights, stays, surface journeys, and scheduled traveler-authored plans can be
+Flights, stays, surface journeys, and traveler-authored plans (including undated
+ideas) can be
 printed, saved as PDF, or copied as plain text. The clipboard path receives the
 same redacted projection and has its own safe-field allowlist.
 
@@ -217,16 +218,16 @@ does not decide the case.
 <details>
 <summary><strong>What can use the network?</strong></summary>
 
-| Connection                            | Explicit trigger                      | What leaves the device                                                                               |
-| ------------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| **GOV.UK FCDO**                       | Fetch official advice                 | Selected country slug                                                                                |
-| **Open-Meteo**                        | Fetch weather                         | Destination for geocoding, then coordinates                                                          |
-| **Government processing-time source** | Fetch published times                 | The route values needed by that authority’s public tool                                              |
-| **GitHub Releases**                   | Download a pack, update, or installer | Public asset request; no trip content                                                                |
-| **OpenFreeMap**                       | Show map                              | Map viewport tile requests                                                                           |
-| **A saved page**                      | Fetch page details                    | Only the address you saved; the response is size-capped and reduced to readable text                 |
-| **Ollama**                            | Run assist or send local chat         | Redacted trip material to localhost; chat also includes the question and retrieved local context     |
-| **OpenAI / Anthropic**                | Run assist after preview              | Exactly the redacted payload shown in the consent step; the BYOK key is used only for authentication |
+| Connection                            | Explicit trigger                      | What leaves the device                                                                                                                          |
+| ------------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **GOV.UK FCDO**                       | Fetch official advice                 | Selected country slug                                                                                                                           |
+| **Open-Meteo**                        | Fetch weather                         | Destination for geocoding, then coordinates                                                                                                     |
+| **Government processing-time source** | Fetch published times                 | The route values needed by that authority’s public tool                                                                                         |
+| **GitHub Releases**                   | Download a pack, update, or installer | Public asset request; no trip content                                                                                                           |
+| **OpenFreeMap**                       | Show map without an offline basemap   | Tile requests for the displayed area, which can reflect destination and saved-place coordinates; names, notes, and itinerary records stay local |
+| **A saved page**                      | Fetch page details                    | Only the address you saved; the response is size-capped and reduced to readable text                                                            |
+| **Ollama**                            | Run assist or send local chat         | Redacted trip material to localhost; chat also includes the question and retrieved local context                                                |
+| **OpenAI / Anthropic**                | Run assist after preview              | Exactly the redacted payload shown in the consent step; the BYOK key is used only for authentication                                            |
 
 Official entry, health, and safety sources outrank commercial, editorial,
 community, and model content. AI can help explain a trip; it cannot clear one.

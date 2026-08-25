@@ -7,9 +7,12 @@ import {
 } from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
 
+import { setLocalePreference } from "./app/locale";
 import { openFixtureTrip, renderApp } from "./test/helpers";
 
 describe("traveler-owned planning workflows", () => {
+  afterEach(() => setLocalePreference("en"));
+
   it("explains the required text before either blank planning submission", async () => {
     renderApp(createMockGateway());
     await openFixtureTrip();
@@ -185,13 +188,52 @@ describe("traveler-owned planning workflows", () => {
     ).toBeInTheDocument();
 
     fireEvent.click(
+      within(packing).getByRole("checkbox", { name: "Passport" }),
+    );
+    expect(
+      await within(packing).findByText("0 of 2 packed"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(packing).getByRole("checkbox", { name: "Passport" }),
+    );
+    expect(
+      await within(packing).findByText("1 of 2 packed"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(packing).getByRole("button", { name: "Rename Walking shoes" }),
+    );
+    fireEvent.change(within(packing).getByLabelText("Packing item name"), {
+      target: { value: "Walking boots" },
+    });
+    fireEvent.click(
+      within(packing).getByRole("button", { name: "Save packing item" }),
+    );
+    expect(
+      await within(packing).findByRole("checkbox", { name: "Walking boots" }),
+    ).not.toBeChecked();
+    expect(within(packing).getByText("1 of 2 packed")).toBeInTheDocument();
+
+    fireEvent.click(
+      within(packing).getByRole("button", { name: "Remove Walking boots" }),
+    );
+    fireEvent.click(
+      within(packing).getByRole("button", {
+        name: "Remove Walking boots — sure?",
+      }),
+    );
+    expect(
+      await within(packing).findByText("1 of 1 packed"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
       within(packing).getByRole("button", { name: "Hide packed" }),
     );
     expect(
       within(packing).queryByRole("checkbox", { name: "Passport" }),
     ).toBeNull();
     expect(
-      within(packing).getByRole("checkbox", { name: "Walking shoes" }),
+      within(packing).getByText("Everything on this checklist is packed."),
     ).toBeInTheDocument();
 
     fireEvent.click(
@@ -200,6 +242,45 @@ describe("traveler-owned planning workflows", () => {
     expect(
       within(packing).getByRole("checkbox", { name: "Passport" }),
     ).toBeChecked();
+  });
+
+  it("localizes packing progress and reversible filter controls", async () => {
+    setLocalePreference("es");
+    renderApp(createMockGateway());
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Abrir Kyoto autumn journey",
+      }),
+    );
+    await screen.findByRole("heading", {
+      name: "Kyoto autumn journey",
+      level: 1,
+    });
+
+    const packing = await screen.findByRole("region", {
+      name: "Lista de equipaje",
+    });
+    fireEvent.change(within(packing).getByLabelText("Artículo personalizado"), {
+      target: { value: "Pasaporte" },
+    });
+    fireEvent.click(within(packing).getByRole("button", { name: "Añadir" }));
+    const checkbox = await within(packing).findByRole("checkbox", {
+      name: "Pasaporte",
+    });
+    expect(
+      within(packing).getByRole("progressbar", {
+        name: "0 de 1 empacados",
+      }),
+    ).toBeInTheDocument();
+    fireEvent.click(checkbox);
+    expect(
+      await within(packing).findByRole("progressbar", {
+        name: "1 de 1 empacados",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(packing).getByRole("button", { name: "Ocultar empacados" }),
+    ).toBeInTheDocument();
   });
 
   it("prefills a saved place without writing until the traveler submits", async () => {

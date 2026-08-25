@@ -16,6 +16,7 @@ import { savedPlaceIdentity } from "@voyalier/contracts";
 
 import { useGateway } from "../app/context";
 import { t } from "../app/i18n";
+import { useTheme } from "../app/theme";
 import { SectionTitle } from "../components/primitives";
 import { MapIcon } from "../components/icons";
 import { Button } from "../components/Button";
@@ -220,9 +221,10 @@ function webglSupported(): boolean {
 /**
  * A consent-gated map of the trip's destination and recommended places.
  * Showing it fetches map tiles from OpenFreeMap (an explicit network request,
- * like the weather outlook); nothing about the trip is sent. Markers come from
- * the trip's downloaded-pack recommendations; the view centers on the
- * weather-geocoded destination when available.
+ * like the weather outlook). Those requests disclose the displayed area, which
+ * can reflect destination or saved-place coordinates, but do not carry place
+ * names, notes, or structured itinerary records. Markers come from local saved
+ * places and downloaded-pack recommendations.
  */
 export function MapPanel({
   tripId,
@@ -234,6 +236,7 @@ export function MapPanel({
   savedPlaces: SavedPlace[];
 }) {
   const gateway = useGateway();
+  const [themeChoice] = useTheme();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
   const pointMarkersRef = useRef<MaplibreMarker[]>([]);
@@ -381,7 +384,7 @@ export function MapPanel({
       pointMarkersRef.current.forEach((marker) => marker.remove());
       pointMarkersRef.current = [];
     };
-  }, [points, ml]);
+  }, [points, ml, themeChoice]);
 
   return (
     <section className="voy-map" aria-labelledby="map-title">

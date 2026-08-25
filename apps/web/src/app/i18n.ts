@@ -1394,7 +1394,7 @@ const en = {
 
   "map.title": "Map",
   "map.intro":
-    "See your destination and recommended places on a map. A downloaded offline basemap stays on this device; otherwise showing the map fetches tiles from OpenFreeMap. Nothing about your trip is sent.",
+    "See your destination and recommended places on a map. A downloaded offline basemap stays on this device. Otherwise OpenFreeMap receives tile requests for the area shown, which can reflect destination and saved-place coordinates; place names, notes, and itinerary records are not sent.",
   "map.show": "Show map",
   "map.aria": "Trip map",
   "map.legend.aria": "Map marker legend",
@@ -1402,7 +1402,8 @@ const en = {
   "map.point.suggested": "Suggested place",
   "map.points.summary": "Mapped places ({count})",
   "map.points.aria": "Places shown on the map",
-  "map.scope": "Basemap © OpenFreeMap · map data © OpenStreetMap contributors.",
+  "map.scope":
+    "Basemap © OpenFreeMap · map data © OpenStreetMap contributors. Online tile requests reveal the displayed area; names, notes, and itinerary records stay local.",
   "map.scope.offline":
     "Offline basemap from {source} · map data © OpenStreetMap contributors. No tile request left this device.",
   "map.scope.empty":
@@ -3005,7 +3006,7 @@ const es: Record<MessageKey, string> = {
     "No se pudo encontrar el documento existente. Se abrieron los documentos importados.",
   "map.title": "Mapa",
   "map.intro":
-    "Mira tu destino y los lugares recomendados en un mapa. Un mapa base sin conexión descargado permanece en este dispositivo; de lo contrario, mostrar el mapa descarga mosaicos desde OpenFreeMap. No se envía información sobre tu viaje.",
+    "Mira tu destino y los lugares recomendados en un mapa. Un mapa base sin conexión descargado permanece en este dispositivo. De lo contrario, OpenFreeMap recibe solicitudes de mosaicos para el área mostrada, que puede reflejar el destino y las coordenadas de lugares guardados; no se envían nombres de lugares, notas ni registros del itinerario.",
   "map.show": "Mostrar mapa",
   "map.aria": "Mapa del viaje",
   "map.legend.aria": "Leyenda de marcadores del mapa",
@@ -3014,7 +3015,7 @@ const es: Record<MessageKey, string> = {
   "map.points.summary": "Lugares en el mapa ({count})",
   "map.points.aria": "Lugares mostrados en el mapa",
   "map.scope":
-    "Mapa base © OpenFreeMap · datos del mapa © colaboradores de OpenStreetMap.",
+    "Mapa base © OpenFreeMap · datos del mapa © colaboradores de OpenStreetMap. Las solicitudes de mosaicos en línea revelan el área mostrada; los nombres, las notas y los registros del itinerario permanecen locales.",
   "map.scope.offline":
     "Mapa base sin conexión de {source} · datos del mapa © colaboradores de OpenStreetMap. No se envió ninguna solicitud de mosaico fuera de este dispositivo.",
   "map.scope.empty":

@@ -84,6 +84,33 @@ describe("shareable brief", () => {
     ).toBeEnabled();
   });
 
+  it("reports a denied clipboard write without claiming success", async () => {
+    const writeText = vi
+      .fn()
+      .mockRejectedValue(new DOMException("Denied", "NotAllowedError"));
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    renderApp(createMockGateway());
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Share brief" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Shareable brief",
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Copy brief" }));
+    expect(
+      await within(dialog).findByText(/Clipboard access is unavailable/),
+    ).toHaveAttribute("role", "status");
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(within(dialog).queryByRole("button", { name: "Copied" })).toBeNull();
+    expect(
+      within(dialog).getByRole("button", { name: "Print / Save as PDF" }),
+    ).toBeEnabled();
+  });
+
   it("excludes traveler names and confirmation codes at the gateway", async () => {
     const gateway = createMockGateway();
     const trip = await gateway.createTrip({
