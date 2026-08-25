@@ -65,4 +65,3 @@ exact candidate before merge or publication.
 1. `Docs: plan Windows updater acceptance`
 2. `Test: add Windows installed updater acceptance`
 3. `Merge: close the Windows release gate`
-

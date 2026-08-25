@@ -187,7 +187,11 @@ missing download).
 - Rust: `backup_database` (creates/prunes/checkpoints), app_settings KV, the custom updater command
   wrappers (options fixed; no caller proxy/headers).
 - Release: `workflow_dispatch` dry-run builds updater artifacts; local-endpoint E2E of the full loop
-  (mac+win) before cutting the real release.
+  (mac+win) before cutting the real release. The opt-in `windows_acceptance` job builds the exact
+  public `v0.10.7` base and candidate with an ephemeral, job-local updater key, installs the
+  current-user NSIS package on real Windows, exercises the signed loopback swap through the packaged
+  IPC bridge, and proves reopen, pre-update backup, data preservation, and reinstall recovery. It
+  cannot publish and never uploads the ephemeral private key or SQLite workspace.
 
 ## 13. Phasing
 

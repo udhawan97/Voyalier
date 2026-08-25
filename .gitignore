@@ -25,6 +25,7 @@ coverage/
 playwright-report/
 .playwright-cli/
 .playwright-mcp/
+windows-acceptance-evidence/
 
 # Pack build outputs (see .github/workflows/packs.yml)
 /catalog.json

@@ -18,6 +18,12 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      windows_acceptance:
+        description: Run the ephemeral-key Windows installed-app and updater swap gate
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -127,3 +133,41 @@ jobs:
           # Windows. Git Bash on the Windows runner does not provide `shasum`.
           node scripts/write-release-checksums.mjs target/release/bundle "$checksum"
           gh release upload "${{ github.ref_name }}" "$checksum" --clobber
+
+  windows-acceptance:
+    name: Windows installed app and updater swap
+    if: github.event_name == 'workflow_dispatch' && inputs.windows_acceptance
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@b0f76dfb45f55f8421693e4803ac7bb65143bd34 # v6
+        with:
+          version: 11.7.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+      - run: pnpm install --frozen-lockfile
+      - name: Install the pinned Windows WebDriver bridge
+        shell: pwsh
+        run: |
+          cargo install tauri-driver --version 2.0.6 --locked
+          cargo install --git https://github.com/chippers/msedgedriver-tool `
+            --rev 8c4b34f51b45f5cf08013366d703de464ab871d1 --locked
+          & "$HOME/.cargo/bin/msedgedriver-tool.exe"
+          $PWD.Path >> $env:GITHUB_PATH
+      - name: Install, update, reopen, and recover on Windows
+        run: node scripts/windows-installed-updater-acceptance.mjs
+      - name: Upload sanitized Windows acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-installed-updater-evidence-${{ github.sha }}
+          path: windows-acceptance-evidence/
+          if-no-files-found: error
+          retention-days: 14

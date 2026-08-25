@@ -56,6 +56,12 @@ One-time and per-release steps for the in-app updater, per
   confirm install is in `/Applications`, the app reopens after the swap, and a
   "won't open" recovery (re-download) keeps user data (it lives outside the
   bundle).
+- For Windows, dispatch `Release` with `windows_acceptance: true` from the exact
+  candidate SHA. The opt-in job builds the public `v0.10.7` base and candidate
+  with an ephemeral updater key, installs the current-user NSIS package, serves
+  the signed candidate from loopback, verifies the replacement/reopen and
+  reinstall recovery, and uploads only sanitized evidence. A build-only Windows
+  matrix leg does not satisfy this runtime gate.
 - Keep `packs-v1` (and any pack release) marked PRE-RELEASE so it never becomes
   `releases/latest` and 404s the updater.
 - v0.3.0 is install-once (the chicken-and-egg base); the loop self-proves on
