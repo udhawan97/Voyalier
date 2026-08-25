@@ -80,6 +80,11 @@ export function validateWindowsAcceptanceReport(report) {
   if (!report || report.verdict !== "PASS") {
     throw new Error("acceptance report must have a PASS verdict");
   }
+  if (report.stage !== "complete") {
+    throw new Error(
+      "acceptance report did not complete every installed-app stage",
+    );
+  }
   if (report.base?.version !== "0.10.7") {
     throw new Error("acceptance base must be the public v0.10.7 release");
   }

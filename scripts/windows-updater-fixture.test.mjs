@@ -65,6 +65,7 @@ test("serves only the static manifest and the named installer", () => {
 test("pins installed, data-preservation, backup, and loopback evidence", () => {
   const report = {
     verdict: "PASS",
+    stage: "complete",
     base: { version: "0.10.7" },
     candidate: { version: "0.11.0" },
     installed: { before: "0.10.7", after: "0.11.0", recovery: "0.11.0" },
@@ -81,6 +82,10 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
     },
   };
   assert.equal(validateWindowsAcceptanceReport(report), report);
+  assert.throws(
+    () => validateWindowsAcceptanceReport({ ...report, stage: "updater-swap" }),
+    /every installed-app stage/,
+  );
   assert.throws(
     () =>
       validateWindowsAcceptanceReport({

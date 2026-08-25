@@ -135,12 +135,20 @@ async function waitFor(check, description, timeout = 180_000) {
   throw new Error(`timed out waiting for ${description}`, { cause: lastError });
 }
 
-async function fetchDriver(pathname, init = {}) {
-  const response = await fetch(`${DRIVER_URL}${pathname}`, {
-    ...init,
-    headers: { "content-type": "application/json", ...(init.headers ?? {}) },
-    signal: AbortSignal.timeout(30_000),
-  });
+async function fetchDriver(pathname, init = {}, timeout = 30_000) {
+  let response;
+  try {
+    response = await fetch(`${DRIVER_URL}${pathname}`, {
+      ...init,
+      headers: { "content-type": "application/json", ...(init.headers ?? {}) },
+      signal: AbortSignal.timeout(timeout),
+    });
+  } catch (error) {
+    throw new Error(
+      `WebDriver ${init.method ?? "GET"} ${pathname} did not respond within ${timeout}ms`,
+      { cause: error },
+    );
+  }
   const body = await response.json().catch(() => ({}));
   if (!response.ok || body.value?.error) {
     throw new Error(
@@ -179,17 +187,21 @@ async function startDriver(application, suffix) {
     "tauri-driver",
     60_000,
   );
-  const value = await fetchDriver("/session", {
-    method: "POST",
-    body: JSON.stringify({
-      capabilities: {
-        alwaysMatch: {
-          browserName: "wry",
-          "tauri:options": { application },
+  const value = await fetchDriver(
+    "/session",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        capabilities: {
+          alwaysMatch: {
+            browserName: "wry",
+            "tauri:options": { application },
+          },
         },
-      },
-    }),
-  });
+      }),
+    },
+    180_000,
+  );
   const sessionId = value.sessionId;
   assert.ok(sessionId, "tauri-driver did not return a session id");
   await waitFor(
@@ -610,7 +622,9 @@ async function main() {
     assert.equal(path.dirname(application), expectedInstallRoot);
     server = await startFixtureServer(manifest, candidateInstaller, requestLog);
 
+    report.stage = "base-driver-session";
     driver = await startDriver(application, "base");
+    report.stage = "base-product-journey";
     const baseStatus = await invoke(driver, "updater_check");
     assert.equal(baseStatus.currentVersion, BASE_VERSION);
     assert.equal(baseStatus.status, "available");
@@ -644,6 +658,7 @@ async function main() {
       baseProcesses.map(({ ProcessId }) => Number(ProcessId)),
     );
 
+    report.stage = "updater-swap";
     await execute(
       driver,
       "window.__TAURI__.core.invoke('updater_install').catch(() => {}); return 'started';",
@@ -672,7 +687,9 @@ async function main() {
     await stopDriver(driver);
     driver = undefined;
     stopInstalledProcesses(application);
+    report.stage = "updated-driver-session";
     driver = await startDriver(application, "updated");
+    report.stage = "updated-product-journey";
     const candidateStatus = await invoke(driver, "updater_check");
     assert.equal(candidateStatus.currentVersion, CANDIDATE_VERSION);
     assert.equal(candidateStatus.status, "upToDate");
@@ -694,7 +711,9 @@ async function main() {
     await uninstallApplication(application);
     await stat(path.join(DATA_ROOT, "voyalier.sqlite3"));
     application = await installApplication(candidateInstaller);
+    report.stage = "recovery-driver-session";
     driver = await startDriver(application, "recovery");
+    report.stage = "recovery-product-journey";
     const recoveryStatus = await invoke(driver, "updater_check");
     assert.equal(recoveryStatus.currentVersion, CANDIDATE_VERSION);
     const tripsAfterRecovery = await invoke(driver, "list_trips", {});
@@ -711,6 +730,7 @@ async function main() {
     ).length;
     Object.assign(report, {
       verdict: "PASS",
+      stage: "complete",
       installed: {
         path: application,
         before: baseStatus.currentVersion,
