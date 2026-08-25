@@ -242,7 +242,7 @@ test("new map, packing, and brief states reflow and remain keyboard operable", a
   await page.getByRole("button", { name: "Create a trip" }).first().click();
   const createTrip = page.getByRole("dialog", { name: "Create a trip" });
   await createTrip.getByLabel("From").fill("Chicago");
-  await createTrip.getByLabel("To").fill("Paris");
+  await createTrip.getByLabel("To").fill("Kyoto");
   await createTrip.getByLabel("Start date").fill(isoDay(30));
   await createTrip.getByLabel("End date").fill(isoDay(36));
   await createTrip.getByLabel("Trip name (optional)").fill(tripTitle);
@@ -269,12 +269,43 @@ test("new map, packing, and brief states reflow and remain keyboard operable", a
   ).toBeVisible();
 
   await page.getByRole("link", { name: "Discover", exact: true }).click();
+  const packs = page.getByRole("region", { name: "Offline city data" });
+  await packs.getByRole("button", { name: "Download Kyoto city data" }).click();
+  await expect(packs.getByText(/3 places.*offline/)).toBeVisible();
+
+  const recommendations = page.getByRole("region", {
+    name: "Recommendations",
+  });
+  await recommendations
+    .getByRole("button", { name: "Get recommendations" })
+    .click();
+  const recommendedPlaces = recommendations.getByRole("list", {
+    name: "Recommended places",
+  });
+  const firstRecommendation = recommendedPlaces.getByRole("listitem").first();
+  await firstRecommendation
+    .getByRole("button", { name: /^Save place / })
+    .click();
+  await expect(
+    page.getByRole("region", { name: "Saved places" }),
+  ).toContainText(/Nishiki Market|Kyoto Station Gallery|Maruyama Park/);
+
   const map = page.locator("section.voy-map");
   const showMap = map.getByRole("button", { name: "Show map" });
   await showMap.focus();
   await page.keyboard.press("Enter");
   await expect(
     map.getByText(/Online tile requests reveal the displayed area/),
+  ).toBeVisible();
+  await expect(map.getByText("Saved place", { exact: true })).toBeVisible();
+  await expect(map.getByText("Suggested place", { exact: true })).toBeVisible();
+  const mappedPlaces = map.locator("details.voy-map__points");
+  const mappedPlacesSummary = mappedPlaces.locator("summary");
+  await mappedPlacesSummary.focus();
+  await page.keyboard.press("Enter");
+  await expect(mappedPlaces).toHaveJSProperty("open", true);
+  await expect(
+    mappedPlaces.getByRole("list", { name: "Places shown on the map" }),
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Add reservation" }).first().click();
@@ -298,6 +329,9 @@ test("new map, packing, and brief states reflow and remain keyboard operable", a
   ).toBe(true);
   await expect(packing.getByText("1 of 2 packed")).toBeVisible();
   await expect(map).toBeVisible();
+  await expect(mappedPlaces).toHaveJSProperty("open", true);
+  await expect(map.getByText("Saved place", { exact: true })).toBeVisible();
+  await expect(map.getByText("Suggested place", { exact: true })).toBeVisible();
 
   const shareBrief = page.getByRole("button", { name: "Share brief" });
   await shareBrief.focus();
@@ -305,6 +339,7 @@ test("new map, packing, and brief states reflow and remain keyboard operable", a
   const brief = page.getByRole("dialog", { name: "Shareable brief" });
   await expect(brief.getByText("Fictional Rail")).toBeVisible();
   await expect(brief.getByRole("button", { name: "Copy brief" })).toBeVisible();
+  await expect(mappedPlaces).toHaveJSProperty("open", true);
   await expect(
     brief.getByRole("button", { name: "Print / Save as PDF" }),
   ).toBeVisible();
@@ -332,9 +367,26 @@ test("new map, packing, and brief states reflow and remain keyboard operable", a
         document.documentElement.clientWidth,
     ),
   ).toBe(true);
+  await brief.getByRole("button", { name: "Close" }).last().click();
+  await expect(map).toBeVisible();
+  await expect(mappedPlaces).toHaveJSProperty("open", true);
+  await expect(
+    mappedPlaces.getByRole("list", { name: "Places shown on the map" }),
+  ).toBeVisible();
+  await expect(map.getByText("Saved place", { exact: true })).toBeVisible();
+  await expect(map.getByText("Suggested place", { exact: true })).toBeVisible();
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
   await session.send("Emulation.clearDeviceMetricsOverride");
   await session.detach();
 
+  await shareBrief.click();
+  await expect(brief.getByText("Fictional Rail")).toBeVisible();
   const pdfPath = testInfo.outputPath("shareable-brief.pdf");
   await page.pdf({
     path: pdfPath,
