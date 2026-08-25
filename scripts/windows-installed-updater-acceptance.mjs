@@ -19,6 +19,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   allowedUpdaterPath,
+  buildWindowsDriverCapabilities,
   buildWindowsUpdaterManifest,
   validateWindowsAcceptanceReport,
 } from "./windows-updater-fixture.mjs";
@@ -166,6 +167,8 @@ async function startDriver(application, suffix) {
     "tauri-driver.exe",
   );
   const logPath = path.join(EVIDENCE_ROOT, `tauri-driver-${suffix}.log`);
+  const userDataFolder = path.join(TEMP_ROOT, `webview-${suffix}`);
+  await mkdir(userDataFolder, { recursive: true });
   const log = createWriteStream(logPath, { flags: "a" });
   await once(log, "open");
   const processHandle = spawn(driverBinary, [], {
@@ -191,14 +194,9 @@ async function startDriver(application, suffix) {
     "/session",
     {
       method: "POST",
-      body: JSON.stringify({
-        capabilities: {
-          alwaysMatch: {
-            browserName: "wry",
-            "tauri:options": { application },
-          },
-        },
-      }),
+      body: JSON.stringify(
+        buildWindowsDriverCapabilities({ application, userDataFolder }),
+      ),
     },
     180_000,
   );

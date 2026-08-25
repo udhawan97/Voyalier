@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   allowedUpdaterPath,
+  buildWindowsDriverCapabilities,
   buildWindowsUpdaterManifest,
   validateWindowsAcceptanceReport,
 } from "./windows-updater-fixture.mjs";
@@ -60,6 +61,36 @@ test("serves only the static manifest and the named installer", () => {
   assert.equal(allowedUpdaterPath("/latest.json?redirect=1", installer), false);
   assert.equal(allowedUpdaterPath("/../private.key", installer), false);
   assert.equal(allowedUpdaterPath("/other-setup.exe", installer), false);
+});
+
+test("nests an isolated WebView2 data directory under tauri options", () => {
+  const capabilities = buildWindowsDriverCapabilities({
+    application: "C:\\Program Files\\Voyalier\\Voyalier.exe",
+    userDataFolder: "D:\\runner-temp\\voyalier-webview-base",
+  });
+
+  assert.deepEqual(capabilities, {
+    capabilities: {
+      alwaysMatch: {
+        browserName: "wry",
+        "tauri:options": {
+          application: "C:\\Program Files\\Voyalier\\Voyalier.exe",
+          args: [],
+          webviewOptions: {
+            userDataFolder: "D:\\runner-temp\\voyalier-webview-base",
+          },
+        },
+      },
+    },
+  });
+  assert.throws(
+    () =>
+      buildWindowsDriverCapabilities({
+        application: "Voyalier.exe",
+        userDataFolder: "D:\\runner-temp\\voyalier-webview-base",
+      }),
+    /absolute Windows path/,
+  );
 });
 
 test("pins installed, data-preservation, backup, and loopback evidence", () => {

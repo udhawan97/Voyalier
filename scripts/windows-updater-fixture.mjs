@@ -76,6 +76,33 @@ export function allowedUpdaterPath(requestUrl, installerName) {
   );
 }
 
+export function buildWindowsDriverCapabilities({
+  application,
+  userDataFolder,
+}) {
+  application = requireString(application, "application");
+  userDataFolder = requireString(userDataFolder, "userDataFolder");
+  if (!path.win32.isAbsolute(application)) {
+    throw new Error("application must be an absolute Windows path");
+  }
+  if (!path.win32.isAbsolute(userDataFolder)) {
+    throw new Error("userDataFolder must be an absolute Windows path");
+  }
+
+  return {
+    capabilities: {
+      alwaysMatch: {
+        browserName: "wry",
+        "tauri:options": {
+          application,
+          args: [],
+          webviewOptions: { userDataFolder },
+        },
+      },
+    },
+  };
+}
+
 export function validateWindowsAcceptanceReport(report) {
   if (!report || report.verdict !== "PASS") {
     throw new Error("acceptance report must have a PASS verdict");
