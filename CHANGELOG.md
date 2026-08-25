@@ -6,6 +6,35 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-08-25 — The shortlist stays yours
+
+Voyalier now carries three more traveler-owned decisions across the places where
+they are useful: saved places lead the map, accepted packing items produce an
+honest progress view, and the already-redacted brief can move through the
+clipboard without widening what it knows. None of the three adds a provider,
+background action, booking claim, or new authority surface.
+
+### Added
+
+- **The map now starts with the traveler's saved shortlist.** Saved places lead
+  unsaved recommendations, a matching recommendation is drawn only once as
+  saved, and saved points remain visible if recommendation loading fails or the
+  source pack has been removed. Marker colors have a visible text legend and an
+  expandable place register, so the distinction does not depend on color or the
+  canvas. Opening the map still requires an explicit click; a point still says
+  nothing about hours, price, availability, access, or safety.
+- **Packing now shows progress over accepted items.** The numerator is checked
+  checklist rows and the denominator is traveler-accepted or custom rows;
+  suggestions stay outside both until individually added. Hide packed is a
+  reversible local filter and never edits, removes, or reinterprets an item as
+  trip readiness.
+- **The redacted brief can be copied as plain text.** The dialog now also renders
+  the surface journeys already present in `TripBrief`, and Copy brief sits beside
+  Print / Save as PDF. Its formatter accepts only route, dates, safe fact fields,
+  surface journeys, share-safe plan fields, and the redaction disclosure. A
+  missing or denied clipboard produces an in-dialog status and leaves print
+  available; it never claims success.
+
 ### Fixed
 
 - **The rest of the repeated controls now say which row they act on.** 0.10.8
@@ -29,6 +58,11 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
   been created under. The one thing this did surface is that the test for
   rejecting a trip with no destination had been pointed at the unreachable copy,
   so the live path is now guarded for it too.
+
+- **Dependencies.** UUID moves to 1.24.1, while the web and docs toolchain takes
+  compatible patch and minor updates for Concurrently, MapLibre, Vitest, and
+  Astro. The production dependency audit remains a release gate; no dependency
+  adds a product provider or network permission.
 
 ## [0.10.8] - 2026-08-15 — Say which one
 

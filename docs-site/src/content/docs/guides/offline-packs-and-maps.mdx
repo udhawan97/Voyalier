@@ -58,7 +58,11 @@ See [Saved places, packing, and manual plans](/Voyalier/guides/planning-and-sear
 
 The **map** is consent-gated: nothing loads until you click **Show map**. It then
 fetches a keyless [OpenFreeMap](https://openfreemap.org) basemap (OpenStreetMap
-data) and plots your destination plus the downloaded pack's recommended places.
+data) and plots your saved shortlist before the downloaded pack's unsaved
+recommended places. Matching saved and recommended points appear once as saved.
+The two states have different markers and matching text labels, and an
+expandable register lists every mapped place for people who do not use the
+canvas.
 The map library is a large download, so it is fetched only on that first click —
 if you never open a map, you never download it.
 
@@ -66,3 +70,5 @@ Every catalog pack can include a verified PMTiles archive. Its size varies by
 city and the pack panel says so before download. Once present, map tile reads
 stay on-device through bounded byte-range requests; if the archive is missing or
 fails verification, the explicit online OpenFreeMap path remains the fallback.
+
+![A fictional Kyoto trip on Voyalier's offline map, with saved places separated from unsaved suggestions and a text legend beneath the canvas.](/Voyalier/assets/screenshots/voyalier-map-shortlist.jpg)

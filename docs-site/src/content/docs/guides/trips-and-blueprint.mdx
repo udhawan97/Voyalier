@@ -75,6 +75,14 @@ trip id in session storage; choosing **All trips** clears it.
 
 ## Sharing a redacted brief
 
-**Share brief** produces a print-friendly summary you can print or save as a PDF.
-Confirmation codes and traveler names are excluded from the brief by
-construction, so it is safe to hand to someone helping with your trip.
+**Share brief** produces a print-friendly summary of confirmed flights, stays,
+surface journeys, and scheduled traveler-authored plans. You can print it, save
+it as a PDF, or choose **Copy brief** for readable plain text. Confirmation codes
+and traveler names are excluded before the interface receives the brief; the
+copy formatter then reads an allowlist that also has no imported text, research
+resources, or private plan notes.
+
+If the browser or operating system denies clipboard access, Voyalier says so and
+keeps Print / Save as PDF available instead of claiming the copy succeeded.
+
+![A fictional redacted Voyalier brief with flight, stay, surface journey, disclosure, and a successful Copied action.](/Voyalier/assets/screenshots/voyalier-brief-copy.jpg)
