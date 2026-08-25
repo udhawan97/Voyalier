@@ -3464,6 +3464,39 @@ h3 {
   list-style: none;
 }
 
+.voy-planning__packing-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--voy-space-3);
+  margin-block: var(--voy-space-4) var(--voy-space-2);
+}
+
+.voy-planning__packing-progress > div {
+  display: grid;
+  gap: var(--voy-space-1);
+  min-inline-size: min(15rem, 100%);
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+}
+
+.voy-planning__packing-progress progress {
+  inline-size: 100%;
+  block-size: 0.45rem;
+  accent-color: var(--voy-vermilion);
+}
+
+@media (max-width: 34rem) {
+  .voy-planning__packing-progress {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .voy-planning__packing-progress .voy-button {
+    align-self: flex-start;
+  }
+}
+
 .voy-planning__card,
 .voy-planning__suggestions > li,
 .voy-planning__checklist > li {

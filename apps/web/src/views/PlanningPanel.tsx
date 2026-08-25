@@ -115,6 +115,7 @@ export function PlanningPanel({
   >(null);
   const [editingPackingId, setEditingPackingId] = useState<string | null>(null);
   const [packingLabel, setPackingLabel] = useState("");
+  const [showPacked, setShowPacked] = useState(true);
 
   function resetItemForm() {
     setEditingItemId(null);
@@ -200,6 +201,10 @@ export function PlanningPanel({
   const acceptedCodes = new Set(
     packingItems.map((item) => item.suggestionCode).filter(Boolean),
   );
+  const packedCount = packingItems.filter((item) => item.checked).length;
+  const visiblePackingItems = showPacked
+    ? packingItems
+    : packingItems.filter((item) => !item.checked);
 
   return (
     <div className="voy-planning">
@@ -378,8 +383,38 @@ export function PlanningPanel({
             {t("planning.packing.add")}
           </Button>
         </form>
+        {packingItems.length > 0 ? (
+          <div className="voy-planning__packing-progress">
+            <div>
+              <progress
+                max={packingItems.length}
+                value={packedCount}
+                aria-label={t("planning.packing.progress", {
+                  done: packedCount,
+                  total: packingItems.length,
+                })}
+              />
+              <span role="status">
+                {t("planning.packing.progress", {
+                  done: packedCount,
+                  total: packingItems.length,
+                })}
+              </span>
+            </div>
+            {packedCount > 0 ? (
+              <Button
+                variant="ghost"
+                onClick={() => setShowPacked(!showPacked)}
+              >
+                {showPacked
+                  ? t("planning.packing.hidePacked")
+                  : t("planning.packing.showPacked")}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
         <ul className="voy-planning__checklist">
-          {packingItems.map((item) => (
+          {visiblePackingItems.map((item) => (
             <li key={item.id}>
               {editingPackingId === item.id ? (
                 <label>
@@ -453,6 +488,13 @@ export function PlanningPanel({
             </li>
           ))}
         </ul>
+        {!showPacked &&
+        packingItems.length > 0 &&
+        visiblePackingItems.length === 0 ? (
+          <p className="voy-muted" role="status">
+            {t("planning.packing.allPacked")}
+          </p>
+        ) : null}
         {renderFailure("packing")}
       </section>
 

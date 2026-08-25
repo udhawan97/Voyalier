@@ -159,6 +159,49 @@ describe("traveler-owned planning workflows", () => {
     expect(screen.queryByText("Flight Tea ceremony")).not.toBeInTheDocument();
   });
 
+  it("tracks accepted packing progress and can hide packed items", async () => {
+    renderApp(createMockGateway());
+    await openFixtureTrip();
+
+    const packing = await screen.findByRole("region", {
+      name: "Packing checklist",
+    });
+    // Suggested items are proposals, not checklist progress until accepted.
+    expect(within(packing).queryByRole("progressbar")).toBeNull();
+
+    const input = within(packing).getByLabelText("Custom item");
+    for (const label of ["Passport", "Walking shoes"]) {
+      fireEvent.change(input, { target: { value: label } });
+      fireEvent.click(within(packing).getByRole("button", { name: "Add" }));
+      await within(packing).findByRole("checkbox", { name: label });
+    }
+
+    expect(within(packing).getByText("0 of 2 packed")).toBeInTheDocument();
+    fireEvent.click(
+      within(packing).getByRole("checkbox", { name: "Passport" }),
+    );
+    expect(
+      await within(packing).findByText("1 of 2 packed"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(packing).getByRole("button", { name: "Hide packed" }),
+    );
+    expect(
+      within(packing).queryByRole("checkbox", { name: "Passport" }),
+    ).toBeNull();
+    expect(
+      within(packing).getByRole("checkbox", { name: "Walking shoes" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(packing).getByRole("button", { name: "Show packed" }),
+    );
+    expect(
+      within(packing).getByRole("checkbox", { name: "Passport" }),
+    ).toBeChecked();
+  });
+
   it("prefills a saved place without writing until the traveler submits", async () => {
     const gateway = createMockGateway();
     await gateway.downloadPack("trip_kyoto", "jp-kyoto");
