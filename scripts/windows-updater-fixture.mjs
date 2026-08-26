@@ -3,7 +3,7 @@ import path from "node:path";
 
 import {
   assertNoAbsoluteWindowsPaths,
-  WINDOWS_DIALOG_COMMAND,
+  WINDOWS_ACCESSIBLE_ACTION,
   WINAPP_CLI,
 } from "./windows-native-file-dialog.mjs";
 
@@ -205,20 +205,21 @@ function hasNativeDialogEvidence(dialog, tool) {
       dialog?.invokePatternAvailable === true &&
       dialog?.legacyPatternAvailable === false &&
       dialog?.actionNativeControlBound === false &&
-      dialog?.actionCommandApiSucceeded === false &&
-      dialog?.actionCommandMessage == null) ||
+      dialog?.actionAccessibleInvocationCount === 0 &&
+      dialog?.actionMsaaObjectId == null) ||
     (dialog?.actionMethod === "LegacyIAccessiblePattern" &&
       dialog?.invokePatternAvailable === false &&
       dialog?.legacyPatternAvailable === true &&
       dialog?.actionNativeControlBound === false &&
-      dialog?.actionCommandApiSucceeded === false &&
-      dialog?.actionCommandMessage == null);
-  const nativeCommandMethodValid =
-    dialog?.actionMethod === WINDOWS_DIALOG_COMMAND.method &&
+      dialog?.actionAccessibleInvocationCount === 0 &&
+      dialog?.actionMsaaObjectId == null);
+  const accessibleMethodValid =
+    dialog?.actionMethod === WINDOWS_ACCESSIBLE_ACTION.method &&
     dialog?.invokePatternAvailable === false &&
     dialog?.legacyPatternAvailable === false &&
-    dialog?.actionAutomationId === String(WINDOWS_DIALOG_COMMAND.controlId) &&
-    dialog?.actionAutomationIdParsed === WINDOWS_DIALOG_COMMAND.controlId &&
+    dialog?.actionAutomationId ===
+      String(WINDOWS_ACCESSIBLE_ACTION.controlId) &&
+    dialog?.actionAutomationIdParsed === WINDOWS_ACCESSIBLE_ACTION.controlId &&
     Number.isInteger(dialog?.actionNativeControlHwnd) &&
     dialog.actionNativeControlHwnd > 0 &&
     dialog?.actionNativeControlBound === true &&
@@ -227,21 +228,29 @@ function hasNativeDialogEvidence(dialog, tool) {
     dialog?.actionNativeIsWindow === true &&
     dialog?.actionNativeIsChild === true &&
     dialog?.actionNativeControlIdConfirmed === true &&
-    dialog?.actionCommandMessage === WINDOWS_DIALOG_COMMAND.message &&
-    dialog?.actionCommandMessageId === WINDOWS_DIALOG_COMMAND.messageId &&
-    dialog?.actionControlId === WINDOWS_DIALOG_COMMAND.controlId &&
-    dialog?.actionNotification === WINDOWS_DIALOG_COMMAND.notification &&
-    dialog?.actionNotificationCode ===
-      WINDOWS_DIALOG_COMMAND.notificationCode &&
-    dialog?.actionCommandTimeoutMs === WINDOWS_DIALOG_COMMAND.timeoutMs &&
-    dialog?.actionCommandFlags === WINDOWS_DIALOG_COMMAND.flags &&
-    dialog?.actionCommandApiSucceeded === true &&
-    Number.isInteger(dialog?.actionCommandResult) &&
-    Number.isInteger(dialog?.actionCommandDispatchStatus) &&
-    dialog.actionCommandDispatchStatus > 0 &&
-    dialog?.actionCommandDestinationHwnd === dialog?.dialogHwnd &&
-    dialog?.actionCommandWParam === WINDOWS_DIALOG_COMMAND.controlId &&
-    dialog?.actionCommandLParam === dialog?.actionNativeControlHwnd;
+    dialog?.actionControlId === WINDOWS_ACCESSIBLE_ACTION.controlId &&
+    dialog?.actionMsaaObjectId === WINDOWS_ACCESSIBLE_ACTION.objectId &&
+    dialog?.actionMsaaInterfaceId === WINDOWS_ACCESSIBLE_ACTION.interfaceId &&
+    dialog?.actionMsaaChildId === WINDOWS_ACCESSIBLE_ACTION.childId &&
+    dialog?.actionMsaaHResult === 0 &&
+    dialog?.actionMsaaInterfaceNonNull === true &&
+    dialog?.actionMsaaWindowBindingHResult === 0 &&
+    dialog?.actionMsaaBoundHwnd === dialog?.actionNativeControlHwnd &&
+    dialog?.actionAccessibleName === dialog?.actionName &&
+    typeof dialog?.actionAccessibleDefaultAction === "string" &&
+    dialog.actionAccessibleDefaultAction.trim() !== "" &&
+    dialog?.actionAccessibleRole === WINDOWS_ACCESSIBLE_ACTION.role &&
+    Number.isInteger(dialog?.actionAccessibleState) &&
+    (dialog.actionAccessibleState &
+      WINDOWS_ACCESSIBLE_ACTION.blockedStateMask) ===
+      0 &&
+    dialog?.actionAccessibleBlockedStateMask ===
+      WINDOWS_ACCESSIBLE_ACTION.blockedStateMask &&
+    dialog?.actionAccessibleInvocationCount === 1 &&
+    dialog?.actionAccessibleInvocationCompleted === true &&
+    dialog?.actionAccessibleInterfaceReleased === true &&
+    dialog?.actionProcessTimeoutMs ===
+      WINDOWS_ACCESSIBLE_ACTION.processTimeoutMs;
   return (
     dialog?.verdict === "PASS" &&
     dialog?.nativeDialogPathConfirmed === true &&
@@ -307,7 +316,7 @@ function hasNativeDialogEvidence(dialog, tool) {
     ) &&
     typeof dialog?.actionAutomationId === "string" &&
     dialog.actionAutomationId !== "" &&
-    (patternMethodValid || nativeCommandMethodValid) &&
+    (patternMethodValid || accessibleMethodValid) &&
     dialog?.actionInvoked === true &&
     dialog?.dialogDismissed === true &&
     dialog?.actionCommand?.exitCode === 0 &&
@@ -337,22 +346,30 @@ function hasNativeDialogEvidence(dialog, tool) {
     commandResult?.actionNativeIsChild === dialog?.actionNativeIsChild &&
     commandResult?.actionNativeControlIdConfirmed ===
       dialog?.actionNativeControlIdConfirmed &&
-    commandResult?.actionCommandMessage === dialog?.actionCommandMessage &&
-    commandResult?.actionCommandMessageId === dialog?.actionCommandMessageId &&
     commandResult?.actionControlId === dialog?.actionControlId &&
-    commandResult?.actionNotification === dialog?.actionNotification &&
-    commandResult?.actionNotificationCode === dialog?.actionNotificationCode &&
-    commandResult?.actionCommandTimeoutMs === dialog?.actionCommandTimeoutMs &&
-    commandResult?.actionCommandFlags === dialog?.actionCommandFlags &&
-    commandResult?.actionCommandApiSucceeded ===
-      dialog?.actionCommandApiSucceeded &&
-    commandResult?.actionCommandResult === dialog?.actionCommandResult &&
-    commandResult?.actionCommandDispatchStatus ===
-      dialog?.actionCommandDispatchStatus &&
-    commandResult?.actionCommandDestinationHwnd ===
-      dialog?.actionCommandDestinationHwnd &&
-    commandResult?.actionCommandWParam === dialog?.actionCommandWParam &&
-    commandResult?.actionCommandLParam === dialog?.actionCommandLParam &&
+    commandResult?.actionMsaaObjectId === dialog?.actionMsaaObjectId &&
+    commandResult?.actionMsaaInterfaceId === dialog?.actionMsaaInterfaceId &&
+    commandResult?.actionMsaaChildId === dialog?.actionMsaaChildId &&
+    commandResult?.actionMsaaHResult === dialog?.actionMsaaHResult &&
+    commandResult?.actionMsaaInterfaceNonNull ===
+      dialog?.actionMsaaInterfaceNonNull &&
+    commandResult?.actionMsaaWindowBindingHResult ===
+      dialog?.actionMsaaWindowBindingHResult &&
+    commandResult?.actionMsaaBoundHwnd === dialog?.actionMsaaBoundHwnd &&
+    commandResult?.actionAccessibleName === dialog?.actionAccessibleName &&
+    commandResult?.actionAccessibleDefaultAction ===
+      dialog?.actionAccessibleDefaultAction &&
+    commandResult?.actionAccessibleRole === dialog?.actionAccessibleRole &&
+    commandResult?.actionAccessibleState === dialog?.actionAccessibleState &&
+    commandResult?.actionAccessibleBlockedStateMask ===
+      dialog?.actionAccessibleBlockedStateMask &&
+    commandResult?.actionAccessibleInvocationCount ===
+      dialog?.actionAccessibleInvocationCount &&
+    commandResult?.actionAccessibleInvocationCompleted ===
+      dialog?.actionAccessibleInvocationCompleted &&
+    commandResult?.actionAccessibleInterfaceReleased ===
+      dialog?.actionAccessibleInterfaceReleased &&
+    commandResult?.actionProcessTimeoutMs === dialog?.actionProcessTimeoutMs &&
     commandResult?.dialogCountBefore === dialog?.dialogCountBefore &&
     commandResult?.dialogCountAfter === dialog?.dialogCountAfter &&
     commandResult?.inputInjectionUsed === dialog?.inputInjectionUsed &&

@@ -19,7 +19,7 @@ import {
   parseWindowsCommandJson,
   sanitizeWindowsEvidenceText,
   sanitizeWindowsEvidenceValue,
-  WINDOWS_DIALOG_COMMAND,
+  WINDOWS_ACCESSIBLE_ACTION,
   WINAPP_CLI,
 } from "./windows-native-file-dialog.mjs";
 import {
@@ -142,7 +142,7 @@ function nativeDialogEvidence({
     actionControlType: "ControlType.Pane",
     actionAutomationId: "1",
     actionAutomationIdParsed: 1,
-    actionMethod: WINDOWS_DIALOG_COMMAND.method,
+    actionMethod: WINDOWS_ACCESSIBLE_ACTION.method,
     invokePatternAvailable: false,
     legacyPatternAvailable: false,
     actionNativeControlHwnd: 67890,
@@ -152,19 +152,24 @@ function nativeDialogEvidence({
     actionNativeIsWindow: true,
     actionNativeIsChild: true,
     actionNativeControlIdConfirmed: true,
-    actionCommandMessage: WINDOWS_DIALOG_COMMAND.message,
-    actionCommandMessageId: WINDOWS_DIALOG_COMMAND.messageId,
-    actionControlId: WINDOWS_DIALOG_COMMAND.controlId,
-    actionNotification: WINDOWS_DIALOG_COMMAND.notification,
-    actionNotificationCode: WINDOWS_DIALOG_COMMAND.notificationCode,
-    actionCommandTimeoutMs: WINDOWS_DIALOG_COMMAND.timeoutMs,
-    actionCommandFlags: WINDOWS_DIALOG_COMMAND.flags,
-    actionCommandApiSucceeded: true,
-    actionCommandResult: 0,
-    actionCommandDispatchStatus: 1,
-    actionCommandDestinationHwnd: 12345,
-    actionCommandWParam: WINDOWS_DIALOG_COMMAND.controlId,
-    actionCommandLParam: 67890,
+    actionControlId: WINDOWS_ACCESSIBLE_ACTION.controlId,
+    actionMsaaObjectId: WINDOWS_ACCESSIBLE_ACTION.objectId,
+    actionMsaaInterfaceId: WINDOWS_ACCESSIBLE_ACTION.interfaceId,
+    actionMsaaChildId: WINDOWS_ACCESSIBLE_ACTION.childId,
+    actionMsaaHResult: 0,
+    actionMsaaInterfaceNonNull: true,
+    actionMsaaWindowBindingHResult: 0,
+    actionMsaaBoundHwnd: 67890,
+    actionAccessibleName: action,
+    actionAccessibleDefaultAction: "Press",
+    actionAccessibleRole: WINDOWS_ACCESSIBLE_ACTION.role,
+    actionAccessibleState: 0x00100000,
+    actionAccessibleBlockedStateMask:
+      WINDOWS_ACCESSIBLE_ACTION.blockedStateMask,
+    actionAccessibleInvocationCount: 1,
+    actionAccessibleInvocationCompleted: true,
+    actionAccessibleInterfaceReleased: true,
+    actionProcessTimeoutMs: WINDOWS_ACCESSIBLE_ACTION.processTimeoutMs,
     actionInvoked: true,
     dialogDismissed: true,
     actionCommand: {
@@ -182,7 +187,7 @@ function nativeDialogEvidence({
         actionControlType: "ControlType.Pane",
         actionAutomationId: "1",
         actionAutomationIdParsed: 1,
-        actionMethod: WINDOWS_DIALOG_COMMAND.method,
+        actionMethod: WINDOWS_ACCESSIBLE_ACTION.method,
         invokePatternAvailable: false,
         legacyPatternAvailable: false,
         actionNativeControlHwnd: 67890,
@@ -192,19 +197,24 @@ function nativeDialogEvidence({
         actionNativeIsWindow: true,
         actionNativeIsChild: true,
         actionNativeControlIdConfirmed: true,
-        actionCommandMessage: WINDOWS_DIALOG_COMMAND.message,
-        actionCommandMessageId: WINDOWS_DIALOG_COMMAND.messageId,
-        actionControlId: WINDOWS_DIALOG_COMMAND.controlId,
-        actionNotification: WINDOWS_DIALOG_COMMAND.notification,
-        actionNotificationCode: WINDOWS_DIALOG_COMMAND.notificationCode,
-        actionCommandTimeoutMs: WINDOWS_DIALOG_COMMAND.timeoutMs,
-        actionCommandFlags: WINDOWS_DIALOG_COMMAND.flags,
-        actionCommandApiSucceeded: true,
-        actionCommandResult: 0,
-        actionCommandDispatchStatus: 1,
-        actionCommandDestinationHwnd: 12345,
-        actionCommandWParam: WINDOWS_DIALOG_COMMAND.controlId,
-        actionCommandLParam: 67890,
+        actionControlId: WINDOWS_ACCESSIBLE_ACTION.controlId,
+        actionMsaaObjectId: WINDOWS_ACCESSIBLE_ACTION.objectId,
+        actionMsaaInterfaceId: WINDOWS_ACCESSIBLE_ACTION.interfaceId,
+        actionMsaaChildId: WINDOWS_ACCESSIBLE_ACTION.childId,
+        actionMsaaHResult: 0,
+        actionMsaaInterfaceNonNull: true,
+        actionMsaaWindowBindingHResult: 0,
+        actionMsaaBoundHwnd: 67890,
+        actionAccessibleName: action,
+        actionAccessibleDefaultAction: "Press",
+        actionAccessibleRole: WINDOWS_ACCESSIBLE_ACTION.role,
+        actionAccessibleState: 0x00100000,
+        actionAccessibleBlockedStateMask:
+          WINDOWS_ACCESSIBLE_ACTION.blockedStateMask,
+        actionAccessibleInvocationCount: 1,
+        actionAccessibleInvocationCompleted: true,
+        actionAccessibleInterfaceReleased: true,
+        actionProcessTimeoutMs: WINDOWS_ACCESSIBLE_ACTION.processTimeoutMs,
         inputInjectionUsed: false,
         actionInvoked: true,
         dialogDismissed: true,
@@ -441,8 +451,10 @@ test("keeps product setup, updater backup, and portable restore on the installed
     "InvokePattern",
     "LegacyIAccessiblePattern",
     "ControlType.Pane",
-    "WM_COMMAND/IDOK",
-    "SendMessageTimeout",
+    "MSAA/IAccessible.accDoDefaultAction",
+    "AccessibleObjectFromWindow",
+    "WindowFromAccessibleObject",
+    "accDoDefaultAction",
     "GetDlgCtrlID",
     "IsChild",
     "dialogDismissed",
@@ -452,11 +464,16 @@ test("keeps product setup, updater backup, and portable restore on the installed
   }
   assert.doesNotMatch(
     nativeDialogSource,
-    /send-keys|sendkeys|WScript\.Shell|Set-Clipboard|Clipboard|SetFocus\(|SetActiveWindow|SendInput|PostMessage|BM_CLICK/i,
+    /send-keys|sendkeys|WScript\.Shell|Set-Clipboard|Clipboard|SetFocus\(|SetActiveWindow|SendInput|PostMessage|SendMessage|BM_CLICK|WM_COMMAND/i,
   );
   assert.doesNotMatch(
     nativeDialogSource,
     /AutomationIdProperty, ['"](?:1148|1001)['"]/,
+  );
+  assert.equal(
+    nativeDialogSource.match(/accessible\.accDoDefaultAction\(self\)/g)?.length,
+    1,
+    "the direct accessibility fallback must invoke the default action exactly once",
   );
   const actionBridge = nativeDialogSource.slice(
     nativeDialogSource.indexOf("function invokeExactAction"),
@@ -471,7 +488,9 @@ test("keeps product setup, updater backup, and portable restore on the installed
   const legacyPatternProbe = actionBridge.indexOf(
     "[System.Windows.Automation.LegacyIAccessiblePattern]::Pattern",
   );
-  const nativeCommandDispatch = actionBridge.lastIndexOf("SendMessageTimeout(");
+  const accessibleAction = actionBridge.indexOf(
+    "$msaaResult = [VoyalierNativeAccessibleAction]::Invoke(",
+  );
   const canonicalIdGuard = actionBridge.indexOf(
     "patternless exact action does not expose canonical IDOK AutomationId",
   );
@@ -495,8 +514,8 @@ test("keeps product setup, updater backup, and portable restore on the installed
     invokePatternProbe < legacyPatternProbe &&
       legacyPatternProbe < canonicalIdGuard &&
       canonicalIdGuard < childHwndGuard &&
-      childHwndGuard < nativeCommandDispatch,
-    "native command must remain the final, identity-guarded action method",
+      childHwndGuard < accessibleAction,
+    "direct IAccessible must remain the final, identity-guarded action method",
   );
 
   const preflightSource = await readFile(
@@ -765,12 +784,12 @@ test("rejects unverified picker tooling and incomplete preflight proof", () => {
       ...preflight,
       dialog: {
         ...preflight.dialog,
-        actionCommandMessageId: 0,
+        actionMsaaObjectId: 0,
         actionCommand: {
           ...preflight.dialog.actionCommand,
           result: {
             ...preflight.dialog.actionCommand.result,
-            actionCommandMessageId: 0,
+            actionMsaaObjectId: 0,
           },
         },
       },
@@ -793,12 +812,12 @@ test("rejects unverified picker tooling and incomplete preflight proof", () => {
       ...preflight,
       dialog: {
         ...preflight.dialog,
-        actionCommandLParam: 0,
+        actionMsaaBoundHwnd: 0,
         actionCommand: {
           ...preflight.dialog.actionCommand,
           result: {
             ...preflight.dialog.actionCommand.result,
-            actionCommandLParam: 0,
+            actionMsaaBoundHwnd: 0,
           },
         },
       },
@@ -807,12 +826,12 @@ test("rejects unverified picker tooling and incomplete preflight proof", () => {
       ...preflight,
       dialog: {
         ...preflight.dialog,
-        actionCommandApiSucceeded: false,
+        actionMsaaInterfaceNonNull: false,
         actionCommand: {
           ...preflight.dialog.actionCommand,
           result: {
             ...preflight.dialog.actionCommand.result,
-            actionCommandApiSucceeded: false,
+            actionMsaaInterfaceNonNull: false,
           },
         },
       },
@@ -821,12 +840,166 @@ test("rejects unverified picker tooling and incomplete preflight proof", () => {
       ...preflight,
       dialog: {
         ...preflight.dialog,
-        actionCommandTimeoutMs: 0,
+        actionProcessTimeoutMs: 0,
         actionCommand: {
           ...preflight.dialog.actionCommand,
           result: {
             ...preflight.dialog.actionCommand.result,
-            actionCommandTimeoutMs: 0,
+            actionProcessTimeoutMs: 0,
+          },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        actionMsaaInterfaceId: "wrong-interface",
+        actionCommand: {
+          ...preflight.dialog.actionCommand,
+          result: {
+            ...preflight.dialog.actionCommand.result,
+            actionMsaaInterfaceId: "wrong-interface",
+          },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        actionMsaaChildId: 1,
+        actionCommand: {
+          ...preflight.dialog.actionCommand,
+          result: {
+            ...preflight.dialog.actionCommand.result,
+            actionMsaaChildId: 1,
+          },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        actionMsaaHResult: -1,
+        actionCommand: {
+          ...preflight.dialog.actionCommand,
+          result: {
+            ...preflight.dialog.actionCommand.result,
+            actionMsaaHResult: -1,
+          },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        actionMsaaWindowBindingHResult: -1,
+        actionCommand: {
+          ...preflight.dialog.actionCommand,
+          result: {
+            ...preflight.dialog.actionCommand.result,
+            actionMsaaWindowBindingHResult: -1,
+          },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        actionAccessibleName: "save",
+        actionCommand: {
+          ...preflight.dialog.actionCommand,
+          result: {
+            ...preflight.dialog.actionCommand.result,
+            actionAccessibleName: "save",
+          },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        actionAccessibleDefaultAction: " ",
+        actionCommand: {
+          ...preflight.dialog.actionCommand,
+          result: {
+            ...preflight.dialog.actionCommand.result,
+            actionAccessibleDefaultAction: " ",
+          },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        actionAccessibleRole: 0,
+        actionCommand: {
+          ...preflight.dialog.actionCommand,
+          result: {
+            ...preflight.dialog.actionCommand.result,
+            actionAccessibleRole: 0,
+          },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        actionAccessibleState: 1,
+        actionCommand: {
+          ...preflight.dialog.actionCommand,
+          result: {
+            ...preflight.dialog.actionCommand.result,
+            actionAccessibleState: 1,
+          },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        actionAccessibleInvocationCount: 0,
+        actionCommand: {
+          ...preflight.dialog.actionCommand,
+          result: {
+            ...preflight.dialog.actionCommand.result,
+            actionAccessibleInvocationCount: 0,
+          },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        actionAccessibleInvocationCompleted: false,
+        actionCommand: {
+          ...preflight.dialog.actionCommand,
+          result: {
+            ...preflight.dialog.actionCommand.result,
+            actionAccessibleInvocationCompleted: false,
+          },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        actionAccessibleInterfaceReleased: false,
+        actionCommand: {
+          ...preflight.dialog.actionCommand,
+          result: {
+            ...preflight.dialog.actionCommand.result,
+            actionAccessibleInterfaceReleased: false,
           },
         },
       },

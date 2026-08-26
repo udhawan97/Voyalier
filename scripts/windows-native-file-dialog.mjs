@@ -23,15 +23,15 @@ export const WINAPP_CLI = Object.freeze({
   selector: "FileNameControlHost",
 });
 
-export const WINDOWS_DIALOG_COMMAND = Object.freeze({
-  method: "WM_COMMAND/IDOK",
-  message: "WM_COMMAND",
-  messageId: 0x0111,
+export const WINDOWS_ACCESSIBLE_ACTION = Object.freeze({
+  method: "MSAA/IAccessible.accDoDefaultAction",
+  objectId: 0xfffffffc,
+  interfaceId: "618736e0-3c3d-11cf-810c-00aa00389b71",
+  childId: 0,
   controlId: 1,
-  notification: "BN_CLICKED",
-  notificationCode: 0,
-  timeoutMs: 5_000,
-  flags: 0x0001 | 0x0002 | 0x0020,
+  role: 0x2b,
+  blockedStateMask: 0x00000001 | 0x00008000 | 0x00010000,
+  processTimeoutMs: 60_000,
 });
 
 function requireString(value, name) {
@@ -184,7 +184,7 @@ function psQuote(value) {
   return `'${String(value).replaceAll("'", "''")}'`;
 }
 
-function powershellJson(script) {
+function powershellJson(script, timeout = 2 * 60 * 1000) {
   return executeJson(
     "powershell.exe",
     [
@@ -197,7 +197,7 @@ function powershellJson(script) {
       "-Command",
       script,
     ],
-    { timeout: 2 * 60 * 1000 },
+    { timeout },
   );
 }
 
@@ -405,9 +405,26 @@ function discoverDialog(title) {
 }
 
 function invokeExactAction(title, hwnd, action) {
-  const nativeDialogCommandType =
-    `using System; using System.Runtime.InteropServices; ` +
-    `public static class VoyalierNativeDialogCommand { ` +
+  const nativeAccessibleActionType =
+    `using System; using System.Runtime.InteropServices; using Accessibility; ` +
+    `public sealed class VoyalierAccessibleActionResult { ` +
+    `public int HResult { get; set; } ` +
+    `public bool InterfaceNonNull { get; set; } ` +
+    `public int WindowBindingHResult { get; set; } ` +
+    `public long BoundHwnd { get; set; } ` +
+    `public string Name { get; set; } ` +
+    `public string DefaultAction { get; set; } ` +
+    `public int Role { get; set; } ` +
+    `public int State { get; set; } ` +
+    `public int InvocationCount { get; set; } ` +
+    `public bool InvocationCompleted { get; set; } ` +
+    `public bool InterfaceReleased { get; set; } ` +
+    `public string ErrorType { get; set; } ` +
+    `public string ErrorMessage { get; set; } ` +
+    `public VoyalierAccessibleActionResult() { HResult = int.MinValue; ` +
+    `WindowBindingHResult = int.MinValue; Role = -1; State = -1; } ` +
+    `} ` +
+    `public static class VoyalierNativeAccessibleAction { ` +
     `[DllImport("user32.dll", SetLastError=true)] ` +
     `[return: MarshalAs(UnmanagedType.Bool)] ` +
     `public static extern bool IsWindow(IntPtr hWnd); ` +
@@ -416,15 +433,59 @@ function invokeExactAction(title, hwnd, action) {
     `public static extern bool IsChild(IntPtr hWndParent, IntPtr hWnd); ` +
     `[DllImport("user32.dll", SetLastError=true)] ` +
     `public static extern int GetDlgCtrlID(IntPtr hWnd); ` +
-    `[DllImport("user32.dll", EntryPoint="SendMessageTimeoutW", ExactSpelling=true, ` +
-    `SetLastError=true, CharSet=CharSet.Unicode)] ` +
-    `public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, ` +
-    `UIntPtr wParam, IntPtr lParam, uint flags, uint timeout, out UIntPtr result); ` +
+    `[DllImport("oleacc.dll", ExactSpelling=true, PreserveSig=true)] ` +
+    `private static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint objectId, ` +
+    `ref Guid interfaceId, [MarshalAs(UnmanagedType.Interface)] out object accessibleObject); ` +
+    `[DllImport("oleacc.dll", ExactSpelling=true, PreserveSig=true)] ` +
+    `private static extern int WindowFromAccessibleObject(IAccessible accessible, out IntPtr hwnd); ` +
+    `public static VoyalierAccessibleActionResult Invoke(IntPtr expectedHwnd, ` +
+    `string expectedName, uint objectId, string interfaceId, int childId, ` +
+    `int expectedRole, int blockedStateMask) { ` +
+    `var result = new VoyalierAccessibleActionResult(); object raw = null; ` +
+    `try { ` +
+    `var iid = new Guid(interfaceId); ` +
+    `result.HResult = AccessibleObjectFromWindow(expectedHwnd, objectId, ref iid, out raw); ` +
+    `if (result.HResult != 0) throw new COMException("AccessibleObjectFromWindow failed", result.HResult); ` +
+    `if (raw == null) throw new InvalidOperationException("AccessibleObjectFromWindow returned null"); ` +
+    `result.InterfaceNonNull = true; var accessible = (IAccessible)raw; ` +
+    `IntPtr boundHwnd; result.WindowBindingHResult = ` +
+    `WindowFromAccessibleObject(accessible, out boundHwnd); ` +
+    `result.BoundHwnd = boundHwnd.ToInt64(); ` +
+    `if (result.WindowBindingHResult != 0 || boundHwnd != expectedHwnd) ` +
+    `throw new InvalidOperationException("accessible object HWND mismatch"); ` +
+    `object self = childId; result.Name = accessible.accName[self]; ` +
+    `result.DefaultAction = accessible.accDefaultAction[self]; ` +
+    `result.Role = Convert.ToInt32(accessible.accRole[self]); ` +
+    `result.State = Convert.ToInt32(accessible.accState[self]); ` +
+    `if (!String.Equals(result.Name, expectedName, StringComparison.Ordinal)) ` +
+    `throw new InvalidOperationException("accessible action name mismatch"); ` +
+    `if (String.IsNullOrWhiteSpace(result.DefaultAction)) ` +
+    `throw new InvalidOperationException("accessible default action is empty"); ` +
+    `if (result.Role != expectedRole) ` +
+    `throw new InvalidOperationException("accessible action role is not push button"); ` +
+    `if ((result.State & blockedStateMask) != 0) ` +
+    `throw new InvalidOperationException("accessible action state is unavailable or hidden"); ` +
+    `accessible.accDoDefaultAction(self); result.InvocationCount = 1; ` +
+    `result.InvocationCompleted = true; ` +
+    `} catch (Exception error) { ` +
+    `result.ErrorType = error.GetType().FullName; result.ErrorMessage = error.Message; ` +
+    `} finally { ` +
+    `if (raw != null && Marshal.IsComObject(raw)) { ` +
+    `try { Marshal.FinalReleaseComObject(raw); result.InterfaceReleased = true; } ` +
+    `catch (Exception releaseError) { result.InterfaceReleased = false; ` +
+    `if (result.ErrorType == null) { result.ErrorType = releaseError.GetType().FullName; ` +
+    `result.ErrorMessage = "accessible object release failed"; } } ` +
+    `} ` +
+    `} return result; ` +
+    `} ` +
     `}`;
   return powershellJson(
     `Add-Type -AssemblyName UIAutomationClient; ` +
       `Add-Type -AssemblyName UIAutomationTypes; ` +
-      `Add-Type -TypeDefinition ${psQuote(nativeDialogCommandType)}; ` +
+      `Add-Type -AssemblyName Accessibility; ` +
+      `$accessibilityAssembly = [Accessibility.IAccessible].Assembly.Location; ` +
+      `Add-Type -TypeDefinition ${psQuote(nativeAccessibleActionType)} ` +
+      `-ReferencedAssemblies $accessibilityAssembly; ` +
       `$title = ${psQuote(title)}; $expectedHwnd = [int64]${hwnd}; ` +
       `$action = ${psQuote(action)}; ` +
       `$root = [System.Windows.Automation.AutomationElement]::RootElement; ` +
@@ -481,85 +542,106 @@ function invokeExactAction(title, hwnd, action) {
       `[System.Windows.Automation.LegacyIAccessiblePattern]::Pattern); ` +
       `if ($null -eq $selectedPattern) { throw "null LegacyIAccessiblePattern" }; ` +
       `$legacyPatternAvailable = $true; $actionMethod = "LegacyIAccessiblePattern" } catch { ` +
-      `$actionMethod = ${psQuote(WINDOWS_DIALOG_COMMAND.method)} ` +
+      `$actionMethod = ${psQuote(WINDOWS_ACCESSIBLE_ACTION.method)} ` +
       `}; ` +
       `}; ` +
-      `$actionCommandMessage = $null; $actionCommandMessageId = $null; ` +
       `$actionAutomationIdParsed = $null; $actionControlId = $null; ` +
-      `$actionNotification = $null; ` +
-      `$actionNotificationCode = $null; $actionCommandTimeoutMs = $null; ` +
-      `$actionCommandFlags = $null; $actionNativeControlBound = $false; ` +
+      `$actionNativeControlBound = $false; ` +
       `$actionDialogReverified = $false; $actionTargetReverified = $false; ` +
       `$actionNativeIsWindow = $false; $actionNativeIsChild = $false; ` +
       `$actionNativeControlIdConfirmed = $false; ` +
-      `$actionCommandApiSucceeded = $false; $actionCommandResult = $null; ` +
-      `$actionCommandDispatchStatus = $null; ` +
+      `$actionMsaaObjectId = $null; $actionMsaaInterfaceId = $null; ` +
+      `$actionMsaaChildId = $null; $actionMsaaHResult = $null; ` +
+      `$actionMsaaInterfaceNonNull = $false; ` +
+      `$actionMsaaWindowBindingHResult = $null; $actionMsaaBoundHwnd = $null; ` +
+      `$actionAccessibleName = $null; $actionAccessibleDefaultAction = $null; ` +
+      `$actionAccessibleRole = $null; $actionAccessibleState = $null; ` +
+      `$actionAccessibleBlockedStateMask = $null; ` +
+      `$actionAccessibleInvocationCount = 0; ` +
+      `$actionAccessibleInvocationCompleted = $false; ` +
+      `$actionAccessibleInterfaceReleased = $false; ` +
+      `$actionProcessTimeoutMs = ${WINDOWS_ACCESSIBLE_ACTION.processTimeoutMs}; ` +
       `if ($actionMethod -eq "InvokePattern") { $selectedPattern.Invoke() } ` +
       `elseif ($actionMethod -eq "LegacyIAccessiblePattern") { ` +
       `$selectedPattern.DoDefaultAction() } ` +
-      `elseif ($actionMethod -eq ${psQuote(WINDOWS_DIALOG_COMMAND.method)}) { ` +
-      `if ($selectedAutomationId -cne ${psQuote(String(WINDOWS_DIALOG_COMMAND.controlId))}) { ` +
+      `elseif ($actionMethod -eq ${psQuote(WINDOWS_ACCESSIBLE_ACTION.method)}) { ` +
+      `if ($selectedAutomationId -cne ${psQuote(String(WINDOWS_ACCESSIBLE_ACTION.controlId))}) { ` +
       `throw "patternless exact action does not expose canonical IDOK AutomationId" }; ` +
       `[int32]$parsedAutomationId = 0; ` +
       `if (-not [int32]::TryParse($selectedAutomationId, [ref]$parsedAutomationId) -or ` +
-      `$parsedAutomationId -ne ${WINDOWS_DIALOG_COMMAND.controlId}) { ` +
+      `$parsedAutomationId -ne ${WINDOWS_ACCESSIBLE_ACTION.controlId}) { ` +
       `throw "patternless exact action AutomationId did not parse as IDOK" }; ` +
       `$actionAutomationIdParsed = $parsedAutomationId; ` +
       `if ($selectedNativeHwnd -le 0) { throw "patternless exact action has no native HWND" }; ` +
-      `$sendDialogs = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $titleCondition); ` +
-      `if ($sendDialogs.Count -ne 1) { throw "expected one exact-title dialog before native command" }; ` +
-      `$sendDialog = $sendDialogs.Item(0); ` +
-      `$sendDialogHwnd = [int64]$sendDialog.GetCurrentPropertyValue(` +
+      `$actionDialogs = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $titleCondition); ` +
+      `if ($actionDialogs.Count -ne 1) { throw "expected one exact-title dialog before accessible action" }; ` +
+      `$actionDialog = $actionDialogs.Item(0); ` +
+      `$actionDialogHwnd = [int64]$actionDialog.GetCurrentPropertyValue(` +
       `[System.Windows.Automation.AutomationElement]::NativeWindowHandleProperty); ` +
-      `$sendDialogEnabled = $sendDialog.GetCurrentPropertyValue(` +
+      `$actionDialogEnabled = $actionDialog.GetCurrentPropertyValue(` +
       `[System.Windows.Automation.AutomationElement]::IsEnabledProperty); ` +
-      `$sendDialogOffscreen = $sendDialog.GetCurrentPropertyValue(` +
+      `$actionDialogOffscreen = $actionDialog.GetCurrentPropertyValue(` +
       `[System.Windows.Automation.AutomationElement]::IsOffscreenProperty); ` +
-      `if ($sendDialogHwnd -ne $observedHwnd -or $sendDialogHwnd -le 0 -or ` +
-      `$sendDialogEnabled -ne $true -or $sendDialogOffscreen -ne $false) { ` +
-      `throw "exact native dialog changed before command" }; ` +
+      `if ($actionDialogHwnd -ne $observedHwnd -or $actionDialogHwnd -le 0 -or ` +
+      `$actionDialogEnabled -ne $true -or $actionDialogOffscreen -ne $false) { ` +
+      `throw "exact native dialog changed before accessible action" }; ` +
       `$actionDialogReverified = $true; ` +
-      `$sendName = [string]$selectedCandidate.GetCurrentPropertyValue(` +
+      `$actionNameNow = [string]$selectedCandidate.GetCurrentPropertyValue(` +
       `[System.Windows.Automation.AutomationElement]::NameProperty); ` +
-      `$sendAutomationId = [string]$selectedCandidate.GetCurrentPropertyValue(` +
+      `$actionAutomationIdNow = [string]$selectedCandidate.GetCurrentPropertyValue(` +
       `[System.Windows.Automation.AutomationElement]::AutomationIdProperty); ` +
-      `$sendNativeHwnd = [int64]$selectedCandidate.GetCurrentPropertyValue(` +
+      `$actionNativeHwndNow = [int64]$selectedCandidate.GetCurrentPropertyValue(` +
       `[System.Windows.Automation.AutomationElement]::NativeWindowHandleProperty); ` +
-      `$sendEnabled = $selectedCandidate.GetCurrentPropertyValue(` +
+      `$actionEnabledNow = $selectedCandidate.GetCurrentPropertyValue(` +
       `[System.Windows.Automation.AutomationElement]::IsEnabledProperty); ` +
-      `$sendOffscreen = $selectedCandidate.GetCurrentPropertyValue(` +
+      `$actionOffscreenNow = $selectedCandidate.GetCurrentPropertyValue(` +
       `[System.Windows.Automation.AutomationElement]::IsOffscreenProperty); ` +
-      `if ($sendName -cne $selectedName -or $sendAutomationId -cne $selectedAutomationId -or ` +
-      `$sendNativeHwnd -ne $selectedNativeHwnd -or $sendEnabled -ne $true -or ` +
-      `$sendOffscreen -ne $false) { throw "exact action changed before native command" }; ` +
+      `if ($actionNameNow -cne $selectedName -or ` +
+      `$actionAutomationIdNow -cne $selectedAutomationId -or ` +
+      `$actionNativeHwndNow -ne $selectedNativeHwnd -or $actionEnabledNow -ne $true -or ` +
+      `$actionOffscreenNow -ne $false) { throw "exact action changed before accessible action" }; ` +
       `$actionTargetReverified = $true; ` +
       `$dialogPtr = [IntPtr]$observedHwnd; $controlPtr = [IntPtr]$selectedNativeHwnd; ` +
-      `$actionNativeIsWindow = [VoyalierNativeDialogCommand]::IsWindow($controlPtr); ` +
+      `$actionNativeIsWindow = [VoyalierNativeAccessibleAction]::IsWindow($controlPtr); ` +
       `if (-not $actionNativeIsWindow) { ` +
       `throw "patternless exact action native HWND is not a window" }; ` +
-      `$actionNativeIsChild = [VoyalierNativeDialogCommand]::IsChild($dialogPtr, $controlPtr); ` +
+      `$actionNativeIsChild = [VoyalierNativeAccessibleAction]::IsChild($dialogPtr, $controlPtr); ` +
       `if (-not $actionNativeIsChild) { ` +
       `throw "patternless exact action native HWND is not a child of the dialog" }; ` +
-      `$observedControlId = [VoyalierNativeDialogCommand]::GetDlgCtrlID($controlPtr); ` +
-      `if ($observedControlId -ne ${WINDOWS_DIALOG_COMMAND.controlId}) { ` +
+      `$observedControlId = [VoyalierNativeAccessibleAction]::GetDlgCtrlID($controlPtr); ` +
+      `if ($observedControlId -ne ${WINDOWS_ACCESSIBLE_ACTION.controlId}) { ` +
       `throw "patternless exact action native control is not IDOK" }; ` +
-      `$actionNativeControlIdConfirmed = $true; ` +
-      `$actionCommandMessage = ${psQuote(WINDOWS_DIALOG_COMMAND.message)}; ` +
-      `$actionCommandMessageId = ${WINDOWS_DIALOG_COMMAND.messageId}; ` +
-      `$actionControlId = $observedControlId; ` +
-      `$actionNotification = ${psQuote(WINDOWS_DIALOG_COMMAND.notification)}; ` +
-      `$actionNotificationCode = ${WINDOWS_DIALOG_COMMAND.notificationCode}; ` +
-      `$actionCommandTimeoutMs = ${WINDOWS_DIALOG_COMMAND.timeoutMs}; ` +
-      `$actionCommandFlags = ${WINDOWS_DIALOG_COMMAND.flags}; ` +
-      `$actionNativeControlBound = $true; $nativeResult = [UIntPtr]::Zero; ` +
-      `$sendStatus = [VoyalierNativeDialogCommand]::SendMessageTimeout(` +
-      `$dialogPtr, [uint32]$actionCommandMessageId, ` +
-      `[UIntPtr][uint64]$actionControlId, $controlPtr, ` +
-      `[uint32]$actionCommandFlags, [uint32]$actionCommandTimeoutMs, [ref]$nativeResult); ` +
-      `if ($sendStatus -eq [IntPtr]::Zero) { throw "bounded native dialog command failed" }; ` +
-      `$actionCommandApiSucceeded = $true; ` +
-      `$actionCommandResult = $nativeResult.ToUInt64(); ` +
-      `$actionCommandDispatchStatus = $sendStatus.ToInt64() ` +
+      `$actionNativeControlIdConfirmed = $true; $actionControlId = $observedControlId; ` +
+      `$actionNativeControlBound = $true; ` +
+      `$actionMsaaObjectId = [uint32]${WINDOWS_ACCESSIBLE_ACTION.objectId}; ` +
+      `$actionMsaaInterfaceId = ${psQuote(WINDOWS_ACCESSIBLE_ACTION.interfaceId)}; ` +
+      `$actionMsaaChildId = ${WINDOWS_ACCESSIBLE_ACTION.childId}; ` +
+      `$actionAccessibleBlockedStateMask = ${WINDOWS_ACCESSIBLE_ACTION.blockedStateMask}; ` +
+      `$msaaResult = [VoyalierNativeAccessibleAction]::Invoke(` +
+      `$controlPtr, $action, $actionMsaaObjectId, $actionMsaaInterfaceId, ` +
+      `$actionMsaaChildId, ${WINDOWS_ACCESSIBLE_ACTION.role}, ` +
+      `$actionAccessibleBlockedStateMask); ` +
+      `$actionMsaaHResult = $msaaResult.HResult; ` +
+      `$actionMsaaInterfaceNonNull = $msaaResult.InterfaceNonNull; ` +
+      `$actionMsaaWindowBindingHResult = $msaaResult.WindowBindingHResult; ` +
+      `$actionMsaaBoundHwnd = $msaaResult.BoundHwnd; ` +
+      `$actionAccessibleName = $msaaResult.Name; ` +
+      `$actionAccessibleDefaultAction = $msaaResult.DefaultAction; ` +
+      `$actionAccessibleRole = $msaaResult.Role; ` +
+      `$actionAccessibleState = $msaaResult.State; ` +
+      `$actionAccessibleInvocationCount = $msaaResult.InvocationCount; ` +
+      `$actionAccessibleInvocationCompleted = $msaaResult.InvocationCompleted; ` +
+      `$actionAccessibleInterfaceReleased = $msaaResult.InterfaceReleased; ` +
+      `if ($actionMsaaHResult -ne 0 -or -not $actionMsaaInterfaceNonNull -or ` +
+      `$actionMsaaWindowBindingHResult -ne 0 -or $actionMsaaBoundHwnd -ne $selectedNativeHwnd -or ` +
+      `$actionAccessibleName -cne $action -or ` +
+      `[string]::IsNullOrWhiteSpace($actionAccessibleDefaultAction) -or ` +
+      `$actionAccessibleRole -ne ${WINDOWS_ACCESSIBLE_ACTION.role} -or ` +
+      `($actionAccessibleState -band $actionAccessibleBlockedStateMask) -ne 0 -or ` +
+      `$actionAccessibleInvocationCount -ne 1 -or ` +
+      `-not $actionAccessibleInvocationCompleted -or -not $actionAccessibleInterfaceReleased) { ` +
+      `throw "direct IAccessible action failed: $($msaaResult.ErrorType)" ` +
+      `} ` +
       `} else { throw "unsupported exact action method: $actionMethod" }; ` +
       `$deadline = (Get-Date).AddSeconds(30); $remaining = -1; ` +
       `do { ` +
@@ -583,18 +665,23 @@ function invokeExactAction(title, hwnd, action) {
       `actionNativeIsWindow = $actionNativeIsWindow; ` +
       `actionNativeIsChild = $actionNativeIsChild; ` +
       `actionNativeControlIdConfirmed = $actionNativeControlIdConfirmed; ` +
-      `actionCommandMessage = $actionCommandMessage; ` +
-      `actionCommandMessageId = $actionCommandMessageId; ` +
-      `actionControlId = $actionControlId; actionNotification = $actionNotification; ` +
-      `actionNotificationCode = $actionNotificationCode; ` +
-      `actionCommandTimeoutMs = $actionCommandTimeoutMs; ` +
-      `actionCommandFlags = $actionCommandFlags; ` +
-      `actionCommandApiSucceeded = $actionCommandApiSucceeded; ` +
-      `actionCommandResult = $actionCommandResult; ` +
-      `actionCommandDispatchStatus = $actionCommandDispatchStatus; ` +
-      `actionCommandDestinationHwnd = $(if ($actionCommandMessage) { $observedHwnd } else { $null }); ` +
-      `actionCommandWParam = $(if ($actionCommandMessage) { $actionControlId } else { $null }); ` +
-      `actionCommandLParam = $(if ($actionCommandMessage) { $selectedNativeHwnd } else { $null }); ` +
+      `actionControlId = $actionControlId; ` +
+      `actionMsaaObjectId = $actionMsaaObjectId; ` +
+      `actionMsaaInterfaceId = $actionMsaaInterfaceId; ` +
+      `actionMsaaChildId = $actionMsaaChildId; ` +
+      `actionMsaaHResult = $actionMsaaHResult; ` +
+      `actionMsaaInterfaceNonNull = $actionMsaaInterfaceNonNull; ` +
+      `actionMsaaWindowBindingHResult = $actionMsaaWindowBindingHResult; ` +
+      `actionMsaaBoundHwnd = $actionMsaaBoundHwnd; ` +
+      `actionAccessibleName = $actionAccessibleName; ` +
+      `actionAccessibleDefaultAction = $actionAccessibleDefaultAction; ` +
+      `actionAccessibleRole = $actionAccessibleRole; ` +
+      `actionAccessibleState = $actionAccessibleState; ` +
+      `actionAccessibleBlockedStateMask = $actionAccessibleBlockedStateMask; ` +
+      `actionAccessibleInvocationCount = $actionAccessibleInvocationCount; ` +
+      `actionAccessibleInvocationCompleted = $actionAccessibleInvocationCompleted; ` +
+      `actionAccessibleInterfaceReleased = $actionAccessibleInterfaceReleased; ` +
+      `actionProcessTimeoutMs = $actionProcessTimeoutMs; ` +
       `inputInjectionUsed = $false; ` +
       `actionInvoked = $true; dialogDismissed = $true; hwnd = $observedHwnd } ` +
       `| ConvertTo-Json -Compress; exit 0 ` +
@@ -602,6 +689,7 @@ function invokeExactAction(title, hwnd, action) {
       `Start-Sleep -Milliseconds 200 ` +
       `} while ((Get-Date) -lt $deadline); ` +
       `throw "native dialog did not dismiss (remaining $remaining)"`,
+    WINDOWS_ACCESSIBLE_ACTION.processTimeoutMs,
   );
 }
 
@@ -740,22 +828,22 @@ export async function driveNativeFileDialog({
       [
         "InvokePattern",
         "LegacyIAccessiblePattern",
-        WINDOWS_DIALOG_COMMAND.method,
+        WINDOWS_ACCESSIBLE_ACTION.method,
       ].includes(invoked.result?.actionMethod),
     );
     assert.equal(invoked.result?.dialogCountBefore, 1);
     assert.equal(invoked.result?.dialogCountAfter, 0);
     assert.equal(invoked.result?.inputInjectionUsed, false);
-    if (invoked.result.actionMethod === WINDOWS_DIALOG_COMMAND.method) {
+    if (invoked.result.actionMethod === WINDOWS_ACCESSIBLE_ACTION.method) {
       assert.equal(invoked.result.invokePatternAvailable, false);
       assert.equal(invoked.result.legacyPatternAvailable, false);
       assert.equal(
         invoked.result.actionAutomationId,
-        String(WINDOWS_DIALOG_COMMAND.controlId),
+        String(WINDOWS_ACCESSIBLE_ACTION.controlId),
       );
       assert.equal(
         invoked.result.actionAutomationIdParsed,
-        WINDOWS_DIALOG_COMMAND.controlId,
+        WINDOWS_ACCESSIBLE_ACTION.controlId,
       );
       assert.ok(Number.isInteger(invoked.result.actionNativeControlHwnd));
       assert.ok(invoked.result.actionNativeControlHwnd > 0);
@@ -766,50 +854,63 @@ export async function driveNativeFileDialog({
       assert.equal(invoked.result.actionNativeIsChild, true);
       assert.equal(invoked.result.actionNativeControlIdConfirmed, true);
       assert.equal(
-        invoked.result.actionCommandMessage,
-        WINDOWS_DIALOG_COMMAND.message,
-      );
-      assert.equal(
-        invoked.result.actionCommandMessageId,
-        WINDOWS_DIALOG_COMMAND.messageId,
-      );
-      assert.equal(
         invoked.result.actionControlId,
-        WINDOWS_DIALOG_COMMAND.controlId,
+        WINDOWS_ACCESSIBLE_ACTION.controlId,
       );
       assert.equal(
-        invoked.result.actionNotification,
-        WINDOWS_DIALOG_COMMAND.notification,
+        invoked.result.actionMsaaObjectId,
+        WINDOWS_ACCESSIBLE_ACTION.objectId,
       );
       assert.equal(
-        invoked.result.actionNotificationCode,
-        WINDOWS_DIALOG_COMMAND.notificationCode,
+        invoked.result.actionMsaaInterfaceId,
+        WINDOWS_ACCESSIBLE_ACTION.interfaceId,
       );
       assert.equal(
-        invoked.result.actionCommandTimeoutMs,
-        WINDOWS_DIALOG_COMMAND.timeoutMs,
+        invoked.result.actionMsaaChildId,
+        WINDOWS_ACCESSIBLE_ACTION.childId,
       );
+      assert.equal(invoked.result.actionMsaaHResult, 0);
+      assert.equal(invoked.result.actionMsaaInterfaceNonNull, true);
+      assert.equal(invoked.result.actionMsaaWindowBindingHResult, 0);
       assert.equal(
-        invoked.result.actionCommandFlags,
-        WINDOWS_DIALOG_COMMAND.flags,
-      );
-      assert.equal(invoked.result.actionCommandApiSucceeded, true);
-      assert.ok(invoked.result.actionCommandDispatchStatus > 0);
-      assert.equal(invoked.result.actionCommandDestinationHwnd, observed.hwnd);
-      assert.equal(
-        invoked.result.actionCommandWParam,
-        WINDOWS_DIALOG_COMMAND.controlId,
-      );
-      assert.equal(
-        invoked.result.actionCommandLParam,
+        invoked.result.actionMsaaBoundHwnd,
         invoked.result.actionNativeControlHwnd,
+      );
+      assert.equal(invoked.result.actionAccessibleName, action);
+      assert.equal(
+        typeof invoked.result.actionAccessibleDefaultAction,
+        "string",
+      );
+      assert.notEqual(invoked.result.actionAccessibleDefaultAction.trim(), "");
+      assert.equal(
+        invoked.result.actionAccessibleRole,
+        WINDOWS_ACCESSIBLE_ACTION.role,
+      );
+      assert.ok(Number.isInteger(invoked.result.actionAccessibleState));
+      assert.equal(
+        invoked.result.actionAccessibleState &
+          WINDOWS_ACCESSIBLE_ACTION.blockedStateMask,
+        0,
+      );
+      assert.equal(
+        invoked.result.actionAccessibleBlockedStateMask,
+        WINDOWS_ACCESSIBLE_ACTION.blockedStateMask,
+      );
+      assert.equal(invoked.result.actionAccessibleInvocationCount, 1);
+      assert.equal(invoked.result.actionAccessibleInvocationCompleted, true);
+      assert.equal(invoked.result.actionAccessibleInterfaceReleased, true);
+      assert.equal(
+        invoked.result.actionProcessTimeoutMs,
+        WINDOWS_ACCESSIBLE_ACTION.processTimeoutMs,
       );
     } else if (invoked.result.actionMethod === "InvokePattern") {
       assert.equal(invoked.result.invokePatternAvailable, true);
       assert.equal(invoked.result.legacyPatternAvailable, false);
+      assert.equal(invoked.result.actionAccessibleInvocationCount, 0);
     } else {
       assert.equal(invoked.result.invokePatternAvailable, false);
       assert.equal(invoked.result.legacyPatternAvailable, true);
+      assert.equal(invoked.result.actionAccessibleInvocationCount, 0);
     }
     assert.equal(invoked.result?.actionInvoked, true);
     assert.equal(invoked.result?.dialogDismissed, true);
@@ -834,19 +935,29 @@ export async function driveNativeFileDialog({
       actionNativeIsChild: invoked.result.actionNativeIsChild,
       actionNativeControlIdConfirmed:
         invoked.result.actionNativeControlIdConfirmed,
-      actionCommandMessage: invoked.result.actionCommandMessage,
-      actionCommandMessageId: invoked.result.actionCommandMessageId,
       actionControlId: invoked.result.actionControlId,
-      actionNotification: invoked.result.actionNotification,
-      actionNotificationCode: invoked.result.actionNotificationCode,
-      actionCommandTimeoutMs: invoked.result.actionCommandTimeoutMs,
-      actionCommandFlags: invoked.result.actionCommandFlags,
-      actionCommandApiSucceeded: invoked.result.actionCommandApiSucceeded,
-      actionCommandResult: invoked.result.actionCommandResult,
-      actionCommandDispatchStatus: invoked.result.actionCommandDispatchStatus,
-      actionCommandDestinationHwnd: invoked.result.actionCommandDestinationHwnd,
-      actionCommandWParam: invoked.result.actionCommandWParam,
-      actionCommandLParam: invoked.result.actionCommandLParam,
+      actionMsaaObjectId: invoked.result.actionMsaaObjectId,
+      actionMsaaInterfaceId: invoked.result.actionMsaaInterfaceId,
+      actionMsaaChildId: invoked.result.actionMsaaChildId,
+      actionMsaaHResult: invoked.result.actionMsaaHResult,
+      actionMsaaInterfaceNonNull: invoked.result.actionMsaaInterfaceNonNull,
+      actionMsaaWindowBindingHResult:
+        invoked.result.actionMsaaWindowBindingHResult,
+      actionMsaaBoundHwnd: invoked.result.actionMsaaBoundHwnd,
+      actionAccessibleName: invoked.result.actionAccessibleName,
+      actionAccessibleDefaultAction:
+        invoked.result.actionAccessibleDefaultAction,
+      actionAccessibleRole: invoked.result.actionAccessibleRole,
+      actionAccessibleState: invoked.result.actionAccessibleState,
+      actionAccessibleBlockedStateMask:
+        invoked.result.actionAccessibleBlockedStateMask,
+      actionAccessibleInvocationCount:
+        invoked.result.actionAccessibleInvocationCount,
+      actionAccessibleInvocationCompleted:
+        invoked.result.actionAccessibleInvocationCompleted,
+      actionAccessibleInterfaceReleased:
+        invoked.result.actionAccessibleInterfaceReleased,
+      actionProcessTimeoutMs: invoked.result.actionProcessTimeoutMs,
       actionInvoked: true,
       dialogDismissed: true,
       verdict: "PASS",
