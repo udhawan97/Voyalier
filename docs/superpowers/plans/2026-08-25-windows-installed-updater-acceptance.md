@@ -218,3 +218,59 @@ setting without keyboard, clipboard, focus, or pointer input.
   logs, and UI screenshots must use root tokens; omit raw `get-value` and dialog-host stdout while
   retaining hashes and structured identity/HWND results. Recursively reject any remaining absolute
   Windows or UNC path before the upload step, and do not upload at all if sanitization fails.
+
+## Evidence-backed picker preset correction
+
+The single diagnostic-only run `32951589052` at exact candidate SHA
+`5431958f1b7c0e406258c5c87d7836bb38ad7863` closed the setter-versus-action question. Its sanitized
+artifact (`sha256:804260c204c2104c6a368351de4b89f05f954a63768cc101d226a9e413328cf8`)
+showed that the pinned CLI read back the requested target while the independent dialog host returned
+the untouched placeholder under both raw and canonical hashes. The exact MSAA Save action again met
+every identity and lifecycle guard. No marker was written. A JavaScript-to-PowerShell escaping error
+also rendered the diagnostic containment label invalid, but it occurred after dismissal and did not
+affect the independent target, readback, selected, or placeholder hashes. The council accepted the
+narrow classification: the external container-level setter did not commit to `SaveFileDialog`.
+
+This correction supersedes the external setter and one-use diagnostic portions of the pinned bridge:
+
+- Freeze the accepted exact-title, exact-HWND, semantic-host, one-shot MSAA action. Do not add another
+  action fallback. Keyboard, pointer, clipboard, focus, geometry, direct-window-message,
+  numeric-selector, and broad-selector routes remain prohibited.
+- Remove the Windows App CLI from release acceptance rather than attributing confidence to its
+  non-authoritative readback. Remove the one-use workflow input and restore a nondiagnostic standard
+  picker preflight before any product build.
+- Make the standard preflight action-only: create a standard Save dialog with the target already
+  configured, require terminating PowerShell errors and empty host stderr, invoke the frozen action,
+  then require the authoritative returned canonical target, exact marker content/stat/hash, dialog
+  dismissal, sanitization, and cleanup. It remains `productEvidence: false`.
+- Add a private Windows-only preset in the desktop adapter, where the backup commands already own the
+  native picker and filesystem IO. Enable it only when the complete existing automation configuration
+  is valid—exact `TAURI_WEBVIEW_AUTOMATION=true`, one sanitized debugging port, and a valid
+  `voyalier-acceptance-*` profile—and a dedicated backup target is present. An inactive master gate
+  preserves the existing ordinary-launch control flow and picker configuration. An active gate with a
+  missing or invalid target fails before a dialog opens; it never silently falls back.
+- Read the environment once. Canonicalize `RUNNER_TEMP` and the target's existing parent, reject a
+  reparse-point parent, and require a strict descendant directory named
+  `voyalier-windows-acceptance-*`. Require the exact ASCII basename
+  `voyalier-portable-acceptance.vbk`; reject relative, root, traversal, prefix-sibling, wrong-extension,
+  and outside-root targets. Export requires the target to be absent; restore requires the same target
+  to be an existing regular file.
+- Configure only the existing locked dialog path: `tauri-plugin-dialog 2.7.2` uses `rfd 0.16.0`, whose
+  Windows backend calls `IFileDialog::SetFolder` and `SetFileName` for both Save and Open builders.
+  Keep the real titles, filters, native dialogs, and UI-triggered commands. After each picker returns,
+  independently require the chosen path to equal the configured canonical target before any write or
+  read. The preset is never treated as authority.
+- Record only tokenized preset provenance and hashes: complete-gate status, canonical root/parent
+  success, strict containment, exact basename/extension, `externalSetterUsed: false`, and per-dialog
+  returned-path equality. Save must prove a new positive-length backup and SHA-256; Open must prove the
+  same pre-read SHA-256 before restore staging. Never upload the raw target, backup contents,
+  passphrase, SQLite data, recovery material, or updater key.
+- Unit-test inactive and stray-variable behavior; active missing/malformed configuration; relative,
+  root, traversal, prefix-sibling, reparse, wrong-name, and wrong-extension targets; pre-existing Save
+  and missing/non-file Open targets; returned-path mismatches; and valid Save/Open decomposition.
+  Static tests must keep external setters absent and the ordinary picker builder unchanged.
+- Release acceptance still requires the exact-SHA installed journey: UI-triggered Save and Open,
+  authoritative returned-path equality, backup notice/stat/hash, restore staging, reinstall, sentinel
+  removal, traveler-data/profile preservation, and no non-loopback traffic. The defensible claim is
+  exact candidate backup/restore through real native dialogs under a dormant acceptance-only preset,
+  not manual filename entry or byte identity with a future published artifact.
