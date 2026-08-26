@@ -411,7 +411,7 @@ function invokeExactAction(title, hwnd, action) {
       `[System.Windows.Automation.AutomationElement]::NativeWindowHandleProperty); ` +
       `if ($observedHwnd -ne $expectedHwnd) { throw "native dialog HWND changed" }; ` +
       `$candidates = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, $actionCondition); ` +
-      `$eligibleCount = 0; $invokePattern = $null; ` +
+      `$exactActionButtonCount = 0; $selectedCandidate = $null; ` +
       `for ($index = 0; $index -lt $candidates.Count; $index++) { ` +
       `$candidate = $candidates.Item($index); ` +
       `if ($candidate.GetCurrentPropertyValue(` +
@@ -421,21 +421,45 @@ function invokeExactAction(title, hwnd, action) {
       `[System.Windows.Automation.AutomationElement]::IsEnabledProperty) -ne $true) { continue }; ` +
       `if ($candidate.GetCurrentPropertyValue(` +
       `[System.Windows.Automation.AutomationElement]::IsOffscreenProperty) -ne $false) { continue }; ` +
-      `try { $candidatePattern = $candidate.GetCurrentPattern(` +
-      `[System.Windows.Automation.InvokePattern]::Pattern) } catch { continue }; ` +
-      `$eligibleCount += 1; if ($eligibleCount -eq 1) { $invokePattern = $candidatePattern } ` +
+      `$exactActionButtonCount += 1; ` +
+      `if ($exactActionButtonCount -eq 1) { $selectedCandidate = $candidate } ` +
       `}; ` +
-      `if ($eligibleCount -ne 1) { ` +
-      `throw "expected one eligible exact-name action, raw $($candidates.Count), eligible $eligibleCount" ` +
+      `if ($exactActionButtonCount -ne 1) { ` +
+      `throw "expected one exact-name enabled onscreen Button, raw $($candidates.Count), eligible $exactActionButtonCount" ` +
       `}; ` +
-      `$invokePattern.Invoke(); ` +
+      `$selectedPattern = $null; $actionPattern = $null; ` +
+      `try { $selectedPattern = $selectedCandidate.GetCurrentPattern(` +
+      `[System.Windows.Automation.InvokePattern]::Pattern); ` +
+      `if ($null -eq $selectedPattern) { throw "null InvokePattern" }; ` +
+      `$actionPattern = "InvokePattern" } catch { ` +
+      `try { $selectedPattern = $selectedCandidate.GetCurrentPattern(` +
+      `[System.Windows.Automation.LegacyIAccessiblePattern]::Pattern); ` +
+      `if ($null -eq $selectedPattern) { throw "null LegacyIAccessiblePattern" }; ` +
+      `$actionPattern = "LegacyIAccessiblePattern" } catch { ` +
+      `throw "unique exact action exposes neither InvokePattern nor LegacyIAccessiblePattern" ` +
+      `}; ` +
+      `}; ` +
+      `$selectedName = [string]$selectedCandidate.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::NameProperty); ` +
+      `$selectedControlType = $selectedCandidate.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::ControlTypeProperty); ` +
+      `$selectedAutomationId = [string]$selectedCandidate.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::AutomationIdProperty); ` +
+      `if ($actionPattern -eq "InvokePattern") { $selectedPattern.Invoke() } ` +
+      `elseif ($actionPattern -eq "LegacyIAccessiblePattern") { ` +
+      `$selectedPattern.DoDefaultAction() } ` +
+      `else { throw "unsupported exact action pattern: $actionPattern" }; ` +
       `$deadline = (Get-Date).AddSeconds(30); $remaining = -1; ` +
       `do { ` +
       `$remainingDialogs = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $titleCondition); ` +
       `$remaining = $remainingDialogs.Count; ` +
       `if ($remaining -gt 1) { throw "multiple exact-title dialogs after invoke: $remaining" }; ` +
       `if ($remaining -eq 0) { ` +
-      `@{ actionCandidateCount = $candidates.Count; eligibleActionCount = $eligibleCount; ` +
+      `@{ actionCandidateCount = $candidates.Count; ` +
+      `exactActionButtonCount = $exactActionButtonCount; ` +
+      `actionName = $selectedName; ` +
+      `actionControlType = [string]$selectedControlType.ProgrammaticName; ` +
+      `actionAutomationId = $selectedAutomationId; actionPattern = $actionPattern; ` +
       `actionInvoked = $true; dialogDismissed = $true; hwnd = $observedHwnd } ` +
       `| ConvertTo-Json -Compress; exit 0 ` +
       `}; ` +
@@ -567,13 +591,24 @@ export async function driveNativeFileDialog({
     const invoked = invokeExactAction(title, observed.hwnd, action);
     record.actionCommand = invoked.evidence;
     assert.equal(invoked.result?.hwnd, observed.hwnd);
-    assert.equal(invoked.result?.eligibleActionCount, 1);
+    assert.equal(invoked.result?.exactActionButtonCount, 1);
+    assert.equal(invoked.result?.actionName, action);
+    assert.equal(invoked.result?.actionControlType, "ControlType.Button");
+    assert.ok(
+      ["InvokePattern", "LegacyIAccessiblePattern"].includes(
+        invoked.result?.actionPattern,
+      ),
+    );
     assert.equal(invoked.result?.actionInvoked, true);
     assert.equal(invoked.result?.dialogDismissed, true);
     Object.assign(record, {
       nativeDialogPathConfirmed: true,
       actionCandidateCount: invoked.result.actionCandidateCount,
-      eligibleActionCount: invoked.result.eligibleActionCount,
+      exactActionButtonCount: invoked.result.exactActionButtonCount,
+      actionName: invoked.result.actionName,
+      actionControlType: invoked.result.actionControlType,
+      actionAutomationId: invoked.result.actionAutomationId,
+      actionPattern: invoked.result.actionPattern,
       actionInvoked: true,
       dialogDismissed: true,
       verdict: "PASS",

@@ -134,7 +134,11 @@ function nativeDialogEvidence({
     pathReadbackConfirmed: true,
     inputInjectionUsed: false,
     actionCandidateCount: 1,
-    eligibleActionCount: 1,
+    exactActionButtonCount: 1,
+    actionName: action,
+    actionControlType: "ControlType.Button",
+    actionAutomationId: "1",
+    actionPattern: "LegacyIAccessiblePattern",
     actionInvoked: true,
     dialogDismissed: true,
     actionCommand: {
@@ -145,7 +149,11 @@ function nativeDialogEvidence({
       result: {
         hwnd: 12345,
         actionCandidateCount: 1,
-        eligibleActionCount: 1,
+        exactActionButtonCount: 1,
+        actionName: action,
+        actionControlType: "ControlType.Button",
+        actionAutomationId: "1",
+        actionPattern: "LegacyIAccessiblePattern",
         actionInvoked: true,
         dialogDismissed: true,
       },
@@ -379,6 +387,7 @@ test("keeps product setup, updater backup, and portable restore on the installed
     "get-value",
     "--window",
     "InvokePattern",
+    "LegacyIAccessiblePattern",
     "dialogDismissed",
     "pathReadbackConfirmed",
   ]) {
@@ -391,6 +400,22 @@ test("keeps product setup, updater backup, and portable restore on the installed
   assert.doesNotMatch(
     nativeDialogSource,
     /AutomationIdProperty, ['"](?:1148|1001)['"]/,
+  );
+  const actionBridge = nativeDialogSource.slice(
+    nativeDialogSource.indexOf("function invokeExactAction"),
+    nativeDialogSource.indexOf("export async function driveNativeFileDialog"),
+  );
+  const uniqueStateGate = actionBridge.indexOf(
+    "if ($exactActionButtonCount -ne 1)",
+  );
+  const invokePatternProbe = actionBridge.indexOf(
+    "[System.Windows.Automation.InvokePattern]::Pattern",
+  );
+  assert.ok(
+    uniqueStateGate !== -1 &&
+      invokePatternProbe !== -1 &&
+      uniqueStateGate < invokePatternProbe,
+    "action uniqueness must be proven before pattern selection",
   );
 
   const preflightSource = await readFile(
@@ -573,7 +598,31 @@ test("rejects unverified picker tooling and incomplete preflight proof", () => {
     },
     {
       ...preflight,
-      dialog: { ...preflight.dialog, eligibleActionCount: 2 },
+      dialog: {
+        ...preflight.dialog,
+        exactActionButtonCount: 2,
+        actionCommand: {
+          ...preflight.dialog.actionCommand,
+          result: {
+            ...preflight.dialog.actionCommand.result,
+            exactActionButtonCount: 2,
+          },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        actionPattern: "Keyboard",
+        actionCommand: {
+          ...preflight.dialog.actionCommand,
+          result: {
+            ...preflight.dialog.actionCommand.result,
+            actionPattern: "Keyboard",
+          },
+        },
+      },
     },
     {
       ...preflight,
