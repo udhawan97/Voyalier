@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -33,6 +34,10 @@ const WORKFLOW_RUN_ID = "123456";
 const TOOL_EXECUTABLE = "<RUNNER_TEMP>\\winapp\\winapp.exe";
 const PORTABLE_PATH = "<DIALOG_TEMP>\\voyalier-portable-acceptance.vbk";
 const WINAPP_RUNTIME_ELEMENT_ID = "grp-filenamecontrol-a1b2c3d4";
+
+function textSha256(value) {
+  return createHash("sha256").update(String(value), "utf8").digest("hex");
+}
 
 function winAppToolEvidence() {
   return {
@@ -300,7 +305,7 @@ function pickerDiagnosticEvidence(tool = winAppToolEvidence()) {
     selectedRelativeToken: "<DIALOG_TEMP>\\picker-preflight-placeholder.txt",
     selectedBaseNameKind: "placeholder",
     selectedBaseName: "picker-preflight-placeholder.txt",
-    selectedBaseNameSha256: "3".repeat(64),
+    selectedBaseNameSha256: textSha256("picker-preflight-placeholder.txt"),
     selectedBaseNameLength: 32,
     selectedExtension: ".txt",
     writeGatePassed: false,
@@ -346,9 +351,21 @@ function pickerDiagnosticEvidence(tool = winAppToolEvidence()) {
 
 function diagnosticWithPath(report, overrides) {
   const pathDiagnostics = { ...report.pathDiagnostics, ...overrides };
+  const diagnosticOutcome = !pathDiagnostics.selectedCanonicalized
+    ? "uncanonicalizable"
+    : !pathDiagnostics.selectedWithinTemporaryRoot
+      ? pathDiagnostics.selectedBaseNameKind === "placeholder"
+        ? "outside-temp-placeholder"
+        : "outside-temp"
+      : pathDiagnostics.canonicalOrdinalIgnoreCaseEqual
+        ? "canonical-equal"
+        : pathDiagnostics.selectedEqualsPlaceholderCanonicalIgnoreCase
+          ? "placeholder"
+          : "transformed";
   return {
     ...report,
     pathDiagnostics,
+    diagnosticOutcome,
     dialogHost: { ...report.dialogHost, result: pathDiagnostics },
   };
 }
@@ -520,6 +537,7 @@ test("keeps product setup, updater backup, and portable restore on the installed
   assert.match(source, /driveNativeFileDialog/);
   assert.match(source, /loadVerifiedWinAppTool/);
   assert.match(source, /portableBackupNotice\.endsWith\(portableBackupPath\)/);
+  assert.match(source, /process\.stderr\.write\(`\$\{message\}\\n`\)/);
   const screenshotHelper = source.slice(
     source.indexOf("async function screenshot"),
     source.indexOf("function installedProcesses"),
@@ -566,6 +584,11 @@ test("keeps product setup, updater backup, and portable restore on the installed
     1,
     "the direct accessibility fallback must invoke the default action exactly once",
   );
+  const nativeDialogDriver = nativeDialogSource.slice(
+    nativeDialogSource.indexOf("export async function driveNativeFileDialog"),
+    nativeDialogSource.indexOf("export function pathIsInside"),
+  );
+  assert.doesNotMatch(nativeDialogDriver, /throw error;/);
   const actionBridge = nativeDialogSource.slice(
     nativeDialogSource.indexOf("function invokeExactAction"),
     nativeDialogSource.indexOf("export async function driveNativeFileDialog"),
@@ -618,6 +641,7 @@ test("keeps product setup, updater backup, and portable restore on the installed
   assert.match(preflightSource, /selectedEqualsPlaceholderCanonicalIgnoreCase/);
   assert.match(preflightSource, /diagnosticOnly: true/);
   assert.match(preflightSource, /productEvidence: false/);
+  assert.match(preflightSource, /process\.stderr\.write\(`\$\{message\}\\n`\)/);
 
   const workflow = await readFile(
     new URL("../.github/workflows/release.yml", import.meta.url),
@@ -667,6 +691,15 @@ test("keeps product setup, updater backup, and portable restore on the installed
   assert.match(
     workflow,
     /steps\.sanitize_windows_evidence\.outcome == 'success'/,
+  );
+  assert.match(workflow, /windows_picker_diagnostic:/);
+  assert.match(
+    workflow,
+    /if: github\.event_name != 'workflow_dispatch' \|\| !inputs\.windows_picker_diagnostic/,
+  );
+  assert.match(
+    workflow,
+    /inputs\.windows_acceptance \|\| inputs\.windows_picker_diagnostic/,
   );
 });
 
@@ -1137,15 +1170,52 @@ test("keeps picker path diagnostics outside the release acceptance gate", () => 
     "a placeholder-selection diagnostic must never satisfy release preflight",
   );
 
+  const outsideDiagnostic = diagnosticWithPath(diagnostic, {
+    selectedWithinTemporaryRoot: false,
+    selectedRelativeToken: null,
+  });
+  assert.equal(
+    validateWindowsPickerDiagnosticReport(outsideDiagnostic, {
+      candidateSha: CANDIDATE_SHA,
+      workflowRunId: WORKFLOW_RUN_ID,
+    }),
+    outsideDiagnostic,
+  );
+  assert.equal(outsideDiagnostic.diagnosticOutcome, "outside-temp-placeholder");
+
+  const uncanonicalizableDiagnostic = diagnosticWithPath(diagnostic, {
+    selectedCanonicalized: false,
+    selectedCanonicalSha256: null,
+    selectedCanonicalCaseFoldedSha256: null,
+    selectedWithinTemporaryRoot: false,
+    selectedRelativeToken: null,
+    canonicalOrdinalIgnoreCaseEqual: false,
+    selectedEqualsPlaceholderCanonicalIgnoreCase: false,
+  });
+  assert.equal(
+    validateWindowsPickerDiagnosticReport(uncanonicalizableDiagnostic, {
+      candidateSha: CANDIDATE_SHA,
+      workflowRunId: WORKFLOW_RUN_ID,
+    }),
+    uncanonicalizableDiagnostic,
+  );
+  assert.equal(
+    uncanonicalizableDiagnostic.diagnosticOutcome,
+    "uncanonicalizable",
+  );
+
   const invalidDiagnostics = [
     diagnosticWithPath(diagnostic, { cliReadbackRawSha256: undefined }),
     diagnosticWithPath(diagnostic, { selectedCanonicalized: false }),
     diagnosticWithPath(diagnostic, {
       selectedWithinTemporaryRoot: false,
-      selectedRelativeToken: null,
     }),
     diagnosticWithPath(diagnostic, { rawOrdinalEqual: true }),
     diagnosticWithPath(diagnostic, { writeAttempted: true }),
+    diagnosticWithPath(outsideDiagnostic, { writeAttempted: true }),
+    diagnosticWithPath(uncanonicalizableDiagnostic, {
+      selectedCanonicalSha256: "6".repeat(64),
+    }),
     diagnosticWithPath(diagnostic, {
       selectedRelativeToken: "C:\\private\\placeholder.txt",
     }),

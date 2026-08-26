@@ -24,6 +24,11 @@ on:
         required: false
         default: false
         type: boolean
+      windows_picker_diagnostic:
+        description: Run only the diagnostic native-picker preflight
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -33,6 +38,7 @@ permissions:
 jobs:
   desktop:
     name: Desktop build (${{ matrix.artifact }})
+    if: github.event_name != 'workflow_dispatch' || !inputs.windows_picker_diagnostic
     # Only a real tag build enters the protected environment (approval + the
     # signing secrets). A workflow_dispatch build gets no environment, no key,
     # and no updater artifacts — so an actor can't dispatch a malicious ref and
@@ -136,7 +142,9 @@ jobs:
 
   windows-acceptance:
     name: Windows installed app and updater swap
-    if: github.event_name == 'workflow_dispatch' && inputs.windows_acceptance
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.windows_acceptance || inputs.windows_picker_diagnostic)
     runs-on: windows-latest
     permissions:
       contents: read

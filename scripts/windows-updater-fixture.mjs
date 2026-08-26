@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { copyFile, rm } from "node:fs/promises";
 import path from "node:path";
 
@@ -9,6 +10,10 @@ import {
 
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const SHA256 = /^[0-9a-f]{64}$/;
+
+function sha256Text(value) {
+  return createHash("sha256").update(String(value), "utf8").digest("hex");
+}
 
 function requireString(value, name) {
   if (typeof value !== "string" || value.trim() === "") {
@@ -433,17 +438,20 @@ export function validateWindowsPickerDiagnosticReport(
     diagnostic?.cliReadbackRawSha256,
     diagnostic?.selectedRawSha256,
     diagnostic?.expectedCanonicalSha256,
-    diagnostic?.selectedCanonicalSha256,
     diagnostic?.placeholderRawSha256,
     diagnostic?.expectedRawCaseFoldedSha256,
     diagnostic?.selectedRawCaseFoldedSha256,
     diagnostic?.placeholderRawCaseFoldedSha256,
     diagnostic?.placeholderCanonicalSha256,
     diagnostic?.expectedCanonicalCaseFoldedSha256,
-    diagnostic?.selectedCanonicalCaseFoldedSha256,
     diagnostic?.placeholderCanonicalCaseFoldedSha256,
     diagnostic?.selectedBaseNameSha256,
   ];
+  const selectedCanonicalHashesValid = diagnostic?.selectedCanonicalized
+    ? SHA256.test(diagnostic?.selectedCanonicalSha256 ?? "") &&
+      SHA256.test(diagnostic?.selectedCanonicalCaseFoldedSha256 ?? "")
+    : diagnostic?.selectedCanonicalSha256 == null &&
+      diagnostic?.selectedCanonicalCaseFoldedSha256 == null;
   const expectedEqualsReadback =
     diagnostic?.expectedRawSha256 === diagnostic?.cliReadbackRawSha256;
   const selectedEqualsReadback =
@@ -459,27 +467,41 @@ export function validateWindowsPickerDiagnosticReport(
     diagnostic?.selectedRawCaseFoldedSha256 ===
     diagnostic?.placeholderRawCaseFoldedSha256;
   const canonicalIgnoreCaseEqual =
+    diagnostic?.selectedCanonicalized === true &&
     diagnostic?.selectedCanonicalCaseFoldedSha256 ===
-    diagnostic?.expectedCanonicalCaseFoldedSha256;
+      diagnostic?.expectedCanonicalCaseFoldedSha256;
   const placeholderCanonicalEqual =
+    diagnostic?.selectedCanonicalized === true &&
     diagnostic?.selectedCanonicalCaseFoldedSha256 ===
-    diagnostic?.placeholderCanonicalCaseFoldedSha256;
+      diagnostic?.placeholderCanonicalCaseFoldedSha256;
   const writeGateExpected =
     diagnostic?.dialogResult === "OK" &&
     canonicalIgnoreCaseEqual &&
     diagnostic?.expectedWithinTemporaryRoot === true &&
     diagnostic?.selectedWithinTemporaryRoot === true;
-  const diagnosticOutcome = canonicalIgnoreCaseEqual
-    ? "canonical-equal"
-    : placeholderCanonicalEqual
-      ? "placeholder"
-      : "transformed";
+  const diagnosticOutcome = !diagnostic?.selectedCanonicalized
+    ? "uncanonicalizable"
+    : !diagnostic?.selectedWithinTemporaryRoot
+      ? diagnostic?.selectedBaseNameKind === "placeholder"
+        ? "outside-temp-placeholder"
+        : "outside-temp"
+      : canonicalIgnoreCaseEqual
+        ? "canonical-equal"
+        : placeholderCanonicalEqual
+          ? "placeholder"
+          : "transformed";
   const selectedTokenValid =
     typeof diagnostic?.selectedRelativeToken === "string" &&
     diagnostic.selectedRelativeToken.startsWith("<DIALOG_TEMP>\\") &&
     !diagnostic.selectedRelativeToken
       .split(/[\\/]/)
       .some((segment) => segment === "..");
+  const selectedLocationValid = diagnostic?.selectedCanonicalized
+    ? diagnostic?.selectedWithinTemporaryRoot
+      ? selectedTokenValid
+      : diagnostic?.selectedRelativeToken == null
+    : diagnostic?.selectedWithinTemporaryRoot === false &&
+      diagnostic?.selectedRelativeToken == null;
   const selectedNameDisclosureValid =
     diagnostic?.selectedBaseNameKind === "target"
       ? /^voyalier-picker-preflight-[0-9a-f]{24}\.txt$/.test(
@@ -489,6 +511,18 @@ export function validateWindowsPickerDiagnosticReport(
         ? diagnostic?.selectedBaseName === "picker-preflight-placeholder.txt"
         : diagnostic?.selectedBaseNameKind === "other" &&
           diagnostic?.selectedBaseName == null;
+  const selectedNameMetadataValid =
+    Number.isInteger(diagnostic?.selectedBaseNameLength) &&
+    diagnostic.selectedBaseNameLength >= 0 &&
+    typeof diagnostic?.selectedExtension === "string" &&
+    SHA256.test(diagnostic?.selectedBaseNameSha256 ?? "") &&
+    (diagnostic?.selectedBaseName == null ||
+      (diagnostic.selectedBaseNameSha256 ===
+        sha256Text(diagnostic.selectedBaseName) &&
+        diagnostic.selectedBaseNameLength ===
+          diagnostic.selectedBaseName.length &&
+        diagnostic.selectedExtension ===
+          path.win32.extname(diagnostic.selectedBaseName)));
   const markerValid = diagnostic?.writeAttempted
     ? marker?.existsBeforeCleanup === true &&
       marker?.contentConfirmed === true &&
@@ -505,6 +539,7 @@ export function validateWindowsPickerDiagnosticReport(
     report?.verdict !== "FAIL" ||
     report?.stage !== "diagnostic-complete" ||
     report?.diagnosticOnly !== true ||
+    diagnostic?.diagnosticOnly !== true ||
     report?.proofKind !== "harness-tool-compatibility" ||
     report?.productEvidence !== false ||
     !/^[0-9a-f]{40}$/.test(report?.candidateSha ?? "") ||
@@ -517,6 +552,7 @@ export function validateWindowsPickerDiagnosticReport(
       report?.dialog?.observedValueSha256 ||
     report?.dialog?.readbackEqualsExpected !== true ||
     hashes.some((hash) => !SHA256.test(hash ?? "")) ||
+    !selectedCanonicalHashesValid ||
     diagnostic?.hashEncoding !== "UTF-8" ||
     diagnostic?.expectedRawSha256 !== report?.dialog?.expectedPathSha256 ||
     diagnostic?.cliReadbackRawSha256 !== report?.dialog?.observedValueSha256 ||
@@ -530,18 +566,14 @@ export function validateWindowsPickerDiagnosticReport(
     diagnostic?.selectedEqualsPlaceholderRawOrdinalIgnoreCase !==
       placeholderRawIgnoreCaseEqual ||
     diagnostic?.expectedCanonicalized !== true ||
-    diagnostic?.selectedCanonicalized !== true ||
     diagnostic?.placeholderCanonicalized !== true ||
     diagnostic?.canonicalOrdinalIgnoreCaseEqual !== canonicalIgnoreCaseEqual ||
     diagnostic?.selectedEqualsPlaceholderCanonicalIgnoreCase !==
       placeholderCanonicalEqual ||
     diagnostic?.expectedWithinTemporaryRoot !== true ||
-    diagnostic?.selectedWithinTemporaryRoot !== true ||
-    !selectedTokenValid ||
+    !selectedLocationValid ||
     !selectedNameDisclosureValid ||
-    !Number.isInteger(diagnostic?.selectedBaseNameLength) ||
-    diagnostic.selectedBaseNameLength <= 0 ||
-    typeof diagnostic?.selectedExtension !== "string" ||
+    !selectedNameMetadataValid ||
     diagnostic?.writeGatePassed !== writeGateExpected ||
     diagnostic?.writeAttempted !== writeGateExpected ||
     diagnostic?.markerExists !== diagnostic?.writeAttempted ||

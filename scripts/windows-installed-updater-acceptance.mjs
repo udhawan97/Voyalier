@@ -1613,7 +1613,7 @@ async function main() {
       listeners: application ? appListeners(application) : [],
     };
     await writeAcceptanceReport(report);
-    throw error;
+    throw new Error(report.error);
   } finally {
     await stopDriver(driver).catch(() => {});
     if (application) stopInstalledProcesses(application);
@@ -1634,4 +1634,12 @@ async function main() {
   }
 }
 
-await main();
+try {
+  await main();
+} catch (error) {
+  const message = sanitizeWindowsEvidenceText(
+    error instanceof Error ? error.message : String(error),
+  );
+  process.stderr.write(`${message}\n`);
+  process.exitCode = 1;
+}

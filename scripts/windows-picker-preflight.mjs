@@ -52,10 +52,10 @@ function startStandardSaveDialog({
     `try { return ([System.BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-', '').ToLowerInvariant() } ` +
     `finally { $sha.Dispose() } ` +
     `}; ` +
-    `function Get-VoyalierOptionalHash([string]$value) { ` +
+    `function Get-VoyalierOptionalHash($value) { ` +
     `if ($null -eq $value) { return $null }; return (Get-VoyalierHash $value) ` +
     `}; ` +
-    `function Get-VoyalierFoldedHash([string]$value) { ` +
+    `function Get-VoyalierFoldedHash($value) { ` +
     `if ($null -eq $value) { return $null }; ` +
     `return (Get-VoyalierHash ($value.ToUpperInvariant())) ` +
     `}; ` +
@@ -105,7 +105,8 @@ function startStandardSaveDialog({
     `$selectedEqualsPlaceholderCanonicalIgnoreCase = $selectedCanonicalized -and ` +
     `$placeholderCanonicalized -and [string]::Equals($selectedCanonical, ` +
     `$placeholderCanonical, [System.StringComparison]::OrdinalIgnoreCase); ` +
-    `$selectedBaseName = [System.IO.Path]::GetFileName($selected); ` +
+    `$selectedBaseName = ''; ` +
+    `try { $selectedBaseName = [string][System.IO.Path]::GetFileName($selected) } catch {}; ` +
     `$targetBaseName = [System.IO.Path]::GetFileName($expected); ` +
     `$selectedBaseNameKind = if ([string]::Equals($selectedBaseName, $targetBaseName, ` +
     `[System.StringComparison]::Ordinal)) { 'target' } elseif (` +
@@ -313,11 +314,17 @@ async function main() {
     await rm(preflightRoot, { recursive: true, force: true });
     report.marker.removed = true;
     report.temporaryRootRemoved = true;
-    report.diagnosticOutcome = pathDiagnostics.canonicalOrdinalIgnoreCaseEqual
-      ? "canonical-equal"
-      : pathDiagnostics.selectedEqualsPlaceholderCanonicalIgnoreCase
-        ? "placeholder"
-        : "transformed";
+    report.diagnosticOutcome = !pathDiagnostics.selectedCanonicalized
+      ? "uncanonicalizable"
+      : !pathDiagnostics.selectedWithinTemporaryRoot
+        ? pathDiagnostics.selectedBaseNameKind === "placeholder"
+          ? "outside-temp-placeholder"
+          : "outside-temp"
+        : pathDiagnostics.canonicalOrdinalIgnoreCaseEqual
+          ? "canonical-equal"
+          : pathDiagnostics.selectedEqualsPlaceholderCanonicalIgnoreCase
+            ? "placeholder"
+            : "transformed";
     report.stage = "diagnostic-complete";
     validateWindowsPickerDiagnosticReport(report, {
       candidateSha: report.candidateSha,
@@ -340,8 +347,16 @@ async function main() {
       PREFLIGHT_REPORT,
       `${JSON.stringify(sanitizedReport, null, 2)}\n`,
     );
-    throw error;
+    throw new Error(report.error);
   }
 }
 
-await main();
+try {
+  await main();
+} catch (error) {
+  const message = sanitizeWindowsEvidenceText(
+    error instanceof Error ? error.message : String(error),
+  );
+  process.stderr.write(`${message}\n`);
+  process.exitCode = 1;
+}

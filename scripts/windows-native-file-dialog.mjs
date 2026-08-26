@@ -979,7 +979,14 @@ export async function driveNativeFileDialog({
     );
     if (error?.commandEvidence) record.failedCommand = error.commandEvidence;
     writeDiagnostic(diagnosticPath, record);
-    throw error;
+    const safeError = new Error(record.error);
+    if (record.failedCommand) {
+      safeError.commandEvidence = sanitizeWindowsEvidenceValue(
+        record.failedCommand,
+        tool?.environment,
+      );
+    }
+    throw safeError;
   }
 }
 
