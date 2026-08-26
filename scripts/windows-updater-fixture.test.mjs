@@ -19,6 +19,7 @@ import {
   parseWindowsCommandJson,
   sanitizeWindowsEvidenceText,
   sanitizeWindowsEvidenceValue,
+  WINDOWS_DIALOG_COMMAND,
   WINAPP_CLI,
 } from "./windows-native-file-dialog.mjs";
 import {
@@ -133,12 +134,37 @@ function nativeDialogEvidence({
     controlIdentityMatched: true,
     pathReadbackConfirmed: true,
     inputInjectionUsed: false,
+    dialogCountBefore: 1,
+    dialogCountAfter: 0,
     actionCandidateCount: 1,
     exactActionTargetCount: 1,
     actionName: action,
     actionControlType: "ControlType.Pane",
     actionAutomationId: "1",
-    actionPattern: "LegacyIAccessiblePattern",
+    actionAutomationIdParsed: 1,
+    actionMethod: WINDOWS_DIALOG_COMMAND.method,
+    invokePatternAvailable: false,
+    legacyPatternAvailable: false,
+    actionNativeControlHwnd: 67890,
+    actionNativeControlBound: true,
+    actionDialogReverified: true,
+    actionTargetReverified: true,
+    actionNativeIsWindow: true,
+    actionNativeIsChild: true,
+    actionNativeControlIdConfirmed: true,
+    actionCommandMessage: WINDOWS_DIALOG_COMMAND.message,
+    actionCommandMessageId: WINDOWS_DIALOG_COMMAND.messageId,
+    actionControlId: WINDOWS_DIALOG_COMMAND.controlId,
+    actionNotification: WINDOWS_DIALOG_COMMAND.notification,
+    actionNotificationCode: WINDOWS_DIALOG_COMMAND.notificationCode,
+    actionCommandTimeoutMs: WINDOWS_DIALOG_COMMAND.timeoutMs,
+    actionCommandFlags: WINDOWS_DIALOG_COMMAND.flags,
+    actionCommandApiSucceeded: true,
+    actionCommandResult: 0,
+    actionCommandDispatchStatus: 1,
+    actionCommandDestinationHwnd: 12345,
+    actionCommandWParam: WINDOWS_DIALOG_COMMAND.controlId,
+    actionCommandLParam: 67890,
     actionInvoked: true,
     dialogDismissed: true,
     actionCommand: {
@@ -148,12 +174,38 @@ function nativeDialogEvidence({
       stderr: "",
       result: {
         hwnd: 12345,
+        dialogCountBefore: 1,
+        dialogCountAfter: 0,
         actionCandidateCount: 1,
         exactActionTargetCount: 1,
         actionName: action,
         actionControlType: "ControlType.Pane",
         actionAutomationId: "1",
-        actionPattern: "LegacyIAccessiblePattern",
+        actionAutomationIdParsed: 1,
+        actionMethod: WINDOWS_DIALOG_COMMAND.method,
+        invokePatternAvailable: false,
+        legacyPatternAvailable: false,
+        actionNativeControlHwnd: 67890,
+        actionNativeControlBound: true,
+        actionDialogReverified: true,
+        actionTargetReverified: true,
+        actionNativeIsWindow: true,
+        actionNativeIsChild: true,
+        actionNativeControlIdConfirmed: true,
+        actionCommandMessage: WINDOWS_DIALOG_COMMAND.message,
+        actionCommandMessageId: WINDOWS_DIALOG_COMMAND.messageId,
+        actionControlId: WINDOWS_DIALOG_COMMAND.controlId,
+        actionNotification: WINDOWS_DIALOG_COMMAND.notification,
+        actionNotificationCode: WINDOWS_DIALOG_COMMAND.notificationCode,
+        actionCommandTimeoutMs: WINDOWS_DIALOG_COMMAND.timeoutMs,
+        actionCommandFlags: WINDOWS_DIALOG_COMMAND.flags,
+        actionCommandApiSucceeded: true,
+        actionCommandResult: 0,
+        actionCommandDispatchStatus: 1,
+        actionCommandDestinationHwnd: 12345,
+        actionCommandWParam: WINDOWS_DIALOG_COMMAND.controlId,
+        actionCommandLParam: 67890,
+        inputInjectionUsed: false,
         actionInvoked: true,
         dialogDismissed: true,
       },
@@ -389,6 +441,10 @@ test("keeps product setup, updater backup, and portable restore on the installed
     "InvokePattern",
     "LegacyIAccessiblePattern",
     "ControlType.Pane",
+    "WM_COMMAND/IDOK",
+    "SendMessageTimeout",
+    "GetDlgCtrlID",
+    "IsChild",
     "dialogDismissed",
     "pathReadbackConfirmed",
   ]) {
@@ -396,7 +452,7 @@ test("keeps product setup, updater backup, and portable restore on the installed
   }
   assert.doesNotMatch(
     nativeDialogSource,
-    /send-keys|sendkeys|WScript\.Shell|Set-Clipboard|Clipboard|SetFocus\(/i,
+    /send-keys|sendkeys|WScript\.Shell|Set-Clipboard|Clipboard|SetFocus\(|SetActiveWindow|SendInput|PostMessage|BM_CLICK/i,
   );
   assert.doesNotMatch(
     nativeDialogSource,
@@ -412,6 +468,16 @@ test("keeps product setup, updater backup, and portable restore on the installed
   const invokePatternProbe = actionBridge.indexOf(
     "[System.Windows.Automation.InvokePattern]::Pattern",
   );
+  const legacyPatternProbe = actionBridge.indexOf(
+    "[System.Windows.Automation.LegacyIAccessiblePattern]::Pattern",
+  );
+  const nativeCommandDispatch = actionBridge.lastIndexOf("SendMessageTimeout(");
+  const canonicalIdGuard = actionBridge.indexOf(
+    "patternless exact action does not expose canonical IDOK AutomationId",
+  );
+  const childHwndGuard = actionBridge.indexOf(
+    "patternless exact action native HWND is not a child of the dialog",
+  );
   const candidateObservation = actionBridge.indexOf(
     "$candidateObservations.Add(",
   );
@@ -424,6 +490,13 @@ test("keeps product setup, updater backup, and portable restore on the installed
   assert.ok(
     candidateObservation !== -1 && candidateObservation < uniqueStateGate,
     "failed action uniqueness must preserve safe candidate diagnostics",
+  );
+  assert.ok(
+    invokePatternProbe < legacyPatternProbe &&
+      legacyPatternProbe < canonicalIdGuard &&
+      canonicalIdGuard < childHwndGuard &&
+      childHwndGuard < nativeCommandDispatch,
+    "native command must remain the final, identity-guarded action method",
   );
 
   const preflightSource = await readFile(
@@ -650,12 +723,110 @@ test("rejects unverified picker tooling and incomplete preflight proof", () => {
       ...preflight,
       dialog: {
         ...preflight.dialog,
-        actionPattern: "Keyboard",
+        actionMethod: "Keyboard",
         actionCommand: {
           ...preflight.dialog.actionCommand,
           result: {
             ...preflight.dialog.actionCommand.result,
-            actionPattern: "Keyboard",
+            actionMethod: "Keyboard",
+          },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        actionAutomationId: "01",
+        actionCommand: {
+          ...preflight.dialog.actionCommand,
+          result: {
+            ...preflight.dialog.actionCommand.result,
+            actionAutomationId: "01",
+          },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        invokePatternAvailable: true,
+        actionCommand: {
+          ...preflight.dialog.actionCommand,
+          result: {
+            ...preflight.dialog.actionCommand.result,
+            invokePatternAvailable: true,
+          },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        actionCommandMessageId: 0,
+        actionCommand: {
+          ...preflight.dialog.actionCommand,
+          result: {
+            ...preflight.dialog.actionCommand.result,
+            actionCommandMessageId: 0,
+          },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        actionNativeIsChild: false,
+        actionCommand: {
+          ...preflight.dialog.actionCommand,
+          result: {
+            ...preflight.dialog.actionCommand.result,
+            actionNativeIsChild: false,
+          },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        actionCommandLParam: 0,
+        actionCommand: {
+          ...preflight.dialog.actionCommand,
+          result: {
+            ...preflight.dialog.actionCommand.result,
+            actionCommandLParam: 0,
+          },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        actionCommandApiSucceeded: false,
+        actionCommand: {
+          ...preflight.dialog.actionCommand,
+          result: {
+            ...preflight.dialog.actionCommand.result,
+            actionCommandApiSucceeded: false,
+          },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        actionCommandTimeoutMs: 0,
+        actionCommand: {
+          ...preflight.dialog.actionCommand,
+          result: {
+            ...preflight.dialog.actionCommand.result,
+            actionCommandTimeoutMs: 0,
           },
         },
       },

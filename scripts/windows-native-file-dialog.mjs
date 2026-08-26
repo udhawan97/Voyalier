@@ -23,6 +23,17 @@ export const WINAPP_CLI = Object.freeze({
   selector: "FileNameControlHost",
 });
 
+export const WINDOWS_DIALOG_COMMAND = Object.freeze({
+  method: "WM_COMMAND/IDOK",
+  message: "WM_COMMAND",
+  messageId: 0x0111,
+  controlId: 1,
+  notification: "BN_CLICKED",
+  notificationCode: 0,
+  timeoutMs: 5_000,
+  flags: 0x0001 | 0x0002 | 0x0020,
+});
+
 function requireString(value, name) {
   assert.equal(typeof value, "string", `${name} must be a string`);
   assert.notEqual(value.trim(), "", `${name} must not be empty`);
@@ -394,9 +405,26 @@ function discoverDialog(title) {
 }
 
 function invokeExactAction(title, hwnd, action) {
+  const nativeDialogCommandType =
+    `using System; using System.Runtime.InteropServices; ` +
+    `public static class VoyalierNativeDialogCommand { ` +
+    `[DllImport("user32.dll", SetLastError=true)] ` +
+    `[return: MarshalAs(UnmanagedType.Bool)] ` +
+    `public static extern bool IsWindow(IntPtr hWnd); ` +
+    `[DllImport("user32.dll", SetLastError=true)] ` +
+    `[return: MarshalAs(UnmanagedType.Bool)] ` +
+    `public static extern bool IsChild(IntPtr hWndParent, IntPtr hWnd); ` +
+    `[DllImport("user32.dll", SetLastError=true)] ` +
+    `public static extern int GetDlgCtrlID(IntPtr hWnd); ` +
+    `[DllImport("user32.dll", EntryPoint="SendMessageTimeoutW", ExactSpelling=true, ` +
+    `SetLastError=true, CharSet=CharSet.Unicode)] ` +
+    `public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, ` +
+    `UIntPtr wParam, IntPtr lParam, uint flags, uint timeout, out UIntPtr result); ` +
+    `}`;
   return powershellJson(
     `Add-Type -AssemblyName UIAutomationClient; ` +
       `Add-Type -AssemblyName UIAutomationTypes; ` +
+      `Add-Type -TypeDefinition ${psQuote(nativeDialogCommandType)}; ` +
       `$title = ${psQuote(title)}; $expectedHwnd = [int64]${hwnd}; ` +
       `$action = ${psQuote(action)}; ` +
       `$root = [System.Windows.Automation.AutomationElement]::RootElement; ` +
@@ -435,39 +463,139 @@ function invokeExactAction(title, hwnd, action) {
       `if ($exactActionTargetCount -ne 1) { ` +
       `throw "expected one exact-name enabled onscreen Button or Pane, raw $($candidates.Count), eligible $exactActionTargetCount, observations $($candidateObservations -join '|')" ` +
       `}; ` +
-      `$selectedPattern = $null; $actionPattern = $null; ` +
-      `try { $selectedPattern = $selectedCandidate.GetCurrentPattern(` +
-      `[System.Windows.Automation.InvokePattern]::Pattern); ` +
-      `if ($null -eq $selectedPattern) { throw "null InvokePattern" }; ` +
-      `$actionPattern = "InvokePattern" } catch { ` +
-      `try { $selectedPattern = $selectedCandidate.GetCurrentPattern(` +
-      `[System.Windows.Automation.LegacyIAccessiblePattern]::Pattern); ` +
-      `if ($null -eq $selectedPattern) { throw "null LegacyIAccessiblePattern" }; ` +
-      `$actionPattern = "LegacyIAccessiblePattern" } catch { ` +
-      `throw "unique exact action exposes neither InvokePattern nor LegacyIAccessiblePattern" ` +
-      `}; ` +
-      `}; ` +
       `$selectedName = [string]$selectedCandidate.GetCurrentPropertyValue(` +
       `[System.Windows.Automation.AutomationElement]::NameProperty); ` +
       `$selectedControlType = $selectedCandidate.GetCurrentPropertyValue(` +
       `[System.Windows.Automation.AutomationElement]::ControlTypeProperty); ` +
       `$selectedAutomationId = [string]$selectedCandidate.GetCurrentPropertyValue(` +
       `[System.Windows.Automation.AutomationElement]::AutomationIdProperty); ` +
-      `if ($actionPattern -eq "InvokePattern") { $selectedPattern.Invoke() } ` +
-      `elseif ($actionPattern -eq "LegacyIAccessiblePattern") { ` +
+      `$selectedNativeHwnd = [int64]$selectedCandidate.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::NativeWindowHandleProperty); ` +
+      `$selectedPattern = $null; $actionMethod = $null; ` +
+      `$invokePatternAvailable = $false; $legacyPatternAvailable = $false; ` +
+      `try { $selectedPattern = $selectedCandidate.GetCurrentPattern(` +
+      `[System.Windows.Automation.InvokePattern]::Pattern); ` +
+      `if ($null -eq $selectedPattern) { throw "null InvokePattern" }; ` +
+      `$invokePatternAvailable = $true; $actionMethod = "InvokePattern" } catch { ` +
+      `try { $selectedPattern = $selectedCandidate.GetCurrentPattern(` +
+      `[System.Windows.Automation.LegacyIAccessiblePattern]::Pattern); ` +
+      `if ($null -eq $selectedPattern) { throw "null LegacyIAccessiblePattern" }; ` +
+      `$legacyPatternAvailable = $true; $actionMethod = "LegacyIAccessiblePattern" } catch { ` +
+      `$actionMethod = ${psQuote(WINDOWS_DIALOG_COMMAND.method)} ` +
+      `}; ` +
+      `}; ` +
+      `$actionCommandMessage = $null; $actionCommandMessageId = $null; ` +
+      `$actionAutomationIdParsed = $null; $actionControlId = $null; ` +
+      `$actionNotification = $null; ` +
+      `$actionNotificationCode = $null; $actionCommandTimeoutMs = $null; ` +
+      `$actionCommandFlags = $null; $actionNativeControlBound = $false; ` +
+      `$actionDialogReverified = $false; $actionTargetReverified = $false; ` +
+      `$actionNativeIsWindow = $false; $actionNativeIsChild = $false; ` +
+      `$actionNativeControlIdConfirmed = $false; ` +
+      `$actionCommandApiSucceeded = $false; $actionCommandResult = $null; ` +
+      `$actionCommandDispatchStatus = $null; ` +
+      `if ($actionMethod -eq "InvokePattern") { $selectedPattern.Invoke() } ` +
+      `elseif ($actionMethod -eq "LegacyIAccessiblePattern") { ` +
       `$selectedPattern.DoDefaultAction() } ` +
-      `else { throw "unsupported exact action pattern: $actionPattern" }; ` +
+      `elseif ($actionMethod -eq ${psQuote(WINDOWS_DIALOG_COMMAND.method)}) { ` +
+      `if ($selectedAutomationId -cne ${psQuote(String(WINDOWS_DIALOG_COMMAND.controlId))}) { ` +
+      `throw "patternless exact action does not expose canonical IDOK AutomationId" }; ` +
+      `[int32]$parsedAutomationId = 0; ` +
+      `if (-not [int32]::TryParse($selectedAutomationId, [ref]$parsedAutomationId) -or ` +
+      `$parsedAutomationId -ne ${WINDOWS_DIALOG_COMMAND.controlId}) { ` +
+      `throw "patternless exact action AutomationId did not parse as IDOK" }; ` +
+      `$actionAutomationIdParsed = $parsedAutomationId; ` +
+      `if ($selectedNativeHwnd -le 0) { throw "patternless exact action has no native HWND" }; ` +
+      `$sendDialogs = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $titleCondition); ` +
+      `if ($sendDialogs.Count -ne 1) { throw "expected one exact-title dialog before native command" }; ` +
+      `$sendDialog = $sendDialogs.Item(0); ` +
+      `$sendDialogHwnd = [int64]$sendDialog.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::NativeWindowHandleProperty); ` +
+      `$sendDialogEnabled = $sendDialog.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::IsEnabledProperty); ` +
+      `$sendDialogOffscreen = $sendDialog.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::IsOffscreenProperty); ` +
+      `if ($sendDialogHwnd -ne $observedHwnd -or $sendDialogHwnd -le 0 -or ` +
+      `$sendDialogEnabled -ne $true -or $sendDialogOffscreen -ne $false) { ` +
+      `throw "exact native dialog changed before command" }; ` +
+      `$actionDialogReverified = $true; ` +
+      `$sendName = [string]$selectedCandidate.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::NameProperty); ` +
+      `$sendAutomationId = [string]$selectedCandidate.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::AutomationIdProperty); ` +
+      `$sendNativeHwnd = [int64]$selectedCandidate.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::NativeWindowHandleProperty); ` +
+      `$sendEnabled = $selectedCandidate.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::IsEnabledProperty); ` +
+      `$sendOffscreen = $selectedCandidate.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::IsOffscreenProperty); ` +
+      `if ($sendName -cne $selectedName -or $sendAutomationId -cne $selectedAutomationId -or ` +
+      `$sendNativeHwnd -ne $selectedNativeHwnd -or $sendEnabled -ne $true -or ` +
+      `$sendOffscreen -ne $false) { throw "exact action changed before native command" }; ` +
+      `$actionTargetReverified = $true; ` +
+      `$dialogPtr = [IntPtr]$observedHwnd; $controlPtr = [IntPtr]$selectedNativeHwnd; ` +
+      `$actionNativeIsWindow = [VoyalierNativeDialogCommand]::IsWindow($controlPtr); ` +
+      `if (-not $actionNativeIsWindow) { ` +
+      `throw "patternless exact action native HWND is not a window" }; ` +
+      `$actionNativeIsChild = [VoyalierNativeDialogCommand]::IsChild($dialogPtr, $controlPtr); ` +
+      `if (-not $actionNativeIsChild) { ` +
+      `throw "patternless exact action native HWND is not a child of the dialog" }; ` +
+      `$observedControlId = [VoyalierNativeDialogCommand]::GetDlgCtrlID($controlPtr); ` +
+      `if ($observedControlId -ne ${WINDOWS_DIALOG_COMMAND.controlId}) { ` +
+      `throw "patternless exact action native control is not IDOK" }; ` +
+      `$actionNativeControlIdConfirmed = $true; ` +
+      `$actionCommandMessage = ${psQuote(WINDOWS_DIALOG_COMMAND.message)}; ` +
+      `$actionCommandMessageId = ${WINDOWS_DIALOG_COMMAND.messageId}; ` +
+      `$actionControlId = $observedControlId; ` +
+      `$actionNotification = ${psQuote(WINDOWS_DIALOG_COMMAND.notification)}; ` +
+      `$actionNotificationCode = ${WINDOWS_DIALOG_COMMAND.notificationCode}; ` +
+      `$actionCommandTimeoutMs = ${WINDOWS_DIALOG_COMMAND.timeoutMs}; ` +
+      `$actionCommandFlags = ${WINDOWS_DIALOG_COMMAND.flags}; ` +
+      `$actionNativeControlBound = $true; $nativeResult = [UIntPtr]::Zero; ` +
+      `$sendStatus = [VoyalierNativeDialogCommand]::SendMessageTimeout(` +
+      `$dialogPtr, [uint32]$actionCommandMessageId, ` +
+      `[UIntPtr][uint64]$actionControlId, $controlPtr, ` +
+      `[uint32]$actionCommandFlags, [uint32]$actionCommandTimeoutMs, [ref]$nativeResult); ` +
+      `if ($sendStatus -eq [IntPtr]::Zero) { throw "bounded native dialog command failed" }; ` +
+      `$actionCommandApiSucceeded = $true; ` +
+      `$actionCommandResult = $nativeResult.ToUInt64(); ` +
+      `$actionCommandDispatchStatus = $sendStatus.ToInt64() ` +
+      `} else { throw "unsupported exact action method: $actionMethod" }; ` +
       `$deadline = (Get-Date).AddSeconds(30); $remaining = -1; ` +
       `do { ` +
       `$remainingDialogs = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $titleCondition); ` +
       `$remaining = $remainingDialogs.Count; ` +
       `if ($remaining -gt 1) { throw "multiple exact-title dialogs after invoke: $remaining" }; ` +
       `if ($remaining -eq 0) { ` +
-      `@{ actionCandidateCount = $candidates.Count; ` +
+      `@{ dialogCountBefore = 1; dialogCountAfter = 0; ` +
+      `actionCandidateCount = $candidates.Count; ` +
       `exactActionTargetCount = $exactActionTargetCount; ` +
       `actionName = $selectedName; ` +
       `actionControlType = [string]$selectedControlType.ProgrammaticName; ` +
-      `actionAutomationId = $selectedAutomationId; actionPattern = $actionPattern; ` +
+      `actionAutomationId = $selectedAutomationId; actionMethod = $actionMethod; ` +
+      `actionAutomationIdParsed = $actionAutomationIdParsed; ` +
+      `invokePatternAvailable = $invokePatternAvailable; ` +
+      `legacyPatternAvailable = $legacyPatternAvailable; ` +
+      `actionNativeControlHwnd = $selectedNativeHwnd; ` +
+      `actionNativeControlBound = $actionNativeControlBound; ` +
+      `actionDialogReverified = $actionDialogReverified; ` +
+      `actionTargetReverified = $actionTargetReverified; ` +
+      `actionNativeIsWindow = $actionNativeIsWindow; ` +
+      `actionNativeIsChild = $actionNativeIsChild; ` +
+      `actionNativeControlIdConfirmed = $actionNativeControlIdConfirmed; ` +
+      `actionCommandMessage = $actionCommandMessage; ` +
+      `actionCommandMessageId = $actionCommandMessageId; ` +
+      `actionControlId = $actionControlId; actionNotification = $actionNotification; ` +
+      `actionNotificationCode = $actionNotificationCode; ` +
+      `actionCommandTimeoutMs = $actionCommandTimeoutMs; ` +
+      `actionCommandFlags = $actionCommandFlags; ` +
+      `actionCommandApiSucceeded = $actionCommandApiSucceeded; ` +
+      `actionCommandResult = $actionCommandResult; ` +
+      `actionCommandDispatchStatus = $actionCommandDispatchStatus; ` +
+      `actionCommandDestinationHwnd = $(if ($actionCommandMessage) { $observedHwnd } else { $null }); ` +
+      `actionCommandWParam = $(if ($actionCommandMessage) { $actionControlId } else { $null }); ` +
+      `actionCommandLParam = $(if ($actionCommandMessage) { $selectedNativeHwnd } else { $null }); ` +
+      `inputInjectionUsed = $false; ` +
       `actionInvoked = $true; dialogDismissed = $true; hwnd = $observedHwnd } ` +
       `| ConvertTo-Json -Compress; exit 0 ` +
       `}; ` +
@@ -609,20 +737,116 @@ export async function driveNativeFileDialog({
     assert.equal(typeof invoked.result?.actionAutomationId, "string");
     assert.notEqual(invoked.result.actionAutomationId, "");
     assert.ok(
-      ["InvokePattern", "LegacyIAccessiblePattern"].includes(
-        invoked.result?.actionPattern,
-      ),
+      [
+        "InvokePattern",
+        "LegacyIAccessiblePattern",
+        WINDOWS_DIALOG_COMMAND.method,
+      ].includes(invoked.result?.actionMethod),
     );
+    assert.equal(invoked.result?.dialogCountBefore, 1);
+    assert.equal(invoked.result?.dialogCountAfter, 0);
+    assert.equal(invoked.result?.inputInjectionUsed, false);
+    if (invoked.result.actionMethod === WINDOWS_DIALOG_COMMAND.method) {
+      assert.equal(invoked.result.invokePatternAvailable, false);
+      assert.equal(invoked.result.legacyPatternAvailable, false);
+      assert.equal(
+        invoked.result.actionAutomationId,
+        String(WINDOWS_DIALOG_COMMAND.controlId),
+      );
+      assert.equal(
+        invoked.result.actionAutomationIdParsed,
+        WINDOWS_DIALOG_COMMAND.controlId,
+      );
+      assert.ok(Number.isInteger(invoked.result.actionNativeControlHwnd));
+      assert.ok(invoked.result.actionNativeControlHwnd > 0);
+      assert.equal(invoked.result.actionNativeControlBound, true);
+      assert.equal(invoked.result.actionDialogReverified, true);
+      assert.equal(invoked.result.actionTargetReverified, true);
+      assert.equal(invoked.result.actionNativeIsWindow, true);
+      assert.equal(invoked.result.actionNativeIsChild, true);
+      assert.equal(invoked.result.actionNativeControlIdConfirmed, true);
+      assert.equal(
+        invoked.result.actionCommandMessage,
+        WINDOWS_DIALOG_COMMAND.message,
+      );
+      assert.equal(
+        invoked.result.actionCommandMessageId,
+        WINDOWS_DIALOG_COMMAND.messageId,
+      );
+      assert.equal(
+        invoked.result.actionControlId,
+        WINDOWS_DIALOG_COMMAND.controlId,
+      );
+      assert.equal(
+        invoked.result.actionNotification,
+        WINDOWS_DIALOG_COMMAND.notification,
+      );
+      assert.equal(
+        invoked.result.actionNotificationCode,
+        WINDOWS_DIALOG_COMMAND.notificationCode,
+      );
+      assert.equal(
+        invoked.result.actionCommandTimeoutMs,
+        WINDOWS_DIALOG_COMMAND.timeoutMs,
+      );
+      assert.equal(
+        invoked.result.actionCommandFlags,
+        WINDOWS_DIALOG_COMMAND.flags,
+      );
+      assert.equal(invoked.result.actionCommandApiSucceeded, true);
+      assert.ok(invoked.result.actionCommandDispatchStatus > 0);
+      assert.equal(invoked.result.actionCommandDestinationHwnd, observed.hwnd);
+      assert.equal(
+        invoked.result.actionCommandWParam,
+        WINDOWS_DIALOG_COMMAND.controlId,
+      );
+      assert.equal(
+        invoked.result.actionCommandLParam,
+        invoked.result.actionNativeControlHwnd,
+      );
+    } else if (invoked.result.actionMethod === "InvokePattern") {
+      assert.equal(invoked.result.invokePatternAvailable, true);
+      assert.equal(invoked.result.legacyPatternAvailable, false);
+    } else {
+      assert.equal(invoked.result.invokePatternAvailable, false);
+      assert.equal(invoked.result.legacyPatternAvailable, true);
+    }
     assert.equal(invoked.result?.actionInvoked, true);
     assert.equal(invoked.result?.dialogDismissed, true);
     Object.assign(record, {
       nativeDialogPathConfirmed: true,
+      dialogCountBefore: invoked.result.dialogCountBefore,
+      dialogCountAfter: invoked.result.dialogCountAfter,
       actionCandidateCount: invoked.result.actionCandidateCount,
       exactActionTargetCount: invoked.result.exactActionTargetCount,
       actionName: invoked.result.actionName,
       actionControlType: invoked.result.actionControlType,
       actionAutomationId: invoked.result.actionAutomationId,
-      actionPattern: invoked.result.actionPattern,
+      actionMethod: invoked.result.actionMethod,
+      actionAutomationIdParsed: invoked.result.actionAutomationIdParsed,
+      invokePatternAvailable: invoked.result.invokePatternAvailable,
+      legacyPatternAvailable: invoked.result.legacyPatternAvailable,
+      actionNativeControlHwnd: invoked.result.actionNativeControlHwnd,
+      actionNativeControlBound: invoked.result.actionNativeControlBound,
+      actionDialogReverified: invoked.result.actionDialogReverified,
+      actionTargetReverified: invoked.result.actionTargetReverified,
+      actionNativeIsWindow: invoked.result.actionNativeIsWindow,
+      actionNativeIsChild: invoked.result.actionNativeIsChild,
+      actionNativeControlIdConfirmed:
+        invoked.result.actionNativeControlIdConfirmed,
+      actionCommandMessage: invoked.result.actionCommandMessage,
+      actionCommandMessageId: invoked.result.actionCommandMessageId,
+      actionControlId: invoked.result.actionControlId,
+      actionNotification: invoked.result.actionNotification,
+      actionNotificationCode: invoked.result.actionNotificationCode,
+      actionCommandTimeoutMs: invoked.result.actionCommandTimeoutMs,
+      actionCommandFlags: invoked.result.actionCommandFlags,
+      actionCommandApiSucceeded: invoked.result.actionCommandApiSucceeded,
+      actionCommandResult: invoked.result.actionCommandResult,
+      actionCommandDispatchStatus: invoked.result.actionCommandDispatchStatus,
+      actionCommandDestinationHwnd: invoked.result.actionCommandDestinationHwnd,
+      actionCommandWParam: invoked.result.actionCommandWParam,
+      actionCommandLParam: invoked.result.actionCommandLParam,
       actionInvoked: true,
       dialogDismissed: true,
       verdict: "PASS",

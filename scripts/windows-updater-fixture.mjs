@@ -3,6 +3,7 @@ import path from "node:path";
 
 import {
   assertNoAbsoluteWindowsPaths,
+  WINDOWS_DIALOG_COMMAND,
   WINAPP_CLI,
 } from "./windows-native-file-dialog.mjs";
 
@@ -198,6 +199,49 @@ export function validateWinAppToolEvidence(tool) {
 }
 
 function hasNativeDialogEvidence(dialog, tool) {
+  const commandResult = dialog?.actionCommand?.result;
+  const patternMethodValid =
+    (dialog?.actionMethod === "InvokePattern" &&
+      dialog?.invokePatternAvailable === true &&
+      dialog?.legacyPatternAvailable === false &&
+      dialog?.actionNativeControlBound === false &&
+      dialog?.actionCommandApiSucceeded === false &&
+      dialog?.actionCommandMessage == null) ||
+    (dialog?.actionMethod === "LegacyIAccessiblePattern" &&
+      dialog?.invokePatternAvailable === false &&
+      dialog?.legacyPatternAvailable === true &&
+      dialog?.actionNativeControlBound === false &&
+      dialog?.actionCommandApiSucceeded === false &&
+      dialog?.actionCommandMessage == null);
+  const nativeCommandMethodValid =
+    dialog?.actionMethod === WINDOWS_DIALOG_COMMAND.method &&
+    dialog?.invokePatternAvailable === false &&
+    dialog?.legacyPatternAvailable === false &&
+    dialog?.actionAutomationId === String(WINDOWS_DIALOG_COMMAND.controlId) &&
+    dialog?.actionAutomationIdParsed === WINDOWS_DIALOG_COMMAND.controlId &&
+    Number.isInteger(dialog?.actionNativeControlHwnd) &&
+    dialog.actionNativeControlHwnd > 0 &&
+    dialog?.actionNativeControlBound === true &&
+    dialog?.actionDialogReverified === true &&
+    dialog?.actionTargetReverified === true &&
+    dialog?.actionNativeIsWindow === true &&
+    dialog?.actionNativeIsChild === true &&
+    dialog?.actionNativeControlIdConfirmed === true &&
+    dialog?.actionCommandMessage === WINDOWS_DIALOG_COMMAND.message &&
+    dialog?.actionCommandMessageId === WINDOWS_DIALOG_COMMAND.messageId &&
+    dialog?.actionControlId === WINDOWS_DIALOG_COMMAND.controlId &&
+    dialog?.actionNotification === WINDOWS_DIALOG_COMMAND.notification &&
+    dialog?.actionNotificationCode ===
+      WINDOWS_DIALOG_COMMAND.notificationCode &&
+    dialog?.actionCommandTimeoutMs === WINDOWS_DIALOG_COMMAND.timeoutMs &&
+    dialog?.actionCommandFlags === WINDOWS_DIALOG_COMMAND.flags &&
+    dialog?.actionCommandApiSucceeded === true &&
+    Number.isInteger(dialog?.actionCommandResult) &&
+    Number.isInteger(dialog?.actionCommandDispatchStatus) &&
+    dialog.actionCommandDispatchStatus > 0 &&
+    dialog?.actionCommandDestinationHwnd === dialog?.dialogHwnd &&
+    dialog?.actionCommandWParam === WINDOWS_DIALOG_COMMAND.controlId &&
+    dialog?.actionCommandLParam === dialog?.actionNativeControlHwnd;
   return (
     dialog?.verdict === "PASS" &&
     dialog?.nativeDialogPathConfirmed === true &&
@@ -249,6 +293,8 @@ function hasNativeDialogEvidence(dialog, tool) {
     dialog?.controlIdentityMatched === true &&
     dialog?.pathReadbackConfirmed === true &&
     dialog?.inputInjectionUsed === false &&
+    dialog?.dialogCountBefore === 1 &&
+    dialog?.dialogCountAfter === 0 &&
     dialog?.toolExecutablePath === tool?.executablePath &&
     dialog?.toolVersion === WINAPP_CLI.version &&
     dialog?.toolArchiveSha256 === WINAPP_CLI.archiveSha256 &&
@@ -261,9 +307,7 @@ function hasNativeDialogEvidence(dialog, tool) {
     ) &&
     typeof dialog?.actionAutomationId === "string" &&
     dialog.actionAutomationId !== "" &&
-    ["InvokePattern", "LegacyIAccessiblePattern"].includes(
-      dialog?.actionPattern,
-    ) &&
+    (patternMethodValid || nativeCommandMethodValid) &&
     dialog?.actionInvoked === true &&
     dialog?.dialogDismissed === true &&
     dialog?.actionCommand?.exitCode === 0 &&
@@ -278,7 +322,40 @@ function hasNativeDialogEvidence(dialog, tool) {
       dialog?.actionControlType &&
     dialog?.actionCommand?.result?.actionAutomationId ===
       dialog?.actionAutomationId &&
-    dialog?.actionCommand?.result?.actionPattern === dialog?.actionPattern &&
+    commandResult?.actionMethod === dialog?.actionMethod &&
+    commandResult?.actionAutomationIdParsed ===
+      dialog?.actionAutomationIdParsed &&
+    commandResult?.invokePatternAvailable === dialog?.invokePatternAvailable &&
+    commandResult?.legacyPatternAvailable === dialog?.legacyPatternAvailable &&
+    commandResult?.actionNativeControlHwnd ===
+      dialog?.actionNativeControlHwnd &&
+    commandResult?.actionNativeControlBound ===
+      dialog?.actionNativeControlBound &&
+    commandResult?.actionDialogReverified === dialog?.actionDialogReverified &&
+    commandResult?.actionTargetReverified === dialog?.actionTargetReverified &&
+    commandResult?.actionNativeIsWindow === dialog?.actionNativeIsWindow &&
+    commandResult?.actionNativeIsChild === dialog?.actionNativeIsChild &&
+    commandResult?.actionNativeControlIdConfirmed ===
+      dialog?.actionNativeControlIdConfirmed &&
+    commandResult?.actionCommandMessage === dialog?.actionCommandMessage &&
+    commandResult?.actionCommandMessageId === dialog?.actionCommandMessageId &&
+    commandResult?.actionControlId === dialog?.actionControlId &&
+    commandResult?.actionNotification === dialog?.actionNotification &&
+    commandResult?.actionNotificationCode === dialog?.actionNotificationCode &&
+    commandResult?.actionCommandTimeoutMs === dialog?.actionCommandTimeoutMs &&
+    commandResult?.actionCommandFlags === dialog?.actionCommandFlags &&
+    commandResult?.actionCommandApiSucceeded ===
+      dialog?.actionCommandApiSucceeded &&
+    commandResult?.actionCommandResult === dialog?.actionCommandResult &&
+    commandResult?.actionCommandDispatchStatus ===
+      dialog?.actionCommandDispatchStatus &&
+    commandResult?.actionCommandDestinationHwnd ===
+      dialog?.actionCommandDestinationHwnd &&
+    commandResult?.actionCommandWParam === dialog?.actionCommandWParam &&
+    commandResult?.actionCommandLParam === dialog?.actionCommandLParam &&
+    commandResult?.dialogCountBefore === dialog?.dialogCountBefore &&
+    commandResult?.dialogCountAfter === dialog?.dialogCountAfter &&
+    commandResult?.inputInjectionUsed === dialog?.inputInjectionUsed &&
     dialog?.actionCommand?.result?.actionInvoked === dialog?.actionInvoked &&
     dialog?.actionCommand?.result?.dialogDismissed === dialog?.dialogDismissed
   );
