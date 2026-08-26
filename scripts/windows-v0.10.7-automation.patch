@@ -1,10 +1,8 @@
 diff --git a/apps/desktop/src-tauri/src/lib.rs b/apps/desktop/src-tauri/src/lib.rs
+index b5ad014..736621f 100644
 --- a/apps/desktop/src-tauri/src/lib.rs
 +++ b/apps/desktop/src-tauri/src/lib.rs
-@@ -1261,9 +1261,86 @@ fn builder<R: tauri::Runtime>(
-         ])
- }
- 
+@@ -1263,0 +1264,70 @@ fn builder<R: tauri::Runtime>(
 +#[cfg(any(target_os = "windows", test))]
 +#[derive(Debug, PartialEq, Eq)]
 +struct WindowsAutomationConfig {
@@ -75,9 +73,7 @@ diff --git a/apps/desktop/src-tauri/src/lib.rs b/apps/desktop/src-tauri/src/lib.
 +    window.data_directory = Some(config.data_directory.into());
 +}
 +
- #[cfg_attr(mobile, tauri::mobile_entry_point)]
- pub fn run() {
-     let service = AppService::open_default().expect("Voyalier storage must initialize");
+@@ -1266,0 +1337,7 @@ pub fn run() {
 +    let context = tauri::generate_context!();
 +    #[cfg(target_os = "windows")]
 +    let context = {
@@ -85,16 +81,7 @@ diff --git a/apps/desktop/src-tauri/src/lib.rs b/apps/desktop/src-tauri/src/lib.
 +        apply_windows_automation_config(&mut context);
 +        context
 +    };
-     #[cfg_attr(debug_assertions, allow(unused_mut))]
-     let mut app = builder(tauri::Builder::default(), service);
-     // Native pickers for backup/restore. Registered in every build (unlike the
-@@ -1277,8 +1354,7 @@ pub fn run() {
-     {
-         app = app.plugin(tauri_plugin_updater::Builder::new().build());
-     }
+@@ -1280,2 +1357 @@ pub fn run() {
 -    app.run(tauri::generate_context!())
 -        .expect("error while running Voyalier");
 +    app.run(context).expect("error while running Voyalier");
- }
- 
- #[cfg(test)]

@@ -124,6 +124,36 @@ test("mirrors WebView2's nested DevTools port for EdgeDriver", async () => {
   }
 });
 
+test("keeps product setup, updater backup, and portable restore on the installed UI", async () => {
+  const source = await readFile(
+    new URL("./windows-installed-updater-acceptance.mjs", import.meta.url),
+    "utf8",
+  );
+  for (const forbiddenCommand of [
+    "create_trip",
+    "save_place",
+    "add_packing_item",
+    "create_trip_item",
+    "backup_database",
+    "updater_install",
+    "export_backup",
+    "stage_restore",
+  ]) {
+    assert.doesNotMatch(
+      source,
+      new RegExp(`invoke\\([^\\n]+[\"']${forbiddenCommand}[\"']`),
+    );
+  }
+  for (const requiredControl of [
+    "Download Kyoto city data",
+    "Actualizar y reiniciar",
+    "Guardar copia de seguridad",
+    "Restaurar esta copia",
+  ]) {
+    assert.match(source, new RegExp(requiredControl));
+  }
+});
+
 test("pins installed, data-preservation, backup, and loopback evidence", () => {
   const report = {
     verdict: "PASS",
@@ -149,7 +179,37 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
       tripCountBefore: 1,
       tripCountAfter: 1,
       tripCountAfterRecovery: 1,
-      backupCount: 1,
+      backupCount: 2,
+    },
+    journey: {
+      tripCreatedViaUi: true,
+      cityPackDownloadedViaUi: true,
+      savedPlaceName: "Nishiki Market",
+      packingLabel: "Museum pass",
+      packingChecked: true,
+      manualItemTitle: "Tea ceremony",
+      todayObserved: true,
+      searchObserved: true,
+      localeBeforeUpdate: "es",
+      localeAfterUpdate: "es",
+      localeAfterRecovery: "es",
+    },
+    updaterController: {
+      triggeredViaUi: true,
+      harnessBackupCommandUsed: false,
+      backupCountBefore: 0,
+      backupCountAfter: 1,
+    },
+    portableBackup: {
+      exportedViaUi: true,
+      fileName: "voyalier-portable-acceptance.vbk",
+      bytes: 4096,
+      sha256: "b".repeat(64),
+    },
+    portableRestore: {
+      stagedViaUi: true,
+      appliedAfterReinstall: true,
+      postBackupSentinelAbsent: true,
     },
     network: {
       requests: ["/latest.json", "/Voyalier_0.11.0_x64-setup.exe"],
@@ -191,5 +251,35 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
         },
       }),
     /unexpected file/,
+  );
+  assert.throws(
+    () =>
+      validateWindowsAcceptanceReport({
+        ...report,
+        journey: { ...report.journey, searchObserved: false },
+      }),
+    /UI journey is incomplete/,
+  );
+  assert.throws(
+    () =>
+      validateWindowsAcceptanceReport({
+        ...report,
+        updaterController: {
+          ...report.updaterController,
+          backupCountAfter: 0,
+        },
+      }),
+    /exactly one backup/,
+  );
+  assert.throws(
+    () =>
+      validateWindowsAcceptanceReport({
+        ...report,
+        portableRestore: {
+          ...report.portableRestore,
+          postBackupSentinelAbsent: false,
+        },
+      }),
+    /restore and reinstall evidence is incomplete/,
   );
 });

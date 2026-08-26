@@ -192,6 +192,62 @@ export function validateWindowsAcceptanceReport(report) {
   if (!(report.data?.backupCount >= 1)) {
     throw new Error("the pre-update backup was not observed");
   }
+  if (
+    report.journey?.tripCreatedViaUi !== true ||
+    report.journey?.cityPackDownloadedViaUi !== true ||
+    typeof report.journey?.savedPlaceName !== "string" ||
+    report.journey.savedPlaceName.trim() === "" ||
+    typeof report.journey?.packingLabel !== "string" ||
+    report.journey.packingLabel.trim() === "" ||
+    report.journey?.packingChecked !== true ||
+    typeof report.journey?.manualItemTitle !== "string" ||
+    report.journey.manualItemTitle.trim() === "" ||
+    report.journey?.todayObserved !== true ||
+    report.journey?.searchObserved !== true
+  ) {
+    throw new Error("the installed product UI journey is incomplete");
+  }
+  for (const locale of [
+    report.journey?.localeBeforeUpdate,
+    report.journey?.localeAfterUpdate,
+    report.journey?.localeAfterRecovery,
+  ]) {
+    if (locale !== "es") {
+      throw new Error(
+        "the selected Spanish locale did not survive every stage",
+      );
+    }
+  }
+  if (
+    report.updaterController?.triggeredViaUi !== true ||
+    report.updaterController?.harnessBackupCommandUsed !== false ||
+    !Number.isInteger(report.updaterController?.backupCountBefore) ||
+    !Number.isInteger(report.updaterController?.backupCountAfter) ||
+    report.updaterController.backupCountAfter !==
+      report.updaterController.backupCountBefore + 1
+  ) {
+    throw new Error(
+      "the production updater controller did not create exactly one backup",
+    );
+  }
+  if (
+    report.portableBackup?.exportedViaUi !== true ||
+    typeof report.portableBackup?.fileName !== "string" ||
+    !report.portableBackup.fileName.endsWith(".vbk") ||
+    !(report.portableBackup?.bytes > 0) ||
+    !/^[0-9a-f]{64}$/.test(report.portableBackup?.sha256 ?? "")
+  ) {
+    throw new Error("the portable backup UI evidence is incomplete");
+  }
+  if (
+    report.portableRestore?.stagedViaUi !== true ||
+    report.portableRestore?.appliedAfterReinstall !== true ||
+    report.portableRestore?.postBackupSentinelAbsent !== true
+  ) {
+    throw new Error(
+      "the portable restore and reinstall evidence is incomplete",
+    );
+  }
   if (!report.network?.requests?.includes("/latest.json")) {
     throw new Error("the updater manifest was not requested");
   }

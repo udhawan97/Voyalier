@@ -32,6 +32,11 @@ const CANDIDATE_VERSION = "0.11.0";
 const PORT = 48137;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 const TRIP_TITLE = "Windows updater acceptance - fictional Kyoto";
+const PACKING_LABEL = "Museum pass";
+const MANUAL_ITEM_TITLE = "Tea ceremony";
+const MANUAL_ITEM_LOCATION = "Gion";
+const RESTORE_SENTINEL = "Post-backup sentinel";
+const PORTABLE_BACKUP_NAME = "voyalier-portable-acceptance.vbk";
 const TEMP_ROOT = path.join(
   process.env.RUNNER_TEMP ?? os.tmpdir(),
   `voyalier-windows-acceptance-${process.pid}`,
@@ -294,6 +299,190 @@ async function execute(driver, script, args = []) {
   });
 }
 
+function isoDay(offset) {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + offset);
+  return date.toISOString().slice(0, 10);
+}
+
+async function clickText(
+  driver,
+  text,
+  { selector = "button", root = null, exact = true, last = false } = {},
+) {
+  return waitFor(
+    () =>
+      execute(
+        driver,
+        `
+          const [wanted, selector, rootSelector, exact, last] = arguments;
+          const normalize = (value) => String(value ?? "").replace(/\\s+/g, " ").trim();
+          const scope = rootSelector ? document.querySelector(rootSelector) : document;
+          if (!scope) return false;
+          const candidates = Array.from(scope.querySelectorAll(selector)).filter((element) => {
+            const style = getComputedStyle(element);
+            if (style.display === "none" || style.visibility === "hidden") return false;
+            if (element.disabled || element.getAttribute("aria-disabled") === "true") return false;
+            const actual = normalize(element.innerText || element.textContent);
+            return exact ? actual === normalize(wanted) : actual.includes(normalize(wanted));
+          });
+          const element = last ? candidates.at(-1) : candidates[0];
+          if (!element) return false;
+          element.scrollIntoView({ block: "center", inline: "center" });
+          element.click();
+          return true;
+        `,
+        [text, selector, root, exact, last],
+      ),
+    `${selector} labelled ${text}`,
+  );
+}
+
+async function clickAriaLabel(
+  driver,
+  label,
+  { selector = "button", prefix = false } = {},
+) {
+  return waitFor(
+    () =>
+      execute(
+        driver,
+        `
+          const [wanted, selector, prefix] = arguments;
+          const elements = Array.from(document.querySelectorAll(selector));
+          const element = elements.find((candidate) => {
+            const actual = candidate.getAttribute("aria-label") ?? "";
+            const style = getComputedStyle(candidate);
+            const enabled = !candidate.disabled && candidate.getAttribute("aria-disabled") !== "true";
+            const visible = style.display !== "none" && style.visibility !== "hidden";
+            return enabled && visible && (prefix ? actual.startsWith(wanted) : actual === wanted);
+          });
+          if (!element) return false;
+          const actual = element.getAttribute("aria-label");
+          element.scrollIntoView({ block: "center", inline: "center" });
+          element.click();
+          return actual;
+        `,
+        [label, selector, prefix],
+      ),
+    `${selector} with aria-label ${prefix ? "starting with " : ""}${label}`,
+  );
+}
+
+async function fillByLabel(driver, labelText, value, { root = null } = {}) {
+  return waitFor(
+    () =>
+      execute(
+        driver,
+        `
+          const [wanted, value, rootSelector] = arguments;
+          const normalize = (text) => String(text ?? "").replace(/\\s+/g, " ").trim();
+          const scope = rootSelector ? document.querySelector(rootSelector) : document;
+          if (!scope) return false;
+          const label = Array.from(scope.querySelectorAll("label")).find((candidate) =>
+            normalize(candidate.innerText || candidate.textContent).startsWith(normalize(wanted)),
+          );
+          if (!label) return false;
+          const field = label.control ||
+            (label.htmlFor ? document.getElementById(label.htmlFor) : null) ||
+            label.querySelector("input, textarea, select");
+          if (!field) return false;
+          field.focus();
+          const prototype = field instanceof HTMLTextAreaElement
+            ? HTMLTextAreaElement.prototype
+            : field instanceof HTMLSelectElement
+              ? HTMLSelectElement.prototype
+              : HTMLInputElement.prototype;
+          const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+          if (!setter) return false;
+          setter.call(field, value);
+          field.dispatchEvent(new Event("input", { bubbles: true }));
+          field.dispatchEvent(new Event("change", { bubbles: true }));
+          return field.value === value;
+        `,
+        [labelText, value, root],
+      ),
+    `field labelled ${labelText}`,
+  );
+}
+
+async function setCheckbox(driver, labelText, checked) {
+  await waitFor(
+    () =>
+      execute(
+        driver,
+        `
+          const [wanted, checked] = arguments;
+          const normalize = (text) => String(text ?? "").replace(/\\s+/g, " ").trim();
+          const label = Array.from(document.querySelectorAll("label")).find((candidate) =>
+            normalize(candidate.innerText || candidate.textContent) === normalize(wanted),
+          );
+          const field = label?.control || label?.querySelector('input[type="checkbox"]');
+          if (!field) return false;
+          if (field.checked !== checked) field.click();
+          return field.checked === checked;
+        `,
+        [labelText, checked],
+      ),
+    `checkbox ${labelText} to become ${checked ? "checked" : "unchecked"}`,
+  );
+}
+
+async function waitForText(driver, text, { root = "body" } = {}) {
+  return waitFor(
+    () =>
+      execute(
+        driver,
+        `
+          const [selector, wanted] = arguments;
+          const element = document.querySelector(selector);
+          return Boolean(element?.innerText?.includes(wanted));
+        `,
+        [root, text],
+      ),
+    `${root} to contain ${text}`,
+  );
+}
+
+async function currentLocale(driver) {
+  return execute(driver, "return document.documentElement.lang");
+}
+
+async function waitForLocale(driver, expected) {
+  return waitFor(
+    async () => ((await currentLocale(driver)) === expected ? expected : false),
+    `document locale ${expected}`,
+  );
+}
+
+async function backupCount() {
+  return (await readdir(path.join(DATA_ROOT, "backups")).catch(() => []))
+    .length;
+}
+
+function handleNativeFileDialog(title, filePath) {
+  assert.ok(
+    path.win32.isAbsolute(filePath) &&
+      !path.relative(TEMP_ROOT, filePath).startsWith(".."),
+    "native dialog path must stay inside the disposable acceptance root",
+  );
+  powershell(
+    `$title = ${psQuote(title)}; $value = ${psQuote(filePath)}; ` +
+      `Set-Clipboard -Value $value; ` +
+      `$shell = New-Object -ComObject WScript.Shell; ` +
+      `$deadline = (Get-Date).AddSeconds(90); ` +
+      `do { ` +
+      `if ($shell.AppActivate($title)) { ` +
+      `Start-Sleep -Milliseconds 300; $shell.SendKeys('%n'); ` +
+      `Start-Sleep -Milliseconds 200; $shell.SendKeys('^a'); ` +
+      `Start-Sleep -Milliseconds 100; $shell.SendKeys('^v'); ` +
+      `Start-Sleep -Milliseconds 200; $shell.SendKeys('{ENTER}'); exit 0 ` +
+      `}; Start-Sleep -Milliseconds 250 ` +
+      `} while ((Get-Date) -lt $deadline); ` +
+      `throw 'native Voyalier file dialog did not appear'`,
+  );
+}
+
 async function invoke(driver, command, input = null) {
   const result = await fetchDriver(
     `/session/${driver.sessionId}/execute/async`,
@@ -531,8 +720,12 @@ async function main() {
   try {
     run(GIT, ["worktree", "add", "--detach", BASE_ROOT, BASE_TAG]);
     baseWorktreeAdded = true;
-    run(GIT, ["apply", "--check", BASE_AUTOMATION_PATCH], { cwd: BASE_ROOT });
-    run(GIT, ["apply", BASE_AUTOMATION_PATCH], { cwd: BASE_ROOT });
+    run(GIT, ["apply", "--unidiff-zero", "--check", BASE_AUTOMATION_PATCH], {
+      cwd: BASE_ROOT,
+    });
+    run(GIT, ["apply", "--unidiff-zero", BASE_AUTOMATION_PATCH], {
+      cwd: BASE_ROOT,
+    });
     assert.equal(
       run(GIT, ["status", "--porcelain"], {
         cwd: BASE_ROOT,
@@ -687,24 +880,117 @@ async function main() {
     assert.equal(baseStatus.availableVersion, CANDIDATE_VERSION);
     const health = await invoke(driver, "health", {});
     assert.equal(health.intelligenceMode, "local");
-    const trip = await invoke(driver, "create_trip", {
-      title: TRIP_TITLE,
-      origin: "Chicago",
-      destination: "Kyoto",
-      startDate: "2027-04-01",
-      endDate: "2027-04-10",
+
+    await waitForText(driver, "Trips");
+    await clickText(driver, "Create a trip");
+    await fillByLabel(driver, "From", "Chicago", { root: '[role="dialog"]' });
+    await fillByLabel(driver, "To", "Kyoto", { root: '[role="dialog"]' });
+    await fillByLabel(driver, "Start date", isoDay(-1), {
+      root: '[role="dialog"]',
     });
-    assert.ok(trip.id);
+    await fillByLabel(driver, "End date", isoDay(1), {
+      root: '[role="dialog"]',
+    });
+    await fillByLabel(driver, "Trip name (optional)", TRIP_TITLE, {
+      root: '[role="dialog"]',
+    });
+    await clickText(driver, "Create trip", { root: '[role="dialog"]' });
+    await clickAriaLabel(driver, `Open ${TRIP_TITLE}`);
+    await waitForText(driver, TRIP_TITLE);
+
+    await clickText(driver, "Discover", { selector: "a" });
+    await clickText(driver, "Download Kyoto city data", {
+      root: ".voy-packs",
+    });
+    await waitForText(driver, "3 places", { root: ".voy-packs" });
+    await clickText(driver, "Get recommendations", { root: ".voy-recs" });
+    const savePlaceLabel = await clickAriaLabel(driver, "Save place ", {
+      prefix: true,
+    });
+    const savedPlaceName = savePlaceLabel.slice("Save place ".length);
+    assert.ok(savedPlaceName, "the saved recommendation name was not observed");
+    await waitForText(driver, "Saved", { root: ".voy-recs" });
+
+    await clickText(driver, "Plan", { selector: "a" });
+    await fillByLabel(driver, "Custom item", PACKING_LABEL, {
+      root: ".voy-planning__inline-form",
+    });
+    await clickText(driver, "Add", {
+      root: ".voy-planning__inline-form",
+    });
+    await setCheckbox(driver, PACKING_LABEL, true);
+
+    await fillByLabel(driver, "Name", MANUAL_ITEM_TITLE, {
+      root: ".voy-planning__item-form",
+    });
+    await fillByLabel(driver, "Location (optional)", MANUAL_ITEM_LOCATION, {
+      root: ".voy-planning__item-form",
+    });
+    await fillByLabel(driver, "Start (optional)", `${isoDay(0)}T12:00`, {
+      root: ".voy-planning__item-form",
+    });
+    await clickText(driver, "Add to plan", {
+      root: ".voy-planning__item-form",
+    });
+    await waitForText(driver, MANUAL_ITEM_TITLE, { root: ".voy-today" });
+
+    await clickText(driver, "Search workspace");
+    await fillByLabel(driver, "Search all trips", MANUAL_ITEM_TITLE, {
+      root: ".voy-workspace-search",
+    });
+    await clickText(driver, "Search", { root: ".voy-workspace-search" });
+    await waitForText(driver, MANUAL_ITEM_TITLE, {
+      root: ".voy-workspace-search",
+    });
+    await waitForText(driver, TRIP_TITLE, { root: ".voy-workspace-search" });
+    await clickText(driver, "Back");
+    await waitForText(driver, TRIP_TITLE);
+
     const tripsBefore = await invoke(driver, "list_trips", {});
     assert.deepEqual(
       tripsBefore.map(({ title }) => title),
       [TRIP_TITLE],
     );
-    const backup = await invoke(driver, "backup_database", {
-      label: "v0.11.0",
+    const tripId = tripsBefore[0].id;
+    const detailBefore = await invoke(driver, "get_trip", { tripId });
+    assert.equal(detailBefore.savedPlaces.length, 1);
+    assert.equal(detailBefore.savedPlaces[0].name, savedPlaceName);
+    assert.equal(
+      detailBefore.packingItems.find(({ label }) => label === PACKING_LABEL)
+        ?.checked,
+      true,
+    );
+    assert.ok(
+      detailBefore.tripItems.some(({ title }) => title === MANUAL_ITEM_TITLE),
+      "the UI-created manual item was not persisted",
+    );
+    await screenshot(driver, "01-base-installed-product-journey.png");
+
+    await clickText(driver, "Settings");
+    await fillByLabel(driver, "Language", "es");
+    await waitForText(driver, "Configuración");
+    const localeBeforeUpdate = await waitForLocale(driver, "es");
+    assert.equal(localeBeforeUpdate, "es");
+    await clickText(driver, "No, lo haré manualmente", {
+      root: ".voy-updates",
     });
-    assert.ok(backup.fileName || backup.path || backup.createdAt);
-    await screenshot(driver, "01-installed-v0.10.7.png");
+    await clickText(driver, "Buscar actualizaciones", {
+      root: ".voy-updates",
+    });
+    await waitForText(
+      driver,
+      `Actualización disponible: ${CANDIDATE_VERSION}`,
+      {
+        root: ".voy-updates",
+      },
+    );
+    const backupCountBeforeUpdater = await backupCount();
+    assert.equal(
+      backupCountBeforeUpdater,
+      0,
+      "the disposable workspace unexpectedly had a pre-existing updater backup",
+    );
+    await screenshot(driver, "02-base-production-updater-ready.png");
     const baseProcesses = installedProcesses(application);
     assert.ok(
       baseProcesses.length >= 1,
@@ -715,10 +1001,9 @@ async function main() {
     );
 
     report.stage = "updater-swap";
-    await execute(
-      driver,
-      "window.__TAURI__.core.invoke('updater_install').catch(() => {}); return 'started';",
-    );
+    await clickText(driver, "Actualizar y reiniciar", {
+      root: ".voy-updates",
+    });
     await waitFor(
       () =>
         requestLog.some(({ url }) =>
@@ -739,6 +1024,10 @@ async function main() {
       5 * 60 * 1000,
     );
     report.reopenedProcessId = Number(reopened.ProcessId);
+    const backupCountAfterUpdater = await waitFor(async () => {
+      const count = await backupCount();
+      return count === backupCountBeforeUpdater + 1 ? count : false;
+    }, "the production updater controller's pre-update backup");
 
     await stopDriver(driver);
     driver = undefined;
@@ -754,13 +1043,113 @@ async function main() {
       tripsAfter.map(({ title }) => title),
       [TRIP_TITLE],
     );
-    await screenshot(driver, "02-updated-v0.11.0.png");
+    const localeAfterUpdate = await waitForLocale(driver, "es");
+    assert.equal(localeAfterUpdate, "es");
+    await clickAriaLabel(driver, `Abrir ${TRIP_TITLE}`);
+    await clickText(driver, "Planificar", { selector: "a" });
+    await waitForText(driver, MANUAL_ITEM_TITLE, { root: ".voy-today" });
+    await waitForText(driver, PACKING_LABEL, { root: "#section-plan" });
+    await waitForText(driver, savedPlaceName, { root: "#section-plan" });
+    const detailAfter = await invoke(driver, "get_trip", { tripId });
+    assert.equal(detailAfter.savedPlaces.length, 1);
+    assert.equal(detailAfter.savedPlaces[0].name, savedPlaceName);
+    assert.equal(
+      detailAfter.packingItems.find(({ label }) => label === PACKING_LABEL)
+        ?.checked,
+      true,
+    );
+    assert.ok(
+      detailAfter.tripItems.some(({ title }) => title === MANUAL_ITEM_TITLE),
+    );
+    await clickText(driver, "Buscar en el espacio de trabajo");
+    await fillByLabel(driver, "Buscar en todos los viajes", MANUAL_ITEM_TITLE, {
+      root: ".voy-workspace-search",
+    });
+    await clickText(driver, "Buscar", { root: ".voy-workspace-search" });
+    await waitForText(driver, MANUAL_ITEM_TITLE, {
+      root: ".voy-workspace-search",
+    });
+    await waitForText(driver, TRIP_TITLE, { root: ".voy-workspace-search" });
+    await clickText(driver, "Volver");
+    await waitForText(driver, TRIP_TITLE);
+    await screenshot(driver, "03-updated-product-journey.png");
     const listeners = appListeners(application);
     assert.ok(listeners.every(({ loopback }) => loopback));
-    const backups = await readdir(path.join(DATA_ROOT, "backups")).catch(
-      () => [],
+
+    report.stage = "portable-backup";
+    await clickText(driver, "Configuración");
+    const portablePassphrase = randomBytes(24).toString("base64url");
+    const portableBackupPath = path.join(TEMP_ROOT, PORTABLE_BACKUP_NAME);
+    await clickText(driver, "Guardar copia de seguridad", {
+      root: ".voy-backup",
+    });
+    await fillByLabel(
+      driver,
+      "Frase de contraseña de copia",
+      portablePassphrase,
+      {
+        root: ".voy-backup__form",
+      },
     );
-    assert.ok(backups.length >= 1, "the pre-update backup was not found");
+    await fillByLabel(
+      driver,
+      "Confirmar frase de contraseña",
+      portablePassphrase,
+      {
+        root: ".voy-backup__form",
+      },
+    );
+    await clickText(driver, "Guardar copia", {
+      root: ".voy-backup__form",
+    });
+    handleNativeFileDialog("Save Voyalier backup", portableBackupPath);
+    await waitForText(driver, "Copia guardada en", { root: ".voy-backup" });
+    const portableBackupStat = await stat(portableBackupPath);
+    assert.ok(portableBackupStat.size > 0);
+    const portableBackupSha256 = await sha256(portableBackupPath);
+    await screenshot(driver, "04-portable-backup-exported.png");
+
+    await clickText(driver, "Volver");
+    await waitForText(driver, TRIP_TITLE);
+    await clickText(driver, "Planificar", { selector: "a" });
+    await fillByLabel(driver, "Nombre", RESTORE_SENTINEL, {
+      root: ".voy-planning__item-form",
+    });
+    await fillByLabel(driver, "Inicio (opcional)", `${isoDay(0)}T18:00`, {
+      root: ".voy-planning__item-form",
+    });
+    await clickText(driver, "Añadir al plan", {
+      root: ".voy-planning__item-form",
+    });
+    await waitForText(driver, RESTORE_SENTINEL, { root: "#section-plan" });
+    const detailWithSentinel = await invoke(driver, "get_trip", { tripId });
+    assert.ok(
+      detailWithSentinel.tripItems.some(
+        ({ title }) => title === RESTORE_SENTINEL,
+      ),
+    );
+
+    await clickText(driver, "Configuración");
+    await clickText(driver, "Restaurar desde copia", {
+      root: ".voy-backup",
+    });
+    await fillByLabel(
+      driver,
+      "Frase de contraseña de copia",
+      portablePassphrase,
+      {
+        root: ".voy-backup__form",
+      },
+    );
+    await clickText(driver, "Restaurar esta copia", {
+      root: ".voy-backup__form",
+    });
+    handleNativeFileDialog("Choose a Voyalier backup", portableBackupPath);
+    await waitForText(driver, "Listo para restaurar la copia", {
+      root: ".voy-backup",
+    });
+    assert.equal(await invoke(driver, "has_pending_restore", {}), true);
+    await screenshot(driver, "05-portable-restore-staged.png");
 
     await stopDriver(driver);
     driver = undefined;
@@ -777,7 +1166,43 @@ async function main() {
       tripsAfterRecovery.map(({ title }) => title),
       [TRIP_TITLE],
     );
-    await screenshot(driver, "03-reinstall-recovery-v0.11.0.png");
+    const localeAfterRecovery = await waitForLocale(driver, "es");
+    assert.equal(localeAfterRecovery, "es");
+    const detailAfterRecovery = await invoke(driver, "get_trip", { tripId });
+    assert.equal(detailAfterRecovery.savedPlaces.length, 1);
+    assert.equal(detailAfterRecovery.savedPlaces[0].name, savedPlaceName);
+    assert.equal(
+      detailAfterRecovery.packingItems.find(
+        ({ label }) => label === PACKING_LABEL,
+      )?.checked,
+      true,
+    );
+    assert.ok(
+      detailAfterRecovery.tripItems.some(
+        ({ title }) => title === MANUAL_ITEM_TITLE,
+      ),
+    );
+    assert.equal(
+      detailAfterRecovery.tripItems.some(
+        ({ title }) => title === RESTORE_SENTINEL,
+      ),
+      false,
+      "the post-backup sentinel survived, so the portable restore did not apply",
+    );
+    await clickAriaLabel(driver, `Abrir ${TRIP_TITLE}`);
+    await clickText(driver, "Planificar", { selector: "a" });
+    await waitForText(driver, MANUAL_ITEM_TITLE, { root: ".voy-today" });
+    await waitForText(driver, PACKING_LABEL, { root: "#section-plan" });
+    await waitForText(driver, savedPlaceName, { root: "#section-plan" });
+    await clickText(driver, "Buscar en el espacio de trabajo");
+    await fillByLabel(driver, "Buscar en todos los viajes", MANUAL_ITEM_TITLE, {
+      root: ".voy-workspace-search",
+    });
+    await clickText(driver, "Buscar", { root: ".voy-workspace-search" });
+    await waitForText(driver, MANUAL_ITEM_TITLE, {
+      root: ".voy-workspace-search",
+    });
+    await screenshot(driver, "06-reinstall-restore-recovery.png");
 
     const requestPaths = requestLog.map(({ url }) => String(url).split("?")[0]);
     const nonLoopbackRequests = requestLog.filter(
@@ -799,7 +1224,37 @@ async function main() {
         tripCountBefore: tripsBefore.length,
         tripCountAfter: tripsAfter.length,
         tripCountAfterRecovery: tripsAfterRecovery.length,
-        backupCount: backups.length,
+        backupCount: await backupCount(),
+      },
+      journey: {
+        tripCreatedViaUi: true,
+        cityPackDownloadedViaUi: true,
+        savedPlaceName,
+        packingLabel: PACKING_LABEL,
+        packingChecked: true,
+        manualItemTitle: MANUAL_ITEM_TITLE,
+        todayObserved: true,
+        searchObserved: true,
+        localeBeforeUpdate,
+        localeAfterUpdate,
+        localeAfterRecovery,
+      },
+      updaterController: {
+        triggeredViaUi: true,
+        harnessBackupCommandUsed: false,
+        backupCountBefore: backupCountBeforeUpdater,
+        backupCountAfter: backupCountAfterUpdater,
+      },
+      portableBackup: {
+        exportedViaUi: true,
+        fileName: PORTABLE_BACKUP_NAME,
+        bytes: portableBackupStat.size,
+        sha256: portableBackupSha256,
+      },
+      portableRestore: {
+        stagedViaUi: true,
+        appliedAfterReinstall: true,
+        postBackupSentinelAbsent: true,
       },
       network: {
         endpoint: `${ORIGIN}/latest.json`,
@@ -826,8 +1281,14 @@ async function main() {
         `- Installed path: \`${application}\``,
         `- Swap: ${baseStatus.currentVersion} -> ${candidateStatus.currentVersion}`,
         `- Reinstall recovery: ${recoveryStatus.currentVersion}`,
-        `- Traveler-owned trip preserved: ${tripsAfterRecovery.length === 1 ? "yes" : "no"}`,
-        `- Pre-update backups observed: ${backups.length}`,
+        `- Installed UI journey preserved: ${tripsAfterRecovery.length === 1 ? "yes" : "no"}`,
+        `- Saved place: ${savedPlaceName}`,
+        `- Packing item checked: ${PACKING_LABEL}`,
+        `- Today/search item: ${MANUAL_ITEM_TITLE}`,
+        `- Locale across swap and recovery: es`,
+        `- Production updater backup count: ${backupCountBeforeUpdater} -> ${backupCountAfterUpdater}`,
+        `- Portable backup: ${PORTABLE_BACKUP_NAME} (${portableBackupStat.size} bytes, SHA-256 ${portableBackupSha256})`,
+        `- Portable restore removed post-backup sentinel: yes`,
         `- Fixture requests: ${requestPaths.join(", ")}`,
         `- Candidate SHA-256: \`${report.artifact.sha256}\``,
         "",
