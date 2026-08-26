@@ -161,24 +161,30 @@ setting without keyboard, clipboard, focus, or pointer input.
   this unique action exposes neither UI Automation pattern. Keep the pattern calls preferred; for
   this one exhausted standard-dialog shape only, require the already selected exact-name target's
   AutomationId to equal canonical Windows `IDOK` (`"1"`), bind its nonzero native HWND to the exact
-  dialog with `IsWindow`, `IsChild`, and `GetDlgCtrlID`, and synchronously send
-  `WM_COMMAND(IDOK, BN_CLICKED)` to the already verified dialog HWND. Use bounded
-  `SendMessageTimeoutW` with block, abort-if-hung, and error-on-exit flags; never broadcast, and
-  never fall through after a supported UI Automation pattern fails to invoke. This is a
-  window-scoped semantic dialog command, not keyboard, pointer, clipboard, focus, geometry, or
-  global input. Record which of the three supported methods performed the action, both unavailable
-  pattern states, the guarded command identifiers/HWNDs/flags/timeout, synchronous dispatch, and
-  the dialog count transition from one to zero. Dismissal plus exact downstream file effects—not
-  the message's method-specific result—proves success. Any ambiguity, other control type,
-  unsupported pattern or command identity, malformed output, mismatch, timeout, or out-of-TEMP
-  path fails closed. This preflight proves only picker-tool compatibility, not Voyalier behavior.
+  dialog with `IsWindow`, `IsChild`, and `GetDlgCtrlID`. Exact-SHA run `32947384758` proved that a
+  direct `WM_COMMAND(IDOK, BN_CLICKED)` can dismiss this dialog while returning the wrong selected
+  path, so remove and prohibit that route. Instead, retrieve `IID_IAccessible` for only that bound
+  child HWND with `AccessibleObjectFromWindow(OBJID_CLIENT)`, bind the returned object back to the
+  same HWND, and require `CHILDID_SELF`, the exact case-sensitive action name, a nonempty default
+  action, `ROLE_SYSTEM_PUSHBUTTON`, and no unavailable/invisible/offscreen state. Call
+  `accDoDefaultAction(CHILDID_SELF)` exactly once inside a bounded process, release the COM object,
+  and never fall through after any supported UI Automation or MSAA retrieval/action failure. This
+  is semantic accessibility activation, not keyboard, pointer, clipboard, focus, geometry, a
+  direct window message, or global input. Record which of the three supported accessibility
+  methods performed the action, both unavailable UIA-pattern states, every MSAA identity constant,
+  HRESULT/HWND/name/default-action/role/state check, call count/completion, release, and the dialog
+  count transition from one to zero. Dismissal plus exact downstream file effects—not an API call
+  alone—proves success. Any ambiguity, other control type, unsupported pattern or accessible
+  identity, malformed output, mismatch, timeout, or out-of-TEMP path fails closed. This preflight
+  proves only picker-tool compatibility, not Voyalier behavior.
 - Repeat the same title, HWND, semantic-host, structured set/get, exact-readback, exact-action, and
   dismissal checks for both installed Voyalier Save and Open dialogs. Tie those observations to the
   existing backup notice, file stat/hash, restore staging, reinstall, preservation, and sentinel
   assertions. The full product journey remains the release gate.
 - Preserve sanitized CLI stdout/stderr and failure screenshots. Never claim which internal setter
   succeeded unless the released CLI explicitly reports it, and never fall back to SendKeys,
-  clipboard, focus, geometry, numeric automation-ID selection, or broader selectors.
+  clipboard, focus, geometry, direct window messages, numeric automation-ID selection, or broader
+  selectors.
 - Because the released CLI emits a first-run banner on a cold isolated cache, create and verify its
   documented empty `.first-run-complete` marker only after the archive hash passes and before the
   first execution. Record the marker's zero length and empty-file hash so version output remains an
