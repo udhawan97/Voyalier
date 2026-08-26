@@ -525,6 +525,16 @@ test("keeps product setup, updater backup, and portable restore on the installed
       `desktop phase marker is missing: ${markerFileName}`,
     );
   }
+  assert.match(
+    desktopSource,
+    /async fn export_backup/,
+    "the blocking Save picker must run from an asynchronous Tauri command",
+  );
+  assert.match(
+    desktopSource,
+    /async fn stage_restore/,
+    "the blocking Open picker must run from an asynchronous Tauri command",
+  );
   const exportSource = desktopSource.slice(
     desktopSource.indexOf("fn export_backup"),
     desktopSource.indexOf("fn stage_restore"),

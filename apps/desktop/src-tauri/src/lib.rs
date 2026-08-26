@@ -1291,7 +1291,7 @@ fn write_new_backup_file(path: &std::path::Path, bytes: &[u8]) -> std::io::Resul
 /// the traveler's normal cancel action; the dialog backend does not expose why
 /// it returned no selection.
 #[tauri::command]
-fn export_backup<R: tauri::Runtime>(
+async fn export_backup<R: tauri::Runtime>(
     input: BackupPassphraseInput,
     app: tauri::AppHandle<R>,
     service: State<'_, AppService>,
@@ -1349,7 +1349,7 @@ fn export_backup<R: tauri::Runtime>(
 }
 
 #[tauri::command]
-fn stage_restore<R: tauri::Runtime>(
+async fn stage_restore<R: tauri::Runtime>(
     input: BackupPassphraseInput,
     app: tauri::AppHandle<R>,
     service: State<'_, AppService>,
