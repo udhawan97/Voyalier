@@ -180,7 +180,22 @@ test("keeps product setup, updater backup, and portable restore on the installed
   assert.match(source, /UIAutomationClient/);
   assert.match(source, /ValuePattern/);
   assert.match(source, /InvokePattern/);
+  assert.match(source, /IsEnabledProperty/);
+  assert.match(source, /IsOffscreenProperty/);
+  assert.match(source, /Current\.IsReadOnly/);
+  assert.match(source, /eligibleFileNameCount/);
+  assert.match(source, /eligibleActionCount/);
   assert.match(source, /filename readback did not match/);
+  const setValueIndex = source.indexOf("$valuePattern.SetValue($value)");
+  const actionLookupIndex = source.indexOf(
+    "$actionCandidates = $dialog.FindAll",
+  );
+  assert.notEqual(setValueIndex, -1);
+  assert.notEqual(actionLookupIndex, -1);
+  assert.ok(
+    setValueIndex < actionLookupIndex,
+    "the filename must be set before requiring an enabled Save/Open action",
+  );
   assert.match(source, /portableBackupNotice\.endsWith\(portableBackupPath\)/);
   assert.doesNotMatch(source, /WScript\.Shell|Set-Clipboard|SendKeys/);
   assert.doesNotMatch(source, /root: ["']#section-plan["']/);

@@ -619,39 +619,83 @@ function handleNativeFileDialog(title, filePath, action) {
       `$actionCondition = [System.Windows.Automation.PropertyCondition]::new(` +
       `[System.Windows.Automation.AutomationElement]::NameProperty, $action); ` +
       `$deadline = (Get-Date).AddSeconds(90); ` +
+      `$lastDialogCount = 0; $lastRawFileNameCount = 0; ` +
+      `$lastEligibleFileNameCount = 0; $lastRawActionCount = 0; ` +
+      `$lastEligibleActionCount = 0; ` +
       `do { ` +
       `$dialogs = $root.FindAll(` +
       `[System.Windows.Automation.TreeScope]::Children, $titleCondition); ` +
-      `if ($dialogs.Count -gt 1) { throw 'multiple matching native dialogs' }; ` +
+      `$lastDialogCount = $dialogs.Count; ` +
+      `if ($dialogs.Count -gt 1) { ` +
+      `throw "multiple matching native dialogs (count $($dialogs.Count))" ` +
+      `}; ` +
       `if ($dialogs.Count -eq 1) { ` +
       `$dialog = $dialogs.Item(0); ` +
-      `$fileNames = $dialog.FindAll(` +
+      `$fileNameCandidates = $dialog.FindAll(` +
       `[System.Windows.Automation.TreeScope]::Descendants, $fileNameCondition); ` +
-      `$actions = $dialog.FindAll(` +
-      `[System.Windows.Automation.TreeScope]::Descendants, $actionCondition); ` +
-      `if ($fileNames.Count -gt 1) { throw 'multiple filename controls' }; ` +
-      `if ($actions.Count -gt 1) { throw 'multiple matching dialog actions' }; ` +
-      `if ($fileNames.Count -eq 1 -and $actions.Count -eq 1) { ` +
-      `$fileName = $fileNames.Item(0); $actionButton = $actions.Item(0); ` +
-      `if ($fileName.GetCurrentPropertyValue(` +
+      `$lastRawFileNameCount = $fileNameCandidates.Count; ` +
+      `$eligibleFileNameCount = 0; $fileName = $null; $valuePattern = $null; ` +
+      `for ($index = 0; $index -lt $fileNameCandidates.Count; $index++) { ` +
+      `$candidate = $fileNameCandidates.Item($index); ` +
+      `if ($candidate.GetCurrentPropertyValue(` +
       `[System.Windows.Automation.AutomationElement]::ControlTypeProperty) ` +
-      `-ne [System.Windows.Automation.ControlType]::Edit) { ` +
-      `throw 'filename control is not an edit control' }; ` +
-      `if ($actionButton.GetCurrentPropertyValue(` +
-      `[System.Windows.Automation.AutomationElement]::ControlTypeProperty) ` +
-      `-ne [System.Windows.Automation.ControlType]::Button) { ` +
-      `throw 'dialog action is not a button' }; ` +
-      `$valuePattern = $fileName.GetCurrentPattern(` +
-      `[System.Windows.Automation.ValuePattern]::Pattern); ` +
+      `-ne [System.Windows.Automation.ControlType]::Edit) { continue }; ` +
+      `if ($candidate.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::IsEnabledProperty) ` +
+      `-ne $true) { continue }; ` +
+      `if ($candidate.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::IsOffscreenProperty) ` +
+      `-ne $false) { continue }; ` +
+      `try { $candidatePattern = $candidate.GetCurrentPattern(` +
+      `[System.Windows.Automation.ValuePattern]::Pattern) } ` +
+      `catch { continue }; ` +
+      `if ($candidatePattern.Current.IsReadOnly -ne $false) { continue }; ` +
+      `$eligibleFileNameCount += 1; ` +
+      `if ($eligibleFileNameCount -eq 1) { ` +
+      `$fileName = $candidate; $valuePattern = $candidatePattern ` +
+      `} ` +
+      `}; ` +
+      `$lastEligibleFileNameCount = $eligibleFileNameCount; ` +
+      `if ($eligibleFileNameCount -gt 1) { ` +
+      `throw "multiple eligible filename controls (raw $lastRawFileNameCount, eligible $eligibleFileNameCount)" ` +
+      `}; ` +
+      `if ($eligibleFileNameCount -eq 1) { ` +
       `$valuePattern.SetValue($value); ` +
       `if ($valuePattern.Current.Value -cne $value) { ` +
       `throw 'native dialog filename readback did not match' }; ` +
-      `$invokePattern = $actionButton.GetCurrentPattern(` +
-      `[System.Windows.Automation.InvokePattern]::Pattern); ` +
+      `$actionCandidates = $dialog.FindAll(` +
+      `[System.Windows.Automation.TreeScope]::Descendants, $actionCondition); ` +
+      `$lastRawActionCount = $actionCandidates.Count; ` +
+      `$eligibleActionCount = 0; $actionButton = $null; $invokePattern = $null; ` +
+      `for ($index = 0; $index -lt $actionCandidates.Count; $index++) { ` +
+      `$candidate = $actionCandidates.Item($index); ` +
+      `if ($candidate.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::ControlTypeProperty) ` +
+      `-ne [System.Windows.Automation.ControlType]::Button) { continue }; ` +
+      `if ($candidate.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::IsEnabledProperty) ` +
+      `-ne $true) { continue }; ` +
+      `if ($candidate.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::IsOffscreenProperty) ` +
+      `-ne $false) { continue }; ` +
+      `try { $candidatePattern = $candidate.GetCurrentPattern(` +
+      `[System.Windows.Automation.InvokePattern]::Pattern) } ` +
+      `catch { continue }; ` +
+      `$eligibleActionCount += 1; ` +
+      `if ($eligibleActionCount -eq 1) { ` +
+      `$actionButton = $candidate; $invokePattern = $candidatePattern ` +
+      `} ` +
+      `}; ` +
+      `$lastEligibleActionCount = $eligibleActionCount; ` +
+      `if ($eligibleActionCount -gt 1) { ` +
+      `throw "multiple eligible dialog actions (raw $lastRawActionCount, eligible $eligibleActionCount)" ` +
+      `}; ` +
+      `if ($eligibleActionCount -eq 1) { ` +
       `$invokePattern.Invoke(); exit 0 ` +
+      `} ` +
       `} }; Start-Sleep -Milliseconds 250 ` +
       `} while ((Get-Date) -lt $deadline); ` +
-      `throw 'native Voyalier file dialog did not appear'`,
+      `throw "native dialog controls did not become actionable (dialogs $lastDialogCount, filenames raw $lastRawFileNameCount eligible $lastEligibleFileNameCount, actions raw $lastRawActionCount eligible $lastEligibleActionCount)"`,
   );
   return { nativeDialogPathConfirmed: true, selectedPathWithinTemp };
 }
