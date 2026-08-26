@@ -157,18 +157,23 @@ setting without keyboard, clipboard, focus, or pointer input.
   `32945543090` then proved that the one standard-dialog Save action is reported as
   `ControlType.Pane`, enabled, onscreen, with AutomationId `1`. Accept only an observed
   `ControlType.Button` or this native `ControlType.Pane` shape; record the observed type and
-  AutomationId, but never select by the numeric ID. Record which of the two supported patterns
-  performed the action, require dismissal, then verify the exact TEMP-contained marker's nonce
-  content and hash. Any ambiguity, other control type, unsupported pattern, malformed output,
-  mismatch, timeout, or out-of-TEMP path fails closed. This preflight proves only picker-tool
-  compatibility, not Voyalier behavior.
+  AutomationId, but never select by the numeric ID. Exact-SHA run `32946151801` then proved that
+  this unique action exposes neither UI Automation pattern. Keep the pattern calls preferred; for
+  this one exhausted standard-dialog shape only, require the already selected exact-name target's
+  AutomationId to equal Windows `IDOK` (`1`) and send `WM_COMMAND(IDOK, BN_CLICKED)` to the already
+  verified dialog HWND. This is a window-scoped semantic dialog command, not keyboard, pointer,
+  clipboard, focus, geometry, or global input. Record which of the three supported methods
+  performed the action and the guarded command identifiers, require dismissal, then verify the
+  exact TEMP-contained marker's nonce content and hash. Any ambiguity, other control type,
+  unsupported pattern or command identity, malformed output, mismatch, timeout, or out-of-TEMP
+  path fails closed. This preflight proves only picker-tool compatibility, not Voyalier behavior.
 - Repeat the same title, HWND, semantic-host, structured set/get, exact-readback, exact-action, and
   dismissal checks for both installed Voyalier Save and Open dialogs. Tie those observations to the
   existing backup notice, file stat/hash, restore staging, reinstall, preservation, and sentinel
   assertions. The full product journey remains the release gate.
 - Preserve sanitized CLI stdout/stderr and failure screenshots. Never claim which internal setter
   succeeded unless the released CLI explicitly reports it, and never fall back to SendKeys,
-  clipboard, focus, geometry, numeric automation IDs, or broader selectors.
+  clipboard, focus, geometry, numeric automation-ID selection, or broader selectors.
 - Because the released CLI emits a first-run banner on a cold isolated cache, create and verify its
   documented empty `.first-run-complete` marker only after the archive hash passes and before the
   first execution. Record the marker's zero length and empty-file hash so version output remains an
