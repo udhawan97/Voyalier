@@ -150,10 +150,14 @@ setting without keyboard, clipboard, focus, or pointer input.
 - Before the expensive Rust builds, open a standard Windows SaveFileDialog with a unique exact
   title. Require exactly one enabled, onscreen dialog with a nonzero HWND and exactly one
   `FileNameControlHost`; scope structured `set-value` and `get-value --json` calls to that HWND and
-  require case-sensitive exact path readback. Retain an exact-one Name + Button + enabled/onscreen
-  - `InvokePattern` gate for Save, require dismissal, then verify the exact TEMP-contained marker's
-    nonce content and hash. Any ambiguity, malformed output, mismatch, timeout, or out-of-TEMP path
-    fails closed. This preflight proves only picker-tool compatibility, not Voyalier behavior.
+  require case-sensitive exact path readback. Exact-SHA run `32944058567` proved those invariants,
+  then found that the unique exact-name Save action did not expose `InvokePattern`. For the same
+  exact enabled, onscreen action candidate, prefer `InvokePattern` and otherwise require managed
+  `LegacyIAccessiblePattern` before calling its semantic default action. Record which of those two
+  patterns performed the action, require dismissal, then verify the exact TEMP-contained marker's
+  nonce content and hash. Any ambiguity, unsupported pattern, malformed output, mismatch, timeout,
+  or out-of-TEMP path fails closed. This preflight proves only picker-tool compatibility, not
+  Voyalier behavior.
 - Repeat the same title, HWND, semantic-host, structured set/get, exact-readback, exact-action, and
   dismissal checks for both installed Voyalier Save and Open dialogs. Tie those observations to the
   existing backup notice, file stat/hash, restore staging, reinstall, preservation, and sentinel
