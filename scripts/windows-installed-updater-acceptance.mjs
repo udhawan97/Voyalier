@@ -1295,7 +1295,9 @@ async function main() {
     await clickText(driver, "Añadir al plan", {
       root: ".voy-planning__item-form",
     });
-    await waitForText(driver, RESTORE_SENTINEL, { root: "#section-plan" });
+    await waitForText(driver, RESTORE_SENTINEL, {
+      root: 'section[aria-labelledby="manual-plan-title"]',
+    });
     const detailWithSentinel = await invoke(driver, "get_trip", { tripId });
     assert.ok(
       detailWithSentinel.tripItems.some(

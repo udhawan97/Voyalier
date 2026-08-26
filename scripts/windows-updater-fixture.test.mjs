@@ -175,9 +175,9 @@ test("keeps product setup, updater backup, and portable restore on the installed
     /section\[aria-labelledby=\\?"packing-checklist-title\\?"\]/,
   );
   assert.match(source, /section\[aria-labelledby=\\?"saved-places-title\\?"\]/);
+  assert.match(source, /section\[aria-labelledby=\\?"manual-plan-title\\?"\]/);
   assert.match(source, /readCheckboxState/);
-  assert.doesNotMatch(source, /PACKING_LABEL, \{ root: "#section-plan" \}/);
-  assert.doesNotMatch(source, /savedPlaceName, \{ root: "#section-plan" \}/);
+  assert.doesNotMatch(source, /root: ["']#section-plan["']/);
 });
 
 test("pins installed, data-preservation, backup, and loopback evidence", () => {
