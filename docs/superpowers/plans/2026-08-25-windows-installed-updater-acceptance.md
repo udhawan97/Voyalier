@@ -295,3 +295,29 @@ the evidence and risk seats required four fail-closed corrections before Windows
 - Preserve the export target-absence invariant atomically. After the returned-path guard, open the
   target with `create_new(true)` and write through that handle; never use a truncating convenience
   write after a separate absence check.
+
+## Exact branch-head picker diagnostic
+
+The first full run at final reviewed SHA `3f4fa9d0c4eaf248701fc706d33411a663255ecf`
+(`32956445698`) passed the standard native-dialog preflight, both platform bundle builds, the real
+v0.10.7 install, production updater swap, candidate reopen, locale persistence, and traveler-data
+preservation. It failed closed at the candidate portable-backup step because the exact product dialog
+never appeared. The sanitized artifact proves only `dialogs: 0`, `hosts: 0`; it has no candidate-side
+phase or UI error evidence. No root cause is established. In particular, do not attribute the failure
+to Windows' canonical path prefix: locked `rfd 0.16.0` strips that prefix before constructing the shell
+item.
+
+Before another corrective change, add a dormant, acceptance-only phase recorder to the existing
+complete picker gate:
+
+- emit only fixed, content-free phase markers inside the already canonicalized, non-reparse,
+  exact acceptance directory;
+- create each marker atomically under an exact allowlisted filename so diagnostics cannot overwrite
+  or follow a competing file;
+- bracket export preparation, preset validation, native dialog entry/return, returned-path guard, and
+  final write; bracket the equivalent restore stages for the later half of the journey;
+- collect only the ordered allowlisted phase names into the sanitized aggregate report, never marker
+  paths or contents; reject unknown, duplicate, or out-of-order phase evidence; and
+- keep ordinary launches byte-for-byte on the inactive no-diagnostic path. The next exact-SHA run is
+  diagnostic until the product dialog, returned path, backup artifact, restore, reinstall, and
+  recovery all pass; a phase trace alone cannot satisfy the release gate.
