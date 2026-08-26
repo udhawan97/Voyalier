@@ -151,9 +151,9 @@ setting without keyboard, clipboard, focus, or pointer input.
   title. Require exactly one enabled, onscreen dialog with a nonzero HWND and exactly one
   `FileNameControlHost`; scope structured `set-value` and `get-value --json` calls to that HWND and
   require case-sensitive exact path readback. Retain an exact-one Name + Button + enabled/onscreen
-  + `InvokePattern` gate for Save, require dismissal, then verify the exact TEMP-contained marker's
-  nonce content and hash. Any ambiguity, malformed output, mismatch, timeout, or out-of-TEMP path
-  fails closed. This preflight proves only picker-tool compatibility, not Voyalier behavior.
+  - `InvokePattern` gate for Save, require dismissal, then verify the exact TEMP-contained marker's
+    nonce content and hash. Any ambiguity, malformed output, mismatch, timeout, or out-of-TEMP path
+    fails closed. This preflight proves only picker-tool compatibility, not Voyalier behavior.
 - Repeat the same title, HWND, semantic-host, structured set/get, exact-readback, exact-action, and
   dismissal checks for both installed Voyalier Save and Open dialogs. Tie those observations to the
   existing backup notice, file stat/hash, restore staging, reinstall, preservation, and sentinel

@@ -1,6 +1,11 @@
 import { copyFile, rm } from "node:fs/promises";
 import path from "node:path";
 
+import {
+  assertNoAbsoluteWindowsPaths,
+  WINAPP_CLI,
+} from "./windows-native-file-dialog.mjs";
+
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
 function requireString(value, name) {
@@ -151,52 +156,161 @@ export async function mirrorWebViewDevToolsPort({
   };
 }
 
+export function validateWinAppToolEvidence(tool) {
+  if (
+    tool?.name !== WINAPP_CLI.name ||
+    tool?.tag !== WINAPP_CLI.tag ||
+    tool?.versionExpected !== WINAPP_CLI.version ||
+    tool?.versionReported !== WINAPP_CLI.version ||
+    tool?.releaseCommit !== WINAPP_CLI.releaseCommit ||
+    tool?.assetName !== WINAPP_CLI.assetName ||
+    tool?.assetUrl !== WINAPP_CLI.assetUrl ||
+    tool?.archiveSha256Expected !== WINAPP_CLI.archiveSha256 ||
+    tool?.archiveSha256Actual !== WINAPP_CLI.archiveSha256 ||
+    tool?.archiveHashVerified !== true ||
+    tool?.hashVerifiedBeforeExtractionExecution !== true ||
+    tool?.executableCount !== 1 ||
+    tool?.executableWithinTemporaryRoot !== true ||
+    tool?.archiveWithinTemporaryRoot !== true ||
+    tool?.cacheWithinTemporaryRoot !== true ||
+    tool?.updateCheckDisabled !== true ||
+    tool?.telemetryOptOut !== true ||
+    tool?.pathFallbackUsed !== false ||
+    tool?.latestUsed !== false ||
+    tool?.globalInstallUsed !== false ||
+    tool?.inputInjectionUsed !== false ||
+    !tool?.archivePath?.startsWith("<RUNNER_TEMP>\\") ||
+    !tool?.installRoot?.startsWith("<RUNNER_TEMP>\\") ||
+    !tool?.executablePath?.startsWith("<RUNNER_TEMP>\\") ||
+    !tool?.cacheDirectory?.startsWith("<RUNNER_TEMP>\\") ||
+    !tool?.firstRunMarker?.startsWith(`${tool.cacheDirectory}\\`) ||
+    tool?.firstRunMarkerSha256 !==
+      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" ||
+    tool?.firstRunMarkerBytes !== 0 ||
+    tool?.firstRunMarkerPreseededBeforeExecution !== true ||
+    tool?.versionCommand?.exitCode !== 0 ||
+    tool?.versionCommand?.stdout?.trim() !== WINAPP_CLI.version
+  ) {
+    throw new Error("Windows App CLI provenance evidence is incomplete");
+  }
+  assertNoAbsoluteWindowsPaths(tool);
+  return tool;
+}
+
+function hasNativeDialogEvidence(dialog, tool) {
+  return (
+    dialog?.verdict === "PASS" &&
+    dialog?.nativeDialogPathConfirmed === true &&
+    dialog?.selectedPathWithinTemp === true &&
+    dialog?.filenameHostAutomationId === WINAPP_CLI.selector &&
+    dialog?.dialogTitle === dialog?.title &&
+    dialog?.dialogCount === 1 &&
+    dialog?.dialogEnabled === true &&
+    dialog?.dialogOffscreen === false &&
+    Number.isInteger(dialog?.dialogHwnd) &&
+    dialog.dialogHwnd > 0 &&
+    dialog?.hostCount === 1 &&
+    dialog?.hostAutomationId === WINAPP_CLI.selector &&
+    dialog?.hostEnabled === true &&
+    dialog?.hostOffscreen === false &&
+    dialog?.discoveryCommand?.exitCode === 0 &&
+    dialog?.discoveryCommand?.jsonParsed === true &&
+    dialog?.discoveryCommand?.result?.title === dialog?.title &&
+    dialog?.discoveryCommand?.result?.dialogCount === dialog?.dialogCount &&
+    dialog?.discoveryCommand?.result?.dialogEnabled === dialog?.dialogEnabled &&
+    dialog?.discoveryCommand?.result?.dialogOffscreen ===
+      dialog?.dialogOffscreen &&
+    dialog?.discoveryCommand?.result?.hwnd === dialog?.dialogHwnd &&
+    dialog?.discoveryCommand?.result?.hostCount === dialog?.hostCount &&
+    dialog?.discoveryCommand?.result?.hostAutomationId ===
+      WINAPP_CLI.selector &&
+    dialog?.discoveryCommand?.result?.hostAutomationId ===
+      dialog?.hostAutomationId &&
+    dialog?.discoveryCommand?.result?.hostEnabled === dialog?.hostEnabled &&
+    dialog?.discoveryCommand?.result?.hostOffscreen === dialog?.hostOffscreen &&
+    dialog?.setValue?.exitCode === 0 &&
+    dialog?.setValue?.jsonParsed === true &&
+    dialog?.setValue?.requestedSelector === WINAPP_CLI.selector &&
+    dialog?.setValue?.windowHwnd === dialog.dialogHwnd &&
+    Number(dialog?.setValue?.result?.hwnd) === dialog.dialogHwnd &&
+    typeof dialog?.setValue?.result?.elementId === "string" &&
+    dialog.setValue.result.elementId !== "" &&
+    dialog?.getValue?.exitCode === 0 &&
+    dialog?.getValue?.jsonParsed === true &&
+    dialog?.getValue?.stdoutOmitted === true &&
+    /^[0-9a-f]{64}$/.test(dialog?.getValue?.stdoutSha256 ?? "") &&
+    dialog?.getValue?.requestedSelector === WINAPP_CLI.selector &&
+    dialog?.getValue?.windowHwnd === dialog.dialogHwnd &&
+    dialog?.getValue?.result?.textOmitted === true &&
+    dialog?.getValue?.result?.elementId ===
+      dialog?.setValue?.result?.elementId &&
+    dialog?.getValue?.result?.elementId !== "" &&
+    dialog?.observedValueToken === dialog?.expectedValueToken &&
+    dialog?.controlIdentityMatched === true &&
+    dialog?.pathReadbackConfirmed === true &&
+    dialog?.inputInjectionUsed === false &&
+    dialog?.toolExecutablePath === tool?.executablePath &&
+    dialog?.toolVersion === WINAPP_CLI.version &&
+    dialog?.toolArchiveSha256 === WINAPP_CLI.archiveSha256 &&
+    Number.isInteger(dialog?.actionCandidateCount) &&
+    dialog.actionCandidateCount >= 1 &&
+    dialog?.eligibleActionCount === 1 &&
+    dialog?.actionInvoked === true &&
+    dialog?.dialogDismissed === true &&
+    dialog?.actionCommand?.exitCode === 0 &&
+    dialog?.actionCommand?.jsonParsed === true &&
+    dialog?.actionCommand?.result?.hwnd === dialog?.dialogHwnd &&
+    dialog?.actionCommand?.result?.actionCandidateCount ===
+      dialog?.actionCandidateCount &&
+    dialog?.actionCommand?.result?.eligibleActionCount ===
+      dialog?.eligibleActionCount &&
+    dialog?.actionCommand?.result?.actionInvoked === dialog?.actionInvoked &&
+    dialog?.actionCommand?.result?.dialogDismissed === dialog?.dialogDismissed
+  );
+}
+
+export function validateWindowsPickerPreflightReport(
+  report,
+  { candidateSha, workflowRunId } = {},
+) {
+  validateWinAppToolEvidence(report?.tool);
+  if (
+    report?.verdict !== "PASS" ||
+    report?.stage !== "complete" ||
+    report?.proofKind !== "harness-tool-compatibility" ||
+    report?.productEvidence !== false ||
+    !/^[0-9a-f]{40}$/.test(report?.candidateSha ?? "") ||
+    (candidateSha && report.candidateSha !== candidateSha) ||
+    (workflowRunId && report?.workflowRunId !== workflowRunId) ||
+    !/^Voyalier picker bridge preflight [0-9a-f]{24}$/.test(
+      report?.dialog?.title ?? "",
+    ) ||
+    report?.dialog?.action !== "Save" ||
+    !hasNativeDialogEvidence(report?.dialog, report.tool) ||
+    report?.marker?.selectedPathToken !== report?.dialog?.expectedValueToken ||
+    report?.marker?.selectedPathWithinTemporaryRoot !== true ||
+    report?.marker?.hostReturnedExactPath !== true ||
+    report?.marker?.contentConfirmed !== true ||
+    report?.marker?.removed !== true ||
+    !(report?.marker?.bytes > 0) ||
+    !/^[0-9a-f]{64}$/.test(report?.marker?.sha256 ?? "") ||
+    report?.marker?.sha256 !== report?.marker?.expectedSha256 ||
+    report?.dialogHost?.exitCode !== 0 ||
+    report?.dialogHost?.jsonParsed !== true ||
+    report?.dialogHost?.stdoutOmitted !== true ||
+    !/^[0-9a-f]{64}$/.test(report?.dialogHost?.stdoutSha256 ?? "") ||
+    report?.dialogHost?.result?.result !== "OK" ||
+    report?.dialogHost?.result?.selectedPathToken !==
+      report?.dialog?.expectedValueToken ||
+    report?.temporaryRootRemoved !== true
+  ) {
+    throw new Error("Windows picker preflight evidence is incomplete");
+  }
+  assertNoAbsoluteWindowsPaths(report);
+  return report;
+}
+
 export function validateWindowsAcceptanceReport(report) {
-  const hasNativeDialogEvidence = (dialog) => {
-    if (
-      dialog?.nativeDialogPathConfirmed !== true ||
-      dialog?.filenameHostAutomationId !== "FileNameControlHost" ||
-      dialog?.pathReadbackConfirmed !== true ||
-      dialog?.hostCount !== 1 ||
-      !["ControlType.Edit", "ControlType.ComboBox"].includes(
-        dialog?.selectedControlType,
-      ) ||
-      !Number.isInteger(dialog?.actionCandidateCount) ||
-      dialog.actionCandidateCount < 1 ||
-      dialog?.eligibleActionCount !== 1
-    ) {
-      return false;
-    }
-    if (dialog.selectorMode === "host") {
-      return (
-        dialog.hostValueWritableCount === 1 &&
-        dialog.hostLegacyPatternCount === 0 &&
-        dialog.descendantCandidateCount === 0 &&
-        dialog.eligibleDescendantCount === 0 &&
-        dialog.setterPattern === "ValuePattern"
-      );
-    }
-    if (dialog.selectorMode === "host-legacy") {
-      return (
-        dialog.hostValueWritableCount === 0 &&
-        dialog.hostLegacyPatternCount === 1 &&
-        dialog.descendantCandidateCount === 0 &&
-        dialog.eligibleDescendantCount === 0 &&
-        dialog.setterPattern === "LegacyIAccessiblePattern"
-      );
-    }
-    if (dialog.selectorMode === "host-descendant") {
-      return (
-        dialog.hostValueWritableCount === 0 &&
-        dialog.hostLegacyPatternCount === 0 &&
-        Number.isInteger(dialog.descendantCandidateCount) &&
-        dialog.descendantCandidateCount >= 1 &&
-        dialog.eligibleDescendantCount === 1 &&
-        dialog.setterPattern === "ValuePattern"
-      );
-    }
-    return false;
-  };
   if (!report || report.verdict !== "PASS") {
     throw new Error("acceptance report must have a PASS verdict");
   }
@@ -223,6 +337,11 @@ export function validateWindowsAcceptanceReport(report) {
   if (report.candidate?.version !== "0.11.0") {
     throw new Error("acceptance candidate must be v0.11.0");
   }
+  validateWinAppToolEvidence(report.nativePickerTool);
+  validateWindowsPickerPreflightReport(report.pickerPreflight, {
+    candidateSha: report.candidate?.sha,
+    workflowRunId: report.workflow?.runId,
+  });
   if (report.installed?.before !== "0.10.7") {
     throw new Error("installed base version was not observed");
   }
@@ -233,6 +352,9 @@ export function validateWindowsAcceptanceReport(report) {
   }
   if (report.installed?.recovery !== "0.11.0") {
     throw new Error("reinstall recovery did not reopen the candidate");
+  }
+  if (!report.installed?.path?.startsWith("<LOCALAPPDATA>\\")) {
+    throw new Error("installed application path was not safely tokenized");
   }
   const driverSessions = report.driver?.sessions?.map(({ session }) => session);
   if (
@@ -374,10 +496,24 @@ export function validateWindowsAcceptanceReport(report) {
   }
   if (
     report.portableBackup?.exportedViaUi !== true ||
-    !hasNativeDialogEvidence(report.portableBackup) ||
+    !hasNativeDialogEvidence(report.portableBackup, report.nativePickerTool) ||
+    report.portableBackup?.title !== "Save Voyalier backup" ||
+    report.portableBackup?.action !== "Save" ||
+    report.portableBackup?.screenshotPathRedacted !== true ||
+    report.portableBackup?.screenshotPathRedacted !==
+      report.portableBackup?.screenshotEvidence?.pathRedactionConfirmed ||
+    report.portableBackup?.screenshotEvidence?.fileName !==
+      "04-portable-backup-exported.png" ||
+    report.portableBackup?.screenshotEvidence?.pathRedactionConfirmed !==
+      true ||
+    report.portableBackup?.screenshotEvidence?.remainingAbsolutePathMatches !==
+      0 ||
+    report.portableBackup?.screenshotEvidence?.written !== true ||
     report.portableBackup?.selectedPathWithinTemp !== true ||
     typeof report.portableBackup?.fileName !== "string" ||
     !report.portableBackup.fileName.endsWith(".vbk") ||
+    path.win32.basename(report.portableBackup?.expectedValueToken ?? "") !==
+      report.portableBackup.fileName ||
     !(report.portableBackup?.bytes > 0) ||
     !/^[0-9a-f]{64}$/.test(report.portableBackup?.sha256 ?? "")
   ) {
@@ -385,7 +521,11 @@ export function validateWindowsAcceptanceReport(report) {
   }
   if (
     report.portableRestore?.stagedViaUi !== true ||
-    !hasNativeDialogEvidence(report.portableRestore) ||
+    !hasNativeDialogEvidence(report.portableRestore, report.nativePickerTool) ||
+    report.portableRestore?.title !== "Choose a Voyalier backup" ||
+    report.portableRestore?.action !== "Open" ||
+    report.portableRestore?.expectedValueToken !==
+      report.portableBackup?.expectedValueToken ||
     report.portableRestore?.appliedAfterReinstall !== true ||
     report.portableRestore?.postBackupSentinelAbsent !== true
   ) {
@@ -410,5 +550,6 @@ export function validateWindowsAcceptanceReport(report) {
   ) {
     throw new Error("the installed app exposed a non-loopback listener");
   }
+  assertNoAbsoluteWindowsPaths(report);
   return report;
 }

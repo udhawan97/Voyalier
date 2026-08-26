@@ -10,8 +10,187 @@ import {
   buildWindowsUpdaterManifest,
   clearWebViewDevToolsPorts,
   mirrorWebViewDevToolsPort,
+  validateWinAppToolEvidence,
   validateWindowsAcceptanceReport,
+  validateWindowsPickerPreflightReport,
 } from "./windows-updater-fixture.mjs";
+import {
+  assertNoAbsoluteWindowsPaths,
+  parseWindowsCommandJson,
+  sanitizeWindowsEvidenceText,
+  sanitizeWindowsEvidenceValue,
+  WINAPP_CLI,
+} from "./windows-native-file-dialog.mjs";
+import {
+  classifyWindowsEvidenceArtifact,
+  sanitizeWindowsAcceptanceEvidence,
+} from "./sanitize-windows-acceptance-evidence.mjs";
+
+const CANDIDATE_SHA = "c".repeat(40);
+const WORKFLOW_RUN_ID = "123456";
+const TOOL_EXECUTABLE = "<RUNNER_TEMP>\\winapp\\winapp.exe";
+const PORTABLE_PATH = "<DIALOG_TEMP>\\voyalier-portable-acceptance.vbk";
+const WINAPP_RUNTIME_ELEMENT_ID = "grp-filenamecontrol-a1b2c3d4";
+
+function winAppToolEvidence() {
+  return {
+    name: WINAPP_CLI.name,
+    tag: WINAPP_CLI.tag,
+    versionExpected: WINAPP_CLI.version,
+    versionReported: WINAPP_CLI.version,
+    releaseCommit: WINAPP_CLI.releaseCommit,
+    assetName: WINAPP_CLI.assetName,
+    assetUrl: WINAPP_CLI.assetUrl,
+    archivePath: "<RUNNER_TEMP>\\winappcli-x64-v0.6.0.zip",
+    archiveSha256Expected: WINAPP_CLI.archiveSha256,
+    archiveSha256Actual: WINAPP_CLI.archiveSha256,
+    archiveHashVerified: true,
+    hashVerifiedBeforeExtractionExecution: true,
+    installRoot: "<RUNNER_TEMP>\\winapp",
+    executablePath: TOOL_EXECUTABLE,
+    executableCount: 1,
+    executableWithinTemporaryRoot: true,
+    archiveWithinTemporaryRoot: true,
+    cacheDirectory: "<RUNNER_TEMP>\\winapp-cache",
+    cacheWithinTemporaryRoot: true,
+    firstRunMarker: "<RUNNER_TEMP>\\winapp-cache\\.first-run-complete",
+    firstRunMarkerSha256:
+      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    firstRunMarkerBytes: 0,
+    firstRunMarkerPreseededBeforeExecution: true,
+    updateCheckDisabled: true,
+    telemetryOptOut: true,
+    pathFallbackUsed: false,
+    latestUsed: false,
+    globalInstallUsed: false,
+    inputInjectionUsed: false,
+    versionCommand: { exitCode: 0, stdout: "0.6.0", stderr: "" },
+  };
+}
+
+function nativeDialogEvidence({
+  title,
+  action,
+  expectedValueToken = PORTABLE_PATH,
+}) {
+  return {
+    verdict: "PASS",
+    title,
+    dialogTitle: title,
+    action,
+    expectedValueToken,
+    observedValueToken: expectedValueToken,
+    nativeDialogPathConfirmed: true,
+    selectedPathWithinTemp: true,
+    filenameHostAutomationId: WINAPP_CLI.selector,
+    toolExecutablePath: TOOL_EXECUTABLE,
+    toolVersion: WINAPP_CLI.version,
+    toolArchiveSha256: WINAPP_CLI.archiveSha256,
+    dialogCount: 1,
+    dialogEnabled: true,
+    dialogOffscreen: false,
+    dialogHwnd: 12345,
+    hostCount: 1,
+    hostAutomationId: WINAPP_CLI.selector,
+    hostEnabled: true,
+    hostOffscreen: false,
+    discoveryCommand: {
+      exitCode: 0,
+      jsonParsed: true,
+      stdout: "{}",
+      stderr: "",
+      result: {
+        title,
+        dialogCount: 1,
+        dialogEnabled: true,
+        dialogOffscreen: false,
+        hwnd: 12345,
+        hostCount: 1,
+        hostAutomationId: WINAPP_CLI.selector,
+        hostEnabled: true,
+        hostOffscreen: false,
+      },
+    },
+    setValue: {
+      exitCode: 0,
+      jsonParsed: true,
+      stdout: `{"elementId":"${WINAPP_RUNTIME_ELEMENT_ID}","hwnd":12345}`,
+      stderr: "",
+      requestedSelector: WINAPP_CLI.selector,
+      windowHwnd: 12345,
+      result: { elementId: WINAPP_RUNTIME_ELEMENT_ID, hwnd: 12345 },
+    },
+    getValue: {
+      exitCode: 0,
+      jsonParsed: true,
+      stdoutOmitted: true,
+      stdoutSha256: "e".repeat(64),
+      stderr: "",
+      requestedSelector: WINAPP_CLI.selector,
+      windowHwnd: 12345,
+      result: { elementId: WINAPP_RUNTIME_ELEMENT_ID, textOmitted: true },
+    },
+    controlIdentityMatched: true,
+    pathReadbackConfirmed: true,
+    inputInjectionUsed: false,
+    actionCandidateCount: 1,
+    eligibleActionCount: 1,
+    actionInvoked: true,
+    dialogDismissed: true,
+    actionCommand: {
+      exitCode: 0,
+      jsonParsed: true,
+      stdout: "{}",
+      stderr: "",
+      result: {
+        hwnd: 12345,
+        actionCandidateCount: 1,
+        eligibleActionCount: 1,
+        actionInvoked: true,
+        dialogDismissed: true,
+      },
+    },
+  };
+}
+
+function pickerPreflightEvidence(tool = winAppToolEvidence()) {
+  const markerPath =
+    "<DIALOG_TEMP>\\voyalier-picker-preflight-0123456789abcdef01234567.txt";
+  return {
+    verdict: "PASS",
+    stage: "complete",
+    proofKind: "harness-tool-compatibility",
+    productEvidence: false,
+    candidateSha: CANDIDATE_SHA,
+    workflowRunId: WORKFLOW_RUN_ID,
+    tool,
+    dialog: nativeDialogEvidence({
+      title: "Voyalier picker bridge preflight 0123456789abcdef01234567",
+      action: "Save",
+      expectedValueToken: markerPath,
+    }),
+    marker: {
+      fileName: "voyalier-picker-preflight-0123456789abcdef01234567.txt",
+      selectedPathToken: markerPath,
+      selectedPathWithinTemporaryRoot: true,
+      bytes: 58,
+      sha256: "d".repeat(64),
+      expectedSha256: "d".repeat(64),
+      contentConfirmed: true,
+      hostReturnedExactPath: true,
+      removed: true,
+    },
+    dialogHost: {
+      exitCode: 0,
+      stdoutOmitted: true,
+      stdoutSha256: "f".repeat(64),
+      stderr: "",
+      jsonParsed: true,
+      result: { result: "OK", selectedPathToken: markerPath },
+    },
+    temporaryRootRemoved: true,
+  };
+}
 
 test("builds the exact loopback NSIS updater manifest", () => {
   const manifest = buildWindowsUpdaterManifest({
@@ -177,55 +356,353 @@ test("keeps product setup, updater backup, and portable restore on the installed
   assert.match(source, /section\[aria-labelledby=\\?"saved-places-title\\?"\]/);
   assert.match(source, /section\[aria-labelledby=\\?"manual-plan-title\\?"\]/);
   assert.match(source, /readCheckboxState/);
-  assert.match(source, /UIAutomationClient/);
-  assert.match(source, /AutomationIdProperty, 'FileNameControlHost'/);
-  assert.doesNotMatch(source, /AutomationIdProperty, '1148'/);
-  assert.doesNotMatch(source, /AutomationIdProperty, '1001'/);
-  assert.match(source, /ValuePattern/);
-  assert.match(source, /LegacyIAccessiblePattern/);
-  assert.match(source, /InvokePattern/);
-  assert.match(source, /\$fileNameHost\.FindAll/);
-  assert.match(source, /ControlType\]::Edit/);
-  assert.match(source, /ControlType\]::ComboBox/);
-  assert.match(source, /selectorMode = 'host-descendant'/);
-  assert.match(source, /selectorMode = 'host-legacy'/);
-  assert.match(source, /ConvertTo-Json -Compress/);
-  assert.doesNotMatch(source, /\$host\s*=/i);
-  assert.match(source, /IsEnabledProperty/);
-  assert.match(source, /IsOffscreenProperty/);
-  assert.match(source, /Current\.IsReadOnly/);
-  assert.match(source, /eligibleFileNameCount/);
-  assert.match(source, /eligibleActionCount/);
-  assert.match(source, /filename readback did not match/);
-  const legacyLookupIndex = source.indexOf(
-    "$hostLegacyPattern = $fileNameHost.GetCurrentPattern",
-  );
-  const descendantLookupIndex = source.indexOf(
-    "$descendants = $fileNameHost.FindAll",
-  );
-  assert.notEqual(legacyLookupIndex, -1);
-  assert.notEqual(descendantLookupIndex, -1);
-  assert.ok(
-    legacyLookupIndex < descendantLookupIndex,
-    "the exact semantic host legacy setter must precede descendant discovery",
-  );
-  assert.match(source, /\$lastHostLegacyPatternCount -eq 0\) \{ ` \+/);
-  const setValueIndex = source.indexOf("$valuePattern.SetValue($value)");
-  const actionLookupIndex = source.indexOf(
-    "$actionCandidates = $dialog.FindAll",
-  );
-  assert.notEqual(setValueIndex, -1);
-  assert.notEqual(actionLookupIndex, -1);
-  assert.ok(
-    setValueIndex < actionLookupIndex,
-    "the filename must be set before requiring an enabled Save/Open action",
-  );
+  assert.match(source, /driveNativeFileDialog/);
+  assert.match(source, /loadVerifiedWinAppTool/);
   assert.match(source, /portableBackupNotice\.endsWith\(portableBackupPath\)/);
+  const screenshotHelper = source.slice(
+    source.indexOf("async function screenshot"),
+    source.indexOf("function installedProcesses"),
+  );
+  assert.match(screenshotHelper, /remainingAbsolutePathMatches/);
+  assert.match(screenshotHelper, /pathRedactionConfirmed: true/);
+  assert.doesNotMatch(screenshotHelper, /\.catch\(/);
   assert.doesNotMatch(source, /WScript\.Shell|Set-Clipboard|SendKeys/);
-  assert.doesNotMatch(source, /root: ["']#section-plan["']/);
+  assert.doesNotMatch(source, /#section-plan/);
+
+  const nativeDialogSource = await readFile(
+    new URL("./windows-native-file-dialog.mjs", import.meta.url),
+    "utf8",
+  );
+  for (const requiredNativeProof of [
+    "FileNameControlHost",
+    "set-value",
+    "get-value",
+    "--window",
+    "InvokePattern",
+    "dialogDismissed",
+    "pathReadbackConfirmed",
+  ]) {
+    assert.match(nativeDialogSource, new RegExp(requiredNativeProof));
+  }
+  assert.doesNotMatch(
+    nativeDialogSource,
+    /send-keys|sendkeys|WScript\.Shell|Set-Clipboard|Clipboard|SetFocus\(/i,
+  );
+  assert.doesNotMatch(
+    nativeDialogSource,
+    /AutomationIdProperty, ['"](?:1148|1001)['"]/,
+  );
+
+  const preflightSource = await readFile(
+    new URL("./windows-picker-preflight.mjs", import.meta.url),
+    "utf8",
+  );
+  assert.match(preflightSource, /System\.Windows\.Forms\.SaveFileDialog/);
+  assert.match(preflightSource, /hostReturnedExactPath/);
+  assert.match(preflightSource, /productEvidence: false/);
+
+  const workflow = await readFile(
+    new URL("../.github/workflows/release.yml", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    workflow,
+    new RegExp(WINAPP_CLI.assetUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+  );
+  assert.match(workflow, new RegExp(WINAPP_CLI.archiveSha256));
+  const winAppInstallStep = workflow.slice(
+    workflow.indexOf("Install the verified Windows App CLI"),
+    workflow.indexOf("Prove the native picker bridge"),
+  );
+  assert.doesNotMatch(
+    winAppInstallStep,
+    /releases\/latest|winget|setup-WinAppCli|GITHUB_PATH/i,
+  );
+  const hashCheck = workflow.indexOf("if ($actualHash -cne $expectedHash)");
+  const extraction = workflow.indexOf("Expand-Archive");
+  const firstRunMarker = workflow.indexOf(
+    "[System.IO.File]::WriteAllBytes($firstRunMarker, [byte[]]@())",
+  );
+  const execution = workflow.indexOf("--version");
+  assert.ok(
+    hashCheck !== -1 &&
+      hashCheck < extraction &&
+      extraction < firstRunMarker &&
+      firstRunMarker < execution,
+  );
+  assert.match(
+    winAppInstallStep,
+    /VOYALIER_WINAPP_FIRST_RUN_MARKER_PRESEEDED_BEFORE_EXECUTION/,
+  );
+  const preflightStep = workflow.indexOf("Prove the native picker bridge");
+  assert.ok(
+    preflightStep !== -1 &&
+      preflightStep < workflow.indexOf("dtolnay/rust-toolchain", preflightStep),
+  );
+  const sanitizationStep = workflow.indexOf(
+    "node scripts/sanitize-windows-acceptance-evidence.mjs",
+  );
+  const uploadStep = workflow.indexOf(
+    "Upload sanitized Windows acceptance evidence",
+  );
+  assert.ok(sanitizationStep !== -1 && sanitizationStep < uploadStep);
+  assert.match(
+    workflow,
+    /steps\.sanitize_windows_evidence\.outcome == 'success'/,
+  );
+});
+
+test("rejects unverified picker tooling and incomplete preflight proof", () => {
+  const tool = winAppToolEvidence();
+  const invalidTools = [
+    { tag: "v0.6.1" },
+    { versionReported: "0.6.1" },
+    { releaseCommit: "e".repeat(40) },
+    { assetName: "winappcli-arm64.zip" },
+    { assetUrl: "https://example.test/winapp.zip" },
+    { archiveSha256Actual: "e".repeat(64) },
+    { archiveHashVerified: false },
+    { hashVerifiedBeforeExtractionExecution: false },
+    { executableCount: 2 },
+    { firstRunMarkerPreseededBeforeExecution: false },
+    { firstRunMarkerBytes: 1 },
+    {
+      versionCommand: {
+        exitCode: 0,
+        stdout: "Welcome to winapp\n0.6.0",
+        stderr: "",
+      },
+    },
+    { pathFallbackUsed: true },
+    { latestUsed: true },
+    { inputInjectionUsed: true },
+  ];
+  for (const invalid of invalidTools) {
+    assert.throws(
+      () => validateWinAppToolEvidence({ ...tool, ...invalid }),
+      /provenance evidence is incomplete/,
+    );
+  }
+
+  const preflight = pickerPreflightEvidence(tool);
+  const invalidPreflights = [
+    { ...preflight, productEvidence: true },
+    { ...preflight, candidateSha: "e".repeat(40) },
+    {
+      ...preflight,
+      dialog: { ...preflight.dialog, filenameHostAutomationId: "1148" },
+    },
+    {
+      ...preflight,
+      dialog: { ...preflight.dialog, discoveryCommand: undefined },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        discoveryCommand: {
+          ...preflight.dialog.discoveryCommand,
+          result: {
+            ...preflight.dialog.discoveryCommand.result,
+            hwnd: 999,
+          },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        setValue: {
+          ...preflight.dialog.setValue,
+          requestedSelector: "wrong-control",
+        },
+        getValue: {
+          ...preflight.dialog.getValue,
+          requestedSelector: "wrong-control",
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        setValue: {
+          ...preflight.dialog.setValue,
+          result: { ...preflight.dialog.setValue.result, hwnd: 999 },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: { ...preflight.dialog, pathReadbackConfirmed: false },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        getValue: {
+          ...preflight.dialog.getValue,
+          result: {
+            ...preflight.dialog.getValue.result,
+            elementId: "different-control",
+          },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: { ...preflight.dialog, dialogDismissed: false },
+    },
+    {
+      ...preflight,
+      dialog: { ...preflight.dialog, actionCommand: undefined },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        actionCommand: {
+          ...preflight.dialog.actionCommand,
+          result: {
+            ...preflight.dialog.actionCommand.result,
+            dialogDismissed: false,
+          },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: { ...preflight.dialog, eligibleActionCount: 2 },
+    },
+    {
+      ...preflight,
+      dialog: { ...preflight.dialog, inputInjectionUsed: true },
+    },
+    {
+      ...preflight,
+      marker: { ...preflight.marker, contentConfirmed: false },
+    },
+  ];
+  for (const invalid of invalidPreflights) {
+    assert.throws(
+      () =>
+        validateWindowsPickerPreflightReport(invalid, {
+          candidateSha: CANDIDATE_SHA,
+          workflowRunId: WORKFLOW_RUN_ID,
+        }),
+      /preflight evidence is incomplete/,
+    );
+  }
+});
+
+test("sanitizes and recursively rejects absolute Windows evidence paths", () => {
+  const environment = {
+    RUNNER_TEMP: "D:\\a\\_temp",
+    GITHUB_WORKSPACE: "D:\\a\\Voyalier\\Voyalier",
+    LOCALAPPDATA: "C:\\Users\\runneradmin\\AppData\\Local",
+    USERPROFILE: "C:\\Users\\runneradmin",
+  };
+  const sanitized = sanitizeWindowsEvidenceValue(
+    {
+      tool: "D:\\a\\_temp\\winapp\\winapp.exe",
+      nested: [
+        "C:\\Users\\runneradmin\\AppData\\Local\\Voyalier",
+        "E:\\unrecognized\\private.vbk",
+      ],
+    },
+    environment,
+  );
+  assert.deepEqual(sanitized, {
+    tool: "<RUNNER_TEMP>\\winapp\\winapp.exe",
+    nested: ["<LOCALAPPDATA>\\Voyalier", "<ABSOLUTE_PATH>"],
+  });
+  assert.equal(assertNoAbsoluteWindowsPaths(sanitized), sanitized);
+  assert.equal(
+    sanitizeWindowsEvidenceText("saved D:\\a\\_temp\\backup.vbk", environment),
+    "saved <RUNNER_TEMP>\\backup.vbk",
+  );
+  assert.throws(
+    () => assertNoAbsoluteWindowsPaths({ leaked: "C:\\private\\backup.vbk" }),
+    /absolute Windows path remained/,
+  );
+  assert.equal(
+    sanitizeWindowsEvidenceText("saved C:/private/backup.vbk", environment),
+    "saved <ABSOLUTE_PATH>",
+  );
+  assert.equal(
+    sanitizeWindowsEvidenceText(
+      "saved //server/share/private.vbk",
+      environment,
+    ),
+    "saved <UNC_PATH>",
+  );
+  assert.equal(
+    sanitizeWindowsEvidenceText(
+      "source https://github.com/microsoft/winappCli",
+      environment,
+    ),
+    "source https://github.com/microsoft/winappCli",
+  );
+  assert.throws(
+    () => assertNoAbsoluteWindowsPaths({ leaked: "C:/private/backup.vbk" }),
+    /absolute Windows path remained/,
+  );
+  assert.throws(
+    () =>
+      assertNoAbsoluteWindowsPaths({ leaked: "//server/share/private.vbk" }),
+    /absolute Windows path remained/,
+  );
+});
+
+test("parses raw escaped Windows-path JSON before sanitizing command evidence", () => {
+  const rawPath = "D:\\a\\_temp\\portable.vbk";
+  const captured = parseWindowsCommandJson(
+    {
+      exitCode: 0,
+      stdout: JSON.stringify({
+        elementId: WINAPP_CLI.selector,
+        text: rawPath,
+      }),
+      stderr: "",
+    },
+    { RUNNER_TEMP: "D:\\a\\_temp" },
+  );
+  assert.equal(captured.result.text, rawPath);
+  assert.equal(captured.evidence.result.text, "<RUNNER_TEMP>\\portable.vbk");
+  assert.doesNotMatch(captured.evidence.stdout, /D:\\\\a/);
+  assert.match(captured.stdoutSha256, /^[0-9a-f]{64}$/);
+});
+
+test("classifies every uploadable Windows evidence artifact", async () => {
+  assert.equal(classifyWindowsEvidenceArtifact("summary.md"), "text");
+  assert.equal(
+    classifyWindowsEvidenceArtifact("04-portable-backup-exported.png"),
+    "png",
+  );
+  assert.throws(
+    () => classifyWindowsEvidenceArtifact("private-backup.vbk"),
+    /unclassified Windows acceptance artifact/,
+  );
+  assert.throws(
+    () => classifyWindowsEvidenceArtifact("nested/private.txt"),
+    /Expected values to be strictly equal/,
+  );
+  const root = await mkdtemp(path.join(os.tmpdir(), "voyalier-evidence-"));
+  try {
+    await writeFile(path.join(root, "private-backup.vbk"), "private");
+    await assert.rejects(
+      () => sanitizeWindowsAcceptanceEvidence(root),
+      /unclassified Windows acceptance artifact/,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("pins installed, data-preservation, backup, and loopback evidence", () => {
+  const nativePickerTool = winAppToolEvidence();
+  const pickerPreflight = pickerPreflightEvidence(nativePickerTool);
   const report = {
     verdict: "PASS",
     stage: "complete",
@@ -237,8 +714,16 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
         changedFiles: ["apps/desktop/src-tauri/src/lib.rs"],
       },
     },
-    candidate: { version: "0.11.0" },
-    installed: { before: "0.10.7", after: "0.11.0", recovery: "0.11.0" },
+    candidate: { version: "0.11.0", sha: CANDIDATE_SHA },
+    workflow: { runId: WORKFLOW_RUN_ID },
+    nativePickerTool,
+    pickerPreflight,
+    installed: {
+      path: "<LOCALAPPDATA>\\Voyalier\\Voyalier.exe",
+      before: "0.10.7",
+      after: "0.11.0",
+      recovery: "0.11.0",
+    },
     driver: {
       sharedJourneyProfile: true,
       sessions: [
@@ -318,39 +803,27 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
     },
     portableBackup: {
       exportedViaUi: true,
-      nativeDialogPathConfirmed: true,
-      selectedPathWithinTemp: true,
-      filenameHostAutomationId: "FileNameControlHost",
-      selectorMode: "host-descendant",
-      pathReadbackConfirmed: true,
-      hostCount: 1,
-      hostValueWritableCount: 0,
-      hostLegacyPatternCount: 0,
-      descendantCandidateCount: 2,
-      eligibleDescendantCount: 1,
-      selectedControlType: "ControlType.Edit",
-      setterPattern: "ValuePattern",
-      actionCandidateCount: 1,
-      eligibleActionCount: 1,
+      screenshotPathRedacted: true,
+      screenshotEvidence: {
+        fileName: "04-portable-backup-exported.png",
+        pathRedactionConfirmed: true,
+        remainingAbsolutePathMatches: 0,
+        written: true,
+      },
+      ...nativeDialogEvidence({
+        title: "Save Voyalier backup",
+        action: "Save",
+      }),
       fileName: "voyalier-portable-acceptance.vbk",
       bytes: 4096,
       sha256: "b".repeat(64),
     },
     portableRestore: {
       stagedViaUi: true,
-      nativeDialogPathConfirmed: true,
-      filenameHostAutomationId: "FileNameControlHost",
-      selectorMode: "host-descendant",
-      pathReadbackConfirmed: true,
-      hostCount: 1,
-      hostValueWritableCount: 0,
-      hostLegacyPatternCount: 0,
-      descendantCandidateCount: 2,
-      eligibleDescendantCount: 1,
-      selectedControlType: "ControlType.Edit",
-      setterPattern: "ValuePattern",
-      actionCandidateCount: 1,
-      eligibleActionCount: 1,
+      ...nativeDialogEvidence({
+        title: "Choose a Voyalier backup",
+        action: "Open",
+      }),
       appliedAfterReinstall: true,
       postBackupSentinelAbsent: true,
     },
@@ -361,47 +834,13 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
     },
   };
   assert.equal(validateWindowsAcceptanceReport(report), report);
-  const hostDialogEvidence = {
-    filenameHostAutomationId: "FileNameControlHost",
-    selectorMode: "host",
-    pathReadbackConfirmed: true,
-    hostCount: 1,
-    hostValueWritableCount: 1,
-    hostLegacyPatternCount: 0,
-    descendantCandidateCount: 0,
-    eligibleDescendantCount: 0,
-    selectedControlType: "ControlType.ComboBox",
-    setterPattern: "ValuePattern",
-    actionCandidateCount: 1,
-    eligibleActionCount: 1,
-  };
-  const hostModeReport = {
-    ...report,
-    portableBackup: { ...report.portableBackup, ...hostDialogEvidence },
-    portableRestore: { ...report.portableRestore, ...hostDialogEvidence },
-  };
-  assert.equal(validateWindowsAcceptanceReport(hostModeReport), hostModeReport);
-  const hostLegacyDialogEvidence = {
-    ...hostDialogEvidence,
-    selectorMode: "host-legacy",
-    hostValueWritableCount: 0,
-    hostLegacyPatternCount: 1,
-    setterPattern: "LegacyIAccessiblePattern",
-  };
-  const hostLegacyModeReport = {
-    ...report,
-    portableBackup: {
-      ...report.portableBackup,
-      ...hostLegacyDialogEvidence,
-    },
-    portableRestore: {
-      ...report.portableRestore,
-      ...hostLegacyDialogEvidence,
-    },
-  };
+  assert.equal(validateWinAppToolEvidence(nativePickerTool), nativePickerTool);
   assert.equal(
-    validateWindowsAcceptanceReport(hostLegacyModeReport),
-    hostLegacyModeReport,
+    validateWindowsPickerPreflightReport(pickerPreflight, {
+      candidateSha: CANDIDATE_SHA,
+      workflowRunId: WORKFLOW_RUN_ID,
+    }),
+    pickerPreflight,
   );
   assert.throws(
     () => validateWindowsAcceptanceReport({ ...report, stage: "updater-swap" }),
@@ -552,6 +991,20 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
         ...report,
         portableBackup: {
           ...report.portableBackup,
+          screenshotEvidence: {
+            ...report.portableBackup.screenshotEvidence,
+            pathRedactionConfirmed: false,
+          },
+        },
+      }),
+    /portable backup UI evidence is incomplete/,
+  );
+  assert.throws(
+    () =>
+      validateWindowsAcceptanceReport({
+        ...report,
+        portableBackup: {
+          ...report.portableBackup,
           filenameHostAutomationId: "1148",
         },
       }),
@@ -563,7 +1016,7 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
         ...report,
         portableBackup: {
           ...report.portableBackup,
-          selectorMode: "host",
+          observedValueToken: "<DIALOG_TEMP>\\wrong.vbk",
         },
       }),
     /portable backup UI evidence is incomplete/,

@@ -24,7 +24,15 @@ import {
   clearWebViewDevToolsPorts,
   mirrorWebViewDevToolsPort,
   validateWindowsAcceptanceReport,
+  validateWindowsPickerPreflightReport,
 } from "./windows-updater-fixture.mjs";
+import {
+  assertNoAbsoluteWindowsPaths,
+  driveNativeFileDialog,
+  loadVerifiedWinAppTool,
+  sanitizeWindowsEvidenceText,
+  sanitizeWindowsEvidenceValue,
+} from "./windows-native-file-dialog.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const BASE_TAG = "v0.10.7";
@@ -60,6 +68,15 @@ const PNPM_CLI = process.env.PNPM_HOME
   : null;
 const DRIVER_DIAGNOSTICS = [];
 const DRIVER_SESSIONS = ["base", "updated", "recovery"];
+const SCREENSHOT_NAMES = new Set([
+  "01-base-installed-product-journey.png",
+  "02-base-production-updater-ready.png",
+  "03-updated-product-journey.png",
+  "04-portable-backup-exported.png",
+  "05-portable-restore-staged.png",
+  "06-reinstall-restore-recovery.png",
+  "99-failure.png",
+]);
 const DRIVER_PROFILE = "voyalier-acceptance-journey";
 let driverProfilePrepared = false;
 
@@ -118,6 +135,15 @@ async function sha256(file) {
   const hash = createHash("sha256");
   for await (const chunk of createReadStream(file)) hash.update(chunk);
   return hash.digest("hex");
+}
+
+async function writeAcceptanceReport(report) {
+  const sanitizedReport = sanitizeWindowsEvidenceValue(report);
+  assertNoAbsoluteWindowsPaths(sanitizedReport);
+  await writeFile(
+    path.join(EVIDENCE_ROOT, "windows-installed-updater.json"),
+    `${JSON.stringify(sanitizedReport, null, 2)}\n`,
+  );
 }
 
 async function findOne(root, predicate, description) {
@@ -591,180 +617,6 @@ async function backupCount() {
     .length;
 }
 
-function handleNativeFileDialog(title, filePath, action) {
-  const relativePath = path.win32.relative(TEMP_ROOT, filePath);
-  const selectedPathWithinTemp =
-    relativePath !== "" &&
-    relativePath !== ".." &&
-    !relativePath.startsWith(`..${path.win32.sep}`) &&
-    !path.win32.isAbsolute(relativePath);
-  assert.ok(
-    path.win32.isAbsolute(filePath) && selectedPathWithinTemp,
-    "native dialog path must stay inside the disposable acceptance root",
-  );
-  assert.ok(
-    ["Save", "Open"].includes(action),
-    "native dialog action must be Save or Open",
-  );
-  const dialogEvidence = powershell(
-    `Add-Type -AssemblyName UIAutomationClient; ` +
-      `Add-Type -AssemblyName UIAutomationTypes; ` +
-      `$title = ${psQuote(title)}; $value = ${psQuote(filePath)}; ` +
-      `$action = ${psQuote(action)}; ` +
-      `$root = [System.Windows.Automation.AutomationElement]::RootElement; ` +
-      `$titleCondition = [System.Windows.Automation.PropertyCondition]::new(` +
-      `[System.Windows.Automation.AutomationElement]::NameProperty, $title); ` +
-      `$fileNameCondition = [System.Windows.Automation.PropertyCondition]::new(` +
-      `[System.Windows.Automation.AutomationElement]::AutomationIdProperty, 'FileNameControlHost'); ` +
-      `$actionCondition = [System.Windows.Automation.PropertyCondition]::new(` +
-      `[System.Windows.Automation.AutomationElement]::NameProperty, $action); ` +
-      `$deadline = (Get-Date).AddSeconds(90); ` +
-      `$lastDialogCount = 0; $lastHostCount = 0; ` +
-      `$lastHostValueWritableCount = 0; $lastHostLegacyPatternCount = 0; ` +
-      `$lastDescendantCandidateCount = 0; ` +
-      `$lastEligibleDescendantCount = 0; $lastRawActionCount = 0; ` +
-      `$lastEligibleActionCount = 0; ` +
-      `do { ` +
-      `$dialogs = $root.FindAll(` +
-      `[System.Windows.Automation.TreeScope]::Children, $titleCondition); ` +
-      `$lastDialogCount = $dialogs.Count; ` +
-      `if ($dialogs.Count -gt 1) { ` +
-      `throw "multiple matching native dialogs (count $($dialogs.Count))" ` +
-      `}; ` +
-      `if ($dialogs.Count -eq 1) { ` +
-      `$dialog = $dialogs.Item(0); ` +
-      `$fileNameHosts = $dialog.FindAll(` +
-      `[System.Windows.Automation.TreeScope]::Descendants, $fileNameCondition); ` +
-      `$lastHostCount = $fileNameHosts.Count; ` +
-      `if ($fileNameHosts.Count -gt 1) { ` +
-      `throw "multiple filename hosts (count $($fileNameHosts.Count))" ` +
-      `}; ` +
-      `$eligibleFileNameCount = 0; $fileName = $null; $valuePattern = $null; ` +
-      `$selectorMode = $null; $setterPattern = $null; ` +
-      `if ($fileNameHosts.Count -eq 1) { ` +
-      `$fileNameHost = $fileNameHosts.Item(0); ` +
-      `$lastHostValueWritableCount = 0; $lastHostLegacyPatternCount = 0; ` +
-      `$lastDescendantCandidateCount = 0; ` +
-      `$lastEligibleDescendantCount = 0; ` +
-      `$hostEligible = $fileNameHost.GetCurrentPropertyValue(` +
-      `[System.Windows.Automation.AutomationElement]::IsEnabledProperty) ` +
-      `-eq $true -and $fileNameHost.GetCurrentPropertyValue(` +
-      `[System.Windows.Automation.AutomationElement]::IsOffscreenProperty) ` +
-      `-eq $false; ` +
-      `if ($hostEligible) { ` +
-      `try { $hostPattern = $fileNameHost.GetCurrentPattern(` +
-      `[System.Windows.Automation.ValuePattern]::Pattern) } ` +
-      `catch { $hostPattern = $null }; ` +
-      `if ($null -ne $hostPattern -and $hostPattern.Current.IsReadOnly -eq $false) { ` +
-      `$lastHostValueWritableCount = 1; ` +
-      `$eligibleFileNameCount = 1; $fileName = $fileNameHost; ` +
-      `$valuePattern = $hostPattern; $selectorMode = 'host'; ` +
-      `$setterPattern = 'ValuePattern' ` +
-      `} }; ` +
-      `if ($hostEligible -and $eligibleFileNameCount -eq 0) { ` +
-      `try { $hostLegacyPattern = $fileNameHost.GetCurrentPattern(` +
-      `[System.Windows.Automation.LegacyIAccessiblePattern]::Pattern) } ` +
-      `catch { $hostLegacyPattern = $null }; ` +
-      `if ($null -ne $hostLegacyPattern) { ` +
-      `$lastHostLegacyPatternCount = 1; ` +
-      `$eligibleFileNameCount = 1; $fileName = $fileNameHost; ` +
-      `$valuePattern = $hostLegacyPattern; $selectorMode = 'host-legacy'; ` +
-      `$setterPattern = 'LegacyIAccessiblePattern' ` +
-      `} }; ` +
-      `if ($hostEligible -and $eligibleFileNameCount -eq 0 -and ` +
-      `$lastHostLegacyPatternCount -eq 0) { ` +
-      `$descendants = $fileNameHost.FindAll(` +
-      `[System.Windows.Automation.TreeScope]::Descendants, ` +
-      `[System.Windows.Automation.Condition]::TrueCondition); ` +
-      `for ($index = 0; $index -lt $descendants.Count; $index++) { ` +
-      `$candidate = $descendants.Item($index); ` +
-      `$controlType = $candidate.GetCurrentPropertyValue(` +
-      `[System.Windows.Automation.AutomationElement]::ControlTypeProperty); ` +
-      `if ($controlType -ne [System.Windows.Automation.ControlType]::Edit -and ` +
-      `$controlType -ne [System.Windows.Automation.ControlType]::ComboBox) { continue }; ` +
-      `$lastDescendantCandidateCount += 1; ` +
-      `if ($candidate.GetCurrentPropertyValue(` +
-      `[System.Windows.Automation.AutomationElement]::IsEnabledProperty) ` +
-      `-ne $true) { continue }; ` +
-      `if ($candidate.GetCurrentPropertyValue(` +
-      `[System.Windows.Automation.AutomationElement]::IsOffscreenProperty) ` +
-      `-ne $false) { continue }; ` +
-      `try { $candidatePattern = $candidate.GetCurrentPattern(` +
-      `[System.Windows.Automation.ValuePattern]::Pattern) } ` +
-      `catch { continue }; ` +
-      `if ($candidatePattern.Current.IsReadOnly -ne $false) { continue }; ` +
-      `$eligibleFileNameCount += 1; ` +
-      `$lastEligibleDescendantCount += 1; ` +
-      `if ($eligibleFileNameCount -eq 1) { ` +
-      `$fileName = $candidate; $valuePattern = $candidatePattern; ` +
-      `$selectorMode = 'host-descendant'; $setterPattern = 'ValuePattern' ` +
-      `} ` +
-      `} ` +
-      `} ` +
-      `}; ` +
-      `if ($eligibleFileNameCount -gt 1) { ` +
-      `throw "multiple eligible filename controls (host value writable $lastHostValueWritableCount, host legacy $lastHostLegacyPatternCount, descendants raw $lastDescendantCandidateCount eligible $lastEligibleDescendantCount)" ` +
-      `}; ` +
-      `if ($eligibleFileNameCount -eq 1) { ` +
-      `$valuePattern.SetValue($value); ` +
-      `if ($valuePattern.Current.Value -cne $value) { ` +
-      `throw 'native dialog filename readback did not match' }; ` +
-      `$actionCandidates = $dialog.FindAll(` +
-      `[System.Windows.Automation.TreeScope]::Descendants, $actionCondition); ` +
-      `$lastRawActionCount = $actionCandidates.Count; ` +
-      `$eligibleActionCount = 0; $actionButton = $null; $invokePattern = $null; ` +
-      `for ($index = 0; $index -lt $actionCandidates.Count; $index++) { ` +
-      `$candidate = $actionCandidates.Item($index); ` +
-      `if ($candidate.GetCurrentPropertyValue(` +
-      `[System.Windows.Automation.AutomationElement]::ControlTypeProperty) ` +
-      `-ne [System.Windows.Automation.ControlType]::Button) { continue }; ` +
-      `if ($candidate.GetCurrentPropertyValue(` +
-      `[System.Windows.Automation.AutomationElement]::IsEnabledProperty) ` +
-      `-ne $true) { continue }; ` +
-      `if ($candidate.GetCurrentPropertyValue(` +
-      `[System.Windows.Automation.AutomationElement]::IsOffscreenProperty) ` +
-      `-ne $false) { continue }; ` +
-      `try { $candidatePattern = $candidate.GetCurrentPattern(` +
-      `[System.Windows.Automation.InvokePattern]::Pattern) } ` +
-      `catch { continue }; ` +
-      `$eligibleActionCount += 1; ` +
-      `if ($eligibleActionCount -eq 1) { ` +
-      `$actionButton = $candidate; $invokePattern = $candidatePattern ` +
-      `} ` +
-      `}; ` +
-      `$lastEligibleActionCount = $eligibleActionCount; ` +
-      `if ($eligibleActionCount -gt 1) { ` +
-      `throw "multiple eligible dialog actions (raw $lastRawActionCount, eligible $eligibleActionCount)" ` +
-      `}; ` +
-      `if ($eligibleActionCount -eq 1) { ` +
-      `$selectedControlType = $fileName.GetCurrentPropertyValue(` +
-      `[System.Windows.Automation.AutomationElement]::ControlTypeProperty); ` +
-      `$invokePattern.Invoke(); ` +
-      `@{ filenameHostAutomationId = 'FileNameControlHost'; ` +
-      `selectorMode = $selectorMode; pathReadbackConfirmed = $true; ` +
-      `hostCount = $lastHostCount; ` +
-      `hostValueWritableCount = $lastHostValueWritableCount; ` +
-      `hostLegacyPatternCount = $lastHostLegacyPatternCount; ` +
-      `descendantCandidateCount = $lastDescendantCandidateCount; ` +
-      `eligibleDescendantCount = $lastEligibleDescendantCount; ` +
-      `selectedControlType = $selectedControlType.ProgrammaticName; ` +
-      `setterPattern = $setterPattern; ` +
-      `actionCandidateCount = $lastRawActionCount; ` +
-      `eligibleActionCount = $lastEligibleActionCount } ` +
-      `| ConvertTo-Json -Compress; exit 0 ` +
-      `} ` +
-      `} }; Start-Sleep -Milliseconds 250 ` +
-      `} while ((Get-Date) -lt $deadline); ` +
-      `throw "native dialog controls did not become actionable (dialogs $lastDialogCount, hosts $lastHostCount value-writable $lastHostValueWritableCount legacy $lastHostLegacyPatternCount, descendants raw $lastDescendantCandidateCount eligible $lastEligibleDescendantCount, actions raw $lastRawActionCount eligible $lastEligibleActionCount)"`,
-    { json: true },
-  );
-  return {
-    nativeDialogPathConfirmed: true,
-    selectedPathWithinTemp,
-    ...dialogEvidence,
-  };
-}
-
 async function invoke(driver, command, input = null) {
   const result = await fetchDriver(
     `/session/${driver.sessionId}/execute/async`,
@@ -793,11 +645,50 @@ async function invoke(driver, command, input = null) {
 }
 
 async function screenshot(driver, name) {
+  assert.equal(SCREENSHOT_NAMES.has(name), true, "unexpected screenshot name");
+  const redaction = await execute(
+    driver,
+    `
+      const drivePath = /\\b[A-Za-z]:[\\\\/][^\\r\\n]*/g;
+      const uncPath = /(?<!:)(?:\\\\\\\\|\\/\\/)[^\\\\/\\s]+[\\\\/][^\\r\\n]*/g;
+      const notice = document.querySelector('.voy-backup__notice');
+      const noticeHadAbsolutePath = Boolean(
+        notice?.textContent &&
+        (drivePath.test(notice.textContent) || uncPath.test(notice.textContent))
+      );
+      drivePath.lastIndex = 0;
+      uncPath.lastIndex = 0;
+      if (noticeHadAbsolutePath) {
+        notice.textContent = 'Backup path confirmed: <ABSOLUTE_PATH>';
+      }
+      const visibleText = document.body?.innerText ?? '';
+      const remainingDrivePaths = visibleText.match(drivePath) ?? [];
+      const remainingUncPaths = visibleText.match(uncPath) ?? [];
+      return {
+        redactionExecuted: true,
+        noticeHadAbsolutePath,
+        noticeRedacted: noticeHadAbsolutePath
+          ? notice?.textContent === 'Backup path confirmed: <ABSOLUTE_PATH>'
+          : true,
+        remainingAbsolutePathMatches:
+          remainingDrivePaths.length + remainingUncPaths.length,
+      };
+    `,
+  );
+  assert.equal(redaction?.redactionExecuted, true);
+  assert.equal(redaction?.noticeRedacted, true);
+  assert.equal(redaction?.remainingAbsolutePathMatches, 0);
   const encoded = await fetchDriver(`/session/${driver.sessionId}/screenshot`);
   await writeFile(
     path.join(EVIDENCE_ROOT, name),
     Buffer.from(encoded, "base64"),
   );
+  return {
+    fileName: name,
+    pathRedactionConfirmed: true,
+    remainingAbsolutePathMatches: 0,
+    written: true,
+  };
 }
 
 function installedProcesses(application) {
@@ -937,23 +828,17 @@ async function main() {
     "this acceptance harness requires real Windows",
   );
   assert.ok(process.env.LOCALAPPDATA, "LOCALAPPDATA is required");
-  await rm(EVIDENCE_ROOT, { recursive: true, force: true });
   await mkdir(EVIDENCE_ROOT, { recursive: true });
   try {
     assert.equal(run(GIT, ["status", "--porcelain"], { quiet: true }), "");
   } catch (error) {
-    await writeFile(
-      path.join(EVIDENCE_ROOT, "windows-installed-updater.json"),
-      `${JSON.stringify(
-        {
-          verdict: "FAIL",
-          stage: "source-tree-guard",
-          error: error instanceof Error ? error.message : String(error),
-        },
-        null,
-        2,
-      )}\n`,
-    );
+    await writeAcceptanceReport({
+      verdict: "FAIL",
+      stage: "source-tree-guard",
+      error: sanitizeWindowsEvidenceText(
+        error instanceof Error ? error.message : String(error),
+      ),
+    });
     throw error;
   }
   const candidateSha = run(GIT, ["rev-parse", "HEAD"], { quiet: true });
@@ -981,6 +866,7 @@ async function main() {
   const requestLog = [];
   const report = {
     verdict: "FAIL",
+    stage: "native-picker-provenance",
     candidate: { version: CANDIDATE_VERSION, sha: candidateSha },
     base: {
       version: BASE_VERSION,
@@ -1005,6 +891,28 @@ async function main() {
   };
 
   try {
+    const nativePickerTool = await loadVerifiedWinAppTool();
+    const pickerPreflight = JSON.parse(
+      await readFile(
+        path.join(EVIDENCE_ROOT, "windows-picker-preflight.json"),
+        "utf8",
+      ),
+    );
+    validateWindowsPickerPreflightReport(pickerPreflight, {
+      candidateSha,
+      workflowRunId: process.env.GITHUB_RUN_ID ?? undefined,
+    });
+    assert.equal(
+      pickerPreflight.tool.executablePath,
+      nativePickerTool.evidence.executablePath,
+    );
+    assert.equal(
+      pickerPreflight.tool.archiveSha256Actual,
+      nativePickerTool.evidence.archiveSha256Actual,
+    );
+    report.nativePickerTool = nativePickerTool.evidence;
+    report.pickerPreflight = pickerPreflight;
+    report.stage = "base-build";
     run(GIT, ["worktree", "add", "--detach", BASE_ROOT, BASE_TAG]);
     baseWorktreeAdded = true;
     run(GIT, ["apply", "--unidiff-zero", "--check", BASE_AUTOMATION_PATCH], {
@@ -1427,12 +1335,32 @@ async function main() {
     await clickText(driver, "Guardar copia", {
       root: ".voy-backup__form",
     });
-    const portableBackupDialog = handleNativeFileDialog(
-      "Save Voyalier backup",
-      portableBackupPath,
-      "Save",
-    );
+    const portableBackupDialog = await driveNativeFileDialog({
+      tool: nativePickerTool,
+      title: "Save Voyalier backup",
+      filePath: portableBackupPath,
+      action: "Save",
+      temporaryRoot: TEMP_ROOT,
+      diagnosticPath: path.join(
+        EVIDENCE_ROOT,
+        "windows-portable-backup-dialog.json",
+      ),
+    });
     const portableBackupNotice = await readText(driver, ".voy-backup__notice");
+    const portableBackupScreenshotNotice = await execute(
+      driver,
+      `
+        const notice = document.querySelector('.voy-backup__notice');
+        if (!notice) return false;
+        notice.textContent = arguments[0];
+        return notice.textContent;
+      `,
+      [`Backup saved: <DIALOG_TEMP>\\${PORTABLE_BACKUP_NAME}`],
+    );
+    assert.equal(
+      portableBackupScreenshotNotice,
+      `Backup saved: <DIALOG_TEMP>\\${PORTABLE_BACKUP_NAME}`,
+    );
     assert.ok(
       portableBackupNotice.endsWith(portableBackupPath),
       `portable backup picker returned an unexpected path: ${portableBackupNotice}`,
@@ -1440,7 +1368,10 @@ async function main() {
     const portableBackupStat = await stat(portableBackupPath);
     assert.ok(portableBackupStat.size > 0);
     const portableBackupSha256 = await sha256(portableBackupPath);
-    await screenshot(driver, "04-portable-backup-exported.png");
+    const portableBackupScreenshot = await screenshot(
+      driver,
+      "04-portable-backup-exported.png",
+    );
 
     await clickText(driver, "Volver");
     await waitForText(driver, TRIP_TITLE);
@@ -1479,11 +1410,17 @@ async function main() {
     await clickText(driver, "Restaurar esta copia", {
       root: ".voy-backup__form",
     });
-    const portableRestoreDialog = handleNativeFileDialog(
-      "Choose a Voyalier backup",
-      portableBackupPath,
-      "Open",
-    );
+    const portableRestoreDialog = await driveNativeFileDialog({
+      tool: nativePickerTool,
+      title: "Choose a Voyalier backup",
+      filePath: portableBackupPath,
+      action: "Open",
+      temporaryRoot: TEMP_ROOT,
+      diagnosticPath: path.join(
+        EVIDENCE_ROOT,
+        "windows-portable-restore-dialog.json",
+      ),
+    });
     await waitForText(driver, "Listo para restaurar la copia", {
       root: ".voy-backup",
     });
@@ -1561,7 +1498,7 @@ async function main() {
       verdict: "PASS",
       stage: "complete",
       installed: {
-        path: application,
+        path: sanitizeWindowsEvidenceText(application),
         before: baseStatus.currentVersion,
         after: candidateStatus.currentVersion,
         recovery: recoveryStatus.currentVersion,
@@ -1597,6 +1534,8 @@ async function main() {
       portableBackup: {
         exportedViaUi: true,
         ...portableBackupDialog,
+        screenshotPathRedacted: portableBackupScreenshot.pathRedactionConfirmed,
+        screenshotEvidence: portableBackupScreenshot,
         fileName: PORTABLE_BACKUP_NAME,
         bytes: portableBackupStat.size,
         sha256: portableBackupSha256,
@@ -1615,10 +1554,7 @@ async function main() {
       },
     });
     validateWindowsAcceptanceReport(report);
-    await writeFile(
-      path.join(EVIDENCE_ROOT, "windows-installed-updater.json"),
-      `${JSON.stringify(report, null, 2)}\n`,
-    );
+    await writeAcceptanceReport(report);
     await writeFile(
       path.join(EVIDENCE_ROOT, "summary.md"),
       [
@@ -1629,7 +1565,9 @@ async function main() {
         `- Base: \`${baseSha}\` / ${BASE_TAG}`,
         `- Base automation patch SHA-256: \`${baseAutomationPatchSha256}\``,
         `- Base adaptation: WebView2 automation only (not the historical installer binary)`,
-        `- Installed path: \`${application}\``,
+        `- Native picker bridge: Microsoft Windows App CLI ${nativePickerTool.evidence.versionReported}, verified archive SHA-256 \`${nativePickerTool.evidence.archiveSha256Actual}\``,
+        `- Standard picker preflight: ${pickerPreflight.verdict} (tool compatibility only)`,
+        `- Installed path: \`${sanitizeWindowsEvidenceText(application)}\``,
         `- Swap: ${baseStatus.currentVersion} -> ${candidateStatus.currentVersion}`,
         `- Reinstall recovery: ${recoveryStatus.currentVersion}`,
         `- Installed UI journey preserved: ${tripsAfterRecovery.length === 1 ? "yes" : "no"}`,
@@ -1646,7 +1584,9 @@ async function main() {
       ].join("\n"),
     );
   } catch (error) {
-    report.error = error instanceof Error ? error.message : String(error);
+    report.error = sanitizeWindowsEvidenceText(
+      error instanceof Error ? error.message : String(error),
+    );
     if (driver) {
       await screenshot(driver, "99-failure.png").catch(() => {});
       report.uiDiagnostic = await execute(
@@ -1672,10 +1612,7 @@ async function main() {
       ).length,
       listeners: application ? appListeners(application) : [],
     };
-    await writeFile(
-      path.join(EVIDENCE_ROOT, "windows-installed-updater.json"),
-      `${JSON.stringify(report, null, 2)}\n`,
-    );
+    await writeAcceptanceReport(report);
     throw error;
   } finally {
     await stopDriver(driver).catch(() => {});
