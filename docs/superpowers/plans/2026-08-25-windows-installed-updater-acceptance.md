@@ -386,11 +386,16 @@ Correction:
 - Add a focused source regression requiring the screenshot privacy helper to
   cover the app's polite live region as well as the visible backup notice; run
   it red before the fix.
-- In the screenshot-only evidence preparation, replace absolute paths in both
-  path-bearing status elements with the existing `<ABSOLUTE_PATH>` token. Keep
-  the earlier assertion against the exact product notice, backup stat, and
-  content hash unchanged, so redaction cannot substitute for product proof.
-- Keep the final whole-document scan fail-closed. Any absolute path outside the
-  two expected status copies must still abort evidence capture.
+- In the screenshot-only evidence preparation, inspect both path-bearing status
+  containers and replace any remaining absolute path with the existing
+  `<ABSOLUTE_PATH>` token. The visible notice is already changed to the
+  `<DIALOG_TEMP>` evidence token after its exact-value assertion, so screenshot
+  04 must report exactly one redacted container: the duplicate polite live
+  region. Keep the backup stat and content-hash assertions unchanged, so
+  redaction cannot substitute for product proof.
+- Keep the final rendered body-text scan fail-closed. Any absolute path outside
+  the two expected status containers must still abort evidence capture. Do not
+  describe this as a whole-document scan: it does not inspect attributes, input
+  values, generated content, or canvases.
 - Rerun the focused fixture, full local gate, Graphify refresh, exact two-round
   council, and hosted exact-SHA Windows journey before merge or release.
