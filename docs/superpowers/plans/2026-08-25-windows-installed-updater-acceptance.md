@@ -177,6 +177,26 @@ setting without keyboard, clipboard, focus, or pointer input.
   alone—proves success. Any ambiguity, other control type, unsupported pattern or accessible
   identity, malformed output, mismatch, timeout, or out-of-TEMP path fails closed. This preflight
   proves only picker-tool compatibility, not Voyalier behavior.
+- Exact-SHA run `32948743304` proved that the direct accessibility action met every identity and
+  lifecycle guard—`S_OK`, the same child HWND, exact `Save` name, push-button role, usable state,
+  one completed invocation, COM release, and dialog count one to zero—but the independent
+  `SaveFileDialog.FileName` result still did not equal the requested path. Keep the release blocked.
+  Before changing any setter or action again, run one diagnostic-only preflight that records three
+  distinct path identities: the expected path, the pre-action CLI readback, and the host-selected
+  path. Emit only SHA-256 values, explicitly defined ordinal/ordinal-ignore-case/canonical-ignore-case
+  comparisons, canonicalization status, segment-aware temporary-root containment, and a relative
+  token only after containment is proven. Record the selected basename only when it equals the
+  generated target or original placeholder; otherwise record its SHA-256, length, and extension.
+  Compare the host selection with the original placeholder under the same raw and canonical rules.
+  Never emit a raw absolute path through stdout, stderr, an exception, or an artifact. Never write
+  unless the dialog returned `OK`, `Path.GetFullPath` equality under `OrdinalIgnoreCase` is true,
+  and the selected path remains inside the fresh preflight root. Record whether a write was
+  attempted and whether a marker exists. Mark the report `diagnosticOnly: true`, retain
+  `productEvidence: false`, fail the step after persisting sanitized evidence, and do not continue
+  into Rust builds or the installed-product journey. This one run cannot satisfy the picker or
+  release validator: canonical equality identifies an over-strict oracle; placeholder equality
+  identifies an uncommitted setter/readback; any third value requires reassessment rather than
+  another speculative activation fallback.
 - Repeat the same title, HWND, semantic-host, structured set/get, exact-readback, exact-action, and
   dismissal checks for both installed Voyalier Save and Open dialogs. Tie those observations to the
   existing backup notice, file stat/hash, restore staging, reinstall, preservation, and sentinel
