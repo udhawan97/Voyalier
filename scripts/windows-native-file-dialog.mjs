@@ -6,6 +6,16 @@ import { spawnSync } from "node:child_process";
 
 export const FILE_NAME_HOST_AUTOMATION_ID = "FileNameControlHost";
 
+export function nativeDialogHostPolicy(action) {
+  if (action === "Save") {
+    return { required: true, minimum: 1, maximum: 1 };
+  }
+  if (action === "Open") {
+    return { required: false, minimum: 0, maximum: 1 };
+  }
+  throw new Error(`unsupported action: ${action}`);
+}
+
 export const WINDOWS_ACCESSIBLE_ACTION = Object.freeze({
   method: "MSAA/IAccessible.accDoDefaultAction",
   objectId: 0xfffffffc,
@@ -196,7 +206,8 @@ function writeDiagnostic(file, record) {
   writeFileSync(file, `${JSON.stringify(sanitizedRecord, null, 2)}\n`);
 }
 
-function discoverDialog(title) {
+function discoverDialog(title, action) {
+  const hostPolicy = nativeDialogHostPolicy(action);
   return powershellJson(
     `Add-Type -AssemblyName UIAutomationClient; ` +
       `Add-Type -AssemblyName UIAutomationTypes; ` +
@@ -207,6 +218,7 @@ function discoverDialog(title) {
       `$hostCondition = [System.Windows.Automation.PropertyCondition]::new(` +
       `[System.Windows.Automation.AutomationElement]::AutomationIdProperty, ` +
       `${psQuote(FILE_NAME_HOST_AUTOMATION_ID)}); ` +
+      `$filenameHostRequired = ${hostPolicy.required ? "$true" : "$false"}; ` +
       `$deadline = (Get-Date).AddSeconds(45); ` +
       `$lastDialogCount = 0; $lastHostCount = 0; ` +
       `do { ` +
@@ -224,6 +236,7 @@ function discoverDialog(title) {
       `$hosts = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, $hostCondition); ` +
       `$lastHostCount = $hosts.Count; ` +
       `if ($hosts.Count -gt 1) { throw "multiple semantic filename hosts: $($hosts.Count)" }; ` +
+      `$hostAutomationId = $null; $hostEnabled = $null; $hostOffscreen = $null; ` +
       `if ($hosts.Count -eq 1) { ` +
       `$fileNameHost = $hosts.Item(0); ` +
       `$hostAutomationId = [string]$fileNameHost.GetCurrentPropertyValue(` +
@@ -232,14 +245,19 @@ function discoverDialog(title) {
       `[System.Windows.Automation.AutomationElement]::IsEnabledProperty); ` +
       `$hostOffscreen = $fileNameHost.GetCurrentPropertyValue(` +
       `[System.Windows.Automation.AutomationElement]::IsOffscreenProperty); ` +
+      `} ` +
+      `$hostReady = ($hosts.Count -eq 1 -and $hostEnabled -eq $true -and ` +
+      `$hostOffscreen -eq $false); ` +
+      `if ($filenameHostRequired -eq $false -and $hosts.Count -eq 0) { ` +
+      `$hostReady = $true }; ` +
       `if ($dialogEnabled -eq $true -and $dialogOffscreen -eq $false -and ` +
-      `$hwnd -gt 0 -and $hostEnabled -eq $true -and $hostOffscreen -eq $false) { ` +
+      `$hwnd -gt 0 -and $hostReady -eq $true) { ` +
       `@{ title = $title; dialogCount = $dialogs.Count; dialogEnabled = $dialogEnabled; ` +
-      `dialogOffscreen = $dialogOffscreen; hwnd = $hwnd; hostCount = $hosts.Count; ` +
+      `dialogOffscreen = $dialogOffscreen; hwnd = $hwnd; ` +
+      `filenameHostRequired = $filenameHostRequired; hostCount = $hosts.Count; ` +
       `hostAutomationId = $hostAutomationId; hostEnabled = $hostEnabled; ` +
       `hostOffscreen = $hostOffscreen } ` +
       `| ConvertTo-Json -Compress; exit 0 ` +
-      `} ` +
       `} ` +
       `} ` +
       `Start-Sleep -Milliseconds 200 ` +
@@ -549,6 +567,7 @@ export async function driveNativeFileDialog({
   filePath = path.resolve(requireString(filePath, "filePath"));
   temporaryRoot = path.resolve(requireString(temporaryRoot, "temporaryRoot"));
   assert.ok(["Save", "Open"].includes(action));
+  const hostPolicy = nativeDialogHostPolicy(action);
   assert.ok(path.isAbsolute(filePath));
   assert.ok(isInside(temporaryRoot, filePath));
   assert.ok(
@@ -573,12 +592,13 @@ export async function driveNativeFileDialog({
     pathPresetExpected: true,
     externalSetterUsed: false,
     expectedPathWithinTemp: true,
+    filenameHostRequired: hostPolicy.required,
     nativeDialogActionConfirmed: false,
     inputInjectionUsed: false,
   };
   writeDiagnostic(diagnosticPath, record);
   try {
-    const discovery = discoverDialog(title);
+    const discovery = discoverDialog(title, action);
     record.discoveryCommand = discovery.evidence;
     const observed = discovery.result;
     assert.equal(observed.title, title);
@@ -586,15 +606,24 @@ export async function driveNativeFileDialog({
     assert.equal(observed.dialogEnabled, true);
     assert.equal(observed.dialogOffscreen, false);
     assert.ok(Number.isInteger(observed.hwnd) && observed.hwnd > 0);
-    assert.equal(observed.hostCount, 1);
-    assert.equal(observed.hostAutomationId, FILE_NAME_HOST_AUTOMATION_ID);
-    assert.equal(observed.hostEnabled, true);
-    assert.equal(observed.hostOffscreen, false);
+    assert.equal(observed.filenameHostRequired, hostPolicy.required);
+    assert.ok(observed.hostCount >= hostPolicy.minimum);
+    assert.ok(observed.hostCount <= hostPolicy.maximum);
+    if (observed.hostCount === 1) {
+      assert.equal(observed.hostAutomationId, FILE_NAME_HOST_AUTOMATION_ID);
+      assert.equal(observed.hostEnabled, true);
+      assert.equal(observed.hostOffscreen, false);
+    } else {
+      assert.equal(observed.hostAutomationId, null);
+      assert.equal(observed.hostEnabled, null);
+      assert.equal(observed.hostOffscreen, null);
+    }
     record.dialogTitle = title;
     record.dialogCount = observed.dialogCount;
     record.dialogEnabled = observed.dialogEnabled;
     record.dialogOffscreen = observed.dialogOffscreen;
     record.dialogHwnd = observed.hwnd;
+    record.filenameHostRequired = observed.filenameHostRequired;
     record.hostCount = observed.hostCount;
     record.hostAutomationId = observed.hostAutomationId;
     record.hostEnabled = observed.hostEnabled;

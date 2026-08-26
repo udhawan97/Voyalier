@@ -18,6 +18,7 @@ import {
 import {
   assertNoAbsoluteWindowsPaths,
   FILE_NAME_HOST_AUTOMATION_ID,
+  nativeDialogHostPolicy,
   parseWindowsCommandJson,
   sanitizeWindowsEvidenceText,
   sanitizeWindowsEvidenceValue,
@@ -41,6 +42,12 @@ function nativeDialogEvidence({
   expectedValueToken = PORTABLE_PATH,
   presetMethod = "rfd::FileDialog::set_directory+set_file_name",
 }) {
+  const hostPolicy = nativeDialogHostPolicy(action);
+  const hostCount = hostPolicy.required ? 1 : 0;
+  const hostAutomationId =
+    hostCount === 1 ? FILE_NAME_HOST_AUTOMATION_ID : null;
+  const hostEnabled = hostCount === 1 ? true : null;
+  const hostOffscreen = hostCount === 1 ? false : null;
   return {
     verdict: "PASS",
     title,
@@ -53,14 +60,15 @@ function nativeDialogEvidence({
     nativeDialogActionConfirmed: true,
     expectedPathWithinTemp: true,
     filenameHostAutomationId: FILE_NAME_HOST_AUTOMATION_ID,
+    filenameHostRequired: hostPolicy.required,
     dialogCount: 1,
     dialogEnabled: true,
     dialogOffscreen: false,
     dialogHwnd: 12345,
-    hostCount: 1,
-    hostAutomationId: FILE_NAME_HOST_AUTOMATION_ID,
-    hostEnabled: true,
-    hostOffscreen: false,
+    hostCount,
+    hostAutomationId,
+    hostEnabled,
+    hostOffscreen,
     discoveryCommand: {
       exitCode: 0,
       jsonParsed: true,
@@ -72,10 +80,11 @@ function nativeDialogEvidence({
         dialogEnabled: true,
         dialogOffscreen: false,
         hwnd: 12345,
-        hostCount: 1,
-        hostAutomationId: FILE_NAME_HOST_AUTOMATION_ID,
-        hostEnabled: true,
-        hostOffscreen: false,
+        filenameHostRequired: hostPolicy.required,
+        hostCount,
+        hostAutomationId,
+        hostEnabled,
+        hostOffscreen,
       },
     },
     expectedPathSha256: "a".repeat(64),
@@ -218,6 +227,20 @@ function pickerPreflightEvidence() {
     temporaryRootRemoved: true,
   };
 }
+
+test("requires the semantic filename host only for Save dialogs", () => {
+  assert.deepEqual(nativeDialogHostPolicy("Save"), {
+    required: true,
+    minimum: 1,
+    maximum: 1,
+  });
+  assert.deepEqual(nativeDialogHostPolicy("Open"), {
+    required: false,
+    minimum: 0,
+    maximum: 1,
+  });
+  assert.throws(() => nativeDialogHostPolicy("Cancel"), /unsupported action/);
+});
 
 test("builds the exact loopback NSIS updater manifest", () => {
   const manifest = buildWindowsUpdaterManifest({
@@ -1365,6 +1388,50 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
     },
   };
   assert.equal(validateWindowsAcceptanceReport(report), report);
+  const openWithFilenameHost = structuredClone(report);
+  Object.assign(openWithFilenameHost.portableRestore, {
+    hostCount: 1,
+    hostAutomationId: FILE_NAME_HOST_AUTOMATION_ID,
+    hostEnabled: true,
+    hostOffscreen: false,
+  });
+  Object.assign(openWithFilenameHost.portableRestore.discoveryCommand.result, {
+    hostCount: 1,
+    hostAutomationId: FILE_NAME_HOST_AUTOMATION_ID,
+    hostEnabled: true,
+    hostOffscreen: false,
+  });
+  assert.equal(
+    validateWindowsAcceptanceReport(openWithFilenameHost),
+    openWithFilenameHost,
+  );
+  const saveWithoutFilenameHost = structuredClone(report);
+  Object.assign(saveWithoutFilenameHost.portableBackup, {
+    hostCount: 0,
+    hostAutomationId: null,
+    hostEnabled: null,
+    hostOffscreen: null,
+  });
+  Object.assign(
+    saveWithoutFilenameHost.portableBackup.discoveryCommand.result,
+    {
+      hostCount: 0,
+      hostAutomationId: null,
+      hostEnabled: null,
+      hostOffscreen: null,
+    },
+  );
+  assert.throws(
+    () => validateWindowsAcceptanceReport(saveWithoutFilenameHost),
+    /portable backup UI evidence is incomplete/,
+  );
+  const ambiguousOpenFilenameHosts = structuredClone(report);
+  ambiguousOpenFilenameHosts.portableRestore.hostCount = 2;
+  ambiguousOpenFilenameHosts.portableRestore.discoveryCommand.result.hostCount = 2;
+  assert.throws(
+    () => validateWindowsAcceptanceReport(ambiguousOpenFilenameHosts),
+    /portable restore and reinstall evidence is incomplete/,
+  );
   assert.equal(
     validateWindowsPickerPreflightReport(pickerPreflight, {
       candidateSha: CANDIDATE_SHA,

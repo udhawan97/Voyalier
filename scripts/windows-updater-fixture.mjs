@@ -4,6 +4,7 @@ import path from "node:path";
 import {
   assertNoAbsoluteWindowsPaths,
   FILE_NAME_HOST_AUTOMATION_ID,
+  nativeDialogHostPolicy,
   WINDOWS_ACCESSIBLE_ACTION,
 } from "./windows-native-file-dialog.mjs";
 
@@ -251,7 +252,33 @@ export async function mirrorWebViewDevToolsPort({
 }
 
 function hasNativeDialogEvidence(dialog) {
+  let hostPolicy;
+  try {
+    hostPolicy = nativeDialogHostPolicy(dialog?.action);
+  } catch {
+    return false;
+  }
   const commandResult = dialog?.actionCommand?.result;
+  const hostEvidenceValid =
+    dialog?.filenameHostRequired === hostPolicy.required &&
+    Number.isInteger(dialog?.hostCount) &&
+    dialog.hostCount >= hostPolicy.minimum &&
+    dialog.hostCount <= hostPolicy.maximum &&
+    (dialog.hostCount === 0
+      ? dialog?.hostAutomationId == null &&
+        dialog?.hostEnabled == null &&
+        dialog?.hostOffscreen == null
+      : dialog?.hostAutomationId === FILE_NAME_HOST_AUTOMATION_ID &&
+        dialog?.hostEnabled === true &&
+        dialog?.hostOffscreen === false);
+  const discoveryHostEvidenceValid =
+    dialog?.discoveryCommand?.result?.filenameHostRequired ===
+      hostPolicy.required &&
+    dialog?.discoveryCommand?.result?.hostCount === dialog?.hostCount &&
+    dialog?.discoveryCommand?.result?.hostAutomationId ===
+      dialog?.hostAutomationId &&
+    dialog?.discoveryCommand?.result?.hostEnabled === dialog?.hostEnabled &&
+    dialog?.discoveryCommand?.result?.hostOffscreen === dialog?.hostOffscreen;
   const patternMethodValid =
     (dialog?.actionMethod === "InvokePattern" &&
       dialog?.invokePatternAvailable === true &&
@@ -325,10 +352,7 @@ function hasNativeDialogEvidence(dialog) {
     dialog?.dialogOffscreen === false &&
     Number.isInteger(dialog?.dialogHwnd) &&
     dialog.dialogHwnd > 0 &&
-    dialog?.hostCount === 1 &&
-    dialog?.hostAutomationId === FILE_NAME_HOST_AUTOMATION_ID &&
-    dialog?.hostEnabled === true &&
-    dialog?.hostOffscreen === false &&
+    hostEvidenceValid &&
     dialog?.discoveryCommand?.exitCode === 0 &&
     dialog?.discoveryCommand?.jsonParsed === true &&
     dialog?.discoveryCommand?.stderr === "" &&
@@ -338,13 +362,7 @@ function hasNativeDialogEvidence(dialog) {
     dialog?.discoveryCommand?.result?.dialogOffscreen ===
       dialog?.dialogOffscreen &&
     dialog?.discoveryCommand?.result?.hwnd === dialog?.dialogHwnd &&
-    dialog?.discoveryCommand?.result?.hostCount === dialog?.hostCount &&
-    dialog?.discoveryCommand?.result?.hostAutomationId ===
-      FILE_NAME_HOST_AUTOMATION_ID &&
-    dialog?.discoveryCommand?.result?.hostAutomationId ===
-      dialog?.hostAutomationId &&
-    dialog?.discoveryCommand?.result?.hostEnabled === dialog?.hostEnabled &&
-    dialog?.discoveryCommand?.result?.hostOffscreen === dialog?.hostOffscreen &&
+    discoveryHostEvidenceValid &&
     dialog?.inputInjectionUsed === false &&
     dialog?.dialogCountBefore === 1 &&
     dialog?.dialogCountAfter === 0 &&
