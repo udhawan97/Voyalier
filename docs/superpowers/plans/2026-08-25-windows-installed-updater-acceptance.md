@@ -127,3 +127,37 @@ kept the release blocked. This extension closes their three material findings:
 The portable backup file and passphrase remain runner-private. The report may contain only the
 backup basename, byte count, and SHA-256; the job must delete the disposable root and must never
 upload traveler data, SQLite files, recovery material, or updater keys.
+
+## Pinned native picker bridge
+
+Exact-SHA run `32938333882` found exactly one standard Windows dialog and one semantic
+`FileNameControlHost`, but the managed UI Automation surface exposed no writable `ValuePattern`,
+managed `LegacyIAccessiblePattern`, or eligible edit/combo-box descendant. The release remains
+blocked. Replace that exhausted setter with Microsoft's released Windows App CLI `v0.6.0`, whose
+exact tagged implementation falls back from Value to Range to COM-level LegacyIAccessible value
+setting without keyboard, clipboard, focus, or pointer input.
+
+- Download only `winappcli-x64.zip` from the `v0.6.0` release at commit
+  `b7494ed3b324d6e378cb17b477f2b1a9729765d0`. Require archive SHA-256
+  `f6dc42e3b4e4709c8f617003008e2cfdd9a51735e04e7170d60edda258db78a8` before extraction or
+  execution, locate exactly one executable under a fresh runner temporary directory, and invoke
+  that absolute path. Do not use `latest`, Winget, a setup action, global installation, or PATH
+  fallback.
+- Disable the tool's update check and telemetry, and put its cache inside the same disposable
+  temporary root. Record expected/reported version, tag commit, asset URL/name, expected/actual
+  hashes, hash-before-extraction status, executable cardinality/containment, and the absence of
+  PATH/latest/input-injection fallbacks.
+- Before the expensive Rust builds, open a standard Windows SaveFileDialog with a unique exact
+  title. Require exactly one enabled, onscreen dialog with a nonzero HWND and exactly one
+  `FileNameControlHost`; scope structured `set-value` and `get-value --json` calls to that HWND and
+  require case-sensitive exact path readback. Retain an exact-one Name + Button + enabled/onscreen
+  + `InvokePattern` gate for Save, require dismissal, then verify the exact TEMP-contained marker's
+  nonce content and hash. Any ambiguity, malformed output, mismatch, timeout, or out-of-TEMP path
+  fails closed. This preflight proves only picker-tool compatibility, not Voyalier behavior.
+- Repeat the same title, HWND, semantic-host, structured set/get, exact-readback, exact-action, and
+  dismissal checks for both installed Voyalier Save and Open dialogs. Tie those observations to the
+  existing backup notice, file stat/hash, restore staging, reinstall, preservation, and sentinel
+  assertions. The full product journey remains the release gate.
+- Preserve sanitized CLI stdout/stderr and failure screenshots. Never claim which internal setter
+  succeeded unless the released CLI explicitly reports it, and never fall back to SendKeys,
+  clipboard, focus, geometry, numeric automation IDs, or broader selectors.
