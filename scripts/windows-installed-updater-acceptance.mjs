@@ -1479,6 +1479,7 @@ async function main() {
       ),
     );
 
+    report.stage = "portable-restore";
     await clickAriaLabel(driver, "Configuración");
     await clickText(driver, "Restaurar desde copia", {
       root: ".voy-backup",

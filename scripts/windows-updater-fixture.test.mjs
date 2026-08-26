@@ -407,6 +407,7 @@ test("keeps product setup, updater backup, and portable restore on the installed
   assert.match(source, /section\[aria-labelledby=\\?"manual-plan-title\\?"\]/);
   assert.match(source, /readCheckboxState/);
   assert.match(source, /driveNativeFileDialog/);
+  assert.match(source, /report\.stage = "portable-restore"/);
   assert.match(source, /VOYALIER_WINDOWS_ACCEPTANCE_BACKUP_PATH/);
   assert.match(source, /IFileDialog\.SetFolder\+SetFileName via rfd 0\.16\.0/);
   assert.match(source, /`Copia guardada en \$\{portableBackupPath\}`/);
@@ -1388,14 +1389,13 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
     },
   };
   assert.equal(validateWindowsAcceptanceReport(report), report);
-  const openWithFilenameHost = structuredClone(report);
-  Object.assign(openWithFilenameHost.portableRestore, {
-    hostCount: 1,
-    hostAutomationId: FILE_NAME_HOST_AUTOMATION_ID,
-    hostEnabled: true,
-    hostOffscreen: false,
-  });
-  Object.assign(openWithFilenameHost.portableRestore.discoveryCommand.result, {
+  const withDialogEvidence = (field, evidence) => {
+    const candidate = structuredClone(report);
+    Object.assign(candidate[field], evidence);
+    Object.assign(candidate[field].discoveryCommand.result, evidence);
+    return candidate;
+  };
+  const openWithFilenameHost = withDialogEvidence("portableRestore", {
     hostCount: 1,
     hostAutomationId: FILE_NAME_HOST_AUTOMATION_ID,
     hostEnabled: true,
@@ -1405,33 +1405,62 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
     validateWindowsAcceptanceReport(openWithFilenameHost),
     openWithFilenameHost,
   );
-  const saveWithoutFilenameHost = structuredClone(report);
-  Object.assign(saveWithoutFilenameHost.portableBackup, {
+  const rejectedDialogEvidence = [
+    withDialogEvidence("portableRestore", {
+      hostCount: 1,
+      hostAutomationId: "WrongFileNameHost",
+      hostEnabled: true,
+      hostOffscreen: false,
+    }),
+    withDialogEvidence("portableRestore", {
+      hostCount: 1,
+      hostAutomationId: FILE_NAME_HOST_AUTOMATION_ID,
+      hostEnabled: false,
+      hostOffscreen: false,
+    }),
+    withDialogEvidence("portableRestore", {
+      hostCount: 1,
+      hostAutomationId: FILE_NAME_HOST_AUTOMATION_ID,
+      hostEnabled: true,
+      hostOffscreen: true,
+    }),
+    withDialogEvidence("portableRestore", {
+      filenameHostRequired: true,
+    }),
+    withDialogEvidence("portableRestore", {
+      hostCount: 2,
+    }),
+  ];
+  for (const rejected of rejectedDialogEvidence) {
+    assert.throws(
+      () => validateWindowsAcceptanceReport(rejected),
+      /portable restore and reinstall evidence is incomplete/,
+    );
+  }
+  const saveWithoutFilenameHost = withDialogEvidence("portableBackup", {
     hostCount: 0,
     hostAutomationId: null,
     hostEnabled: null,
     hostOffscreen: null,
   });
-  Object.assign(
-    saveWithoutFilenameHost.portableBackup.discoveryCommand.result,
-    {
-      hostCount: 0,
-      hostAutomationId: null,
-      hostEnabled: null,
-      hostOffscreen: null,
-    },
-  );
-  assert.throws(
-    () => validateWindowsAcceptanceReport(saveWithoutFilenameHost),
-    /portable backup UI evidence is incomplete/,
-  );
-  const ambiguousOpenFilenameHosts = structuredClone(report);
-  ambiguousOpenFilenameHosts.portableRestore.hostCount = 2;
-  ambiguousOpenFilenameHosts.portableRestore.discoveryCommand.result.hostCount = 2;
-  assert.throws(
-    () => validateWindowsAcceptanceReport(ambiguousOpenFilenameHosts),
-    /portable restore and reinstall evidence is incomplete/,
-  );
+  const rejectedSaveDialogEvidence = [
+    saveWithoutFilenameHost,
+    withDialogEvidence("portableBackup", {
+      hostEnabled: false,
+    }),
+    withDialogEvidence("portableBackup", {
+      hostOffscreen: true,
+    }),
+    withDialogEvidence("portableBackup", {
+      filenameHostRequired: false,
+    }),
+  ];
+  for (const rejected of rejectedSaveDialogEvidence) {
+    assert.throws(
+      () => validateWindowsAcceptanceReport(rejected),
+      /portable backup UI evidence is incomplete/,
+    );
+  }
   assert.equal(
     validateWindowsPickerPreflightReport(pickerPreflight, {
       candidateSha: CANDIDATE_SHA,

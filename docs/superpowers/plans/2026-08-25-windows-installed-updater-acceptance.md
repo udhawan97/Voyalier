@@ -422,8 +422,12 @@ Correction:
 
 - Add focused regressions that make native-dialog readiness action-specific:
   Save requires exactly one enabled, onscreen `FileNameControlHost`; Open accepts
-  zero or one, and validates the same identity/state if one is exposed. Run the
-  focused test red before the fix.
+  zero or one, and validates the same identity/state if one is exposed. Cover
+  wrong, disabled, offscreen, ambiguous, and action-policy-mismatch evidence for
+  both actions. Run the focused test red before the fix.
+- Change the aggregate diagnostic stage to `portable-restore` before opening
+  the restore picker so a later failure cannot retain the completed export
+  stage label.
 - Keep the exact-title, single-dialog, enabled, onscreen, nonzero-HWND gate for
   both actions. Preserve exact-name action uniqueness, accessibility-only
   activation, and the one-to-zero dialog transition.
