@@ -399,3 +399,37 @@ Correction:
   values, generated content, or canvases.
 - Rerun the focused fixture, full local gate, Graphify refresh, exact two-round
   council, and hosted exact-SHA Windows journey before merge or release.
+
+## Exact restore-dialog result and action-specific readiness correction
+
+Exact-SHA run `33009739019` at
+`a96ff7ab348f740a4daf480997b0e2a136b26750` passed both desktop bundle builds,
+the standard native-dialog preflight, the installed 0.10.7 journey, the
+production updater replacement, the 0.11.0 reopen, and portable export. The
+export dialog exposed one semantic `FileNameControlHost`, the exact native Save
+action completed, the product returned and wrote the guarded path, the backup
+hash was captured, and screenshot 04 removed exactly the one expected duplicate
+status path with no absolute path left in rendered body text.
+
+Restore then emitted `restore:command-entered`, `restore:preset-valid`, and
+`restore:before-dialog`. Windows exposed exactly one native
+`Choose a Voyalier backup` dialog but no `FileNameControlHost`; the shared
+discovery helper waited for that Save-dialog-specific surface until timeout and
+never attempted the exact Open action. The sanitized failure artifact passed
+its privacy gate.
+
+Correction:
+
+- Add focused regressions that make native-dialog readiness action-specific:
+  Save requires exactly one enabled, onscreen `FileNameControlHost`; Open accepts
+  zero or one, and validates the same identity/state if one is exposed. Run the
+  focused test red before the fix.
+- Keep the exact-title, single-dialog, enabled, onscreen, nonzero-HWND gate for
+  both actions. Preserve exact-name action uniqueness, accessibility-only
+  activation, and the one-to-zero dialog transition.
+- Do not treat optional Open-dialog host evidence as path proof. Restore still
+  passes only if the product returns the configured path inside the canonical
+  temporary root, its guarded target equals the exported backup, and its
+  pre-read SHA-256 equals the export hash before staging.
+- Rerun the focused fixture, full local gate, Graphify refresh, two-round
+  council, and hosted exact-SHA Windows journey before merge or release.
