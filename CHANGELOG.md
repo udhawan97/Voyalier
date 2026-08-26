@@ -37,6 +37,11 @@ background action, booking claim, or new authority surface.
 
 ### Fixed
 
+- **Backup file pickers no longer deadlock the Windows desktop app.** Save and
+  Open now yield Tauri's main thread before the native dialog blocks for a
+  choice, so the picker can actually open and return. This changes only command
+  scheduling: backup encryption, the chosen-path guard, cancellation behavior,
+  and restore validation remain the same.
 - **The rest of the repeated controls now say which row they act on.** 0.10.8
   gave the trip card's Archive and Delete the trip's name and stopped there,
   which left the same "Remove, Remove, Remove" everywhere else a list repeats a

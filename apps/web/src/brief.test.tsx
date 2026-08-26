@@ -20,7 +20,9 @@ describe("shareable brief", () => {
       configurable: true,
       value: { writeText },
     });
-    renderApp(createMockGateway());
+    const gateway = createMockGateway();
+    const getTripBrief = vi.spyOn(gateway, "getTripBrief");
+    renderApp(gateway);
 
     fireEvent.click(
       await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
@@ -34,6 +36,7 @@ describe("shareable brief", () => {
     const dialog = await screen.findByRole("dialog", {
       name: "Shareable brief",
     });
+    expect(getTripBrief).toHaveBeenCalledTimes(1);
 
     // Itinerary detail is present in the brief.
     expect(await within(dialog).findByText("Flight FP18")).toBeInTheDocument();
@@ -59,6 +62,7 @@ describe("shareable brief", () => {
     expect(copied).toContain("NX41");
     expect(copied).not.toContain("VOY182");
     expect(copied).not.toContain("RAIL55");
+    expect(getTripBrief).toHaveBeenCalledTimes(1);
   });
 
   it("reports an unavailable clipboard without claiming success", async () => {
