@@ -161,3 +161,11 @@ setting without keyboard, clipboard, focus, or pointer input.
 - Preserve sanitized CLI stdout/stderr and failure screenshots. Never claim which internal setter
   succeeded unless the released CLI explicitly reports it, and never fall back to SendKeys,
   clipboard, focus, geometry, numeric automation IDs, or broader selectors.
+- Because the released CLI emits a first-run banner on a cold isolated cache, create and verify its
+  documented empty `.first-run-complete` marker only after the archive hash passes and before the
+  first execution. Record the marker's zero length and empty-file hash so version output remains an
+  exact, machine-checkable `0.6.0` without weakening cache isolation.
+- Keep raw selected paths only in runner memory for the exact comparisons. Uploaded JSON, Markdown,
+  logs, and UI screenshots must use root tokens; omit raw `get-value` and dialog-host stdout while
+  retaining hashes and structured identity/HWND results. Recursively reject any remaining absolute
+  Windows or UNC path before the upload step, and do not upload at all if sanitization fails.
