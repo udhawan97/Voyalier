@@ -274,3 +274,24 @@ This correction supersedes the external setter and one-use diagnostic portions o
   removal, traveler-data/profile preservation, and no non-loopback traffic. The defensible claim is
   exact candidate backup/restore through real native dialogs under a dormant acceptance-only preset,
   not manual filename entry or byte identity with a future published artifact.
+
+## Exact-commit council revisions
+
+The pre-dispatch council reviewed `ea0762de1a08c19c217564379b63cd9936389ccf`. Coverage accepted;
+the evidence and risk seats required four fail-closed corrections before Windows dispatch:
+
+- Keep the dialog helper explicitly action-only. It may prove the expected target is inside the
+  temporary root and that one exact native action dismissed one exact dialog, but it must not label
+  that as an observed or selected path. Use `expectedPathWithinTemp` and
+  `nativeDialogActionConfirmed`. Establish Save path equality only from the exact product notice plus
+  the newly created target's stat/hash, and Restore path equality only from successful staging and
+  recovery combined with the candidate's mandatory post-selection guard before read.
+- Make every PowerShell discovery/action invocation use terminating errors and require empty stderr
+  in both runtime checks and evidence validators. Negative fixtures must reject nonempty discovery or
+  action stderr.
+- Read the automation environment once into one immutable startup snapshot. Derive both the WebView2
+  configuration and the native picker preset from that same parsed snapshot so their gates cannot
+  disagree.
+- Preserve the export target-absence invariant atomically. After the returned-path guard, open the
+  target with `create_new(true)` and write through that handle; never use a truncating convenience
+  write after a separate absence check.
