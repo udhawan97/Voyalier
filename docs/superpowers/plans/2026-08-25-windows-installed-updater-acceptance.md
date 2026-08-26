@@ -192,8 +192,13 @@ setting without keyboard, clipboard, focus, or pointer input.
   unless the dialog returned `OK`, `Path.GetFullPath` equality under `OrdinalIgnoreCase` is true,
   and the selected path remains inside the fresh preflight root. Record whether a write was
   attempted and whether a marker exists. Mark the report `diagnosticOnly: true`, retain
-  `productEvidence: false`, fail the step after persisting sanitized evidence, and do not continue
-  into Rust builds or the installed-product journey. This one run cannot satisfy the picker or
+  `productEvidence: false`, fail the step after persisting sanitized evidence, and surface only a
+  sanitized one-line error without an unhandled stack. Dispatch through an explicit
+  `windows_picker_diagnostic` workflow input that excludes the independent desktop build matrix;
+  do not continue into Rust builds or the installed-product journey. Accept a selected path outside
+  the fresh root only as a no-write, null-relative-token diagnostic, and accept an uncanonicalizable
+  value only with null canonical hashes, no containment, no relative token, and no write. This one
+  run cannot satisfy the picker or
   release validator: canonical equality identifies an over-strict oracle; placeholder equality
   identifies an uncommitted setter/readback; any third value requires reassessment rather than
   another speculative activation fallback.
