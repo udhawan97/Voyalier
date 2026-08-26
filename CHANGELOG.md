@@ -6,7 +6,7 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
-## [0.11.0] - 2026-08-25 — The shortlist stays yours
+## [0.11.0] - 2026-08-26 — The shortlist stays yours
 
 Voyalier now carries three more traveler-owned decisions across the places where
 they are useful: saved places lead the map, accepted packing items produce an
