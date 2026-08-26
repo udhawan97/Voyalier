@@ -412,20 +412,27 @@ function invokeExactAction(title, hwnd, action) {
       `if ($observedHwnd -ne $expectedHwnd) { throw "native dialog HWND changed" }; ` +
       `$candidates = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, $actionCondition); ` +
       `$exactActionButtonCount = 0; $selectedCandidate = $null; ` +
+      `$candidateObservations = [System.Collections.Generic.List[string]]::new(); ` +
       `for ($index = 0; $index -lt $candidates.Count; $index++) { ` +
       `$candidate = $candidates.Item($index); ` +
-      `if ($candidate.GetCurrentPropertyValue(` +
-      `[System.Windows.Automation.AutomationElement]::ControlTypeProperty) ` +
-      `-ne [System.Windows.Automation.ControlType]::Button) { continue }; ` +
-      `if ($candidate.GetCurrentPropertyValue(` +
-      `[System.Windows.Automation.AutomationElement]::IsEnabledProperty) -ne $true) { continue }; ` +
-      `if ($candidate.GetCurrentPropertyValue(` +
-      `[System.Windows.Automation.AutomationElement]::IsOffscreenProperty) -ne $false) { continue }; ` +
+      `$candidateControlType = $candidate.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::ControlTypeProperty); ` +
+      `$candidateEnabled = $candidate.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::IsEnabledProperty); ` +
+      `$candidateOffscreen = $candidate.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::IsOffscreenProperty); ` +
+      `$candidateAutomationId = [string]$candidate.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::AutomationIdProperty); ` +
+      `$candidateObservations.Add(` +
+      `"index=$index,type=$($candidateControlType.ProgrammaticName),enabled=$candidateEnabled,offscreen=$candidateOffscreen,automationId=$candidateAutomationId"); ` +
+      `if ($candidateControlType -ne [System.Windows.Automation.ControlType]::Button) { continue }; ` +
+      `if ($candidateEnabled -ne $true) { continue }; ` +
+      `if ($candidateOffscreen -ne $false) { continue }; ` +
       `$exactActionButtonCount += 1; ` +
       `if ($exactActionButtonCount -eq 1) { $selectedCandidate = $candidate } ` +
       `}; ` +
       `if ($exactActionButtonCount -ne 1) { ` +
-      `throw "expected one exact-name enabled onscreen Button, raw $($candidates.Count), eligible $exactActionButtonCount" ` +
+      `throw "expected one exact-name enabled onscreen Button, raw $($candidates.Count), eligible $exactActionButtonCount, observations $($candidateObservations -join '|')" ` +
       `}; ` +
       `$selectedPattern = $null; $actionPattern = $null; ` +
       `try { $selectedPattern = $selectedCandidate.GetCurrentPattern(` +

@@ -411,11 +411,18 @@ test("keeps product setup, updater backup, and portable restore on the installed
   const invokePatternProbe = actionBridge.indexOf(
     "[System.Windows.Automation.InvokePattern]::Pattern",
   );
+  const candidateObservation = actionBridge.indexOf(
+    "$candidateObservations.Add(",
+  );
   assert.ok(
     uniqueStateGate !== -1 &&
       invokePatternProbe !== -1 &&
       uniqueStateGate < invokePatternProbe,
     "action uniqueness must be proven before pattern selection",
+  );
+  assert.ok(
+    candidateObservation !== -1 && candidateObservation < uniqueStateGate,
+    "failed action uniqueness must preserve safe candidate diagnostics",
   );
 
   const preflightSource = await readFile(
