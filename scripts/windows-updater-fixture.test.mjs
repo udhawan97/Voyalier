@@ -177,6 +177,12 @@ test("keeps product setup, updater backup, and portable restore on the installed
   assert.match(source, /section\[aria-labelledby=\\?"saved-places-title\\?"\]/);
   assert.match(source, /section\[aria-labelledby=\\?"manual-plan-title\\?"\]/);
   assert.match(source, /readCheckboxState/);
+  assert.match(source, /UIAutomationClient/);
+  assert.match(source, /ValuePattern/);
+  assert.match(source, /InvokePattern/);
+  assert.match(source, /filename readback did not match/);
+  assert.match(source, /portableBackupNotice\.endsWith\(portableBackupPath\)/);
+  assert.doesNotMatch(source, /WScript\.Shell|Set-Clipboard|SendKeys/);
   assert.doesNotMatch(source, /root: ["']#section-plan["']/);
 });
 
@@ -273,12 +279,15 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
     },
     portableBackup: {
       exportedViaUi: true,
+      nativeDialogPathConfirmed: true,
+      selectedPathWithinTemp: true,
       fileName: "voyalier-portable-acceptance.vbk",
       bytes: 4096,
       sha256: "b".repeat(64),
     },
     portableRestore: {
       stagedViaUi: true,
+      nativeDialogPathConfirmed: true,
       appliedAfterReinstall: true,
       postBackupSentinelAbsent: true,
     },
@@ -409,6 +418,39 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
         },
       }),
     /exactly one backup/,
+  );
+  assert.throws(
+    () =>
+      validateWindowsAcceptanceReport({
+        ...report,
+        portableBackup: {
+          ...report.portableBackup,
+          nativeDialogPathConfirmed: false,
+        },
+      }),
+    /portable backup UI evidence is incomplete/,
+  );
+  assert.throws(
+    () =>
+      validateWindowsAcceptanceReport({
+        ...report,
+        portableBackup: {
+          ...report.portableBackup,
+          selectedPathWithinTemp: false,
+        },
+      }),
+    /portable backup UI evidence is incomplete/,
+  );
+  assert.throws(
+    () =>
+      validateWindowsAcceptanceReport({
+        ...report,
+        portableRestore: {
+          ...report.portableRestore,
+          nativeDialogPathConfirmed: false,
+        },
+      }),
+    /restore and reinstall evidence is incomplete/,
   );
   assert.throws(
     () =>

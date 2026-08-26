@@ -329,6 +329,8 @@ export function validateWindowsAcceptanceReport(report) {
   }
   if (
     report.portableBackup?.exportedViaUi !== true ||
+    report.portableBackup?.nativeDialogPathConfirmed !== true ||
+    report.portableBackup?.selectedPathWithinTemp !== true ||
     typeof report.portableBackup?.fileName !== "string" ||
     !report.portableBackup.fileName.endsWith(".vbk") ||
     !(report.portableBackup?.bytes > 0) ||
@@ -338,6 +340,7 @@ export function validateWindowsAcceptanceReport(report) {
   }
   if (
     report.portableRestore?.stagedViaUi !== true ||
+    report.portableRestore?.nativeDialogPathConfirmed !== true ||
     report.portableRestore?.appliedAfterReinstall !== true ||
     report.portableRestore?.postBackupSentinelAbsent !== true
   ) {

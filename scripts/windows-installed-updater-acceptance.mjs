@@ -591,27 +591,69 @@ async function backupCount() {
     .length;
 }
 
-function handleNativeFileDialog(title, filePath) {
+function handleNativeFileDialog(title, filePath, action) {
+  const relativePath = path.win32.relative(TEMP_ROOT, filePath);
+  const selectedPathWithinTemp =
+    relativePath !== "" &&
+    relativePath !== ".." &&
+    !relativePath.startsWith(`..${path.win32.sep}`) &&
+    !path.win32.isAbsolute(relativePath);
   assert.ok(
-    path.win32.isAbsolute(filePath) &&
-      !path.relative(TEMP_ROOT, filePath).startsWith(".."),
+    path.win32.isAbsolute(filePath) && selectedPathWithinTemp,
     "native dialog path must stay inside the disposable acceptance root",
   );
+  assert.ok(
+    ["Save", "Open"].includes(action),
+    "native dialog action must be Save or Open",
+  );
   powershell(
-    `$title = ${psQuote(title)}; $value = ${psQuote(filePath)}; ` +
-      `Set-Clipboard -Value $value; ` +
-      `$shell = New-Object -ComObject WScript.Shell; ` +
+    `Add-Type -AssemblyName UIAutomationClient; ` +
+      `Add-Type -AssemblyName UIAutomationTypes; ` +
+      `$title = ${psQuote(title)}; $value = ${psQuote(filePath)}; ` +
+      `$action = ${psQuote(action)}; ` +
+      `$root = [System.Windows.Automation.AutomationElement]::RootElement; ` +
+      `$titleCondition = [System.Windows.Automation.PropertyCondition]::new(` +
+      `[System.Windows.Automation.AutomationElement]::NameProperty, $title); ` +
+      `$fileNameCondition = [System.Windows.Automation.PropertyCondition]::new(` +
+      `[System.Windows.Automation.AutomationElement]::AutomationIdProperty, '1001'); ` +
+      `$actionCondition = [System.Windows.Automation.PropertyCondition]::new(` +
+      `[System.Windows.Automation.AutomationElement]::NameProperty, $action); ` +
       `$deadline = (Get-Date).AddSeconds(90); ` +
       `do { ` +
-      `if ($shell.AppActivate($title)) { ` +
-      `Start-Sleep -Milliseconds 300; $shell.SendKeys('%n'); ` +
-      `Start-Sleep -Milliseconds 200; $shell.SendKeys('^a'); ` +
-      `Start-Sleep -Milliseconds 100; $shell.SendKeys('^v'); ` +
-      `Start-Sleep -Milliseconds 200; $shell.SendKeys('{ENTER}'); exit 0 ` +
-      `}; Start-Sleep -Milliseconds 250 ` +
+      `$dialogs = $root.FindAll(` +
+      `[System.Windows.Automation.TreeScope]::Children, $titleCondition); ` +
+      `if ($dialogs.Count -gt 1) { throw 'multiple matching native dialogs' }; ` +
+      `if ($dialogs.Count -eq 1) { ` +
+      `$dialog = $dialogs.Item(0); ` +
+      `$fileNames = $dialog.FindAll(` +
+      `[System.Windows.Automation.TreeScope]::Descendants, $fileNameCondition); ` +
+      `$actions = $dialog.FindAll(` +
+      `[System.Windows.Automation.TreeScope]::Descendants, $actionCondition); ` +
+      `if ($fileNames.Count -gt 1) { throw 'multiple filename controls' }; ` +
+      `if ($actions.Count -gt 1) { throw 'multiple matching dialog actions' }; ` +
+      `if ($fileNames.Count -eq 1 -and $actions.Count -eq 1) { ` +
+      `$fileName = $fileNames.Item(0); $actionButton = $actions.Item(0); ` +
+      `if ($fileName.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::ControlTypeProperty) ` +
+      `-ne [System.Windows.Automation.ControlType]::Edit) { ` +
+      `throw 'filename control is not an edit control' }; ` +
+      `if ($actionButton.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::ControlTypeProperty) ` +
+      `-ne [System.Windows.Automation.ControlType]::Button) { ` +
+      `throw 'dialog action is not a button' }; ` +
+      `$valuePattern = $fileName.GetCurrentPattern(` +
+      `[System.Windows.Automation.ValuePattern]::Pattern); ` +
+      `$valuePattern.SetValue($value); ` +
+      `if ($valuePattern.Current.Value -cne $value) { ` +
+      `throw 'native dialog filename readback did not match' }; ` +
+      `$invokePattern = $actionButton.GetCurrentPattern(` +
+      `[System.Windows.Automation.InvokePattern]::Pattern); ` +
+      `$invokePattern.Invoke(); exit 0 ` +
+      `} }; Start-Sleep -Milliseconds 250 ` +
       `} while ((Get-Date) -lt $deadline); ` +
       `throw 'native Voyalier file dialog did not appear'`,
   );
+  return { nativeDialogPathConfirmed: true, selectedPathWithinTemp };
 }
 
 async function invoke(driver, command, input = null) {
@@ -1276,8 +1318,16 @@ async function main() {
     await clickText(driver, "Guardar copia", {
       root: ".voy-backup__form",
     });
-    handleNativeFileDialog("Save Voyalier backup", portableBackupPath);
-    await waitForText(driver, "Copia guardada en", { root: ".voy-backup" });
+    const portableBackupDialog = handleNativeFileDialog(
+      "Save Voyalier backup",
+      portableBackupPath,
+      "Save",
+    );
+    const portableBackupNotice = await readText(driver, ".voy-backup__notice");
+    assert.ok(
+      portableBackupNotice.endsWith(portableBackupPath),
+      `portable backup picker returned an unexpected path: ${portableBackupNotice}`,
+    );
     const portableBackupStat = await stat(portableBackupPath);
     assert.ok(portableBackupStat.size > 0);
     const portableBackupSha256 = await sha256(portableBackupPath);
@@ -1320,7 +1370,11 @@ async function main() {
     await clickText(driver, "Restaurar esta copia", {
       root: ".voy-backup__form",
     });
-    handleNativeFileDialog("Choose a Voyalier backup", portableBackupPath);
+    const portableRestoreDialog = handleNativeFileDialog(
+      "Choose a Voyalier backup",
+      portableBackupPath,
+      "Open",
+    );
     await waitForText(driver, "Listo para restaurar la copia", {
       root: ".voy-backup",
     });
@@ -1433,12 +1487,17 @@ async function main() {
       },
       portableBackup: {
         exportedViaUi: true,
+        nativeDialogPathConfirmed:
+          portableBackupDialog.nativeDialogPathConfirmed,
+        selectedPathWithinTemp: portableBackupDialog.selectedPathWithinTemp,
         fileName: PORTABLE_BACKUP_NAME,
         bytes: portableBackupStat.size,
         sha256: portableBackupSha256,
       },
       portableRestore: {
         stagedViaUi: true,
+        nativeDialogPathConfirmed:
+          portableRestoreDialog.nativeDialogPathConfirmed,
         appliedAfterReinstall: true,
         postBackupSentinelAbsent: true,
       },
