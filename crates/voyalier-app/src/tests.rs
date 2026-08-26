@@ -13,6 +13,23 @@ use voyalier_core::{
     RecheckSource, ResourceKind,
 };
 
+#[test]
+fn offline_fetcher_allows_only_a_declared_consent_route() {
+    let fetcher = FakeFetcher::offline().route("allowed.json", "declared body");
+    assert_eq!(
+        fetcher
+            .fetch_text("https://example.test/allowed.json")
+            .expect("declared route"),
+        "declared body"
+    );
+    assert!(fetcher.called("allowed.json"));
+
+    let undeclared = std::panic::catch_unwind(|| {
+        let _ = fetcher.fetch_text("https://example.test/undeclared.json");
+    });
+    assert!(undeclared.is_err(), "undeclared requests must remain loud");
+}
+
 /// The defect this repairs: the destination-facts snapshot resolved one UTC
 /// offset on the trip's *start date* and fed it to every astro day, so a trip
 /// spanning a DST transition rendered its later days an hour wrong.

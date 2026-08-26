@@ -19,6 +19,11 @@ as unavailable while preserving the provenance snapshot. **Add to plan**
 prefills the same traveler-authored activity form with the saved place and its
 coordinates; review the form and submit it before anything enters the plan.
 
+Opening the consent-gated map also plots this saved shortlist before unsaved
+recommendations. Vermilion and indigo markers have matching text labels, and an
+expandable place register repeats every point without relying on color or the
+canvas. A saved/recommended duplicate is shown once as saved.
+
 ## Build the packing checklist
 
 Packing suggestions are derived from the trip and stored weather evidence. They
@@ -28,6 +33,13 @@ weather does not rewrite traveler-owned checklist state. Accepted and custom
 items can also be renamed; unchecked items stay above completed ones. The custom
 **Add** action stays disabled until you enter an item, so an empty click cannot
 look like a lost change.
+
+Once the checklist has accepted items, a progress line counts checked items out
+of that total. Suggestions do not enter the denominator until you choose
+**Add**. **Hide packed** removes completed rows from the current view only; it
+does not update or delete them, and **Show packed** always restores them.
+
+![A fictional Voyalier packing checklist with one of three accepted items packed and a reversible Hide packed control.](/Voyalier/assets/screenshots/voyalier-packing-progress.jpg)
 
 ## Add an activity, rail leg, or transfer
 

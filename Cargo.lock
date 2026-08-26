@@ -4615,7 +4615,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
@@ -5226,9 +5226,9 @@ checksum = "b6c140620e7ffbb22c2dee59cafe6084a59b5ffc27a8859a5f0d494b5d52b6be"
 
 [[package]]
 name = "uuid"
-version = "1.24.0"
+version = "1.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf3923a6f5c4c6382e0b653c4117f48d631ea17f38ed86e2a828e6f7412f5239"
+checksum = "2cefc03fd367c0c6d4305de1b312cf00248c4114f4a0418ce6a6af769e3b0bd9"
 dependencies = [
  "getrandom 0.4.3",
  "js-sys",
@@ -5262,7 +5262,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "voyalier-app"
-version = "0.10.8"
+version = "0.11.0"
 dependencies = [
  "base64 0.23.1",
  "directories",
@@ -5279,7 +5279,7 @@ dependencies = [
 
 [[package]]
 name = "voyalier-core"
-version = "0.10.8"
+version = "0.11.0"
 dependencies = [
  "argon2",
  "base64 0.23.1",
@@ -5295,7 +5295,7 @@ dependencies = [
 
 [[package]]
 name = "voyalier-desktop"
-version = "0.10.8"
+version = "0.11.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -5309,7 +5309,7 @@ dependencies = [
 
 [[package]]
 name = "voyalier-server"
-version = "0.10.8"
+version = "0.11.0"
 dependencies = [
  "axum",
  "http",

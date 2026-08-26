@@ -233,6 +233,173 @@ test("planning persists through the real loopback service and a browser reload",
   await session.detach();
 });
 
+test("new map, packing, and brief states reflow and remain keyboard operable", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(60_000);
+  const tripTitle = `High-confidence layout trip ${testInfo.retry}`;
+  await page.goto("/");
+  await page.getByRole("button", { name: "Create a trip" }).first().click();
+  const createTrip = page.getByRole("dialog", { name: "Create a trip" });
+  await createTrip.getByLabel("From").fill("Chicago");
+  await createTrip.getByLabel("To").fill("Kyoto");
+  await createTrip.getByLabel("Start date").fill(isoDay(30));
+  await createTrip.getByLabel("End date").fill(isoDay(36));
+  await createTrip.getByLabel("Trip name (optional)").fill(tripTitle);
+  await createTrip.getByRole("button", { name: "Create trip" }).click();
+  await page.getByRole("button", { name: `Open ${tripTitle}` }).click();
+
+  const packing = page.getByRole("region", { name: "Packing checklist" });
+  for (const label of ["Museum pass", "Rain jacket"]) {
+    await packing.getByLabel("Custom item").fill(label);
+    await packing.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(packing.getByRole("checkbox", { name: label })).toBeVisible();
+  }
+  const museumPass = packing.getByRole("checkbox", { name: "Museum pass" });
+  await museumPass.focus();
+  await page.keyboard.press("Space");
+  await expect(museumPass).toBeChecked();
+  await expect(packing.getByText("1 of 2 packed")).toBeVisible();
+  const hidePacked = packing.getByRole("button", { name: "Hide packed" });
+  await hidePacked.focus();
+  await page.keyboard.press("Enter");
+  await expect(museumPass).toBeHidden();
+  await expect(
+    packing.getByRole("button", { name: "Show packed" }),
+  ).toBeVisible();
+
+  await page.getByRole("link", { name: "Discover", exact: true }).click();
+  const packs = page.getByRole("region", { name: "Offline city data" });
+  await packs.getByRole("button", { name: "Download Kyoto city data" }).click();
+  await expect(packs.getByText(/3 places.*offline/)).toBeVisible();
+
+  const recommendations = page.getByRole("region", {
+    name: "Recommendations",
+  });
+  await recommendations
+    .getByRole("button", { name: "Get recommendations" })
+    .click();
+  const recommendedPlaces = recommendations.getByRole("list", {
+    name: "Recommended places",
+  });
+  const firstRecommendation = recommendedPlaces.getByRole("listitem").first();
+  await firstRecommendation
+    .getByRole("button", { name: /^Save place / })
+    .click();
+  await expect(
+    page.getByRole("region", { name: "Saved places" }),
+  ).toContainText(/Nishiki Market|Kyoto Station Gallery|Maruyama Park/);
+
+  const map = page.locator("section.voy-map");
+  const showMap = map.getByRole("button", { name: "Show map" });
+  await showMap.focus();
+  await page.keyboard.press("Enter");
+  await expect(
+    map.getByText(/Online tile requests reveal the displayed area/),
+  ).toBeVisible();
+  await expect(map.getByText("Saved place", { exact: true })).toBeVisible();
+  await expect(map.getByText("Suggested place", { exact: true })).toBeVisible();
+  const mappedPlaces = map.locator("details.voy-map__points");
+  const mappedPlacesSummary = mappedPlaces.locator("summary");
+  await mappedPlacesSummary.focus();
+  await page.keyboard.press("Enter");
+  await expect(mappedPlaces).toHaveJSProperty("open", true);
+  await expect(
+    mappedPlaces.getByRole("list", { name: "Places shown on the map" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Add reservation" }).first().click();
+  const reservation = page.getByRole("dialog", { name: "Add a reservation" });
+  await reservation.getByRole("radio", { name: "Train" }).click();
+  await reservation.getByLabel("Operator").fill("Fictional Rail");
+  await reservation.getByLabel("Service").fill("FR 42");
+  await reservation.getByLabel("From").fill("Paris Gare de Lyon");
+  await reservation.getByLabel("To", { exact: true }).fill("Lyon Part-Dieu");
+  await reservation.getByLabel("Departs (local)").fill(`${isoDay(31)}T09:00`);
+  await reservation.getByLabel("Arrives (local)").fill(`${isoDay(31)}T11:00`);
+  await reservation.getByRole("button", { name: "Add to Blueprint" }).click();
+
+  await page.setViewportSize({ width: 320, height: 720 });
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+  await expect(packing.getByText("1 of 2 packed")).toBeVisible();
+  await expect(map).toBeVisible();
+  await expect(mappedPlaces).toHaveJSProperty("open", true);
+  await expect(map.getByText("Saved place", { exact: true })).toBeVisible();
+  await expect(map.getByText("Suggested place", { exact: true })).toBeVisible();
+
+  const shareBrief = page.getByRole("button", { name: "Share brief" });
+  await shareBrief.focus();
+  await page.keyboard.press("Enter");
+  const brief = page.getByRole("dialog", { name: "Shareable brief" });
+  await expect(brief.getByText("Fictional Rail")).toBeVisible();
+  await expect(brief.getByRole("button", { name: "Copy brief" })).toBeVisible();
+  await expect(mappedPlaces).toHaveJSProperty("open", true);
+  await expect(
+    brief.getByRole("button", { name: "Print / Save as PDF" }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+
+  await page.setViewportSize({ width: 640, height: 720 });
+  const session = await emulateDesktopZoom(
+    page,
+    { width: 640, height: 720 },
+    2,
+  );
+  await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(320);
+  await expect.poll(() => page.evaluate(() => devicePixelRatio)).toBe(2);
+  await expect(brief.getByRole("button", { name: "Copy brief" })).toBeVisible();
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+  await brief.getByRole("button", { name: "Close" }).last().click();
+  await expect(map).toBeVisible();
+  await expect(mappedPlaces).toHaveJSProperty("open", true);
+  await expect(
+    mappedPlaces.getByRole("list", { name: "Places shown on the map" }),
+  ).toBeVisible();
+  await expect(map.getByText("Saved place", { exact: true })).toBeVisible();
+  await expect(map.getByText("Suggested place", { exact: true })).toBeVisible();
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+  await session.send("Emulation.clearDeviceMetricsOverride");
+  await session.detach();
+
+  await shareBrief.click();
+  await expect(brief.getByText("Fictional Rail")).toBeVisible();
+  const pdfPath = testInfo.outputPath("shareable-brief.pdf");
+  await page.pdf({
+    path: pdfPath,
+    format: "Letter",
+    printBackground: true,
+    tagged: true,
+  });
+  await testInfo.attach("shareable-brief", {
+    path: pdfPath,
+    contentType: "application/pdf",
+  });
+});
+
 /**
  * The passport controls remain one usable flow.
  *

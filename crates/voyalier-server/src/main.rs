@@ -3,6 +3,16 @@ use std::{env, net::SocketAddr, path::PathBuf, sync::Arc};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
+const INTEGRATION_KYOTO_PACK: &str = r#"{
+  "packId": "jp-kyoto",
+  "places": [
+    { "name": "Nishiki Market", "category": "restaurant", "lat": 35.005, "lon": 135.764 },
+    { "name": "Kyoto Station Gallery", "category": "art_museum", "lat": 34.9858, "lon": 135.7588 },
+    { "name": "Maruyama Park", "category": "public_park", "lat": 35.0037, "lon": 135.7808 }
+  ],
+  "articles": []
+}"#;
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
@@ -41,7 +51,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })?;
         voyalier_app::AppService::open_path_with_deps(
             PathBuf::from(data_dir).join("voyalier.sqlite3"),
-            Arc::new(voyalier_app::FakeFetcher::offline()),
+            Arc::new(
+                voyalier_app::FakeFetcher::offline().route("jp-kyoto.json", INTEGRATION_KYOTO_PACK),
+            ),
             Arc::new(voyalier_app::MemorySecretStore::default()),
         )?
     } else {

@@ -9,6 +9,15 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '')
 
 const scenes = [
   {
+    title: 'Map the shortlist without turning it into a promise.',
+    body: 'Saved places lead the marker set, suggestions stay visually separate, and the same list is available as text. Hours, prices, access, availability, and safety remain outside the claim.',
+    image: 'voyalier-map-shortlist.jpg',
+    alt: 'Voyalier offline map for a fictional Kyoto trip, with saved places in vermilion, suggested places in indigo, a text legend, and a mapped-place register.',
+    caption: 'Discover · saved shortlist and suggestions',
+    width: 1140,
+    height: 535,
+  },
+  {
     title: 'See the suggestion beside its source.',
     body: 'Narrow the queue by warning, fact type, or extraction method, then compare the excerpt and decide one suggestion at a time. Nothing becomes a trip fact on its own.',
     image: 'voyalier-evidence-review.jpg',
@@ -152,13 +161,13 @@ const productTruths = [
       <section class="tour" id="tour" aria-labelledby="tour-title">
         <div class="tour__intro">
           <h2 id="tour-title">From an uncertain document to a usable day.</h2>
-          <p>Three current-source views show the whole idea: keep the source, preserve the uncertainty, bring forward only what the traveler approved, and keep the return path intact.</p>
+          <p>Four current-source views show the whole idea: keep the source, preserve the uncertainty, bring forward only what the traveler approved, and keep the return path intact.</p>
           <a class="text-link" href={`${base}/getting-started/`}>Read the first-run guide <span aria-hidden="true">→</span></a>
         </div>
         <div class="tour__scenes">
           {scenes.map((scene) => (
             <figure class="tour-scene">
-              <img src={`${base}/assets/screenshots/${scene.image}`} width="1440" height="900" loading="lazy" decoding="async" alt={scene.alt} />
+              <img src={`${base}/assets/screenshots/${scene.image}`} width={scene.width ?? 1440} height={scene.height ?? 900} loading="lazy" decoding="async" alt={scene.alt} />
               <figcaption>
                 <p class="tour-scene__caption">{scene.caption}</p>
                 <h3>{scene.title}</h3>

@@ -58,19 +58,21 @@ matching installer and keeps the GitHub Releases page as a fallback.
   <img src="docs-site/public/assets/screenshots/voyalier-trip-workspace.jpg" alt="Current-source Voyalier workspace for a fictional Kyoto trip, with Today, pending suggestions, and the Blueprint" width="1100">
 </p>
 
-## What changed in 0.10.7
+## What changed in 0.11.0
 
-- Readiness findings now open the exact local next step: the matching schedule
-  context, a preselected Stay form, the pending review queue, Visa, or Prepare.
-- Duplicate imports can open the existing stored document without fetching or
-  expanding its sealed body.
-- Review filters combine extraction warnings, fact type, and extraction method
-  while every confirm, edit, and dismiss decision remains one at a time.
-- Search and Settings detours unwind through in-app Back and browser history to
-  the prior trip section and page heading; private queries and exact
-  search-result record ids stay out of durable URLs.
-- The 320 px Plan layout and Create Trip focus return are now exercised in both
-  Chromium and WebKit.
+- The consent-opened map now puts saved places ahead of suggestions, gives each
+  state its own marker and text label, and keeps the shortlist visible if
+  recommendation loading fails or the source pack is later removed.
+- Packing now shows honest progress from accepted checklist items only. You can
+  hide completed rows locally without changing or deleting them; suggestions do
+  not enter the count until you add them.
+- The redacted brief now includes surface journeys and can be copied as readable
+  plain text beside Print / Save as PDF. The copy formatter cannot name
+  confirmation codes, traveler names, imported text, resources, or private plan
+  notes, and clipboard denial is reported instead of being called success.
+- Repeated row controls now identify the record they act on, while trip creation
+  and searchable-record assembly each have one implementation rather than two
+  drifting copies.
 
 Read the [full changelog](CHANGELOG.md) for tradeoffs and intentionally unchanged
 authority boundaries.
@@ -115,16 +117,50 @@ The useful parts work without a paid model or provider key.
 | **Readiness**           | Explain logistics gaps, open the local context that can address each finding, and link to official entry/health sources without making authority claims.               |
 | **Visa preparation**    | Keep passport-specific preparation, dated official sources, a universal guide, traveler ticks, and sealed notes clearly separated from a visa decision.                |
 | **Live context**        | Fetch official advice, destination weather, page snapshots, packs, maps, or a manual trip re-check only after an explicit action. There is no background monitoring.   |
-| **Offline discovery**   | Rank licensed city-pack places with visible scores and reasons; save places with provenance and optional notes.                                                        |
-| **Traveler plans**      | Keep packing items, activities, rail legs, and transfers separate from imported confirmed facts while including safe projections in Today, calendar, and brief output. |
+| **Offline discovery**   | Rank licensed city-pack places with visible scores and reasons; save places with provenance and map the saved shortlist separately from suggestions.                   |
+| **Traveler plans**      | Keep packing items, activities, rail legs, and transfers separate from imported facts; track accepted packing progress and include safe plans in Today and exports.    |
 | **Search and research** | Search local source documents, confirmed facts, notes, saved places, plans, and saved reading with trip/source provenance; nested detours return to their exact entry. |
 | **AI assist**           | Guide local Ollama setup; validate BYOK cloud keys; preview the exact redacted payload; keep cloud help optional; keep trip chat on-device only.                       |
-| **Vault and sharing**   | Seal sensitive columns at rest; optionally passphrase-wrap the key; generate a brief whose model excludes traveler names and confirmation codes.                       |
+| **Vault and sharing**   | Seal sensitive columns at rest; optionally passphrase-wrap the key; print, save, or copy an allowlisted brief whose model excludes names and confirmation codes.       |
 | **Language and access** | Complete English and Spanish catalogs, keyboard flows, focus containment and return, reduced motion, contrast checks, 320 px reflow, and automated axe gates.          |
 
 </details>
 
 ## See the work
+
+### The map keeps the traveler’s choice distinct
+
+<p align="center">
+  <img src="docs-site/public/assets/screenshots/voyalier-map-shortlist.jpg" alt="Voyalier offline map for a fictional Kyoto trip, with saved places in vermilion, suggestions in indigo, a text legend, and a mapped-place register" width="1100">
+</p>
+
+The map opens only after consent. Saved coordinates already kept with the trip
+lead the marker set, suggestions follow, and an expandable text register gives
+the canvas a nonvisual equivalent. A marker is still a place on a shortlist—not
+a claim about hours, price, availability, access, or safety.
+
+### Packing progress counts decisions, not proposals
+
+<p align="center">
+  <img src="docs-site/public/assets/screenshots/voyalier-packing-progress.jpg" alt="Voyalier packing checklist for a fictional trip showing one of three accepted items packed and a Hide packed control" width="1100">
+</p>
+
+Only items the traveler accepted or typed enter the denominator. Hide packed is
+a reversible local view filter: it never edits the checklist or turns completion
+into a readiness or safety claim.
+
+### Sharing can be copied without widening the brief
+
+<p align="center">
+  <img src="docs-site/public/assets/screenshots/voyalier-brief-copy.jpg" alt="Voyalier shareable brief for a fictional trip showing a flight, stay, surface journey, redaction disclosure, and a successful Copied action" width="720">
+</p>
+
+Flights, stays, surface journeys, and traveler-authored plans (including undated
+ideas) can be
+printed, saved as PDF, or copied as plain text. The clipboard path receives the
+same redacted projection and has its own safe-field allowlist. System clipboard
+history, cross-device sync, or a clipboard manager can retain copied text, so
+review the audience and clear the clipboard when that matters.
 
 ### Evidence stays beside the decision
 
@@ -184,16 +220,16 @@ does not decide the case.
 <details>
 <summary><strong>What can use the network?</strong></summary>
 
-| Connection                            | Explicit trigger                      | What leaves the device                                                                               |
-| ------------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| **GOV.UK FCDO**                       | Fetch official advice                 | Selected country slug                                                                                |
-| **Open-Meteo**                        | Fetch weather                         | Destination for geocoding, then coordinates                                                          |
-| **Government processing-time source** | Fetch published times                 | The route values needed by that authority’s public tool                                              |
-| **GitHub Releases**                   | Download a pack, update, or installer | Public asset request; no trip content                                                                |
-| **OpenFreeMap**                       | Show map                              | Map viewport tile requests                                                                           |
-| **A saved page**                      | Fetch page details                    | Only the address you saved; the response is size-capped and reduced to readable text                 |
-| **Ollama**                            | Run assist or send local chat         | Redacted trip material to localhost; chat also includes the question and retrieved local context     |
-| **OpenAI / Anthropic**                | Run assist after preview              | Exactly the redacted payload shown in the consent step; the BYOK key is used only for authentication |
+| Connection                            | Explicit trigger                      | What leaves the device                                                                                                                          |
+| ------------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **GOV.UK FCDO**                       | Fetch official advice                 | Selected country slug                                                                                                                           |
+| **Open-Meteo**                        | Fetch weather                         | Destination for geocoding, then coordinates                                                                                                     |
+| **Government processing-time source** | Fetch published times                 | The route values needed by that authority’s public tool                                                                                         |
+| **GitHub Releases**                   | Download a pack, update, or installer | Public asset request; no trip content                                                                                                           |
+| **OpenFreeMap**                       | Show map without an offline basemap   | Tile requests for the displayed area, which can reflect destination and saved-place coordinates; names, notes, and itinerary records stay local |
+| **A saved page**                      | Fetch page details                    | Only the address you saved; the response is size-capped and reduced to readable text                                                            |
+| **Ollama**                            | Run assist or send local chat         | Redacted trip material to localhost; chat also includes the question and retrieved local context                                                |
+| **OpenAI / Anthropic**                | Run assist after preview              | Exactly the redacted payload shown in the consent step; the BYOK key is used only for authentication                                            |
 
 Official entry, health, and safety sources outrank commercial, editorial,
 community, and model content. AI can help explain a trip; it cannot clear one.

@@ -1,15 +1,29 @@
-import { useEffect, useRef, useState } from "react";
-import type { Map as MaplibreMap, StyleSpecification } from "maplibre-gl";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import type {
+  Map as MaplibreMap,
+  Marker as MaplibreMarker,
+  StyleSpecification,
+} from "maplibre-gl";
 import type { Source as PmtilesSource } from "pmtiles";
 import type {
   AppGateway,
   OfflineMapArchive,
   PersonaWeights,
   Recommendation,
+  SavedPlace,
 } from "@voyalier/contracts";
+import { savedPlaceIdentity } from "@voyalier/contracts";
 
 import { useGateway } from "../app/context";
 import { t } from "../app/i18n";
+import { localeSnapshot, subscribeLocale } from "../app/locale";
+import { useTheme } from "../app/theme";
 import { SectionTitle } from "../components/primitives";
 import { MapIcon } from "../components/icons";
 import { Button } from "../components/Button";
@@ -163,6 +177,44 @@ export interface MapCenter {
   name: string;
 }
 
+interface MapPoint {
+  name: string;
+  category: string;
+  lat: number;
+  lon: number;
+  saved: boolean;
+}
+
+function pointKey(point: Pick<MapPoint, "name" | "lat" | "lon">): string {
+  return `${savedPlaceIdentity(point.name)}:${point.lat}:${point.lon}`;
+}
+
+/** Saved points lead; an identical recommendation never draws a second marker. */
+export function mapPoints(
+  savedPlaces: SavedPlace[],
+  recommendations: Recommendation[],
+): MapPoint[] {
+  const points: MapPoint[] = savedPlaces.map((place) => ({
+    name: place.name,
+    category: place.category,
+    lat: place.lat,
+    lon: place.lon,
+    saved: true,
+  }));
+  const seen = new Set(points.map(pointKey));
+  for (const recommendation of recommendations) {
+    if (seen.has(pointKey(recommendation))) continue;
+    points.push({
+      name: recommendation.name,
+      category: recommendation.category,
+      lat: recommendation.lat,
+      lon: recommendation.lon,
+      saved: false,
+    });
+  }
+  return points;
+}
+
 /** Whether the environment can create a WebGL context (MapLibre needs one). */
 function webglSupported(): boolean {
   try {
@@ -176,28 +228,51 @@ function webglSupported(): boolean {
 /**
  * A consent-gated map of the trip's destination and recommended places.
  * Showing it fetches map tiles from OpenFreeMap (an explicit network request,
- * like the weather outlook); nothing about the trip is sent. Markers come from
- * the trip's downloaded-pack recommendations; the view centers on the
- * weather-geocoded destination when available.
+ * like the weather outlook). Those requests disclose the displayed area, which
+ * can reflect destination or saved-place coordinates, but do not carry place
+ * names, notes, or structured itinerary records. Markers come from local saved
+ * places and downloaded-pack recommendations.
  */
 export function MapPanel({
   tripId,
   center,
+  savedPlaces,
 }: {
   tripId: string;
   center?: MapCenter;
+  savedPlaces: SavedPlace[];
 }) {
   const gateway = useGateway();
+  const [themeChoice] = useTheme();
+  const locale = useSyncExternalStore(
+    subscribeLocale,
+    localeSnapshot,
+    localeSnapshot,
+  );
+  const [systemThemeRevision, setSystemThemeRevision] = useState(0);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
+  const pointMarkersRef = useRef<MaplibreMarker[]>([]);
   const [ml, setMl] = useState<Maplibre | null>(null);
   const [pm, setPm] = useState<Pmtiles | null>(null);
   const [offlineMap, setOfflineMap] = useState<OfflineMapArchive | null>(null);
   const [shown, setShown] = useState(false);
-  const [places, setPlaces] = useState<Recommendation[]>([]);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const points = useMemo(
+    () => mapPoints(savedPlaces, recommendations),
+    [savedPlaces, recommendations],
+  );
   // A visible reason the canvas is empty: "load" (library failed to import) or
   // "webgl" (the map couldn't initialize). null means no error.
   const [failure, setFailure] = useState<"load" | "webgl" | null>(null);
+
+  useEffect(() => {
+    if (themeChoice !== "system" || !globalThis.matchMedia) return;
+    const colorScheme = globalThis.matchMedia("(prefers-color-scheme: dark)");
+    const refreshMarkers = () => setSystemThemeRevision((value) => value + 1);
+    colorScheme.addEventListener("change", refreshMarkers);
+    return () => colorScheme.removeEventListener("change", refreshMarkers);
+  }, [themeChoice]);
 
   async function show() {
     setShown(true);
@@ -230,7 +305,7 @@ export function MapPanel({
       // silent empty frame; the rest of the trip view is unaffected.
       setFailure("load");
     }
-    setPlaces(await placesPromise);
+    setRecommendations(await placesPromise);
   }
 
   // Initialize the map once the container is shown and the library has loaded.
@@ -287,34 +362,50 @@ export function MapPanel({
     };
   }, [shown, ml, pm, offlineMap, center, gateway, tripId]);
 
-  // Plot recommended places and fit to them when they load.
+  // Plot the traveler's saved shortlist first, then unsaved recommendations.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !ml || places.length === 0) return;
+    if (!map || !ml || points.length === 0) return;
     const plot = () => {
-      // Read the resolved brand accent so markers follow the active theme
-      // instead of a frozen light-mode hex.
-      const markerColor =
+      pointMarkersRef.current.forEach((marker) => marker.remove());
+      pointMarkersRef.current = [];
+      // Read resolved brand colors so both marker roles follow the active theme
+      // instead of freezing a light-mode hex.
+      const savedColor =
         getComputedStyle(document.documentElement)
           .getPropertyValue("--voy-vermilion")
           .trim() || "#c34e33";
+      const suggestedColor =
+        getComputedStyle(document.documentElement)
+          .getPropertyValue("--voy-indigo")
+          .trim() || "#46536b";
       const bounds = new ml.LngLatBounds();
-      for (const place of places) {
-        new ml.Marker({ color: markerColor })
-          .setLngLat([place.lon, place.lat])
+      for (const point of points) {
+        const marker = new ml.Marker({
+          color: point.saved ? savedColor : suggestedColor,
+        })
+          .setLngLat([point.lon, point.lat])
           .setPopup(
             new ml.Popup({ offset: 16 }).setText(
-              `${place.name} · ${place.category}`,
+              `${point.name} · ${point.category} · ${t(
+                point.saved ? "map.point.saved" : "map.point.suggested",
+              )}`,
             ),
           )
           .addTo(map);
-        bounds.extend([place.lon, place.lat]);
+        pointMarkersRef.current.push(marker);
+        bounds.extend([point.lon, point.lat]);
       }
       map.fitBounds(bounds, { padding: 60, maxZoom: 14, duration: 0 });
     };
     if (map.isStyleLoaded()) plot();
     else map.once("load", plot);
-  }, [places, ml]);
+    return () => {
+      map.off("load", plot);
+      pointMarkersRef.current.forEach((marker) => marker.remove());
+      pointMarkersRef.current = [];
+    };
+  }, [points, ml, themeChoice, systemThemeRevision, locale]);
 
   return (
     <section className="voy-map" aria-labelledby="map-title">
@@ -352,10 +443,47 @@ export function MapPanel({
             {offlineMap
               ? t("map.scope.offline", { source: offlineMap.sourceName })
               : t("map.scope")}
-            {places.length === 0 ? t("map.scope.empty") : ""}
+            {points.length === 0 ? t("map.scope.empty") : ""}
           </p>
         </>
       )}
+
+      {shown && points.length > 0 ? (
+        <>
+          <div className="voy-map__legend" aria-label={t("map.legend.aria")}>
+            <span>
+              <i
+                className="voy-map__dot voy-map__dot--saved"
+                aria-hidden="true"
+              />
+              {t("map.point.saved")}
+            </span>
+            <span>
+              <i
+                className="voy-map__dot voy-map__dot--suggested"
+                aria-hidden="true"
+              />
+              {t("map.point.suggested")}
+            </span>
+          </div>
+          <details className="voy-map__points">
+            <summary>
+              {t("map.points.summary", { count: points.length })}
+            </summary>
+            <ul aria-label={t("map.points.aria")}>
+              {points.map((point) => (
+                <li key={pointKey(point)}>
+                  <strong>{point.name}</strong>
+                  <span>
+                    {t(point.saved ? "map.point.saved" : "map.point.suggested")}
+                    {` · ${point.category}`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        </>
+      ) : null}
     </section>
   );
 }

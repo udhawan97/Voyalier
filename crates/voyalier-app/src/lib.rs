@@ -432,8 +432,9 @@ impl FakeFetcher {
         Self::default()
     }
 
-    /// A fetcher that panics on any request, for the paths that must not reach
-    /// the network at all.
+    /// A fetcher that panics on any undeclared request, for paths that must not
+    /// reach the network at all. Tests may still add explicit routes for the
+    /// one consented fetch they are exercising; everything else stays loud.
     ///
     /// Returning an error would be the weaker claim: the code under test could
     /// swallow it and the test would still pass. Panicking names the URL that
@@ -495,20 +496,21 @@ impl FakeFetcher {
     }
 
     fn reply_for(&self, url: &str) -> Reply {
-        assert!(
-            !self.forbidden,
-            "the code under test must not reach the network, but requested {url}"
-        );
-        self.calls.lock().expect("calls").push(url.to_owned());
-        self.routes
+        let declared = self
+            .routes
             .lock()
             .expect("routes")
             .iter()
             .find(|(needle, _)| url.contains(needle.as_str()))
-            .map(|(_, reply)| reply.clone())
-            .unwrap_or_else(|| {
-                Reply::Fail(ErrorCode::AdviceFetchFailed, format!("no route for {url}"))
-            })
+            .map(|(_, reply)| reply.clone());
+        assert!(
+            !self.forbidden || declared.is_some(),
+            "the code under test must not reach the network, but requested {url}"
+        );
+        self.calls.lock().expect("calls").push(url.to_owned());
+        declared.unwrap_or_else(|| {
+            Reply::Fail(ErrorCode::AdviceFetchFailed, format!("no route for {url}"))
+        })
     }
 
     fn text_for(&self, url: &str) -> Result<String, AppError> {

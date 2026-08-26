@@ -413,12 +413,17 @@ const en = {
   "action.close": "Close",
   "brief.title": "Shareable brief",
   "brief.description":
-    "A copy you can share. Confirmation codes and traveler names are removed before it leaves this device.",
+    "A copy you can share. Confirmation codes and traveler names are removed before it leaves this device. Copying hands the redacted text to your system clipboard, whose history or sync may retain it.",
   "brief.print": "Print / Save as PDF",
+  "brief.copy": "Copy brief",
+  "brief.copy.done": "Copied",
+  "brief.copy.failed":
+    "Clipboard access is unavailable. Print or save the brief as a PDF instead.",
   "brief.loading": "Preparing the brief…",
   "brief.flights": "Flights",
   "brief.stays": "Stays",
   "brief.plans": "Activities & transfers",
+  "brief.journey": "Surface journey",
   "brief.empty":
     "No confirmed flights or stays yet. Confirm some plans to fill the brief.",
   "brief.redaction": "Hidden from this brief: {fields}.",
@@ -613,6 +618,10 @@ const en = {
   "planning.packing.required": "Enter an item to enable Add.",
   "planning.packing.add": "Add",
   "planning.packing.added": "Added",
+  "planning.packing.progress": "{done} of {total} packed",
+  "planning.packing.hidePacked": "Hide packed",
+  "planning.packing.showPacked": "Show packed",
+  "planning.packing.allPacked": "Everything on this checklist is packed.",
   "planning.packing.nameLabel": "Packing item name",
   "planning.packing.renameLabel": "Rename {name}",
   "planning.packing.saveLabel": "Save packing item",
@@ -1385,10 +1394,16 @@ const en = {
 
   "map.title": "Map",
   "map.intro":
-    "See your destination and recommended places on a map. A downloaded offline basemap stays on this device; otherwise showing the map fetches tiles from OpenFreeMap. Nothing about your trip is sent.",
+    "See your destination and recommended places on a map. A downloaded offline basemap stays on this device. Otherwise OpenFreeMap receives tile requests for the area shown, which can reflect destination and saved-place coordinates; place names, notes, and itinerary records are not sent.",
   "map.show": "Show map",
   "map.aria": "Trip map",
-  "map.scope": "Basemap © OpenFreeMap · map data © OpenStreetMap contributors.",
+  "map.legend.aria": "Map marker legend",
+  "map.point.saved": "Saved place",
+  "map.point.suggested": "Suggested place",
+  "map.points.summary": "Mapped places ({count})",
+  "map.points.aria": "Places shown on the map",
+  "map.scope":
+    "Basemap © OpenFreeMap · map data © OpenStreetMap contributors. Online tile requests reveal the displayed area; names, notes, and itinerary records stay local.",
   "map.scope.offline":
     "Offline basemap from {source} · map data © OpenStreetMap contributors. No tile request left this device.",
   "map.scope.empty":
@@ -2045,12 +2060,17 @@ const es: Record<MessageKey, string> = {
   "action.close": "Cerrar",
   "brief.title": "Resumen para compartir",
   "brief.description":
-    "Una copia que puedes compartir. Los códigos de confirmación y los nombres de los viajeros se eliminan antes de salir de este dispositivo.",
+    "Una copia que puedes compartir. Los códigos de confirmación y los nombres de los viajeros se eliminan antes de salir de este dispositivo. Al copiar, el texto redactado pasa al portapapeles del sistema, cuyo historial o sincronización puede conservarlo.",
   "brief.print": "Imprimir / Guardar como PDF",
+  "brief.copy": "Copiar resumen",
+  "brief.copy.done": "Copiado",
+  "brief.copy.failed":
+    "El acceso al portapapeles no está disponible. Imprime o guarda el resumen como PDF.",
   "brief.loading": "Preparando el resumen…",
   "brief.flights": "Vuelos",
   "brief.stays": "Estancias",
   "brief.plans": "Actividades y traslados",
+  "brief.journey": "Trayecto terrestre",
   "brief.empty":
     "Aún no hay vuelos ni estancias confirmados. Confirma algunos planes para completar el resumen.",
   "brief.redaction": "Oculto en este resumen: {fields}.",
@@ -2242,6 +2262,10 @@ const es: Record<MessageKey, string> = {
   "planning.packing.required": "Escribe un artículo para activar Añadir.",
   "planning.packing.add": "Añadir",
   "planning.packing.added": "Añadido",
+  "planning.packing.progress": "{done} de {total} empacados",
+  "planning.packing.hidePacked": "Ocultar empacados",
+  "planning.packing.showPacked": "Mostrar empacados",
+  "planning.packing.allPacked": "Todo en esta lista está empacado.",
   "planning.packing.nameLabel": "Nombre del artículo",
   "planning.packing.renameLabel": "Renombrar {name}",
   "planning.packing.saveLabel": "Guardar artículo",
@@ -2982,11 +3006,16 @@ const es: Record<MessageKey, string> = {
     "No se pudo encontrar el documento existente. Se abrieron los documentos importados.",
   "map.title": "Mapa",
   "map.intro":
-    "Mira tu destino y los lugares recomendados en un mapa. Un mapa base sin conexión descargado permanece en este dispositivo; de lo contrario, mostrar el mapa descarga mosaicos desde OpenFreeMap. No se envía información sobre tu viaje.",
+    "Mira tu destino y los lugares recomendados en un mapa. Un mapa base sin conexión descargado permanece en este dispositivo. De lo contrario, OpenFreeMap recibe solicitudes de mosaicos para el área mostrada, que puede reflejar el destino y las coordenadas de lugares guardados; no se envían nombres de lugares, notas ni registros del itinerario.",
   "map.show": "Mostrar mapa",
   "map.aria": "Mapa del viaje",
+  "map.legend.aria": "Leyenda de marcadores del mapa",
+  "map.point.saved": "Lugar guardado",
+  "map.point.suggested": "Lugar sugerido",
+  "map.points.summary": "Lugares en el mapa ({count})",
+  "map.points.aria": "Lugares mostrados en el mapa",
   "map.scope":
-    "Mapa base © OpenFreeMap · datos del mapa © colaboradores de OpenStreetMap.",
+    "Mapa base © OpenFreeMap · datos del mapa © colaboradores de OpenStreetMap. Las solicitudes de mosaicos en línea revelan el área mostrada; los nombres, las notas y los registros del itinerario permanecen locales.",
   "map.scope.offline":
     "Mapa base sin conexión de {source} · datos del mapa © colaboradores de OpenStreetMap. No se envió ninguna solicitud de mosaico fuera de este dispositivo.",
   "map.scope.empty":
