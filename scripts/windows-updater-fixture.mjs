@@ -616,6 +616,7 @@ export function validateWindowsAcceptanceReport(report) {
     report.portableRestore?.stagedViaUi !== true ||
     !hasNativeDialogEvidence(report.portableRestore) ||
     report.portableRestore?.returnedPathEqualsPreset != null ||
+    report.portableRestore?.selectedSameTargetAsExport != null ||
     report.portableRestore?.title !== "Choose a Voyalier backup" ||
     report.portableRestore?.action !== "Open" ||
     report.portableRestore?.presetMethod !==

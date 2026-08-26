@@ -1457,6 +1457,17 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
         ...report,
         portableRestore: {
           ...report.portableRestore,
+          selectedSameTargetAsExport: true,
+        },
+      }),
+    /restore and reinstall evidence is incomplete/,
+  );
+  assert.throws(
+    () =>
+      validateWindowsAcceptanceReport({
+        ...report,
+        portableRestore: {
+          ...report.portableRestore,
           nativeDialogActionConfirmed: false,
         },
       }),
