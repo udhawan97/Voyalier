@@ -57,11 +57,15 @@ One-time and per-release steps for the in-app updater, per
   "won't open" recovery (re-download) keeps user data (it lives outside the
   bundle).
 - For Windows, dispatch `Release` with `windows_acceptance: true` from the exact
-  candidate SHA. The opt-in job builds the public `v0.10.7` base and candidate
-  with an ephemeral updater key, installs the current-user NSIS package, serves
-  the signed candidate from loopback, verifies the replacement/reopen and
-  reinstall recovery, and uploads only sanitized evidence. A build-only Windows
-  matrix leg does not satisfy this runtime gate.
+  candidate SHA. The opt-in job rebuilds the exact public `v0.10.7` source with
+  a hashed, automation-only WebView2 compatibility patch and builds the
+  unmodified candidate with an ephemeral updater key. It records both base
+  hashes, installs the current-user NSIS package, serves the signed candidate
+  from loopback, verifies the replacement/reopen and reinstall recovery, and
+  uploads only sanitized evidence. This proves the old updater/storage/product
+  implementation against the candidate; it does not claim that the historical
+  installer binary launches under the hosted runner's newer WebView2 Runtime. A
+  build-only Windows matrix leg does not satisfy this runtime gate.
 - Keep `packs-v1` (and any pack release) marked PRE-RELEASE so it never becomes
   `releases/latest` and 404s the updater.
 - v0.3.0 is install-once (the chicken-and-egg base); the loop self-proves on

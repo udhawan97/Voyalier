@@ -150,6 +150,18 @@ export function validateWindowsAcceptanceReport(report) {
   if (report.base?.version !== "0.10.7") {
     throw new Error("acceptance base must be the public v0.10.7 release");
   }
+  if (report.base?.sha !== "cfd4eef671fc3fb23430e6d4a92be28e0b0e3436") {
+    throw new Error("acceptance base source must be the exact v0.10.7 commit");
+  }
+  if (!/^[0-9a-f]{64}$/.test(report.base?.automationPatch?.sha256 ?? "")) {
+    throw new Error("acceptance base automation patch hash is missing");
+  }
+  if (
+    JSON.stringify(report.base?.automationPatch?.changedFiles) !==
+    JSON.stringify(["apps/desktop/src-tauri/src/lib.rs"])
+  ) {
+    throw new Error("acceptance base adaptation changed an unexpected file");
+  }
   if (report.candidate?.version !== "0.11.0") {
     throw new Error("acceptance candidate must be v0.11.0");
   }

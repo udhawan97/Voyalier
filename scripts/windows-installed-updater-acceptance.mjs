@@ -37,6 +37,11 @@ const TEMP_ROOT = path.join(
   `voyalier-windows-acceptance-${process.pid}`,
 );
 const BASE_ROOT = path.join(TEMP_ROOT, "base");
+const BASE_AUTOMATION_PATCH = path.join(
+  ROOT,
+  "scripts/windows-v0.10.7-automation.patch",
+);
+const BASE_AUTOMATION_FILE = "apps/desktop/src-tauri/src/lib.rs";
 const FIXTURE_ROOT = path.join(TEMP_ROOT, "updater");
 const DATA_ROOT = path.join(TEMP_ROOT, "data");
 const EVIDENCE_ROOT = path.join(ROOT, "windows-acceptance-evidence");
@@ -484,6 +489,7 @@ async function main() {
   const baseSha = run(GIT, ["rev-parse", `${BASE_TAG}^{commit}`], {
     quiet: true,
   });
+  const baseAutomationPatchSha256 = await sha256(BASE_AUTOMATION_PATCH);
   const configuredVersion = JSON.parse(
     await readFile(
       path.join(ROOT, "apps/desktop/src-tauri/tauri.conf.json"),
@@ -505,7 +511,16 @@ async function main() {
   const report = {
     verdict: "FAIL",
     candidate: { version: CANDIDATE_VERSION, sha: candidateSha },
-    base: { version: BASE_VERSION, tag: BASE_TAG, sha: baseSha },
+    base: {
+      version: BASE_VERSION,
+      tag: BASE_TAG,
+      sha: baseSha,
+      automationPatch: {
+        file: path.relative(ROOT, BASE_AUTOMATION_PATCH).replaceAll("\\", "/"),
+        sha256: baseAutomationPatchSha256,
+        changedFiles: [BASE_AUTOMATION_FILE],
+      },
+    },
     workflow: {
       runId: process.env.GITHUB_RUN_ID ?? null,
       runAttempt: process.env.GITHUB_RUN_ATTEMPT ?? null,
@@ -516,6 +531,16 @@ async function main() {
   try {
     run(GIT, ["worktree", "add", "--detach", BASE_ROOT, BASE_TAG]);
     baseWorktreeAdded = true;
+    run(GIT, ["apply", "--check", BASE_AUTOMATION_PATCH], { cwd: BASE_ROOT });
+    run(GIT, ["apply", BASE_AUTOMATION_PATCH], { cwd: BASE_ROOT });
+    assert.equal(
+      run(GIT, ["status", "--porcelain"], {
+        cwd: BASE_ROOT,
+        quiet: true,
+      }),
+      ` M ${BASE_AUTOMATION_FILE}`,
+      "the base adaptation must modify only the pinned automation seam",
+    );
     runPnpm(["install", "--frozen-lockfile"], { cwd: BASE_ROOT });
 
     const password = randomBytes(32).toString("base64url");
@@ -796,6 +821,8 @@ async function main() {
         `- Verdict: **${report.verdict}**`,
         `- Candidate: \`${candidateSha}\` / ${CANDIDATE_VERSION}`,
         `- Base: \`${baseSha}\` / ${BASE_TAG}`,
+        `- Base automation patch SHA-256: \`${baseAutomationPatchSha256}\``,
+        `- Base adaptation: WebView2 automation only (not the historical installer binary)`,
         `- Installed path: \`${application}\``,
         `- Swap: ${baseStatus.currentVersion} -> ${candidateStatus.currentVersion}`,
         `- Reinstall recovery: ${recoveryStatus.currentVersion}`,

@@ -128,7 +128,14 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
   const report = {
     verdict: "PASS",
     stage: "complete",
-    base: { version: "0.10.7" },
+    base: {
+      version: "0.10.7",
+      sha: "cfd4eef671fc3fb23430e6d4a92be28e0b0e3436",
+      automationPatch: {
+        sha256: "a".repeat(64),
+        changedFiles: ["apps/desktop/src-tauri/src/lib.rs"],
+      },
+    },
     candidate: { version: "0.11.0" },
     installed: { before: "0.10.7", after: "0.11.0", recovery: "0.11.0" },
     driver: {
@@ -170,5 +177,19 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
         driver: { sessions: [{ session: "base" }] },
       }),
     /all three packaged WebDriver sessions/,
+  );
+  assert.throws(
+    () =>
+      validateWindowsAcceptanceReport({
+        ...report,
+        base: {
+          ...report.base,
+          automationPatch: {
+            ...report.base.automationPatch,
+            changedFiles: ["Cargo.toml"],
+          },
+        },
+      }),
+    /unexpected file/,
   );
 });
