@@ -45,8 +45,8 @@ function nativeDialogEvidence({
     presetMethod,
     pathPresetExpected: true,
     externalSetterUsed: false,
-    nativeDialogPathConfirmed: true,
-    selectedPathWithinTemp: true,
+    nativeDialogActionConfirmed: true,
+    expectedPathWithinTemp: true,
     filenameHostAutomationId: FILE_NAME_HOST_AUTOMATION_ID,
     dialogCount: 1,
     dialogEnabled: true,
@@ -403,6 +403,8 @@ test("keeps product setup, updater backup, and portable restore on the installed
     "pathPresetExpected",
     "externalSetterUsed",
     "presetMethod",
+    "expectedPathWithinTemp",
+    "nativeDialogActionConfirmed",
     "InvokePattern",
     "LegacyIAccessiblePattern",
     "ControlType.Pane",
@@ -424,6 +426,7 @@ test("keeps product setup, updater backup, and portable restore on the installed
     nativeDialogSource,
     /AutomationIdProperty, ['"](?:1148|1001)['"]/,
   );
+  assert.match(nativeDialogSource, /\$ErrorActionPreference = 'Stop'/);
   assert.equal(
     nativeDialogSource.match(/accessible\.accDoDefaultAction\(self\)/g)?.length,
     1,
@@ -435,7 +438,7 @@ test("keeps product setup, updater backup, and portable restore on the installed
   );
   assert.doesNotMatch(
     nativeDialogDriver,
-    /set-value|get-value|loadVerifiedWinAppTool|WINAPP_CLI/,
+    /set-value|get-value|loadVerifiedWinAppTool|WINAPP_CLI|selectedPathWithinTemp|nativeDialogPathConfirmed/,
   );
   assert.doesNotMatch(nativeDialogDriver, /throw error;/);
   const actionBridge = nativeDialogSource.slice(
@@ -493,16 +496,24 @@ test("keeps product setup, updater backup, and portable restore on the installed
     ".set_directory(&preset.directory)",
     ".set_file_name(&preset.file_name)",
     ".set_file_name(default_backup_file_name())",
+    "WindowsStartupAutomation::from_environment()",
+    ".create_new(true)",
   ]) {
     assert.ok(desktopSource.includes(requiredPresetGuard));
   }
-  assert.equal(
-    desktopSource.match(
-      /std::env::var_os\("VOYALIER_WINDOWS_ACCEPTANCE_BACKUP_PATH"\)/g,
-    )?.length,
-    1,
-    "the acceptance target must be read exactly once at process setup",
-  );
+  for (const environmentRead of [
+    /std::env::var\("TAURI_WEBVIEW_AUTOMATION"\)/g,
+    /std::env::var\("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"\)/g,
+    /std::env::var\("VOYALIER_WINDOWS_WEBDRIVER_PROFILE"\)/g,
+    /std::env::var_os\("RUNNER_TEMP"\)/g,
+    /std::env::var_os\("VOYALIER_WINDOWS_ACCEPTANCE_BACKUP_PATH"\)/g,
+  ]) {
+    assert.equal(
+      desktopSource.match(environmentRead)?.length,
+      1,
+      "each acceptance input must be read exactly once at process setup",
+    );
+  }
   const exportSource = desktopSource.slice(
     desktopSource.indexOf("fn export_backup"),
     desktopSource.indexOf("fn stage_restore"),
@@ -514,8 +525,13 @@ test("keeps product setup, updater backup, and portable restore on the installed
   assert.ok(
     exportSource.indexOf("validate_chosen_path") !== -1 &&
       exportSource.indexOf("validate_chosen_path") <
-        exportSource.indexOf("std::fs::write"),
+        exportSource.indexOf("write_new_backup_file"),
     "the returned save target must be validated before any write",
+  );
+  assert.ok(
+    exportSource.indexOf("write_new_backup_file") <
+      exportSource.indexOf("std::fs::write"),
+    "the active acceptance preset must use atomic create while ordinary launches keep their existing write",
   );
   assert.ok(
     restoreSource.indexOf("validate_chosen_path") !== -1 &&
@@ -584,6 +600,16 @@ test("rejects incomplete native picker preflight proof", () => {
         ...preflight.dialog,
         discoveryCommand: {
           ...preflight.dialog.discoveryCommand,
+          stderr: "nonterminating discovery error",
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        discoveryCommand: {
+          ...preflight.dialog.discoveryCommand,
           result: {
             ...preflight.dialog.discoveryCommand.result,
             hwnd: 999,
@@ -628,6 +654,14 @@ test("rejects incomplete native picker preflight proof", () => {
     },
     {
       ...preflight,
+      dialog: { ...preflight.dialog, nativeDialogPathConfirmed: true },
+    },
+    {
+      ...preflight,
+      dialog: { ...preflight.dialog, selectedPathWithinTemp: true },
+    },
+    {
+      ...preflight,
       dialog: {
         ...preflight.dialog,
         setValue: { exitCode: 0 },
@@ -647,6 +681,16 @@ test("rejects incomplete native picker preflight proof", () => {
     {
       ...preflight,
       dialog: { ...preflight.dialog, actionCommand: undefined },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        actionCommand: {
+          ...preflight.dialog.actionCommand,
+          stderr: "nonterminating action error",
+        },
+      },
     },
     {
       ...preflight,
@@ -1184,7 +1228,7 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
     },
     portableBackup: {
       exportedViaUi: true,
-      returnedPathEqualsPreset: true,
+      returnedPathNoticeEqualsPreset: true,
       createdNewFile: true,
       screenshotPathRedacted: true,
       screenshotEvidence: {
@@ -1207,8 +1251,8 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
         title: "Choose a Voyalier backup",
         action: "Open",
       }),
-      returnedPathEqualsPreset: true,
-      selectedSameTargetAsExport: true,
+      candidateReturnedPathGuardPassed: true,
+      guardedTargetMatchesExport: true,
       preReadSha256: "b".repeat(64),
       preReadSha256MatchesExport: true,
       appliedAfterReinstall: true,
@@ -1355,7 +1399,7 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
         ...report,
         portableBackup: {
           ...report.portableBackup,
-          nativeDialogPathConfirmed: false,
+          nativeDialogActionConfirmed: false,
         },
       }),
     /portable backup UI evidence is incomplete/,
@@ -1366,7 +1410,7 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
         ...report,
         portableBackup: {
           ...report.portableBackup,
-          selectedPathWithinTemp: false,
+          expectedPathWithinTemp: false,
         },
       }),
     /portable backup UI evidence is incomplete/,
@@ -1402,7 +1446,7 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
         ...report,
         portableBackup: {
           ...report.portableBackup,
-          returnedPathEqualsPreset: false,
+          returnedPathNoticeEqualsPreset: false,
         },
       }),
     /portable backup UI evidence is incomplete/,
@@ -1413,7 +1457,7 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
         ...report,
         portableRestore: {
           ...report.portableRestore,
-          nativeDialogPathConfirmed: false,
+          nativeDialogActionConfirmed: false,
         },
       }),
     /restore and reinstall evidence is incomplete/,

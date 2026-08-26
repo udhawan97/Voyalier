@@ -945,29 +945,6 @@ impl WindowsDialogAutomation {
         Self { preset: Ok(None) }
     }
 
-    #[cfg(target_os = "windows")]
-    fn from_environment() -> Self {
-        let automation = std::env::var("TAURI_WEBVIEW_AUTOMATION").ok();
-        let browser_args = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").ok();
-        let profile = std::env::var("VOYALIER_WINDOWS_WEBDRIVER_PROFILE").ok();
-        let complete_gate = windows_automation_config(
-            automation.as_deref(),
-            browser_args.as_deref(),
-            profile.as_deref(),
-        )
-        .is_some();
-        let runner_temp = std::env::var_os("RUNNER_TEMP").map(std::path::PathBuf::from);
-        let target = std::env::var_os("VOYALIER_WINDOWS_ACCEPTANCE_BACKUP_PATH")
-            .map(std::path::PathBuf::from);
-        Self {
-            preset: windows_acceptance_dialog_preset(
-                complete_gate,
-                runner_temp.as_deref(),
-                target.as_deref(),
-            ),
-        }
-    }
-
     fn for_purpose(
         &self,
         purpose: WindowsDialogPurpose,
@@ -987,6 +964,47 @@ impl WindowsDialogAutomation {
             })?;
         }
         Ok(preset.as_ref())
+    }
+}
+
+#[cfg(any(target_os = "windows", test))]
+#[derive(Debug)]
+struct WindowsStartupAutomation {
+    webview: Option<WindowsAutomationConfig>,
+    dialog: WindowsDialogAutomation,
+}
+
+#[cfg(any(target_os = "windows", test))]
+impl WindowsStartupAutomation {
+    fn from_values(
+        automation: Option<&str>,
+        browser_args: Option<&str>,
+        profile: Option<&str>,
+        runner_temp: Option<&std::path::Path>,
+        target: Option<&std::path::Path>,
+    ) -> Self {
+        let webview = windows_automation_config(automation, browser_args, profile);
+        let dialog = WindowsDialogAutomation {
+            preset: windows_acceptance_dialog_preset(webview.is_some(), runner_temp, target),
+        };
+        Self { webview, dialog }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn from_environment() -> Self {
+        let automation = std::env::var("TAURI_WEBVIEW_AUTOMATION").ok();
+        let browser_args = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").ok();
+        let profile = std::env::var("VOYALIER_WINDOWS_WEBDRIVER_PROFILE").ok();
+        let runner_temp = std::env::var_os("RUNNER_TEMP").map(std::path::PathBuf::from);
+        let target = std::env::var_os("VOYALIER_WINDOWS_ACCEPTANCE_BACKUP_PATH")
+            .map(std::path::PathBuf::from);
+        Self::from_values(
+            automation.as_deref(),
+            browser_args.as_deref(),
+            profile.as_deref(),
+            runner_temp.as_deref(),
+            target.as_deref(),
+        )
     }
 }
 
@@ -1126,6 +1144,16 @@ impl WindowsAcceptanceDialogPreset {
     }
 }
 
+fn write_new_backup_file(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)?;
+    file.write_all(bytes)
+}
+
 /// A cancelled picker is `None`, not an error — the traveler changing their
 /// mind is a normal outcome and must not surface as a failure.
 #[tauri::command]
@@ -1164,7 +1192,12 @@ fn export_backup<R: tauri::Runtime>(
             .validate_chosen_path(WindowsDialogPurpose::Export, &path)
             .map_err(|detail| AppError::new(ErrorCode::StorageFailure, detail))?;
     }
-    std::fs::write(&path, &bytes).map_err(|error| {
+    let write_result = if preset.is_some() {
+        write_new_backup_file(&path, &bytes)
+    } else {
+        std::fs::write(&path, &bytes)
+    };
+    write_result.map_err(|error| {
         AppError::new(
             ErrorCode::StorageFailure,
             format!("the backup could not be written: {error}"),
@@ -1539,15 +1572,11 @@ fn windows_automation_config(
 }
 
 #[cfg(target_os = "windows")]
-fn apply_windows_automation_config(context: &mut tauri::Context<tauri::Wry>) {
-    let automation = std::env::var("TAURI_WEBVIEW_AUTOMATION").ok();
-    let browser_args = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").ok();
-    let profile = std::env::var("VOYALIER_WINDOWS_WEBDRIVER_PROFILE").ok();
-    let Some(config) = windows_automation_config(
-        automation.as_deref(),
-        browser_args.as_deref(),
-        profile.as_deref(),
-    ) else {
+fn apply_windows_automation_config(
+    context: &mut tauri::Context<tauri::Wry>,
+    config: Option<&WindowsAutomationConfig>,
+) {
+    let Some(config) = config else {
         return;
     };
     let window = context
@@ -1557,24 +1586,23 @@ fn apply_windows_automation_config(context: &mut tauri::Context<tauri::Wry>) {
         .iter_mut()
         .find(|window| window.label == "main")
         .expect("main window configuration must exist");
-    window.additional_browser_args = Some(config.additional_browser_args);
-    window.data_directory = Some(config.data_directory.into());
+    window.additional_browser_args = Some(config.additional_browser_args.clone());
+    window.data_directory = Some(config.data_directory.clone().into());
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let service = AppService::open_default().expect("Voyalier storage must initialize");
-    #[cfg(target_os = "windows")]
-    let dialog_automation = WindowsDialogAutomation::from_environment();
-    #[cfg(not(target_os = "windows"))]
-    let dialog_automation = WindowsDialogAutomation::inactive();
     let context = tauri::generate_context!();
     #[cfg(target_os = "windows")]
-    let context = {
+    let (context, dialog_automation) = {
+        let startup_automation = WindowsStartupAutomation::from_environment();
         let mut context = context;
-        apply_windows_automation_config(&mut context);
-        context
+        apply_windows_automation_config(&mut context, startup_automation.webview.as_ref());
+        (context, startup_automation.dialog)
     };
+    #[cfg(not(target_os = "windows"))]
+    let dialog_automation = WindowsDialogAutomation::inactive();
     #[cfg_attr(debug_assertions, allow(unused_mut))]
     let mut app = builder(tauri::Builder::default(), service, dialog_automation);
     // Native pickers for backup/restore. Registered in every build (unlike the
@@ -1656,6 +1684,46 @@ mod tests {
     }
 
     #[test]
+    fn windows_startup_automation_reuses_one_complete_gate() {
+        let database = temp_database("startup-automation");
+        let runner_temp = database.parent().expect("runner temp").to_path_buf();
+        let acceptance = runner_temp.join("voyalier-windows-acceptance-812");
+        fs::create_dir_all(&acceptance).expect("acceptance directory");
+        let target = acceptance.join(WINDOWS_ACCEPTANCE_BACKUP_FILE_NAME);
+
+        let active = WindowsStartupAutomation::from_values(
+            Some("true"),
+            Some("--remote-debugging-port=0"),
+            Some("voyalier-acceptance-journey"),
+            Some(&runner_temp),
+            Some(&target),
+        );
+        assert!(active.webview.is_some());
+        assert!(active.dialog.preset.expect("active preset").is_some());
+
+        let inactive = WindowsStartupAutomation::from_values(
+            Some("false"),
+            Some("--remote-debugging-port=0"),
+            Some("voyalier-acceptance-journey"),
+            Some(&runner_temp),
+            Some(&target),
+        );
+        assert!(inactive.webview.is_none());
+        assert_eq!(inactive.dialog.preset, Ok(None));
+
+        let malformed = WindowsStartupAutomation::from_values(
+            Some("true"),
+            Some("--remote-debugging-port=0"),
+            Some("voyalier-acceptance-journey"),
+            Some(&runner_temp),
+            None,
+        );
+        assert!(malformed.webview.is_some());
+        assert!(malformed.dialog.preset.is_err());
+        cleanup_database(database);
+    }
+
+    #[test]
     fn windows_picker_preset_is_explicit_and_checks_each_file_lifecycle() {
         let database = temp_database("picker-preset");
         let runner_temp = database.parent().expect("runner temp").to_path_buf();
@@ -1691,7 +1759,15 @@ mod tests {
             Ok(())
         );
 
-        fs::write(&preset.target, b"portable backup").expect("backup fixture");
+        write_new_backup_file(&preset.target, b"portable backup").expect("backup fixture");
+        assert!(
+            write_new_backup_file(&preset.target, b"replacement").is_err(),
+            "the acceptance export must atomically refuse a competing file",
+        );
+        assert_eq!(
+            fs::read(&preset.target).expect("preserved backup fixture"),
+            b"portable backup",
+        );
         assert!(
             preset
                 .validate_before_dialog(WindowsDialogPurpose::Export)

@@ -213,13 +213,15 @@ function hasNativeDialogEvidence(dialog) {
       WINDOWS_ACCESSIBLE_ACTION.processTimeoutMs;
   return (
     dialog?.verdict === "PASS" &&
-    dialog?.nativeDialogPathConfirmed === true &&
-    dialog?.selectedPathWithinTemp === true &&
+    dialog?.nativeDialogActionConfirmed === true &&
+    dialog?.expectedPathWithinTemp === true &&
     dialog?.filenameHostAutomationId === FILE_NAME_HOST_AUTOMATION_ID &&
     dialog?.pathPresetExpected === true &&
     dialog?.externalSetterUsed === false &&
     dialog?.setValue == null &&
     dialog?.getValue == null &&
+    dialog?.nativeDialogPathConfirmed == null &&
+    dialog?.selectedPathWithinTemp == null &&
     SHA256.test(dialog?.expectedPathSha256 ?? "") &&
     [
       "System.Windows.Forms.SaveFileDialog.InitialDirectory+FileName",
@@ -237,6 +239,7 @@ function hasNativeDialogEvidence(dialog) {
     dialog?.hostOffscreen === false &&
     dialog?.discoveryCommand?.exitCode === 0 &&
     dialog?.discoveryCommand?.jsonParsed === true &&
+    dialog?.discoveryCommand?.stderr === "" &&
     dialog?.discoveryCommand?.result?.title === dialog?.title &&
     dialog?.discoveryCommand?.result?.dialogCount === dialog?.dialogCount &&
     dialog?.discoveryCommand?.result?.dialogEnabled === dialog?.dialogEnabled &&
@@ -267,6 +270,7 @@ function hasNativeDialogEvidence(dialog) {
     dialog?.dialogDismissed === true &&
     dialog?.actionCommand?.exitCode === 0 &&
     dialog?.actionCommand?.jsonParsed === true &&
+    dialog?.actionCommand?.stderr === "" &&
     dialog?.actionCommand?.result?.hwnd === dialog?.dialogHwnd &&
     dialog?.actionCommand?.result?.actionCandidateCount ===
       dialog?.actionCandidateCount &&
@@ -581,11 +585,12 @@ export function validateWindowsAcceptanceReport(report) {
   if (
     report.portableBackup?.exportedViaUi !== true ||
     !hasNativeDialogEvidence(report.portableBackup) ||
+    report.portableBackup?.returnedPathEqualsPreset != null ||
     report.portableBackup?.title !== "Save Voyalier backup" ||
     report.portableBackup?.action !== "Save" ||
     report.portableBackup?.presetMethod !==
       "rfd::FileDialog::set_directory+set_file_name" ||
-    report.portableBackup?.returnedPathEqualsPreset !== true ||
+    report.portableBackup?.returnedPathNoticeEqualsPreset !== true ||
     report.portableBackup?.createdNewFile !== true ||
     report.portableBackup?.expectedPathSha256 !==
       report.pickerPreset?.targetSha256 ||
@@ -599,7 +604,6 @@ export function validateWindowsAcceptanceReport(report) {
     report.portableBackup?.screenshotEvidence?.remainingAbsolutePathMatches !==
       0 ||
     report.portableBackup?.screenshotEvidence?.written !== true ||
-    report.portableBackup?.selectedPathWithinTemp !== true ||
     report.portableBackup?.fileName !== "voyalier-portable-acceptance.vbk" ||
     path.win32.basename(report.portableBackup?.expectedValueToken ?? "") !==
       report.portableBackup.fileName ||
@@ -611,12 +615,13 @@ export function validateWindowsAcceptanceReport(report) {
   if (
     report.portableRestore?.stagedViaUi !== true ||
     !hasNativeDialogEvidence(report.portableRestore) ||
+    report.portableRestore?.returnedPathEqualsPreset != null ||
     report.portableRestore?.title !== "Choose a Voyalier backup" ||
     report.portableRestore?.action !== "Open" ||
     report.portableRestore?.presetMethod !==
       "rfd::FileDialog::set_directory+set_file_name" ||
-    report.portableRestore?.returnedPathEqualsPreset !== true ||
-    report.portableRestore?.selectedSameTargetAsExport !== true ||
+    report.portableRestore?.candidateReturnedPathGuardPassed !== true ||
+    report.portableRestore?.guardedTargetMatchesExport !== true ||
     report.portableRestore?.expectedPathSha256 !==
       report.pickerPreset?.targetSha256 ||
     report.portableRestore?.expectedValueToken !==

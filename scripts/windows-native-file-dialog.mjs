@@ -129,7 +129,7 @@ function executeCapturedRaw(command, args, options = {}) {
     stderr: String(result.stderr ?? ""),
   };
   const evidence = commandEvidence(capture, options.env ?? process.env);
-  if (result.error || result.status !== 0) {
+  if (result.error || result.status !== 0 || capture.stderr.trim() !== "") {
     const error = new Error(
       `${path.basename(command)} exited with ${result.status ?? "no status"}: ${evidence.stderr || evidence.stdout || "no output"}`,
       { cause: result.error },
@@ -182,7 +182,7 @@ function powershellJson(script, timeout = 2 * 60 * 1000) {
       "-ExecutionPolicy",
       "Bypass",
       "-Command",
-      script,
+      `$ErrorActionPreference = 'Stop'; ${script}`,
     ],
     { timeout },
   );
@@ -572,8 +572,8 @@ export async function driveNativeFileDialog({
     presetMethod,
     pathPresetExpected: true,
     externalSetterUsed: false,
-    selectedPathWithinTemp: true,
-    nativeDialogPathConfirmed: false,
+    expectedPathWithinTemp: true,
+    nativeDialogActionConfirmed: false,
     inputInjectionUsed: false,
   };
   writeDiagnostic(diagnosticPath, record);
@@ -704,7 +704,7 @@ export async function driveNativeFileDialog({
     assert.equal(invoked.result?.actionInvoked, true);
     assert.equal(invoked.result?.dialogDismissed, true);
     Object.assign(record, {
-      nativeDialogPathConfirmed: true,
+      nativeDialogActionConfirmed: true,
       dialogCountBefore: invoked.result.dialogCountBefore,
       dialogCountAfter: invoked.result.dialogCountAfter,
       actionCandidateCount: invoked.result.actionCandidateCount,
