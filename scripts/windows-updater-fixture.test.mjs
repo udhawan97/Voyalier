@@ -182,13 +182,31 @@ test("keeps product setup, updater backup, and portable restore on the installed
   assert.doesNotMatch(source, /AutomationIdProperty, '1148'/);
   assert.doesNotMatch(source, /AutomationIdProperty, '1001'/);
   assert.match(source, /ValuePattern/);
+  assert.match(source, /LegacyIAccessiblePattern/);
   assert.match(source, /InvokePattern/);
+  assert.match(source, /\$host\.FindAll/);
+  assert.match(source, /ControlType\]::Edit/);
+  assert.match(source, /ControlType\]::ComboBox/);
+  assert.match(source, /selectorMode = 'host-descendant'/);
+  assert.match(source, /selectorMode = 'host-legacy'/);
+  assert.match(source, /ConvertTo-Json -Compress/);
   assert.match(source, /IsEnabledProperty/);
   assert.match(source, /IsOffscreenProperty/);
   assert.match(source, /Current\.IsReadOnly/);
   assert.match(source, /eligibleFileNameCount/);
   assert.match(source, /eligibleActionCount/);
   assert.match(source, /filename readback did not match/);
+  const legacyLookupIndex = source.indexOf(
+    "$hostLegacyPattern = $host.GetCurrentPattern",
+  );
+  const descendantLookupIndex = source.indexOf("$descendants = $host.FindAll");
+  assert.notEqual(legacyLookupIndex, -1);
+  assert.notEqual(descendantLookupIndex, -1);
+  assert.ok(
+    legacyLookupIndex < descendantLookupIndex,
+    "the exact semantic host legacy setter must precede descendant discovery",
+  );
+  assert.match(source, /\$lastHostLegacyPatternCount -eq 0\) \{ ` \+/);
   const setValueIndex = source.indexOf("$valuePattern.SetValue($value)");
   const actionLookupIndex = source.indexOf(
     "$actionCandidates = $dialog.FindAll",
@@ -299,7 +317,18 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
       exportedViaUi: true,
       nativeDialogPathConfirmed: true,
       selectedPathWithinTemp: true,
-      filenameControlAutomationId: "FileNameControlHost",
+      filenameHostAutomationId: "FileNameControlHost",
+      selectorMode: "host-descendant",
+      pathReadbackConfirmed: true,
+      hostCount: 1,
+      hostValueWritableCount: 0,
+      hostLegacyPatternCount: 0,
+      descendantCandidateCount: 2,
+      eligibleDescendantCount: 1,
+      selectedControlType: "ControlType.Edit",
+      setterPattern: "ValuePattern",
+      actionCandidateCount: 1,
+      eligibleActionCount: 1,
       fileName: "voyalier-portable-acceptance.vbk",
       bytes: 4096,
       sha256: "b".repeat(64),
@@ -307,7 +336,18 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
     portableRestore: {
       stagedViaUi: true,
       nativeDialogPathConfirmed: true,
-      filenameControlAutomationId: "FileNameControlHost",
+      filenameHostAutomationId: "FileNameControlHost",
+      selectorMode: "host-descendant",
+      pathReadbackConfirmed: true,
+      hostCount: 1,
+      hostValueWritableCount: 0,
+      hostLegacyPatternCount: 0,
+      descendantCandidateCount: 2,
+      eligibleDescendantCount: 1,
+      selectedControlType: "ControlType.Edit",
+      setterPattern: "ValuePattern",
+      actionCandidateCount: 1,
+      eligibleActionCount: 1,
       appliedAfterReinstall: true,
       postBackupSentinelAbsent: true,
     },
@@ -318,6 +358,48 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
     },
   };
   assert.equal(validateWindowsAcceptanceReport(report), report);
+  const hostDialogEvidence = {
+    filenameHostAutomationId: "FileNameControlHost",
+    selectorMode: "host",
+    pathReadbackConfirmed: true,
+    hostCount: 1,
+    hostValueWritableCount: 1,
+    hostLegacyPatternCount: 0,
+    descendantCandidateCount: 0,
+    eligibleDescendantCount: 0,
+    selectedControlType: "ControlType.ComboBox",
+    setterPattern: "ValuePattern",
+    actionCandidateCount: 1,
+    eligibleActionCount: 1,
+  };
+  const hostModeReport = {
+    ...report,
+    portableBackup: { ...report.portableBackup, ...hostDialogEvidence },
+    portableRestore: { ...report.portableRestore, ...hostDialogEvidence },
+  };
+  assert.equal(validateWindowsAcceptanceReport(hostModeReport), hostModeReport);
+  const hostLegacyDialogEvidence = {
+    ...hostDialogEvidence,
+    selectorMode: "host-legacy",
+    hostValueWritableCount: 0,
+    hostLegacyPatternCount: 1,
+    setterPattern: "LegacyIAccessiblePattern",
+  };
+  const hostLegacyModeReport = {
+    ...report,
+    portableBackup: {
+      ...report.portableBackup,
+      ...hostLegacyDialogEvidence,
+    },
+    portableRestore: {
+      ...report.portableRestore,
+      ...hostLegacyDialogEvidence,
+    },
+  };
+  assert.equal(
+    validateWindowsAcceptanceReport(hostLegacyModeReport),
+    hostLegacyModeReport,
+  );
   assert.throws(
     () => validateWindowsAcceptanceReport({ ...report, stage: "updater-swap" }),
     /every installed-app stage/,
@@ -467,7 +549,18 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
         ...report,
         portableBackup: {
           ...report.portableBackup,
-          filenameControlAutomationId: "1148",
+          filenameHostAutomationId: "1148",
+        },
+      }),
+    /portable backup UI evidence is incomplete/,
+  );
+  assert.throws(
+    () =>
+      validateWindowsAcceptanceReport({
+        ...report,
+        portableBackup: {
+          ...report.portableBackup,
+          selectorMode: "host",
         },
       }),
     /portable backup UI evidence is incomplete/,
@@ -489,7 +582,7 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
         ...report,
         portableRestore: {
           ...report.portableRestore,
-          filenameControlAutomationId: "1148",
+          filenameHostAutomationId: "1148",
         },
       }),
     /restore and reinstall evidence is incomplete/,

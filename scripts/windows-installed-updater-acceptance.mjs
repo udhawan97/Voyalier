@@ -606,7 +606,7 @@ function handleNativeFileDialog(title, filePath, action) {
     ["Save", "Open"].includes(action),
     "native dialog action must be Save or Open",
   );
-  powershell(
+  const dialogEvidence = powershell(
     `Add-Type -AssemblyName UIAutomationClient; ` +
       `Add-Type -AssemblyName UIAutomationTypes; ` +
       `$title = ${psQuote(title)}; $value = ${psQuote(filePath)}; ` +
@@ -619,8 +619,10 @@ function handleNativeFileDialog(title, filePath, action) {
       `$actionCondition = [System.Windows.Automation.PropertyCondition]::new(` +
       `[System.Windows.Automation.AutomationElement]::NameProperty, $action); ` +
       `$deadline = (Get-Date).AddSeconds(90); ` +
-      `$lastDialogCount = 0; $lastRawFileNameCount = 0; ` +
-      `$lastEligibleFileNameCount = 0; $lastRawActionCount = 0; ` +
+      `$lastDialogCount = 0; $lastHostCount = 0; ` +
+      `$lastHostValueWritableCount = 0; $lastHostLegacyPatternCount = 0; ` +
+      `$lastDescendantCandidateCount = 0; ` +
+      `$lastEligibleDescendantCount = 0; $lastRawActionCount = 0; ` +
       `$lastEligibleActionCount = 0; ` +
       `do { ` +
       `$dialogs = $root.FindAll(` +
@@ -631,12 +633,56 @@ function handleNativeFileDialog(title, filePath, action) {
       `}; ` +
       `if ($dialogs.Count -eq 1) { ` +
       `$dialog = $dialogs.Item(0); ` +
-      `$fileNameCandidates = $dialog.FindAll(` +
+      `$fileNameHosts = $dialog.FindAll(` +
       `[System.Windows.Automation.TreeScope]::Descendants, $fileNameCondition); ` +
-      `$lastRawFileNameCount = $fileNameCandidates.Count; ` +
+      `$lastHostCount = $fileNameHosts.Count; ` +
+      `if ($fileNameHosts.Count -gt 1) { ` +
+      `throw "multiple filename hosts (count $($fileNameHosts.Count))" ` +
+      `}; ` +
       `$eligibleFileNameCount = 0; $fileName = $null; $valuePattern = $null; ` +
-      `for ($index = 0; $index -lt $fileNameCandidates.Count; $index++) { ` +
-      `$candidate = $fileNameCandidates.Item($index); ` +
+      `$selectorMode = $null; $setterPattern = $null; ` +
+      `if ($fileNameHosts.Count -eq 1) { ` +
+      `$host = $fileNameHosts.Item(0); ` +
+      `$lastHostValueWritableCount = 0; $lastHostLegacyPatternCount = 0; ` +
+      `$lastDescendantCandidateCount = 0; ` +
+      `$lastEligibleDescendantCount = 0; ` +
+      `$hostEligible = $host.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::IsEnabledProperty) ` +
+      `-eq $true -and $host.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::IsOffscreenProperty) ` +
+      `-eq $false; ` +
+      `if ($hostEligible) { ` +
+      `try { $hostPattern = $host.GetCurrentPattern(` +
+      `[System.Windows.Automation.ValuePattern]::Pattern) } ` +
+      `catch { $hostPattern = $null }; ` +
+      `if ($null -ne $hostPattern -and $hostPattern.Current.IsReadOnly -eq $false) { ` +
+      `$lastHostValueWritableCount = 1; ` +
+      `$eligibleFileNameCount = 1; $fileName = $host; ` +
+      `$valuePattern = $hostPattern; $selectorMode = 'host'; ` +
+      `$setterPattern = 'ValuePattern' ` +
+      `} }; ` +
+      `if ($hostEligible -and $eligibleFileNameCount -eq 0) { ` +
+      `try { $hostLegacyPattern = $host.GetCurrentPattern(` +
+      `[System.Windows.Automation.LegacyIAccessiblePattern]::Pattern) } ` +
+      `catch { $hostLegacyPattern = $null }; ` +
+      `if ($null -ne $hostLegacyPattern) { ` +
+      `$lastHostLegacyPatternCount = 1; ` +
+      `$eligibleFileNameCount = 1; $fileName = $host; ` +
+      `$valuePattern = $hostLegacyPattern; $selectorMode = 'host-legacy'; ` +
+      `$setterPattern = 'LegacyIAccessiblePattern' ` +
+      `} }; ` +
+      `if ($hostEligible -and $eligibleFileNameCount -eq 0 -and ` +
+      `$lastHostLegacyPatternCount -eq 0) { ` +
+      `$descendants = $host.FindAll(` +
+      `[System.Windows.Automation.TreeScope]::Descendants, ` +
+      `[System.Windows.Automation.Condition]::TrueCondition); ` +
+      `for ($index = 0; $index -lt $descendants.Count; $index++) { ` +
+      `$candidate = $descendants.Item($index); ` +
+      `$controlType = $candidate.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::ControlTypeProperty); ` +
+      `if ($controlType -ne [System.Windows.Automation.ControlType]::Edit -and ` +
+      `$controlType -ne [System.Windows.Automation.ControlType]::ComboBox) { continue }; ` +
+      `$lastDescendantCandidateCount += 1; ` +
       `if ($candidate.GetCurrentPropertyValue(` +
       `[System.Windows.Automation.AutomationElement]::IsEnabledProperty) ` +
       `-ne $true) { continue }; ` +
@@ -648,13 +694,16 @@ function handleNativeFileDialog(title, filePath, action) {
       `catch { continue }; ` +
       `if ($candidatePattern.Current.IsReadOnly -ne $false) { continue }; ` +
       `$eligibleFileNameCount += 1; ` +
+      `$lastEligibleDescendantCount += 1; ` +
       `if ($eligibleFileNameCount -eq 1) { ` +
-      `$fileName = $candidate; $valuePattern = $candidatePattern ` +
+      `$fileName = $candidate; $valuePattern = $candidatePattern; ` +
+      `$selectorMode = 'host-descendant'; $setterPattern = 'ValuePattern' ` +
+      `} ` +
+      `} ` +
       `} ` +
       `}; ` +
-      `$lastEligibleFileNameCount = $eligibleFileNameCount; ` +
       `if ($eligibleFileNameCount -gt 1) { ` +
-      `throw "multiple eligible filename controls (raw $lastRawFileNameCount, eligible $eligibleFileNameCount)" ` +
+      `throw "multiple eligible filename controls (host value writable $lastHostValueWritableCount, host legacy $lastHostLegacyPatternCount, descendants raw $lastDescendantCandidateCount eligible $lastEligibleDescendantCount)" ` +
       `}; ` +
       `if ($eligibleFileNameCount -eq 1) { ` +
       `$valuePattern.SetValue($value); ` +
@@ -688,16 +737,31 @@ function handleNativeFileDialog(title, filePath, action) {
       `throw "multiple eligible dialog actions (raw $lastRawActionCount, eligible $eligibleActionCount)" ` +
       `}; ` +
       `if ($eligibleActionCount -eq 1) { ` +
-      `$invokePattern.Invoke(); exit 0 ` +
+      `$selectedControlType = $fileName.GetCurrentPropertyValue(` +
+      `[System.Windows.Automation.AutomationElement]::ControlTypeProperty); ` +
+      `$invokePattern.Invoke(); ` +
+      `@{ filenameHostAutomationId = 'FileNameControlHost'; ` +
+      `selectorMode = $selectorMode; pathReadbackConfirmed = $true; ` +
+      `hostCount = $lastHostCount; ` +
+      `hostValueWritableCount = $lastHostValueWritableCount; ` +
+      `hostLegacyPatternCount = $lastHostLegacyPatternCount; ` +
+      `descendantCandidateCount = $lastDescendantCandidateCount; ` +
+      `eligibleDescendantCount = $lastEligibleDescendantCount; ` +
+      `selectedControlType = $selectedControlType.ProgrammaticName; ` +
+      `setterPattern = $setterPattern; ` +
+      `actionCandidateCount = $lastRawActionCount; ` +
+      `eligibleActionCount = $lastEligibleActionCount } ` +
+      `| ConvertTo-Json -Compress; exit 0 ` +
       `} ` +
       `} }; Start-Sleep -Milliseconds 250 ` +
       `} while ((Get-Date) -lt $deadline); ` +
-      `throw "native dialog controls did not become actionable (dialogs $lastDialogCount, filenames raw $lastRawFileNameCount eligible $lastEligibleFileNameCount, actions raw $lastRawActionCount eligible $lastEligibleActionCount)"`,
+      `throw "native dialog controls did not become actionable (dialogs $lastDialogCount, hosts $lastHostCount value-writable $lastHostValueWritableCount legacy $lastHostLegacyPatternCount, descendants raw $lastDescendantCandidateCount eligible $lastEligibleDescendantCount, actions raw $lastRawActionCount eligible $lastEligibleActionCount)"`,
+    { json: true },
   );
   return {
     nativeDialogPathConfirmed: true,
     selectedPathWithinTemp,
-    filenameControlAutomationId: "FileNameControlHost",
+    ...dialogEvidence,
   };
 }
 
@@ -1532,21 +1596,14 @@ async function main() {
       },
       portableBackup: {
         exportedViaUi: true,
-        nativeDialogPathConfirmed:
-          portableBackupDialog.nativeDialogPathConfirmed,
-        selectedPathWithinTemp: portableBackupDialog.selectedPathWithinTemp,
-        filenameControlAutomationId:
-          portableBackupDialog.filenameControlAutomationId,
+        ...portableBackupDialog,
         fileName: PORTABLE_BACKUP_NAME,
         bytes: portableBackupStat.size,
         sha256: portableBackupSha256,
       },
       portableRestore: {
         stagedViaUi: true,
-        nativeDialogPathConfirmed:
-          portableRestoreDialog.nativeDialogPathConfirmed,
-        filenameControlAutomationId:
-          portableRestoreDialog.filenameControlAutomationId,
+        ...portableRestoreDialog,
         appliedAfterReinstall: true,
         postBackupSentinelAbsent: true,
       },

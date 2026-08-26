@@ -152,6 +152,51 @@ export async function mirrorWebViewDevToolsPort({
 }
 
 export function validateWindowsAcceptanceReport(report) {
+  const hasNativeDialogEvidence = (dialog) => {
+    if (
+      dialog?.nativeDialogPathConfirmed !== true ||
+      dialog?.filenameHostAutomationId !== "FileNameControlHost" ||
+      dialog?.pathReadbackConfirmed !== true ||
+      dialog?.hostCount !== 1 ||
+      !["ControlType.Edit", "ControlType.ComboBox"].includes(
+        dialog?.selectedControlType,
+      ) ||
+      !Number.isInteger(dialog?.actionCandidateCount) ||
+      dialog.actionCandidateCount < 1 ||
+      dialog?.eligibleActionCount !== 1
+    ) {
+      return false;
+    }
+    if (dialog.selectorMode === "host") {
+      return (
+        dialog.hostValueWritableCount === 1 &&
+        dialog.hostLegacyPatternCount === 0 &&
+        dialog.descendantCandidateCount === 0 &&
+        dialog.eligibleDescendantCount === 0 &&
+        dialog.setterPattern === "ValuePattern"
+      );
+    }
+    if (dialog.selectorMode === "host-legacy") {
+      return (
+        dialog.hostValueWritableCount === 0 &&
+        dialog.hostLegacyPatternCount === 1 &&
+        dialog.descendantCandidateCount === 0 &&
+        dialog.eligibleDescendantCount === 0 &&
+        dialog.setterPattern === "LegacyIAccessiblePattern"
+      );
+    }
+    if (dialog.selectorMode === "host-descendant") {
+      return (
+        dialog.hostValueWritableCount === 0 &&
+        dialog.hostLegacyPatternCount === 0 &&
+        Number.isInteger(dialog.descendantCandidateCount) &&
+        dialog.descendantCandidateCount >= 1 &&
+        dialog.eligibleDescendantCount === 1 &&
+        dialog.setterPattern === "ValuePattern"
+      );
+    }
+    return false;
+  };
   if (!report || report.verdict !== "PASS") {
     throw new Error("acceptance report must have a PASS verdict");
   }
@@ -329,10 +374,8 @@ export function validateWindowsAcceptanceReport(report) {
   }
   if (
     report.portableBackup?.exportedViaUi !== true ||
-    report.portableBackup?.nativeDialogPathConfirmed !== true ||
+    !hasNativeDialogEvidence(report.portableBackup) ||
     report.portableBackup?.selectedPathWithinTemp !== true ||
-    report.portableBackup?.filenameControlAutomationId !==
-      "FileNameControlHost" ||
     typeof report.portableBackup?.fileName !== "string" ||
     !report.portableBackup.fileName.endsWith(".vbk") ||
     !(report.portableBackup?.bytes > 0) ||
@@ -342,9 +385,7 @@ export function validateWindowsAcceptanceReport(report) {
   }
   if (
     report.portableRestore?.stagedViaUi !== true ||
-    report.portableRestore?.nativeDialogPathConfirmed !== true ||
-    report.portableRestore?.filenameControlAutomationId !==
-      "FileNameControlHost" ||
+    !hasNativeDialogEvidence(report.portableRestore) ||
     report.portableRestore?.appliedAfterReinstall !== true ||
     report.portableRestore?.postBackupSentinelAbsent !== true
   ) {
