@@ -642,38 +642,38 @@ function handleNativeFileDialog(title, filePath, action) {
       `$eligibleFileNameCount = 0; $fileName = $null; $valuePattern = $null; ` +
       `$selectorMode = $null; $setterPattern = $null; ` +
       `if ($fileNameHosts.Count -eq 1) { ` +
-      `$host = $fileNameHosts.Item(0); ` +
+      `$fileNameHost = $fileNameHosts.Item(0); ` +
       `$lastHostValueWritableCount = 0; $lastHostLegacyPatternCount = 0; ` +
       `$lastDescendantCandidateCount = 0; ` +
       `$lastEligibleDescendantCount = 0; ` +
-      `$hostEligible = $host.GetCurrentPropertyValue(` +
+      `$hostEligible = $fileNameHost.GetCurrentPropertyValue(` +
       `[System.Windows.Automation.AutomationElement]::IsEnabledProperty) ` +
-      `-eq $true -and $host.GetCurrentPropertyValue(` +
+      `-eq $true -and $fileNameHost.GetCurrentPropertyValue(` +
       `[System.Windows.Automation.AutomationElement]::IsOffscreenProperty) ` +
       `-eq $false; ` +
       `if ($hostEligible) { ` +
-      `try { $hostPattern = $host.GetCurrentPattern(` +
+      `try { $hostPattern = $fileNameHost.GetCurrentPattern(` +
       `[System.Windows.Automation.ValuePattern]::Pattern) } ` +
       `catch { $hostPattern = $null }; ` +
       `if ($null -ne $hostPattern -and $hostPattern.Current.IsReadOnly -eq $false) { ` +
       `$lastHostValueWritableCount = 1; ` +
-      `$eligibleFileNameCount = 1; $fileName = $host; ` +
+      `$eligibleFileNameCount = 1; $fileName = $fileNameHost; ` +
       `$valuePattern = $hostPattern; $selectorMode = 'host'; ` +
       `$setterPattern = 'ValuePattern' ` +
       `} }; ` +
       `if ($hostEligible -and $eligibleFileNameCount -eq 0) { ` +
-      `try { $hostLegacyPattern = $host.GetCurrentPattern(` +
+      `try { $hostLegacyPattern = $fileNameHost.GetCurrentPattern(` +
       `[System.Windows.Automation.LegacyIAccessiblePattern]::Pattern) } ` +
       `catch { $hostLegacyPattern = $null }; ` +
       `if ($null -ne $hostLegacyPattern) { ` +
       `$lastHostLegacyPatternCount = 1; ` +
-      `$eligibleFileNameCount = 1; $fileName = $host; ` +
+      `$eligibleFileNameCount = 1; $fileName = $fileNameHost; ` +
       `$valuePattern = $hostLegacyPattern; $selectorMode = 'host-legacy'; ` +
       `$setterPattern = 'LegacyIAccessiblePattern' ` +
       `} }; ` +
       `if ($hostEligible -and $eligibleFileNameCount -eq 0 -and ` +
       `$lastHostLegacyPatternCount -eq 0) { ` +
-      `$descendants = $host.FindAll(` +
+      `$descendants = $fileNameHost.FindAll(` +
       `[System.Windows.Automation.TreeScope]::Descendants, ` +
       `[System.Windows.Automation.Condition]::TrueCondition); ` +
       `for ($index = 0; $index -lt $descendants.Count; $index++) { ` +

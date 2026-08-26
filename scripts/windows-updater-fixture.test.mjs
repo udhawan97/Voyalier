@@ -184,12 +184,13 @@ test("keeps product setup, updater backup, and portable restore on the installed
   assert.match(source, /ValuePattern/);
   assert.match(source, /LegacyIAccessiblePattern/);
   assert.match(source, /InvokePattern/);
-  assert.match(source, /\$host\.FindAll/);
+  assert.match(source, /\$fileNameHost\.FindAll/);
   assert.match(source, /ControlType\]::Edit/);
   assert.match(source, /ControlType\]::ComboBox/);
   assert.match(source, /selectorMode = 'host-descendant'/);
   assert.match(source, /selectorMode = 'host-legacy'/);
   assert.match(source, /ConvertTo-Json -Compress/);
+  assert.doesNotMatch(source, /\$host\s*=/i);
   assert.match(source, /IsEnabledProperty/);
   assert.match(source, /IsOffscreenProperty/);
   assert.match(source, /Current\.IsReadOnly/);
@@ -197,9 +198,11 @@ test("keeps product setup, updater backup, and portable restore on the installed
   assert.match(source, /eligibleActionCount/);
   assert.match(source, /filename readback did not match/);
   const legacyLookupIndex = source.indexOf(
-    "$hostLegacyPattern = $host.GetCurrentPattern",
+    "$hostLegacyPattern = $fileNameHost.GetCurrentPattern",
   );
-  const descendantLookupIndex = source.indexOf("$descendants = $host.FindAll");
+  const descendantLookupIndex = source.indexOf(
+    "$descendants = $fileNameHost.FindAll",
+  );
   assert.notEqual(legacyLookupIndex, -1);
   assert.notEqual(descendantLookupIndex, -1);
   assert.ok(
