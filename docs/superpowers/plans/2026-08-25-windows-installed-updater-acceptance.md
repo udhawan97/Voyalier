@@ -160,11 +160,16 @@ setting without keyboard, clipboard, focus, or pointer input.
   AutomationId, but never select by the numeric ID. Exact-SHA run `32946151801` then proved that
   this unique action exposes neither UI Automation pattern. Keep the pattern calls preferred; for
   this one exhausted standard-dialog shape only, require the already selected exact-name target's
-  AutomationId to equal Windows `IDOK` (`1`) and send `WM_COMMAND(IDOK, BN_CLICKED)` to the already
-  verified dialog HWND. This is a window-scoped semantic dialog command, not keyboard, pointer,
-  clipboard, focus, geometry, or global input. Record which of the three supported methods
-  performed the action and the guarded command identifiers, require dismissal, then verify the
-  exact TEMP-contained marker's nonce content and hash. Any ambiguity, other control type,
+  AutomationId to equal canonical Windows `IDOK` (`"1"`), bind its nonzero native HWND to the exact
+  dialog with `IsWindow`, `IsChild`, and `GetDlgCtrlID`, and synchronously send
+  `WM_COMMAND(IDOK, BN_CLICKED)` to the already verified dialog HWND. Use bounded
+  `SendMessageTimeoutW` with block, abort-if-hung, and error-on-exit flags; never broadcast, and
+  never fall through after a supported UI Automation pattern fails to invoke. This is a
+  window-scoped semantic dialog command, not keyboard, pointer, clipboard, focus, geometry, or
+  global input. Record which of the three supported methods performed the action, both unavailable
+  pattern states, the guarded command identifiers/HWNDs/flags/timeout, synchronous dispatch, and
+  the dialog count transition from one to zero. Dismissal plus exact downstream file effects—not
+  the message's method-specific result—proves success. Any ambiguity, other control type,
   unsupported pattern or command identity, malformed output, mismatch, timeout, or out-of-TEMP
   path fails closed. This preflight proves only picker-tool compatibility, not Voyalier behavior.
 - Repeat the same title, HWND, semantic-host, structured set/get, exact-readback, exact-action, and
