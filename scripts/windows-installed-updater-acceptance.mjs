@@ -974,7 +974,7 @@ async function main() {
     });
     await waitForText(driver, MANUAL_ITEM_TITLE, { root: ".voy-today" });
 
-    await clickText(driver, "Search workspace");
+    await clickAriaLabel(driver, "Search workspace");
     await fillByLabel(driver, "Search all trips", MANUAL_ITEM_TITLE, {
       root: ".voy-workspace-search",
     });
@@ -1006,7 +1006,7 @@ async function main() {
     );
     await screenshot(driver, "01-base-installed-product-journey.png");
 
-    await clickText(driver, "Settings");
+    await clickAriaLabel(driver, "Settings");
     await fillByLabel(driver, "Language", "es");
     await waitForText(driver, "Configuración");
     const localeBeforeUpdate = await waitForLocale(driver, "es");
@@ -1101,7 +1101,7 @@ async function main() {
     assert.ok(
       detailAfter.tripItems.some(({ title }) => title === MANUAL_ITEM_TITLE),
     );
-    await clickText(driver, "Buscar en el espacio de trabajo");
+    await clickAriaLabel(driver, "Buscar en el espacio de trabajo");
     await fillByLabel(driver, "Buscar en todos los viajes", MANUAL_ITEM_TITLE, {
       root: ".voy-workspace-search",
     });
@@ -1117,7 +1117,7 @@ async function main() {
     assert.ok(listeners.every(({ loopback }) => loopback));
 
     report.stage = "portable-backup";
-    await clickText(driver, "Configuración");
+    await clickAriaLabel(driver, "Configuración");
     const portablePassphrase = randomBytes(24).toString("base64url");
     const portableBackupPath = path.join(TEMP_ROOT, PORTABLE_BACKUP_NAME);
     await clickText(driver, "Guardar copia de seguridad", {
@@ -1169,7 +1169,7 @@ async function main() {
       ),
     );
 
-    await clickText(driver, "Configuración");
+    await clickAriaLabel(driver, "Configuración");
     await clickText(driver, "Restaurar desde copia", {
       root: ".voy-backup",
     });
@@ -1234,7 +1234,7 @@ async function main() {
     await waitForText(driver, MANUAL_ITEM_TITLE, { root: ".voy-today" });
     await waitForText(driver, PACKING_LABEL, { root: "#section-plan" });
     await waitForText(driver, savedPlaceName, { root: "#section-plan" });
-    await clickText(driver, "Buscar en el espacio de trabajo");
+    await clickAriaLabel(driver, "Buscar en el espacio de trabajo");
     await fillByLabel(driver, "Buscar en todos los viajes", MANUAL_ITEM_TITLE, {
       root: ".voy-workspace-search",
     });
