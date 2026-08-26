@@ -538,7 +538,7 @@ async function main() {
         cwd: BASE_ROOT,
         quiet: true,
       }),
-      ` M ${BASE_AUTOMATION_FILE}`,
+      `M ${BASE_AUTOMATION_FILE}`,
       "the base adaptation must modify only the pinned automation seam",
     );
     runPnpm(["install", "--frozen-lockfile"], { cwd: BASE_ROOT });
