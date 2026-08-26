@@ -928,6 +928,92 @@ enum WindowsDialogPurpose {
     Restore,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WindowsAcceptancePickerPhase {
+    ExportCommandEntered,
+    ExportContainerReady,
+    ExportPresetValid,
+    ExportBeforeDialog,
+    ExportDialogReturnedNone,
+    ExportDialogReturnedSome,
+    ExportReturnedPathValid,
+    ExportWriteComplete,
+    RestoreCommandEntered,
+    RestorePresetValid,
+    RestoreBeforeDialog,
+    RestoreDialogReturnedNone,
+    RestoreDialogReturnedSome,
+    RestoreReturnedPathValid,
+    RestoreBackupRead,
+    RestoreStaged,
+}
+
+impl WindowsAcceptancePickerPhase {
+    fn marker_file_name(self) -> &'static str {
+        match self {
+            Self::ExportCommandEntered => "voyalier-picker-phase-export-01-command-entered",
+            Self::ExportContainerReady => "voyalier-picker-phase-export-02-container-ready",
+            Self::ExportPresetValid => "voyalier-picker-phase-export-03-preset-valid",
+            Self::ExportBeforeDialog => "voyalier-picker-phase-export-04-before-dialog",
+            Self::ExportDialogReturnedNone => {
+                "voyalier-picker-phase-export-05-dialog-returned-none"
+            }
+            Self::ExportDialogReturnedSome => {
+                "voyalier-picker-phase-export-06-dialog-returned-some"
+            }
+            Self::ExportReturnedPathValid => "voyalier-picker-phase-export-07-returned-path-valid",
+            Self::ExportWriteComplete => "voyalier-picker-phase-export-08-write-complete",
+            Self::RestoreCommandEntered => "voyalier-picker-phase-restore-01-command-entered",
+            Self::RestorePresetValid => "voyalier-picker-phase-restore-02-preset-valid",
+            Self::RestoreBeforeDialog => "voyalier-picker-phase-restore-03-before-dialog",
+            Self::RestoreDialogReturnedNone => {
+                "voyalier-picker-phase-restore-04-dialog-returned-none"
+            }
+            Self::RestoreDialogReturnedSome => {
+                "voyalier-picker-phase-restore-05-dialog-returned-some"
+            }
+            Self::RestoreReturnedPathValid => {
+                "voyalier-picker-phase-restore-06-returned-path-valid"
+            }
+            Self::RestoreBackupRead => "voyalier-picker-phase-restore-07-backup-read",
+            Self::RestoreStaged => "voyalier-picker-phase-restore-08-staged",
+        }
+    }
+
+    fn required_previous(self) -> Option<Self> {
+        Some(match self {
+            Self::ExportCommandEntered => return None,
+            Self::ExportContainerReady => Self::ExportCommandEntered,
+            Self::ExportPresetValid => Self::ExportContainerReady,
+            Self::ExportBeforeDialog => Self::ExportPresetValid,
+            Self::ExportDialogReturnedNone | Self::ExportDialogReturnedSome => {
+                Self::ExportBeforeDialog
+            }
+            Self::ExportReturnedPathValid => Self::ExportDialogReturnedSome,
+            Self::ExportWriteComplete => Self::ExportReturnedPathValid,
+            Self::RestoreCommandEntered => Self::ExportWriteComplete,
+            Self::RestorePresetValid => Self::RestoreCommandEntered,
+            Self::RestoreBeforeDialog => Self::RestorePresetValid,
+            Self::RestoreDialogReturnedNone | Self::RestoreDialogReturnedSome => {
+                Self::RestoreBeforeDialog
+            }
+            Self::RestoreReturnedPathValid => Self::RestoreDialogReturnedSome,
+            Self::RestoreBackupRead => Self::RestoreReturnedPathValid,
+            Self::RestoreStaged => Self::RestoreBackupRead,
+        })
+    }
+
+    fn exclusive_peer(self) -> Option<Self> {
+        match self {
+            Self::ExportDialogReturnedNone => Some(Self::ExportDialogReturnedSome),
+            Self::ExportDialogReturnedSome => Some(Self::ExportDialogReturnedNone),
+            Self::RestoreDialogReturnedNone => Some(Self::RestoreDialogReturnedSome),
+            Self::RestoreDialogReturnedSome => Some(Self::RestoreDialogReturnedNone),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct WindowsAcceptanceDialogPreset {
     directory: std::path::PathBuf,
@@ -964,6 +1050,18 @@ impl WindowsDialogAutomation {
             })?;
         }
         Ok(preset.as_ref())
+    }
+
+    fn record_phase(&self, phase: WindowsAcceptancePickerPhase) -> Result<(), AppError> {
+        let Some(preset) = self.preset.as_ref().ok().and_then(Option::as_ref) else {
+            return Ok(());
+        };
+        preset.record_phase(phase).map_err(|detail| {
+            AppError::new(
+                ErrorCode::StorageFailure,
+                format!("Windows acceptance picker diagnostics failed: {detail}"),
+            )
+        })
     }
 }
 
@@ -1093,6 +1191,41 @@ fn windows_acceptance_dialog_preset(
 }
 
 impl WindowsAcceptanceDialogPreset {
+    fn record_phase(&self, phase: WindowsAcceptancePickerPhase) -> Result<(), String> {
+        let metadata = std::fs::symlink_metadata(&self.directory)
+            .map_err(|_| "the diagnostic directory is unavailable".to_owned())?;
+        if !metadata.is_dir() || is_reparse_point(&metadata) {
+            return Err("the diagnostic directory is not a regular directory".to_owned());
+        }
+        let canonical = std::fs::canonicalize(&self.directory)
+            .map_err(|_| "the diagnostic directory could not be canonicalized".to_owned())?;
+        if canonical != self.directory {
+            return Err("the diagnostic directory changed after configuration".to_owned());
+        }
+        if let Some(previous) = phase.required_previous() {
+            let metadata =
+                std::fs::symlink_metadata(self.directory.join(previous.marker_file_name()))
+                    .map_err(|_| "the previous diagnostic phase is missing".to_owned())?;
+            if !metadata.is_file() || is_reparse_point(&metadata) || metadata.len() != 0 {
+                return Err("the previous diagnostic phase is invalid".to_owned());
+            }
+        }
+        if let Some(peer) = phase.exclusive_peer() {
+            match std::fs::symlink_metadata(self.directory.join(peer.marker_file_name())) {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                _ => return Err("a conflicting diagnostic phase already exists".to_owned()),
+            }
+        }
+        let marker = self.directory.join(phase.marker_file_name());
+        let file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(marker)
+            .map_err(|_| "an exact diagnostic marker could not be created".to_owned())?;
+        file.sync_all()
+            .map_err(|_| "an exact diagnostic marker could not be persisted".to_owned())
+    }
+
     fn validate_before_dialog(&self, purpose: WindowsDialogPurpose) -> Result<(), String> {
         match (purpose, std::fs::symlink_metadata(&self.target)) {
             (WindowsDialogPurpose::Export, Err(error))
@@ -1154,8 +1287,9 @@ fn write_new_backup_file(path: &std::path::Path, bytes: &[u8]) -> std::io::Resul
     file.write_all(bytes)
 }
 
-/// A cancelled picker is `None`, not an error — the traveler changing their
-/// mind is a normal outcome and must not surface as a failure.
+/// A picker outcome with no selected file is `None`, not an error. This covers
+/// the traveler's normal cancel action; the dialog backend does not expose why
+/// it returned no selection.
 #[tauri::command]
 fn export_backup<R: tauri::Runtime>(
     input: BackupPassphraseInput,
@@ -1163,10 +1297,13 @@ fn export_backup<R: tauri::Runtime>(
     service: State<'_, AppService>,
     dialog_automation: State<'_, WindowsDialogAutomation>,
 ) -> Result<Option<String>, AppError> {
+    dialog_automation.record_phase(WindowsAcceptancePickerPhase::ExportCommandEntered)?;
     // Build the container first, so a refused passphrase or a locked vault
     // fails before a file picker ever appears.
     let bytes = service.export_backup(&input.passphrase)?;
+    dialog_automation.record_phase(WindowsAcceptancePickerPhase::ExportContainerReady)?;
     let preset = dialog_automation.for_purpose(WindowsDialogPurpose::Export)?;
+    dialog_automation.record_phase(WindowsAcceptancePickerPhase::ExportPresetValid)?;
     let mut dialog = app
         .dialog()
         .file()
@@ -1178,9 +1315,12 @@ fn export_backup<R: tauri::Runtime>(
             .set_directory(&preset.directory)
             .set_file_name(&preset.file_name);
     }
+    dialog_automation.record_phase(WindowsAcceptancePickerPhase::ExportBeforeDialog)?;
     let Some(chosen) = dialog.blocking_save_file() else {
+        dialog_automation.record_phase(WindowsAcceptancePickerPhase::ExportDialogReturnedNone)?;
         return Ok(None);
     };
+    dialog_automation.record_phase(WindowsAcceptancePickerPhase::ExportDialogReturnedSome)?;
     let path = chosen.into_path().map_err(|error| {
         AppError::new(
             ErrorCode::StorageFailure,
@@ -1192,6 +1332,7 @@ fn export_backup<R: tauri::Runtime>(
             .validate_chosen_path(WindowsDialogPurpose::Export, &path)
             .map_err(|detail| AppError::new(ErrorCode::StorageFailure, detail))?;
     }
+    dialog_automation.record_phase(WindowsAcceptancePickerPhase::ExportReturnedPathValid)?;
     let write_result = if preset.is_some() {
         write_new_backup_file(&path, &bytes)
     } else {
@@ -1203,6 +1344,7 @@ fn export_backup<R: tauri::Runtime>(
             format!("the backup could not be written: {error}"),
         )
     })?;
+    dialog_automation.record_phase(WindowsAcceptancePickerPhase::ExportWriteComplete)?;
     Ok(Some(path.to_string_lossy().into_owned()))
 }
 
@@ -1213,7 +1355,9 @@ fn stage_restore<R: tauri::Runtime>(
     service: State<'_, AppService>,
     dialog_automation: State<'_, WindowsDialogAutomation>,
 ) -> Result<Option<RestorePreview>, AppError> {
+    dialog_automation.record_phase(WindowsAcceptancePickerPhase::RestoreCommandEntered)?;
     let preset = dialog_automation.for_purpose(WindowsDialogPurpose::Restore)?;
+    dialog_automation.record_phase(WindowsAcceptancePickerPhase::RestorePresetValid)?;
     let mut dialog = app
         .dialog()
         .file()
@@ -1224,9 +1368,12 @@ fn stage_restore<R: tauri::Runtime>(
             .set_directory(&preset.directory)
             .set_file_name(&preset.file_name);
     }
+    dialog_automation.record_phase(WindowsAcceptancePickerPhase::RestoreBeforeDialog)?;
     let Some(chosen) = dialog.blocking_pick_file() else {
+        dialog_automation.record_phase(WindowsAcceptancePickerPhase::RestoreDialogReturnedNone)?;
         return Ok(None);
     };
+    dialog_automation.record_phase(WindowsAcceptancePickerPhase::RestoreDialogReturnedSome)?;
     let path = chosen.into_path().map_err(|error| {
         AppError::new(
             ErrorCode::StorageFailure,
@@ -1238,13 +1385,17 @@ fn stage_restore<R: tauri::Runtime>(
             .validate_chosen_path(WindowsDialogPurpose::Restore, &path)
             .map_err(|detail| AppError::new(ErrorCode::StorageFailure, detail))?;
     }
+    dialog_automation.record_phase(WindowsAcceptancePickerPhase::RestoreReturnedPathValid)?;
     let bytes = std::fs::read(&path).map_err(|error| {
         AppError::new(
             ErrorCode::StorageFailure,
             format!("the backup could not be read: {error}"),
         )
     })?;
-    service.stage_restore(&input.passphrase, &bytes).map(Some)
+    dialog_automation.record_phase(WindowsAcceptancePickerPhase::RestoreBackupRead)?;
+    let preview = service.stage_restore(&input.passphrase, &bytes)?;
+    dialog_automation.record_phase(WindowsAcceptancePickerPhase::RestoreStaged)?;
+    Ok(Some(preview))
 }
 
 #[tauri::command]
@@ -1798,6 +1949,81 @@ mod tests {
             "restore must reject a directory at the configured target",
         );
         fs::remove_dir(&preset.target).expect("remove directory target fixture");
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn windows_picker_phase_markers_are_dormant_content_free_and_atomic() {
+        let database = temp_database("picker-phase-markers");
+        let runner_temp = database.parent().expect("runner temp").to_path_buf();
+        let acceptance = runner_temp.join("voyalier-windows-acceptance-901");
+        fs::create_dir_all(&acceptance).expect("acceptance directory");
+        let target = acceptance.join(WINDOWS_ACCEPTANCE_BACKUP_FILE_NAME);
+
+        WindowsDialogAutomation::inactive()
+            .record_phase(WindowsAcceptancePickerPhase::ExportCommandEntered)
+            .expect("inactive diagnostics are a no-op");
+        assert!(
+            fs::read_dir(&acceptance)
+                .expect("inactive acceptance directory")
+                .next()
+                .is_none(),
+            "an ordinary launch must not emit acceptance diagnostics",
+        );
+
+        let preset = windows_acceptance_dialog_preset(true, Some(&runner_temp), Some(&target))
+            .expect("valid preset")
+            .expect("active preset");
+        let automation = WindowsDialogAutomation {
+            preset: Ok(Some(preset.clone())),
+        };
+        assert!(
+            automation
+                .record_phase(WindowsAcceptancePickerPhase::ExportContainerReady)
+                .is_err(),
+            "a later marker must not appear before its exact predecessor",
+        );
+        automation
+            .record_phase(WindowsAcceptancePickerPhase::ExportCommandEntered)
+            .expect("first phase marker");
+        let marker = preset
+            .directory
+            .join(WindowsAcceptancePickerPhase::ExportCommandEntered.marker_file_name());
+        assert_eq!(fs::metadata(&marker).expect("phase marker").len(), 0);
+        assert!(
+            automation
+                .record_phase(WindowsAcceptancePickerPhase::ExportCommandEntered)
+                .is_err(),
+            "a phase marker must never overwrite an existing filesystem entry",
+        );
+        automation
+            .record_phase(WindowsAcceptancePickerPhase::ExportContainerReady)
+            .expect("next phase marker");
+        assert_eq!(
+            fs::metadata(
+                preset
+                    .directory
+                    .join(WindowsAcceptancePickerPhase::ExportContainerReady.marker_file_name(),),
+            )
+            .expect("next phase marker")
+            .len(),
+            0,
+        );
+        automation
+            .record_phase(WindowsAcceptancePickerPhase::ExportPresetValid)
+            .expect("preset phase marker");
+        automation
+            .record_phase(WindowsAcceptancePickerPhase::ExportBeforeDialog)
+            .expect("before-dialog phase marker");
+        automation
+            .record_phase(WindowsAcceptancePickerPhase::ExportDialogReturnedNone)
+            .expect("returned-none phase marker");
+        assert!(
+            automation
+                .record_phase(WindowsAcceptancePickerPhase::ExportDialogReturnedSome)
+                .is_err(),
+            "returned-none and returned-some dialog branches must be mutually exclusive",
+        );
         cleanup_database(database);
     }
 

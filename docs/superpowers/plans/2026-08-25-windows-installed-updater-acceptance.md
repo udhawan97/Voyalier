@@ -316,6 +316,9 @@ complete picker gate:
   or follow a competing file;
 - bracket export preparation, preset validation, native dialog entry/return, returned-path guard, and
   final write; bracket the equivalent restore stages for the later half of the journey;
+- record the dialog result only as `returned-none` or `returned-some`: locked `rfd 0.16.0` collapses
+  cancellation and internal build/show/result errors to `None`, so a `returned-none` marker establishes
+  no cause by itself;
 - collect only the ordered allowlisted phase names into the sanitized aggregate report, never marker
   paths or contents; reject unknown, duplicate, or out-of-order phase evidence; and
 - keep ordinary launches byte-for-byte on the inactive no-diagnostic path. The next exact-SHA run is

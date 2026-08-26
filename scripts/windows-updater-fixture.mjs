@@ -10,6 +10,98 @@ import {
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 
+export const WINDOWS_PICKER_PHASE_MARKERS = Object.freeze([
+  ["export:command-entered", "voyalier-picker-phase-export-01-command-entered"],
+  ["export:container-ready", "voyalier-picker-phase-export-02-container-ready"],
+  ["export:preset-valid", "voyalier-picker-phase-export-03-preset-valid"],
+  ["export:before-dialog", "voyalier-picker-phase-export-04-before-dialog"],
+  [
+    "export:dialog-returned-none",
+    "voyalier-picker-phase-export-05-dialog-returned-none",
+  ],
+  [
+    "export:dialog-returned-some",
+    "voyalier-picker-phase-export-06-dialog-returned-some",
+  ],
+  [
+    "export:returned-path-valid",
+    "voyalier-picker-phase-export-07-returned-path-valid",
+  ],
+  ["export:write-complete", "voyalier-picker-phase-export-08-write-complete"],
+  [
+    "restore:command-entered",
+    "voyalier-picker-phase-restore-01-command-entered",
+  ],
+  ["restore:preset-valid", "voyalier-picker-phase-restore-02-preset-valid"],
+  ["restore:before-dialog", "voyalier-picker-phase-restore-03-before-dialog"],
+  [
+    "restore:dialog-returned-none",
+    "voyalier-picker-phase-restore-04-dialog-returned-none",
+  ],
+  [
+    "restore:dialog-returned-some",
+    "voyalier-picker-phase-restore-05-dialog-returned-some",
+  ],
+  [
+    "restore:returned-path-valid",
+    "voyalier-picker-phase-restore-06-returned-path-valid",
+  ],
+  ["restore:backup-read", "voyalier-picker-phase-restore-07-backup-read"],
+  ["restore:staged", "voyalier-picker-phase-restore-08-staged"],
+]);
+
+const PICKER_PHASE_TRANSITIONS = new Map([
+  [null, ["export:command-entered"]],
+  ["export:command-entered", ["export:container-ready"]],
+  ["export:container-ready", ["export:preset-valid"]],
+  ["export:preset-valid", ["export:before-dialog"]],
+  [
+    "export:before-dialog",
+    ["export:dialog-returned-none", "export:dialog-returned-some"],
+  ],
+  ["export:dialog-returned-none", []],
+  ["export:dialog-returned-some", ["export:returned-path-valid"]],
+  ["export:returned-path-valid", ["export:write-complete"]],
+  ["export:write-complete", ["restore:command-entered"]],
+  ["restore:command-entered", ["restore:preset-valid"]],
+  ["restore:preset-valid", ["restore:before-dialog"]],
+  [
+    "restore:before-dialog",
+    ["restore:dialog-returned-none", "restore:dialog-returned-some"],
+  ],
+  ["restore:dialog-returned-none", []],
+  ["restore:dialog-returned-some", ["restore:returned-path-valid"]],
+  ["restore:returned-path-valid", ["restore:backup-read"]],
+  ["restore:backup-read", ["restore:staged"]],
+  ["restore:staged", []],
+]);
+
+export function validateWindowsPickerPhaseTrace(
+  phases,
+  { requireComplete = false } = {},
+) {
+  if (
+    !Array.isArray(phases) ||
+    phases.some((phase) => typeof phase !== "string")
+  ) {
+    throw new Error("Windows picker phase trace must be a string array");
+  }
+  if (new Set(phases).size !== phases.length) {
+    throw new Error("Windows picker phase trace contains a duplicate phase");
+  }
+  let previous = null;
+  for (const phase of phases) {
+    if (!PICKER_PHASE_TRANSITIONS.get(previous)?.includes(phase)) {
+      throw new Error("Windows picker phase trace is unknown or out of order");
+    }
+    previous = phase;
+  }
+  if (requireComplete && previous !== "restore:staged") {
+    throw new Error("Windows picker phase trace is incomplete");
+  }
+  return phases;
+}
+
 function requireString(value, name) {
   if (typeof value !== "string" || value.trim() === "") {
     throw new Error(`${name} must be a non-empty string`);
@@ -430,6 +522,9 @@ export function validateWindowsAcceptanceReport(report) {
   ) {
     throw new Error("the dormant Windows picker preset evidence is incomplete");
   }
+  validateWindowsPickerPhaseTrace(report.pickerPhases, {
+    requireComplete: true,
+  });
   if (report.installed?.before !== "0.10.7") {
     throw new Error("installed base version was not observed");
   }

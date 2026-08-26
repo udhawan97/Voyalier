@@ -26,7 +26,9 @@ import {
   clearWebViewDevToolsPorts,
   mirrorWebViewDevToolsPort,
   validateWindowsAcceptanceReport,
+  validateWindowsPickerPhaseTrace,
   validateWindowsPickerPreflightReport,
+  WINDOWS_PICKER_PHASE_MARKERS,
 } from "./windows-updater-fixture.mjs";
 import {
   assertNoAbsoluteWindowsPaths,
@@ -137,6 +139,37 @@ async function sha256(file) {
   const hash = createHash("sha256");
   for await (const chunk of createReadStream(file)) hash.update(chunk);
   return hash.digest("hex");
+}
+
+async function collectWindowsPickerPhases() {
+  const knownMarkers = new Map(
+    WINDOWS_PICKER_PHASE_MARKERS.map(([phase, fileName]) => [fileName, phase]),
+  );
+  const entries = await readdir(TEMP_ROOT, { withFileTypes: true });
+  const phaseEntries = entries.filter(({ name }) =>
+    name.startsWith("voyalier-picker-phase-"),
+  );
+  for (const entry of phaseEntries) {
+    if (!knownMarkers.has(entry.name)) {
+      throw new Error("an unknown Windows picker phase marker was observed");
+    }
+    const metadata = await lstat(path.join(TEMP_ROOT, entry.name));
+    if (
+      !metadata.isFile() ||
+      metadata.isSymbolicLink() ||
+      metadata.size !== 0
+    ) {
+      throw new Error(
+        "a Windows picker phase marker was not an empty regular file",
+      );
+    }
+  }
+  const present = new Set(phaseEntries.map(({ name }) => name));
+  const phases = WINDOWS_PICKER_PHASE_MARKERS.filter(([, fileName]) =>
+    present.has(fileName),
+  ).map(([phase]) => phase);
+  validateWindowsPickerPhaseTrace(phases);
+  return phases;
 }
 
 async function writeAcceptanceReport(report) {
@@ -1536,9 +1569,11 @@ async function main() {
       ({ remote }) =>
         !["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(remote),
     ).length;
+    const pickerPhases = await collectWindowsPickerPhases();
     Object.assign(report, {
       verdict: "PASS",
       stage: "complete",
+      pickerPhases,
       installed: {
         path: sanitizeWindowsEvidenceText(application),
         before: baseStatus.currentVersion,
@@ -1661,6 +1696,14 @@ async function main() {
       ).length,
       listeners: application ? appListeners(application) : [],
     };
+    try {
+      report.pickerPhases = await collectWindowsPickerPhases();
+    } catch (phaseError) {
+      report.pickerPhases = [];
+      report.pickerPhaseCollectionError = sanitizeWindowsEvidenceText(
+        phaseError instanceof Error ? phaseError.message : String(phaseError),
+      );
+    }
     await writeAcceptanceReport(report);
     throw new Error(report.error);
   } finally {

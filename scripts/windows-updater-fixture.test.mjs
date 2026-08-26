@@ -11,7 +11,9 @@ import {
   clearWebViewDevToolsPorts,
   mirrorWebViewDevToolsPort,
   validateWindowsAcceptanceReport,
+  validateWindowsPickerPhaseTrace,
   validateWindowsPickerPreflightReport,
+  WINDOWS_PICKER_PHASE_MARKERS,
 } from "./windows-updater-fixture.mjs";
 import {
   assertNoAbsoluteWindowsPaths,
@@ -29,6 +31,9 @@ import {
 const CANDIDATE_SHA = "c".repeat(40);
 const WORKFLOW_RUN_ID = "123456";
 const PORTABLE_PATH = "<DIALOG_TEMP>\\voyalier-portable-acceptance.vbk";
+const COMPLETE_PICKER_PHASE_TRACE = WINDOWS_PICKER_PHASE_MARKERS.map(
+  ([phase]) => phase,
+).filter((phase) => !phase.endsWith(":dialog-returned-none"));
 
 function nativeDialogEvidence({
   title,
@@ -514,6 +519,12 @@ test("keeps product setup, updater backup, and portable restore on the installed
       "each acceptance input must be read exactly once at process setup",
     );
   }
+  for (const [, markerFileName] of WINDOWS_PICKER_PHASE_MARKERS) {
+    assert.ok(
+      desktopSource.includes(markerFileName),
+      `desktop phase marker is missing: ${markerFileName}`,
+    );
+  }
   const exportSource = desktopSource.slice(
     desktopSource.indexOf("fn export_backup"),
     desktopSource.indexOf("fn stage_restore"),
@@ -529,6 +540,15 @@ test("keeps product setup, updater backup, and portable restore on the installed
     "the returned save target must be validated before any write",
   );
   assert.ok(
+    exportSource.indexOf("ExportBeforeDialog") <
+      exportSource.indexOf("blocking_save_file") &&
+      exportSource.indexOf("blocking_save_file") <
+        exportSource.indexOf("ExportDialogReturnedNone") &&
+      exportSource.indexOf("blocking_save_file") <
+        exportSource.indexOf("ExportDialogReturnedSome"),
+    "export diagnostics must bracket the native dialog call",
+  );
+  assert.ok(
     exportSource.indexOf("write_new_backup_file") <
       exportSource.indexOf("std::fs::write"),
     "the active acceptance preset must use atomic create while ordinary launches keep their existing write",
@@ -538,6 +558,15 @@ test("keeps product setup, updater backup, and portable restore on the installed
       restoreSource.indexOf("validate_chosen_path") <
         restoreSource.indexOf("std::fs::read"),
     "the returned restore target must be validated before any read",
+  );
+  assert.ok(
+    restoreSource.indexOf("RestoreBeforeDialog") <
+      restoreSource.indexOf("blocking_pick_file") &&
+      restoreSource.indexOf("blocking_pick_file") <
+        restoreSource.indexOf("RestoreDialogReturnedNone") &&
+      restoreSource.indexOf("blocking_pick_file") <
+        restoreSource.indexOf("RestoreDialogReturnedSome"),
+    "restore diagnostics must bracket the native dialog call",
   );
 
   const preflightSource = await readFile(
@@ -1110,6 +1139,54 @@ test("classifies every uploadable Windows evidence artifact", async () => {
   }
 });
 
+test("accepts only ordered allowlisted Windows picker phase traces", () => {
+  const diagnosticPrefix = COMPLETE_PICKER_PHASE_TRACE.slice(0, 4);
+  assert.equal(
+    validateWindowsPickerPhaseTrace(diagnosticPrefix),
+    diagnosticPrefix,
+  );
+  assert.equal(
+    validateWindowsPickerPhaseTrace(COMPLETE_PICKER_PHASE_TRACE, {
+      requireComplete: true,
+    }),
+    COMPLETE_PICKER_PHASE_TRACE,
+  );
+  assert.deepEqual(
+    validateWindowsPickerPhaseTrace([
+      ...diagnosticPrefix,
+      "export:dialog-returned-none",
+    ]),
+    [...diagnosticPrefix, "export:dialog-returned-none"],
+  );
+  assert.throws(
+    () =>
+      validateWindowsPickerPhaseTrace([
+        "export:command-entered",
+        "export:command-entered",
+      ]),
+    /duplicate phase/,
+  );
+  assert.throws(
+    () =>
+      validateWindowsPickerPhaseTrace([
+        "export:command-entered",
+        "export:before-dialog",
+      ]),
+    /unknown or out of order/,
+  );
+  assert.throws(
+    () => validateWindowsPickerPhaseTrace(["export:unknown"]),
+    /unknown or out of order/,
+  );
+  assert.throws(
+    () =>
+      validateWindowsPickerPhaseTrace(diagnosticPrefix, {
+        requireComplete: true,
+      }),
+    /incomplete/,
+  );
+});
+
 test("pins installed, data-preservation, backup, and loopback evidence", () => {
   const pickerPreflight = pickerPreflightEvidence();
   const report = {
@@ -1126,6 +1203,7 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
     candidate: { version: "0.11.0", sha: CANDIDATE_SHA },
     workflow: { runId: WORKFLOW_RUN_ID },
     pickerPreflight,
+    pickerPhases: COMPLETE_PICKER_PHASE_TRACE,
     pickerPreset: {
       method: "IFileDialog.SetFolder+SetFileName via rfd 0.16.0",
       ordinaryLaunchUnchangedWhenInactive: true,
@@ -1271,6 +1349,14 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
       workflowRunId: WORKFLOW_RUN_ID,
     }),
     pickerPreflight,
+  );
+  assert.throws(
+    () =>
+      validateWindowsAcceptanceReport({
+        ...report,
+        pickerPhases: COMPLETE_PICKER_PHASE_TRACE.slice(0, -1),
+      }),
+    /phase trace is incomplete/,
   );
   assert.throws(
     () => validateWindowsAcceptanceReport({ ...report, stage: "updater-swap" }),
