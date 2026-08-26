@@ -363,3 +363,34 @@ Correction:
 - Dispatch Windows installed-app acceptance from the exact pushed SHA. Only the
   complete product journey through export, restore, reinstall, recovery, and
   sanitized evidence can close the release gate.
+
+## Exact async-command result and duplicate-path redaction correction
+
+Exact-SHA run `33005615909` at `38bb9f9350ff5bfbc35c62c05e8df46a6cee7317`
+proved the command-thread correction in the hosted Windows runtime. The real
+`Save Voyalier backup` dialog appeared, the exact native Save action dismissed
+it, the product returned the configured path, and the phase trace continued
+through `export:dialog-returned-some`, `export:returned-path-valid`, and
+`export:write-complete`. The portable backup was therefore created before the
+journey failed at the screenshot privacy assertion with `1 !== 0`.
+
+The remaining failure is deterministic in the UI and harness. `BackupPanel`
+places the successful path in `.voy-backup__notice` and passes the same message
+to the app's polite screen-reader live region. The acceptance screenshot helper
+redacts only the first element, then correctly counts the duplicate absolute
+path still present in `document.body.innerText` and fails before writing the
+screenshot.
+
+Correction:
+
+- Add a focused source regression requiring the screenshot privacy helper to
+  cover the app's polite live region as well as the visible backup notice; run
+  it red before the fix.
+- In the screenshot-only evidence preparation, replace absolute paths in both
+  path-bearing status elements with the existing `<ABSOLUTE_PATH>` token. Keep
+  the earlier assertion against the exact product notice, backup stat, and
+  content hash unchanged, so redaction cannot substitute for product proof.
+- Keep the final whole-document scan fail-closed. Any absolute path outside the
+  two expected status copies must still abort evidence capture.
+- Rerun the focused fixture, full local gate, Graphify refresh, exact two-round
+  council, and hosted exact-SHA Windows journey before merge or release.
