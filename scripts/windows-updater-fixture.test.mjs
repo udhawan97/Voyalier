@@ -146,6 +146,7 @@ test("keeps product setup, updater backup, and portable restore on the installed
   }
   for (const requiredControl of [
     "Download Kyoto city data",
+    "Save place",
     "Actualizar y reiniciar",
     "Guardar copia de seguridad",
     "Restaurar esta copia",

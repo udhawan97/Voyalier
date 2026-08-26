@@ -932,11 +932,23 @@ async function main() {
       "the downloaded Kyoto pack had no places",
     );
     await clickText(driver, "Get recommendations", { root: ".voy-recs" });
-    const savePlaceLabel = await clickAriaLabel(driver, "Save place ", {
-      prefix: true,
-    });
-    const savedPlaceName = savePlaceLabel.slice("Save place ".length);
+    const savedPlaceName = await waitFor(
+      () =>
+        execute(
+          driver,
+          `
+            const row = Array.from(document.querySelectorAll(".voy-recs__row")).find(
+              (candidate) => Array.from(candidate.querySelectorAll("button")).some(
+                (button) => button.textContent?.trim() === "Save place",
+              ),
+            );
+            return row?.querySelector(".voy-recs__name")?.textContent?.trim() || false;
+          `,
+        ),
+      "the first recommendation name",
+    );
     assert.ok(savedPlaceName, "the saved recommendation name was not observed");
+    await clickText(driver, "Save place", { root: ".voy-recs" });
     await waitForText(driver, "Saved", { root: ".voy-recs" });
 
     await clickText(driver, "Plan", { selector: "a" });
