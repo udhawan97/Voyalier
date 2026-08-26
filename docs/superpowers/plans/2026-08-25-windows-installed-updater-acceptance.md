@@ -324,3 +324,42 @@ complete picker gate:
 - keep ordinary launches byte-for-byte on the inactive no-diagnostic path. The next exact-SHA run is
   diagnostic until the product dialog, returned path, backup artifact, restore, reinstall, and
   recovery all pass; a phase trace alone cannot satisfy the release gate.
+
+## Exact diagnostic result and command-thread correction
+
+Exact-SHA run `32959897629` at `44f260515434f0c00768f5fff47a7ff4de742d5c`
+produced a sanitized artifact whose archive digest matches
+`99eb2b3cdf06ea8b102fbf9d4ab93ba37f137e462d83eb516ced32d38f4987cb`.
+The installed 0.10.7 journey, production updater replacement, 0.11.0 reopen,
+locale and traveler-data preservation, and standard native-dialog preflight
+passed. Portable export emitted exactly:
+
+1. `export:command-entered`
+2. `export:container-ready`
+3. `export:preset-valid`
+4. `export:before-dialog`
+
+The expected product dialog then remained absent (`dialogs: 0`, `hosts: 0`)
+and the command emitted no returned marker. This localizes the failure to
+`blocking_save_file()` itself rather than backup creation, preset validation,
+dialog discovery, or returned-path handling.
+
+The locked implementation establishes the cause. Tauri's command macro executes
+a synchronous command inline, while `tauri-plugin-dialog 2.7.2` says its
+blocking picker APIs must not run on the main thread. Those APIs schedule
+asynchronous rfd dialog construction with `run_on_main_thread` and then wait on
+a zero-capacity channel. Both portable-backup commands are synchronous, so the
+Windows event thread can wait for dialog construction that it cannot service.
+
+Correction:
+
+- Add a fast source-level regression assertion that every command using a
+  blocking native picker is declared `async fn`; run it red before the fix.
+- Declare only `export_backup` and `stage_restore` asynchronous. Keep the
+  existing command names, inputs, return values, picker builders, preset guards,
+  path validation, atomic export write, restore read, and phase ordering.
+- Run the focused Node fixture and desktop Rust tests, then the full repository
+  gate and Graphify refresh.
+- Dispatch Windows installed-app acceptance from the exact pushed SHA. Only the
+  complete product journey through export, restore, reinstall, recovery, and
+  sanitized evidence can close the release gate.
