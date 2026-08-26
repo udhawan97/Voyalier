@@ -178,6 +178,8 @@ test("keeps product setup, updater backup, and portable restore on the installed
   assert.match(source, /section\[aria-labelledby=\\?"manual-plan-title\\?"\]/);
   assert.match(source, /readCheckboxState/);
   assert.match(source, /UIAutomationClient/);
+  assert.match(source, /AutomationIdProperty, '1148'/);
+  assert.doesNotMatch(source, /AutomationIdProperty, '1001'/);
   assert.match(source, /ValuePattern/);
   assert.match(source, /InvokePattern/);
   assert.match(source, /IsEnabledProperty/);

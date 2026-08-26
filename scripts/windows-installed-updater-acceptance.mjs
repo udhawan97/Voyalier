@@ -615,7 +615,7 @@ function handleNativeFileDialog(title, filePath, action) {
       `$titleCondition = [System.Windows.Automation.PropertyCondition]::new(` +
       `[System.Windows.Automation.AutomationElement]::NameProperty, $title); ` +
       `$fileNameCondition = [System.Windows.Automation.PropertyCondition]::new(` +
-      `[System.Windows.Automation.AutomationElement]::AutomationIdProperty, '1001'); ` +
+      `[System.Windows.Automation.AutomationElement]::AutomationIdProperty, '1148'); ` +
       `$actionCondition = [System.Windows.Automation.PropertyCondition]::new(` +
       `[System.Windows.Automation.AutomationElement]::NameProperty, $action); ` +
       `$deadline = (Get-Date).AddSeconds(90); ` +
