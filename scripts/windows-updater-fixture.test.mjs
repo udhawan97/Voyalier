@@ -12,6 +12,7 @@ import {
   mirrorWebViewDevToolsPort,
   validateWinAppToolEvidence,
   validateWindowsAcceptanceReport,
+  validateWindowsPickerDiagnosticReport,
   validateWindowsPickerPreflightReport,
 } from "./windows-updater-fixture.mjs";
 import {
@@ -133,6 +134,9 @@ function nativeDialogEvidence({
     },
     controlIdentityMatched: true,
     pathReadbackConfirmed: true,
+    expectedPathSha256: "a".repeat(64),
+    observedValueSha256: "a".repeat(64),
+    readbackEqualsExpected: true,
     inputInjectionUsed: false,
     dialogCountBefore: 1,
     dialogCountAfter: 0,
@@ -259,6 +263,93 @@ function pickerPreflightEvidence(tool = winAppToolEvidence()) {
       result: { result: "OK", selectedPathToken: markerPath },
     },
     temporaryRootRemoved: true,
+  };
+}
+
+function pickerDiagnosticEvidence(tool = winAppToolEvidence()) {
+  const pathDiagnostics = {
+    diagnosticOnly: true,
+    hashEncoding: "UTF-8",
+    dialogResult: "OK",
+    expectedRawSha256: "a".repeat(64),
+    cliReadbackRawSha256: "a".repeat(64),
+    selectedRawSha256: "b".repeat(64),
+    placeholderRawSha256: "b".repeat(64),
+    expectedRawCaseFoldedSha256: "c".repeat(64),
+    selectedRawCaseFoldedSha256: "d".repeat(64),
+    placeholderRawCaseFoldedSha256: "d".repeat(64),
+    expectedCanonicalized: true,
+    selectedCanonicalized: true,
+    placeholderCanonicalized: true,
+    expectedCanonicalSha256: "e".repeat(64),
+    selectedCanonicalSha256: "f".repeat(64),
+    placeholderCanonicalSha256: "f".repeat(64),
+    expectedCanonicalCaseFoldedSha256: "1".repeat(64),
+    selectedCanonicalCaseFoldedSha256: "2".repeat(64),
+    placeholderCanonicalCaseFoldedSha256: "2".repeat(64),
+    readbackEqualsExpected: true,
+    selectedEqualsReadback: false,
+    rawOrdinalEqual: false,
+    rawOrdinalIgnoreCaseEqual: false,
+    canonicalOrdinalIgnoreCaseEqual: false,
+    selectedEqualsPlaceholderRawOrdinal: true,
+    selectedEqualsPlaceholderRawOrdinalIgnoreCase: true,
+    selectedEqualsPlaceholderCanonicalIgnoreCase: true,
+    expectedWithinTemporaryRoot: true,
+    selectedWithinTemporaryRoot: true,
+    selectedRelativeToken: "<DIALOG_TEMP>\\picker-preflight-placeholder.txt",
+    selectedBaseNameKind: "placeholder",
+    selectedBaseName: "picker-preflight-placeholder.txt",
+    selectedBaseNameSha256: "3".repeat(64),
+    selectedBaseNameLength: 32,
+    selectedExtension: ".txt",
+    writeGatePassed: false,
+    writeAttempted: false,
+    markerExists: false,
+  };
+  return {
+    verdict: "FAIL",
+    stage: "diagnostic-complete",
+    proofKind: "harness-tool-compatibility",
+    productEvidence: false,
+    diagnosticOnly: true,
+    candidateSha: CANDIDATE_SHA,
+    workflowRunId: WORKFLOW_RUN_ID,
+    tool,
+    dialog: nativeDialogEvidence({
+      title: "Voyalier picker bridge preflight 0123456789abcdef01234567",
+      action: "Save",
+      expectedValueToken:
+        "<DIALOG_TEMP>\\voyalier-picker-preflight-0123456789abcdef01234567.txt",
+    }),
+    pathDiagnostics,
+    diagnosticOutcome: "placeholder",
+    marker: {
+      existsBeforeCleanup: false,
+      contentConfirmed: false,
+      bytes: 0,
+      sha256: null,
+      expectedSha256: "4".repeat(64),
+      removed: true,
+    },
+    dialogHost: {
+      exitCode: 0,
+      stdoutOmitted: true,
+      stdoutSha256: "5".repeat(64),
+      stderr: "",
+      jsonParsed: true,
+      result: pathDiagnostics,
+    },
+    temporaryRootRemoved: true,
+  };
+}
+
+function diagnosticWithPath(report, overrides) {
+  const pathDiagnostics = { ...report.pathDiagnostics, ...overrides };
+  return {
+    ...report,
+    pathDiagnostics,
+    dialogHost: { ...report.dialogHost, result: pathDiagnostics },
   };
 }
 
@@ -523,7 +614,9 @@ test("keeps product setup, updater backup, and portable restore on the installed
     "utf8",
   );
   assert.match(preflightSource, /System\.Windows\.Forms\.SaveFileDialog/);
-  assert.match(preflightSource, /hostReturnedExactPath/);
+  assert.match(preflightSource, /canonicalOrdinalIgnoreCaseEqual/);
+  assert.match(preflightSource, /selectedEqualsPlaceholderCanonicalIgnoreCase/);
+  assert.match(preflightSource, /diagnosticOnly: true/);
   assert.match(preflightSource, /productEvidence: false/);
 
   const workflow = await readFile(
@@ -1021,6 +1114,53 @@ test("rejects unverified picker tooling and incomplete preflight proof", () => {
           workflowRunId: WORKFLOW_RUN_ID,
         }),
       /preflight evidence is incomplete/,
+    );
+  }
+});
+
+test("keeps picker path diagnostics outside the release acceptance gate", () => {
+  const diagnostic = pickerDiagnosticEvidence();
+  assert.equal(
+    validateWindowsPickerDiagnosticReport(diagnostic, {
+      candidateSha: CANDIDATE_SHA,
+      workflowRunId: WORKFLOW_RUN_ID,
+    }),
+    diagnostic,
+  );
+  assert.throws(
+    () =>
+      validateWindowsPickerPreflightReport(diagnostic, {
+        candidateSha: CANDIDATE_SHA,
+        workflowRunId: WORKFLOW_RUN_ID,
+      }),
+    /preflight evidence is incomplete/,
+    "a placeholder-selection diagnostic must never satisfy release preflight",
+  );
+
+  const invalidDiagnostics = [
+    diagnosticWithPath(diagnostic, { cliReadbackRawSha256: undefined }),
+    diagnosticWithPath(diagnostic, { selectedCanonicalized: false }),
+    diagnosticWithPath(diagnostic, {
+      selectedWithinTemporaryRoot: false,
+      selectedRelativeToken: null,
+    }),
+    diagnosticWithPath(diagnostic, { rawOrdinalEqual: true }),
+    diagnosticWithPath(diagnostic, { writeAttempted: true }),
+    diagnosticWithPath(diagnostic, {
+      selectedRelativeToken: "C:\\private\\placeholder.txt",
+    }),
+    diagnosticWithPath(diagnostic, {
+      selectedRelativeToken: "<DIALOG_TEMP>\\..\\placeholder.txt",
+    }),
+  ];
+  for (const invalid of invalidDiagnostics) {
+    assert.throws(
+      () =>
+        validateWindowsPickerDiagnosticReport(invalid, {
+          candidateSha: CANDIDATE_SHA,
+          workflowRunId: WORKFLOW_RUN_ID,
+        }),
+      /diagnostic evidence is incomplete/,
     );
   }
 });

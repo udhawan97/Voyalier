@@ -8,6 +8,7 @@ import {
 } from "./windows-native-file-dialog.mjs";
 
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const SHA256 = /^[0-9a-f]{64}$/;
 
 function requireString(value, name) {
   if (typeof value !== "string" || value.trim() === "") {
@@ -386,6 +387,7 @@ export function validateWindowsPickerPreflightReport(
   if (
     report?.verdict !== "PASS" ||
     report?.stage !== "complete" ||
+    report?.diagnosticOnly === true ||
     report?.proofKind !== "harness-tool-compatibility" ||
     report?.productEvidence !== false ||
     !/^[0-9a-f]{40}$/.test(report?.candidateSha ?? "") ||
@@ -414,6 +416,146 @@ export function validateWindowsPickerPreflightReport(
     report?.temporaryRootRemoved !== true
   ) {
     throw new Error("Windows picker preflight evidence is incomplete");
+  }
+  assertNoAbsoluteWindowsPaths(report);
+  return report;
+}
+
+export function validateWindowsPickerDiagnosticReport(
+  report,
+  { candidateSha, workflowRunId } = {},
+) {
+  validateWinAppToolEvidence(report?.tool);
+  const diagnostic = report?.pathDiagnostics;
+  const marker = report?.marker;
+  const hashes = [
+    diagnostic?.expectedRawSha256,
+    diagnostic?.cliReadbackRawSha256,
+    diagnostic?.selectedRawSha256,
+    diagnostic?.expectedCanonicalSha256,
+    diagnostic?.selectedCanonicalSha256,
+    diagnostic?.placeholderRawSha256,
+    diagnostic?.expectedRawCaseFoldedSha256,
+    diagnostic?.selectedRawCaseFoldedSha256,
+    diagnostic?.placeholderRawCaseFoldedSha256,
+    diagnostic?.placeholderCanonicalSha256,
+    diagnostic?.expectedCanonicalCaseFoldedSha256,
+    diagnostic?.selectedCanonicalCaseFoldedSha256,
+    diagnostic?.placeholderCanonicalCaseFoldedSha256,
+    diagnostic?.selectedBaseNameSha256,
+  ];
+  const expectedEqualsReadback =
+    diagnostic?.expectedRawSha256 === diagnostic?.cliReadbackRawSha256;
+  const selectedEqualsReadback =
+    diagnostic?.selectedRawSha256 === diagnostic?.cliReadbackRawSha256;
+  const rawOrdinalEqual =
+    diagnostic?.selectedRawSha256 === diagnostic?.expectedRawSha256;
+  const rawIgnoreCaseEqual =
+    diagnostic?.selectedRawCaseFoldedSha256 ===
+    diagnostic?.expectedRawCaseFoldedSha256;
+  const placeholderRawOrdinalEqual =
+    diagnostic?.selectedRawSha256 === diagnostic?.placeholderRawSha256;
+  const placeholderRawIgnoreCaseEqual =
+    diagnostic?.selectedRawCaseFoldedSha256 ===
+    diagnostic?.placeholderRawCaseFoldedSha256;
+  const canonicalIgnoreCaseEqual =
+    diagnostic?.selectedCanonicalCaseFoldedSha256 ===
+    diagnostic?.expectedCanonicalCaseFoldedSha256;
+  const placeholderCanonicalEqual =
+    diagnostic?.selectedCanonicalCaseFoldedSha256 ===
+    diagnostic?.placeholderCanonicalCaseFoldedSha256;
+  const writeGateExpected =
+    diagnostic?.dialogResult === "OK" &&
+    canonicalIgnoreCaseEqual &&
+    diagnostic?.expectedWithinTemporaryRoot === true &&
+    diagnostic?.selectedWithinTemporaryRoot === true;
+  const diagnosticOutcome = canonicalIgnoreCaseEqual
+    ? "canonical-equal"
+    : placeholderCanonicalEqual
+      ? "placeholder"
+      : "transformed";
+  const selectedTokenValid =
+    typeof diagnostic?.selectedRelativeToken === "string" &&
+    diagnostic.selectedRelativeToken.startsWith("<DIALOG_TEMP>\\") &&
+    !diagnostic.selectedRelativeToken
+      .split(/[\\/]/)
+      .some((segment) => segment === "..");
+  const selectedNameDisclosureValid =
+    diagnostic?.selectedBaseNameKind === "target"
+      ? /^voyalier-picker-preflight-[0-9a-f]{24}\.txt$/.test(
+          diagnostic?.selectedBaseName ?? "",
+        )
+      : diagnostic?.selectedBaseNameKind === "placeholder"
+        ? diagnostic?.selectedBaseName === "picker-preflight-placeholder.txt"
+        : diagnostic?.selectedBaseNameKind === "other" &&
+          diagnostic?.selectedBaseName == null;
+  const markerValid = diagnostic?.writeAttempted
+    ? marker?.existsBeforeCleanup === true &&
+      marker?.contentConfirmed === true &&
+      marker?.bytes > 0 &&
+      SHA256.test(marker?.sha256 ?? "") &&
+      marker?.sha256 === marker?.expectedSha256
+    : marker?.existsBeforeCleanup === false &&
+      marker?.contentConfirmed === false &&
+      marker?.bytes === 0 &&
+      marker?.sha256 == null &&
+      SHA256.test(marker?.expectedSha256 ?? "");
+
+  if (
+    report?.verdict !== "FAIL" ||
+    report?.stage !== "diagnostic-complete" ||
+    report?.diagnosticOnly !== true ||
+    report?.proofKind !== "harness-tool-compatibility" ||
+    report?.productEvidence !== false ||
+    !/^[0-9a-f]{40}$/.test(report?.candidateSha ?? "") ||
+    (candidateSha && report.candidateSha !== candidateSha) ||
+    (workflowRunId && report?.workflowRunId !== workflowRunId) ||
+    report?.dialog?.action !== "Save" ||
+    !hasNativeDialogEvidence(report?.dialog, report.tool) ||
+    !SHA256.test(report?.dialog?.expectedPathSha256 ?? "") ||
+    report?.dialog?.expectedPathSha256 !==
+      report?.dialog?.observedValueSha256 ||
+    report?.dialog?.readbackEqualsExpected !== true ||
+    hashes.some((hash) => !SHA256.test(hash ?? "")) ||
+    diagnostic?.hashEncoding !== "UTF-8" ||
+    diagnostic?.expectedRawSha256 !== report?.dialog?.expectedPathSha256 ||
+    diagnostic?.cliReadbackRawSha256 !== report?.dialog?.observedValueSha256 ||
+    diagnostic?.readbackEqualsExpected !== expectedEqualsReadback ||
+    diagnostic?.readbackEqualsExpected !== true ||
+    diagnostic?.selectedEqualsReadback !== selectedEqualsReadback ||
+    diagnostic?.rawOrdinalEqual !== rawOrdinalEqual ||
+    diagnostic?.rawOrdinalIgnoreCaseEqual !== rawIgnoreCaseEqual ||
+    diagnostic?.selectedEqualsPlaceholderRawOrdinal !==
+      placeholderRawOrdinalEqual ||
+    diagnostic?.selectedEqualsPlaceholderRawOrdinalIgnoreCase !==
+      placeholderRawIgnoreCaseEqual ||
+    diagnostic?.expectedCanonicalized !== true ||
+    diagnostic?.selectedCanonicalized !== true ||
+    diagnostic?.placeholderCanonicalized !== true ||
+    diagnostic?.canonicalOrdinalIgnoreCaseEqual !== canonicalIgnoreCaseEqual ||
+    diagnostic?.selectedEqualsPlaceholderCanonicalIgnoreCase !==
+      placeholderCanonicalEqual ||
+    diagnostic?.expectedWithinTemporaryRoot !== true ||
+    diagnostic?.selectedWithinTemporaryRoot !== true ||
+    !selectedTokenValid ||
+    !selectedNameDisclosureValid ||
+    !Number.isInteger(diagnostic?.selectedBaseNameLength) ||
+    diagnostic.selectedBaseNameLength <= 0 ||
+    typeof diagnostic?.selectedExtension !== "string" ||
+    diagnostic?.writeGatePassed !== writeGateExpected ||
+    diagnostic?.writeAttempted !== writeGateExpected ||
+    diagnostic?.markerExists !== diagnostic?.writeAttempted ||
+    report?.diagnosticOutcome !== diagnosticOutcome ||
+    !markerValid ||
+    marker?.removed !== true ||
+    report?.dialogHost?.exitCode !== 0 ||
+    report?.dialogHost?.jsonParsed !== true ||
+    report?.dialogHost?.stdoutOmitted !== true ||
+    !SHA256.test(report?.dialogHost?.stdoutSha256 ?? "") ||
+    JSON.stringify(report?.dialogHost?.result) !== JSON.stringify(diagnostic) ||
+    report?.temporaryRootRemoved !== true
+  ) {
+    throw new Error("Windows picker diagnostic evidence is incomplete");
   }
   assertNoAbsoluteWindowsPaths(report);
   return report;

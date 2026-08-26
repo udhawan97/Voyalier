@@ -40,6 +40,10 @@ function requireString(value, name) {
   return value.trim();
 }
 
+function sha256Text(value) {
+  return createHash("sha256").update(String(value), "utf8").digest("hex");
+}
+
 function isInside(parent, candidate) {
   const relative = path.relative(path.resolve(parent), path.resolve(candidate));
   return (
@@ -794,6 +798,9 @@ export async function driveNativeFileDialog({
     assert.notEqual(getValue.result.elementId, "");
     assert.equal(getValue.result.elementId, setValue.result.elementId);
     assert.equal(getValue.result?.text, filePath);
+    record.expectedPathSha256 = sha256Text(filePath);
+    record.observedValueSha256 = sha256Text(getValue.result.text);
+    record.readbackEqualsExpected = getValue.result.text === filePath;
     record.getValue = {
       exitCode: getValue.evidence.exitCode,
       jsonParsed: getValue.evidence.jsonParsed,
