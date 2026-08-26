@@ -153,11 +153,15 @@ setting without keyboard, clipboard, focus, or pointer input.
   require case-sensitive exact path readback. Exact-SHA run `32944058567` proved those invariants,
   then found that the unique exact-name Save action did not expose `InvokePattern`. For the same
   exact enabled, onscreen action candidate, prefer `InvokePattern` and otherwise require managed
-  `LegacyIAccessiblePattern` before calling its semantic default action. Record which of those two
-  patterns performed the action, require dismissal, then verify the exact TEMP-contained marker's
-  nonce content and hash. Any ambiguity, unsupported pattern, malformed output, mismatch, timeout,
-  or out-of-TEMP path fails closed. This preflight proves only picker-tool compatibility, not
-  Voyalier behavior.
+  `LegacyIAccessiblePattern` before calling its semantic default action. Exact-SHA diagnostic run
+  `32945543090` then proved that the one standard-dialog Save action is reported as
+  `ControlType.Pane`, enabled, onscreen, with AutomationId `1`. Accept only an observed
+  `ControlType.Button` or this native `ControlType.Pane` shape; record the observed type and
+  AutomationId, but never select by the numeric ID. Record which of the two supported patterns
+  performed the action, require dismissal, then verify the exact TEMP-contained marker's nonce
+  content and hash. Any ambiguity, other control type, unsupported pattern, malformed output,
+  mismatch, timeout, or out-of-TEMP path fails closed. This preflight proves only picker-tool
+  compatibility, not Voyalier behavior.
 - Repeat the same title, HWND, semantic-host, structured set/get, exact-readback, exact-action, and
   dismissal checks for both installed Voyalier Save and Open dialogs. Tie those observations to the
   existing backup notice, file stat/hash, restore staging, reinstall, preservation, and sentinel
