@@ -254,9 +254,13 @@ function hasNativeDialogEvidence(dialog, tool) {
     dialog?.toolArchiveSha256 === WINAPP_CLI.archiveSha256 &&
     Number.isInteger(dialog?.actionCandidateCount) &&
     dialog.actionCandidateCount >= 1 &&
-    dialog?.exactActionButtonCount === 1 &&
+    dialog?.exactActionTargetCount === 1 &&
     dialog?.actionName === dialog?.action &&
-    dialog?.actionControlType === "ControlType.Button" &&
+    ["ControlType.Button", "ControlType.Pane"].includes(
+      dialog?.actionControlType,
+    ) &&
+    typeof dialog?.actionAutomationId === "string" &&
+    dialog.actionAutomationId !== "" &&
     ["InvokePattern", "LegacyIAccessiblePattern"].includes(
       dialog?.actionPattern,
     ) &&
@@ -267,8 +271,8 @@ function hasNativeDialogEvidence(dialog, tool) {
     dialog?.actionCommand?.result?.hwnd === dialog?.dialogHwnd &&
     dialog?.actionCommand?.result?.actionCandidateCount ===
       dialog?.actionCandidateCount &&
-    dialog?.actionCommand?.result?.exactActionButtonCount ===
-      dialog?.exactActionButtonCount &&
+    dialog?.actionCommand?.result?.exactActionTargetCount ===
+      dialog?.exactActionTargetCount &&
     dialog?.actionCommand?.result?.actionName === dialog?.actionName &&
     dialog?.actionCommand?.result?.actionControlType ===
       dialog?.actionControlType &&

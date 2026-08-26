@@ -134,9 +134,9 @@ function nativeDialogEvidence({
     pathReadbackConfirmed: true,
     inputInjectionUsed: false,
     actionCandidateCount: 1,
-    exactActionButtonCount: 1,
+    exactActionTargetCount: 1,
     actionName: action,
-    actionControlType: "ControlType.Button",
+    actionControlType: "ControlType.Pane",
     actionAutomationId: "1",
     actionPattern: "LegacyIAccessiblePattern",
     actionInvoked: true,
@@ -149,9 +149,9 @@ function nativeDialogEvidence({
       result: {
         hwnd: 12345,
         actionCandidateCount: 1,
-        exactActionButtonCount: 1,
+        exactActionTargetCount: 1,
         actionName: action,
-        actionControlType: "ControlType.Button",
+        actionControlType: "ControlType.Pane",
         actionAutomationId: "1",
         actionPattern: "LegacyIAccessiblePattern",
         actionInvoked: true,
@@ -388,6 +388,7 @@ test("keeps product setup, updater backup, and portable restore on the installed
     "--window",
     "InvokePattern",
     "LegacyIAccessiblePattern",
+    "ControlType.Pane",
     "dialogDismissed",
     "pathReadbackConfirmed",
   ]) {
@@ -406,7 +407,7 @@ test("keeps product setup, updater backup, and portable restore on the installed
     nativeDialogSource.indexOf("export async function driveNativeFileDialog"),
   );
   const uniqueStateGate = actionBridge.indexOf(
-    "if ($exactActionButtonCount -ne 1)",
+    "if ($exactActionTargetCount -ne 1)",
   );
   const invokePatternProbe = actionBridge.indexOf(
     "[System.Windows.Automation.InvokePattern]::Pattern",
@@ -545,6 +546,34 @@ test("rejects unverified picker tooling and incomplete preflight proof", () => {
       ...preflight,
       dialog: {
         ...preflight.dialog,
+        actionControlType: "ControlType.List",
+        actionCommand: {
+          ...preflight.dialog.actionCommand,
+          result: {
+            ...preflight.dialog.actionCommand.result,
+            actionControlType: "ControlType.List",
+          },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
+        actionAutomationId: undefined,
+        actionCommand: {
+          ...preflight.dialog.actionCommand,
+          result: {
+            ...preflight.dialog.actionCommand.result,
+            actionAutomationId: undefined,
+          },
+        },
+      },
+    },
+    {
+      ...preflight,
+      dialog: {
+        ...preflight.dialog,
         setValue: {
           ...preflight.dialog.setValue,
           requestedSelector: "wrong-control",
@@ -607,12 +636,12 @@ test("rejects unverified picker tooling and incomplete preflight proof", () => {
       ...preflight,
       dialog: {
         ...preflight.dialog,
-        exactActionButtonCount: 2,
+        exactActionTargetCount: 2,
         actionCommand: {
           ...preflight.dialog.actionCommand,
           result: {
             ...preflight.dialog.actionCommand.result,
-            exactActionButtonCount: 2,
+            exactActionTargetCount: 2,
           },
         },
       },

@@ -411,7 +411,7 @@ function invokeExactAction(title, hwnd, action) {
       `[System.Windows.Automation.AutomationElement]::NativeWindowHandleProperty); ` +
       `if ($observedHwnd -ne $expectedHwnd) { throw "native dialog HWND changed" }; ` +
       `$candidates = $dialog.FindAll([System.Windows.Automation.TreeScope]::Descendants, $actionCondition); ` +
-      `$exactActionButtonCount = 0; $selectedCandidate = $null; ` +
+      `$exactActionTargetCount = 0; $selectedCandidate = $null; ` +
       `$candidateObservations = [System.Collections.Generic.List[string]]::new(); ` +
       `for ($index = 0; $index -lt $candidates.Count; $index++) { ` +
       `$candidate = $candidates.Item($index); ` +
@@ -425,14 +425,15 @@ function invokeExactAction(title, hwnd, action) {
       `[System.Windows.Automation.AutomationElement]::AutomationIdProperty); ` +
       `$candidateObservations.Add(` +
       `"index=$index,type=$($candidateControlType.ProgrammaticName),enabled=$candidateEnabled,offscreen=$candidateOffscreen,automationId=$candidateAutomationId"); ` +
-      `if ($candidateControlType -ne [System.Windows.Automation.ControlType]::Button) { continue }; ` +
+      `if ($candidateControlType -ne [System.Windows.Automation.ControlType]::Button -and ` +
+      `$candidateControlType -ne [System.Windows.Automation.ControlType]::Pane) { continue }; ` +
       `if ($candidateEnabled -ne $true) { continue }; ` +
       `if ($candidateOffscreen -ne $false) { continue }; ` +
-      `$exactActionButtonCount += 1; ` +
-      `if ($exactActionButtonCount -eq 1) { $selectedCandidate = $candidate } ` +
+      `$exactActionTargetCount += 1; ` +
+      `if ($exactActionTargetCount -eq 1) { $selectedCandidate = $candidate } ` +
       `}; ` +
-      `if ($exactActionButtonCount -ne 1) { ` +
-      `throw "expected one exact-name enabled onscreen Button, raw $($candidates.Count), eligible $exactActionButtonCount, observations $($candidateObservations -join '|')" ` +
+      `if ($exactActionTargetCount -ne 1) { ` +
+      `throw "expected one exact-name enabled onscreen Button or Pane, raw $($candidates.Count), eligible $exactActionTargetCount, observations $($candidateObservations -join '|')" ` +
       `}; ` +
       `$selectedPattern = $null; $actionPattern = $null; ` +
       `try { $selectedPattern = $selectedCandidate.GetCurrentPattern(` +
@@ -463,7 +464,7 @@ function invokeExactAction(title, hwnd, action) {
       `if ($remaining -gt 1) { throw "multiple exact-title dialogs after invoke: $remaining" }; ` +
       `if ($remaining -eq 0) { ` +
       `@{ actionCandidateCount = $candidates.Count; ` +
-      `exactActionButtonCount = $exactActionButtonCount; ` +
+      `exactActionTargetCount = $exactActionTargetCount; ` +
       `actionName = $selectedName; ` +
       `actionControlType = [string]$selectedControlType.ProgrammaticName; ` +
       `actionAutomationId = $selectedAutomationId; actionPattern = $actionPattern; ` +
@@ -598,9 +599,15 @@ export async function driveNativeFileDialog({
     const invoked = invokeExactAction(title, observed.hwnd, action);
     record.actionCommand = invoked.evidence;
     assert.equal(invoked.result?.hwnd, observed.hwnd);
-    assert.equal(invoked.result?.exactActionButtonCount, 1);
+    assert.equal(invoked.result?.exactActionTargetCount, 1);
     assert.equal(invoked.result?.actionName, action);
-    assert.equal(invoked.result?.actionControlType, "ControlType.Button");
+    assert.ok(
+      ["ControlType.Button", "ControlType.Pane"].includes(
+        invoked.result?.actionControlType,
+      ),
+    );
+    assert.equal(typeof invoked.result?.actionAutomationId, "string");
+    assert.notEqual(invoked.result.actionAutomationId, "");
     assert.ok(
       ["InvokePattern", "LegacyIAccessiblePattern"].includes(
         invoked.result?.actionPattern,
@@ -611,7 +618,7 @@ export async function driveNativeFileDialog({
     Object.assign(record, {
       nativeDialogPathConfirmed: true,
       actionCandidateCount: invoked.result.actionCandidateCount,
-      exactActionButtonCount: invoked.result.exactActionButtonCount,
+      exactActionTargetCount: invoked.result.exactActionTargetCount,
       actionName: invoked.result.actionName,
       actionControlType: invoked.result.actionControlType,
       actionAutomationId: invoked.result.actionAutomationId,
