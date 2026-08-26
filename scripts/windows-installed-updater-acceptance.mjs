@@ -687,32 +687,32 @@ async function screenshot(driver, name) {
     `
       const drivePath = /\\b[A-Za-z]:[\\\\/][^\\r\\n]*/g;
       const uncPath = /(?<!:)(?:\\\\\\\\|\\/\\/)[^\\\\/\\s]+[\\\\/][^\\r\\n]*/g;
-      const notice = document.querySelector('.voy-backup__notice');
-      const noticeHadAbsolutePath = Boolean(
-        notice?.textContent &&
-        (drivePath.test(notice.textContent) || uncPath.test(notice.textContent))
+      const statusElements = document.querySelectorAll(
+        '.voy-backup__notice, .voy-sr-only[role="status"][aria-live="polite"]'
       );
-      drivePath.lastIndex = 0;
-      uncPath.lastIndex = 0;
-      if (noticeHadAbsolutePath) {
-        notice.textContent = 'Backup path confirmed: <ABSOLUTE_PATH>';
+      let redactedStatusCount = 0;
+      for (const element of statusElements) {
+        const original = element.textContent ?? '';
+        const redacted = original
+          .replace(drivePath, '<ABSOLUTE_PATH>')
+          .replace(uncPath, '<ABSOLUTE_PATH>');
+        if (redacted !== original) {
+          element.textContent = redacted;
+          redactedStatusCount += 1;
+        }
       }
       const visibleText = document.body?.innerText ?? '';
       const remainingDrivePaths = visibleText.match(drivePath) ?? [];
       const remainingUncPaths = visibleText.match(uncPath) ?? [];
       return {
         redactionExecuted: true,
-        noticeHadAbsolutePath,
-        noticeRedacted: noticeHadAbsolutePath
-          ? notice?.textContent === 'Backup path confirmed: <ABSOLUTE_PATH>'
-          : true,
+        redactedStatusCount,
         remainingAbsolutePathMatches:
           remainingDrivePaths.length + remainingUncPaths.length,
       };
     `,
   );
   assert.equal(redaction?.redactionExecuted, true);
-  assert.equal(redaction?.noticeRedacted, true);
   assert.equal(redaction?.remainingAbsolutePathMatches, 0);
   const encoded = await fetchDriver(`/session/${driver.sessionId}/screenshot`);
   await writeFile(

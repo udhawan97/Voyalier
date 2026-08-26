@@ -394,6 +394,11 @@ test("keeps product setup, updater backup, and portable restore on the installed
     source.indexOf("function installedProcesses"),
   );
   assert.match(screenshotHelper, /remainingAbsolutePathMatches/);
+  assert.match(screenshotHelper, /querySelectorAll/);
+  assert.match(
+    screenshotHelper,
+    /\.voy-sr-only\[role="status"\]\[aria-live="polite"\]/,
+  );
   assert.match(screenshotHelper, /pathRedactionConfirmed: true/);
   assert.doesNotMatch(screenshotHelper, /\.catch\(/);
   assert.doesNotMatch(source, /WScript\.Shell|Set-Clipboard|SendKeys/);
