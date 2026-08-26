@@ -331,6 +331,8 @@ export function validateWindowsAcceptanceReport(report) {
     report.portableBackup?.exportedViaUi !== true ||
     report.portableBackup?.nativeDialogPathConfirmed !== true ||
     report.portableBackup?.selectedPathWithinTemp !== true ||
+    report.portableBackup?.filenameControlAutomationId !==
+      "FileNameControlHost" ||
     typeof report.portableBackup?.fileName !== "string" ||
     !report.portableBackup.fileName.endsWith(".vbk") ||
     !(report.portableBackup?.bytes > 0) ||
@@ -341,6 +343,8 @@ export function validateWindowsAcceptanceReport(report) {
   if (
     report.portableRestore?.stagedViaUi !== true ||
     report.portableRestore?.nativeDialogPathConfirmed !== true ||
+    report.portableRestore?.filenameControlAutomationId !==
+      "FileNameControlHost" ||
     report.portableRestore?.appliedAfterReinstall !== true ||
     report.portableRestore?.postBackupSentinelAbsent !== true
   ) {

@@ -178,7 +178,8 @@ test("keeps product setup, updater backup, and portable restore on the installed
   assert.match(source, /section\[aria-labelledby=\\?"manual-plan-title\\?"\]/);
   assert.match(source, /readCheckboxState/);
   assert.match(source, /UIAutomationClient/);
-  assert.match(source, /AutomationIdProperty, '1148'/);
+  assert.match(source, /AutomationIdProperty, 'FileNameControlHost'/);
+  assert.doesNotMatch(source, /AutomationIdProperty, '1148'/);
   assert.doesNotMatch(source, /AutomationIdProperty, '1001'/);
   assert.match(source, /ValuePattern/);
   assert.match(source, /InvokePattern/);
@@ -298,6 +299,7 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
       exportedViaUi: true,
       nativeDialogPathConfirmed: true,
       selectedPathWithinTemp: true,
+      filenameControlAutomationId: "FileNameControlHost",
       fileName: "voyalier-portable-acceptance.vbk",
       bytes: 4096,
       sha256: "b".repeat(64),
@@ -305,6 +307,7 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
     portableRestore: {
       stagedViaUi: true,
       nativeDialogPathConfirmed: true,
+      filenameControlAutomationId: "FileNameControlHost",
       appliedAfterReinstall: true,
       postBackupSentinelAbsent: true,
     },
@@ -462,9 +465,31 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
     () =>
       validateWindowsAcceptanceReport({
         ...report,
+        portableBackup: {
+          ...report.portableBackup,
+          filenameControlAutomationId: "1148",
+        },
+      }),
+    /portable backup UI evidence is incomplete/,
+  );
+  assert.throws(
+    () =>
+      validateWindowsAcceptanceReport({
+        ...report,
         portableRestore: {
           ...report.portableRestore,
           nativeDialogPathConfirmed: false,
+        },
+      }),
+    /restore and reinstall evidence is incomplete/,
+  );
+  assert.throws(
+    () =>
+      validateWindowsAcceptanceReport({
+        ...report,
+        portableRestore: {
+          ...report.portableRestore,
+          filenameControlAutomationId: "1148",
         },
       }),
     /restore and reinstall evidence is incomplete/,
