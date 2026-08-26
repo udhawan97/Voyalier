@@ -538,6 +538,7 @@ test("keeps product setup, updater backup, and portable restore on the installed
   assert.match(source, /loadVerifiedWinAppTool/);
   assert.match(source, /portableBackupNotice\.endsWith\(portableBackupPath\)/);
   assert.match(source, /process\.stderr\.write\(`\$\{message\}\\n`\)/);
+  assert.match(source, /\.replace\(\/\\s\+\/g, " "\)\s*\.trim\(\)/);
   const screenshotHelper = source.slice(
     source.indexOf("async function screenshot"),
     source.indexOf("function installedProcesses"),
@@ -642,6 +643,7 @@ test("keeps product setup, updater backup, and portable restore on the installed
   assert.match(preflightSource, /diagnosticOnly: true/);
   assert.match(preflightSource, /productEvidence: false/);
   assert.match(preflightSource, /process\.stderr\.write\(`\$\{message\}\\n`\)/);
+  assert.match(preflightSource, /\.replace\(\/\\s\+\/g, " "\)\s*\.trim\(\)/);
 
   const workflow = await readFile(
     new URL("../.github/workflows/release.yml", import.meta.url),
@@ -1171,6 +1173,13 @@ test("keeps picker path diagnostics outside the release acceptance gate", () => 
   );
 
   const outsideDiagnostic = diagnosticWithPath(diagnostic, {
+    selectedRawSha256: "6".repeat(64),
+    selectedRawCaseFoldedSha256: "7".repeat(64),
+    selectedCanonicalSha256: "8".repeat(64),
+    selectedCanonicalCaseFoldedSha256: "9".repeat(64),
+    selectedEqualsPlaceholderRawOrdinal: false,
+    selectedEqualsPlaceholderRawOrdinalIgnoreCase: false,
+    selectedEqualsPlaceholderCanonicalIgnoreCase: false,
     selectedWithinTemporaryRoot: false,
     selectedRelativeToken: null,
   });
@@ -1184,11 +1193,15 @@ test("keeps picker path diagnostics outside the release acceptance gate", () => 
   assert.equal(outsideDiagnostic.diagnosticOutcome, "outside-temp-placeholder");
 
   const uncanonicalizableDiagnostic = diagnosticWithPath(diagnostic, {
+    selectedRawSha256: "6".repeat(64),
+    selectedRawCaseFoldedSha256: "7".repeat(64),
     selectedCanonicalized: false,
     selectedCanonicalSha256: null,
     selectedCanonicalCaseFoldedSha256: null,
     selectedWithinTemporaryRoot: false,
     selectedRelativeToken: null,
+    selectedEqualsPlaceholderRawOrdinal: false,
+    selectedEqualsPlaceholderRawOrdinalIgnoreCase: false,
     canonicalOrdinalIgnoreCaseEqual: false,
     selectedEqualsPlaceholderCanonicalIgnoreCase: false,
   });
@@ -1206,11 +1219,14 @@ test("keeps picker path diagnostics outside the release acceptance gate", () => 
 
   const invalidDiagnostics = [
     diagnosticWithPath(diagnostic, { cliReadbackRawSha256: undefined }),
+    diagnosticWithPath(diagnostic, { selectedCanonicalized: "false" }),
+    diagnosticWithPath(diagnostic, { selectedWithinTemporaryRoot: "false" }),
     diagnosticWithPath(diagnostic, { selectedCanonicalized: false }),
     diagnosticWithPath(diagnostic, {
       selectedWithinTemporaryRoot: false,
     }),
     diagnosticWithPath(diagnostic, { rawOrdinalEqual: true }),
+    diagnosticWithPath(diagnostic, { dialogResult: "Cancel" }),
     diagnosticWithPath(diagnostic, { writeAttempted: true }),
     diagnosticWithPath(outsideDiagnostic, { writeAttempted: true }),
     diagnosticWithPath(uncanonicalizableDiagnostic, {

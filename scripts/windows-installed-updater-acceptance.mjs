@@ -1639,7 +1639,9 @@ try {
 } catch (error) {
   const message = sanitizeWindowsEvidenceText(
     error instanceof Error ? error.message : String(error),
-  );
+  )
+    .replace(/\s+/g, " ")
+    .trim();
   process.stderr.write(`${message}\n`);
   process.exitCode = 1;
 }

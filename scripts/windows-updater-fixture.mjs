@@ -502,6 +502,15 @@ export function validateWindowsPickerDiagnosticReport(
       : diagnostic?.selectedRelativeToken == null
     : diagnostic?.selectedWithinTemporaryRoot === false &&
       diagnostic?.selectedRelativeToken == null;
+  const selectedStateTypesValid =
+    typeof diagnostic?.selectedCanonicalized === "boolean" &&
+    typeof diagnostic?.selectedWithinTemporaryRoot === "boolean";
+  const selectedCanonicalLocationConsistent =
+    (!canonicalIgnoreCaseEqual && !placeholderCanonicalEqual) ||
+    diagnostic?.selectedWithinTemporaryRoot === true;
+  const uncanonicalRawIdentityConsistent =
+    diagnostic?.selectedCanonicalized === true ||
+    (!rawIgnoreCaseEqual && !placeholderRawIgnoreCaseEqual);
   const selectedNameDisclosureValid =
     diagnostic?.selectedBaseNameKind === "target"
       ? /^voyalier-picker-preflight-[0-9a-f]{24}\.txt$/.test(
@@ -554,6 +563,7 @@ export function validateWindowsPickerDiagnosticReport(
     hashes.some((hash) => !SHA256.test(hash ?? "")) ||
     !selectedCanonicalHashesValid ||
     diagnostic?.hashEncoding !== "UTF-8" ||
+    diagnostic?.dialogResult !== "OK" ||
     diagnostic?.expectedRawSha256 !== report?.dialog?.expectedPathSha256 ||
     diagnostic?.cliReadbackRawSha256 !== report?.dialog?.observedValueSha256 ||
     diagnostic?.readbackEqualsExpected !== expectedEqualsReadback ||
@@ -571,7 +581,10 @@ export function validateWindowsPickerDiagnosticReport(
     diagnostic?.selectedEqualsPlaceholderCanonicalIgnoreCase !==
       placeholderCanonicalEqual ||
     diagnostic?.expectedWithinTemporaryRoot !== true ||
+    !selectedStateTypesValid ||
     !selectedLocationValid ||
+    !selectedCanonicalLocationConsistent ||
+    !uncanonicalRawIdentityConsistent ||
     !selectedNameDisclosureValid ||
     !selectedNameMetadataValid ||
     diagnostic?.writeGatePassed !== writeGateExpected ||
