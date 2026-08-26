@@ -60,8 +60,28 @@ exact candidate before merge or publication.
 - Ask the original council blocker reviewers for targeted acceptance of the new Windows evidence.
   This closes Round 2 blockers and is not a third council round.
 
+## WebView2 Runtime 150 compatibility
+
+GitHub's elevated Windows runners currently exercise WebView2 Runtime 150 or newer. That runtime
+deliberately ignores environment-supplied remote-debugging arguments for elevated hosts, so the
+external driver cannot create a session unless the host passes the sanitized debugging port through
+the WebView2 API. Voyalier will bridge this upstream gap without enabling automation in normal use:
+
+- Require Tauri's exact `TAURI_WEBVIEW_AUTOMATION=true` signal and a Voyalier-owned, path-safe
+  acceptance profile name; either missing or malformed input leaves the normal window configuration
+  byte-for-byte unchanged.
+- Extract only `--remote-debugging-port=<u16>` from EdgeDriver's browser arguments. Do not forward
+  arbitrary environment-controlled browser flags.
+- Pass that one numeric port through Tauri's `additional_browser_args` API and set a matching,
+  relative WebView data directory so EdgeDriver and WebView2 observe the same disposable profile.
+- Keep the code in the exact release binary but dormant on ordinary launches, rather than testing a
+  special binary that cannot establish release confidence.
+- Unit-test the fail-closed parser and configuration mutation, then retain staged runner diagnostics
+  for all base, updated, and reinstall-recovery sessions.
+
 ## Commit order
 
 1. `Docs: plan Windows updater acceptance`
 2. `Test: add Windows installed updater acceptance`
-3. `Merge: close the Windows release gate`
+3. `Desktop+test: support elevated Windows automation`
+4. `Merge: close the Windows release gate`
