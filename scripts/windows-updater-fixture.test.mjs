@@ -184,6 +184,7 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
     journey: {
       tripCreatedViaUi: true,
       cityPackDownloadedViaUi: true,
+      cityPackPlaceCount: 764,
       savedPlaceName: "Nishiki Market",
       packingLabel: "Museum pass",
       packingChecked: true,

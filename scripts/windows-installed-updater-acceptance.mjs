@@ -444,6 +444,22 @@ async function waitForText(driver, text, { root = "body" } = {}) {
   );
 }
 
+async function readText(driver, selector) {
+  return waitFor(
+    () =>
+      execute(
+        driver,
+        `
+          const element = document.querySelector(arguments[0]);
+          const text = element?.innerText?.replace(/\\s+/g, " ").trim();
+          return text || false;
+        `,
+        [selector],
+      ),
+    `${selector} to contain text`,
+  );
+}
+
 async function currentLocale(driver) {
   return execute(driver, "return document.documentElement.lang");
 }
@@ -902,7 +918,19 @@ async function main() {
     await clickText(driver, "Download Kyoto city data", {
       root: ".voy-packs",
     });
-    await waitForText(driver, "3 places", { root: ".voy-packs" });
+    const cityPackSummary = await readText(driver, ".voy-packs__count");
+    const cityPackPlaceMatch = cityPackSummary.match(/^([\d,]+) places?/);
+    assert.ok(
+      cityPackPlaceMatch && cityPackSummary.includes("offline"),
+      `unexpected downloaded Kyoto pack summary: ${cityPackSummary}`,
+    );
+    const cityPackPlaceCount = Number(
+      cityPackPlaceMatch[1].replaceAll(",", ""),
+    );
+    assert.ok(
+      cityPackPlaceCount > 0,
+      "the downloaded Kyoto pack had no places",
+    );
     await clickText(driver, "Get recommendations", { root: ".voy-recs" });
     const savePlaceLabel = await clickAriaLabel(driver, "Save place ", {
       prefix: true,
@@ -1229,6 +1257,7 @@ async function main() {
       journey: {
         tripCreatedViaUi: true,
         cityPackDownloadedViaUi: true,
+        cityPackPlaceCount,
         savedPlaceName,
         packingLabel: PACKING_LABEL,
         packingChecked: true,
@@ -1296,6 +1325,23 @@ async function main() {
     );
   } catch (error) {
     report.error = error instanceof Error ? error.message : String(error);
+    if (driver) {
+      await screenshot(driver, "99-failure.png").catch(() => {});
+      report.uiDiagnostic = await execute(
+        driver,
+        `
+          return {
+            locale: document.documentElement.lang,
+            alerts: Array.from(document.querySelectorAll('[role="alert"]'))
+              .map((element) => element.innerText?.replace(/\\s+/g, " ").trim())
+              .filter(Boolean)
+              .slice(0, 5),
+            packSummary: document.querySelector('.voy-packs__count')
+              ?.innerText?.replace(/\\s+/g, " ").trim() ?? null,
+          };
+        `,
+      ).catch(() => null);
+    }
     report.network = {
       requests: requestLog.map(({ url }) => String(url)),
       nonLoopbackRequests: requestLog.filter(

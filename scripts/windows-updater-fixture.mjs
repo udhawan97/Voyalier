@@ -195,6 +195,8 @@ export function validateWindowsAcceptanceReport(report) {
   if (
     report.journey?.tripCreatedViaUi !== true ||
     report.journey?.cityPackDownloadedViaUi !== true ||
+    !Number.isInteger(report.journey?.cityPackPlaceCount) ||
+    report.journey.cityPackPlaceCount <= 0 ||
     typeof report.journey?.savedPlaceName !== "string" ||
     report.journey.savedPlaceName.trim() === "" ||
     typeof report.journey?.packingLabel !== "string" ||
