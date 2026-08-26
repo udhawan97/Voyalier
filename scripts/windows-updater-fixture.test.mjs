@@ -131,6 +131,13 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
     base: { version: "0.10.7" },
     candidate: { version: "0.11.0" },
     installed: { before: "0.10.7", after: "0.11.0", recovery: "0.11.0" },
+    driver: {
+      sessions: [
+        { session: "base" },
+        { session: "updated" },
+        { session: "recovery" },
+      ],
+    },
     data: {
       tripCountBefore: 1,
       tripCountAfter: 1,
@@ -155,5 +162,13 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
         installed: { ...report.installed, after: "0.10.7" },
       }),
     /after the swap/,
+  );
+  assert.throws(
+    () =>
+      validateWindowsAcceptanceReport({
+        ...report,
+        driver: { sessions: [{ session: "base" }] },
+      }),
+    /all three packaged WebDriver sessions/,
   );
 });

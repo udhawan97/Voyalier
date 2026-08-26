@@ -164,6 +164,13 @@ export function validateWindowsAcceptanceReport(report) {
   if (report.installed?.recovery !== "0.11.0") {
     throw new Error("reinstall recovery did not reopen the candidate");
   }
+  const driverSessions = report.driver?.sessions?.map(({ session }) => session);
+  if (
+    JSON.stringify(driverSessions) !==
+    JSON.stringify(["base", "updated", "recovery"])
+  ) {
+    throw new Error("all three packaged WebDriver sessions were not observed");
+  }
   if (report.data?.tripCountBefore !== 1 || report.data?.tripCountAfter !== 1) {
     throw new Error("traveler-owned data did not survive the updater swap");
   }

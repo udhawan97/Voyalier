@@ -1261,9 +1261,86 @@ fn builder<R: tauri::Runtime>(
         ])
 }
 
+#[cfg(any(target_os = "windows", test))]
+#[derive(Debug, PartialEq, Eq)]
+struct WindowsAutomationConfig {
+    additional_browser_args: String,
+    data_directory: String,
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn windows_automation_config(
+    automation: Option<&str>,
+    browser_args: Option<&str>,
+    profile: Option<&str>,
+) -> Option<WindowsAutomationConfig> {
+    // WebView2 Runtime 150 ignores EdgeDriver's environment-supplied port for
+    // elevated hosts. Forward only the numeric port through the WebView2 API;
+    // never expose arbitrary browser flags from the environment.
+    if automation != Some("true") {
+        return None;
+    }
+    let profile = profile?;
+    if profile.len() > 64
+        || !profile.starts_with("voyalier-acceptance-")
+        || !profile
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+    {
+        return None;
+    }
+    let ports = browser_args?
+        .split_ascii_whitespace()
+        .filter_map(|argument| argument.strip_prefix("--remote-debugging-port="))
+        .map(str::parse::<u16>)
+        .collect::<Result<Vec<_>, _>>()
+        .ok()?;
+    if ports.len() != 1 {
+        return None;
+    }
+
+    Some(WindowsAutomationConfig {
+        additional_browser_args: format!(
+            "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={}",
+            ports[0]
+        ),
+        data_directory: profile.to_owned(),
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn apply_windows_automation_config(context: &mut tauri::Context<tauri::Wry>) {
+    let automation = std::env::var("TAURI_WEBVIEW_AUTOMATION").ok();
+    let browser_args = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").ok();
+    let profile = std::env::var("VOYALIER_WINDOWS_WEBDRIVER_PROFILE").ok();
+    let Some(config) = windows_automation_config(
+        automation.as_deref(),
+        browser_args.as_deref(),
+        profile.as_deref(),
+    ) else {
+        return;
+    };
+    let window = context
+        .config_mut()
+        .app
+        .windows
+        .iter_mut()
+        .find(|window| window.label == "main")
+        .expect("main window configuration must exist");
+    window.additional_browser_args = Some(config.additional_browser_args);
+    window.data_directory = Some(config.data_directory.into());
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let service = AppService::open_default().expect("Voyalier storage must initialize");
+    let context = tauri::generate_context!();
+    #[cfg(target_os = "windows")]
+    let context = {
+        let mut context = context;
+        apply_windows_automation_config(&mut context);
+        context
+    };
     #[cfg_attr(debug_assertions, allow(unused_mut))]
     let mut app = builder(tauri::Builder::default(), service);
     // Native pickers for backup/restore. Registered in every build (unlike the
@@ -1277,8 +1354,7 @@ pub fn run() {
     {
         app = app.plugin(tauri_plugin_updater::Builder::new().build());
     }
-    app.run(tauri::generate_context!())
-        .expect("error while running Voyalier");
+    app.run(context).expect("error while running Voyalier");
 }
 
 #[cfg(test)]
@@ -1296,6 +1372,54 @@ mod tests {
     };
 
     use super::*;
+
+    #[test]
+    fn windows_automation_is_explicit_and_fail_closed() {
+        let expected = WindowsAutomationConfig {
+            additional_browser_args: "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port=0".to_owned(),
+            data_directory: "voyalier-acceptance-base".to_owned(),
+        };
+        assert_eq!(
+            windows_automation_config(
+                Some("true"),
+                Some("--remote-debugging-port=0 --ignored-flag"),
+                Some("voyalier-acceptance-base"),
+            ),
+            Some(expected)
+        );
+        assert_eq!(
+            windows_automation_config(
+                Some("false"),
+                Some("--remote-debugging-port=0"),
+                Some("voyalier-acceptance-base"),
+            ),
+            None
+        );
+        assert_eq!(
+            windows_automation_config(
+                Some("true"),
+                Some("--remote-debugging-port=70000"),
+                Some("voyalier-acceptance-base"),
+            ),
+            None
+        );
+        assert_eq!(
+            windows_automation_config(
+                Some("true"),
+                Some("--remote-debugging-port=0 --remote-debugging-port=1"),
+                Some("voyalier-acceptance-base"),
+            ),
+            None
+        );
+        assert_eq!(
+            windows_automation_config(
+                Some("true"),
+                Some("--remote-debugging-port=0"),
+                Some("voyalier-acceptance-../escape"),
+            ),
+            None
+        );
+    }
 
     #[test]
     fn tauri_commands_round_trip_with_single_input_arg() {

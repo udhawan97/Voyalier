@@ -47,6 +47,7 @@ const PNPM_CLI = process.env.PNPM_HOME
   ? path.resolve(process.env.PNPM_HOME, "..", "pnpm", "bin", "pnpm.cjs")
   : null;
 const DRIVER_DIAGNOSTICS = [];
+const DRIVER_SESSIONS = ["base", "updated", "recovery"];
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -169,13 +170,20 @@ async function startDriver(application, suffix) {
     "tauri-driver.exe",
   );
   const logPath = path.join(EVIDENCE_ROOT, `tauri-driver-${suffix}.log`);
-  const userDataFolder = path.join(TEMP_ROOT, `webview-${suffix}`);
+  const profile = `voyalier-acceptance-${suffix}`;
+  assert.ok(DRIVER_SESSIONS.includes(suffix), "unexpected driver session");
+  const userDataFolder = path.join(process.env.LOCALAPPDATA, "main", profile);
+  await rm(userDataFolder, { recursive: true, force: true });
   await mkdir(userDataFolder, { recursive: true });
   const log = createWriteStream(logPath, { flags: "a" });
   await once(log, "open");
   const processHandle = spawn(driverBinary, [], {
     cwd: ROOT,
-    env: { ...process.env, VOYALIER_DATA_DIR: DATA_ROOT },
+    env: {
+      ...process.env,
+      VOYALIER_DATA_DIR: DATA_ROOT,
+      VOYALIER_WINDOWS_WEBDRIVER_PROFILE: profile,
+    },
     stdio: ["ignore", log, log],
     windowsHide: true,
   });
@@ -824,6 +832,16 @@ async function main() {
         quiet: true,
         timeout: 5 * 60 * 1000,
       });
+    }
+    for (const suffix of DRIVER_SESSIONS) {
+      await rm(
+        path.join(
+          process.env.LOCALAPPDATA,
+          "main",
+          `voyalier-acceptance-${suffix}`,
+        ),
+        { recursive: true, force: true },
+      );
     }
     await rm(TEMP_ROOT, { recursive: true, force: true });
   }
