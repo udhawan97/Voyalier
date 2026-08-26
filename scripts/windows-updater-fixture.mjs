@@ -228,6 +228,65 @@ export function validateWindowsAcceptanceReport(report) {
   if (!(report.data?.backupCount >= 1)) {
     throw new Error("the pre-update backup was not observed");
   }
+  const preservationStages = ["base", "updated", "recovery"].map(
+    (stage) => report.preservation?.[stage],
+  );
+  if (
+    preservationStages.some(
+      (stage) =>
+        !stage ||
+        typeof stage.savedPlaceId !== "string" ||
+        !stage.savedPlaceId ||
+        typeof stage.packingItemId !== "string" ||
+        !stage.packingItemId ||
+        typeof stage.manualItemId !== "string" ||
+        !stage.manualItemId ||
+        typeof stage.savedPlaceName !== "string" ||
+        !stage.savedPlaceName.trim() ||
+        typeof stage.packingLabel !== "string" ||
+        !stage.packingLabel.trim() ||
+        typeof stage.manualItemTitle !== "string" ||
+        !stage.manualItemTitle.trim() ||
+        stage.packingChecked !== true ||
+        stage.todayContainsManualItem !== true ||
+        typeof stage.todayReferenceDate !== "string" ||
+        stage.manualItemStartAt?.slice(0, 10) !== stage.todayReferenceDate,
+    )
+  ) {
+    throw new Error("stage-specific traveler data evidence is incomplete");
+  }
+  for (const key of ["savedPlaceId", "packingItemId", "manualItemId"]) {
+    if (new Set(preservationStages.map((stage) => stage[key])).size !== 1) {
+      throw new Error(
+        "traveler record identity changed across installed stages",
+      );
+    }
+  }
+  for (const key of [
+    "savedPlaceName",
+    "packingLabel",
+    "manualItemTitle",
+    "todayReferenceDate",
+  ]) {
+    if (new Set(preservationStages.map((stage) => stage[key])).size !== 1) {
+      throw new Error("traveler record values changed across installed stages");
+    }
+  }
+  const uiStages = ["base", "updated", "recovery"].map(
+    (stage) => report.ui?.[stage],
+  );
+  if (
+    uiStages.some(
+      (stage) =>
+        !stage ||
+        stage.savedPlaceObserved !== true ||
+        stage.packingCheckboxObserved !== true ||
+        stage.packingCheckboxChecked !== true ||
+        stage.todayObserved !== true,
+    )
+  ) {
+    throw new Error("stage-specific installed UI evidence is incomplete");
+  }
   if (
     report.journey?.tripCreatedViaUi !== true ||
     report.journey?.cityPackDownloadedViaUi !== true ||

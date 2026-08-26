@@ -38,6 +38,7 @@ const MANUAL_ITEM_TITLE = "Tea ceremony";
 const MANUAL_ITEM_LOCATION = "Gion";
 const RESTORE_SENTINEL = "Post-backup sentinel";
 const PORTABLE_BACKUP_NAME = "voyalier-portable-acceptance.vbk";
+const JOURNEY_STARTED_AT = new Date();
 const TEMP_ROOT = path.join(
   process.env.RUNNER_TEMP ?? os.tmpdir(),
   `voyalier-windows-acceptance-${process.pid}`,
@@ -326,7 +327,7 @@ async function execute(driver, script, args = []) {
 }
 
 function isoDay(offset) {
-  const date = new Date();
+  const date = new Date(JOURNEY_STARTED_AT);
   date.setUTCDate(date.getUTCDate() + offset);
   return date.toISOString().slice(0, 10);
 }
@@ -454,6 +455,29 @@ async function setCheckbox(driver, labelText, checked) {
   );
 }
 
+async function readCheckboxState(driver, labelText, root) {
+  return waitFor(
+    () =>
+      execute(
+        driver,
+        `
+          const [wanted, rootSelector] = arguments;
+          const normalize = (text) => String(text ?? "").replace(/\\s+/g, " ").trim();
+          const scope = document.querySelector(rootSelector);
+          if (!scope) return false;
+          const label = Array.from(scope.querySelectorAll("label")).find(
+            (candidate) => normalize(candidate.innerText || candidate.textContent) === normalize(wanted),
+          );
+          const field = label?.control || label?.querySelector('input[type="checkbox"]');
+          if (!(field instanceof HTMLInputElement) || field.type !== "checkbox") return false;
+          return { observed: true, checked: field.checked };
+        `,
+        [labelText, root],
+      ),
+    `checkbox ${labelText} inside ${root}`,
+  );
+}
+
 async function waitForText(driver, text, { root = "body" } = {}) {
   return waitFor(
     () =>
@@ -468,6 +492,71 @@ async function waitForText(driver, text, { root = "body" } = {}) {
       ),
     `${root} to contain ${text}`,
   );
+}
+
+function preservationSnapshot(detail, today, savedPlaceName, expectedIds) {
+  const savedPlace = detail.savedPlaces.find(
+    ({ name }) => name === savedPlaceName,
+  );
+  const packingItem = detail.packingItems.find(
+    ({ label }) => label === PACKING_LABEL,
+  );
+  const manualItem = detail.tripItems.find(
+    ({ title }) => title === MANUAL_ITEM_TITLE,
+  );
+  const todayItem = today.today.find(
+    ({ title }) => title === MANUAL_ITEM_TITLE,
+  );
+  assert.ok(savedPlace, "the saved place was not preserved");
+  assert.ok(packingItem, "the packing item was not preserved");
+  assert.equal(packingItem.checked, true, "the packed state was not preserved");
+  assert.ok(manualItem, "the manual plan item was not preserved");
+  assert.equal(manualItem.startAt?.slice(0, 10), isoDay(0));
+  assert.equal(today.referenceDate, isoDay(0));
+  assert.ok(todayItem, "Today did not include the manual plan item");
+  assert.equal(todayItem.date, isoDay(0));
+
+  const snapshot = {
+    savedPlaceId: savedPlace.id,
+    savedPlaceName: savedPlace.name,
+    packingItemId: packingItem.id,
+    packingLabel: packingItem.label,
+    packingChecked: packingItem.checked,
+    manualItemId: manualItem.id,
+    manualItemTitle: manualItem.title,
+    manualItemStartAt: manualItem.startAt,
+    todayReferenceDate: today.referenceDate,
+    todayContainsManualItem: true,
+  };
+  if (expectedIds) {
+    assert.equal(snapshot.savedPlaceId, expectedIds.savedPlaceId);
+    assert.equal(snapshot.packingItemId, expectedIds.packingItemId);
+    assert.equal(snapshot.manualItemId, expectedIds.manualItemId);
+  }
+  return snapshot;
+}
+
+async function observePreservedJourneyUi(driver, savedPlaceName) {
+  await waitForText(driver, MANUAL_ITEM_TITLE, { root: ".voy-today" });
+  await waitForText(driver, savedPlaceName, {
+    root: 'section[aria-labelledby="saved-places-title"]',
+  });
+  const packing = await readCheckboxState(
+    driver,
+    PACKING_LABEL,
+    'section[aria-labelledby="packing-checklist-title"]',
+  );
+  assert.equal(
+    packing.checked,
+    true,
+    "the installed UI rendered the preserved packing item as unchecked",
+  );
+  return {
+    savedPlaceObserved: true,
+    packingCheckboxObserved: packing.observed,
+    packingCheckboxChecked: packing.checked,
+    todayObserved: true,
+  };
 }
 
 async function readText(driver, selector) {
@@ -760,6 +849,8 @@ async function main() {
       sharedJourneyProfile: true,
       sessions: DRIVER_DIAGNOSTICS,
     },
+    preservation: {},
+    ui: {},
   };
 
   try {
@@ -1001,7 +1092,8 @@ async function main() {
     await clickText(driver, "Add to plan", {
       root: ".voy-planning__item-form",
     });
-    await waitForText(driver, MANUAL_ITEM_TITLE, { root: ".voy-today" });
+    const baseUi = await observePreservedJourneyUi(driver, savedPlaceName);
+    report.ui.base = baseUi;
 
     await clickAriaLabel(driver, "Search workspace");
     await fillByLabel(driver, "Search all trips", MANUAL_ITEM_TITLE, {
@@ -1022,6 +1114,7 @@ async function main() {
     );
     const tripId = tripsBefore[0].id;
     const detailBefore = await invoke(driver, "get_trip", { tripId });
+    const todayBefore = await invoke(driver, "get_today", { tripId });
     assert.equal(detailBefore.savedPlaces.length, 1);
     assert.equal(detailBefore.savedPlaces[0].name, savedPlaceName);
     assert.equal(
@@ -1033,6 +1126,12 @@ async function main() {
       detailBefore.tripItems.some(({ title }) => title === MANUAL_ITEM_TITLE),
       "the UI-created manual item was not persisted",
     );
+    const basePreservation = preservationSnapshot(
+      detailBefore,
+      todayBefore,
+      savedPlaceName,
+    );
+    report.preservation.base = basePreservation;
     await screenshot(driver, "01-base-installed-product-journey.png");
 
     await clickAriaLabel(driver, "Settings");
@@ -1117,10 +1216,8 @@ async function main() {
     await clickAriaLabel(driver, "Voyalier — todos los viajes");
     await clickAriaLabel(driver, `Abrir ${TRIP_TITLE}`);
     await clickText(driver, "Planificar", { selector: "a" });
-    await waitForText(driver, MANUAL_ITEM_TITLE, { root: ".voy-today" });
-    await waitForText(driver, PACKING_LABEL, { root: "#section-plan" });
-    await waitForText(driver, savedPlaceName, { root: "#section-plan" });
     const detailAfter = await invoke(driver, "get_trip", { tripId });
+    const todayAfter = await invoke(driver, "get_today", { tripId });
     assert.equal(detailAfter.savedPlaces.length, 1);
     assert.equal(detailAfter.savedPlaces[0].name, savedPlaceName);
     assert.equal(
@@ -1131,6 +1228,13 @@ async function main() {
     assert.ok(
       detailAfter.tripItems.some(({ title }) => title === MANUAL_ITEM_TITLE),
     );
+    report.preservation.updated = preservationSnapshot(
+      detailAfter,
+      todayAfter,
+      savedPlaceName,
+      basePreservation,
+    );
+    report.ui.updated = await observePreservedJourneyUi(driver, savedPlaceName);
     await clickAriaLabel(driver, "Buscar en el espacio de trabajo");
     await fillByLabel(driver, "Buscar en todos los viajes", MANUAL_ITEM_TITLE, {
       root: ".voy-workspace-search",
@@ -1239,6 +1343,7 @@ async function main() {
     const localeAfterRecovery = await waitForLocale(driver, "es");
     assert.equal(localeAfterRecovery, "es");
     const detailAfterRecovery = await invoke(driver, "get_trip", { tripId });
+    const todayAfterRecovery = await invoke(driver, "get_today", { tripId });
     assert.equal(detailAfterRecovery.savedPlaces.length, 1);
     assert.equal(detailAfterRecovery.savedPlaces[0].name, savedPlaceName);
     assert.equal(
@@ -1259,12 +1364,19 @@ async function main() {
       false,
       "the post-backup sentinel survived, so the portable restore did not apply",
     );
+    report.preservation.recovery = preservationSnapshot(
+      detailAfterRecovery,
+      todayAfterRecovery,
+      savedPlaceName,
+      basePreservation,
+    );
     await clickAriaLabel(driver, "Voyalier — todos los viajes");
     await clickAriaLabel(driver, `Abrir ${TRIP_TITLE}`);
     await clickText(driver, "Planificar", { selector: "a" });
-    await waitForText(driver, MANUAL_ITEM_TITLE, { root: ".voy-today" });
-    await waitForText(driver, PACKING_LABEL, { root: "#section-plan" });
-    await waitForText(driver, savedPlaceName, { root: "#section-plan" });
+    report.ui.recovery = await observePreservedJourneyUi(
+      driver,
+      savedPlaceName,
+    );
     await clickAriaLabel(driver, "Buscar en el espacio de trabajo");
     await fillByLabel(driver, "Buscar en todos los viajes", MANUAL_ITEM_TITLE, {
       root: ".voy-workspace-search",

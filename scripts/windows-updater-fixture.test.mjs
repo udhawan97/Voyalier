@@ -170,6 +170,14 @@ test("keeps product setup, updater backup, and portable restore on the installed
   ]) {
     assert.match(source, new RegExp(requiredControl));
   }
+  assert.match(
+    source,
+    /section\[aria-labelledby=\\?"packing-checklist-title\\?"\]/,
+  );
+  assert.match(source, /section\[aria-labelledby=\\?"saved-places-title\\?"\]/);
+  assert.match(source, /readCheckboxState/);
+  assert.doesNotMatch(source, /PACKING_LABEL, \{ root: "#section-plan" \}/);
+  assert.doesNotMatch(source, /savedPlaceName, \{ root: "#section-plan" \}/);
 });
 
 test("pins installed, data-preservation, backup, and loopback evidence", () => {
@@ -215,6 +223,34 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
       tripCountAfterRecovery: 1,
       backupCount: 2,
     },
+    preservation: Object.fromEntries(
+      ["base", "updated", "recovery"].map((stage) => [
+        stage,
+        {
+          savedPlaceId: "place-1",
+          savedPlaceName: "Nishiki Market",
+          packingItemId: "packing-1",
+          packingLabel: "Museum pass",
+          packingChecked: true,
+          manualItemId: "item-1",
+          manualItemTitle: "Tea ceremony",
+          manualItemStartAt: "2026-08-25T12:00",
+          todayReferenceDate: "2026-08-25",
+          todayContainsManualItem: true,
+        },
+      ]),
+    ),
+    ui: Object.fromEntries(
+      ["base", "updated", "recovery"].map((stage) => [
+        stage,
+        {
+          savedPlaceObserved: true,
+          packingCheckboxObserved: true,
+          packingCheckboxChecked: true,
+          todayObserved: true,
+        },
+      ]),
+    ),
     journey: {
       tripCreatedViaUi: true,
       cityPackDownloadedViaUi: true,
@@ -298,6 +334,48 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
         },
       }),
     /stale WebView debug port/,
+  );
+  assert.throws(
+    () =>
+      validateWindowsAcceptanceReport({
+        ...report,
+        preservation: {
+          ...report.preservation,
+          updated: {
+            ...report.preservation.updated,
+            manualItemId: "item-changed",
+          },
+        },
+      }),
+    /record identity changed/,
+  );
+  assert.throws(
+    () =>
+      validateWindowsAcceptanceReport({
+        ...report,
+        preservation: {
+          ...report.preservation,
+          recovery: {
+            ...report.preservation.recovery,
+            todayContainsManualItem: false,
+          },
+        },
+      }),
+    /traveler data evidence is incomplete/,
+  );
+  assert.throws(
+    () =>
+      validateWindowsAcceptanceReport({
+        ...report,
+        ui: {
+          ...report.ui,
+          updated: {
+            ...report.ui.updated,
+            packingCheckboxChecked: false,
+          },
+        },
+      }),
+    /installed UI evidence is incomplete/,
   );
   assert.throws(
     () =>
