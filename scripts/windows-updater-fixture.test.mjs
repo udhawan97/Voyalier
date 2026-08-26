@@ -174,10 +174,23 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
     candidate: { version: "0.11.0" },
     installed: { before: "0.10.7", after: "0.11.0", recovery: "0.11.0" },
     driver: {
+      sharedJourneyProfile: true,
       sessions: [
-        { session: "base" },
-        { session: "updated" },
-        { session: "recovery" },
+        {
+          session: "base",
+          profile: "voyalier-acceptance-journey",
+          preservedExistingProfile: false,
+        },
+        {
+          session: "updated",
+          profile: "voyalier-acceptance-journey",
+          preservedExistingProfile: true,
+        },
+        {
+          session: "recovery",
+          profile: "voyalier-acceptance-journey",
+          preservedExistingProfile: true,
+        },
       ],
     },
     data: {
@@ -243,6 +256,17 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
         driver: { sessions: [{ session: "base" }] },
       }),
     /all three packaged WebDriver sessions/,
+  );
+  assert.throws(
+    () =>
+      validateWindowsAcceptanceReport({
+        ...report,
+        driver: {
+          ...report.driver,
+          sharedJourneyProfile: false,
+        },
+      }),
+    /preserve one isolated WebView profile/,
   );
   assert.throws(
     () =>

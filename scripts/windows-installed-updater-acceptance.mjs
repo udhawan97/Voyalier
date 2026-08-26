@@ -58,6 +58,8 @@ const PNPM_CLI = process.env.PNPM_HOME
   : null;
 const DRIVER_DIAGNOSTICS = [];
 const DRIVER_SESSIONS = ["base", "updated", "recovery"];
+const DRIVER_PROFILE = "voyalier-acceptance-journey";
+let driverProfilePrepared = false;
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -180,11 +182,28 @@ async function startDriver(application, suffix) {
     "tauri-driver.exe",
   );
   const logPath = path.join(EVIDENCE_ROOT, `tauri-driver-${suffix}.log`);
-  const profile = `voyalier-acceptance-${suffix}`;
   assert.ok(DRIVER_SESSIONS.includes(suffix), "unexpected driver session");
-  const userDataFolder = path.join(process.env.LOCALAPPDATA, "main", profile);
-  await rm(userDataFolder, { recursive: true, force: true });
-  await mkdir(userDataFolder, { recursive: true });
+  const userDataFolder = path.join(
+    process.env.LOCALAPPDATA,
+    "main",
+    DRIVER_PROFILE,
+  );
+  const preservedExistingProfile = driverProfilePrepared;
+  if (!driverProfilePrepared) {
+    assert.equal(
+      suffix,
+      "base",
+      "the shared driver profile must start at base",
+    );
+    await rm(userDataFolder, { recursive: true, force: true });
+    await mkdir(userDataFolder, { recursive: true });
+    driverProfilePrepared = true;
+  } else {
+    assert.ok(
+      (await stat(userDataFolder)).isDirectory(),
+      "the shared driver profile disappeared between installed sessions",
+    );
+  }
   const log = createWriteStream(logPath, { flags: "a" });
   await once(log, "open");
   const processHandle = spawn(driverBinary, [], {
@@ -192,7 +211,7 @@ async function startDriver(application, suffix) {
     env: {
       ...process.env,
       VOYALIER_DATA_DIR: DATA_ROOT,
-      VOYALIER_WINDOWS_WEBDRIVER_PROFILE: profile,
+      VOYALIER_WINDOWS_WEBDRIVER_PROFILE: DRIVER_PROFILE,
     },
     stdio: ["ignore", log, log],
     windowsHide: true,
@@ -213,6 +232,8 @@ async function startDriver(application, suffix) {
   const diagnostic = {
     session: suffix,
     isolatedUserDataFolder: true,
+    profile: DRIVER_PROFILE,
+    preservedExistingProfile,
     nestedPortObserved: false,
     rootPortMirrored: false,
     copyErrorCode: null,
@@ -730,7 +751,10 @@ async function main() {
       runId: process.env.GITHUB_RUN_ID ?? null,
       runAttempt: process.env.GITHUB_RUN_ATTEMPT ?? null,
     },
-    driver: { sessions: DRIVER_DIAGNOSTICS },
+    driver: {
+      sharedJourneyProfile: true,
+      sessions: DRIVER_DIAGNOSTICS,
+    },
   };
 
   try {
@@ -1379,16 +1403,10 @@ async function main() {
         timeout: 5 * 60 * 1000,
       });
     }
-    for (const suffix of DRIVER_SESSIONS) {
-      await rm(
-        path.join(
-          process.env.LOCALAPPDATA,
-          "main",
-          `voyalier-acceptance-${suffix}`,
-        ),
-        { recursive: true, force: true },
-      );
-    }
+    await rm(path.join(process.env.LOCALAPPDATA, "main", DRIVER_PROFILE), {
+      recursive: true,
+      force: true,
+    });
     await rm(TEMP_ROOT, { recursive: true, force: true });
   }
 }

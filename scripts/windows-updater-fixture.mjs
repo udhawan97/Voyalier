@@ -183,6 +183,20 @@ export function validateWindowsAcceptanceReport(report) {
   ) {
     throw new Error("all three packaged WebDriver sessions were not observed");
   }
+  const driverProfiles = report.driver?.sessions?.map(({ profile }) => profile);
+  const preservedProfiles = report.driver?.sessions?.map(
+    ({ preservedExistingProfile }) => preservedExistingProfile,
+  );
+  if (
+    report.driver?.sharedJourneyProfile !== true ||
+    new Set(driverProfiles).size !== 1 ||
+    !driverProfiles?.[0] ||
+    JSON.stringify(preservedProfiles) !== JSON.stringify([false, true, true])
+  ) {
+    throw new Error(
+      "the packaged sessions did not preserve one isolated WebView profile",
+    );
+  }
   if (report.data?.tripCountBefore !== 1 || report.data?.tripCountAfter !== 1) {
     throw new Error("traveler-owned data did not survive the updater swap");
   }
