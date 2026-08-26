@@ -1,4 +1,4 @@
-import { copyFile } from "node:fs/promises";
+import { copyFile, rm } from "node:fs/promises";
 import path from "node:path";
 
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
@@ -104,6 +104,19 @@ export function buildWindowsDriverCapabilities({
   };
 }
 
+export async function clearWebViewDevToolsPorts(userDataFolder) {
+  userDataFolder = requireString(userDataFolder, "userDataFolder");
+  if (!path.isAbsolute(userDataFolder)) {
+    throw new Error("userDataFolder must be absolute");
+  }
+  await Promise.all(
+    [
+      path.join(userDataFolder, "DevToolsActivePort"),
+      path.join(userDataFolder, "EBWebView", "DevToolsActivePort"),
+    ].map((file) => rm(file, { force: true })),
+  );
+}
+
 export async function mirrorWebViewDevToolsPort({
   userDataFolder,
   signal,
@@ -195,6 +208,15 @@ export function validateWindowsAcceptanceReport(report) {
   ) {
     throw new Error(
       "the packaged sessions did not preserve one isolated WebView profile",
+    );
+  }
+  if (
+    report.driver.sessions.some(
+      ({ stalePortFilesCleared }) => stalePortFilesCleared !== true,
+    )
+  ) {
+    throw new Error(
+      "a packaged session could have reused a stale WebView debug port",
     );
   }
   if (report.data?.tripCountBefore !== 1 || report.data?.tripCountAfter !== 1) {

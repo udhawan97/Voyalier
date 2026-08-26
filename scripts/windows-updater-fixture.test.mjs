@@ -8,6 +8,7 @@ import {
   allowedUpdaterPath,
   buildWindowsDriverCapabilities,
   buildWindowsUpdaterManifest,
+  clearWebViewDevToolsPorts,
   mirrorWebViewDevToolsPort,
   validateWindowsAcceptanceReport,
 } from "./windows-updater-fixture.mjs";
@@ -97,11 +98,22 @@ test("nests an isolated WebView2 data directory under tauri options", () => {
   );
 });
 
-test("mirrors WebView2's nested DevTools port for EdgeDriver", async () => {
+test("clears stale WebView2 ports before mirroring the new session", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "voyalier-webview-port-"));
   try {
     const nested = path.join(root, "EBWebView");
     await mkdir(nested);
+    await writeFile(path.join(root, "DevToolsActivePort"), "41000\n/stale\n");
+    await writeFile(path.join(nested, "DevToolsActivePort"), "41000\n/stale\n");
+    await clearWebViewDevToolsPorts(root);
+    await assert.rejects(
+      readFile(path.join(root, "DevToolsActivePort"), "utf8"),
+      { code: "ENOENT" },
+    );
+    await assert.rejects(
+      readFile(path.join(nested, "DevToolsActivePort"), "utf8"),
+      { code: "ENOENT" },
+    );
     await writeFile(path.join(nested, "DevToolsActivePort"), "48137\n/ws\n");
 
     const result = await mirrorWebViewDevToolsPort({
@@ -152,6 +164,7 @@ test("keeps product setup, updater backup, and portable restore on the installed
     "Actualizar y reiniciar",
     "Buscar en el espacio de trabajo",
     "Configuración",
+    "Voyalier — todos los viajes",
     "Guardar copia de seguridad",
     "Restaurar esta copia",
   ]) {
@@ -180,16 +193,19 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
           session: "base",
           profile: "voyalier-acceptance-journey",
           preservedExistingProfile: false,
+          stalePortFilesCleared: true,
         },
         {
           session: "updated",
           profile: "voyalier-acceptance-journey",
           preservedExistingProfile: true,
+          stalePortFilesCleared: true,
         },
         {
           session: "recovery",
           profile: "voyalier-acceptance-journey",
           preservedExistingProfile: true,
+          stalePortFilesCleared: true,
         },
       ],
     },
@@ -267,6 +283,21 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
         },
       }),
     /preserve one isolated WebView profile/,
+  );
+  assert.throws(
+    () =>
+      validateWindowsAcceptanceReport({
+        ...report,
+        driver: {
+          ...report.driver,
+          sessions: report.driver.sessions.map((session, index) =>
+            index === 1
+              ? { ...session, stalePortFilesCleared: false }
+              : session,
+          ),
+        },
+      }),
+    /stale WebView debug port/,
   );
   assert.throws(
     () =>

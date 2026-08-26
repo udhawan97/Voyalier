@@ -21,6 +21,7 @@ import {
   allowedUpdaterPath,
   buildWindowsDriverCapabilities,
   buildWindowsUpdaterManifest,
+  clearWebViewDevToolsPorts,
   mirrorWebViewDevToolsPort,
   validateWindowsAcceptanceReport,
 } from "./windows-updater-fixture.mjs";
@@ -204,6 +205,9 @@ async function startDriver(application, suffix) {
       "the shared driver profile disappeared between installed sessions",
     );
   }
+  // Keep localStorage and the rest of the shared profile, but never let the
+  // next EdgeDriver session consume a mirrored port from the prior process.
+  await clearWebViewDevToolsPorts(userDataFolder);
   const log = createWriteStream(logPath, { flags: "a" });
   await once(log, "open");
   const processHandle = spawn(driverBinary, [], {
@@ -234,6 +238,7 @@ async function startDriver(application, suffix) {
     isolatedUserDataFolder: true,
     profile: DRIVER_PROFILE,
     preservedExistingProfile,
+    stalePortFilesCleared: true,
     nestedPortObserved: false,
     rootPortMirrored: false,
     copyErrorCode: null,
@@ -1109,6 +1114,7 @@ async function main() {
     );
     const localeAfterUpdate = await waitForLocale(driver, "es");
     assert.equal(localeAfterUpdate, "es");
+    await clickAriaLabel(driver, "Voyalier — todos los viajes");
     await clickAriaLabel(driver, `Abrir ${TRIP_TITLE}`);
     await clickText(driver, "Planificar", { selector: "a" });
     await waitForText(driver, MANUAL_ITEM_TITLE, { root: ".voy-today" });
@@ -1253,6 +1259,7 @@ async function main() {
       false,
       "the post-backup sentinel survived, so the portable restore did not apply",
     );
+    await clickAriaLabel(driver, "Voyalier — todos los viajes");
     await clickAriaLabel(driver, `Abrir ${TRIP_TITLE}`);
     await clickText(driver, "Planificar", { selector: "a" });
     await waitForText(driver, MANUAL_ITEM_TITLE, { root: ".voy-today" });
