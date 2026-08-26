@@ -407,7 +407,23 @@ test("keeps product setup, updater backup, and portable restore on the installed
   assert.match(source, /section\[aria-labelledby=\\?"manual-plan-title\\?"\]/);
   assert.match(source, /readCheckboxState/);
   assert.match(source, /driveNativeFileDialog/);
-  assert.match(source, /report\.stage = "portable-restore"/);
+  const restoreStage = source.indexOf('report.stage = "portable-restore"');
+  const restoreUi = source.indexOf(
+    'await clickText(driver, "Restaurar desde copia"',
+    restoreStage,
+  );
+  const restorePicker = source.indexOf(
+    "const portableRestoreDialog = await driveNativeFileDialog",
+    restoreUi,
+  );
+  assert.ok(
+    restoreStage !== -1 &&
+      restoreUi !== -1 &&
+      restorePicker !== -1 &&
+      restoreStage < restoreUi &&
+      restoreUi < restorePicker,
+    "the restore diagnostic stage must precede the restore UI and picker",
+  );
   assert.match(source, /VOYALIER_WINDOWS_ACCEPTANCE_BACKUP_PATH/);
   assert.match(source, /IFileDialog\.SetFolder\+SetFileName via rfd 0\.16\.0/);
   assert.match(source, /`Copia guardada en \$\{portableBackupPath\}`/);
@@ -1450,6 +1466,12 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
     }),
     withDialogEvidence("portableBackup", {
       hostOffscreen: true,
+    }),
+    withDialogEvidence("portableBackup", {
+      hostAutomationId: "WrongFileNameHost",
+    }),
+    withDialogEvidence("portableBackup", {
+      hostCount: 2,
     }),
     withDialogEvidence("portableBackup", {
       filenameHostRequired: false,
