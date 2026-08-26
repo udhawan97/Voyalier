@@ -18,6 +18,12 @@ exact candidate before merge or publication.
 - Override the base build only through a temporary Tauri configuration: point its updater at a
   loopback HTTP endpoint, embed the ephemeral public key, and allow insecure transport only for that
   loopback test. Production configuration remains HTTPS-only and unchanged.
+- Apply one repository-pinned, acceptance-only WebView2 automation patch to the detached `v0.10.7`
+  source before building it. The patch may only forward EdgeDriver's numeric debugging port through
+  the WebView2 API and select a path-safe disposable profile; it must not alter updater, storage,
+  contract, or product behavior. Record both the exact public base SHA and the patch SHA-256 in the
+  report, fail if any other base file changes, and retain the unmodified candidate as the release
+  binary under test.
 - Use a disposable `VOYALIER_DATA_DIR`. Do not read or modify a maintainer's workspace, keychain, or
   installed application.
 - Do not publish, tag, or merge until the harness, the repository gate, and targeted council blocker
@@ -79,9 +85,19 @@ the WebView2 API. Voyalier will bridge this upstream gap without enabling automa
 - Unit-test the fail-closed parser and configuration mutation, then retain staged runner diagnostics
   for all base, updated, and reinstall-recovery sessions.
 
+The public `v0.10.7` binary predates this compatibility bridge, while GitHub's hosted runner no
+longer offers the Runtime behavior under which that binary was released. Rebuilding the old source
+with only the same fail-closed bridge is therefore an explicit test adaptation, not proof about the
+historical binary's launchability on Runtime 150. The acceptance claim remains narrower and useful:
+the exact `v0.10.7` updater, storage, and product implementation can install the exact candidate,
+preserve traveler data, reopen, and recover on the current Windows runner. The report and release
+checklist must disclose this boundary rather than describing the base binary as byte-identical to
+the public installer.
+
 ## Commit order
 
 1. `Docs: plan Windows updater acceptance`
 2. `Test: add Windows installed updater acceptance`
 3. `Desktop+test: support elevated Windows automation`
-4. `Merge: close the Windows release gate`
+4. `Test+docs: adapt the public base to current Windows automation`
+5. `Merge: close the Windows release gate`
