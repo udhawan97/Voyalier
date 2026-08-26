@@ -38,18 +38,25 @@ exact candidate before merge or publication.
 3. Launch the installed binary through `tauri-driver` and a matching Edge WebDriver. Assert the
    packaged bridge is present, the native updater reports `0.10.7`, and the local API remains
    loopback-only.
-4. Create representative traveler-owned data through the packaged Tauri IPC seam, verify it is
-   readable, and record the disposable database path and pre-update data hash without uploading the
-   database.
+4. Drive the installed product UI through the release-checklist journey: create and open a trip,
+   download the shipped Kyoto city pack, save a recommendation, add and complete a custom packing
+   item, add a manual item that appears in Today, find it with workspace search, and switch the app
+   to Spanish. Direct IPC may supplement assertions but must not perform these product actions.
 5. Serve a crafted static `latest.json` and the signed candidate installer from `127.0.0.1`. Assert
    that the manifest uses `windows-x86_64-nsis`, the candidate checksum matches, and no non-loopback
    updater request is made.
-6. Trigger the real updater from the installed UI/IPC path. Confirm the base process exits, NSIS
-   replaces it, and the installed application reopens as `0.11.0`.
-7. Reattach WebDriver to the installed executable and verify the representative data survived,
-   the pre-update backup exists, and the updater now reports `0.11.0` as current.
-8. Exercise the recovery path by uninstalling/reinstalling the candidate without deleting the
-   disposable application data, then confirm the data remains readable after relaunch.
+6. Trigger the updater exclusively through the production `useUpdater` settings UI. Record the
+   updater-backup directory count before the click, confirm that the controller creates exactly one
+   new pre-update backup, then confirm the base process exits, NSIS replaces it, and the installed
+   application reopens as `0.11.0`. The harness must not call `backup_database` itself.
+7. Reattach WebDriver to the installed executable and verify the saved place, packing state, manual
+   item, Today/search results, Spanish locale, and updater backup survived; also confirm the updater
+   now reports `0.11.0` as current.
+8. Export a password-protected portable backup through the installed settings UI and native Save
+   dialog. Add a post-backup sentinel, stage restore through the installed settings UI and native
+   Open dialog, then uninstall/reinstall the candidate without deleting disposable application
+   data. On relaunch, confirm the staged restore applied: the original journey remains, the
+   post-backup sentinel is absent, and Spanish remains selected.
 9. Upload only a text/JSON evidence report, screenshots, artifact names, versions, paths, and
    checksums. Never upload the SQLite workspace, updater private key, or secrets.
 
@@ -62,7 +69,9 @@ exact candidate before merge or publication.
 - Add deterministic local tests for manifest construction and evidence validation where they do not
   require Windows.
 - After a successful run, refresh Graphify and rerun `make check`, the production dependency audit,
-  the credential-shaped-string scan, `cargo metadata --locked`, and `git diff --check`.
+  the credential-shaped-string scan, `cargo metadata --locked`, `git diff --check`, and
+  `git diff --check origin/main...HEAD`. The range check is a release gate because repository-held
+  patch fixtures can contain whitespace errors that the worktree-only check cannot see.
 - Ask the original council blocker reviewers for targeted acceptance of the new Windows evidence.
   This closes Round 2 blockers and is not a third council round.
 
@@ -101,3 +110,20 @@ the public installer.
 3. `Desktop+test: support elevated Windows automation`
 4. `Test+docs: adapt the public base to current Windows automation`
 5. `Merge: close the Windows release gate`
+
+## Council blocker closure
+
+The first exact-SHA Windows run proved installer replacement, process restart, updater isolation,
+data persistence, and reinstall recovery, but the Round 2 evidence and risk reviewers correctly
+kept the release blocked. This extension closes their three material findings:
+
+- Rewrite the pinned base automation patch so the repository range passes `git diff --check`, while
+  retaining a successful exact-base `git apply --check` before the runner uses it.
+- Replace direct IPC product setup with the complete installed UI journey required by the release
+  checklist and record explicit per-step assertions in the evidence report.
+- Remove the harness-created database backup and prove the production updater controller created
+  the pre-update backup by observing an exact directory-count increment around its UI action.
+
+The portable backup file and passphrase remain runner-private. The report may contain only the
+backup basename, byte count, and SHA-256; the job must delete the disposable root and must never
+upload traveler data, SQLite files, recovery material, or updater keys.
