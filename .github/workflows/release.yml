@@ -24,11 +24,6 @@ on:
         required: false
         default: false
         type: boolean
-      windows_picker_diagnostic:
-        description: Run only the diagnostic native-picker preflight
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: write
@@ -38,7 +33,6 @@ permissions:
 jobs:
   desktop:
     name: Desktop build (${{ matrix.artifact }})
-    if: github.event_name != 'workflow_dispatch' || !inputs.windows_picker_diagnostic
     # Only a real tag build enters the protected environment (approval + the
     # signing secrets). A workflow_dispatch build gets no environment, no key,
     # and no updater artifacts — so an actor can't dispatch a malicious ref and
@@ -144,7 +138,7 @@ jobs:
     name: Windows installed app and updater swap
     if: >-
       github.event_name == 'workflow_dispatch' &&
-      (inputs.windows_acceptance || inputs.windows_picker_diagnostic)
+      inputs.windows_acceptance
     runs-on: windows-latest
     permissions:
       contents: read
@@ -159,57 +153,6 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      - name: Install the verified Windows App CLI
-        shell: pwsh
-        run: |
-          $archive = Join-Path $env:RUNNER_TEMP "winappcli-x64-v0.6.0.zip"
-          $installRoot = Join-Path $env:RUNNER_TEMP "voyalier-winappcli-v0.6.0"
-          $cacheDirectory = Join-Path $env:RUNNER_TEMP "voyalier-winappcli-cache-v0.6.0"
-          $assetUrl = "https://github.com/microsoft/winappCli/releases/download/v0.6.0/winappcli-x64.zip"
-          $expectedHash = "f6dc42e3b4e4709c8f617003008e2cfdd9a51735e04e7170d60edda258db78a8"
-          Invoke-WebRequest -Uri $assetUrl -OutFile $archive
-          $actualHash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
-          if ($actualHash -cne $expectedHash) {
-            throw "Windows App CLI archive SHA-256 mismatch: $actualHash"
-          }
-          $hashVerifiedBeforeExtractionExecution = $true
-          Expand-Archive -Path $archive -DestinationPath $installRoot
-          $executables = @(Get-ChildItem $installRoot -Recurse -File -Filter winapp.exe)
-          if ($executables.Count -ne 1) {
-            throw "Expected one extracted winapp.exe, found $($executables.Count)"
-          }
-          $winAppExe = $executables[0].FullName
-          New-Item -ItemType Directory -Force $cacheDirectory | Out-Null
-          $firstRunMarker = Join-Path $cacheDirectory ".first-run-complete"
-          [System.IO.File]::WriteAllBytes($firstRunMarker, [byte[]]@())
-          if (-not (Test-Path -LiteralPath $firstRunMarker -PathType Leaf) -or
-              (Get-Item -LiteralPath $firstRunMarker).Length -ne 0) {
-            throw "Failed to preseed the isolated Windows App CLI first-run marker"
-          }
-          $firstRunMarkerPreseededBeforeExecution = $true
-          $env:WINAPP_CLI_UPDATE_CHECK = "0"
-          $env:WINAPP_CLI_TELEMETRY_OPTOUT = "1"
-          $env:WINAPP_CLI_CACHE_DIRECTORY = $cacheDirectory
-          $reportedVersion = (& $winAppExe --version).Trim()
-          if ($LASTEXITCODE -ne 0 -or $reportedVersion -cne "0.6.0") {
-            throw "Unexpected Windows App CLI version: $reportedVersion"
-          }
-          "VOYALIER_WINAPP_ARCHIVE=$archive" >> $env:GITHUB_ENV
-          "VOYALIER_WINAPP_INSTALL_ROOT=$installRoot" >> $env:GITHUB_ENV
-          "VOYALIER_WINAPP_CLI=$winAppExe" >> $env:GITHUB_ENV
-          "VOYALIER_WINAPP_VERSION=0.6.0" >> $env:GITHUB_ENV
-          "VOYALIER_WINAPP_TAG=v0.6.0" >> $env:GITHUB_ENV
-          "VOYALIER_WINAPP_RELEASE_COMMIT=b7494ed3b324d6e378cb17b477f2b1a9729765d0" >> $env:GITHUB_ENV
-          "VOYALIER_WINAPP_ASSET_NAME=winappcli-x64.zip" >> $env:GITHUB_ENV
-          "VOYALIER_WINAPP_ASSET_URL=$assetUrl" >> $env:GITHUB_ENV
-          "VOYALIER_WINAPP_ARCHIVE_SHA256=$actualHash" >> $env:GITHUB_ENV
-          "VOYALIER_WINAPP_HASH_VERIFIED_BEFORE_EXTRACTION_EXECUTION=$($hashVerifiedBeforeExtractionExecution.ToString().ToLowerInvariant())" >> $env:GITHUB_ENV
-          "VOYALIER_WINAPP_EXECUTABLE_COUNT=$($executables.Count)" >> $env:GITHUB_ENV
-          "VOYALIER_WINAPP_FIRST_RUN_MARKER=$firstRunMarker" >> $env:GITHUB_ENV
-          "VOYALIER_WINAPP_FIRST_RUN_MARKER_PRESEEDED_BEFORE_EXECUTION=$($firstRunMarkerPreseededBeforeExecution.ToString().ToLowerInvariant())" >> $env:GITHUB_ENV
-          "WINAPP_CLI_UPDATE_CHECK=0" >> $env:GITHUB_ENV
-          "WINAPP_CLI_TELEMETRY_OPTOUT=1" >> $env:GITHUB_ENV
-          "WINAPP_CLI_CACHE_DIRECTORY=$cacheDirectory" >> $env:GITHUB_ENV
       - name: Prove the native picker bridge on a standard Windows dialog
         run: node scripts/windows-picker-preflight.mjs
       - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable

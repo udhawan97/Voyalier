@@ -920,6 +920,212 @@ struct BackupPassphraseInput {
     passphrase: String,
 }
 
+const WINDOWS_ACCEPTANCE_BACKUP_FILE_NAME: &str = "voyalier-portable-acceptance.vbk";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WindowsDialogPurpose {
+    Export,
+    Restore,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct WindowsAcceptanceDialogPreset {
+    directory: std::path::PathBuf,
+    file_name: String,
+    target: std::path::PathBuf,
+}
+
+#[derive(Debug)]
+struct WindowsDialogAutomation {
+    preset: Result<Option<WindowsAcceptanceDialogPreset>, String>,
+}
+
+impl WindowsDialogAutomation {
+    fn inactive() -> Self {
+        Self { preset: Ok(None) }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn from_environment() -> Self {
+        let automation = std::env::var("TAURI_WEBVIEW_AUTOMATION").ok();
+        let browser_args = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").ok();
+        let profile = std::env::var("VOYALIER_WINDOWS_WEBDRIVER_PROFILE").ok();
+        let complete_gate = windows_automation_config(
+            automation.as_deref(),
+            browser_args.as_deref(),
+            profile.as_deref(),
+        )
+        .is_some();
+        let runner_temp = std::env::var_os("RUNNER_TEMP").map(std::path::PathBuf::from);
+        let target = std::env::var_os("VOYALIER_WINDOWS_ACCEPTANCE_BACKUP_PATH")
+            .map(std::path::PathBuf::from);
+        Self {
+            preset: windows_acceptance_dialog_preset(
+                complete_gate,
+                runner_temp.as_deref(),
+                target.as_deref(),
+            ),
+        }
+    }
+
+    fn for_purpose(
+        &self,
+        purpose: WindowsDialogPurpose,
+    ) -> Result<Option<&WindowsAcceptanceDialogPreset>, AppError> {
+        let preset = self.preset.as_ref().map_err(|detail| {
+            AppError::new(
+                ErrorCode::StorageFailure,
+                format!("Windows acceptance picker configuration was rejected: {detail}"),
+            )
+        })?;
+        if let Some(preset) = preset {
+            preset.validate_before_dialog(purpose).map_err(|detail| {
+                AppError::new(
+                    ErrorCode::StorageFailure,
+                    format!("Windows acceptance picker target was rejected: {detail}"),
+                )
+            })?;
+        }
+        Ok(preset.as_ref())
+    }
+}
+
+fn is_reparse_point(metadata: &std::fs::Metadata) -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::fs::MetadataExt;
+        const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+        metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        metadata.file_type().is_symlink()
+    }
+}
+
+fn has_ambiguous_components(path: &std::path::Path) -> bool {
+    path.components().any(|component| {
+        matches!(
+            component,
+            std::path::Component::CurDir | std::path::Component::ParentDir
+        )
+    })
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn windows_acceptance_dialog_preset(
+    complete_gate: bool,
+    runner_temp: Option<&std::path::Path>,
+    requested_target: Option<&std::path::Path>,
+) -> Result<Option<WindowsAcceptanceDialogPreset>, String> {
+    if !complete_gate {
+        return Ok(None);
+    }
+    let runner_temp = runner_temp.ok_or("RUNNER_TEMP is missing")?;
+    let requested_target = requested_target.ok_or("the dedicated backup target is missing")?;
+    if !runner_temp.is_absolute() || !requested_target.is_absolute() {
+        return Err("the runner root and backup target must be absolute".to_owned());
+    }
+    if has_ambiguous_components(requested_target) {
+        return Err("the backup target contains ambiguous path components".to_owned());
+    }
+    if requested_target
+        .file_name()
+        .and_then(std::ffi::OsStr::to_str)
+        != Some(WINDOWS_ACCEPTANCE_BACKUP_FILE_NAME)
+    {
+        return Err("the backup target has an unexpected filename".to_owned());
+    }
+    let requested_parent = requested_target
+        .parent()
+        .ok_or("the backup target has no parent directory")?;
+    let parent_metadata = std::fs::symlink_metadata(requested_parent)
+        .map_err(|_| "the backup target parent is unavailable".to_owned())?;
+    if !parent_metadata.is_dir() || is_reparse_point(&parent_metadata) {
+        return Err("the backup target parent must be a non-reparse directory".to_owned());
+    }
+    let canonical_root = std::fs::canonicalize(runner_temp)
+        .map_err(|_| "the runner temporary root could not be canonicalized".to_owned())?;
+    let canonical_parent = std::fs::canonicalize(requested_parent)
+        .map_err(|_| "the backup target parent could not be canonicalized".to_owned())?;
+    let relative_parent = canonical_parent
+        .strip_prefix(&canonical_root)
+        .map_err(|_| "the backup target is outside the runner temporary root".to_owned())?;
+    let mut components = relative_parent.components();
+    let acceptance_directory = components
+        .next()
+        .and_then(|component| component.as_os_str().to_str())
+        .ok_or("the backup target is not inside an acceptance directory")?;
+    if components.next().is_some()
+        || !acceptance_directory.starts_with("voyalier-windows-acceptance-")
+        || acceptance_directory
+            .strip_prefix("voyalier-windows-acceptance-")
+            .is_none_or(|suffix| {
+                suffix.is_empty() || !suffix.bytes().all(|byte| byte.is_ascii_digit())
+            })
+    {
+        return Err("the backup target parent is not the exact acceptance directory".to_owned());
+    }
+    let target = canonical_parent.join(WINDOWS_ACCEPTANCE_BACKUP_FILE_NAME);
+    Ok(Some(WindowsAcceptanceDialogPreset {
+        directory: canonical_parent,
+        file_name: WINDOWS_ACCEPTANCE_BACKUP_FILE_NAME.to_owned(),
+        target,
+    }))
+}
+
+impl WindowsAcceptanceDialogPreset {
+    fn validate_before_dialog(&self, purpose: WindowsDialogPurpose) -> Result<(), String> {
+        match (purpose, std::fs::symlink_metadata(&self.target)) {
+            (WindowsDialogPurpose::Export, Err(error))
+                if error.kind() == std::io::ErrorKind::NotFound =>
+            {
+                Ok(())
+            }
+            (WindowsDialogPurpose::Export, _) => Err("the export target already exists".to_owned()),
+            (WindowsDialogPurpose::Restore, Ok(metadata))
+                if metadata.is_file() && !is_reparse_point(&metadata) =>
+            {
+                let canonical = std::fs::canonicalize(&self.target)
+                    .map_err(|_| "the restore target could not be canonicalized".to_owned())?;
+                if canonical == self.target {
+                    Ok(())
+                } else {
+                    Err("the restore target changed after configuration".to_owned())
+                }
+            }
+            (WindowsDialogPurpose::Restore, _) => {
+                Err("the restore target must be an existing regular file".to_owned())
+            }
+        }
+    }
+
+    fn validate_chosen_path(
+        &self,
+        purpose: WindowsDialogPurpose,
+        chosen: &std::path::Path,
+    ) -> Result<(), String> {
+        if !chosen.is_absolute()
+            || has_ambiguous_components(chosen)
+            || chosen.file_name().and_then(std::ffi::OsStr::to_str)
+                != Some(WINDOWS_ACCEPTANCE_BACKUP_FILE_NAME)
+        {
+            return Err("the picker returned an unexpected backup path".to_owned());
+        }
+        let parent = chosen
+            .parent()
+            .ok_or("the picker returned a path without a parent")?;
+        let canonical_parent = std::fs::canonicalize(parent)
+            .map_err(|_| "the chosen parent could not be canonicalized".to_owned())?;
+        if canonical_parent != self.directory
+            || canonical_parent.join(WINDOWS_ACCEPTANCE_BACKUP_FILE_NAME) != self.target
+        {
+            return Err("the picker returned a target outside the configured directory".to_owned());
+        }
+        self.validate_before_dialog(purpose)
+    }
+}
+
 /// A cancelled picker is `None`, not an error — the traveler changing their
 /// mind is a normal outcome and must not surface as a failure.
 #[tauri::command]
@@ -927,18 +1133,24 @@ fn export_backup<R: tauri::Runtime>(
     input: BackupPassphraseInput,
     app: tauri::AppHandle<R>,
     service: State<'_, AppService>,
+    dialog_automation: State<'_, WindowsDialogAutomation>,
 ) -> Result<Option<String>, AppError> {
     // Build the container first, so a refused passphrase or a locked vault
     // fails before a file picker ever appears.
     let bytes = service.export_backup(&input.passphrase)?;
-    let Some(chosen) = app
+    let preset = dialog_automation.for_purpose(WindowsDialogPurpose::Export)?;
+    let mut dialog = app
         .dialog()
         .file()
         .set_title("Save Voyalier backup")
         .add_filter("Voyalier backup", &["vbk"])
-        .set_file_name(default_backup_file_name())
-        .blocking_save_file()
-    else {
+        .set_file_name(default_backup_file_name());
+    if let Some(preset) = preset {
+        dialog = dialog
+            .set_directory(&preset.directory)
+            .set_file_name(&preset.file_name);
+    }
+    let Some(chosen) = dialog.blocking_save_file() else {
         return Ok(None);
     };
     let path = chosen.into_path().map_err(|error| {
@@ -947,6 +1159,11 @@ fn export_backup<R: tauri::Runtime>(
             format!("the chosen location could not be used: {error}"),
         )
     })?;
+    if let Some(preset) = preset {
+        preset
+            .validate_chosen_path(WindowsDialogPurpose::Export, &path)
+            .map_err(|detail| AppError::new(ErrorCode::StorageFailure, detail))?;
+    }
     std::fs::write(&path, &bytes).map_err(|error| {
         AppError::new(
             ErrorCode::StorageFailure,
@@ -961,14 +1178,20 @@ fn stage_restore<R: tauri::Runtime>(
     input: BackupPassphraseInput,
     app: tauri::AppHandle<R>,
     service: State<'_, AppService>,
+    dialog_automation: State<'_, WindowsDialogAutomation>,
 ) -> Result<Option<RestorePreview>, AppError> {
-    let Some(chosen) = app
+    let preset = dialog_automation.for_purpose(WindowsDialogPurpose::Restore)?;
+    let mut dialog = app
         .dialog()
         .file()
         .set_title("Choose a Voyalier backup")
-        .add_filter("Voyalier backup", &["vbk"])
-        .blocking_pick_file()
-    else {
+        .add_filter("Voyalier backup", &["vbk"]);
+    if let Some(preset) = preset {
+        dialog = dialog
+            .set_directory(&preset.directory)
+            .set_file_name(&preset.file_name);
+    }
+    let Some(chosen) = dialog.blocking_pick_file() else {
         return Ok(None);
     };
     let path = chosen.into_path().map_err(|error| {
@@ -977,6 +1200,11 @@ fn stage_restore<R: tauri::Runtime>(
             format!("the chosen file could not be used: {error}"),
         )
     })?;
+    if let Some(preset) = preset {
+        preset
+            .validate_chosen_path(WindowsDialogPurpose::Restore, &path)
+            .map_err(|detail| AppError::new(ErrorCode::StorageFailure, detail))?;
+    }
     let bytes = std::fs::read(&path).map_err(|error| {
         AppError::new(
             ErrorCode::StorageFailure,
@@ -1161,9 +1389,11 @@ fn updater_relaunch<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
 fn builder<R: tauri::Runtime>(
     builder: tauri::Builder<R>,
     service: AppService,
+    dialog_automation: WindowsDialogAutomation,
 ) -> tauri::Builder<R> {
     builder
         .manage(service)
+        .manage(dialog_automation)
         .invoke_handler(tauri::generate_handler![
             health,
             create_trip,
@@ -1334,6 +1564,10 @@ fn apply_windows_automation_config(context: &mut tauri::Context<tauri::Wry>) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let service = AppService::open_default().expect("Voyalier storage must initialize");
+    #[cfg(target_os = "windows")]
+    let dialog_automation = WindowsDialogAutomation::from_environment();
+    #[cfg(not(target_os = "windows"))]
+    let dialog_automation = WindowsDialogAutomation::inactive();
     let context = tauri::generate_context!();
     #[cfg(target_os = "windows")]
     let context = {
@@ -1342,7 +1576,7 @@ pub fn run() {
         context
     };
     #[cfg_attr(debug_assertions, allow(unused_mut))]
-    let mut app = builder(tauri::Builder::default(), service);
+    let mut app = builder(tauri::Builder::default(), service, dialog_automation);
     // Native pickers for backup/restore. Registered in every build (unlike the
     // updater) because backing your workspace up is not a release-only concern.
     // Only our Rust commands call it; the webview holds no dialog capability.
@@ -1419,6 +1653,180 @@ mod tests {
             ),
             None
         );
+    }
+
+    #[test]
+    fn windows_picker_preset_is_explicit_and_checks_each_file_lifecycle() {
+        let database = temp_database("picker-preset");
+        let runner_temp = database.parent().expect("runner temp").to_path_buf();
+        let acceptance = runner_temp.join("voyalier-windows-acceptance-123");
+        fs::create_dir_all(&acceptance).expect("acceptance directory");
+        let target = acceptance.join(WINDOWS_ACCEPTANCE_BACKUP_FILE_NAME);
+
+        assert_eq!(
+            windows_acceptance_dialog_preset(false, Some(&runner_temp), Some(&target)),
+            Ok(None),
+            "a stray target must not mutate an ordinary launch",
+        );
+        assert!(
+            windows_acceptance_dialog_preset(true, Some(&runner_temp), None).is_err(),
+            "the complete automation gate must not silently lose its target",
+        );
+        assert!(
+            windows_acceptance_dialog_preset(true, None, Some(&target)).is_err(),
+            "the complete automation gate must not accept an unknown temporary root",
+        );
+
+        let preset = windows_acceptance_dialog_preset(true, Some(&runner_temp), Some(&target))
+            .expect("valid preset")
+            .expect("active preset");
+        assert_eq!(preset.file_name, WINDOWS_ACCEPTANCE_BACKUP_FILE_NAME);
+        assert_eq!(preset.target, preset.directory.join(&preset.file_name));
+        assert_eq!(
+            preset.validate_before_dialog(WindowsDialogPurpose::Export),
+            Ok(())
+        );
+        assert_eq!(
+            preset.validate_chosen_path(WindowsDialogPurpose::Export, &preset.target),
+            Ok(())
+        );
+
+        fs::write(&preset.target, b"portable backup").expect("backup fixture");
+        assert!(
+            preset
+                .validate_before_dialog(WindowsDialogPurpose::Export)
+                .is_err(),
+            "export must never overwrite a pre-existing acceptance target",
+        );
+        assert_eq!(
+            preset.validate_before_dialog(WindowsDialogPurpose::Restore),
+            Ok(())
+        );
+        assert_eq!(
+            preset.validate_chosen_path(WindowsDialogPurpose::Restore, &preset.target),
+            Ok(())
+        );
+
+        fs::remove_file(&preset.target).expect("remove backup fixture");
+        assert!(
+            preset
+                .validate_before_dialog(WindowsDialogPurpose::Restore)
+                .is_err(),
+            "restore requires the exported regular file",
+        );
+        fs::create_dir(&preset.target).expect("directory target fixture");
+        assert!(
+            preset
+                .validate_before_dialog(WindowsDialogPurpose::Restore)
+                .is_err(),
+            "restore must reject a directory at the configured target",
+        );
+        fs::remove_dir(&preset.target).expect("remove directory target fixture");
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn windows_picker_preset_rejects_ambiguous_or_unowned_targets() {
+        let database = temp_database("picker-preset-invalid");
+        let runner_temp = database.parent().expect("runner temp").to_path_buf();
+        let acceptance = runner_temp.join("voyalier-windows-acceptance-456");
+        let nested = acceptance.join("nested");
+        let unowned = runner_temp.join("not-voyalier-owned");
+        fs::create_dir_all(&nested).expect("nested directory");
+        fs::create_dir_all(&unowned).expect("unowned directory");
+
+        let invalid_targets = [
+            std::path::PathBuf::from(WINDOWS_ACCEPTANCE_BACKUP_FILE_NAME),
+            runner_temp.join(WINDOWS_ACCEPTANCE_BACKUP_FILE_NAME),
+            nested.join(WINDOWS_ACCEPTANCE_BACKUP_FILE_NAME),
+            unowned.join(WINDOWS_ACCEPTANCE_BACKUP_FILE_NAME),
+            acceptance.join("wrong-name.vbk"),
+            acceptance.join("voyalier-portable-acceptance.zip"),
+            acceptance
+                .join("..")
+                .join("voyalier-windows-acceptance-456")
+                .join(WINDOWS_ACCEPTANCE_BACKUP_FILE_NAME),
+        ];
+        for target in invalid_targets {
+            assert!(
+                windows_acceptance_dialog_preset(true, Some(&runner_temp), Some(&target),).is_err(),
+                "invalid target was accepted",
+            );
+        }
+
+        let outside_root = runner_temp.with_file_name(format!(
+            "{}-sibling",
+            runner_temp
+                .file_name()
+                .expect("root name")
+                .to_string_lossy()
+        ));
+        let outside_acceptance = outside_root.join("voyalier-windows-acceptance-789");
+        fs::create_dir_all(&outside_acceptance).expect("outside directory");
+        assert!(
+            windows_acceptance_dialog_preset(
+                true,
+                Some(&runner_temp),
+                Some(&outside_acceptance.join(WINDOWS_ACCEPTANCE_BACKUP_FILE_NAME)),
+            )
+            .is_err(),
+            "a prefix sibling must not pass segment-aware containment",
+        );
+        let _ = fs::remove_dir_all(outside_root);
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::symlink;
+
+            let real_parent = runner_temp.join("real-parent");
+            let reparse_parent = runner_temp.join("voyalier-windows-acceptance-999");
+            fs::create_dir_all(&real_parent).expect("real parent");
+            symlink(&real_parent, &reparse_parent).expect("reparse fixture");
+            assert!(
+                windows_acceptance_dialog_preset(
+                    true,
+                    Some(&runner_temp),
+                    Some(&reparse_parent.join(WINDOWS_ACCEPTANCE_BACKUP_FILE_NAME)),
+                )
+                .is_err(),
+                "a reparse target parent must fail closed",
+            );
+        }
+
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn windows_picker_preset_rejects_a_different_returned_path() {
+        let database = temp_database("picker-preset-mismatch");
+        let runner_temp = database.parent().expect("runner temp").to_path_buf();
+        let acceptance = runner_temp.join("voyalier-windows-acceptance-321");
+        let other_acceptance = runner_temp.join("voyalier-windows-acceptance-654");
+        fs::create_dir_all(&acceptance).expect("acceptance directory");
+        fs::create_dir_all(&other_acceptance).expect("other acceptance directory");
+        let target = acceptance.join(WINDOWS_ACCEPTANCE_BACKUP_FILE_NAME);
+        let preset = windows_acceptance_dialog_preset(true, Some(&runner_temp), Some(&target))
+            .expect("valid preset")
+            .expect("active preset");
+
+        assert!(
+            preset
+                .validate_chosen_path(
+                    WindowsDialogPurpose::Export,
+                    &other_acceptance.join(WINDOWS_ACCEPTANCE_BACKUP_FILE_NAME),
+                )
+                .is_err(),
+            "the configured preset is not authority for a different returned path",
+        );
+        assert!(
+            preset
+                .validate_chosen_path(
+                    WindowsDialogPurpose::Export,
+                    &acceptance.join("different.vbk"),
+                )
+                .is_err(),
+        );
+        cleanup_database(database);
     }
 
     #[test]
@@ -1828,7 +2236,7 @@ mod tests {
             std::sync::Arc::new(voyalier_app::MemorySecretStore::default()),
         )
         .expect("service");
-        builder(mock_builder(), service)
+        builder(mock_builder(), service, WindowsDialogAutomation::inactive())
             .build(mock_context(noop_assets()))
             .expect("app")
     }

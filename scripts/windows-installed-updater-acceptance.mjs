@@ -4,9 +4,11 @@ import { once } from "node:events";
 import { createReadStream, createWriteStream } from "node:fs";
 import {
   copyFile,
+  lstat,
   mkdir,
   readFile,
   readdir,
+  realpath,
   rm,
   stat,
   writeFile,
@@ -29,7 +31,6 @@ import {
 import {
   assertNoAbsoluteWindowsPaths,
   driveNativeFileDialog,
-  loadVerifiedWinAppTool,
   sanitizeWindowsEvidenceText,
   sanitizeWindowsEvidenceValue,
 } from "./windows-native-file-dialog.mjs";
@@ -60,6 +61,7 @@ const BASE_AUTOMATION_FILE = "apps/desktop/src-tauri/src/lib.rs";
 const FIXTURE_ROOT = path.join(TEMP_ROOT, "updater");
 const DATA_ROOT = path.join(TEMP_ROOT, "data");
 const EVIDENCE_ROOT = path.join(ROOT, "windows-acceptance-evidence");
+const PORTABLE_BACKUP_PATH = path.join(TEMP_ROOT, PORTABLE_BACKUP_NAME);
 const KEY_PATH = path.join(TEMP_ROOT, "ephemeral-updater.key");
 const DRIVER_URL = "http://127.0.0.1:4444";
 const GIT = process.platform === "win32" ? "git.exe" : "git";
@@ -243,6 +245,7 @@ async function startDriver(application, suffix) {
       ...process.env,
       VOYALIER_DATA_DIR: DATA_ROOT,
       VOYALIER_WINDOWS_WEBDRIVER_PROFILE: DRIVER_PROFILE,
+      VOYALIER_WINDOWS_ACCEPTANCE_BACKUP_PATH: PORTABLE_BACKUP_PATH,
     },
     stdio: ["ignore", log, log],
     windowsHide: true,
@@ -828,6 +831,7 @@ async function main() {
     "this acceptance harness requires real Windows",
   );
   assert.ok(process.env.LOCALAPPDATA, "LOCALAPPDATA is required");
+  assert.ok(process.env.RUNNER_TEMP, "RUNNER_TEMP is required");
   await mkdir(EVIDENCE_ROOT, { recursive: true });
   try {
     assert.equal(run(GIT, ["status", "--porcelain"], { quiet: true }), "");
@@ -857,6 +861,32 @@ async function main() {
   await mkdir(TEMP_ROOT, { recursive: true });
   await mkdir(FIXTURE_ROOT, { recursive: true });
   await mkdir(DATA_ROOT, { recursive: true });
+  const canonicalRunnerTemp = await realpath(process.env.RUNNER_TEMP);
+  const canonicalPresetParent = await realpath(TEMP_ROOT);
+  const presetParentRelative = path.relative(
+    canonicalRunnerTemp,
+    canonicalPresetParent,
+  );
+  assert.ok(
+    presetParentRelative !== "" &&
+      presetParentRelative !== ".." &&
+      !presetParentRelative.startsWith(`..${path.sep}`) &&
+      !path.isAbsolute(presetParentRelative),
+    "the picker preset parent escaped RUNNER_TEMP",
+  );
+  assert.match(
+    path.basename(canonicalPresetParent),
+    /^voyalier-windows-acceptance-\d+$/,
+  );
+  assert.equal((await lstat(TEMP_ROOT)).isSymbolicLink(), false);
+  assert.equal(path.basename(PORTABLE_BACKUP_PATH), PORTABLE_BACKUP_NAME);
+  const targetAbsentBeforeSave = await stat(PORTABLE_BACKUP_PATH)
+    .then(() => false)
+    .catch((error) => {
+      if (error?.code === "ENOENT") return true;
+      throw error;
+    });
+  assert.equal(targetAbsentBeforeSave, true);
 
   let driver;
   let server;
@@ -886,12 +916,30 @@ async function main() {
       sharedJourneyProfile: true,
       sessions: DRIVER_DIAGNOSTICS,
     },
+    pickerPreset: {
+      method: "IFileDialog.SetFolder+SetFileName via rfd 0.16.0",
+      ordinaryLaunchUnchangedWhenInactive: true,
+      completeAutomationGateRequired: true,
+      targetEnvironmentReadOnce: true,
+      dedicatedTargetProvided: true,
+      canonicalRunnerRootConfirmed: true,
+      canonicalParentConfirmed: true,
+      parentIsReparsePoint: false,
+      strictTemporaryRootContainment: true,
+      exactFileName: PORTABLE_BACKUP_NAME,
+      exactExtension: ".vbk",
+      targetToken: `<DIALOG_TEMP>\\${PORTABLE_BACKUP_NAME}`,
+      targetSha256: createHash("sha256")
+        .update(PORTABLE_BACKUP_PATH)
+        .digest("hex"),
+      externalSetterUsed: false,
+      targetAbsentBeforeSave,
+    },
     preservation: {},
     ui: {},
   };
 
   try {
-    const nativePickerTool = await loadVerifiedWinAppTool();
     const pickerPreflight = JSON.parse(
       await readFile(
         path.join(EVIDENCE_ROOT, "windows-picker-preflight.json"),
@@ -902,15 +950,6 @@ async function main() {
       candidateSha,
       workflowRunId: process.env.GITHUB_RUN_ID ?? undefined,
     });
-    assert.equal(
-      pickerPreflight.tool.executablePath,
-      nativePickerTool.evidence.executablePath,
-    );
-    assert.equal(
-      pickerPreflight.tool.archiveSha256Actual,
-      nativePickerTool.evidence.archiveSha256Actual,
-    );
-    report.nativePickerTool = nativePickerTool.evidence;
     report.pickerPreflight = pickerPreflight;
     report.stage = "base-build";
     run(GIT, ["worktree", "add", "--detach", BASE_ROOT, BASE_TAG]);
@@ -1312,7 +1351,7 @@ async function main() {
     report.stage = "portable-backup";
     await clickAriaLabel(driver, "Configuración");
     const portablePassphrase = randomBytes(24).toString("base64url");
-    const portableBackupPath = path.join(TEMP_ROOT, PORTABLE_BACKUP_NAME);
+    const portableBackupPath = PORTABLE_BACKUP_PATH;
     await clickText(driver, "Guardar copia de seguridad", {
       root: ".voy-backup",
     });
@@ -1336,11 +1375,11 @@ async function main() {
       root: ".voy-backup__form",
     });
     const portableBackupDialog = await driveNativeFileDialog({
-      tool: nativePickerTool,
       title: "Save Voyalier backup",
       filePath: portableBackupPath,
       action: "Save",
       temporaryRoot: TEMP_ROOT,
+      presetMethod: "rfd::FileDialog::set_directory+set_file_name",
       diagnosticPath: path.join(
         EVIDENCE_ROOT,
         "windows-portable-backup-dialog.json",
@@ -1361,9 +1400,10 @@ async function main() {
       portableBackupScreenshotNotice,
       `Backup saved: <DIALOG_TEMP>\\${PORTABLE_BACKUP_NAME}`,
     );
-    assert.ok(
-      portableBackupNotice.endsWith(portableBackupPath),
-      `portable backup picker returned an unexpected path: ${portableBackupNotice}`,
+    assert.equal(
+      portableBackupNotice,
+      `Copia guardada en ${portableBackupPath}`,
+      "portable backup picker returned an unexpected path",
     );
     const portableBackupStat = await stat(portableBackupPath);
     assert.ok(portableBackupStat.size > 0);
@@ -1407,15 +1447,17 @@ async function main() {
         root: ".voy-backup__form",
       },
     );
+    const portableRestorePreReadSha256 = await sha256(portableBackupPath);
+    assert.equal(portableRestorePreReadSha256, portableBackupSha256);
     await clickText(driver, "Restaurar esta copia", {
       root: ".voy-backup__form",
     });
     const portableRestoreDialog = await driveNativeFileDialog({
-      tool: nativePickerTool,
       title: "Choose a Voyalier backup",
       filePath: portableBackupPath,
       action: "Open",
       temporaryRoot: TEMP_ROOT,
+      presetMethod: "rfd::FileDialog::set_directory+set_file_name",
       diagnosticPath: path.join(
         EVIDENCE_ROOT,
         "windows-portable-restore-dialog.json",
@@ -1534,6 +1576,8 @@ async function main() {
       portableBackup: {
         exportedViaUi: true,
         ...portableBackupDialog,
+        returnedPathEqualsPreset: true,
+        createdNewFile: true,
         screenshotPathRedacted: portableBackupScreenshot.pathRedactionConfirmed,
         screenshotEvidence: portableBackupScreenshot,
         fileName: PORTABLE_BACKUP_NAME,
@@ -1543,6 +1587,10 @@ async function main() {
       portableRestore: {
         stagedViaUi: true,
         ...portableRestoreDialog,
+        returnedPathEqualsPreset: true,
+        selectedSameTargetAsExport: true,
+        preReadSha256: portableRestorePreReadSha256,
+        preReadSha256MatchesExport: true,
         appliedAfterReinstall: true,
         postBackupSentinelAbsent: true,
       },
@@ -1565,8 +1613,8 @@ async function main() {
         `- Base: \`${baseSha}\` / ${BASE_TAG}`,
         `- Base automation patch SHA-256: \`${baseAutomationPatchSha256}\``,
         `- Base adaptation: WebView2 automation only (not the historical installer binary)`,
-        `- Native picker bridge: Microsoft Windows App CLI ${nativePickerTool.evidence.versionReported}, verified archive SHA-256 \`${nativePickerTool.evidence.archiveSha256Actual}\``,
-        `- Standard picker preflight: ${pickerPreflight.verdict} (tool compatibility only)`,
+        `- Native picker action: ${pickerPreflight.verdict} standard-dialog preflight; no external filename setter`,
+        `- Product picker preset: dormant Windows acceptance hook using IFileDialog SetFolder + SetFileName`,
         `- Installed path: \`${sanitizeWindowsEvidenceText(application)}\``,
         `- Swap: ${baseStatus.currentVersion} -> ${candidateStatus.currentVersion}`,
         `- Reinstall recovery: ${recoveryStatus.currentVersion}`,

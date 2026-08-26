@@ -8,12 +8,11 @@ import { fileURLToPath } from "node:url";
 import {
   assertNoAbsoluteWindowsPaths,
   driveNativeFileDialog,
-  loadVerifiedWinAppTool,
   pathIsInside,
   sanitizeWindowsEvidenceText,
   sanitizeWindowsEvidenceValue,
 } from "./windows-native-file-dialog.mjs";
-import { validateWindowsPickerDiagnosticReport } from "./windows-updater-fixture.mjs";
+import { validateWindowsPickerPreflightReport } from "./windows-updater-fixture.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const EVIDENCE_ROOT = path.join(ROOT, "windows-acceptance-evidence");
@@ -42,9 +41,9 @@ function startStandardSaveDialog({
   expectedPath,
   markerContent,
   temporaryRoot,
-  placeholderFileName,
 }) {
   const script =
+    `$ErrorActionPreference = 'Stop'; ` +
     `Add-Type -AssemblyName System.Windows.Forms; ` +
     `function Get-VoyalierHash([string]$value) { ` +
     `$bytes = [System.Text.Encoding]::UTF8.GetBytes($value); ` +
@@ -52,113 +51,41 @@ function startStandardSaveDialog({
     `try { return ([System.BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-', '').ToLowerInvariant() } ` +
     `finally { $sha.Dispose() } ` +
     `}; ` +
-    `function Get-VoyalierOptionalHash($value) { ` +
-    `if ($null -eq $value) { return $null }; return (Get-VoyalierHash $value) ` +
-    `}; ` +
-    `function Get-VoyalierFoldedHash($value) { ` +
-    `if ($null -eq $value) { return $null }; ` +
-    `return (Get-VoyalierHash ($value.ToUpperInvariant())) ` +
-    `}; ` +
     `$expected = ${psQuote(expectedPath)}; ` +
     `$temporaryRoot = ${psQuote(temporaryRoot)}; ` +
-    `$placeholderFileName = ${psQuote(placeholderFileName)}; ` +
-    `$placeholder = [System.IO.Path]::Combine($temporaryRoot, $placeholderFileName); ` +
     `$dialog = [System.Windows.Forms.SaveFileDialog]::new(); ` +
     `$dialog.Title = ${psQuote(title)}; ` +
     `$dialog.InitialDirectory = ${psQuote(path.dirname(expectedPath))}; ` +
-    `$dialog.FileName = $placeholderFileName; ` +
+    `$dialog.FileName = ${psQuote(path.basename(expectedPath))}; ` +
     `$dialog.Filter = 'Text files (*.txt)|*.txt'; ` +
     `$dialog.AddExtension = $true; $dialog.OverwritePrompt = $false; ` +
     `$result = $dialog.ShowDialog(); ` +
-    `$selected = $dialog.FileName; ` +
-    `$expectedCanonical = $null; $selectedCanonical = $null; $placeholderCanonical = $null; ` +
-    `$expectedCanonicalized = $false; $selectedCanonicalized = $false; ` +
-    `$placeholderCanonicalized = $false; ` +
-    `try { $expectedCanonical = [System.IO.Path]::GetFullPath($expected); ` +
-    `$expectedCanonicalized = $true } catch {}; ` +
-    `try { $selectedCanonical = [System.IO.Path]::GetFullPath($selected); ` +
-    `$selectedCanonicalized = $true } catch {}; ` +
-    `try { $placeholderCanonical = [System.IO.Path]::GetFullPath($placeholder); ` +
-    `$placeholderCanonicalized = $true } catch {}; ` +
-    `$rootCanonical = [System.IO.Path]::GetFullPath($temporaryRoot).TrimEnd([char[]]@('\', '/')); ` +
+    `if ($result -ne [System.Windows.Forms.DialogResult]::OK) { ` +
+    `throw "preflight dialog returned $result" }; ` +
+    `$expectedCanonical = [System.IO.Path]::GetFullPath($expected); ` +
+    `$selectedCanonical = [System.IO.Path]::GetFullPath($dialog.FileName); ` +
+    `$separators = [char[]]@([System.IO.Path]::DirectorySeparatorChar, ` +
+    `[System.IO.Path]::AltDirectorySeparatorChar); ` +
+    `$rootCanonical = [System.IO.Path]::GetFullPath($temporaryRoot).TrimEnd($separators); ` +
     `$rootPrefix = $rootCanonical + [System.IO.Path]::DirectorySeparatorChar; ` +
-    `$expectedWithin = $expectedCanonicalized -and ` +
-    `$expectedCanonical.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase); ` +
-    `$selectedWithin = $selectedCanonicalized -and ` +
-    `$selectedCanonical.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase); ` +
-    `$selectedRelativeToken = $null; ` +
-    `if ($selectedWithin) { ` +
-    `$relative = $selectedCanonical.Substring($rootPrefix.Length).Replace('/', '\'); ` +
-    `$selectedRelativeToken = ${psQuote("<DIALOG_TEMP>\\")} + $relative ` +
-    `}; ` +
-    `$rawOrdinalEqual = [string]::Equals($selected, $expected, ` +
-    `[System.StringComparison]::Ordinal); ` +
-    `$rawOrdinalIgnoreCaseEqual = [string]::Equals($selected, $expected, ` +
+    `$expectedWithin = $expectedCanonical.StartsWith($rootPrefix, ` +
     `[System.StringComparison]::OrdinalIgnoreCase); ` +
-    `$canonicalOrdinalIgnoreCaseEqual = $expectedCanonicalized -and ` +
-    `$selectedCanonicalized -and [string]::Equals($selectedCanonical, ` +
+    `$selectedWithin = $selectedCanonical.StartsWith($rootPrefix, ` +
+    `[System.StringComparison]::OrdinalIgnoreCase); ` +
+    `$canonicalOrdinalIgnoreCaseEqual = [string]::Equals($selectedCanonical, ` +
     `$expectedCanonical, [System.StringComparison]::OrdinalIgnoreCase); ` +
-    `$selectedEqualsPlaceholderRawOrdinal = [string]::Equals($selected, $placeholder, ` +
-    `[System.StringComparison]::Ordinal); ` +
-    `$selectedEqualsPlaceholderRawOrdinalIgnoreCase = [string]::Equals($selected, $placeholder, ` +
-    `[System.StringComparison]::OrdinalIgnoreCase); ` +
-    `$selectedEqualsPlaceholderCanonicalIgnoreCase = $selectedCanonicalized -and ` +
-    `$placeholderCanonicalized -and [string]::Equals($selectedCanonical, ` +
-    `$placeholderCanonical, [System.StringComparison]::OrdinalIgnoreCase); ` +
-    `$selectedBaseName = ''; ` +
-    `try { $selectedBaseName = [string][System.IO.Path]::GetFileName($selected) } catch {}; ` +
-    `$targetBaseName = [System.IO.Path]::GetFileName($expected); ` +
-    `$selectedBaseNameKind = if ([string]::Equals($selectedBaseName, $targetBaseName, ` +
-    `[System.StringComparison]::Ordinal)) { 'target' } elseif (` +
-    `[string]::Equals($selectedBaseName, $placeholderFileName, ` +
-    `[System.StringComparison]::Ordinal)) { 'placeholder' } else { 'other' }; ` +
-    `$disclosedBaseName = if ($selectedBaseNameKind -eq 'other') { $null } else { $selectedBaseName }; ` +
-    `$expectedRawSha256 = Get-VoyalierHash $expected; ` +
-    `$selectedRawSha256 = Get-VoyalierHash $selected; ` +
-    `$placeholderRawSha256 = Get-VoyalierHash $placeholder; ` +
-    `$expectedRawCaseFoldedSha256 = Get-VoyalierFoldedHash $expected; ` +
-    `$selectedRawCaseFoldedSha256 = Get-VoyalierFoldedHash $selected; ` +
-    `$placeholderRawCaseFoldedSha256 = Get-VoyalierFoldedHash $placeholder; ` +
-    `$expectedCanonicalSha256 = Get-VoyalierOptionalHash $expectedCanonical; ` +
-    `$selectedCanonicalSha256 = Get-VoyalierOptionalHash $selectedCanonical; ` +
-    `$placeholderCanonicalSha256 = Get-VoyalierOptionalHash $placeholderCanonical; ` +
-    `$expectedCanonicalCaseFoldedSha256 = Get-VoyalierFoldedHash $expectedCanonical; ` +
-    `$selectedCanonicalCaseFoldedSha256 = Get-VoyalierFoldedHash $selectedCanonical; ` +
-    `$placeholderCanonicalCaseFoldedSha256 = Get-VoyalierFoldedHash $placeholderCanonical; ` +
-    `$writeGatePassed = $result -eq [System.Windows.Forms.DialogResult]::OK -and ` +
-    `$canonicalOrdinalIgnoreCaseEqual -and $expectedWithin -and $selectedWithin; ` +
-    `$writeAttempted = $false; ` +
-    `if ($writeGatePassed) { ` +
-    `$writeAttempted = $true; $encoding = [System.Text.UTF8Encoding]::new($false); ` +
-    `[System.IO.File]::WriteAllText($selectedCanonical, ${psQuote(markerContent)}, $encoding) ` +
-    `}; ` +
-    `$markerExists = [System.IO.File]::Exists($expectedCanonical); ` +
-    `@{ diagnosticOnly = $true; hashEncoding = 'UTF-8'; result = $result.ToString(); ` +
-    `expectedRawSha256 = $expectedRawSha256; selectedRawSha256 = $selectedRawSha256; ` +
-    `placeholderRawSha256 = $placeholderRawSha256; ` +
-    `expectedRawCaseFoldedSha256 = $expectedRawCaseFoldedSha256; ` +
-    `selectedRawCaseFoldedSha256 = $selectedRawCaseFoldedSha256; ` +
-    `placeholderRawCaseFoldedSha256 = $placeholderRawCaseFoldedSha256; ` +
-    `expectedCanonicalized = $expectedCanonicalized; selectedCanonicalized = $selectedCanonicalized; ` +
-    `placeholderCanonicalized = $placeholderCanonicalized; ` +
-    `expectedCanonicalSha256 = $expectedCanonicalSha256; ` +
-    `selectedCanonicalSha256 = $selectedCanonicalSha256; ` +
-    `placeholderCanonicalSha256 = $placeholderCanonicalSha256; ` +
-    `expectedCanonicalCaseFoldedSha256 = $expectedCanonicalCaseFoldedSha256; ` +
-    `selectedCanonicalCaseFoldedSha256 = $selectedCanonicalCaseFoldedSha256; ` +
-    `placeholderCanonicalCaseFoldedSha256 = $placeholderCanonicalCaseFoldedSha256; ` +
-    `rawOrdinalEqual = $rawOrdinalEqual; rawOrdinalIgnoreCaseEqual = $rawOrdinalIgnoreCaseEqual; ` +
+    `if (-not $expectedWithin -or -not $selectedWithin -or ` +
+    `-not $canonicalOrdinalIgnoreCaseEqual) { ` +
+    `throw 'preflight selected path mismatch' }; ` +
+    `$encoding = [System.Text.UTF8Encoding]::new($false); ` +
+    `[System.IO.File]::WriteAllText($selectedCanonical, ${psQuote(markerContent)}, $encoding); ` +
+    `@{ result = $result.ToString(); ` +
+    `expectedCanonicalSha256 = $(Get-VoyalierHash $expectedCanonical); ` +
+    `selectedCanonicalSha256 = $(Get-VoyalierHash $selectedCanonical); ` +
     `canonicalOrdinalIgnoreCaseEqual = $canonicalOrdinalIgnoreCaseEqual; ` +
-    `selectedEqualsPlaceholderRawOrdinal = $selectedEqualsPlaceholderRawOrdinal; ` +
-    `selectedEqualsPlaceholderRawOrdinalIgnoreCase = $selectedEqualsPlaceholderRawOrdinalIgnoreCase; ` +
-    `selectedEqualsPlaceholderCanonicalIgnoreCase = $selectedEqualsPlaceholderCanonicalIgnoreCase; ` +
-    `expectedWithinTemporaryRoot = $expectedWithin; selectedWithinTemporaryRoot = $selectedWithin; ` +
-    `selectedRelativeToken = $selectedRelativeToken; selectedBaseNameKind = $selectedBaseNameKind; ` +
-    `selectedBaseName = $disclosedBaseName; selectedBaseNameSha256 = $(Get-VoyalierHash $selectedBaseName); ` +
-    `selectedBaseNameLength = $selectedBaseName.Length; ` +
-    `selectedExtension = [System.IO.Path]::GetExtension($selectedBaseName); ` +
-    `writeGatePassed = $writeGatePassed; writeAttempted = $writeAttempted; ` +
-    `markerExists = $markerExists } ` +
+    `expectedWithinTemporaryRoot = $expectedWithin; ` +
+    `selectedWithinTemporaryRoot = $selectedWithin; ` +
+    `writeAttempted = $true; markerExists = $true } ` +
     `| ConvertTo-Json -Compress`;
   const child = spawn(
     "powershell.exe",
@@ -225,38 +152,34 @@ async function main() {
     `voyalier-picker-preflight-${nonce}.txt`,
   );
   const markerContent = `Voyalier native picker bridge ${nonce}\n`;
-  const placeholderFileName = "picker-preflight-placeholder.txt";
   const title = `Voyalier picker bridge preflight ${nonce}`;
   assert.ok(pathIsInside(runnerTemp, preflightRoot));
   assert.ok(pathIsInside(preflightRoot, markerPath));
   await mkdir(preflightRoot, { recursive: true });
   const report = {
     verdict: "FAIL",
-    stage: "tool-provenance",
-    proofKind: "harness-tool-compatibility",
+    stage: "standard-save-dialog",
+    proofKind: "harness-native-dialog-action",
     productEvidence: false,
-    diagnosticOnly: true,
+    diagnosticOnly: false,
     candidateSha: gitHead(),
     workflowRunId: process.env.GITHUB_RUN_ID ?? null,
   };
   let dialogProcess;
   try {
-    const tool = await loadVerifiedWinAppTool();
-    report.tool = tool.evidence;
-    report.stage = "standard-save-dialog";
     dialogProcess = startStandardSaveDialog({
       title,
       expectedPath: markerPath,
       markerContent,
       temporaryRoot: preflightRoot,
-      placeholderFileName,
     });
     report.dialog = await driveNativeFileDialog({
-      tool,
       title,
       filePath: markerPath,
       action: "Save",
       temporaryRoot: preflightRoot,
+      presetMethod:
+        "System.Windows.Forms.SaveFileDialog.InitialDirectory+FileName",
       diagnosticPath: path.join(
         EVIDENCE_ROOT,
         "windows-picker-preflight-dialog.json",
@@ -280,60 +203,46 @@ async function main() {
       0,
       dialogResult.stderr || dialogResult.stdout,
     );
+    assert.equal(dialogResult.stderr, "", "standard dialog host wrote stderr");
     const hostResult = JSON.parse(dialogResult.stdout);
     report.dialogHost.jsonParsed = true;
-    const pathDiagnostics = {
-      ...hostResult,
-      dialogResult: hostResult.result,
-      cliReadbackRawSha256: report.dialog.observedValueSha256,
-      readbackEqualsExpected:
-        report.dialog.expectedPathSha256 === report.dialog.observedValueSha256,
-      selectedEqualsReadback:
-        hostResult.selectedRawSha256 === report.dialog.observedValueSha256,
-    };
-    delete pathDiagnostics.result;
-    report.pathDiagnostics = pathDiagnostics;
-    report.dialogHost.result = pathDiagnostics;
-    const markerStat = await stat(markerPath).catch(() => null);
-    assert.equal(markerStat != null, pathDiagnostics.markerExists);
-    let observedContent = null;
-    if (markerStat) observedContent = await readFile(markerPath, "utf8");
-    if (pathDiagnostics.writeAttempted)
-      assert.equal(observedContent, markerContent);
+    report.dialogHost.result = hostResult;
+    assert.equal(hostResult.result, "OK");
+    assert.equal(hostResult.canonicalOrdinalIgnoreCaseEqual, true);
+    assert.equal(hostResult.expectedWithinTemporaryRoot, true);
+    assert.equal(hostResult.selectedWithinTemporaryRoot, true);
+    assert.equal(
+      hostResult.expectedCanonicalSha256,
+      hostResult.selectedCanonicalSha256,
+    );
+    assert.equal(hostResult.writeAttempted, true);
+    assert.equal(hostResult.markerExists, true);
+    const markerStat = await stat(markerPath);
+    const observedContent = await readFile(markerPath, "utf8");
+    assert.equal(observedContent, markerContent);
     report.marker = {
-      existsBeforeCleanup: markerStat != null,
-      contentConfirmed: observedContent === markerContent,
-      bytes: markerStat?.size ?? 0,
-      sha256: markerStat ? await sha256(markerPath) : null,
+      fileName: path.basename(markerPath),
+      selectedPathToken: report.dialog.expectedValueToken,
+      selectedPathWithinTemporaryRoot: true,
+      bytes: markerStat.size,
+      sha256: await sha256(markerPath),
       expectedSha256: createHash("sha256").update(markerContent).digest("hex"),
+      contentConfirmed: true,
+      hostReturnedExactPath: true,
     };
-    if (pathDiagnostics.writeAttempted) {
-      assert.equal(report.marker.sha256, report.marker.expectedSha256);
-    }
+    assert.equal(report.marker.sha256, report.marker.expectedSha256);
     await rm(markerPath, { force: true });
-    await rm(preflightRoot, { recursive: true, force: true });
     report.marker.removed = true;
+    await rm(preflightRoot, { recursive: true, force: true });
     report.temporaryRootRemoved = true;
-    report.diagnosticOutcome = !pathDiagnostics.selectedCanonicalized
-      ? "uncanonicalizable"
-      : !pathDiagnostics.selectedWithinTemporaryRoot
-        ? pathDiagnostics.selectedBaseNameKind === "placeholder"
-          ? "outside-temp-placeholder"
-          : "outside-temp"
-        : pathDiagnostics.canonicalOrdinalIgnoreCaseEqual
-          ? "canonical-equal"
-          : pathDiagnostics.selectedEqualsPlaceholderCanonicalIgnoreCase
-            ? "placeholder"
-            : "transformed";
-    report.stage = "diagnostic-complete";
-    validateWindowsPickerDiagnosticReport(report, {
+    report.stage = "complete";
+    report.verdict = "PASS";
+    validateWindowsPickerPreflightReport(report, {
       candidateSha: report.candidateSha,
       workflowRunId: report.workflowRunId,
     });
     assertNoAbsoluteWindowsPaths(report);
-    throw new Error(
-      `diagnostic-only picker preflight completed: ${report.diagnosticOutcome}`,
-    );
+    await writeFile(PREFLIGHT_REPORT, `${JSON.stringify(report, null, 2)}\n`);
   } catch (error) {
     report.error = sanitizeWindowsEvidenceText(
       error instanceof Error ? error.message : String(error),

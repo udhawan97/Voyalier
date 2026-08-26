@@ -1,19 +1,14 @@
-import { createHash } from "node:crypto";
 import { copyFile, rm } from "node:fs/promises";
 import path from "node:path";
 
 import {
   assertNoAbsoluteWindowsPaths,
+  FILE_NAME_HOST_AUTOMATION_ID,
   WINDOWS_ACCESSIBLE_ACTION,
-  WINAPP_CLI,
 } from "./windows-native-file-dialog.mjs";
 
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const SHA256 = /^[0-9a-f]{64}$/;
-
-function sha256Text(value) {
-  return createHash("sha256").update(String(value), "utf8").digest("hex");
-}
 
 function requireString(value, name) {
   if (typeof value !== "string" || value.trim() === "") {
@@ -163,48 +158,7 @@ export async function mirrorWebViewDevToolsPort({
   };
 }
 
-export function validateWinAppToolEvidence(tool) {
-  if (
-    tool?.name !== WINAPP_CLI.name ||
-    tool?.tag !== WINAPP_CLI.tag ||
-    tool?.versionExpected !== WINAPP_CLI.version ||
-    tool?.versionReported !== WINAPP_CLI.version ||
-    tool?.releaseCommit !== WINAPP_CLI.releaseCommit ||
-    tool?.assetName !== WINAPP_CLI.assetName ||
-    tool?.assetUrl !== WINAPP_CLI.assetUrl ||
-    tool?.archiveSha256Expected !== WINAPP_CLI.archiveSha256 ||
-    tool?.archiveSha256Actual !== WINAPP_CLI.archiveSha256 ||
-    tool?.archiveHashVerified !== true ||
-    tool?.hashVerifiedBeforeExtractionExecution !== true ||
-    tool?.executableCount !== 1 ||
-    tool?.executableWithinTemporaryRoot !== true ||
-    tool?.archiveWithinTemporaryRoot !== true ||
-    tool?.cacheWithinTemporaryRoot !== true ||
-    tool?.updateCheckDisabled !== true ||
-    tool?.telemetryOptOut !== true ||
-    tool?.pathFallbackUsed !== false ||
-    tool?.latestUsed !== false ||
-    tool?.globalInstallUsed !== false ||
-    tool?.inputInjectionUsed !== false ||
-    !tool?.archivePath?.startsWith("<RUNNER_TEMP>\\") ||
-    !tool?.installRoot?.startsWith("<RUNNER_TEMP>\\") ||
-    !tool?.executablePath?.startsWith("<RUNNER_TEMP>\\") ||
-    !tool?.cacheDirectory?.startsWith("<RUNNER_TEMP>\\") ||
-    !tool?.firstRunMarker?.startsWith(`${tool.cacheDirectory}\\`) ||
-    tool?.firstRunMarkerSha256 !==
-      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" ||
-    tool?.firstRunMarkerBytes !== 0 ||
-    tool?.firstRunMarkerPreseededBeforeExecution !== true ||
-    tool?.versionCommand?.exitCode !== 0 ||
-    tool?.versionCommand?.stdout?.trim() !== WINAPP_CLI.version
-  ) {
-    throw new Error("Windows App CLI provenance evidence is incomplete");
-  }
-  assertNoAbsoluteWindowsPaths(tool);
-  return tool;
-}
-
-function hasNativeDialogEvidence(dialog, tool) {
+function hasNativeDialogEvidence(dialog) {
   const commandResult = dialog?.actionCommand?.result;
   const patternMethodValid =
     (dialog?.actionMethod === "InvokePattern" &&
@@ -261,7 +215,16 @@ function hasNativeDialogEvidence(dialog, tool) {
     dialog?.verdict === "PASS" &&
     dialog?.nativeDialogPathConfirmed === true &&
     dialog?.selectedPathWithinTemp === true &&
-    dialog?.filenameHostAutomationId === WINAPP_CLI.selector &&
+    dialog?.filenameHostAutomationId === FILE_NAME_HOST_AUTOMATION_ID &&
+    dialog?.pathPresetExpected === true &&
+    dialog?.externalSetterUsed === false &&
+    dialog?.setValue == null &&
+    dialog?.getValue == null &&
+    SHA256.test(dialog?.expectedPathSha256 ?? "") &&
+    [
+      "System.Windows.Forms.SaveFileDialog.InitialDirectory+FileName",
+      "rfd::FileDialog::set_directory+set_file_name",
+    ].includes(dialog?.presetMethod) &&
     dialog?.dialogTitle === dialog?.title &&
     dialog?.dialogCount === 1 &&
     dialog?.dialogEnabled === true &&
@@ -269,7 +232,7 @@ function hasNativeDialogEvidence(dialog, tool) {
     Number.isInteger(dialog?.dialogHwnd) &&
     dialog.dialogHwnd > 0 &&
     dialog?.hostCount === 1 &&
-    dialog?.hostAutomationId === WINAPP_CLI.selector &&
+    dialog?.hostAutomationId === FILE_NAME_HOST_AUTOMATION_ID &&
     dialog?.hostEnabled === true &&
     dialog?.hostOffscreen === false &&
     dialog?.discoveryCommand?.exitCode === 0 &&
@@ -282,37 +245,14 @@ function hasNativeDialogEvidence(dialog, tool) {
     dialog?.discoveryCommand?.result?.hwnd === dialog?.dialogHwnd &&
     dialog?.discoveryCommand?.result?.hostCount === dialog?.hostCount &&
     dialog?.discoveryCommand?.result?.hostAutomationId ===
-      WINAPP_CLI.selector &&
+      FILE_NAME_HOST_AUTOMATION_ID &&
     dialog?.discoveryCommand?.result?.hostAutomationId ===
       dialog?.hostAutomationId &&
     dialog?.discoveryCommand?.result?.hostEnabled === dialog?.hostEnabled &&
     dialog?.discoveryCommand?.result?.hostOffscreen === dialog?.hostOffscreen &&
-    dialog?.setValue?.exitCode === 0 &&
-    dialog?.setValue?.jsonParsed === true &&
-    dialog?.setValue?.requestedSelector === WINAPP_CLI.selector &&
-    dialog?.setValue?.windowHwnd === dialog.dialogHwnd &&
-    Number(dialog?.setValue?.result?.hwnd) === dialog.dialogHwnd &&
-    typeof dialog?.setValue?.result?.elementId === "string" &&
-    dialog.setValue.result.elementId !== "" &&
-    dialog?.getValue?.exitCode === 0 &&
-    dialog?.getValue?.jsonParsed === true &&
-    dialog?.getValue?.stdoutOmitted === true &&
-    /^[0-9a-f]{64}$/.test(dialog?.getValue?.stdoutSha256 ?? "") &&
-    dialog?.getValue?.requestedSelector === WINAPP_CLI.selector &&
-    dialog?.getValue?.windowHwnd === dialog.dialogHwnd &&
-    dialog?.getValue?.result?.textOmitted === true &&
-    dialog?.getValue?.result?.elementId ===
-      dialog?.setValue?.result?.elementId &&
-    dialog?.getValue?.result?.elementId !== "" &&
-    dialog?.observedValueToken === dialog?.expectedValueToken &&
-    dialog?.controlIdentityMatched === true &&
-    dialog?.pathReadbackConfirmed === true &&
     dialog?.inputInjectionUsed === false &&
     dialog?.dialogCountBefore === 1 &&
     dialog?.dialogCountAfter === 0 &&
-    dialog?.toolExecutablePath === tool?.executablePath &&
-    dialog?.toolVersion === WINAPP_CLI.version &&
-    dialog?.toolArchiveSha256 === WINAPP_CLI.archiveSha256 &&
     Number.isInteger(dialog?.actionCandidateCount) &&
     dialog.actionCandidateCount >= 1 &&
     dialog?.exactActionTargetCount === 1 &&
@@ -388,12 +328,11 @@ export function validateWindowsPickerPreflightReport(
   report,
   { candidateSha, workflowRunId } = {},
 ) {
-  validateWinAppToolEvidence(report?.tool);
   if (
     report?.verdict !== "PASS" ||
     report?.stage !== "complete" ||
     report?.diagnosticOnly === true ||
-    report?.proofKind !== "harness-tool-compatibility" ||
+    report?.proofKind !== "harness-native-dialog-action" ||
     report?.productEvidence !== false ||
     !/^[0-9a-f]{40}$/.test(report?.candidateSha ?? "") ||
     (candidateSha && report.candidateSha !== candidateSha) ||
@@ -402,7 +341,9 @@ export function validateWindowsPickerPreflightReport(
       report?.dialog?.title ?? "",
     ) ||
     report?.dialog?.action !== "Save" ||
-    !hasNativeDialogEvidence(report?.dialog, report.tool) ||
+    report?.dialog?.presetMethod !==
+      "System.Windows.Forms.SaveFileDialog.InitialDirectory+FileName" ||
+    !hasNativeDialogEvidence(report?.dialog) ||
     report?.marker?.selectedPathToken !== report?.dialog?.expectedValueToken ||
     report?.marker?.selectedPathWithinTemporaryRoot !== true ||
     report?.marker?.hostReturnedExactPath !== true ||
@@ -414,193 +355,19 @@ export function validateWindowsPickerPreflightReport(
     report?.dialogHost?.exitCode !== 0 ||
     report?.dialogHost?.jsonParsed !== true ||
     report?.dialogHost?.stdoutOmitted !== true ||
+    report?.dialogHost?.stderr !== "" ||
     !/^[0-9a-f]{64}$/.test(report?.dialogHost?.stdoutSha256 ?? "") ||
     report?.dialogHost?.result?.result !== "OK" ||
-    report?.dialogHost?.result?.selectedPathToken !==
-      report?.dialog?.expectedValueToken ||
+    report?.dialogHost?.result?.expectedCanonicalSha256 !==
+      report?.dialogHost?.result?.selectedCanonicalSha256 ||
+    report?.dialogHost?.result?.canonicalOrdinalIgnoreCaseEqual !== true ||
+    report?.dialogHost?.result?.expectedWithinTemporaryRoot !== true ||
+    report?.dialogHost?.result?.selectedWithinTemporaryRoot !== true ||
+    report?.dialogHost?.result?.writeAttempted !== true ||
+    report?.dialogHost?.result?.markerExists !== true ||
     report?.temporaryRootRemoved !== true
   ) {
     throw new Error("Windows picker preflight evidence is incomplete");
-  }
-  assertNoAbsoluteWindowsPaths(report);
-  return report;
-}
-
-export function validateWindowsPickerDiagnosticReport(
-  report,
-  { candidateSha, workflowRunId } = {},
-) {
-  validateWinAppToolEvidence(report?.tool);
-  const diagnostic = report?.pathDiagnostics;
-  const marker = report?.marker;
-  const hashes = [
-    diagnostic?.expectedRawSha256,
-    diagnostic?.cliReadbackRawSha256,
-    diagnostic?.selectedRawSha256,
-    diagnostic?.expectedCanonicalSha256,
-    diagnostic?.placeholderRawSha256,
-    diagnostic?.expectedRawCaseFoldedSha256,
-    diagnostic?.selectedRawCaseFoldedSha256,
-    diagnostic?.placeholderRawCaseFoldedSha256,
-    diagnostic?.placeholderCanonicalSha256,
-    diagnostic?.expectedCanonicalCaseFoldedSha256,
-    diagnostic?.placeholderCanonicalCaseFoldedSha256,
-    diagnostic?.selectedBaseNameSha256,
-  ];
-  const selectedCanonicalHashesValid = diagnostic?.selectedCanonicalized
-    ? SHA256.test(diagnostic?.selectedCanonicalSha256 ?? "") &&
-      SHA256.test(diagnostic?.selectedCanonicalCaseFoldedSha256 ?? "")
-    : diagnostic?.selectedCanonicalSha256 == null &&
-      diagnostic?.selectedCanonicalCaseFoldedSha256 == null;
-  const expectedEqualsReadback =
-    diagnostic?.expectedRawSha256 === diagnostic?.cliReadbackRawSha256;
-  const selectedEqualsReadback =
-    diagnostic?.selectedRawSha256 === diagnostic?.cliReadbackRawSha256;
-  const rawOrdinalEqual =
-    diagnostic?.selectedRawSha256 === diagnostic?.expectedRawSha256;
-  const rawIgnoreCaseEqual =
-    diagnostic?.selectedRawCaseFoldedSha256 ===
-    diagnostic?.expectedRawCaseFoldedSha256;
-  const placeholderRawOrdinalEqual =
-    diagnostic?.selectedRawSha256 === diagnostic?.placeholderRawSha256;
-  const placeholderRawIgnoreCaseEqual =
-    diagnostic?.selectedRawCaseFoldedSha256 ===
-    diagnostic?.placeholderRawCaseFoldedSha256;
-  const canonicalIgnoreCaseEqual =
-    diagnostic?.selectedCanonicalized === true &&
-    diagnostic?.selectedCanonicalCaseFoldedSha256 ===
-      diagnostic?.expectedCanonicalCaseFoldedSha256;
-  const placeholderCanonicalEqual =
-    diagnostic?.selectedCanonicalized === true &&
-    diagnostic?.selectedCanonicalCaseFoldedSha256 ===
-      diagnostic?.placeholderCanonicalCaseFoldedSha256;
-  const writeGateExpected =
-    diagnostic?.dialogResult === "OK" &&
-    canonicalIgnoreCaseEqual &&
-    diagnostic?.expectedWithinTemporaryRoot === true &&
-    diagnostic?.selectedWithinTemporaryRoot === true;
-  const diagnosticOutcome = !diagnostic?.selectedCanonicalized
-    ? "uncanonicalizable"
-    : !diagnostic?.selectedWithinTemporaryRoot
-      ? diagnostic?.selectedBaseNameKind === "placeholder"
-        ? "outside-temp-placeholder"
-        : "outside-temp"
-      : canonicalIgnoreCaseEqual
-        ? "canonical-equal"
-        : placeholderCanonicalEqual
-          ? "placeholder"
-          : "transformed";
-  const selectedTokenValid =
-    typeof diagnostic?.selectedRelativeToken === "string" &&
-    diagnostic.selectedRelativeToken.startsWith("<DIALOG_TEMP>\\") &&
-    !diagnostic.selectedRelativeToken
-      .split(/[\\/]/)
-      .some((segment) => segment === "..");
-  const selectedLocationValid = diagnostic?.selectedCanonicalized
-    ? diagnostic?.selectedWithinTemporaryRoot
-      ? selectedTokenValid
-      : diagnostic?.selectedRelativeToken == null
-    : diagnostic?.selectedWithinTemporaryRoot === false &&
-      diagnostic?.selectedRelativeToken == null;
-  const selectedStateTypesValid =
-    typeof diagnostic?.selectedCanonicalized === "boolean" &&
-    typeof diagnostic?.selectedWithinTemporaryRoot === "boolean";
-  const selectedCanonicalLocationConsistent =
-    (!canonicalIgnoreCaseEqual && !placeholderCanonicalEqual) ||
-    diagnostic?.selectedWithinTemporaryRoot === true;
-  const uncanonicalRawIdentityConsistent =
-    diagnostic?.selectedCanonicalized === true ||
-    (!rawIgnoreCaseEqual && !placeholderRawIgnoreCaseEqual);
-  const selectedNameDisclosureValid =
-    diagnostic?.selectedBaseNameKind === "target"
-      ? /^voyalier-picker-preflight-[0-9a-f]{24}\.txt$/.test(
-          diagnostic?.selectedBaseName ?? "",
-        )
-      : diagnostic?.selectedBaseNameKind === "placeholder"
-        ? diagnostic?.selectedBaseName === "picker-preflight-placeholder.txt"
-        : diagnostic?.selectedBaseNameKind === "other" &&
-          diagnostic?.selectedBaseName == null;
-  const selectedNameMetadataValid =
-    Number.isInteger(diagnostic?.selectedBaseNameLength) &&
-    diagnostic.selectedBaseNameLength >= 0 &&
-    typeof diagnostic?.selectedExtension === "string" &&
-    SHA256.test(diagnostic?.selectedBaseNameSha256 ?? "") &&
-    (diagnostic?.selectedBaseName == null ||
-      (diagnostic.selectedBaseNameSha256 ===
-        sha256Text(diagnostic.selectedBaseName) &&
-        diagnostic.selectedBaseNameLength ===
-          diagnostic.selectedBaseName.length &&
-        diagnostic.selectedExtension ===
-          path.win32.extname(diagnostic.selectedBaseName)));
-  const markerValid = diagnostic?.writeAttempted
-    ? marker?.existsBeforeCleanup === true &&
-      marker?.contentConfirmed === true &&
-      marker?.bytes > 0 &&
-      SHA256.test(marker?.sha256 ?? "") &&
-      marker?.sha256 === marker?.expectedSha256
-    : marker?.existsBeforeCleanup === false &&
-      marker?.contentConfirmed === false &&
-      marker?.bytes === 0 &&
-      marker?.sha256 == null &&
-      SHA256.test(marker?.expectedSha256 ?? "");
-
-  if (
-    report?.verdict !== "FAIL" ||
-    report?.stage !== "diagnostic-complete" ||
-    report?.diagnosticOnly !== true ||
-    diagnostic?.diagnosticOnly !== true ||
-    report?.proofKind !== "harness-tool-compatibility" ||
-    report?.productEvidence !== false ||
-    !/^[0-9a-f]{40}$/.test(report?.candidateSha ?? "") ||
-    (candidateSha && report.candidateSha !== candidateSha) ||
-    (workflowRunId && report?.workflowRunId !== workflowRunId) ||
-    report?.dialog?.action !== "Save" ||
-    !hasNativeDialogEvidence(report?.dialog, report.tool) ||
-    !SHA256.test(report?.dialog?.expectedPathSha256 ?? "") ||
-    report?.dialog?.expectedPathSha256 !==
-      report?.dialog?.observedValueSha256 ||
-    report?.dialog?.readbackEqualsExpected !== true ||
-    hashes.some((hash) => !SHA256.test(hash ?? "")) ||
-    !selectedCanonicalHashesValid ||
-    diagnostic?.hashEncoding !== "UTF-8" ||
-    diagnostic?.dialogResult !== "OK" ||
-    diagnostic?.expectedRawSha256 !== report?.dialog?.expectedPathSha256 ||
-    diagnostic?.cliReadbackRawSha256 !== report?.dialog?.observedValueSha256 ||
-    diagnostic?.readbackEqualsExpected !== expectedEqualsReadback ||
-    diagnostic?.readbackEqualsExpected !== true ||
-    diagnostic?.selectedEqualsReadback !== selectedEqualsReadback ||
-    diagnostic?.rawOrdinalEqual !== rawOrdinalEqual ||
-    diagnostic?.rawOrdinalIgnoreCaseEqual !== rawIgnoreCaseEqual ||
-    diagnostic?.selectedEqualsPlaceholderRawOrdinal !==
-      placeholderRawOrdinalEqual ||
-    diagnostic?.selectedEqualsPlaceholderRawOrdinalIgnoreCase !==
-      placeholderRawIgnoreCaseEqual ||
-    diagnostic?.expectedCanonicalized !== true ||
-    diagnostic?.placeholderCanonicalized !== true ||
-    diagnostic?.canonicalOrdinalIgnoreCaseEqual !== canonicalIgnoreCaseEqual ||
-    diagnostic?.selectedEqualsPlaceholderCanonicalIgnoreCase !==
-      placeholderCanonicalEqual ||
-    diagnostic?.expectedWithinTemporaryRoot !== true ||
-    !selectedStateTypesValid ||
-    !selectedLocationValid ||
-    !selectedCanonicalLocationConsistent ||
-    !uncanonicalRawIdentityConsistent ||
-    !selectedNameDisclosureValid ||
-    !selectedNameMetadataValid ||
-    diagnostic?.writeGatePassed !== writeGateExpected ||
-    diagnostic?.writeAttempted !== writeGateExpected ||
-    diagnostic?.markerExists !== diagnostic?.writeAttempted ||
-    report?.diagnosticOutcome !== diagnosticOutcome ||
-    !markerValid ||
-    marker?.removed !== true ||
-    report?.dialogHost?.exitCode !== 0 ||
-    report?.dialogHost?.jsonParsed !== true ||
-    report?.dialogHost?.stdoutOmitted !== true ||
-    !SHA256.test(report?.dialogHost?.stdoutSha256 ?? "") ||
-    JSON.stringify(report?.dialogHost?.result) !== JSON.stringify(diagnostic) ||
-    report?.temporaryRootRemoved !== true
-  ) {
-    throw new Error("Windows picker diagnostic evidence is incomplete");
   }
   assertNoAbsoluteWindowsPaths(report);
   return report;
@@ -633,11 +400,32 @@ export function validateWindowsAcceptanceReport(report) {
   if (report.candidate?.version !== "0.11.0") {
     throw new Error("acceptance candidate must be v0.11.0");
   }
-  validateWinAppToolEvidence(report.nativePickerTool);
   validateWindowsPickerPreflightReport(report.pickerPreflight, {
     candidateSha: report.candidate?.sha,
     workflowRunId: report.workflow?.runId,
   });
+  if (
+    report.nativePickerTool != null ||
+    report.pickerPreset?.method !==
+      "IFileDialog.SetFolder+SetFileName via rfd 0.16.0" ||
+    report.pickerPreset?.ordinaryLaunchUnchangedWhenInactive !== true ||
+    report.pickerPreset?.completeAutomationGateRequired !== true ||
+    report.pickerPreset?.targetEnvironmentReadOnce !== true ||
+    report.pickerPreset?.dedicatedTargetProvided !== true ||
+    report.pickerPreset?.canonicalRunnerRootConfirmed !== true ||
+    report.pickerPreset?.canonicalParentConfirmed !== true ||
+    report.pickerPreset?.parentIsReparsePoint !== false ||
+    report.pickerPreset?.strictTemporaryRootContainment !== true ||
+    report.pickerPreset?.exactFileName !== "voyalier-portable-acceptance.vbk" ||
+    report.pickerPreset?.exactExtension !== ".vbk" ||
+    report.pickerPreset?.targetToken !==
+      "<DIALOG_TEMP>\\voyalier-portable-acceptance.vbk" ||
+    !SHA256.test(report.pickerPreset?.targetSha256 ?? "") ||
+    report.pickerPreset?.externalSetterUsed !== false ||
+    report.pickerPreset?.targetAbsentBeforeSave !== true
+  ) {
+    throw new Error("the dormant Windows picker preset evidence is incomplete");
+  }
   if (report.installed?.before !== "0.10.7") {
     throw new Error("installed base version was not observed");
   }
@@ -792,9 +580,15 @@ export function validateWindowsAcceptanceReport(report) {
   }
   if (
     report.portableBackup?.exportedViaUi !== true ||
-    !hasNativeDialogEvidence(report.portableBackup, report.nativePickerTool) ||
+    !hasNativeDialogEvidence(report.portableBackup) ||
     report.portableBackup?.title !== "Save Voyalier backup" ||
     report.portableBackup?.action !== "Save" ||
+    report.portableBackup?.presetMethod !==
+      "rfd::FileDialog::set_directory+set_file_name" ||
+    report.portableBackup?.returnedPathEqualsPreset !== true ||
+    report.portableBackup?.createdNewFile !== true ||
+    report.portableBackup?.expectedPathSha256 !==
+      report.pickerPreset?.targetSha256 ||
     report.portableBackup?.screenshotPathRedacted !== true ||
     report.portableBackup?.screenshotPathRedacted !==
       report.portableBackup?.screenshotEvidence?.pathRedactionConfirmed ||
@@ -806,8 +600,7 @@ export function validateWindowsAcceptanceReport(report) {
       0 ||
     report.portableBackup?.screenshotEvidence?.written !== true ||
     report.portableBackup?.selectedPathWithinTemp !== true ||
-    typeof report.portableBackup?.fileName !== "string" ||
-    !report.portableBackup.fileName.endsWith(".vbk") ||
+    report.portableBackup?.fileName !== "voyalier-portable-acceptance.vbk" ||
     path.win32.basename(report.portableBackup?.expectedValueToken ?? "") !==
       report.portableBackup.fileName ||
     !(report.portableBackup?.bytes > 0) ||
@@ -817,11 +610,19 @@ export function validateWindowsAcceptanceReport(report) {
   }
   if (
     report.portableRestore?.stagedViaUi !== true ||
-    !hasNativeDialogEvidence(report.portableRestore, report.nativePickerTool) ||
+    !hasNativeDialogEvidence(report.portableRestore) ||
     report.portableRestore?.title !== "Choose a Voyalier backup" ||
     report.portableRestore?.action !== "Open" ||
+    report.portableRestore?.presetMethod !==
+      "rfd::FileDialog::set_directory+set_file_name" ||
+    report.portableRestore?.returnedPathEqualsPreset !== true ||
+    report.portableRestore?.selectedSameTargetAsExport !== true ||
+    report.portableRestore?.expectedPathSha256 !==
+      report.pickerPreset?.targetSha256 ||
     report.portableRestore?.expectedValueToken !==
       report.portableBackup?.expectedValueToken ||
+    report.portableRestore?.preReadSha256 !== report.portableBackup?.sha256 ||
+    report.portableRestore?.preReadSha256MatchesExport !== true ||
     report.portableRestore?.appliedAfterReinstall !== true ||
     report.portableRestore?.postBackupSentinelAbsent !== true
   ) {
