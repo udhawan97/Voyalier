@@ -680,7 +680,11 @@ async function invoke(driver, command, input = null) {
   return result.value;
 }
 
-async function screenshot(driver, name) {
+async function screenshot(
+  driver,
+  name,
+  { expectedRedactedStatusCount = 0 } = {},
+) {
   assert.equal(SCREENSHOT_NAMES.has(name), true, "unexpected screenshot name");
   const redaction = await execute(
     driver,
@@ -713,6 +717,11 @@ async function screenshot(driver, name) {
     `,
   );
   assert.equal(redaction?.redactionExecuted, true);
+  assert.equal(
+    redaction?.redactedStatusCount,
+    expectedRedactedStatusCount,
+    "the screenshot redacted an unexpected number of status messages",
+  );
   assert.equal(redaction?.remainingAbsolutePathMatches, 0);
   const encoded = await fetchDriver(`/session/${driver.sessionId}/screenshot`);
   await writeFile(
@@ -722,6 +731,7 @@ async function screenshot(driver, name) {
   return {
     fileName: name,
     pathRedactionConfirmed: true,
+    redactedStatusCount: redaction.redactedStatusCount,
     remainingAbsolutePathMatches: 0,
     written: true,
   };
@@ -1444,6 +1454,7 @@ async function main() {
     const portableBackupScreenshot = await screenshot(
       driver,
       "04-portable-backup-exported.png",
+      { expectedRedactedStatusCount: 1 },
     );
 
     await clickText(driver, "Volver");

@@ -399,6 +399,12 @@ test("keeps product setup, updater backup, and portable restore on the installed
     screenshotHelper,
     /\.voy-sr-only\[role="status"\]\[aria-live="polite"\]/,
   );
+  assert.match(screenshotHelper, /expectedRedactedStatusCount/);
+  assert.match(screenshotHelper, /redaction\?\.redactedStatusCount/);
+  assert.match(
+    source,
+    /"04-portable-backup-exported\.png",\s*\{\s*expectedRedactedStatusCount: 1/,
+  );
   assert.match(screenshotHelper, /pathRedactionConfirmed: true/);
   assert.doesNotMatch(screenshotHelper, /\.catch\(/);
   assert.doesNotMatch(source, /WScript\.Shell|Set-Clipboard|SendKeys/);
@@ -1327,6 +1333,7 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
       screenshotEvidence: {
         fileName: "04-portable-backup-exported.png",
         pathRedactionConfirmed: true,
+        redactedStatusCount: 1,
         remainingAbsolutePathMatches: 0,
         written: true,
       },
@@ -1501,6 +1508,20 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
         portableBackup: {
           ...report.portableBackup,
           nativeDialogActionConfirmed: false,
+        },
+      }),
+    /portable backup UI evidence is incomplete/,
+  );
+  assert.throws(
+    () =>
+      validateWindowsAcceptanceReport({
+        ...report,
+        portableBackup: {
+          ...report.portableBackup,
+          screenshotEvidence: {
+            ...report.portableBackup.screenshotEvidence,
+            redactedStatusCount: 0,
+          },
         },
       }),
     /portable backup UI evidence is incomplete/,

@@ -696,6 +696,7 @@ export function validateWindowsAcceptanceReport(report) {
       "04-portable-backup-exported.png" ||
     report.portableBackup?.screenshotEvidence?.pathRedactionConfirmed !==
       true ||
+    report.portableBackup?.screenshotEvidence?.redactedStatusCount !== 1 ||
     report.portableBackup?.screenshotEvidence?.remainingAbsolutePathMatches !==
       0 ||
     report.portableBackup?.screenshotEvidence?.written !== true ||
