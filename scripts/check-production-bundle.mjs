@@ -8,8 +8,6 @@ const BEHAVIORAL_PARITY_FILES = [
   "trip-brief.json",
 ];
 
-const BUNDLE_EXTENSIONS = new Set([".css", ".html", ".js", ".mjs"]);
-
 function collectFiles(directory) {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const entryPath = path.join(directory, entry.name);
@@ -45,10 +43,9 @@ const markers = BEHAVIORAL_PARITY_FILES.flatMap((file) => {
 
 const leaks = [];
 for (const bundleFile of collectFiles(bundleDirectory)) {
-  if (!BUNDLE_EXTENSIONS.has(path.extname(bundleFile))) continue;
-  const contents = fs.readFileSync(bundleFile, "utf8");
+  const contents = fs.readFileSync(bundleFile);
   for (const marker of markers) {
-    if (contents.includes(marker.name)) {
+    if (contents.includes(Buffer.from(marker.name, "utf8"))) {
       leaks.push({ ...marker, bundleFile: path.relative(".", bundleFile) });
     }
   }
