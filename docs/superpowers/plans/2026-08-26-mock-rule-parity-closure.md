@@ -16,8 +16,9 @@ product feature can build tests on behavior the real service does not share.
 - Pack suggestions remain deterministic local catalog matches, field suggestions remain local
   previously-known values, and search scoring remains lexical and local.
 - Trip-brief parity must preserve generation-time exclusion: confirmation codes and traveler names
-  never enter the shareable structure. Private trip-item notes, imported text, resources, and chat
-  are absent from the formatter input and stay absent.
+  never enter the shareable structure. Full trip items, including private notes, may enter the
+  formatter; its `BriefTripItem` projection must exclude notes. Imported text, resources, and chat
+  remain outside the formatter input.
 - Test-only exports from `packages/contracts/src/mock.ts` do not expand `AppGateway`; they exist only
   so the web parity suite can exercise the shipped mock's pure mirrors directly.
 - Amend ADR-0004 with the four new goldens and remove its completed debt list. No new ADR is needed
@@ -31,10 +32,11 @@ Add shared goldens for `suggest_packs` / `mockSuggestPacks` and
 Acceptance:
 
 - Pack cases cover blank and unknown destinations, exact city/article matches, aliases, ambiguous
-  country matches, region partial matches, tier ordering, and the complete mock-supported catalog
-  metadata returned on the wire.
+  country matches, region partial matches, and tier ordering. A compact production artifact pins the
+  complete catalog plus the private alias and stopword tables without shipping behavioral fixtures.
 - Field cases cover trimming, blank removal, case-insensitive deduplication, empty queries, prefix
-  before substring, stable source priority, preserved detail, Unicode text, and the eight-result cap.
+  before substring, stable source priority, preserved detail, Rust's Unicode whitespace boundaries,
+  contextual Unicode lowercase behavior, and the eight-result cap.
 - Both Rust and TypeScript pin the exact case count and compare serialized output.
 
 ## Slice 2 - Pin lexical search scoring
@@ -46,8 +48,9 @@ implementation merely to reach it.
 Acceptance:
 
 - Cases cover no match, duplicate query-token handling at the caller boundary, distinct-token and
-  occurrence counts, overlapping occurrence semantics, earliest-token selection, Unicode, and
-  saturating/bounded output behavior where applicable.
+  occurrence counts, overlapping occurrence semantics, earliest-token selection, Rust's U+0085 and
+  U+FEFF whitespace boundaries, contextual Unicode lowercase behavior, and saturating/bounded output
+  behavior where applicable.
 - The golden pins the helper's serialized `{ matched, occurrences, first }` output without changing
   the public search contract or ranking algorithm.
 
@@ -60,8 +63,8 @@ Acceptance:
 - Cases cover empty and full trips; flights, stays, every surface mode, and every trip-item kind;
   chronological and stable tie ordering; optional wire-field omission; and a fixed `generatedAt`.
 - Expected output proves confirmation codes, passenger/guest names, and private trip-item notes do
-  not enter the brief, while the sharing policy deliberately retains a lodging address and public
-  station/port/depot names.
+  not enter the brief, including name fields placed on a non-customary fact family, while the sharing
+  policy deliberately retains a lodging address and public station/port/depot names.
 - A structural assertion scans both input fixtures and output to prove the sensitive canaries exist
   only in input and never in expected/actual output.
 
@@ -86,4 +89,6 @@ Acceptance:
 1. `Docs: plan mock rule parity closure`
 2. `Core+contract+test: pin remaining mock rule mirrors`
 3. `Docs: close mock rule parity debt`
-4. `Merge: mock rule parity closure`
+4. `Core+contract+test: resolve council parity blockers`
+5. `Docs: record council parity hardening`
+6. `Merge: mock rule parity closure`

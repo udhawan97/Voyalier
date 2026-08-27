@@ -49,6 +49,12 @@ The redacted brief mirror had also delegated ordering to locale-aware
 that put the `"~"` sentinel before dated items, so undated ideas appeared first
 in mock mode and last through the real service.
 
+Round-one review then found two boundary mismatches the first goldens did not
+exercise. ECMAScript whitespace excludes U+0085 and includes U+FEFF, the inverse
+of Rust at those two points. The mock also removed `passengerName` only from
+transport and `guestName` only from lodging, while core applies the sharing
+policy before fact classification and therefore removes both from every family.
+
 ## Decision
 
 Facts both languages must agree on live in `packages/contracts/parity/*.json`.
@@ -58,10 +64,12 @@ its mock to the same file. Drift on either side fails a test.
 The initial decision covered `limits.json`, `normalize-place.json`,
 `prompts.json`, `readiness-links.json`, and `assess-trip.json`. Later slices
 extended the same pattern to other pure mirrors; this closure adds
-`pack-suggestions.json`, `field-suggestions.json`, `search-score.json`, and
-`trip-brief.json`. Where a value can simply be _read_ rather than mirrored — the
-prompts, links, and pack catalog — the mock imports the file directly, so there
-is one copy of the data and nothing to keep in sync.
+`pack-catalog.json`, `pack-suggestions.json`, `field-suggestions.json`,
+`search-score.json`, and `trip-brief.json`. Where a value can simply be _read_
+rather than mirrored — the prompts, links, pack catalog, aliases, and region
+stopwords — the mock imports the compact artifact directly, so there is one
+production copy of the data and behavioral test cases do not enter the web
+bundle.
 
 `assess-trip.json` pins rule **output**, not just constants: twelve hand-designed
 trips, each with the itinerary conflicts and readiness rollup they produce. The
@@ -76,17 +84,20 @@ therefore omitting surface journeys entirely.
 
 The four closure goldens pin the remaining pure mirrors named by this ADR:
 
-- `pack-suggestions.json` owns the complete catalog and exercises exact, alias,
-  partial, ambiguous-region, and ordering behavior.
+- `pack-catalog.json` owns the complete catalog and private alias/stopword
+  tables; `pack-suggestions.json` exercises exact, alias, partial,
+  ambiguous-region, and ordering behavior.
 - `field-suggestions.json` exercises trimming, case-insensitive deduplication,
-  ranking, metadata preservation, Unicode, and the eight-result cap.
+  ranking, metadata preservation, Rust's Unicode whitespace boundaries, and the
+  eight-result cap.
 - `search-score.json` pins query-token deduplication and the private lexical
-  helper's coverage, occurrence, and earliest-token result without exposing the
-  Rust helper publicly.
+  helper's coverage, occurrence, earliest-token result, and U+0085/U+FEFF split
+  boundary without exposing the Rust helper publicly.
 - `trip-brief.json` pins ordering and wire omission across flights, stays, every
   surface mode, and traveler-authored items. Sensitive canaries prove that
-  confirmation codes, traveler names, and private item notes exist in the
-  inputs and never enter expected or actual share output.
+  confirmation codes, traveler names (including names placed on a different
+  fact family), and private item notes exist in the inputs and never enter
+  expected or actual share output.
 
 Units are part of the agreement, not an implementation detail: every limit counts
 characters, and `countChars` in the contract gives that a name so `.length` never
