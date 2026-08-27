@@ -1,10 +1,62 @@
 # Changelog
 
-All notable changes will be documented here once Voyalier begins publishing releases.
+Notable changes to each published Voyalier release are documented here.
 
 The project follows Semantic Versioning and keeps unreleased work under the section below.
 
 ## [Unreleased]
+
+## [0.11.1] - 2026-08-27 — The day returns to its source
+
+Travel-day summaries now preserve the route back to the local record that made
+them useful, and the development mock is held to the same deterministic rules
+as the Rust core. This release adds no provider, migration, route, background
+action, booking ability, or new authority claim.
+
+### Added
+
+- **Every Today entry can return to its source record.** Departures, arrivals,
+  check-ins, check-outs, overnight stays, and traveler-authored plan items now
+  carry an optional local target. **Show in Plan** focuses the exact confirmed
+  fact or plan row, including the next anchor. Targets remain entry-scoped and
+  never enter URL history; if the record disappeared, Voyalier opens Plan and
+  says the exact item is unavailable.
+- **Disruption dependencies can open their confirmations.** Each handoff,
+  exposed leg, and operator pointer in **If something slips** can focus the
+  confirmed fact behind it. The projection still uses only local plan times and
+  labels: it does not fetch live status, predict a delay, find an alternative,
+  or claim that a connection will work.
+
+### Fixed
+
+- **The shipped mock now matches the Rust core across the remaining pure rule
+  mirrors.** Shared parity cases pin Today, city-pack suggestions, field-value
+  suggestions, lexical scoring, and the redacted brief. The work corrected
+  Unicode whitespace handling, completed the pack catalog and alias table,
+  aligned undated brief ordering, and applied sharing exclusions across every
+  fact family before projection.
+- **Behavioral parity fixtures are now rejected from production bundles.** The
+  web gate derives canary markers from the shared goldens and scans every emitted
+  asset as bytes. The runtime receives only the compact catalog and rule data it
+  needs; the fixtures and sensitive boundary cases remain test-only.
+
+### Changed
+
+- **The public proof now shows a populated travel day and its bounded disruption
+  view.** README, product site, guides, roadmap, and desktop notes describe the
+  current source behavior and platform-signing limits. The screenshots use a
+  disposable fictional workspace with no personal data.
+- **The v0.11.0 evidence record was corrected after publication.** Its release
+  notes now distinguish candidate/tree-equivalence proof from exact-tag proof,
+  name the Windows native-picker fix, and link to the corrected main changelog.
+  No v0.11.0 binary was changed.
+
+### Not changed
+
+- Today and disruption remain deterministic local projections, not monitoring
+  or operational advice. Voyalier still does not book travel or claim authority
+  over visas, safety, health, prices, availability, opening hours, or whether a
+  connection will succeed.
 
 ## [0.11.0] - 2026-08-26 — The shortlist stays yours
 
