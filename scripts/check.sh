@@ -12,6 +12,7 @@ DESKTOP_CRATES=(-p voyalier-desktop)
 stage_web() {
   pnpm format:check
   pnpm check
+  node scripts/check-production-bundle.mjs
   # The pack-pipeline scripts. These ran only inside packs.yml, which is exactly
   # the drift AGENTS.md warns about: the workflow is manual, so a change to a
   # publisher could sit broken on main until someone published.

@@ -77,7 +77,8 @@ Acceptance:
    an intentional mirror mutation, then revert the mutation.
 4. Resolve any real drift in the mock and amend ADR-0004.
 5. Run focused Rust and Vitest parity suites, contracts/web typechecks, `make check`, production
-   dependency audit, credential scan, locked Cargo metadata, and `git diff --check`.
+   dependency audit, an automated production-bundle exclusion check, credential scan, locked Cargo
+   metadata, and `git diff --check`.
 6. Refresh Graphify and verify a scoped query connects all four golden pairs.
 7. Run exactly two four-seat council rounds and resolve every valid blocker.
 8. Close the branch with `Merge: mock rule parity closure`, fast-forward verified `main`, push it,
@@ -91,4 +92,5 @@ Acceptance:
 3. `Docs: close mock rule parity debt`
 4. `Core+contract+test: resolve council parity blockers`
 5. `Docs: record council parity hardening`
-6. `Merge: mock rule parity closure`
+6. `Test+docs: enforce parity fixtures stay out of bundles`
+7. `Merge: mock rule parity closure`
