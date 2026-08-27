@@ -35,11 +35,12 @@ function FactAction({
  *
  * The voice here is the whole feature. It states exposure and stops: it never
  * proposes an alternative service, never reassures, and never implies a
- * probability. "Your connection has 45 minutes" is a fact this workspace can
- * stand behind; "you'll be fine" is not.
+ * probability. "The recorded gap is 45 minutes" is a fact this workspace can
+ * stand behind; "the connection should work" is not.
  *
- * The minutes lead and the band follows, because the band is a caution this
- * product authored and the minutes are the traveler's own evidence.
+ * Every interval is labeled as recorded arithmetic. The core still carries a
+ * band for deterministic ordering and parity, but the UI does not turn a
+ * product-authored threshold into reassurance or connection advice.
  */
 export function DisruptionPanel({
   plan,
@@ -76,7 +77,7 @@ export function DisruptionPanel({
               return (
                 <li
                   key={`${handoff.fromFactId}-${handoff.toFactId}-${handoff.kind}`}
-                  className={`voy-disruption__handoff voy-disruption__handoff--${handoff.band}`}
+                  className="voy-disruption__handoff"
                 >
                   <span className="voy-disruption__handoff-copy">
                     <span className="voy-disruption__slack">
@@ -84,9 +85,6 @@ export function DisruptionPanel({
                     </span>
                     <span className="voy-disruption__between">
                       {t(`disruption.handoff.${handoff.kind}`, { from, to })}
-                    </span>
-                    <span className="voy-disruption__band">
-                      {t(`disruption.band.${handoff.band}`)}
                     </span>
                   </span>
                   <span className="voy-disruption__actions">
@@ -160,7 +158,7 @@ export function DisruptionPanel({
 }
 
 /**
- * The minutes, in the traveler's own units.
+ * The recorded interval, in the traveler's own units.
  *
  * A negative gap is not "minus ninety minutes of slack" — it is a commitment
  * that starts before the thing it follows, and saying so plainly is the only
@@ -168,20 +166,24 @@ export function DisruptionPanel({
  */
 function slackText(handoff: Handoff): string {
   if (handoff.slackMinutes < 0) {
-    return t("disruption.slack.before", {
+    return t("disruption.slack.overlap", {
       minutes: String(Math.abs(handoff.slackMinutes)),
     });
   }
   const hours = Math.floor(handoff.slackMinutes / 60);
   const minutes = handoff.slackMinutes % 60;
-  if (hours === 0)
-    return t("disruption.slack.minutes", { minutes: String(minutes) });
-  if (minutes === 0)
-    return t("disruption.slack.hours", { hours: String(hours) });
-  return t("disruption.slack.hoursMinutes", {
-    hours: String(hours),
-    minutes: String(minutes),
-  });
+  let duration: string;
+  if (hours === 0) {
+    duration = t("disruption.slack.minutes", { minutes: String(minutes) });
+  } else if (minutes === 0) {
+    duration = t("disruption.slack.hours", { hours: String(hours) });
+  } else {
+    duration = t("disruption.slack.hoursMinutes", {
+      hours: String(hours),
+      minutes: String(minutes),
+    });
+  }
+  return t("disruption.slack.gap", { duration });
 }
 
 /**

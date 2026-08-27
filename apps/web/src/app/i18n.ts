@@ -1281,7 +1281,7 @@ const en = {
   // The voice: state exposure, never reassure, never propose an alternative.
   "disruption.title": "If something slips",
   "disruption.lede":
-    "Where this plan depends on the previous thing going right. Voyalier cannot tell you whether another service exists — only what you would have to replace, and how long you would have.",
+    "Where this plan depends on the previous thing going right. Voyalier cannot tell you whether another service exists — only which commitments are related and the recorded time between them.",
   "disruption.handoffs.title": "Hand-offs",
   "disruption.handoff.connection": "between {from} and {to}",
   "disruption.handoff.rental_pickup": "between {from} and collecting {to}",
@@ -1289,25 +1289,20 @@ const en = {
   "disruption.slack.minutes": "{minutes} min",
   "disruption.slack.hours": "{hours} h",
   "disruption.slack.hoursMinutes": "{hours} h {minutes} min",
-  "disruption.slack.before": "{minutes} min before",
-  // Cautions Voyalier authored, not any carrier's minimum connection time.
-  "disruption.band.impossible": "starts before the one before it ends",
-  "disruption.band.tight": "tight",
-  "disruption.band.short": "short",
-  "disruption.band.comfortable": "comfortable",
-  "disruption.band.ample": "ample",
+  "disruption.slack.gap": "Recorded gap: {duration}",
+  "disruption.slack.overlap": "Recorded overlap: {minutes} min",
   "disruption.exposed.title": "What is stacked behind what",
   "disruption.exposed.line.one":
-    "{subject} can run {minutes} min late before the next thing is missed. One commitment follows it.",
+    "The nearest hand-off recorded after {subject} has a {minutes} min gap. One commitment is stacked behind it.",
   "disruption.exposed.line.other":
-    "{subject} can run {minutes} min late before the next thing is missed. {count} commitments follow it.",
+    "The nearest hand-off recorded after {subject} has a {minutes} min gap. {count} commitments are stacked behind it.",
   "disruption.pointers.title": "What you already have",
   "disruption.pointers.note":
-    "Voyalier does not keep operators' contact details — they change, and a wrong one is worse than none. These come from your own records.",
-  "disruption.openFact": "Show confirmation",
-  "disruption.openFact.label": "Show confirmation: {subject}",
+    "Operator pointers repeat only the name recorded on the fact. Voyalier does not keep contact details or claim that the record includes one.",
+  "disruption.openFact": "Show record",
+  "disruption.openFact.label": "Show record: {subject}",
   "disruption.pointer.carrier":
-    "{carrier} — the number that reaches them is on your own confirmation.",
+    "{carrier} is the operator recorded on this fact.",
   "disruption.pointer.airport":
     "{name} ({iata}) is about {km} km away. Geography only: nothing here says a service runs from it.",
   "disruption.pointer.mission":
@@ -2898,7 +2893,7 @@ const es: Record<MessageKey, string> = {
   // --- Cuaderno de contingencias (ADR-0016 §2) -----------------------------
   "disruption.title": "Si algo se retrasa",
   "disruption.lede":
-    "Dónde este plan depende de que lo anterior salga bien. Voyalier no puede decirte si existe otro servicio, solo qué tendrías que reemplazar y cuánto tiempo tendrías.",
+    "Dónde este plan depende de que lo anterior salga bien. Voyalier no puede decirte si existe otro servicio, solo qué compromisos están relacionados y el tiempo registrado entre ellos.",
   "disruption.handoffs.title": "Enlaces",
   "disruption.handoff.connection": "entre {from} y {to}",
   "disruption.handoff.rental_pickup": "entre {from} y recoger {to}",
@@ -2906,24 +2901,20 @@ const es: Record<MessageKey, string> = {
   "disruption.slack.minutes": "{minutes} min",
   "disruption.slack.hours": "{hours} h",
   "disruption.slack.hoursMinutes": "{hours} h {minutes} min",
-  "disruption.slack.before": "{minutes} min antes",
-  "disruption.band.impossible": "empieza antes de que termine lo anterior",
-  "disruption.band.tight": "justo",
-  "disruption.band.short": "corto",
-  "disruption.band.comfortable": "cómodo",
-  "disruption.band.ample": "amplio",
+  "disruption.slack.gap": "Intervalo registrado: {duration}",
+  "disruption.slack.overlap": "Solapamiento registrado: {minutes} min",
   "disruption.exposed.title": "Qué depende de qué",
   "disruption.exposed.line.one":
-    "{subject} puede retrasarse {minutes} min antes de perder lo siguiente. Le sigue un compromiso.",
+    "El enlace registrado más próximo después de {subject} tiene un intervalo de {minutes} min. Hay un compromiso detrás.",
   "disruption.exposed.line.other":
-    "{subject} puede retrasarse {minutes} min antes de perder lo siguiente. Le siguen {count} compromisos.",
+    "El enlace registrado más próximo después de {subject} tiene un intervalo de {minutes} min. Hay {count} compromisos detrás.",
   "disruption.pointers.title": "Lo que ya tienes",
   "disruption.pointers.note":
-    "Voyalier no guarda los datos de contacto de los operadores: cambian, y uno equivocado es peor que ninguno. Estos salen de tus propios registros.",
-  "disruption.openFact": "Mostrar confirmación",
-  "disruption.openFact.label": "Mostrar confirmación: {subject}",
+    "Los operadores repiten solo el nombre registrado en el dato. Voyalier no guarda datos de contacto ni afirma que el registro los incluya.",
+  "disruption.openFact": "Mostrar registro",
+  "disruption.openFact.label": "Mostrar registro: {subject}",
   "disruption.pointer.carrier":
-    "{carrier}: el número para contactarlos está en tu propia confirmación.",
+    "{carrier} es el operador registrado en este dato.",
   "disruption.pointer.airport":
     "{name} ({iata}) está a unos {km} km. Solo geografía: nada aquí dice que salga un servicio desde allí.",
   "disruption.pointer.mission":

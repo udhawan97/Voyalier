@@ -64,7 +64,7 @@ matching installer and keeps the GitHub Releases page as a fallback.
   traveler-authored plan that produced it. If that record has disappeared,
   Voyalier opens Plan and says the exact target is unavailable; record ids never
   enter URL history.
-- **If something slips** can open the confirmations behind a handoff, an exposed
+- **If something slips** can open the records behind a handoff, an exposed
   connection, or an operator pointer. It still performs no live-status lookup,
   predicts no delay, and makes no claim that an alternative service exists.
 - The shipped TypeScript mock now matches the Rust core across Today, city-pack
@@ -111,7 +111,7 @@ The useful parts work without a paid model or provider key.
 | **Trips**               | Create, edit, archive, restore, and delete trips; remember the active trip and section; build a deterministic Blueprint.                                               |
 | **Confirmations**       | Import text, HTML, `.eml`, or local files; preserve parser runs, excerpts, field spans, and warnings.                                                                  |
 | **Review**              | Filter locally by warning, fact type, or extraction method, then confirm, edit and confirm, dismiss, or undo one candidate at a time; nothing is promoted silently.    |
-| **Itinerary**           | Order confirmed transport and stays; report literal overlaps, lodging gaps, handoff slack, and exposed connections without inventing predictions.                      |
+| **Itinerary**           | Order confirmed transport and stays; report literal overlaps, lodging gaps, recorded handoff gaps, and stacked commitments without inventing predictions.              |
 | **Readiness**           | Explain logistics gaps, open the local context that can address each finding, and link to official entry/health sources without making authority claims.               |
 | **Visa preparation**    | Keep passport-specific preparation, dated official sources, a universal guide, traveler ticks, and sealed notes clearly separated from a visa decision.                |
 | **Live context**        | Fetch official advice, destination weather, page snapshots, packs, maps, or a manual trip re-check only after an explicit action. There is no background monitoring.   |
@@ -136,13 +136,13 @@ bar carries only the trip and section, never the private record target.
 ### A disruption view names dependencies, not outcomes
 
 <p align="center">
-  <img src="docs-site/public/assets/screenshots/voyalier-disruption-plan.jpg" alt="Voyalier disruption panel for a fictional trip, showing two deterministic handoffs, exposed connections, and return-to-confirmation actions" width="1100">
+  <img src="docs-site/public/assets/screenshots/voyalier-disruption-plan.jpg" alt="Voyalier disruption panel for a fictional trip, showing recorded handoff gaps, stacked commitments, and return-to-record actions" width="1100">
 </p>
 
-Voyalier calculates handoff slack from the local times already in the plan and
-shows which later commitments depend on each leg. It can return to the evidence
-you already have; it cannot see live operations, find an alternative, or tell
-you whether a connection will work.
+Voyalier calculates recorded gaps from the local times already in the plan and
+shows which later commitments are stacked behind each leg. It can return to the
+record you already have; it cannot judge a connection, see live operations, or
+find an alternative.
 
 ### The map keeps the traveler’s choice distinct
 

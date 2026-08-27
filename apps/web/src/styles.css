@@ -5386,21 +5386,11 @@ body::before {
   margin-inline-start: auto;
 }
 
-/* The minutes lead, because they are the traveler's own evidence; the band
- * follows, because it is a caution this product authored. */
+/* The recorded interval leads; no color band turns local arithmetic into
+ * reassurance or a minimum-connection judgment. */
 .voy-disruption__slack {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
-}
-
-.voy-disruption__band {
-  font-size: 0.8125rem;
-  opacity: 0.85;
-}
-
-.voy-disruption__handoff--impossible,
-.voy-disruption__handoff--tight {
-  border-inline-start-color: var(--voy-warn, #b45309);
 }
 
 .voy-disruption__exposed,

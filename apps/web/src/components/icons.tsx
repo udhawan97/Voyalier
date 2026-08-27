@@ -237,7 +237,7 @@ export const GearIcon = (p: SVGProps<SVGSVGElement>) => (
  * A branching path: one line that forks and rejoins.
  *
  * Deliberately not a warning triangle. The disruption panel states exposure,
- * not alarm, and a hazard mark beside "your connection has 45 minutes" would
+ * not alarm, and a hazard mark beside "the recorded gap is 45 minutes" would
  * read as a prediction that something will go wrong.
  */
 export const RouteIcon = (p: SVGProps<SVGSVGElement>) => (

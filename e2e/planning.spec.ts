@@ -88,7 +88,7 @@ test("disruption continuity reflows and activates from the keyboard", async ({
   ).toBe(true);
 
   const flightAction = handoff.getByRole("button", {
-    name: "Show confirmation: Flight FP18",
+    name: "Show record: Flight FP18",
   });
   await flightAction.focus();
   await page.keyboard.press("Enter");

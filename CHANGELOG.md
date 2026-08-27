@@ -21,11 +21,11 @@ action, booking ability, or new authority claim.
   fact or plan row, including the next anchor. Targets remain entry-scoped and
   never enter URL history; if the record disappeared, Voyalier opens Plan and
   says the exact item is unavailable.
-- **Disruption dependencies can open their confirmations.** Each handoff,
+- **Disruption dependencies can open their records.** Each handoff,
   exposed leg, and operator pointer in **If something slips** can focus the
-  confirmed fact behind it. The projection still uses only local plan times and
-  labels: it does not fetch live status, predict a delay, find an alternative,
-  or claim that a connection will work.
+  approved fact behind it. Recorded gaps and stacked commitments use only local
+  plan times and labels: the projection does not fetch live status, predict a
+  delay, grade a connection, find an alternative, or invent contact details.
 
 ### Fixed
 

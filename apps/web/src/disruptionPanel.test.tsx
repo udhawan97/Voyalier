@@ -27,15 +27,14 @@ describe("disruption playbook", () => {
 
   it("reports the real slack and names the leg it comes off", async () => {
     const panel = await openPlaybook();
-    expect(within(panel).getByText("45 min")).toBeInTheDocument();
-    // 45 minutes off a flight is tight; the band is secondary to the number.
-    expect(within(panel).getByText("tight")).toBeInTheDocument();
+    expect(within(panel).getByText("Recorded gap: 45 min")).toBeInTheDocument();
+    expect(panel.textContent).not.toMatch(/tight|comfortable|ample/i);
     expect(
       within(panel).getByText(/between Flight FP18 and Train NX41/),
     ).toBeInTheDocument();
   });
 
-  it("opens each confirmation behind a hand-off", async () => {
+  it("opens each record behind a hand-off", async () => {
     const panel = await openPlaybook();
     const handoff = within(panel)
       .getByText(/between Flight FP18 and Train NX41/)
@@ -43,12 +42,12 @@ describe("disruption playbook", () => {
     expect(handoff).not.toBeNull();
     const actions = within(handoff!).getAllByRole("button");
     expect(actions).toHaveLength(2);
-    expect(actions[0]).toHaveAccessibleName("Show confirmation: Flight FP18");
-    expect(actions[1]).toHaveAccessibleName("Show confirmation: Train NX41");
+    expect(actions[0]).toHaveAccessibleName("Show record: Flight FP18");
+    expect(actions[1]).toHaveAccessibleName("Show record: Train NX41");
     expect(actions.every((action) => action.tabIndex === 0)).toBe(true);
     fireEvent.click(
       within(handoff!).getByRole("button", {
-        name: "Show confirmation: Flight FP18",
+        name: "Show record: Flight FP18",
       }),
     );
     await waitFor(() =>
@@ -61,7 +60,7 @@ describe("disruption playbook", () => {
 
     fireEvent.click(
       within(handoff!).getByRole("button", {
-        name: "Show confirmation: Train NX41",
+        name: "Show record: Train NX41",
       }),
     );
     await waitFor(() =>
@@ -69,15 +68,15 @@ describe("disruption playbook", () => {
     );
   });
 
-  it("opens the exposed leg's confirmation", async () => {
+  it("opens the exposed leg's record without predicting lateness", async () => {
     const panel = await openPlaybook();
     const exposed = within(panel)
-      .getByText(/Flight FP18 can run 45 min late/)
+      .getByText(/nearest hand-off recorded after Flight FP18 has a 45 min gap/)
       .closest("li");
     expect(exposed).not.toBeNull();
     fireEvent.click(
       within(exposed!).getByRole("button", {
-        name: "Show confirmation: Flight FP18",
+        name: "Show record: Flight FP18",
       }),
     );
     await waitFor(() =>
@@ -85,17 +84,17 @@ describe("disruption playbook", () => {
     );
     expect(
       within(panel).getAllByRole("button", {
-        name: "Show confirmation: Flight FP18",
+        name: "Show record: Flight FP18",
       }).length,
     ).toBeGreaterThan(1);
   });
 
-  it("opens a carrier pointer without proposing an alternative service", async () => {
+  it("opens an operator record without inventing contact details", async () => {
     const panel = await openPlaybook();
     // Every pointer is about something the traveler already holds — one per
     // operator their own confirmations name, and nothing else.
     const carriers = within(panel).getAllByText(
-      /the number that reaches them is on your own confirmation/,
+      /is the operator recorded on this fact/,
     );
     expect(carriers).toHaveLength(2);
     expect(carriers[0].textContent).toMatch(/Fictional Pacific/);
@@ -106,7 +105,7 @@ describe("disruption playbook", () => {
     expect(railPointer).not.toBeNull();
     fireEvent.click(
       within(railPointer!).getByRole("button", {
-        name: "Show confirmation: Fictional Rail",
+        name: "Show record: Fictional Rail",
       }),
     );
     await waitFor(() =>
@@ -114,7 +113,7 @@ describe("disruption playbook", () => {
     );
     // And no language that implies another service exists or that it will be OK.
     expect(panel.textContent).not.toMatch(
-      /instead|rebook|alternative route|you'?ll be fine/i,
+      /instead|rebook|alternative route|you'?ll be fine|phone|number that reaches/i,
     );
   });
 
@@ -185,7 +184,7 @@ describe("disruption playbook", () => {
     });
     expect(
       within(panel).getAllByRole("button", {
-        name: "Mostrar confirmación: Vuelo FP18",
+        name: "Mostrar registro: Vuelo FP18",
       }).length,
     ).toBeGreaterThan(1);
   });
@@ -219,7 +218,7 @@ describe("disruption playbook", () => {
     expect(handoff).not.toBeNull();
     fireEvent.click(
       within(handoff!).getByRole("button", {
-        name: "Show confirmation: Flight FP18",
+        name: "Show record: Flight FP18",
       }),
     );
 
