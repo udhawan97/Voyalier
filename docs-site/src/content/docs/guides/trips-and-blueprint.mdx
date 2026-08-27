@@ -21,9 +21,9 @@ them so you can reopen one whenever you need it.
 ## The Blueprint
 
 Inside a trip, the **Blueprint** is a deterministic view of your confirmed
-flights and stays in itinerary order. It is built only from facts you have
-confirmed — never from a model — so it always reflects exactly what you have
-entered or reviewed.
+flights, stays, trains, coaches, ferries, and hire cars in itinerary order. It is
+built only from facts you have confirmed — never from a model — so it always
+reflects exactly what you have entered or reviewed.
 
 Two deterministic checks run over the Blueprint and surface as advisory findings,
 never as blockers:
@@ -37,7 +37,7 @@ never as blockers:
 
 ## Adding reservations
 
-You can add a flight or stay two ways:
+You can add a flight, stay, train, coach, ferry, or hire car two ways:
 
 - **Manually**, by entering its details directly.
 - **By importing a confirmation** and reviewing what Voyalier extracts — see
@@ -51,9 +51,32 @@ uploaded.
 
 At the top of an active trip, an offline **Today** summary shows where the trip
 stands right now: its phase (upcoming, active, or completed, with day counts),
-today's departures, arrivals, check-ins, and clearly separate manual plans, plus
-the next anchor coming up. It is computed from local records against the current
-date — no network, no model.
+today's departures, arrivals, check-ins, and clearly separate traveler-authored
+plans, plus the next anchor coming up. It is computed from local records against
+the current date — no network, no model.
+
+Each row and the next anchor offers **Show in Plan**. A confirmed departure,
+arrival, or stay opens its exact fact; a traveler-authored activity or transfer
+opens its exact plan row. The target stays in entry-scoped memory rather than the
+URL. If the record was removed before the action completes, Voyalier opens Plan
+and says the exact item is no longer available.
+
+![The current-source Voyalier fictional Kyoto workspace on day two, with a populated Today schedule and Show in Plan actions.](/Voyalier/assets/screenshots/voyalier-trip-workspace.jpg)
+
+## If something slips
+
+The disruption view is another deterministic projection of the confirmed plan.
+It shows the time between consecutive transport legs, which later commitments
+are stacked behind a leg, and operator names already present in your own
+records. **Show confirmation** returns to the exact confirmed fact behind any of
+those rows.
+
+This is not delay prediction or live operations data. Voyalier does not know
+whether a service is late, whether another departure exists, or whether an
+operator can help. It shows what the local plan depends on and where the
+traveler's existing evidence lives.
+
+![Voyalier's deterministic disruption view for a fictional trip, with handoff slack, exposed connections, and return-to-confirmation actions.](/Voyalier/assets/screenshots/voyalier-disruption-plan.jpg)
 
 ## Find in this trip
 

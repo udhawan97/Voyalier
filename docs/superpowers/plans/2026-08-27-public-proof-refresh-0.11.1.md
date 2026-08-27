@@ -31,17 +31,17 @@ surface, then publishes the backward-compatible result as v0.11.1.
 
 ## Evidence and coverage ledger
 
-| Surface or claim | Source of truth | Status | Public destination | Verification |
-| --- | --- | --- | --- | --- |
-| Local-first trip workspace | App runtime, `AGENTS.md`, storage and network tests | Shipped | README, homepage, introduction | Disposable runtime plus tests |
-| Today source return | `today.rs`, `TodayPanel`, route tests and Playwright | Candidate | README, homepage, travel-day guide | Current-source browser journey |
-| Disruption continuity | Core contingency rules, `DisruptionPanel`, E2E | Candidate | Homepage and travel-day guide | Current-source browser journey |
-| Mock-mode conformance | Shared parity goldens and both-language tests | Candidate, internal trust | Architecture/release notes only | Focused parity plus full gate |
-| macOS Apple Silicon download | v0.11.0 release pattern and release workflow | Shipped; v0.11.1 pending | README, homepage, download guide | Anonymous artifact and checksum verification |
-| Windows x64 downloads | v0.11.0 release pattern and release workflow | Shipped; v0.11.1 pending | README, homepage, download guide | Installed acceptance, artifacts, checksums |
-| Updater authenticity | Tauri config, protected workflow, signatures | Shipped | Download/update guides | `latest.json`, signatures, exact artifact bindings |
-| Platform publisher identity | Installer metadata and public install guidance | Unavailable | Download, troubleshooting, release notes | Artifact inspection and first-launch copy |
-| Screenshots | Disposable current-source workspace | Candidate | README and homepage | Deterministic capture and visual inspection |
+| Surface or claim             | Source of truth                                      | Status                    | Public destination                       | Verification                                       |
+| ---------------------------- | ---------------------------------------------------- | ------------------------- | ---------------------------------------- | -------------------------------------------------- |
+| Local-first trip workspace   | App runtime, `AGENTS.md`, storage and network tests  | Shipped                   | README, homepage, introduction           | Disposable runtime plus tests                      |
+| Today source return          | `today.rs`, `TodayPanel`, route tests and Playwright | Candidate                 | README, homepage, travel-day guide       | Current-source browser journey                     |
+| Disruption continuity        | Core contingency rules, `DisruptionPanel`, E2E       | Candidate                 | Homepage and travel-day guide            | Current-source browser journey                     |
+| Mock-mode conformance        | Shared parity goldens and both-language tests        | Candidate, internal trust | Architecture/release notes only          | Focused parity plus full gate                      |
+| macOS Apple Silicon download | v0.11.0 release pattern and release workflow         | Shipped; v0.11.1 pending  | README, homepage, download guide         | Anonymous artifact and checksum verification       |
+| Windows x64 downloads        | v0.11.0 release pattern and release workflow         | Shipped; v0.11.1 pending  | README, homepage, download guide         | Installed acceptance, artifacts, checksums         |
+| Updater authenticity         | Tauri config, protected workflow, signatures         | Shipped                   | Download/update guides                   | `latest.json`, signatures, exact artifact bindings |
+| Platform publisher identity  | Installer metadata and public install guidance       | Unavailable               | Download, troubleshooting, release notes | Artifact inspection and first-launch copy          |
+| Screenshots                  | Disposable current-source workspace                  | Candidate                 | README and homepage                      | Deterministic capture and visual inspection        |
 
 Unsupported metrics, autonomous behavior, background monitoring, commercial
 availability claims, and future-platform download claims remain excluded.

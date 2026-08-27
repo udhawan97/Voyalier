@@ -55,24 +55,22 @@ matching installer and keeps the GitHub Releases page as a fallback.
 > source of truth for downloadable version.
 
 <p align="center">
-  <img src="docs-site/public/assets/screenshots/voyalier-trip-workspace.jpg" alt="Current-source Voyalier workspace for a fictional Kyoto trip, with Today, pending suggestions, and the Blueprint" width="1100">
+  <img src="docs-site/public/assets/screenshots/voyalier-trip-workspace.jpg" alt="Current-source Voyalier workspace for a fictional Kyoto trip on day two, with a source-linked Today schedule" width="1100">
 </p>
 
-## What changed in 0.11.0
+## What changed in 0.11.1
 
-- The consent-opened map now puts saved places ahead of suggestions, gives each
-  state its own marker and text label, and keeps the shortlist visible if
-  recommendation loading fails or the source pack is later removed.
-- Packing now shows honest progress from accepted checklist items only. You can
-  hide completed rows locally without changing or deleting them; suggestions do
-  not enter the count until you add them.
-- The redacted brief now includes surface journeys and can be copied as readable
-  plain text beside Print / Save as PDF. The copy formatter cannot name
-  confirmation codes, traveler names, imported text, resources, or private plan
-  notes, and clipboard denial is reported instead of being called success.
-- Repeated row controls now identify the record they act on, while trip creation
-  and searchable-record assembly each have one implementation rather than two
-  drifting copies.
+- Every Today row and next anchor can return to the confirmed fact or
+  traveler-authored plan that produced it. If that record has disappeared,
+  Voyalier opens Plan and says the exact target is unavailable; record ids never
+  enter URL history.
+- **If something slips** can open the confirmations behind a handoff, an exposed
+  connection, or an operator pointer. It still performs no live-status lookup,
+  predicts no delay, and makes no claim that an alternative service exists.
+- The shipped TypeScript mock now matches the Rust core across Today, city-pack
+  suggestions, field suggestions, lexical scoring, and redacted briefs. Shared
+  parity cases stay test-only, and the web gate rejects any fixture marker that
+  leaks into a production bundle.
 
 Read the [full changelog](CHANGELOG.md) for tradeoffs and intentionally unchanged
 authority boundaries.
@@ -96,14 +94,14 @@ price or opening time, or issue authoritative visa, safety, or health decisions.
 
 The useful parts work without a paid model or provider key.
 
-|                                                                    | Part of the trip             | What Voyalier does                                                                                                                                    |
-| :----------------------------------------------------------------: | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| <img src="packages/brand/src/icon-evidence.svg" alt="" width="34"> | **Bring in evidence**        | Imports pasted text, HTML, raw email, or local files and keeps source excerpts attached to what it found.                                             |
-|  <img src="packages/brand/src/icon-review.svg" alt="" width="34">  | **Review before belief**     | Leaves extracted flights, stays, rail, coach, ferry, and hire-car details pending until you confirm, correct, or dismiss them.                        |
-|   <img src="packages/brand/src/icon-plan.svg" alt="" width="34">   | **Plan and pressure-test**   | Builds a deterministic Blueprint, finds overlaps and lodging gaps, shows Today, and makes traveler-authored activities and transfers first-class.     |
-| <img src="packages/brand/src/icon-offline.svg" alt="" width="34">  | **Prepare for weak signal**  | Keeps research, destination facts, city packs, recommendations, saved places, packing, maps, and a redacted brief available from the local workspace. |
-| <img src="packages/brand/src/icon-privacy.svg" alt="" width="34">  | **Protect the workspace**    | Stores one local SQLite workspace, seals sensitive evidence with a keychain-backed vault, supports backup and restore, and sends no telemetry.        |
-|    <img src="packages/brand/src/icon-ai.svg" alt="" width="34">    | **Ask carefully, if useful** | Offers optional on-device Ollama and previewed BYOK cloud assistance. Remote content leaves only after explicit consent.                              |
+|                                                                    | Part of the trip             | What Voyalier does                                                                                                                                          |
+| :----------------------------------------------------------------: | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| <img src="packages/brand/src/icon-evidence.svg" alt="" width="34"> | **Bring in evidence**        | Imports pasted text, HTML, raw email, or local files and keeps source excerpts attached to what it found.                                                   |
+|  <img src="packages/brand/src/icon-review.svg" alt="" width="34">  | **Review before belief**     | Leaves extracted flights, stays, rail, coach, ferry, and hire-car details pending until you confirm, correct, or dismiss them.                              |
+|   <img src="packages/brand/src/icon-plan.svg" alt="" width="34">   | **Plan and pressure-test**   | Builds a deterministic Blueprint, finds overlaps and lodging gaps, keeps Today linked to its source records, and makes traveler-authored plans first-class. |
+| <img src="packages/brand/src/icon-offline.svg" alt="" width="34">  | **Prepare for weak signal**  | Keeps research, destination facts, city packs, recommendations, saved places, packing, maps, and a redacted brief available from the local workspace.       |
+| <img src="packages/brand/src/icon-privacy.svg" alt="" width="34">  | **Protect the workspace**    | Stores one local SQLite workspace, seals sensitive evidence with a keychain-backed vault, supports backup and restore, and sends no telemetry.              |
+|    <img src="packages/brand/src/icon-ai.svg" alt="" width="34">    | **Ask carefully, if useful** | Offers optional on-device Ollama and previewed BYOK cloud assistance. Remote content leaves only after explicit consent.                                    |
 
 <details>
 <summary><strong>See the complete capability map</strong></summary>
@@ -127,6 +125,24 @@ The useful parts work without a paid model or provider key.
 </details>
 
 ## See the work
+
+### Travel day stays connected to the plan
+
+The Today schedule is a local projection, not a second itinerary. Each
+departure, arrival, check-in, and traveler-authored plan can open the exact
+record that produced it; the next anchor keeps the same return path. The address
+bar carries only the trip and section, never the private record target.
+
+### A disruption view names dependencies, not outcomes
+
+<p align="center">
+  <img src="docs-site/public/assets/screenshots/voyalier-disruption-plan.jpg" alt="Voyalier disruption panel for a fictional trip, showing two deterministic handoffs, exposed connections, and return-to-confirmation actions" width="1100">
+</p>
+
+Voyalier calculates handoff slack from the local times already in the plan and
+shows which later commitments depend on each leg. It can return to the evidence
+you already have; it cannot see live operations, find an alternative, or tell
+you whether a connection will work.
 
 ### The map keeps the traveler’s choice distinct
 

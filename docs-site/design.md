@@ -1,6 +1,6 @@
 # Quiet Transit — Voyalier public design system
 
-Status: locked on 2026-08-02; evidence-register amendment on 2026-08-13
+Status: locked on 2026-08-02; travel-day continuity amendment on 2026-08-27
 Scope: marketing landing page, Starlight documentation, public diagrams, social
 preview, and README presentation.
 
@@ -26,13 +26,15 @@ engine, or an AI oracle.
   destinations. Previous public footer was Ft5.
 - Hero: **H2 Split Diptych** — 7/5 copy-to-proof ratio, real screenshot, hairline
   divider, no fake application chrome.
-- Product tour: **F2 Sticky-scroll Stack** — left-pinned explanation, three
+- Product tour: **F2 Sticky-scroll Stack** — left-pinned explanation, five
   current screenshots in reading order.
 - Downloads: **F6 Product Card Grid** — 3-up, landscape, uniform products, one
   primary action per platform.
 - Signature: a folded-route evidence register carries
-  `source → review → plan → return` through the page. Each stop names the trust
-  state and continuity promise; it is wayfinding, not ambient art.
+  `source → review → plan → return` through the page. Today and disruption views
+  close the loop by returning to the local record that produced the projection.
+  Each stop names the trust state and continuity promise; it is wayfinding, not
+  ambient art.
 
 ## Voice
 
@@ -99,7 +101,9 @@ fallback and exposes a readable status; it never leaves a dead control.
 ## Brand and imagery
 
 Keep the existing folded-route logo and app icon. Product UI is shown only with
-real screenshots from the disposable sample workspace. Do not redraw browser,
+real screenshots from a disposable fictional workspace. Travel-day captures
+must show populated local projections and no personal data; disruption captures
+must preserve the panel's non-predictive language. Do not redraw browser,
 desktop, or terminal chrome. Diagrams share one stroke family, charcoal/ivory
 surfaces, indigo structure, and one vermilion waypoint.
 
