@@ -517,6 +517,38 @@ mod tests {
         }
     }
 
+    fn journey() -> ConfirmedFact {
+        ConfirmedFact {
+            id: "j1".to_owned(),
+            trip_id: "t1".to_owned(),
+            fact_type: FactType::RailJourney,
+            payload: FactPayload {
+                carrier_name: Some("Fictional Rail".to_owned()),
+                service_number: Some("NX41".to_owned()),
+                departure_place: Some("Kyoto".to_owned()),
+                arrival_place: Some("Osaka".to_owned()),
+                departure_local: Some("2026-11-04T17:00".to_owned()),
+                arrival_local: Some("2026-11-04T18:00".to_owned()),
+                ..FactPayload::default()
+            },
+            method: ExtractionMethod::Manual,
+            candidate_id: None,
+            corrected_fields: Vec::new(),
+            confirmed_at: "2026-01-01T00:00:00Z".to_owned(),
+            source_removed: false,
+        }
+    }
+
+    fn assert_target(item: &TodayItem, source: TodayItemTargetSource, record_id: &str) {
+        assert_eq!(
+            item.target.as_ref(),
+            Some(&TodayItemTarget {
+                source,
+                record_id: record_id.to_owned(),
+            })
+        );
+    }
+
     #[test]
     fn phase_and_next_before_the_trip() {
         let view = build_today_view(&trip(), &[flight(), stay()], &[], "2026-11-01");
@@ -571,6 +603,29 @@ mod tests {
             Some("l1")
         );
         assert!(mid.next.is_none());
+
+        let checkout = build_today_view(&trip(), &[stay()], &[], "2026-11-12");
+        assert_eq!(checkout.today[0].kind, TodayItemKind::Checkout);
+        assert_target(
+            &checkout.today[0],
+            TodayItemTargetSource::ConfirmedFact,
+            "l1",
+        );
+    }
+
+    #[test]
+    fn surface_journey_departure_and_arrival_keep_their_fact_identity() {
+        let view = build_today_view(&trip(), &[journey()], &[], "2026-11-04");
+        assert_eq!(
+            view.today.iter().map(|item| item.kind).collect::<Vec<_>>(),
+            vec![
+                TodayItemKind::JourneyDeparture,
+                TodayItemKind::JourneyArrival,
+            ]
+        );
+        for item in &view.today {
+            assert_target(item, TodayItemTargetSource::ConfirmedFact, "j1");
+        }
     }
 
     #[test]
@@ -625,6 +680,12 @@ mod tests {
                 "Train to Osaka",
                 "2026-11-05T09:00",
             ),
+            item(
+                "x",
+                TripItemKind::Transfer,
+                "Walk to Gion",
+                "2026-11-04T16:00",
+            ),
         ];
         let view = build_today_view(&trip(), &[], &items, "2026-11-04");
 
@@ -635,6 +696,12 @@ mod tests {
         let today_target = serde_json::to_value(&view.today[0]).expect("serialize today item");
         assert_eq!(today_target["target"]["source"], "trip_item");
         assert_eq!(today_target["target"]["recordId"], "a");
+        let transfer = view
+            .today
+            .iter()
+            .find(|item| item.kind == TodayItemKind::Transfer)
+            .expect("transfer Today item");
+        assert_target(transfer, TodayItemTargetSource::TripItem, "x");
         let next = view.next.expect("next");
         assert_eq!(next.kind, TodayItemKind::Rail);
         let next_target = serde_json::to_value(next).expect("serialize next item");

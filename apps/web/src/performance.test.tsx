@@ -1,4 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type { AppGateway, CandidateFact } from "@voyalier/contracts";
 import { createMockGateway } from "@voyalier/contracts";
 
@@ -114,6 +120,43 @@ describe("trip open budget", () => {
     expect(
       await screen.findByRole("region", { name: "Preview an AI request" }),
     ).toBeInTheDocument();
+  });
+
+  it("focuses an eager Plan record without mounting unrelated sections", async () => {
+    class NeverIntersects {
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+    vi.stubGlobal("IntersectionObserver", NeverIntersects);
+
+    const calls: string[] = [];
+    renderApp(countingGateway(calls));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    );
+    const today = await screen.findByRole("region", { name: "Today" });
+    const action = within(today).getByRole("button", {
+      name: /Show in Plan: Depart —.*FP18/,
+    });
+    // Let every eager panel settle before measuring what the continuity action
+    // itself does.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const callsBeforeFocus = [...calls];
+
+    fireEvent.click(action);
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute(
+        "data-search-source",
+        "confirmed_fact",
+      ),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    expect(calls).toEqual(callsBeforeFocus);
+    expect(
+      screen.queryByRole("heading", { name: "Preview an AI request" }),
+    ).toBeNull();
   });
 });
 

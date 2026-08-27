@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
 
+import { setLocalePreference } from "./app/locale";
 import { renderApp } from "./test/helpers";
 
 /**
@@ -10,6 +11,8 @@ import { renderApp } from "./test/helpers";
  * a real 45-minute hand-off to talk about without inventing a defect.
  */
 describe("disruption playbook", () => {
+  afterEach(() => setLocalePreference("en"));
+
   async function openPlaybook() {
     renderApp(createMockGateway());
     fireEvent.click(
@@ -38,6 +41,11 @@ describe("disruption playbook", () => {
       .getByText(/between Flight FP18 and Train NX41/)
       .closest("li");
     expect(handoff).not.toBeNull();
+    const actions = within(handoff!).getAllByRole("button");
+    expect(actions).toHaveLength(2);
+    expect(actions[0]).toHaveAccessibleName("Show confirmation: Flight FP18");
+    expect(actions[1]).toHaveAccessibleName("Show confirmation: Train NX41");
+    expect(actions.every((action) => action.tabIndex === 0)).toBe(true);
     fireEvent.click(
       within(handoff!).getByRole("button", {
         name: "Show confirmation: Flight FP18",
@@ -61,11 +69,20 @@ describe("disruption playbook", () => {
     );
   });
 
-  it("says what is stacked behind the exposed leg", async () => {
+  it("opens the exposed leg's confirmation", async () => {
     const panel = await openPlaybook();
-    expect(
-      within(panel).getByText(/Flight FP18 can run 45 min late/),
-    ).toBeInTheDocument();
+    const exposed = within(panel)
+      .getByText(/Flight FP18 can run 45 min late/)
+      .closest("li");
+    expect(exposed).not.toBeNull();
+    fireEvent.click(
+      within(exposed!).getByRole("button", {
+        name: "Show confirmation: Flight FP18",
+      }),
+    );
+    await waitFor(() =>
+      expect(document.activeElement).toHaveTextContent("FP18"),
+    );
     expect(
       within(panel).getAllByRole("button", {
         name: "Show confirmation: Flight FP18",
@@ -73,7 +90,7 @@ describe("disruption playbook", () => {
     ).toBeGreaterThan(1);
   });
 
-  it("never proposes an alternative service and never links out", async () => {
+  it("opens a carrier pointer without proposing an alternative service", async () => {
     const panel = await openPlaybook();
     // Every pointer is about something the traveler already holds — one per
     // operator their own confirmations name, and nothing else.
@@ -85,15 +102,92 @@ describe("disruption playbook", () => {
     expect(carriers[1].textContent).toMatch(/Fictional Rail/);
     // The whole point of ADR-0016 §3: no curated carrier contact channel.
     expect(within(panel).queryByRole("link")).toBeNull();
-    expect(
-      within(panel).getByRole("button", {
+    const railPointer = carriers[1].closest("li");
+    expect(railPointer).not.toBeNull();
+    fireEvent.click(
+      within(railPointer!).getByRole("button", {
         name: "Show confirmation: Fictional Rail",
       }),
-    ).toBeInTheDocument();
+    );
+    await waitFor(() =>
+      expect(document.activeElement).toHaveTextContent("NX41"),
+    );
     // And no language that implies another service exists or that it will be OK.
     expect(panel.textContent).not.toMatch(
       /instead|rebook|alternative route|you'?ll be fine/i,
     );
+  });
+
+  it("keeps geography and diplomatic pointers as text-only context", async () => {
+    const base = createMockGateway();
+    const gateway = {
+      ...base,
+      getTrip: async (tripId: string) => {
+        const detail = await base.getTrip(tripId);
+        return {
+          ...detail,
+          disruptionPlan: {
+            ...detail.disruptionPlan,
+            pointers: [
+              ...detail.disruptionPlan.pointers,
+              {
+                code: "alternate_airport" as const,
+                name: "Osaka Itami Airport",
+                iata: "ITM",
+                distanceKm: 38,
+              },
+              {
+                code: "diplomatic_mission" as const,
+                sendingCountry: "United States",
+                hostCountry: "Japan",
+                city: "Tokyo",
+                kind: "embassy" as const,
+              },
+            ],
+          },
+        };
+      },
+    };
+    renderApp(gateway);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    );
+    const panel = await screen.findByRole("region", {
+      name: "If something slips",
+    });
+
+    const airport = within(panel)
+      .getByText(/Geography only/)
+      .closest("li");
+    const mission = within(panel)
+      .getByText(/foreign ministry before going/)
+      .closest("li");
+    expect(airport).not.toBeNull();
+    expect(mission).not.toBeNull();
+    expect(within(airport!).queryByRole("button")).toBeNull();
+    expect(within(mission!).queryByRole("button")).toBeNull();
+  });
+
+  it("localizes confirmation actions while preserving source values", async () => {
+    class NeverIntersects {
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+    vi.stubGlobal("IntersectionObserver", NeverIntersects);
+    setLocalePreference("es");
+    renderApp(createMockGateway());
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Abrir Kyoto autumn journey" }),
+    );
+    const panel = await screen.findByRole("region", {
+      name: "Si algo se retrasa",
+    });
+    expect(
+      within(panel).getAllByRole("button", {
+        name: "Mostrar confirmación: Vuelo FP18",
+      }).length,
+    ).toBeGreaterThan(1);
   });
 
   it("falls back honestly when a projected confirmation disappeared", async () => {

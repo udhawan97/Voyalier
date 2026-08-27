@@ -28,6 +28,81 @@ async function emulateDesktopZoom(
   return session;
 }
 
+test("disruption continuity reflows and activates from the keyboard", async ({
+  page,
+}, testInfo) => {
+  const tripTitle = `Continuity controls ${testInfo.retry}`;
+  const today = isoDay(0);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Create a trip" }).first().click();
+  const createTrip = page.getByRole("dialog", { name: "Create a trip" });
+  await createTrip.getByLabel("From").fill("Chicago");
+  await createTrip.getByLabel("To").fill("Kyoto");
+  await createTrip.getByLabel("Start date").fill(today);
+  await createTrip.getByLabel("End date").fill(isoDay(1));
+  await createTrip.getByLabel("Trip name (optional)").fill(tripTitle);
+  await createTrip.getByRole("button", { name: "Create trip" }).click();
+  await page.getByRole("button", { name: `Open ${tripTitle}` }).click();
+
+  await page.getByRole("button", { name: "Add reservation" }).first().click();
+  let dialog = page.getByRole("dialog", { name: "Add a reservation" });
+  await dialog.getByLabel("Airline", { exact: true }).fill("Fictional Pacific");
+  await dialog.getByLabel("Flight number").fill("FP18");
+  await dialog.getByLabel("Departs (local)").fill(`${today}T08:00`);
+  await dialog.getByLabel("Arrives (local)").fill(`${today}T10:00`);
+  await dialog.getByRole("button", { name: "Add to Blueprint" }).click();
+  await expect(dialog).toBeHidden();
+
+  await page.getByRole("button", { name: "Add reservation" }).first().click();
+  dialog = page.getByRole("dialog", { name: "Add a reservation" });
+  await dialog.getByRole("radio", { name: "Train" }).click();
+  await dialog.getByLabel("Operator").fill("Fictional Rail");
+  await dialog.getByLabel("Service", { exact: true }).fill("NX41");
+  await dialog.getByLabel("Departs (local)").fill(`${today}T10:45`);
+  await dialog.getByLabel("Arrives (local)").fill(`${today}T12:00`);
+  await dialog.getByRole("button", { name: "Add to Blueprint" }).click();
+  await expect(dialog).toBeHidden();
+
+  const panel = page.getByRole("region", { name: "If something slips" });
+  const handoff = panel
+    .locator(".voy-disruption__handoff")
+    .filter({ hasText: "between Flight FP18 and Train NX41" });
+  await expect(handoff).toBeVisible();
+
+  const zoom = await emulateDesktopZoom(page, { width: 640, height: 1440 }, 2);
+  await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(320);
+  const actions = handoff.getByRole("button");
+  await expect(actions).toHaveCount(2);
+  for (const action of await actions.all()) {
+    const box = await action.boundingBox();
+    expect(box?.height).toBeGreaterThanOrEqual(44);
+    expect(box?.x).toBeGreaterThanOrEqual(0);
+    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(320);
+  }
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+
+  const flightAction = handoff.getByRole("button", {
+    name: "Show confirmation: Flight FP18",
+  });
+  await flightAction.focus();
+  await page.keyboard.press("Enter");
+  const target = page
+    .locator('[data-search-source="confirmed_fact"]')
+    .filter({ hasText: "FP18" });
+  await expect(target).toBeFocused();
+  const recordId = await target.getAttribute("data-search-record");
+  expect(recordId).toBeTruthy();
+  expect(page.url()).not.toContain(recordId!);
+  await zoom.send("Emulation.clearDeviceMetricsOverride");
+  await zoom.detach();
+});
+
 test("planning persists through the real loopback service and a browser reload", async ({
   page,
 }) => {
@@ -80,6 +155,36 @@ test("planning persists through the real loopback service and a browser reload",
   await expect(
     page.getByRole("region", { name: "Today" }).getByText(/Tea ceremony/),
   ).toBeVisible();
+
+  const todayAction = page
+    .getByRole("region", { name: "Today" })
+    .getByRole("button", { name: /Show in Plan: Tea ceremony/ });
+  const continuityZoom = await emulateDesktopZoom(
+    page,
+    { width: 640, height: 1440 },
+    2,
+  );
+  await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(320);
+  await expect(todayAction).toBeVisible();
+  expect((await todayAction.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+  await todayAction.focus();
+  await page.keyboard.press("Enter");
+  const todayTarget = page
+    .locator('[data-search-source="trip_item"]')
+    .filter({ hasText: "Tea ceremony" });
+  await expect(todayTarget).toBeFocused();
+  const todayRecordId = await todayTarget.getAttribute("data-search-record");
+  expect(todayRecordId).toBeTruthy();
+  expect(page.url()).not.toContain(todayRecordId!);
+  await continuityZoom.send("Emulation.clearDeviceMetricsOverride");
+  await continuityZoom.detach();
 
   await page.getByRole("button", { name: "Search workspace" }).click();
   const searchInput = page.getByLabel("Search all trips");

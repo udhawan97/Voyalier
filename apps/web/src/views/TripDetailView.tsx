@@ -580,7 +580,18 @@ function ContinuityNavigator({
 
   useEffect(() => {
     if (!target) return;
-    mountAllSections();
+    // Confirmed facts and traveler-authored trip items already live in the
+    // eager Plan section. Mounting every deferred section for those local
+    // handoffs would trigger unrelated below-fold gateway work (including the
+    // optional local-AI probe) before the traveler ever reached it. Element
+    // jumps may point below the fold, and documents do, so retain the stable
+    // mount-before-scroll behavior only for those destinations.
+    if (
+      target.destination.kind === "element" ||
+      target.destination.source === "document"
+    ) {
+      mountAllSections();
+    }
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let attempts = 0;

@@ -2,9 +2,9 @@
 
 Voyalier already turns confirmed facts and traveler-authored trip items into two useful projections:
 Today says what is happening now or next, and the disruption panel states which commitments are
-stacked behind another. Both projections preserve the source record's local id in Rust, but Today
-drops it from the wire and neither interface lets the traveler return to the owning record. This
-phase closes those dead ends without turning either projection into a booking, monitoring, or
+stacked behind another. Disruption preserves source record ids in Rust, while Today discards that
+identity as it builds each line; neither interface lets the traveler return to the owning record.
+This phase closes those dead ends without turning either projection into a booking, monitoring, or
 authority surface.
 
 ## Product and architecture boundary
