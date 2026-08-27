@@ -3174,6 +3174,22 @@ h3 {
   font-weight: var(--voy-w-medium);
 }
 
+.voy-today__item-row,
+.voy-today__next {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+}
+
+.voy-today__source-action,
+.voy-disruption__source-action {
+  min-height: 2rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.78rem;
+}
+
 .voy-today__item-detail {
   font-size: 0.82rem;
   color: var(--voy-ink-muted);
@@ -3201,6 +3217,10 @@ h3 {
   border-top: 1px solid var(--voy-line);
   font-size: 0.9rem;
   color: var(--voy-ink);
+}
+
+.voy-today__next-copy {
+  min-width: 0;
 }
 
 .voy-today__next-label {
@@ -5355,6 +5375,18 @@ body::before {
   background: var(--voy-surface-2, transparent);
 }
 
+.voy-disruption__handoff-copy,
+.voy-disruption__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.5rem;
+}
+
+.voy-disruption__actions {
+  margin-inline-start: auto;
+}
+
 /* The minutes lead, because they are the traveler's own evidence; the band
  * follows, because it is a caution this product authored. */
 .voy-disruption__slack {
@@ -5374,6 +5406,11 @@ body::before {
 
 .voy-disruption__exposed,
 .voy-disruption__pointer {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
   padding-inline-start: 0.75rem;
   border-inline-start: 3px solid transparent;
 }

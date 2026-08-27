@@ -63,12 +63,41 @@ function itemLine(item: TodayItem): string {
   return item.time ? `${title} · ${formatTimeLocal(item.time)}` : title;
 }
 
+type TodayTarget = NonNullable<TodayItem["target"]>;
+
+function TodayTargetAction({
+  item,
+  onFocusTarget,
+}: {
+  item: TodayItem;
+  onFocusTarget: (target: TodayTarget) => void;
+}) {
+  if (!item.target) return null;
+
+  return (
+    <Button
+      variant="ghost"
+      className="voy-today__source-action"
+      aria-label={t("today.openTarget.label", { item: itemLine(item) })}
+      onClick={() => onFocusTarget(item.target!)}
+    >
+      {t("today.openTarget")}
+    </Button>
+  );
+}
+
 /**
  * The Today view: where the trip stands right now, what's on for today, and the
  * next thing coming up. Deterministic and offline — computed from confirmed
  * facts against the current date. Loads with the trip; no network.
  */
-export function TodayPanel({ tripId }: { tripId: string }) {
+export function TodayPanel({
+  tripId,
+  onFocusTarget,
+}: {
+  tripId: string;
+  onFocusTarget: (target: TodayTarget) => void;
+}) {
   const gateway = useGateway();
   const tripVersion = useScopeKey(tripScope(tripId));
   const today = useAsyncData<TodayView>(
@@ -120,7 +149,10 @@ export function TodayPanel({ tripId }: { tripId: string }) {
         <ul className="voy-today__list" aria-label={t("today.schedule")}>
           {view.today.map((item, index) => (
             <li key={`${item.kind}:${index}`} className="voy-today__item">
-              <span className="voy-today__item-title">{itemLine(item)}</span>
+              <span className="voy-today__item-row">
+                <span className="voy-today__item-title">{itemLine(item)}</span>
+                <TodayTargetAction item={item} onFocusTarget={onFocusTarget} />
+              </span>
               {item.detail ? (
                 <span className="voy-today__item-detail">{item.detail}</span>
               ) : null}
@@ -137,8 +169,11 @@ export function TodayPanel({ tripId }: { tripId: string }) {
 
       {view.next ? (
         <p className="voy-today__next">
-          <span className="voy-today__next-label">{t("today.next")}</span>
-          {itemLine(view.next)} · {formatDate(view.next.date)}
+          <span className="voy-today__next-copy">
+            <span className="voy-today__next-label">{t("today.next")}</span>
+            {itemLine(view.next)} · {formatDate(view.next.date)}
+          </span>
+          <TodayTargetAction item={view.next} onFocusTarget={onFocusTarget} />
         </p>
       ) : null}
     </section>

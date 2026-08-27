@@ -1003,6 +1003,20 @@ export function TripDetailView({
     });
   }
 
+  function navigateToPlanningRecord(
+    source: "confirmed_fact" | "trip_item",
+    recordId: string,
+  ) {
+    navigateToRecord(
+      source,
+      recordId,
+      source === "confirmed_fact" ? "blueprint-title" : "manual-plan-title",
+      source === "confirmed_fact"
+        ? "continuity.fact.unavailable"
+        : "continuity.plan.unavailable",
+    );
+  }
+
   useEffect(() => {
     if (!data || !searchTarget || searchTargetConsumed.current) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -1331,7 +1345,12 @@ export function TripDetailView({
 
         <TripSectionNav skipHash={Boolean(searchTarget)} />
 
-        <TodayPanel tripId={tripId} />
+        <TodayPanel
+          tripId={tripId}
+          onFocusTarget={(target) =>
+            navigateToPlanningRecord(target.source, target.recordId)
+          }
+        />
 
         {pendingCount > 0 ? (
           <button
@@ -1463,28 +1482,19 @@ export function TripDetailView({
         {hasItinerary ? (
           <ScheduleCheck
             conflicts={itineraryConflicts}
-            onFocusFact={(id) =>
-              navigateToRecord(
-                "confirmed_fact",
-                id,
-                "blueprint-title",
-                "continuity.fact.unavailable",
-              )
-            }
+            onFocusFact={(id) => navigateToPlanningRecord("confirmed_fact", id)}
             onFocusPlannedItem={(id) =>
-              navigateToRecord(
-                "trip_item",
-                id,
-                "manual-plan-title",
-                "continuity.plan.unavailable",
-              )
+              navigateToPlanningRecord("trip_item", id)
             }
           />
         ) : null}
 
         {/* Advisory, and deliberately below the schedule check: what is already
           wrong outranks what could go wrong. */}
-        <DisruptionPanel plan={data.detail.disruptionPlan} />
+        <DisruptionPanel
+          plan={data.detail.disruptionPlan}
+          onFocusFact={(id) => navigateToPlanningRecord("confirmed_fact", id)}
+        />
 
         {/* Everything from here down is below the fold and several of these fetch
           on mount, so they wait until they are nearly on screen. */}

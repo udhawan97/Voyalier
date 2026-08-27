@@ -5,8 +5,30 @@ import type {
 } from "@voyalier/contracts";
 
 import { t, plural } from "../app/i18n";
+import { Button } from "../components/Button";
 import { SectionTitle } from "../components/primitives";
 import { RouteIcon } from "../components/icons";
+
+function FactAction({
+  factId,
+  label,
+  onFocusFact,
+}: {
+  factId: string;
+  label: string;
+  onFocusFact: (id: string) => void;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      className="voy-disruption__source-action"
+      aria-label={t("disruption.openFact.label", { subject: label })}
+      onClick={() => onFocusFact(factId)}
+    >
+      {t("disruption.openFact")}
+    </Button>
+  );
+}
 
 /**
  * What the plan costs if something slips (ADR-0016 §2).
@@ -19,7 +41,13 @@ import { RouteIcon } from "../components/icons";
  * The minutes lead and the band follows, because the band is a caution this
  * product authored and the minutes are the traveler's own evidence.
  */
-export function DisruptionPanel({ plan }: { plan: DisruptionPlan }) {
+export function DisruptionPanel({
+  plan,
+  onFocusFact,
+}: {
+  plan: DisruptionPlan;
+  onFocusFact: (id: string) => void;
+}) {
   const hasSomething =
     plan.handoffs.length > 0 ||
     plan.exposedLegs.length > 0 ||
@@ -42,25 +70,40 @@ export function DisruptionPanel({ plan }: { plan: DisruptionPlan }) {
             {t("disruption.handoffs.title")}
           </h3>
           <ul className="voy-disruption__list">
-            {plan.handoffs.map((handoff) => (
-              <li
-                key={`${handoff.fromFactId}-${handoff.toFactId}-${handoff.kind}`}
-                className={`voy-disruption__handoff voy-disruption__handoff--${handoff.band}`}
-              >
-                <span className="voy-disruption__slack">
-                  {slackText(handoff)}
-                </span>
-                <span className="voy-disruption__between">
-                  {t(`disruption.handoff.${handoff.kind}`, {
-                    from: subjectOf(handoff.from),
-                    to: subjectOf(handoff.to),
-                  })}
-                </span>
-                <span className="voy-disruption__band">
-                  {t(`disruption.band.${handoff.band}`)}
-                </span>
-              </li>
-            ))}
+            {plan.handoffs.map((handoff) => {
+              const from = subjectOf(handoff.from);
+              const to = subjectOf(handoff.to);
+              return (
+                <li
+                  key={`${handoff.fromFactId}-${handoff.toFactId}-${handoff.kind}`}
+                  className={`voy-disruption__handoff voy-disruption__handoff--${handoff.band}`}
+                >
+                  <span className="voy-disruption__handoff-copy">
+                    <span className="voy-disruption__slack">
+                      {slackText(handoff)}
+                    </span>
+                    <span className="voy-disruption__between">
+                      {t(`disruption.handoff.${handoff.kind}`, { from, to })}
+                    </span>
+                    <span className="voy-disruption__band">
+                      {t(`disruption.band.${handoff.band}`)}
+                    </span>
+                  </span>
+                  <span className="voy-disruption__actions">
+                    <FactAction
+                      factId={handoff.fromFactId}
+                      label={from}
+                      onFocusFact={onFocusFact}
+                    />
+                    <FactAction
+                      factId={handoff.toFactId}
+                      label={to}
+                      onFocusFact={onFocusFact}
+                    />
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         </>
       ) : null}
@@ -73,10 +116,17 @@ export function DisruptionPanel({ plan }: { plan: DisruptionPlan }) {
           <ul className="voy-disruption__list">
             {plan.exposedLegs.map((leg) => (
               <li key={leg.factId} className="voy-disruption__exposed">
-                {plural("disruption.exposed.line", leg.dependents, {
-                  subject: subjectOf(leg.label),
-                  minutes: String(leg.absorbsMinutes),
-                })}
+                <span>
+                  {plural("disruption.exposed.line", leg.dependents, {
+                    subject: subjectOf(leg.label),
+                    minutes: String(leg.absorbsMinutes),
+                  })}
+                </span>
+                <FactAction
+                  factId={leg.factId}
+                  label={subjectOf(leg.label)}
+                  onFocusFact={onFocusFact}
+                />
               </li>
             ))}
           </ul>
@@ -92,7 +142,14 @@ export function DisruptionPanel({ plan }: { plan: DisruptionPlan }) {
           <ul className="voy-disruption__list">
             {plan.pointers.map((pointer) => (
               <li key={pointerKey(pointer)} className="voy-disruption__pointer">
-                {pointerText(pointer)}
+                <span>{pointerText(pointer)}</span>
+                {pointer.code === "carrier_on_confirmation" ? (
+                  <FactAction
+                    factId={pointer.factId}
+                    label={pointer.carrier}
+                    onFocusFact={onFocusFact}
+                  />
+                ) : null}
               </li>
             ))}
           </ul>

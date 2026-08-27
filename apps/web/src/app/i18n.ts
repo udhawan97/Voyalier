@@ -266,6 +266,8 @@ const en = {
   "today.empty.active": "Nothing scheduled today.",
   "today.empty.other": "No plans for today.",
   "today.next": "Next",
+  "today.openTarget": "Show in Plan",
+  "today.openTarget.label": "Show in Plan: {item}",
   "today.item.depart": "Depart — {subject}",
   "today.item.departGeneric": "Flight departure",
   "today.item.arrive": "Arrive — {subject}",
@@ -1302,6 +1304,8 @@ const en = {
   "disruption.pointers.title": "What you already have",
   "disruption.pointers.note":
     "Voyalier does not keep operators' contact details — they change, and a wrong one is worse than none. These come from your own records.",
+  "disruption.openFact": "Show confirmation",
+  "disruption.openFact.label": "Show confirmation: {subject}",
   "disruption.pointer.carrier":
     "{carrier} — the number that reaches them is on your own confirmation.",
   "disruption.pointer.airport":
@@ -1921,6 +1925,8 @@ const es: Record<MessageKey, string> = {
   "today.empty.active": "No hay nada programado para hoy.",
   "today.empty.other": "Sin planes para hoy.",
   "today.next": "Siguiente",
+  "today.openTarget": "Mostrar en Plan",
+  "today.openTarget.label": "Mostrar en Plan: {item}",
   "today.item.depart": "Salida — {subject}",
   "today.item.departGeneric": "Salida del vuelo",
   "today.item.arrive": "Llegada — {subject}",
@@ -2914,6 +2920,8 @@ const es: Record<MessageKey, string> = {
   "disruption.pointers.title": "Lo que ya tienes",
   "disruption.pointers.note":
     "Voyalier no guarda los datos de contacto de los operadores: cambian, y uno equivocado es peor que ninguno. Estos salen de tus propios registros.",
+  "disruption.openFact": "Mostrar confirmación",
+  "disruption.openFact.label": "Mostrar confirmación: {subject}",
   "disruption.pointer.carrier":
     "{carrier}: el número para contactarlos está en tu propia confirmación.",
   "disruption.pointer.airport":
