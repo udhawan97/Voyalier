@@ -211,6 +211,49 @@
       "expected": [],
       "name": "no match returns no values",
       "query": "zeppelin"
+    },
+    {
+      "candidates": [
+        {
+          "source": "confirmed_fact",
+          "value": "River Inn"
+        }
+      ],
+      "expected": [
+        {
+          "source": "confirmed_fact",
+          "value": "River Inn"
+        }
+      ],
+      "name": "Rust whitespace U+0085 is trimmed",
+      "query": "river"
+    },
+    {
+      "candidates": [
+        {
+          "source": "confirmed_fact",
+          "value": "﻿Signal"
+        }
+      ],
+      "expected": [
+        {
+          "source": "confirmed_fact",
+          "value": "﻿Signal"
+        }
+      ],
+      "name": "non-Rust whitespace U+FEFF is preserved",
+      "query": "﻿sig"
+    },
+    {
+      "candidates": [
+        {
+          "source": "gazetteer",
+          "value": "ΟΣΑ"
+        }
+      ],
+      "expected": [],
+      "name": "context-sensitive Greek sigma follows Rust string lowercase",
+      "query": "ΟΣ"
     }
   ]
 }

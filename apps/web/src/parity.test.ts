@@ -4,6 +4,7 @@ import normalizePlaceGolden from "@voyalier/contracts/parity/normalize-place.jso
 import savedPlaceIdentityGolden from "@voyalier/contracts/parity/saved-place-identity.json";
 import assessTripGolden from "@voyalier/contracts/parity/assess-trip.json";
 import packingGolden from "@voyalier/contracts/parity/packing.json";
+import packCatalogGolden from "@voyalier/contracts/parity/pack-catalog.json";
 import packSuggestionsGolden from "@voyalier/contracts/parity/pack-suggestions.json";
 import fieldSuggestionsGolden from "@voyalier/contracts/parity/field-suggestions.json";
 import searchScoreGolden from "@voyalier/contracts/parity/search-score.json";
@@ -535,11 +536,15 @@ describe("parity: trip facts", () => {
 });
 
 describe("parity: destination pack suggestions", () => {
-  const { catalog, cases } = packSuggestionsGolden;
+  const { catalog } = packCatalogGolden;
+  const { cases } = packSuggestionsGolden;
 
   it("pins the complete shipped catalog and every matching case", async () => {
     expect(catalog).toHaveLength(22);
     expect(cases).toHaveLength(31);
+    expect(Object.keys(packCatalogGolden.aliases)).toHaveLength(11);
+    expect(Object.values(packCatalogGolden.aliases).flat()).toHaveLength(20);
+    expect(packCatalogGolden.regionStopwords).toHaveLength(5);
     expect(await createMockGateway().listPacks()).toEqual(catalog);
   });
 
@@ -558,7 +563,7 @@ describe("parity: field suggestions", () => {
   const { cases } = fieldSuggestionsGolden;
 
   it("pins every ranking case", () => {
-    expect(cases).toHaveLength(6);
+    expect(cases).toHaveLength(9);
   });
 
   it.each(cases)("matches the Rust rule for $name", (entry) => {
@@ -576,7 +581,7 @@ describe("parity: lexical search scoring", () => {
 
   it("pins every scoring case", () => {
     expect(cases).toHaveLength(7);
-    expect(tokenCases).toHaveLength(1);
+    expect(tokenCases).toHaveLength(4);
   });
 
   it.each(tokenCases)("matches query tokenization for $name", (entry) => {

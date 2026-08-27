@@ -1,5 +1,5 @@
 import packing from "../parity/packing.json";
-import packSuggestionsParity from "../parity/pack-suggestions.json";
+import packCatalogParity from "../parity/pack-catalog.json";
 import chatTopics from "../parity/chat-topics.json";
 import prompts from "../parity/prompts.json";
 import readinessLinks from "../parity/readiness-links.json";
@@ -879,24 +879,34 @@ const MOCK_GAZETTEER: { name: string; country: string }[] = [
  * parity file means component tests exercise every current pack rather than a
  * stale hand-picked subset.
  */
-const MOCK_PACKS = packSuggestionsParity.catalog as PackInfo[];
+const MOCK_PACKS = packCatalogParity.catalog as readonly PackInfo[];
 
-/** Mirrors voyalier-core::packs::pack_aliases; every term has a golden case. */
-const MOCK_PACK_ALIASES: Record<string, readonly string[]> = {
-  "us-nashville": ["music city"],
-  "us-hi-oahu": ["honolulu", "waikiki"],
-  "us-hi-maui": ["lahaina", "kahului"],
-  "us-hi-kauai": ["lihue"],
-  "us-hi-hawaii-island": ["big island", "kona", "hilo"],
-  "gb-london": ["london uk"],
-  "us-nyc": ["new york", "nyc", "manhattan", "brooklyn"],
-  "us-san-francisco": ["san francisco", "sf", "san fran"],
-  "es-barcelona": ["barca"],
-  "it-rome": ["roma"],
-  "is-reykjavik": ["reykjavik"],
-};
+// Private Rust match tables travel with the catalog artifact so adding an alias
+// or stopword cannot leave a hand-copied mock table behind.
+const MOCK_PACK_ALIASES = packCatalogParity.aliases as Readonly<
+  Record<string, readonly string[]>
+>;
+const REGION_STOPWORDS = new Set(packCatalogParity.regionStopwords);
 
-const REGION_STOPWORDS = new Set(["usa", "the", "and", "of", "united"]);
+// Rust's `char::is_whitespace` and JavaScript's `\s` disagree at the edges:
+// Rust includes U+0085 and excludes U+FEFF. Keep trimming/tokenization on the
+// Rust set so the mock accepts and ranks the same user text as core.
+const RUST_WHITESPACE_CLASS =
+  "[\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]";
+const RUST_WHITESPACE_EDGES = new RegExp(
+  `^${RUST_WHITESPACE_CLASS}+|${RUST_WHITESPACE_CLASS}+$`,
+  "gu",
+);
+const RUST_WHITESPACE_RUN = new RegExp(`${RUST_WHITESPACE_CLASS}+`, "gu");
+
+function trimRustWhitespace(value: string): string {
+  return value.replace(RUST_WHITESPACE_EDGES, "");
+}
+
+function splitRustWhitespace(value: string): string[] {
+  const trimmed = trimRustWhitespace(value);
+  return trimmed ? trimmed.split(RUST_WHITESPACE_RUN) : [];
+}
 
 /** JS mirror of voyalier-core::packs::normalize_place. */
 /**
@@ -966,12 +976,12 @@ export function mockRankFieldSuggestions(
   query: string,
   candidates: FieldSuggestion[],
 ): FieldSuggestion[] {
-  const needle = query.trim().toLowerCase();
+  const needle = trimRustWhitespace(query).toLowerCase();
   const seen = new Set<string>();
   const prefix: FieldSuggestion[] = [];
   const contains: FieldSuggestion[] = [];
   for (const candidate of candidates) {
-    const value = candidate.value.trim();
+    const value = trimRustWhitespace(candidate.value);
     if (!value) continue;
     const folded = value.toLowerCase();
     if (seen.has(folded)) continue;
@@ -1119,7 +1129,7 @@ const MOCK_AIRPORTS: ReadonlyArray<{ iata: string; name: string }> = [
 ];
 
 function mockAirportSuggestions(query: string): FieldSuggestion[] {
-  const needle = query.trim().toLowerCase();
+  const needle = trimRustWhitespace(query).toLowerCase();
   if (!needle) return [];
   const tier = ({ iata, name }: { iata: string; name: string }) => {
     const code = iata.toLowerCase();
@@ -1499,7 +1509,7 @@ function snippetAround(original: string, needle: string): string {
   if (start === -1) return "";
   const from = Math.max(0, start - 60);
   const to = Math.min(original.length, start + needle.length + 60);
-  let snippet = original.slice(from, to).split(/\s+/).join(" ").trim();
+  let snippet = splitRustWhitespace(original.slice(from, to)).join(" ");
   if (from > 0) snippet = `…${snippet}`;
   if (to < original.length) snippet = `${snippet}…`;
   return snippet;
@@ -1531,8 +1541,9 @@ function compareRustStrings(left: string, right: string): number {
 // JS mirror of voyalier-core::search relaxed matching + term suggestions.
 export function mockQueryTokens(query: string): string[] {
   const tokens: string[] = [];
-  for (const word of query.toLowerCase().split(/\s+/)) {
-    if (word && !tokens.includes(word)) tokens.push(word);
+  for (const word of splitRustWhitespace(query)) {
+    const lowered = word.toLowerCase();
+    if (lowered && !tokens.includes(lowered)) tokens.push(lowered);
   }
   return tokens;
 }
@@ -1573,11 +1584,12 @@ function suggestSearchTermsFrom(
   docs: string[],
   facts: ConfirmedFact[],
 ): string[] {
-  const last = query.trim().toLowerCase().split(/\s+/).pop() ?? "";
+  const lastWord = splitRustWhitespace(query).pop() ?? "";
+  const last = lastWord.toLowerCase();
   if (last.length < 2) return [];
   const seen = new Map<string, { count: number; prefix: boolean }>();
   const consider = (term: string) => {
-    const trimmed = term.trim();
+    const trimmed = trimRustWhitespace(term);
     if (trimmed.length < 2) return;
     const lower = trimmed.toLowerCase();
     if (!lower.includes(last)) return;
@@ -1600,7 +1612,7 @@ function suggestSearchTermsFrom(
       (a, b) =>
         Number(b[1].prefix) - Number(a[1].prefix) ||
         b[1].count - a[1].count ||
-        a[0].toLowerCase().localeCompare(b[0].toLowerCase()),
+        compareRustStrings(a[0].toLowerCase(), b[0].toLowerCase()),
     )
     .slice(0, MOCK_SEARCH_SUGGESTION_LIMIT)
     .map(([term]) => term);
@@ -1878,25 +1890,17 @@ export function mockBuildShareBrief(
   manualItems: TripItem[],
   generatedAt: string,
 ): TripBrief {
+  const redactSensitiveFields = <T extends object>(payload: T): T =>
+    omit(payload, ["confirmationCode", "passengerName", "guestName"]);
   const flights = tripFacts
     .filter((fact) => fact.factType === "flight_segment")
-    .map((fact) =>
-      omit(fact.payload as FlightSegmentPayload, [
-        "confirmationCode",
-        "passengerName",
-      ]),
-    )
+    .map((fact) => redactSensitiveFields(fact.payload as FlightSegmentPayload))
     .sort((a, b) =>
       compareRustStrings(a.departureLocal ?? "", b.departureLocal ?? ""),
     );
   const stays = tripFacts
     .filter((fact) => fact.factType === "lodging_stay")
-    .map((fact) =>
-      omit(fact.payload as LodgingStayPayload, [
-        "confirmationCode",
-        "guestName",
-      ]),
-    )
+    .map((fact) => redactSensitiveFields(fact.payload as LodgingStayPayload))
     .sort((a, b) =>
       compareRustStrings(a.checkinDate ?? "", b.checkinDate ?? ""),
     );
@@ -1904,12 +1908,7 @@ export function mockBuildShareBrief(
   // redaction the flights above get.
   const journeys = tripFacts
     .filter((fact) => SURFACE_FACT_TYPES.includes(fact.factType))
-    .map((fact) =>
-      omit(fact.payload as SurfaceJourneyPayload, [
-        "confirmationCode",
-        "passengerName",
-      ]),
-    )
+    .map((fact) => redactSensitiveFields(fact.payload as SurfaceJourneyPayload))
     .sort((a, b) =>
       compareRustStrings(a.departureLocal ?? "", b.departureLocal ?? ""),
     );
@@ -3087,7 +3086,7 @@ export function createMockGateway(options?: {
     searchTrip: (tripId: string, query: string) =>
       execute("searchTrip", () => {
         requireTrip(tripId);
-        const trimmed = query.trim();
+        const trimmed = trimRustWhitespace(query);
         if (trimmed.length === 0) {
           throw appError(
             "validation/invalid_input",
@@ -3217,7 +3216,7 @@ export function createMockGateway(options?: {
 
     searchWorkspace: (query: string) =>
       execute("searchWorkspace", () => {
-        const trimmed = query.trim();
+        const trimmed = trimRustWhitespace(query);
         if (!trimmed || countChars(trimmed) > MAX_QUERY_LEN) {
           throw appError(
             "validation/invalid_input",
@@ -3317,7 +3316,7 @@ export function createMockGateway(options?: {
     suggestSearchTerms: (tripId: string, query: string) =>
       execute("suggestSearchTerms", () => {
         requireTrip(tripId);
-        const trimmed = query.trim();
+        const trimmed = trimRustWhitespace(query);
         if (countChars(trimmed) === 0 || countChars(trimmed) > MAX_QUERY_LEN)
           return [];
         const docs = [...documents.values()]
@@ -3784,7 +3783,9 @@ export function createMockGateway(options?: {
           );
           for (const fact of lodging) {
             const values = fact.payload as Record<string, string | undefined>;
-            const value = values[input.field]?.trim();
+            const rawValue = values[input.field];
+            const value =
+              rawValue === undefined ? undefined : trimRustWhitespace(rawValue);
             if (!value) continue;
             candidates.push({
               value,
@@ -3827,7 +3828,7 @@ export function createMockGateway(options?: {
         }
         // A small stand-in for the offline gazetteer, prefix-filtered (the real
         // one is 34k cities in the Rust core). Blank query adds nothing here.
-        const needle = query.trim().toLowerCase();
+        const needle = trimRustWhitespace(query).toLowerCase();
         if (needle) {
           for (const city of MOCK_GAZETTEER) {
             if (city.name.toLowerCase().startsWith(needle)) {

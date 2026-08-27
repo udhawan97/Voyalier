@@ -533,12 +533,14 @@ fn pack_aliases(pack_id: &str) -> &'static [&'static str] {
 }
 
 /// Region tokens too generic to imply a specific pack on their own.
+const REGION_STOPWORDS: &[&str] = &["usa", "the", "and", "of", "united"];
+
 fn is_region_stopword(token: &str) -> bool {
     // "united" earns its place the moment two "United …" regions coexist:
     // it is the shared token between the United Kingdom and the United Arab
     // Emirates, and the region tier would otherwise offer Dubai to someone
     // flying to London. Both regions still match on their distinctive words.
-    matches!(token, "usa" | "the" | "and" | "of" | "united")
+    REGION_STOPWORDS.contains(&token)
 }
 
 /// Fold one character for place matching: keep ASCII letters/digits (lowercased),
@@ -773,7 +775,7 @@ pub fn parse_pack_content(expected_id: &str, body: &str) -> Result<PackContent, 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashSet;
+    use std::collections::{BTreeMap, HashSet};
 
     /// "United" is a token in both "United Kingdom" and "United Arab
     /// Emirates", and the region tier matches any token of four or more
@@ -979,6 +981,46 @@ mod tests {
         }
         // `pack_aliases` is only ever called with catalog ids.
         assert!(ids.contains("us-nyc"));
+    }
+
+    #[test]
+    fn parity_pack_catalog_matches_the_contract_artifact() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../packages/contracts/parity/pack-catalog.json");
+        let raw = std::fs::read_to_string(&path).expect("parity/pack-catalog.json");
+        let mut golden: serde_json::Value = serde_json::from_str(&raw).expect("valid json");
+        let aliases: BTreeMap<String, Vec<String>> = pack_catalog()
+            .iter()
+            .filter_map(|pack| {
+                let values = pack_aliases(&pack.id);
+                (!values.is_empty()).then(|| {
+                    (
+                        pack.id.clone(),
+                        values.iter().map(|value| (*value).to_owned()).collect(),
+                    )
+                })
+            })
+            .collect();
+        let catalog = serde_json::to_value(pack_catalog()).expect("serializable catalog");
+        let aliases = serde_json::to_value(aliases).expect("serializable aliases");
+        let stopwords = serde_json::to_value(REGION_STOPWORDS).expect("serializable stopwords");
+
+        if std::env::var("VOYALIER_REGENERATE_GOLDEN").is_ok() {
+            golden["catalog"] = catalog;
+            golden["aliases"] = aliases;
+            golden["regionStopwords"] = stopwords;
+            let mut written = serde_json::to_string_pretty(&golden).expect("serializable");
+            written.push('\n');
+            std::fs::write(&path, written).expect("rewrite golden");
+            panic!("golden regenerated — review the diff, then run without the flag");
+        }
+
+        assert_eq!(catalog, golden["catalog"], "pack catalog disagrees");
+        assert_eq!(aliases, golden["aliases"], "pack aliases disagree");
+        assert_eq!(
+            stopwords, golden["regionStopwords"],
+            "pack region stopwords disagree"
+        );
     }
 
     #[test]

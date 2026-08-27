@@ -443,16 +443,13 @@ fn parity_pack_suggestions_match_the_contract() {
         );
     }
 
-    let catalog = serde_json::to_value(crate::pack_catalog()).expect("serializable catalog");
     if regenerate {
-        golden["catalog"] = catalog;
         golden["cases"] = Value::Array(regenerated);
         let mut written = serde_json::to_string_pretty(&golden).expect("serializable");
         written.push('\n');
         fs::write(&path, written).expect("rewrite golden");
         panic!("golden regenerated — review the diff, then run without the flag");
     }
-    assert_eq!(catalog, golden["catalog"], "pack catalog disagrees");
     assert_eq!(
         cases.len(),
         31,
@@ -500,7 +497,7 @@ fn parity_field_suggestions_match_the_contract() {
     }
     assert_eq!(
         cases.len(),
-        6,
+        9,
         "every field-suggestion case must be checked"
     );
 }

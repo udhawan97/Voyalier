@@ -123,6 +123,7 @@
             "departureAirportIata": "HND",
             "departureLocal": "2026-11-12T18:00",
             "flightNumber": "FP20",
+            "guestName": "CROSS-FAMILY-GUEST",
             "passengerName": "Jamie Traveler"
           },
           "sourceRemoved": false,
@@ -156,6 +157,7 @@
             "checkoutDate": "2026-11-12",
             "confirmationCode": "SECRET-STAY",
             "guestName": "Taylor Guest",
+            "passengerName": "CROSS-FAMILY-PASSENGER",
             "propertyName": "River Paper Inn"
           },
           "sourceRemoved": false,
@@ -379,7 +381,9 @@
     "Jamie Traveler",
     "SECRET-STAY",
     "Taylor Guest",
-    "PRIVATE PLAN NOTE"
+    "PRIVATE PLAN NOTE",
+    "CROSS-FAMILY-GUEST",
+    "CROSS-FAMILY-PASSENGER"
   ],
   "trip": {
     "createdAt": "2026-01-01T00:00:00Z",

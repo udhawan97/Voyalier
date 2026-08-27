@@ -651,7 +651,7 @@ mod tests {
         }
         assert_eq!(
             token_cases.len(),
-            1,
+            4,
             "every query-token case must be checked"
         );
         assert_eq!(cases.len(), 7, "every search-score case must be checked");

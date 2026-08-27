@@ -96,6 +96,29 @@
       ],
       "name": "caller lowercases and deduplicates query words",
       "query": "  Rail rail RAIL   Ferry ferry  "
+    },
+    {
+      "expected": [
+        "rail",
+        "ferry"
+      ],
+      "name": "Rust whitespace U+0085 splits query words",
+      "query": "RailFerry"
+    },
+    {
+      "expected": [
+        "rail﻿ferry"
+      ],
+      "name": "non-Rust whitespace U+FEFF stays inside a query word",
+      "query": "Rail﻿Ferry"
+    },
+    {
+      "expected": [
+        "ος",
+        "οσα"
+      ],
+      "name": "context-sensitive Greek sigma follows Rust string lowercase",
+      "query": "ΟΣ ΟΣΑ"
     }
   ]
 }
