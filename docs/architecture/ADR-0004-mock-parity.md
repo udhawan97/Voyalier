@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-07-16
+- Amended: 2026-08-26
 
 ## Context
 
@@ -37,16 +38,30 @@ It had already drifted, in five places:
   sends.
 - `assessReadiness` had quietly dropped a parameter the core still took.
 
+The follow-up closure found the same failure mode in pack suggestions. The mock
+listed 8 packs while the core shipped 22, omitted six current city aliases, and
+did not treat `"united"` as a region stopword. A contributor exercising the web
+fixture therefore saw a smaller catalog and different matches than either
+shell's real service.
+
+The redacted brief mirror had also delegated ordering to locale-aware
+`localeCompare`, while Rust orders strings by UTF-8 bytes. In the test runtime,
+that put the `"~"` sentinel before dated items, so undated ideas appeared first
+in mock mode and last through the real service.
+
 ## Decision
 
 Facts both languages must agree on live in `packages/contracts/parity/*.json`.
 A Rust test holds the core to each file; a TypeScript test holds the contract and
 its mock to the same file. Drift on either side fails a test.
 
-Today that covers `limits.json`, `normalize-place.json`, `prompts.json`,
-`readiness-links.json`, and `assess-trip.json`. Where a value can simply be
-_read_ rather than mirrored — the prompts and the links — the mock imports the
-file directly, so there is one copy of the text and nothing to keep in sync.
+The initial decision covered `limits.json`, `normalize-place.json`,
+`prompts.json`, `readiness-links.json`, and `assess-trip.json`. Later slices
+extended the same pattern to other pure mirrors; this closure adds
+`pack-suggestions.json`, `field-suggestions.json`, `search-score.json`, and
+`trip-brief.json`. Where a value can simply be _read_ rather than mirrored — the
+prompts, links, and pack catalog — the mock imports the file directly, so there
+is one copy of the data and nothing to keep in sync.
 
 `assess-trip.json` pins rule **output**, not just constants: twelve hand-designed
 trips, each with the itinerary conflicts and readiness rollup they produce. The
@@ -58,6 +73,20 @@ verdict; this one does.
 kinds, current and next anchors, phase calculation, source targets, and wire
 omission. This caught the mock treating every non-flight fact as a stay and
 therefore omitting surface journeys entirely.
+
+The four closure goldens pin the remaining pure mirrors named by this ADR:
+
+- `pack-suggestions.json` owns the complete catalog and exercises exact, alias,
+  partial, ambiguous-region, and ordering behavior.
+- `field-suggestions.json` exercises trimming, case-insensitive deduplication,
+  ranking, metadata preservation, Unicode, and the eight-result cap.
+- `search-score.json` pins query-token deduplication and the private lexical
+  helper's coverage, occurrence, and earliest-token result without exposing the
+  Rust helper publicly.
+- `trip-brief.json` pins ordering and wire omission across flights, stays, every
+  surface mode, and traveler-authored items. Sensitive canaries prove that
+  confirmation codes, traveler names, and private item notes exist in the
+  inputs and never enter expected or actual share output.
 
 Units are part of the agreement, not an implementation detail: every limit counts
 characters, and `countChars` in the contract gives that a name so `.length` never
@@ -97,10 +126,10 @@ creeps back in.
   dates reports full lodging coverage, in both languages.
 - A shared limit now has one declaration. Changing it fails both languages' tests
   until both follow, which is the intended friction.
-- Readiness, itinerary conflicts, and Today are pinned by output.
-  `mockSuggestPacks`, `mockRankFieldSuggestions`, `scoreHaystack`, and
-  `buildShareBrief` are still unpinned mirrors — the same pattern extends to
-  them, one golden each, when drift there matters enough to pay for it.
+- Readiness, itinerary conflicts, Today, pack and field suggestions, lexical
+  scoring, and trip-brief redaction are pinned by output. The finite list of
+  unpinned pure mirrors recorded by this ADR is closed; any new cross-language
+  rule must add its parity evidence in the same change.
 
 Related: [ADR-0001](ADR-0001-system-shape.md),
 [ADR-0003](ADR-0003-phase2-contract.md).
