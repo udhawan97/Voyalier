@@ -403,6 +403,108 @@ fn parity_saved_place_identity_matches_the_contract() {
     assert_eq!(cases.len(), 14, "every golden case must be checked");
 }
 
+/// Pack discovery uses the same local catalog and matching rule in core and in
+/// the shipped in-memory gateway. The catalog itself is pinned here so the mock
+/// cannot quietly exercise only a stale subset of destinations.
+#[test]
+fn parity_pack_suggestions_match_the_contract() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../packages/contracts/parity/pack-suggestions.json");
+    let raw = fs::read_to_string(&path).expect("parity/pack-suggestions.json");
+    let mut golden: Value = serde_json::from_str(&raw).expect("valid json");
+    let regenerate = std::env::var("VOYALIER_REGENERATE_GOLDEN").is_ok();
+    let cases = golden["cases"].as_array().expect("cases array").clone();
+    let mut regenerated = Vec::with_capacity(cases.len());
+
+    for case in &cases {
+        let name = case["name"].as_str().expect("name");
+        let input = case["input"].as_str().expect("input");
+        let actual = Value::Array(
+            crate::suggest_packs(input)
+                .into_iter()
+                .map(|suggestion| {
+                    serde_json::json!({
+                        "packId": suggestion.pack.id,
+                        "matchKind": suggestion.match_kind,
+                        "matchedText": suggestion.matched_text,
+                    })
+                })
+                .collect(),
+        );
+        if regenerate {
+            let mut updated = case.clone();
+            updated["expected"] = actual;
+            regenerated.push(updated);
+            continue;
+        }
+        assert_eq!(
+            actual, case["expected"],
+            "pack suggestions disagree for {name:?}"
+        );
+    }
+
+    let catalog = serde_json::to_value(crate::pack_catalog()).expect("serializable catalog");
+    if regenerate {
+        golden["catalog"] = catalog;
+        golden["cases"] = Value::Array(regenerated);
+        let mut written = serde_json::to_string_pretty(&golden).expect("serializable");
+        written.push('\n');
+        fs::write(&path, written).expect("rewrite golden");
+        panic!("golden regenerated — review the diff, then run without the flag");
+    }
+    assert_eq!(catalog, golden["catalog"], "pack catalog disagrees");
+    assert_eq!(
+        cases.len(),
+        31,
+        "every pack-suggestion case must be checked"
+    );
+}
+
+/// Local field suggestions are ranked in core and mirrored by the mock. This
+/// pins trimming, stable source priority, de-duplication, and the result cap.
+#[test]
+fn parity_field_suggestions_match_the_contract() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../packages/contracts/parity/field-suggestions.json");
+    let raw = fs::read_to_string(&path).expect("parity/field-suggestions.json");
+    let mut golden: Value = serde_json::from_str(&raw).expect("valid json");
+    let regenerate = std::env::var("VOYALIER_REGENERATE_GOLDEN").is_ok();
+    let cases = golden["cases"].as_array().expect("cases array").clone();
+    let mut regenerated = Vec::with_capacity(cases.len());
+
+    for case in &cases {
+        let name = case["name"].as_str().expect("name");
+        let query = case["query"].as_str().expect("query");
+        let candidates: Vec<crate::FieldSuggestion> =
+            serde_json::from_value(case["candidates"].clone()).expect("candidates");
+        let actual = serde_json::to_value(crate::rank_field_suggestions(query, candidates))
+            .expect("serializable suggestions");
+        if regenerate {
+            let mut updated = case.clone();
+            updated["expected"] = actual;
+            regenerated.push(updated);
+            continue;
+        }
+        assert_eq!(
+            actual, case["expected"],
+            "field suggestions disagree for {name:?}"
+        );
+    }
+
+    if regenerate {
+        golden["cases"] = Value::Array(regenerated);
+        let mut written = serde_json::to_string_pretty(&golden).expect("serializable");
+        written.push('\n');
+        fs::write(&path, written).expect("rewrite golden");
+        panic!("golden regenerated — review the diff, then run without the flag");
+    }
+    assert_eq!(
+        cases.len(),
+        6,
+        "every field-suggestion case must be checked"
+    );
+}
+
 /// Every `ErrorCode` appears in the contract's AppError schema.
 ///
 /// `rust_examples_validate_against_contract_schemas` validates one hardcoded
@@ -843,6 +945,93 @@ fn parity_today_matches_the_contract() {
         panic!("golden regenerated — review the diff, then run without the flag");
     }
     assert_eq!(cases.len(), 6, "every Today golden case must be checked");
+}
+
+/// The share brief is privacy-sensitive mirrored output: confirmation codes,
+/// traveler names, and private planning notes must be absent in both adapters,
+/// with identical ordering and optional wire fields.
+#[test]
+fn parity_trip_brief_matches_the_contract() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../packages/contracts/parity/trip-brief.json");
+    let raw = fs::read_to_string(&path).expect("parity/trip-brief.json");
+    let mut golden: Value = serde_json::from_str(&raw).expect("valid json");
+    let regenerate = std::env::var("VOYALIER_REGENERATE_GOLDEN").is_ok();
+    let trip: Trip = serde_json::from_value(golden["trip"].clone()).expect("trip");
+    let canaries = golden["sensitiveCanaries"]
+        .as_array()
+        .expect("sensitive canaries")
+        .iter()
+        .map(|value| value.as_str().expect("canary"))
+        .collect::<Vec<_>>();
+    let cases = golden["cases"].as_array().expect("cases array").clone();
+    let mut regenerated = Vec::with_capacity(cases.len());
+
+    let fixture_text = cases
+        .iter()
+        .flat_map(|case| [case["facts"].to_string(), case["tripItems"].to_string()])
+        .collect::<Vec<_>>()
+        .join("\n");
+    for canary in &canaries {
+        assert!(
+            fixture_text.contains(canary),
+            "canary {canary:?} must exist in input"
+        );
+    }
+
+    for case in &cases {
+        let name = case["name"].as_str().expect("name");
+        let facts: Vec<ConfirmedFact> =
+            serde_json::from_value(case["facts"].clone()).expect("facts");
+        let trip_items: Vec<TripItem> =
+            serde_json::from_value(case["tripItems"].clone()).expect("trip items");
+        let generated_at = case["generatedAt"].as_str().expect("generatedAt");
+        let actual = serde_json::to_value(crate::build_trip_brief(
+            &trip,
+            &facts,
+            &trip_items,
+            &crate::RedactionPolicy::for_sharing(),
+            generated_at,
+        ))
+        .expect("serializable brief");
+        let actual_text = actual.to_string();
+        for canary in &canaries {
+            assert!(
+                !actual_text.contains(canary),
+                "brief {name:?} leaked canary {canary:?}"
+            );
+        }
+        if regenerate {
+            let mut updated = case.clone();
+            updated["expected"] = actual;
+            regenerated.push(updated);
+            continue;
+        }
+        assert_eq!(
+            actual, case["expected"],
+            "trip brief disagrees for {name:?}"
+        );
+    }
+
+    if regenerate {
+        golden["cases"] = Value::Array(regenerated);
+        let mut written = serde_json::to_string_pretty(&golden).expect("serializable");
+        written.push('\n');
+        fs::write(&path, written).expect("rewrite golden");
+        panic!("golden regenerated — review the diff, then run without the flag");
+    }
+    let expected_text = cases
+        .iter()
+        .map(|case| case["expected"].to_string())
+        .collect::<Vec<_>>()
+        .join("\n");
+    for canary in canaries {
+        assert!(
+            !expected_text.contains(canary),
+            "expected output leaked canary {canary:?}"
+        );
+    }
+    assert_eq!(cases.len(), 3, "every trip-brief case must be checked");
 }
 
 /// The destination-facts rules each language derives on read, held to one file.

@@ -1,0 +1,216 @@
+{
+  "$comment": "Local field-value ranking agreed by voyalier-core and the shipped mock.",
+  "cases": [
+    {
+      "candidates": [
+        {
+          "detail": "this trip",
+          "source": "confirmed_fact",
+          "value": "  River Paper Inn  "
+        },
+        {
+          "source": "pack_place",
+          "value": ""
+        },
+        {
+          "source": "pack_place",
+          "value": "river paper inn"
+        },
+        {
+          "source": "trip_history",
+          "value": "Grand Hotel"
+        }
+      ],
+      "expected": [
+        {
+          "detail": "this trip",
+          "source": "confirmed_fact",
+          "value": "River Paper Inn"
+        },
+        {
+          "source": "trip_history",
+          "value": "Grand Hotel"
+        }
+      ],
+      "name": "empty query keeps order while trimming and deduplicating",
+      "query": "  "
+    },
+    {
+      "candidates": [
+        {
+          "source": "pack_place",
+          "value": "Grand Riverside"
+        },
+        {
+          "source": "confirmed_fact",
+          "value": "River Paper Inn"
+        },
+        {
+          "source": "gazetteer",
+          "value": "Riverview"
+        },
+        {
+          "source": "trip_history",
+          "value": "Mountain Lodge"
+        }
+      ],
+      "expected": [
+        {
+          "source": "confirmed_fact",
+          "value": "River Paper Inn"
+        },
+        {
+          "source": "gazetteer",
+          "value": "Riverview"
+        },
+        {
+          "source": "pack_place",
+          "value": "Grand Riverside"
+        }
+      ],
+      "name": "prefix matches precede substring matches",
+      "query": "river"
+    },
+    {
+      "candidates": [
+        {
+          "detail": "Chicago O'Hare International Airport",
+          "source": "airport",
+          "value": "  ORD  "
+        },
+        {
+          "source": "pack_place",
+          "value": "Ford Station"
+        }
+      ],
+      "expected": [
+        {
+          "detail": "Chicago O'Hare International Airport",
+          "source": "airport",
+          "value": "ORD"
+        },
+        {
+          "source": "pack_place",
+          "value": "Ford Station"
+        }
+      ],
+      "name": "detail and source survive normalization",
+      "query": "ord"
+    },
+    {
+      "candidates": [
+        {
+          "source": "catalog",
+          "value": "Place 0"
+        },
+        {
+          "source": "catalog",
+          "value": "Place 1"
+        },
+        {
+          "source": "catalog",
+          "value": "Place 2"
+        },
+        {
+          "source": "catalog",
+          "value": "Place 3"
+        },
+        {
+          "source": "catalog",
+          "value": "Place 4"
+        },
+        {
+          "source": "catalog",
+          "value": "Place 5"
+        },
+        {
+          "source": "catalog",
+          "value": "Place 6"
+        },
+        {
+          "source": "catalog",
+          "value": "Place 7"
+        },
+        {
+          "source": "catalog",
+          "value": "Place 8"
+        },
+        {
+          "source": "catalog",
+          "value": "Place 9"
+        }
+      ],
+      "expected": [
+        {
+          "source": "catalog",
+          "value": "Place 0"
+        },
+        {
+          "source": "catalog",
+          "value": "Place 1"
+        },
+        {
+          "source": "catalog",
+          "value": "Place 2"
+        },
+        {
+          "source": "catalog",
+          "value": "Place 3"
+        },
+        {
+          "source": "catalog",
+          "value": "Place 4"
+        },
+        {
+          "source": "catalog",
+          "value": "Place 5"
+        },
+        {
+          "source": "catalog",
+          "value": "Place 6"
+        },
+        {
+          "source": "catalog",
+          "value": "Place 7"
+        }
+      ],
+      "name": "results stop at eight",
+      "query": "place"
+    },
+    {
+      "candidates": [
+        {
+          "source": "gazetteer",
+          "value": "İstanbul"
+        },
+        {
+          "source": "pack_place",
+          "value": "East Station"
+        }
+      ],
+      "expected": [
+        {
+          "source": "gazetteer",
+          "value": "İstanbul"
+        }
+      ],
+      "name": "Unicode matching is case insensitive",
+      "query": "İST"
+    },
+    {
+      "candidates": [
+        {
+          "source": "catalog",
+          "value": "Kyoto"
+        },
+        {
+          "source": "gazetteer",
+          "value": "Osaka"
+        }
+      ],
+      "expected": [],
+      "name": "no match returns no values",
+      "query": "zeppelin"
+    }
+  ]
+}

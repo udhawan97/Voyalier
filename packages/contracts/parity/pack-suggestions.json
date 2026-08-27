@@ -1,0 +1,1096 @@
+{
+  "$comment": "Catalog-backed pack suggestions agreed by voyalier-core and the shipped mock. The catalog is generated from core and becomes the mock's fixture catalog; cases pin exact, alias, partial, ordering, and no-match behavior.",
+  "cases": [
+    {
+      "expected": [],
+      "input": "   ",
+      "name": "blank input"
+    },
+    {
+      "expected": [],
+      "input": "Atlantis",
+      "name": "unknown place"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "exact",
+          "matchedText": "Kyoto",
+          "packId": "jp-kyoto"
+        },
+        {
+          "matchKind": "partial",
+          "matchedText": "Japan",
+          "packId": "jp-tokyo"
+        }
+      ],
+      "input": "Kyoto, Japan",
+      "name": "city plus country"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "partial",
+          "matchedText": "Japan",
+          "packId": "jp-kyoto"
+        },
+        {
+          "matchKind": "partial",
+          "matchedText": "Japan",
+          "packId": "jp-tokyo"
+        }
+      ],
+      "input": "Japan",
+      "name": "ambiguous country"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "partial",
+          "matchedText": "Hawaii, USA",
+          "packId": "us-hi-oahu"
+        },
+        {
+          "matchKind": "partial",
+          "matchedText": "Hawaii, USA",
+          "packId": "us-hi-maui"
+        },
+        {
+          "matchKind": "partial",
+          "matchedText": "Hawaii, USA",
+          "packId": "us-hi-kauai"
+        },
+        {
+          "matchKind": "partial",
+          "matchedText": "Hawaii, USA",
+          "packId": "us-hi-hawaii-island"
+        }
+      ],
+      "input": "Hawaii",
+      "name": "island region"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "alias",
+          "matchedText": "music city",
+          "packId": "us-nashville"
+        }
+      ],
+      "input": "Music City",
+      "name": "Nashville alias"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "alias",
+          "matchedText": "honolulu",
+          "packId": "us-hi-oahu"
+        }
+      ],
+      "input": "Honolulu",
+      "name": "Oahu Honolulu alias"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "alias",
+          "matchedText": "waikiki",
+          "packId": "us-hi-oahu"
+        }
+      ],
+      "input": "Waikiki",
+      "name": "Oahu Waikiki alias"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "alias",
+          "matchedText": "lahaina",
+          "packId": "us-hi-maui"
+        }
+      ],
+      "input": "Lahaina",
+      "name": "Maui Lahaina alias"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "alias",
+          "matchedText": "kahului",
+          "packId": "us-hi-maui"
+        }
+      ],
+      "input": "Kahului",
+      "name": "Maui Kahului alias"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "alias",
+          "matchedText": "lihue",
+          "packId": "us-hi-kauai"
+        }
+      ],
+      "input": "Lihue",
+      "name": "Kauai Lihue alias"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "alias",
+          "matchedText": "big island",
+          "packId": "us-hi-hawaii-island"
+        }
+      ],
+      "input": "Big Island",
+      "name": "Big Island alias"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "alias",
+          "matchedText": "kona",
+          "packId": "us-hi-hawaii-island"
+        }
+      ],
+      "input": "Kona",
+      "name": "Big Island Kona alias"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "alias",
+          "matchedText": "hilo",
+          "packId": "us-hi-hawaii-island"
+        }
+      ],
+      "input": "Hilo",
+      "name": "Big Island Hilo alias"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "exact",
+          "matchedText": "London",
+          "packId": "gb-london"
+        }
+      ],
+      "input": "London UK",
+      "name": "London UK alias"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "alias",
+          "matchedText": "new york",
+          "packId": "us-nyc"
+        }
+      ],
+      "input": "New York",
+      "name": "New York alias"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "alias",
+          "matchedText": "nyc",
+          "packId": "us-nyc"
+        }
+      ],
+      "input": "NYC",
+      "name": "NYC alias"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "alias",
+          "matchedText": "manhattan",
+          "packId": "us-nyc"
+        }
+      ],
+      "input": "Manhattan",
+      "name": "Manhattan alias"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "alias",
+          "matchedText": "brooklyn",
+          "packId": "us-nyc"
+        }
+      ],
+      "input": "Brooklyn",
+      "name": "Brooklyn alias"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "alias",
+          "matchedText": "sf",
+          "packId": "us-san-francisco"
+        }
+      ],
+      "input": "SF",
+      "name": "San Francisco short alias"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "alias",
+          "matchedText": "san fran",
+          "packId": "us-san-francisco"
+        }
+      ],
+      "input": "San Fran",
+      "name": "San Francisco spoken alias"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "alias",
+          "matchedText": "barca",
+          "packId": "es-barcelona"
+        }
+      ],
+      "input": "Barca",
+      "name": "Barcelona alias"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "alias",
+          "matchedText": "roma",
+          "packId": "it-rome"
+        }
+      ],
+      "input": "Roma",
+      "name": "Rome alias"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "exact",
+          "matchedText": "Reykjavík",
+          "packId": "is-reykjavik"
+        }
+      ],
+      "input": "REYKJAVÍK",
+      "name": "Reykjavik folded article"
+    },
+    {
+      "expected": [],
+      "input": "United",
+      "name": "shared United token matches nothing"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "partial",
+          "matchedText": "United Kingdom",
+          "packId": "gb-london"
+        }
+      ],
+      "input": "United Kingdom",
+      "name": "United Kingdom region"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "partial",
+          "matchedText": "United Arab Emirates",
+          "packId": "ae-dubai"
+        }
+      ],
+      "input": "United Arab Emirates",
+      "name": "United Arab Emirates region"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "exact",
+          "matchedText": "Sydney",
+          "packId": "au-sydney"
+        }
+      ],
+      "input": "Sydney, Australia",
+      "name": "Sydney exact"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "exact",
+          "matchedText": "Singapore",
+          "packId": "sg-singapore"
+        }
+      ],
+      "input": "Singapore",
+      "name": "Singapore exact"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "exact",
+          "matchedText": "Paris",
+          "packId": "fr-paris"
+        }
+      ],
+      "input": "Paris, France",
+      "name": "Paris exact"
+    },
+    {
+      "expected": [
+        {
+          "matchKind": "exact",
+          "matchedText": "Hawaiʻi (Big Island)",
+          "packId": "us-hi-hawaii-island"
+        },
+        {
+          "matchKind": "partial",
+          "matchedText": "Hawaii, USA",
+          "packId": "us-hi-oahu"
+        },
+        {
+          "matchKind": "partial",
+          "matchedText": "Hawaii, USA",
+          "packId": "us-hi-maui"
+        },
+        {
+          "matchKind": "partial",
+          "matchedText": "Hawaii, USA",
+          "packId": "us-hi-kauai"
+        }
+      ],
+      "input": "Hawaiʻi (Big Island)",
+      "name": "Big Island exact"
+    }
+  ],
+  "catalog": [
+    {
+      "bbox": {
+        "east": -86.62,
+        "north": 36.41,
+        "south": 36.03,
+        "west": -87.06
+      },
+      "id": "us-nashville",
+      "layers": [
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "places",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "amenities",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "Wikivoyage contributors, CC BY-SA 3.0",
+          "layer": "articles",
+          "license": "CC-BY-SA-3.0",
+          "source": "Wikivoyage"
+        }
+      ],
+      "name": "Nashville",
+      "offlineMapAvailable": true,
+      "region": "Tennessee, USA",
+      "wikivoyageArticle": "Nashville"
+    },
+    {
+      "bbox": {
+        "east": -157.62,
+        "north": 21.75,
+        "south": 21.24,
+        "west": -158.31
+      },
+      "id": "us-hi-oahu",
+      "layers": [
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "places",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "amenities",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "Wikivoyage contributors, CC BY-SA 3.0",
+          "layer": "articles",
+          "license": "CC-BY-SA-3.0",
+          "source": "Wikivoyage"
+        }
+      ],
+      "name": "Oʻahu",
+      "offlineMapAvailable": true,
+      "region": "Hawaii, USA",
+      "wikivoyageArticle": "Oahu"
+    },
+    {
+      "bbox": {
+        "east": -155.98,
+        "north": 21.04,
+        "south": 20.57,
+        "west": -156.71
+      },
+      "id": "us-hi-maui",
+      "layers": [
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "places",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "amenities",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "Wikivoyage contributors, CC BY-SA 3.0",
+          "layer": "articles",
+          "license": "CC-BY-SA-3.0",
+          "source": "Wikivoyage"
+        }
+      ],
+      "name": "Maui",
+      "offlineMapAvailable": true,
+      "region": "Hawaii, USA",
+      "wikivoyageArticle": "Maui"
+    },
+    {
+      "bbox": {
+        "east": -159.29,
+        "north": 22.24,
+        "south": 21.85,
+        "west": -159.79
+      },
+      "id": "us-hi-kauai",
+      "layers": [
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "places",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "amenities",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "Wikivoyage contributors, CC BY-SA 3.0",
+          "layer": "articles",
+          "license": "CC-BY-SA-3.0",
+          "source": "Wikivoyage"
+        }
+      ],
+      "name": "Kauaʻi",
+      "offlineMapAvailable": true,
+      "region": "Hawaii, USA",
+      "wikivoyageArticle": "Kauai"
+    },
+    {
+      "bbox": {
+        "east": -154.79,
+        "north": 20.29,
+        "south": 18.87,
+        "west": -156.11
+      },
+      "id": "us-hi-hawaii-island",
+      "layers": [
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "places",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "amenities",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "Wikivoyage contributors, CC BY-SA 3.0",
+          "layer": "articles",
+          "license": "CC-BY-SA-3.0",
+          "source": "Wikivoyage"
+        }
+      ],
+      "name": "Hawaiʻi (Big Island)",
+      "offlineMapAvailable": true,
+      "region": "Hawaii, USA",
+      "wikivoyageArticle": "Hawaii (Big Island)"
+    },
+    {
+      "bbox": {
+        "east": 55.4,
+        "north": 25.3,
+        "south": 25.04,
+        "west": 55.1
+      },
+      "id": "ae-dubai",
+      "layers": [
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "places",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "amenities",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "Wikivoyage contributors, CC BY-SA 3.0",
+          "layer": "articles",
+          "license": "CC-BY-SA-3.0",
+          "source": "Wikivoyage"
+        }
+      ],
+      "name": "Dubai",
+      "offlineMapAvailable": true,
+      "region": "United Arab Emirates",
+      "wikivoyageArticle": "Dubai"
+    },
+    {
+      "bbox": {
+        "east": 29.09,
+        "north": 41.1,
+        "south": 40.96,
+        "west": 28.9
+      },
+      "id": "tr-istanbul",
+      "layers": [
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "places",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "amenities",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "Wikivoyage contributors, CC BY-SA 3.0",
+          "layer": "articles",
+          "license": "CC-BY-SA-3.0",
+          "source": "Wikivoyage"
+        }
+      ],
+      "name": "İstanbul",
+      "offlineMapAvailable": true,
+      "region": "Türkiye",
+      "wikivoyageArticle": "Istanbul"
+    },
+    {
+      "bbox": {
+        "east": -7.94,
+        "north": 31.68,
+        "south": 31.58,
+        "west": -8.06
+      },
+      "id": "ma-marrakech",
+      "layers": [
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "places",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "amenities",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "Wikivoyage contributors, CC BY-SA 3.0",
+          "layer": "articles",
+          "license": "CC-BY-SA-3.0",
+          "source": "Wikivoyage"
+        }
+      ],
+      "name": "Marrakech",
+      "offlineMapAvailable": true,
+      "region": "Morocco",
+      "wikivoyageArticle": "Marrakech"
+    },
+    {
+      "bbox": {
+        "east": -99.05,
+        "north": 19.52,
+        "south": 19.3,
+        "west": -99.24
+      },
+      "id": "mx-mexico-city",
+      "layers": [
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "places",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "amenities",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "Wikivoyage contributors, CC BY-SA 3.0",
+          "layer": "articles",
+          "license": "CC-BY-SA-3.0",
+          "source": "Wikivoyage"
+        }
+      ],
+      "name": "Ciudad de México",
+      "offlineMapAvailable": true,
+      "region": "Mexico",
+      "wikivoyageArticle": "Mexico City"
+    },
+    {
+      "bbox": {
+        "east": -43.13,
+        "north": -22.88,
+        "south": -23.01,
+        "west": -43.28
+      },
+      "id": "br-rio-de-janeiro",
+      "layers": [
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "places",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "amenities",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "Wikivoyage contributors, CC BY-SA 3.0",
+          "layer": "articles",
+          "license": "CC-BY-SA-3.0",
+          "source": "Wikivoyage"
+        }
+      ],
+      "name": "Rio de Janeiro",
+      "offlineMapAvailable": true,
+      "region": "Brazil",
+      "wikivoyageArticle": "Rio de Janeiro"
+    },
+    {
+      "bbox": {
+        "east": 151.3,
+        "north": -33.78,
+        "south": -33.97,
+        "west": 151.15
+      },
+      "id": "au-sydney",
+      "layers": [
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "places",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "amenities",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "Wikivoyage contributors, CC BY-SA 3.0",
+          "layer": "articles",
+          "license": "CC-BY-SA-3.0",
+          "source": "Wikivoyage"
+        }
+      ],
+      "name": "Sydney",
+      "offlineMapAvailable": true,
+      "region": "Australia",
+      "wikivoyageArticle": "Sydney"
+    },
+    {
+      "bbox": {
+        "east": 135.83,
+        "north": 35.1,
+        "south": 34.93,
+        "west": 135.68
+      },
+      "id": "jp-kyoto",
+      "layers": [
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "places",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "amenities",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "Wikivoyage contributors, CC BY-SA 3.0",
+          "layer": "articles",
+          "license": "CC-BY-SA-3.0",
+          "source": "Wikivoyage"
+        }
+      ],
+      "name": "Kyoto",
+      "offlineMapAvailable": true,
+      "region": "Japan",
+      "wikivoyageArticle": "Kyoto"
+    },
+    {
+      "bbox": {
+        "east": 139.92,
+        "north": 35.82,
+        "south": 35.53,
+        "west": 139.56
+      },
+      "id": "jp-tokyo",
+      "layers": [
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "places",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "amenities",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "Wikivoyage contributors, CC BY-SA 3.0",
+          "layer": "articles",
+          "license": "CC-BY-SA-3.0",
+          "source": "Wikivoyage"
+        }
+      ],
+      "name": "Tokyo",
+      "offlineMapAvailable": true,
+      "region": "Japan",
+      "wikivoyageArticle": "Tokyo"
+    },
+    {
+      "bbox": {
+        "east": 2.47,
+        "north": 48.91,
+        "south": 48.81,
+        "west": 2.22
+      },
+      "id": "fr-paris",
+      "layers": [
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "places",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "amenities",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "Wikivoyage contributors, CC BY-SA 3.0",
+          "layer": "articles",
+          "license": "CC-BY-SA-3.0",
+          "source": "Wikivoyage"
+        }
+      ],
+      "name": "Paris",
+      "offlineMapAvailable": true,
+      "region": "France",
+      "wikivoyageArticle": "Paris"
+    },
+    {
+      "bbox": {
+        "east": 0.15,
+        "north": 51.67,
+        "south": 51.38,
+        "west": -0.35
+      },
+      "id": "gb-london",
+      "layers": [
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "places",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "amenities",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "Wikivoyage contributors, CC BY-SA 3.0",
+          "layer": "articles",
+          "license": "CC-BY-SA-3.0",
+          "source": "Wikivoyage"
+        }
+      ],
+      "name": "London",
+      "offlineMapAvailable": true,
+      "region": "United Kingdom",
+      "wikivoyageArticle": "London"
+    },
+    {
+      "bbox": {
+        "east": -73.7,
+        "north": 40.92,
+        "south": 40.49,
+        "west": -74.26
+      },
+      "id": "us-nyc",
+      "layers": [
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "places",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "amenities",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "Wikivoyage contributors, CC BY-SA 3.0",
+          "layer": "articles",
+          "license": "CC-BY-SA-3.0",
+          "source": "Wikivoyage"
+        }
+      ],
+      "name": "New York City",
+      "offlineMapAvailable": true,
+      "region": "New York, USA",
+      "wikivoyageArticle": "New York City"
+    },
+    {
+      "bbox": {
+        "east": -122.36,
+        "north": 37.83,
+        "south": 37.7,
+        "west": -122.52
+      },
+      "id": "us-san-francisco",
+      "layers": [
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "places",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "amenities",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "Wikivoyage contributors, CC BY-SA 3.0",
+          "layer": "articles",
+          "license": "CC-BY-SA-3.0",
+          "source": "Wikivoyage"
+        }
+      ],
+      "name": "San Francisco",
+      "offlineMapAvailable": true,
+      "region": "California, USA",
+      "wikivoyageArticle": "San Francisco"
+    },
+    {
+      "bbox": {
+        "east": 2.23,
+        "north": 41.47,
+        "south": 41.32,
+        "west": 2.07
+      },
+      "id": "es-barcelona",
+      "layers": [
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "places",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "amenities",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "Wikivoyage contributors, CC BY-SA 3.0",
+          "layer": "articles",
+          "license": "CC-BY-SA-3.0",
+          "source": "Wikivoyage"
+        }
+      ],
+      "name": "Barcelona",
+      "offlineMapAvailable": true,
+      "region": "Spain",
+      "wikivoyageArticle": "Barcelona"
+    },
+    {
+      "bbox": {
+        "east": 12.62,
+        "north": 41.99,
+        "south": 41.79,
+        "west": 12.35
+      },
+      "id": "it-rome",
+      "layers": [
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "places",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "amenities",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "Wikivoyage contributors, CC BY-SA 3.0",
+          "layer": "articles",
+          "license": "CC-BY-SA-3.0",
+          "source": "Wikivoyage"
+        }
+      ],
+      "name": "Rome",
+      "offlineMapAvailable": true,
+      "region": "Italy",
+      "wikivoyageArticle": "Rome"
+    },
+    {
+      "bbox": {
+        "east": -21.75,
+        "north": 64.18,
+        "south": 64.09,
+        "west": -21.99
+      },
+      "id": "is-reykjavik",
+      "layers": [
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "places",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "amenities",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "Wikivoyage contributors, CC BY-SA 3.0",
+          "layer": "articles",
+          "license": "CC-BY-SA-3.0",
+          "source": "Wikivoyage"
+        }
+      ],
+      "name": "Reykjavík",
+      "offlineMapAvailable": true,
+      "region": "Iceland",
+      "wikivoyageArticle": "Reykjavik"
+    },
+    {
+      "bbox": {
+        "east": 104.04,
+        "north": 1.48,
+        "south": 1.21,
+        "west": 103.6
+      },
+      "id": "sg-singapore",
+      "layers": [
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "places",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "amenities",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "Wikivoyage contributors, CC BY-SA 3.0",
+          "layer": "articles",
+          "license": "CC-BY-SA-3.0",
+          "source": "Wikivoyage"
+        }
+      ],
+      "name": "Singapore",
+      "offlineMapAvailable": true,
+      "region": "Singapore",
+      "wikivoyageArticle": "Singapore"
+    },
+    {
+      "bbox": {
+        "east": 100.94,
+        "north": 13.96,
+        "south": 13.49,
+        "west": 100.33
+      },
+      "id": "th-bangkok",
+      "layers": [
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "places",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "© Overture Maps Foundation",
+          "layer": "amenities",
+          "license": "CDLA-Permissive-2.0",
+          "source": "Overture Maps"
+        },
+        {
+          "attribution": "Wikivoyage contributors, CC BY-SA 3.0",
+          "layer": "articles",
+          "license": "CC-BY-SA-3.0",
+          "source": "Wikivoyage"
+        }
+      ],
+      "name": "Bangkok",
+      "offlineMapAvailable": true,
+      "region": "Thailand",
+      "wikivoyageArticle": "Bangkok"
+    }
+  ]
+}

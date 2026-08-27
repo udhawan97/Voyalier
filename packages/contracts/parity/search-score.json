@@ -1,0 +1,101 @@
+{
+  "$comment": "Private lexical score helper output agreed by voyalier-core and the shipped mock. Callers lowercase haystacks and deduplicate query tokens before this helper.",
+  "cases": [
+    {
+      "expected": {
+        "first": null,
+        "matched": 0,
+        "occurrences": 0
+      },
+      "haystack": "airport shuttle",
+      "name": "no tokens",
+      "tokens": []
+    },
+    {
+      "expected": {
+        "first": null,
+        "matched": 0,
+        "occurrences": 0
+      },
+      "haystack": "airport shuttle",
+      "name": "no match",
+      "tokens": [
+        "rail"
+      ]
+    },
+    {
+      "expected": {
+        "first": "shuttle",
+        "matched": 2,
+        "occurrences": 3
+      },
+      "haystack": "shuttle shuttle from the airport",
+      "name": "coverage occurrences and earliest token",
+      "tokens": [
+        "airport",
+        "shuttle"
+      ]
+    },
+    {
+      "expected": {
+        "first": "aa",
+        "matched": 1,
+        "occurrences": 2
+      },
+      "haystack": "aaaa",
+      "name": "occurrences do not overlap",
+      "tokens": [
+        "aa"
+      ]
+    },
+    {
+      "expected": {
+        "first": "ferry",
+        "matched": 3,
+        "occurrences": 3
+      },
+      "haystack": "ferry then rail then coach",
+      "name": "token order does not override earliest position",
+      "tokens": [
+        "coach",
+        "rail",
+        "ferry"
+      ]
+    },
+    {
+      "expected": {
+        "first": "京都",
+        "matched": 1,
+        "occurrences": 2
+      },
+      "haystack": "京都から京都へ",
+      "name": "Unicode tokens count by exact folded text",
+      "tokens": [
+        "京都"
+      ]
+    },
+    {
+      "expected": {
+        "first": "rail",
+        "matched": 1,
+        "occurrences": 2
+      },
+      "haystack": "rail rail",
+      "name": "empty tokens are ignored",
+      "tokens": [
+        "",
+        "rail"
+      ]
+    }
+  ],
+  "tokenCases": [
+    {
+      "expected": [
+        "rail",
+        "ferry"
+      ],
+      "name": "caller lowercases and deduplicates query words",
+      "query": "  Rail rail RAIL   Ferry ferry  "
+    }
+  ]
+}

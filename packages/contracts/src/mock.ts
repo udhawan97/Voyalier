@@ -1,4 +1,5 @@
 import packing from "../parity/packing.json";
+import packSuggestionsParity from "../parity/pack-suggestions.json";
 import chatTopics from "../parity/chat-topics.json";
 import prompts from "../parity/prompts.json";
 import readinessLinks from "../parity/readiness-links.json";
@@ -764,29 +765,6 @@ function mockAiPromptDefault(kind: AiPromptKind): string {
   return kind === "assist" ? MOCK_ASSIST_PROMPT : MOCK_DRAFT_PROMPT;
 }
 
-function packLayers(): PackInfo["layers"] {
-  return [
-    {
-      layer: "places",
-      source: "Overture Maps",
-      license: "CDLA-Permissive-2.0",
-      attribution: "© Overture Maps Foundation",
-    },
-    {
-      layer: "amenities",
-      source: "Overture Maps",
-      license: "CDLA-Permissive-2.0",
-      attribution: "© Overture Maps Foundation",
-    },
-    {
-      layer: "articles",
-      source: "Wikivoyage",
-      license: "CC-BY-SA-3.0",
-      attribution: "Wikivoyage contributors, CC BY-SA 3.0",
-    },
-  ];
-}
-
 /** A small sample of pack places for mock recommendations, one per dimension. */
 const MOCK_PLACES: {
   name: string;
@@ -896,92 +874,29 @@ const MOCK_GAZETTEER: { name: string; country: string }[] = [
   { name: "Munich", country: "Germany" },
 ];
 
-/** Mirrors the required seed cities from voyalier-core::packs::pack_catalog. */
-const MOCK_PACKS: PackInfo[] = [
-  {
-    id: "us-nashville",
-    name: "Nashville",
-    region: "Tennessee, USA",
-    bbox: { west: -87.06, south: 36.03, east: -86.62, north: 36.41 },
-    wikivoyageArticle: "Nashville",
-    offlineMapAvailable: true,
-    layers: packLayers(),
-  },
-  {
-    id: "us-hi-oahu",
-    name: "Oʻahu",
-    region: "Hawaii, USA",
-    bbox: { west: -158.31, south: 21.24, east: -157.62, north: 21.75 },
-    wikivoyageArticle: "Oahu",
-    offlineMapAvailable: true,
-    layers: packLayers(),
-  },
-  {
-    id: "us-hi-maui",
-    name: "Maui",
-    region: "Hawaii, USA",
-    bbox: { west: -156.71, south: 20.57, east: -155.98, north: 21.04 },
-    wikivoyageArticle: "Maui",
-    offlineMapAvailable: true,
-    layers: packLayers(),
-  },
-  {
-    id: "us-hi-kauai",
-    name: "Kauaʻi",
-    region: "Hawaii, USA",
-    bbox: { west: -159.79, south: 21.85, east: -159.29, north: 22.24 },
-    wikivoyageArticle: "Kauai",
-    offlineMapAvailable: true,
-    layers: packLayers(),
-  },
-  {
-    id: "us-hi-hawaii-island",
-    name: "Hawaiʻi (Big Island)",
-    region: "Hawaii, USA",
-    bbox: { west: -156.11, south: 18.87, east: -154.79, north: 20.29 },
-    wikivoyageArticle: "Hawaii (Big Island)",
-    offlineMapAvailable: true,
-    layers: packLayers(),
-  },
-  {
-    id: "jp-kyoto",
-    name: "Kyoto",
-    region: "Japan",
-    bbox: { west: 135.68, south: 34.93, east: 135.83, north: 35.1 },
-    wikivoyageArticle: "Kyoto",
-    offlineMapAvailable: true,
-    layers: packLayers(),
-  },
-  {
-    id: "jp-tokyo",
-    name: "Tokyo",
-    region: "Japan",
-    bbox: { west: 139.56, south: 35.53, east: 139.92, north: 35.82 },
-    wikivoyageArticle: "Tokyo",
-    offlineMapAvailable: true,
-    layers: packLayers(),
-  },
-  {
-    id: "fr-paris",
-    name: "Paris",
-    region: "France",
-    bbox: { west: 2.22, south: 48.81, east: 2.47, north: 48.91 },
-    wikivoyageArticle: "Paris",
-    offlineMapAvailable: true,
-    layers: packLayers(),
-  },
-];
+/**
+ * The core-generated catalog used by the mock. Keeping the fixture in the
+ * parity file means component tests exercise every current pack rather than a
+ * stale hand-picked subset.
+ */
+const MOCK_PACKS = packSuggestionsParity.catalog as PackInfo[];
 
-/** A trimmed slice of voyalier-core::packs::pack_aliases for the mock's packs. */
+/** Mirrors voyalier-core::packs::pack_aliases; every term has a golden case. */
 const MOCK_PACK_ALIASES: Record<string, readonly string[]> = {
   "us-nashville": ["music city"],
   "us-hi-oahu": ["honolulu", "waikiki"],
   "us-hi-maui": ["lahaina", "kahului"],
   "us-hi-kauai": ["lihue"],
   "us-hi-hawaii-island": ["big island", "kona", "hilo"],
+  "gb-london": ["london uk"],
+  "us-nyc": ["new york", "nyc", "manhattan", "brooklyn"],
+  "us-san-francisco": ["san francisco", "sf", "san fran"],
+  "es-barcelona": ["barca"],
+  "it-rome": ["roma"],
+  "is-reykjavik": ["reykjavik"],
 };
 
-const REGION_STOPWORDS = new Set(["usa", "the", "and", "of"]);
+const REGION_STOPWORDS = new Set(["usa", "the", "and", "of", "united"]);
 
 /** JS mirror of voyalier-core::packs::normalize_place. */
 /**
@@ -1000,7 +915,7 @@ const MATCH_RANK: Record<PackMatchKind, number> = {
 };
 
 /** JS mirror of voyalier-core::packs::suggest_packs over the mock catalog. */
-function mockSuggestPacks(destination: string): PackSuggestion[] {
+export function mockSuggestPacks(destination: string): PackSuggestion[] {
   const normalized = mockNormalizePlace(destination);
   if (!normalized) return [];
   const padded = ` ${normalized} `;
@@ -1047,7 +962,7 @@ function mockSuggestPacks(destination: string): PackSuggestion[] {
 const MOCK_FIELD_SUGGESTION_LIMIT = 8;
 
 /** JS mirror of voyalier-core::suggest::rank_field_suggestions. */
-function mockRankFieldSuggestions(
+export function mockRankFieldSuggestions(
   query: string,
   candidates: FieldSuggestion[],
 ): FieldSuggestion[] {
@@ -1598,8 +1513,23 @@ function omit<T extends object>(value: T, keys: string[]): T {
   return copy;
 }
 
+// Rust orders strings by their UTF-8 bytes. `localeCompare` is locale-aware and
+// even puts the `~` sentinel before digits in some JavaScript runtimes, which
+// made undated brief items sort ahead of dated ones in mock mode.
+const UTF8_ENCODER = new TextEncoder();
+function compareRustStrings(left: string, right: string): number {
+  const leftBytes = UTF8_ENCODER.encode(left);
+  const rightBytes = UTF8_ENCODER.encode(right);
+  const sharedLength = Math.min(leftBytes.length, rightBytes.length);
+  for (let index = 0; index < sharedLength; index += 1) {
+    const difference = leftBytes[index]! - rightBytes[index]!;
+    if (difference !== 0) return difference;
+  }
+  return leftBytes.length - rightBytes.length;
+}
+
 // JS mirror of voyalier-core::search relaxed matching + term suggestions.
-function queryTokens(query: string): string[] {
+export function mockQueryTokens(query: string): string[] {
   const tokens: string[] = [];
   for (const word of query.toLowerCase().split(/\s+/)) {
     if (word && !tokens.includes(word)) tokens.push(word);
@@ -1607,7 +1537,7 @@ function queryTokens(query: string): string[] {
   return tokens;
 }
 
-function scoreHaystack(
+export function mockScoreHaystack(
   haystack: string,
   tokens: string[],
 ): { matched: number; occurrences: number; first?: string } {
@@ -1942,7 +1872,7 @@ function buildDisruptionPlan(
   return { handoffs, exposedLegs, pointers };
 }
 
-function buildShareBrief(
+export function mockBuildShareBrief(
   trip: Trip,
   tripFacts: ConfirmedFact[],
   manualItems: TripItem[],
@@ -1957,7 +1887,7 @@ function buildShareBrief(
       ]),
     )
     .sort((a, b) =>
-      (a.departureLocal ?? "").localeCompare(b.departureLocal ?? ""),
+      compareRustStrings(a.departureLocal ?? "", b.departureLocal ?? ""),
     );
   const stays = tripFacts
     .filter((fact) => fact.factType === "lodging_stay")
@@ -1967,7 +1897,9 @@ function buildShareBrief(
         "guestName",
       ]),
     )
-    .sort((a, b) => (a.checkinDate ?? "").localeCompare(b.checkinDate ?? ""));
+    .sort((a, b) =>
+      compareRustStrings(a.checkinDate ?? "", b.checkinDate ?? ""),
+    );
   // Surface legs travel together in one list, under the same generation-time
   // redaction the flights above get.
   const journeys = tripFacts
@@ -1979,7 +1911,7 @@ function buildShareBrief(
       ]),
     )
     .sort((a, b) =>
-      (a.departureLocal ?? "").localeCompare(b.departureLocal ?? ""),
+      compareRustStrings(a.departureLocal ?? "", b.departureLocal ?? ""),
     );
   const briefItems = manualItems
     .map(({ id, kind, title, location, startAt, endAt }) => ({
@@ -1992,9 +1924,9 @@ function buildShareBrief(
     }))
     .sort(
       (a, b) =>
-        (a.startAt ?? "~").localeCompare(b.startAt ?? "~") ||
-        a.title.localeCompare(b.title) ||
-        a.id.localeCompare(b.id),
+        compareRustStrings(a.startAt ?? "~", b.startAt ?? "~") ||
+        compareRustStrings(a.title, b.title) ||
+        compareRustStrings(a.id, b.id),
     );
 
   return {
@@ -3174,12 +3106,12 @@ export function createMockGateway(options?: {
         }
         // Relaxed: match ANY query word, rank by how many distinct words a
         // record covers, then by total occurrences.
-        const tokens = queryTokens(trimmed);
+        const tokens = mockQueryTokens(trimmed);
         const ranked: { hit: SearchHit; matched: number }[] = [];
 
         for (const stored of documents.values()) {
           if (stored.document.tripId !== tripId) continue;
-          const { matched, occurrences, first } = scoreHaystack(
+          const { matched, occurrences, first } = mockScoreHaystack(
             stored.content.toLowerCase(),
             tokens,
           );
@@ -3208,7 +3140,7 @@ export function createMockGateway(options?: {
           ]
             .filter((part) => part.length > 0)
             .join(" ");
-          const { matched, occurrences, first } = scoreHaystack(
+          const { matched, occurrences, first } = mockScoreHaystack(
             `${resource.title} ${text}`.toLowerCase(),
             tokens,
           );
@@ -3236,7 +3168,7 @@ export function createMockGateway(options?: {
             snippet: string;
           } | null = null;
           for (const value of factFieldStrings(fact)) {
-            const { matched, occurrences } = scoreHaystack(
+            const { matched, occurrences } = mockScoreHaystack(
               value.toLowerCase(),
               tokens,
             );
@@ -3292,7 +3224,7 @@ export function createMockGateway(options?: {
             "search query is required",
           );
         }
-        const tokens = queryTokens(trimmed);
+        const tokens = mockQueryTokens(trimmed);
         const ranked: { hit: WorkspaceSearchHit; matched: number }[] = [];
         const add = (
           source: WorkspaceSearchHit["source"],
@@ -3308,7 +3240,7 @@ export function createMockGateway(options?: {
             source === "trip_item";
           const haystack = searchesSourceLabel ? `${label} ${text}` : text;
           if (!trip) return;
-          const { matched, occurrences, first } = scoreHaystack(
+          const { matched, occurrences, first } = mockScoreHaystack(
             haystack.toLowerCase(),
             tokens,
           );
@@ -3406,7 +3338,7 @@ export function createMockGateway(options?: {
         const manualItems = [...tripItems.values()].filter(
           (item) => item.tripId === tripId,
         );
-        return buildShareBrief(trip, tripFacts, manualItems, timestamp());
+        return mockBuildShareBrief(trip, tripFacts, manualItems, timestamp());
       }),
 
     getToday: (tripId: string) =>
@@ -3611,7 +3543,7 @@ export function createMockGateway(options?: {
         const tripFacts = [...facts.values()].filter(
           (fact) => fact.tripId === tripId,
         );
-        const brief = buildShareBrief(trip, tripFacts, [], timestamp());
+        const brief = mockBuildShareBrief(trip, tripFacts, [], timestamp());
         const model = providerModels.get(provider);
         const groundedIn: string[] = [];
         if (brief.flights.length > 0) {

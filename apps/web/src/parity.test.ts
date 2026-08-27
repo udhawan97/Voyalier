@@ -4,12 +4,17 @@ import normalizePlaceGolden from "@voyalier/contracts/parity/normalize-place.jso
 import savedPlaceIdentityGolden from "@voyalier/contracts/parity/saved-place-identity.json";
 import assessTripGolden from "@voyalier/contracts/parity/assess-trip.json";
 import packingGolden from "@voyalier/contracts/parity/packing.json";
+import packSuggestionsGolden from "@voyalier/contracts/parity/pack-suggestions.json";
+import fieldSuggestionsGolden from "@voyalier/contracts/parity/field-suggestions.json";
+import searchScoreGolden from "@voyalier/contracts/parity/search-score.json";
+import tripBriefGolden from "@voyalier/contracts/parity/trip-brief.json";
 import tripFactsGolden from "@voyalier/contracts/parity/trip-facts.json";
 import todayGolden from "@voyalier/contracts/parity/today.json";
 import visaGolden from "@voyalier/contracts/parity/visa.json";
 import visaStatsSourcesGolden from "@voyalier/contracts/parity/visa-stats-sources.json";
 import type {
   ConfirmedFact,
+  FieldSuggestion,
   PublicHoliday,
   Trip,
   TripItem,
@@ -26,6 +31,7 @@ import {
   MAX_NOTES_CHARS,
   MAX_QUERY_LEN,
   countChars,
+  createMockGateway,
   crossRate,
   mockAssessReadiness,
   mockCountryFacts,
@@ -34,6 +40,11 @@ import {
   mockHolidaysWithin,
   mockNormalizePlace,
   mockPackingList,
+  mockQueryTokens,
+  mockRankFieldSuggestions,
+  mockScoreHaystack,
+  mockSuggestPacks,
+  mockBuildShareBrief,
   mockBuildTodayView,
   mockTimeDifference,
   mockTippingGuidance,
@@ -520,5 +531,98 @@ describe("parity: trip facts", () => {
 
   it.each(countryFacts)("country facts for $iso2", ({ iso2, expected }) => {
     expect(mockCountryFacts(iso2) ?? null).toEqual(expected);
+  });
+});
+
+describe("parity: destination pack suggestions", () => {
+  const { catalog, cases } = packSuggestionsGolden;
+
+  it("pins the complete shipped catalog and every matching case", async () => {
+    expect(catalog).toHaveLength(22);
+    expect(cases).toHaveLength(31);
+    expect(await createMockGateway().listPacks()).toEqual(catalog);
+  });
+
+  it.each(cases)("matches the Rust rule for $name", ({ input, expected }) => {
+    expect(
+      mockSuggestPacks(input).map(({ pack, matchKind, matchedText }) => ({
+        packId: pack.id,
+        matchKind,
+        matchedText,
+      })),
+    ).toEqual(expected);
+  });
+});
+
+describe("parity: field suggestions", () => {
+  const { cases } = fieldSuggestionsGolden;
+
+  it("pins every ranking case", () => {
+    expect(cases).toHaveLength(6);
+  });
+
+  it.each(cases)("matches the Rust rule for $name", (entry) => {
+    expect(
+      mockRankFieldSuggestions(
+        entry.query,
+        entry.candidates as FieldSuggestion[],
+      ),
+    ).toEqual(entry.expected);
+  });
+});
+
+describe("parity: lexical search scoring", () => {
+  const { cases, tokenCases } = searchScoreGolden;
+
+  it("pins every scoring case", () => {
+    expect(cases).toHaveLength(7);
+    expect(tokenCases).toHaveLength(1);
+  });
+
+  it.each(tokenCases)("matches query tokenization for $name", (entry) => {
+    expect(mockQueryTokens(entry.query)).toEqual(entry.expected);
+  });
+
+  it.each(cases)("matches the Rust rule for $name", (entry) => {
+    const actual = mockScoreHaystack(entry.haystack, entry.tokens);
+    expect({ ...actual, first: actual.first ?? null }).toEqual(entry.expected);
+  });
+});
+
+describe("parity: redacted trip brief", () => {
+  const { cases, sensitiveCanaries, trip } = tripBriefGolden;
+
+  it("pins every redaction and ordering case", () => {
+    expect(cases).toHaveLength(3);
+  });
+
+  it.each(cases)("matches the Rust rule for $name", (entry) => {
+    const inputText = JSON.stringify({
+      facts: entry.facts,
+      tripItems: entry.tripItems,
+    });
+    const actual = mockBuildShareBrief(
+      trip as Trip,
+      entry.facts as unknown as ConfirmedFact[],
+      entry.tripItems as TripItem[],
+      entry.generatedAt,
+    );
+    const actualText = JSON.stringify(actual);
+
+    expect(actual).toEqual(entry.expected);
+    for (const canary of sensitiveCanaries) {
+      if (inputText.includes(canary)) expect(actualText).not.toContain(canary);
+    }
+  });
+
+  it("exercises every sensitive canary before asserting its removal", () => {
+    const inputText = JSON.stringify(
+      cases.map(({ facts, tripItems }) => ({ facts, tripItems })),
+    );
+    const outputText = JSON.stringify(cases.map(({ expected }) => expected));
+    for (const canary of sensitiveCanaries) {
+      expect(inputText).toContain(canary);
+      expect(outputText).not.toContain(canary);
+    }
   });
 });

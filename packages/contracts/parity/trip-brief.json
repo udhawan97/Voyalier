@@ -1,0 +1,395 @@
+{
+  "$comment": "Redacted TripBrief projection agreed by voyalier-core and the shipped mock. Sensitive canaries must exist in input and never in expected or actual output.",
+  "cases": [
+    {
+      "expected": {
+        "destination": "Kyoto",
+        "endDate": "2026-11-12",
+        "flights": [],
+        "generatedAt": "2026-08-26T12:00:00Z",
+        "journeys": [],
+        "origin": "Chicago",
+        "redactedFields": [
+          "Confirmation codes",
+          "Traveler names"
+        ],
+        "startDate": "2026-11-03",
+        "stays": [],
+        "title": "Kyoto autumn journey",
+        "tripItems": []
+      },
+      "facts": [],
+      "generatedAt": "2026-08-26T12:00:00Z",
+      "name": "empty trip",
+      "tripItems": []
+    },
+    {
+      "expected": {
+        "destination": "Kyoto",
+        "endDate": "2026-11-12",
+        "flights": [
+          {
+            "airlineName": "Fictional Pacific",
+            "arrivalAirportIata": "HND",
+            "departureAirportIata": "ORD",
+            "departureLocal": "2026-11-03T12:40",
+            "flightNumber": "FP18"
+          },
+          {
+            "airlineName": "Fictional Pacific",
+            "arrivalAirportIata": "ORD",
+            "departureAirportIata": "HND",
+            "departureLocal": "2026-11-12T18:00",
+            "flightNumber": "FP20"
+          }
+        ],
+        "generatedAt": "2026-08-26T12:01:00Z",
+        "journeys": [
+          {
+            "arrivalPlace": "Osaka Station",
+            "carrierName": "Fictional Rail",
+            "departureLocal": "2026-11-05T09:00",
+            "departurePlace": "Kyoto Station",
+            "serviceNumber": "NX41"
+          },
+          {
+            "arrivalPlace": "Kobe",
+            "carrierName": "Fictional Coach",
+            "departureLocal": "2026-11-06T10:00",
+            "departurePlace": "Osaka"
+          },
+          {
+            "arrivalPlace": "Awaji Port",
+            "carrierName": "Fictional Ferry",
+            "departureLocal": "2026-11-07T11:00",
+            "departurePlace": "Kobe Port"
+          },
+          {
+            "arrivalPlace": "Kyoto Depot",
+            "carrierName": "Fictional Cars",
+            "departureLocal": "2026-11-08T08:00",
+            "departurePlace": "Awaji Depot",
+            "vehicleDescription": "Compact"
+          }
+        ],
+        "origin": "Chicago",
+        "redactedFields": [
+          "Confirmation codes",
+          "Traveler names"
+        ],
+        "startDate": "2026-11-03",
+        "stays": [
+          {
+            "address": "Gion, Kyoto",
+            "checkinDate": "2026-11-04",
+            "checkoutDate": "2026-11-12",
+            "propertyName": "River Paper Inn"
+          }
+        ],
+        "title": "Kyoto autumn journey",
+        "tripItems": [
+          {
+            "id": "transfer",
+            "kind": "transfer",
+            "startAt": "2026-11-04T16:00",
+            "title": "Walk to Gion"
+          },
+          {
+            "endAt": "2026-11-05T09:00",
+            "id": "rail-plan",
+            "kind": "rail",
+            "location": "Kyoto Station",
+            "startAt": "2026-11-05T08:30",
+            "title": "Morning train"
+          },
+          {
+            "id": "idea",
+            "kind": "activity",
+            "title": "Tea ceremony idea"
+          }
+        ]
+      },
+      "facts": [
+        {
+          "confirmedAt": "2026-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "flight_segment",
+          "id": "flight-late",
+          "method": "manual",
+          "payload": {
+            "airlineName": "Fictional Pacific",
+            "arrivalAirportIata": "ORD",
+            "confirmationCode": "SECRET-PNR",
+            "departureAirportIata": "HND",
+            "departureLocal": "2026-11-12T18:00",
+            "flightNumber": "FP20",
+            "passengerName": "Jamie Traveler"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_brief"
+        },
+        {
+          "confirmedAt": "2026-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "flight_segment",
+          "id": "flight-early",
+          "method": "manual",
+          "payload": {
+            "airlineName": "Fictional Pacific",
+            "arrivalAirportIata": "HND",
+            "departureAirportIata": "ORD",
+            "departureLocal": "2026-11-03T12:40",
+            "flightNumber": "FP18"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_brief"
+        },
+        {
+          "confirmedAt": "2026-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "lodging_stay",
+          "id": "stay",
+          "method": "manual",
+          "payload": {
+            "address": "Gion, Kyoto",
+            "checkinDate": "2026-11-04",
+            "checkoutDate": "2026-11-12",
+            "confirmationCode": "SECRET-STAY",
+            "guestName": "Taylor Guest",
+            "propertyName": "River Paper Inn"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_brief"
+        },
+        {
+          "confirmedAt": "2026-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "rail_journey",
+          "id": "rail",
+          "method": "manual",
+          "payload": {
+            "arrivalPlace": "Osaka Station",
+            "carrierName": "Fictional Rail",
+            "confirmationCode": "SECRET-PNR",
+            "departureLocal": "2026-11-05T09:00",
+            "departurePlace": "Kyoto Station",
+            "passengerName": "Jamie Traveler",
+            "serviceNumber": "NX41"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_brief"
+        },
+        {
+          "confirmedAt": "2026-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "coach_journey",
+          "id": "coach",
+          "method": "manual",
+          "payload": {
+            "arrivalPlace": "Kobe",
+            "carrierName": "Fictional Coach",
+            "departureLocal": "2026-11-06T10:00",
+            "departurePlace": "Osaka"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_brief"
+        },
+        {
+          "confirmedAt": "2026-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "ferry_crossing",
+          "id": "ferry",
+          "method": "manual",
+          "payload": {
+            "arrivalPlace": "Awaji Port",
+            "carrierName": "Fictional Ferry",
+            "departureLocal": "2026-11-07T11:00",
+            "departurePlace": "Kobe Port"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_brief"
+        },
+        {
+          "confirmedAt": "2026-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "car_rental",
+          "id": "rental",
+          "method": "manual",
+          "payload": {
+            "arrivalPlace": "Kyoto Depot",
+            "carrierName": "Fictional Cars",
+            "departureLocal": "2026-11-08T08:00",
+            "departurePlace": "Awaji Depot",
+            "vehicleDescription": "Compact"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_brief"
+        }
+      ],
+      "generatedAt": "2026-08-26T12:01:00Z",
+      "name": "every confirmed and traveler-authored family stays share-safe",
+      "tripItems": [
+        {
+          "createdAt": "2026-01-01T00:00:00Z",
+          "id": "idea",
+          "kind": "activity",
+          "notes": "PRIVATE PLAN NOTE",
+          "title": "Tea ceremony idea",
+          "tripId": "trip_brief",
+          "updatedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "createdAt": "2026-01-01T00:00:00Z",
+          "endAt": "2026-11-05T09:00",
+          "id": "rail-plan",
+          "kind": "rail",
+          "location": "Kyoto Station",
+          "notes": "PRIVATE PLAN NOTE",
+          "startAt": "2026-11-05T08:30",
+          "title": "Morning train",
+          "tripId": "trip_brief",
+          "updatedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "createdAt": "2026-01-01T00:00:00Z",
+          "id": "transfer",
+          "kind": "transfer",
+          "startAt": "2026-11-04T16:00",
+          "title": "Walk to Gion",
+          "tripId": "trip_brief",
+          "updatedAt": "2026-01-01T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "expected": {
+        "destination": "Kyoto",
+        "endDate": "2026-11-12",
+        "flights": [],
+        "generatedAt": "2026-08-26T12:02:00Z",
+        "journeys": [],
+        "origin": "Chicago",
+        "redactedFields": [
+          "Confirmation codes",
+          "Traveler names"
+        ],
+        "startDate": "2026-11-03",
+        "stays": [
+          {
+            "checkinDate": "2026-11-04",
+            "propertyName": "Earlier Stay"
+          },
+          {
+            "checkinDate": "2026-11-08",
+            "propertyName": "Later Stay"
+          }
+        ],
+        "title": "Kyoto autumn journey",
+        "tripItems": [
+          {
+            "id": "a",
+            "kind": "activity",
+            "title": "Same title"
+          },
+          {
+            "id": "z",
+            "kind": "activity",
+            "title": "Same title"
+          },
+          {
+            "id": "unicode-early",
+            "kind": "activity",
+            "title": "Zulu market"
+          },
+          {
+            "id": "unicode-late",
+            "kind": "activity",
+            "title": "Ångström museum"
+          }
+        ]
+      },
+      "facts": [
+        {
+          "confirmedAt": "2026-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "lodging_stay",
+          "id": "stay-z",
+          "method": "manual",
+          "payload": {
+            "checkinDate": "2026-11-08",
+            "propertyName": "Later Stay"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_brief"
+        },
+        {
+          "confirmedAt": "2026-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "lodging_stay",
+          "id": "stay-a",
+          "method": "manual",
+          "payload": {
+            "checkinDate": "2026-11-04",
+            "propertyName": "Earlier Stay"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_brief"
+        }
+      ],
+      "generatedAt": "2026-08-26T12:02:00Z",
+      "name": "sorting and absent optional fields stay stable",
+      "tripItems": [
+        {
+          "createdAt": "2026-01-01T00:00:00Z",
+          "id": "z",
+          "kind": "activity",
+          "title": "Same title",
+          "tripId": "trip_brief",
+          "updatedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "createdAt": "2026-01-01T00:00:00Z",
+          "id": "a",
+          "kind": "activity",
+          "title": "Same title",
+          "tripId": "trip_brief",
+          "updatedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "createdAt": "2026-01-01T00:00:00Z",
+          "id": "unicode-late",
+          "kind": "activity",
+          "title": "Ångström museum",
+          "tripId": "trip_brief",
+          "updatedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "createdAt": "2026-01-01T00:00:00Z",
+          "id": "unicode-early",
+          "kind": "activity",
+          "title": "Zulu market",
+          "tripId": "trip_brief",
+          "updatedAt": "2026-01-01T00:00:00Z"
+        }
+      ]
+    }
+  ],
+  "sensitiveCanaries": [
+    "SECRET-PNR",
+    "Jamie Traveler",
+    "SECRET-STAY",
+    "Taylor Guest",
+    "PRIVATE PLAN NOTE"
+  ],
+  "trip": {
+    "createdAt": "2026-01-01T00:00:00Z",
+    "destination": "Kyoto",
+    "endDate": "2026-11-12",
+    "id": "trip_brief",
+    "origin": "Chicago",
+    "startDate": "2026-11-03",
+    "status": "active",
+    "title": "Kyoto autumn journey",
+    "updatedAt": "2026-01-01T00:00:00Z"
+  }
+}

@@ -587,6 +587,76 @@ mod tests {
     use super::*;
     use crate::types::{ExtractionMethod, FactPayload};
 
+    #[test]
+    fn parity_search_score_matches_the_contract() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../packages/contracts/parity/search-score.json");
+        let raw = std::fs::read_to_string(&path).expect("parity/search-score.json");
+        let mut golden: serde_json::Value = serde_json::from_str(&raw).expect("valid json");
+        let regenerate = std::env::var("VOYALIER_REGENERATE_GOLDEN").is_ok();
+        let token_cases = golden["tokenCases"]
+            .as_array()
+            .expect("token cases array")
+            .clone();
+        let cases = golden["cases"].as_array().expect("cases array").clone();
+        let mut regenerated_token_cases = Vec::with_capacity(token_cases.len());
+        let mut regenerated = Vec::with_capacity(cases.len());
+
+        for case in &token_cases {
+            let name = case["name"].as_str().expect("name");
+            let query = case["query"].as_str().expect("query");
+            let actual = serde_json::to_value(query_tokens(query)).expect("serializable tokens");
+            if regenerate {
+                let mut updated = case.clone();
+                updated["expected"] = actual;
+                regenerated_token_cases.push(updated);
+                continue;
+            }
+            assert_eq!(
+                actual, case["expected"],
+                "query tokens disagree for {name:?}"
+            );
+        }
+
+        for case in &cases {
+            let name = case["name"].as_str().expect("name");
+            let haystack = case["haystack"].as_str().expect("haystack");
+            let tokens: Vec<String> =
+                serde_json::from_value(case["tokens"].clone()).expect("tokens");
+            let (matched, occurrences, first) = score_haystack(haystack, &tokens);
+            let actual = serde_json::json!({
+                "matched": matched,
+                "occurrences": occurrences,
+                "first": first,
+            });
+            if regenerate {
+                let mut updated = case.clone();
+                updated["expected"] = actual;
+                regenerated.push(updated);
+                continue;
+            }
+            assert_eq!(
+                actual, case["expected"],
+                "search score disagrees for {name:?}"
+            );
+        }
+
+        if regenerate {
+            golden["tokenCases"] = serde_json::Value::Array(regenerated_token_cases);
+            golden["cases"] = serde_json::Value::Array(regenerated);
+            let mut written = serde_json::to_string_pretty(&golden).expect("serializable");
+            written.push('\n');
+            std::fs::write(&path, written).expect("rewrite golden");
+            panic!("golden regenerated — review the diff, then run without the flag");
+        }
+        assert_eq!(
+            token_cases.len(),
+            1,
+            "every query-token case must be checked"
+        );
+        assert_eq!(cases.len(), 7, "every search-score case must be checked");
+    }
+
     fn fact(id: &str, property: &str, code: &str) -> ConfirmedFact {
         ConfirmedFact {
             id: id.to_owned(),
