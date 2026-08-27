@@ -28,6 +28,7 @@ import {
   validateWindowsAcceptanceReport,
   validateWindowsPickerPhaseTrace,
   validateWindowsPickerPreflightReport,
+  WINDOWS_ACCEPTANCE_CANDIDATE_VERSION,
   WINDOWS_PICKER_PHASE_MARKERS,
 } from "./windows-updater-fixture.mjs";
 import {
@@ -40,7 +41,7 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const BASE_TAG = "v0.10.7";
 const BASE_VERSION = "0.10.7";
-const CANDIDATE_VERSION = "0.11.0";
+const CANDIDATE_VERSION = WINDOWS_ACCEPTANCE_CANDIDATE_VERSION;
 const PORT = 48137;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 const TRIP_TITLE = "Windows updater acceptance - fictional Kyoto";

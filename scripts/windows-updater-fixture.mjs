@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { copyFile, rm } from "node:fs/promises";
 import path from "node:path";
 
@@ -10,6 +11,23 @@ import {
 
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const SHA256 = /^[0-9a-f]{64}$/;
+
+const configuredCandidateVersion = JSON.parse(
+  readFileSync(
+    new URL("../apps/desktop/src-tauri/tauri.conf.json", import.meta.url),
+    "utf8",
+  ),
+).version;
+if (!SEMVER.test(configuredCandidateVersion)) {
+  throw new Error("the configured desktop version must be SemVer");
+}
+
+/**
+ * The acceptance target is the version in the candidate's Tauri configuration.
+ * Keeping this derived prevents a release-only harness pin from silently
+ * lagging the synchronized product-version files.
+ */
+export const WINDOWS_ACCEPTANCE_CANDIDATE_VERSION = configuredCandidateVersion;
 
 export const WINDOWS_PICKER_PHASE_MARKERS = Object.freeze([
   ["export:command-entered", "voyalier-picker-phase-export-01-command-entered"],
@@ -511,8 +529,10 @@ export function validateWindowsAcceptanceReport(report) {
   ) {
     throw new Error("acceptance base adaptation changed an unexpected file");
   }
-  if (report.candidate?.version !== "0.11.0") {
-    throw new Error("acceptance candidate must be v0.11.0");
+  if (report.candidate?.version !== WINDOWS_ACCEPTANCE_CANDIDATE_VERSION) {
+    throw new Error(
+      `acceptance candidate must be v${WINDOWS_ACCEPTANCE_CANDIDATE_VERSION}`,
+    );
   }
   validateWindowsPickerPreflightReport(report.pickerPreflight, {
     candidateSha: report.candidate?.sha,
@@ -546,12 +566,12 @@ export function validateWindowsAcceptanceReport(report) {
   if (report.installed?.before !== "0.10.7") {
     throw new Error("installed base version was not observed");
   }
-  if (report.installed?.after !== "0.11.0") {
+  if (report.installed?.after !== WINDOWS_ACCEPTANCE_CANDIDATE_VERSION) {
     throw new Error(
       "installed candidate version was not observed after the swap",
     );
   }
-  if (report.installed?.recovery !== "0.11.0") {
+  if (report.installed?.recovery !== WINDOWS_ACCEPTANCE_CANDIDATE_VERSION) {
     throw new Error("reinstall recovery did not reopen the candidate");
   }
   if (!report.installed?.path?.startsWith("<LOCALAPPDATA>\\")) {

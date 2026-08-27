@@ -27,7 +27,9 @@ No public release may be promoted merely because the build completed.
 
 - Install and launch each artifact on a clean supported OS.
 - Verify version and bundle metadata.
-- Verify the local API binds only to loopback and shuts down with the app.
+- Verify the packaged app opens no unexpected TCP listener. The release shell
+  uses direct Tauri IPC; verify the separate source/server adapter remains
+  loopback-only and shuts down with its process.
 - Verify an upgrade preserves user data and a failed migration can recover.
 - Verify `SHA256SUMS.txt` against uploaded assets.
 - Verify the `packs-v1` pre-release remains marked pre-release and carries

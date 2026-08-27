@@ -137,20 +137,29 @@ entries in `Cargo.lock` together; run `cargo update --workspace`.
 1. Close the reviewed branch with `Merge: public proof refresh and v0.11.1`.
 2. Fetch and fast-forward `main` only if local and remote `main` still match the
    reviewed base; push and wait for exact-SHA CI, CodeQL, security, and Pages.
-3. Dispatch the keyless release dry-run from the exact candidate SHA and verify
-   both desktop bundles before tagging.
-4. Create and push the protected annotated `v0.11.1` tag only after the dry-run
-   and release gates pass. Approve protected macOS and Windows legs only after
-   verifying the exact ref/SHA and the preceding leg.
-5. Keep the generated release draft private until every expected artifact,
+3. Wait for the main-SHA Pages deployment, then re-open the live homepage and
+   download guidance in Safari before publication.
+4. Dispatch the keyless release dry-run and the opt-in Windows installed-updater
+   acceptance from the exact candidate SHA. Verify both desktop builds and the
+   sanitized Windows evidence before tagging.
+5. Prove the installed updater swap, reopen, and re-download recovery on real
+   Apple Silicon with disposable workspace data and a restored copy of the
+   pre-test installed app. Do not publish from Windows-only runtime evidence.
+6. Create and push the protected annotated `v0.11.1` tag only after those gates
+   pass. The repository has no configured tag-signing identity, so the tag is
+   intentionally unsigned; updater signatures, protected tags, exact-SHA CI,
+   and provenance attestations are the release-authenticity controls. Approve
+   protected macOS and Windows legs only after verifying the exact ref/SHA and
+   the preceding leg.
+7. Keep the generated release draft private until every expected artifact,
    `.sig`, checksum file, both required `latest.json` platform keys, signature
    binding, and provenance attestation passes. Then publish it as stable/latest
    with the reviewed notes.
-6. Download every public asset anonymously, verify checksums and updater
+8. Download every public asset anonymously, verify checksums and updater
    metadata, inspect the packaged macOS app, verify Windows installed-app
-   acceptance evidence, confirm tag/main/release SHA alignment, and re-open the
-   live homepage/download pages. Report the GitHub Pages deployment separately
-   from the product release.
+   acceptance evidence, and confirm tag/main/release SHA alignment. Repeat the
+   anonymous asset and public-surface checks after publication. Report the
+   GitHub Pages deployment separately from the product release.
 
 ## Commit order
 

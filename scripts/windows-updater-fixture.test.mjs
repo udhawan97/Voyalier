@@ -13,6 +13,7 @@ import {
   validateWindowsAcceptanceReport,
   validateWindowsPickerPhaseTrace,
   validateWindowsPickerPreflightReport,
+  WINDOWS_ACCEPTANCE_CANDIDATE_VERSION,
   WINDOWS_PICKER_PHASE_MARKERS,
 } from "./windows-updater-fixture.mjs";
 import {
@@ -1261,7 +1262,10 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
         changedFiles: ["apps/desktop/src-tauri/src/lib.rs"],
       },
     },
-    candidate: { version: "0.11.0", sha: CANDIDATE_SHA },
+    candidate: {
+      version: WINDOWS_ACCEPTANCE_CANDIDATE_VERSION,
+      sha: CANDIDATE_SHA,
+    },
     workflow: { runId: WORKFLOW_RUN_ID },
     pickerPreflight,
     pickerPhases: COMPLETE_PICKER_PHASE_TRACE,
@@ -1285,8 +1289,8 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
     installed: {
       path: "<LOCALAPPDATA>\\Voyalier\\Voyalier.exe",
       before: "0.10.7",
-      after: "0.11.0",
-      recovery: "0.11.0",
+      after: WINDOWS_ACCEPTANCE_CANDIDATE_VERSION,
+      recovery: WINDOWS_ACCEPTANCE_CANDIDATE_VERSION,
     },
     driver: {
       sharedJourneyProfile: true,
@@ -1399,7 +1403,10 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
       postBackupSentinelAbsent: true,
     },
     network: {
-      requests: ["/latest.json", "/Voyalier_0.11.0_x64-setup.exe"],
+      requests: [
+        "/latest.json",
+        `/Voyalier_${WINDOWS_ACCEPTANCE_CANDIDATE_VERSION}_x64-setup.exe`,
+      ],
       nonLoopbackRequests: 0,
       listeners: [],
     },
