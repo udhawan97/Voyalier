@@ -53,6 +53,12 @@ trips, each with the itinerary conflicts and readiness rollup they produce. The
 constants goldens would not have caught a mirror that computed a different
 verdict; this one does.
 
+`today.json` likewise pins projection output: the full confirmed-fact family
+(flight, stay, rail, coach, ferry, and rental), all traveler-authored trip-item
+kinds, current and next anchors, phase calculation, source targets, and wire
+omission. This caught the mock treating every non-flight fact as a stay and
+therefore omitting surface journeys entirely.
+
 Units are part of the agreement, not an implementation detail: every limit counts
 characters, and `countChars` in the contract gives that a name so `.length` never
 creeps back in.
@@ -91,7 +97,7 @@ creeps back in.
   dates reports full lodging coverage, in both languages.
 - A shared limit now has one declaration. Changing it fails both languages' tests
   until both follow, which is the intended friction.
-- Readiness and itinerary conflicts are pinned by output. `buildTodayView`,
+- Readiness, itinerary conflicts, and Today are pinned by output.
   `mockSuggestPacks`, `mockRankFieldSuggestions`, `scoreHaystack`, and
   `buildShareBrief` are still unpinned mirrors — the same pattern extends to
   them, one golden each, when drift there matters enough to pay for it.

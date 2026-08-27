@@ -2050,6 +2050,7 @@ export {
   mockHolidaysWithin,
   mockNormalizePlace,
   mockPackingList,
+  mockBuildTodayView,
   mockTimeDifference,
   mockTippingGuidance,
 } from "./mock";

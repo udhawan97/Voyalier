@@ -2079,7 +2079,7 @@ function formatAssistItinerary(brief: TripBrief): string {
 }
 
 /** Mirrors voyalier-core::today::build_today_view against a fixed "today". */
-function buildTodayView(
+export function mockBuildTodayView(
   trip: Trip,
   tripFacts: ConfirmedFact[],
   manualItems: TripItem[],
@@ -2114,7 +2114,7 @@ function buildTodayView(
           kind: "flight_departure",
           title: subject ? `Depart — ${subject}` : "Depart",
           subject,
-          detail: route,
+          ...(route ? { detail: route } : {}),
           date: d,
           time: timePart(p.departureLocal),
           target: { source: "confirmed_fact", recordId: fact.id },
@@ -2127,13 +2127,13 @@ function buildTodayView(
           kind: "flight_arrival",
           title: subject ? `Arrive — ${subject}` : "Arrive",
           subject,
-          detail: route,
+          ...(route ? { detail: route } : {}),
           date: today,
           time: timePart(p.arrivalLocal),
           target: { source: "confirmed_fact", recordId: fact.id },
         });
       }
-    } else {
+    } else if (fact.factType === "lodging_stay") {
       const p = fact.payload as LodgingStayPayload;
       const subject = p.propertyName;
       const ci = p.checkinDate;
@@ -2143,7 +2143,7 @@ function buildTodayView(
           kind: "checkin",
           title: subject ? `Check in — ${subject}` : "Check in",
           subject,
-          detail: p.address ?? "",
+          ...(p.address ? { detail: p.address } : {}),
           date: ci,
           target: { source: "confirmed_fact", recordId: fact.id },
         };
@@ -2163,8 +2163,41 @@ function buildTodayView(
           kind: "staying_tonight",
           title: subject ? `Staying at ${subject}` : "Staying tonight",
           subject,
-          detail: p.address ?? "",
+          ...(p.address ? { detail: p.address } : {}),
           date: today,
+          target: { source: "confirmed_fact", recordId: fact.id },
+        });
+      }
+    } else {
+      const p = fact.payload as SurfaceJourneyPayload;
+      const subject =
+        [p.carrierName, p.serviceNumber].filter(Boolean).join(" ") || undefined;
+      const route =
+        p.departurePlace && p.arrivalPlace
+          ? `${p.departurePlace} → ${p.arrivalPlace}`
+          : "";
+      if (p.departureLocal) {
+        const d = datePart(p.departureLocal);
+        const item: TodayItem = {
+          kind: "journey_departure",
+          title: subject ? `Depart — ${subject}` : "Depart",
+          subject,
+          ...(route ? { detail: route } : {}),
+          date: d,
+          time: timePart(p.departureLocal),
+          target: { source: "confirmed_fact", recordId: fact.id },
+        };
+        if (d === today) todayItems.push(item);
+        else if (d > today) anchors.push(item);
+      }
+      if (p.arrivalLocal && datePart(p.arrivalLocal) === today) {
+        todayItems.push({
+          kind: "journey_arrival",
+          title: subject ? `Arrive — ${subject}` : "Arrive",
+          subject,
+          ...(route ? { detail: route } : {}),
+          date: today,
+          time: timePart(p.arrivalLocal),
           target: { source: "confirmed_fact", recordId: fact.id },
         });
       }
@@ -2176,7 +2209,7 @@ function buildTodayView(
     const item: TodayItem = {
       kind: planned.kind,
       title: planned.title,
-      detail: planned.location ?? "",
+      ...(planned.location ? { detail: planned.location } : {}),
       date: d,
       time: timePart(planned.startAt),
       target: { source: "trip_item", recordId: planned.id },
@@ -3386,7 +3419,7 @@ export function createMockGateway(options?: {
         const manualItems = [...tripItems.values()].filter(
           (item) => item.tripId === tripId,
         );
-        return buildTodayView(
+        return mockBuildTodayView(
           trip,
           tripFacts,
           manualItems,

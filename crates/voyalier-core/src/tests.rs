@@ -15,8 +15,9 @@ use crate::{
     AddManualFactInput, AppError, CandidateFact, CandidateStatus, ConfirmCandidateInput,
     ConfirmedFact, CreateTripInput, DocumentKind, ErrorCode, ExtractionMethod, FactPayload,
     FactType, FieldSpan, HealthResponse, ImportDocumentInput, ImportResult, IntelligenceMode,
-    ReadinessStatus, SourceDocument, Trip, TripStatus, WarningCode, changed_payload_fields, new_id,
-    schema_validation::SchemaSet, validate_create_trip, validate_fact_payload,
+    ReadinessStatus, SourceDocument, Trip, TripItem, TripStatus, WarningCode,
+    changed_payload_fields, new_id, schema_validation::SchemaSet, validate_create_trip,
+    validate_fact_payload,
 };
 
 #[test]
@@ -794,6 +795,54 @@ fn parity_packing_matches_the_contract() {
         );
     }
     assert_eq!(cases.len(), 6, "every golden case must be checked");
+}
+
+/// Today is implemented in core and mirrored by the shipped in-memory gateway.
+/// This pins the full serialized projection so a fact family, target lane, or
+/// optional wire field cannot silently disappear from one implementation.
+#[test]
+fn parity_today_matches_the_contract() {
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/contracts/parity/today.json");
+    let raw = fs::read_to_string(&path).expect("parity/today.json");
+    let mut golden: Value = serde_json::from_str(&raw).expect("valid json");
+    let regenerate = std::env::var("VOYALIER_REGENERATE_GOLDEN").is_ok();
+    let trip: Trip = serde_json::from_value(golden["trip"].clone()).expect("trip");
+    let cases = golden["cases"].as_array().expect("cases array").clone();
+    let mut regenerated = Vec::with_capacity(cases.len());
+
+    for case in &cases {
+        let name = case["name"].as_str().expect("name");
+        let facts: Vec<ConfirmedFact> =
+            serde_json::from_value(case["facts"].clone()).expect("facts");
+        let trip_items: Vec<TripItem> =
+            serde_json::from_value(case["tripItems"].clone()).expect("trip items");
+        let reference_date = case["referenceDate"].as_str().expect("reference date");
+        let actual = serde_json::to_value(crate::build_today_view(
+            &trip,
+            &facts,
+            &trip_items,
+            reference_date,
+        ))
+        .expect("serializable Today view");
+
+        if regenerate {
+            let mut updated = case.clone();
+            updated["expected"] = actual;
+            regenerated.push(updated);
+            continue;
+        }
+        assert_eq!(actual, case["expected"], "Today disagrees for {name:?}");
+    }
+
+    if regenerate {
+        golden["cases"] = Value::Array(regenerated);
+        let mut written = serde_json::to_string_pretty(&golden).expect("serializable");
+        written.push('\n');
+        fs::write(&path, written).expect("rewrite golden");
+        panic!("golden regenerated — review the diff, then run without the flag");
+    }
+    assert_eq!(cases.len(), 6, "every Today golden case must be checked");
 }
 
 /// The destination-facts rules each language derives on read, held to one file.

@@ -5,12 +5,14 @@ import savedPlaceIdentityGolden from "@voyalier/contracts/parity/saved-place-ide
 import assessTripGolden from "@voyalier/contracts/parity/assess-trip.json";
 import packingGolden from "@voyalier/contracts/parity/packing.json";
 import tripFactsGolden from "@voyalier/contracts/parity/trip-facts.json";
+import todayGolden from "@voyalier/contracts/parity/today.json";
 import visaGolden from "@voyalier/contracts/parity/visa.json";
 import visaStatsSourcesGolden from "@voyalier/contracts/parity/visa-stats-sources.json";
 import type {
   ConfirmedFact,
   PublicHoliday,
   Trip,
+  TripItem,
   WeatherSnapshot,
 } from "@voyalier/contracts";
 import {
@@ -32,6 +34,7 @@ import {
   mockHolidaysWithin,
   mockNormalizePlace,
   mockPackingList,
+  mockBuildTodayView,
   mockTimeDifference,
   mockTippingGuidance,
   savedPlaceIdentity,
@@ -259,6 +262,31 @@ describe("parity: packing list", () => {
       ).toEqual(expected);
     },
   );
+});
+
+/**
+ * Today is a mirrored projection, so source families and wire details must not
+ * depend on whether the web app is using the real loopback gateway or its
+ * shipped in-memory implementation.
+ */
+describe("parity: Today projection", () => {
+  const cases = todayGolden.cases;
+
+  it("covers every golden case", () => {
+    expect(cases).toHaveLength(6);
+  });
+
+  it.each(cases)("agrees with the core for: $name", (entry) => {
+    const actual = mockBuildTodayView(
+      todayGolden.trip as Trip,
+      entry.facts as ConfirmedFact[],
+      entry.tripItems as TripItem[],
+      entry.referenceDate,
+    );
+    // Compare the wire shape: properties whose value is undefined are omitted
+    // by both HTTP JSON and Rust's skip_serializing_if contract.
+    expect(JSON.parse(JSON.stringify(actual))).toEqual(entry.expected);
+  });
 });
 
 /**

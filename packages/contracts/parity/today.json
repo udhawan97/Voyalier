@@ -1,0 +1,486 @@
+{
+  "$comment": "Today projection output agreed by voyalier-core and the shipped mock. Expected output is generated from the core and reviewed; both language tests pin the exact case count. Targets are part of the output because confirmed facts and traveler-authored trip items must never cross lanes.",
+  "$whyTheseCases": "The cases cover every constructor family and the wire boundaries that have drifted: future anchor ordering, same-day flight and every surface fact type, stay check-in/middle/checkout, all trip-item kinds, source targets, phase calculation, and omission of absent next/optional fields.",
+  "cases": [
+    {
+      "expected": {
+        "next": {
+          "date": "2026-11-03",
+          "detail": "ORD → HND",
+          "kind": "flight_departure",
+          "subject": "Fictional Pacific FP18",
+          "target": {
+            "recordId": "flight",
+            "source": "confirmed_fact"
+          },
+          "time": "12:40",
+          "title": "Depart — Fictional Pacific FP18"
+        },
+        "phase": {
+          "daysUntil": 2,
+          "state": "upcoming"
+        },
+        "referenceDate": "2026-11-01",
+        "today": []
+      },
+      "facts": [
+        {
+          "confirmedAt": "2026-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "flight_segment",
+          "id": "flight",
+          "method": "manual",
+          "payload": {
+            "airlineName": "Fictional Pacific",
+            "arrivalAirportIata": "HND",
+            "arrivalLocal": "2026-11-04T09:00",
+            "departureAirportIata": "ORD",
+            "departureLocal": "2026-11-03T12:40",
+            "flightNumber": "FP18"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_today"
+        },
+        {
+          "confirmedAt": "2026-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "lodging_stay",
+          "id": "stay",
+          "method": "manual",
+          "payload": {
+            "address": "Gion",
+            "checkinDate": "2026-11-04",
+            "checkoutDate": "2026-11-12",
+            "propertyName": "River Paper Inn"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_today"
+        }
+      ],
+      "name": "future anchors choose the earliest confirmed departure",
+      "referenceDate": "2026-11-01",
+      "tripItems": []
+    },
+    {
+      "expected": {
+        "phase": {
+          "day": 2,
+          "state": "active",
+          "totalDays": 10
+        },
+        "referenceDate": "2026-11-04",
+        "today": [
+          {
+            "date": "2026-11-04",
+            "detail": "Gion",
+            "kind": "checkin",
+            "subject": "River Paper Inn",
+            "target": {
+              "recordId": "stay",
+              "source": "confirmed_fact"
+            },
+            "title": "Check in — River Paper Inn"
+          },
+          {
+            "date": "2026-11-04",
+            "detail": "ORD → HND",
+            "kind": "flight_arrival",
+            "subject": "Fictional Pacific FP18",
+            "target": {
+              "recordId": "flight",
+              "source": "confirmed_fact"
+            },
+            "time": "09:00",
+            "title": "Arrive — Fictional Pacific FP18"
+          },
+          {
+            "date": "2026-11-04",
+            "detail": "Kyoto → Osaka",
+            "kind": "journey_departure",
+            "subject": "Fictional Rail NX41",
+            "target": {
+              "recordId": "rail",
+              "source": "confirmed_fact"
+            },
+            "time": "10:00",
+            "title": "Depart — Fictional Rail NX41"
+          },
+          {
+            "date": "2026-11-04",
+            "detail": "Kyoto → Osaka",
+            "kind": "journey_arrival",
+            "subject": "Fictional Rail NX41",
+            "target": {
+              "recordId": "rail",
+              "source": "confirmed_fact"
+            },
+            "time": "11:00",
+            "title": "Arrive — Fictional Rail NX41"
+          },
+          {
+            "date": "2026-11-04",
+            "detail": "Osaka → Kobe",
+            "kind": "journey_departure",
+            "subject": "Fictional Coach CX12",
+            "target": {
+              "recordId": "coach",
+              "source": "confirmed_fact"
+            },
+            "time": "12:00",
+            "title": "Depart — Fictional Coach CX12"
+          },
+          {
+            "date": "2026-11-04",
+            "detail": "Osaka → Kobe",
+            "kind": "journey_arrival",
+            "subject": "Fictional Coach CX12",
+            "target": {
+              "recordId": "coach",
+              "source": "confirmed_fact"
+            },
+            "time": "13:00",
+            "title": "Arrive — Fictional Coach CX12"
+          },
+          {
+            "date": "2026-11-04",
+            "detail": "Kobe → Awaji",
+            "kind": "journey_departure",
+            "subject": "Fictional Ferry FX8",
+            "target": {
+              "recordId": "ferry",
+              "source": "confirmed_fact"
+            },
+            "time": "14:00",
+            "title": "Depart — Fictional Ferry FX8"
+          },
+          {
+            "date": "2026-11-04",
+            "detail": "Kobe → Awaji",
+            "kind": "journey_arrival",
+            "subject": "Fictional Ferry FX8",
+            "target": {
+              "recordId": "ferry",
+              "source": "confirmed_fact"
+            },
+            "time": "15:00",
+            "title": "Arrive — Fictional Ferry FX8"
+          },
+          {
+            "date": "2026-11-04",
+            "detail": "Awaji → Kyoto",
+            "kind": "journey_departure",
+            "subject": "Fictional Cars",
+            "target": {
+              "recordId": "rental",
+              "source": "confirmed_fact"
+            },
+            "time": "16:00",
+            "title": "Depart — Fictional Cars"
+          },
+          {
+            "date": "2026-11-04",
+            "detail": "Awaji → Kyoto",
+            "kind": "journey_arrival",
+            "subject": "Fictional Cars",
+            "target": {
+              "recordId": "rental",
+              "source": "confirmed_fact"
+            },
+            "time": "17:00",
+            "title": "Arrive — Fictional Cars"
+          }
+        ]
+      },
+      "facts": [
+        {
+          "confirmedAt": "2026-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "flight_segment",
+          "id": "flight",
+          "method": "manual",
+          "payload": {
+            "airlineName": "Fictional Pacific",
+            "arrivalAirportIata": "HND",
+            "arrivalLocal": "2026-11-04T09:00",
+            "departureAirportIata": "ORD",
+            "departureLocal": "2026-11-03T12:40",
+            "flightNumber": "FP18"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_today"
+        },
+        {
+          "confirmedAt": "2026-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "lodging_stay",
+          "id": "stay",
+          "method": "manual",
+          "payload": {
+            "address": "Gion",
+            "checkinDate": "2026-11-04",
+            "checkoutDate": "2026-11-12",
+            "propertyName": "River Paper Inn"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_today"
+        },
+        {
+          "confirmedAt": "2026-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "rail_journey",
+          "id": "rail",
+          "method": "manual",
+          "payload": {
+            "arrivalLocal": "2026-11-04T11:00",
+            "arrivalPlace": "Osaka",
+            "carrierName": "Fictional Rail",
+            "departureLocal": "2026-11-04T10:00",
+            "departurePlace": "Kyoto",
+            "serviceNumber": "NX41"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_today"
+        },
+        {
+          "confirmedAt": "2026-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "coach_journey",
+          "id": "coach",
+          "method": "manual",
+          "payload": {
+            "arrivalLocal": "2026-11-04T13:00",
+            "arrivalPlace": "Kobe",
+            "carrierName": "Fictional Coach",
+            "departureLocal": "2026-11-04T12:00",
+            "departurePlace": "Osaka",
+            "serviceNumber": "CX12"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_today"
+        },
+        {
+          "confirmedAt": "2026-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "ferry_crossing",
+          "id": "ferry",
+          "method": "manual",
+          "payload": {
+            "arrivalLocal": "2026-11-04T15:00",
+            "arrivalPlace": "Awaji",
+            "carrierName": "Fictional Ferry",
+            "departureLocal": "2026-11-04T14:00",
+            "departurePlace": "Kobe",
+            "serviceNumber": "FX8"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_today"
+        },
+        {
+          "confirmedAt": "2026-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "car_rental",
+          "id": "rental",
+          "method": "manual",
+          "payload": {
+            "arrivalLocal": "2026-11-04T17:00",
+            "arrivalPlace": "Kyoto",
+            "carrierName": "Fictional Cars",
+            "departureLocal": "2026-11-04T16:00",
+            "departurePlace": "Awaji"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_today"
+        }
+      ],
+      "name": "current confirmed facts cover flights stays and every surface mode",
+      "referenceDate": "2026-11-04",
+      "tripItems": []
+    },
+    {
+      "expected": {
+        "phase": {
+          "day": 4,
+          "state": "active",
+          "totalDays": 10
+        },
+        "referenceDate": "2026-11-06",
+        "today": [
+          {
+            "date": "2026-11-06",
+            "detail": "Gion",
+            "kind": "staying_tonight",
+            "subject": "River Paper Inn",
+            "target": {
+              "recordId": "stay",
+              "source": "confirmed_fact"
+            },
+            "title": "Staying at River Paper Inn"
+          }
+        ]
+      },
+      "facts": [
+        {
+          "confirmedAt": "2026-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "lodging_stay",
+          "id": "stay",
+          "method": "manual",
+          "payload": {
+            "address": "Gion",
+            "checkinDate": "2026-11-04",
+            "checkoutDate": "2026-11-12",
+            "propertyName": "River Paper Inn"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_today"
+        }
+      ],
+      "name": "a middle lodging night preserves the stay source",
+      "referenceDate": "2026-11-06",
+      "tripItems": []
+    },
+    {
+      "expected": {
+        "phase": {
+          "day": 10,
+          "state": "active",
+          "totalDays": 10
+        },
+        "referenceDate": "2026-11-12",
+        "today": [
+          {
+            "date": "2026-11-12",
+            "kind": "checkout",
+            "subject": "River Paper Inn",
+            "target": {
+              "recordId": "stay",
+              "source": "confirmed_fact"
+            },
+            "title": "Check out — River Paper Inn"
+          }
+        ]
+      },
+      "facts": [
+        {
+          "confirmedAt": "2026-01-01T00:00:00Z",
+          "correctedFields": [],
+          "factType": "lodging_stay",
+          "id": "stay",
+          "method": "manual",
+          "payload": {
+            "address": "Gion",
+            "checkinDate": "2026-11-04",
+            "checkoutDate": "2026-11-12",
+            "propertyName": "River Paper Inn"
+          },
+          "sourceRemoved": false,
+          "tripId": "trip_today"
+        }
+      ],
+      "name": "checkout carries an empty detail on the wire",
+      "referenceDate": "2026-11-12",
+      "tripItems": []
+    },
+    {
+      "expected": {
+        "next": {
+          "date": "2026-11-05",
+          "kind": "rail",
+          "target": {
+            "recordId": "rail-plan",
+            "source": "trip_item"
+          },
+          "time": "09:00",
+          "title": "Train to Osaka"
+        },
+        "phase": {
+          "day": 2,
+          "state": "active",
+          "totalDays": 10
+        },
+        "referenceDate": "2026-11-04",
+        "today": [
+          {
+            "date": "2026-11-04",
+            "detail": "Gion",
+            "kind": "activity",
+            "target": {
+              "recordId": "activity",
+              "source": "trip_item"
+            },
+            "time": "15:00",
+            "title": "Tea ceremony"
+          },
+          {
+            "date": "2026-11-04",
+            "kind": "transfer",
+            "target": {
+              "recordId": "transfer",
+              "source": "trip_item"
+            },
+            "time": "16:00",
+            "title": "Walk to Gion"
+          }
+        ]
+      },
+      "facts": [],
+      "name": "traveler authored kinds remain trip items and choose the next anchor",
+      "referenceDate": "2026-11-04",
+      "tripItems": [
+        {
+          "createdAt": "2026-01-01T00:00:00Z",
+          "id": "activity",
+          "kind": "activity",
+          "location": "Gion",
+          "startAt": "2026-11-04T15:00",
+          "title": "Tea ceremony",
+          "tripId": "trip_today",
+          "updatedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "createdAt": "2026-01-01T00:00:00Z",
+          "id": "transfer",
+          "kind": "transfer",
+          "startAt": "2026-11-04T16:00",
+          "title": "Walk to Gion",
+          "tripId": "trip_today",
+          "updatedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "createdAt": "2026-01-01T00:00:00Z",
+          "id": "rail-plan",
+          "kind": "rail",
+          "startAt": "2026-11-05T09:00",
+          "title": "Train to Osaka",
+          "tripId": "trip_today",
+          "updatedAt": "2026-01-01T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "expected": {
+        "phase": {
+          "daysAgo": 8,
+          "state": "completed"
+        },
+        "referenceDate": "2026-11-20",
+        "today": []
+      },
+      "facts": [],
+      "name": "a completed trip omits both current and next items",
+      "referenceDate": "2026-11-20",
+      "tripItems": []
+    }
+  ],
+  "trip": {
+    "createdAt": "2026-01-01T00:00:00Z",
+    "destination": "Kyoto",
+    "endDate": "2026-11-12",
+    "id": "trip_today",
+    "origin": "Chicago",
+    "startDate": "2026-11-03",
+    "status": "active",
+    "title": "Kyoto",
+    "updatedAt": "2026-01-01T00:00:00Z"
+  }
+}
