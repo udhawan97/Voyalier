@@ -178,7 +178,10 @@ pub use suggest::{
     FIELD_SUGGESTION_LIMIT, FieldSuggestion, SuggestionSource, rank_field_suggestions,
 };
 pub use tipping::tipping_guidance;
-pub use today::{TodayItem, TodayItemKind, TodayView, TripPhase, TripPhaseState, build_today_view};
+pub use today::{
+    TodayItem, TodayItemKind, TodayItemTarget, TodayItemTargetSource, TodayView, TripPhase,
+    TripPhaseState, build_today_view,
+};
 pub use types::*;
 pub use vault::{VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, derive_key, open, seal};
 pub use visa::{

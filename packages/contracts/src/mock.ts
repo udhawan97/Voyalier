@@ -2117,6 +2117,7 @@ function buildTodayView(
           detail: route,
           date: d,
           time: timePart(p.departureLocal),
+          target: { source: "confirmed_fact", recordId: fact.id },
         };
         if (d === today) todayItems.push(item);
         else if (d > today) anchors.push(item);
@@ -2129,6 +2130,7 @@ function buildTodayView(
           detail: route,
           date: today,
           time: timePart(p.arrivalLocal),
+          target: { source: "confirmed_fact", recordId: fact.id },
         });
       }
     } else {
@@ -2143,6 +2145,7 @@ function buildTodayView(
           subject,
           detail: p.address ?? "",
           date: ci,
+          target: { source: "confirmed_fact", recordId: fact.id },
         };
         if (ci === today) todayItems.push(item);
         else if (ci > today) anchors.push(item);
@@ -2153,6 +2156,7 @@ function buildTodayView(
           title: subject ? `Check out — ${subject}` : "Check out",
           subject,
           date: today,
+          target: { source: "confirmed_fact", recordId: fact.id },
         });
       } else if (ci && co && ci < today && today < co) {
         todayItems.push({
@@ -2161,6 +2165,7 @@ function buildTodayView(
           subject,
           detail: p.address ?? "",
           date: today,
+          target: { source: "confirmed_fact", recordId: fact.id },
         });
       }
     }
@@ -2174,6 +2179,7 @@ function buildTodayView(
       detail: planned.location ?? "",
       date: d,
       time: timePart(planned.startAt),
+      target: { source: "trip_item", recordId: planned.id },
     };
     if (d === today) todayItems.push(item);
     else if (d > today) anchors.push(item);

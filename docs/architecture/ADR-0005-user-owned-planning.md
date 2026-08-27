@@ -39,6 +39,15 @@ Voyalier owns a distinct **planning** model alongside its evidence model:
   deterministic time-overlap notices, but it is not a confirmed reservation and
   never clears readiness.
 
+Today preserves the local source identity of each projected line. Confirmed
+departures, arrivals, stays, and check-in/out events point back to their
+`ConfirmedFact`; traveler-authored activities, rail journeys, and transfers
+point back to their `TripItem`. The additive wire target is optional for older
+clients, contains only the source kind and local record id, and is transient
+navigation data: it does not enter URLs, history, exports, logs, or settings.
+Following it focuses the existing source record and never promotes a trip item
+into evidence.
+
 Planning records belong to `voyalier-app` persistence and are exposed only
 through `AppService`; validation and deterministic projections belong to
 `voyalier-core`. Axum and Tauri remain thin adapters over the same versioned
@@ -82,6 +91,10 @@ authorities or licenses are never merged into one trust score.
 - New planning kinds require explicit decisions in Today, brief, calendar,
   search, backup, deletion, and accessibility tests rather than being smuggled
   through an existing payload enum.
+- Today and disruption projections may link back to records they already name,
+  but continuity actions do not change those records or widen the projection's
+  authority. A missing record falls back to the owning section with an honest
+  unavailable announcement.
 
 Related: [ADR-0001](ADR-0001-system-shape.md),
 [ADR-0003](ADR-0003-phase2-contract.md), and

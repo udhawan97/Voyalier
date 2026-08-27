@@ -54,6 +54,39 @@ pub enum TodayItemKind {
     Transfer,
 }
 
+/// Which local record produced one Today line. The discriminant is load-bearing:
+/// a traveler-authored plan must never be focused as confirmed evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TodayItemTargetSource {
+    ConfirmedFact,
+    TripItem,
+}
+
+/// A transient return path from the projection to its owning local record.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TodayItemTarget {
+    pub source: TodayItemTargetSource,
+    pub record_id: String,
+}
+
+impl TodayItemTarget {
+    fn confirmed_fact(record_id: &str) -> Self {
+        Self {
+            source: TodayItemTargetSource::ConfirmedFact,
+            record_id: record_id.to_owned(),
+        }
+    }
+
+    fn trip_item(record_id: &str) -> Self {
+        Self {
+            source: TodayItemTargetSource::TripItem,
+            record_id: record_id.to_owned(),
+        }
+    }
+}
+
 /// One dated entry in the Today view.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -70,6 +103,10 @@ pub struct TodayItem {
     /// Local time (HH:MM) when known (flights).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub time: Option<String>,
+    /// Optional for backwards-compatible consumers; current projections always
+    /// preserve their source record.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target: Option<TodayItemTarget>,
 }
 
 /// The Today projection for a trip against a reference date.
@@ -228,6 +265,7 @@ pub fn build_today_view(
                         detail: flight_route(payload),
                         date: date.to_owned(),
                         time: time_part(departure),
+                        target: Some(TodayItemTarget::confirmed_fact(&fact.id)),
                     };
                     if date == today {
                         today_items.push(item);
@@ -249,6 +287,7 @@ pub fn build_today_view(
                             detail: flight_route(payload),
                             date: date.to_owned(),
                             time: time_part(arrival),
+                            target: Some(TodayItemTarget::confirmed_fact(&fact.id)),
                         });
                     }
                 }
@@ -272,6 +311,7 @@ pub fn build_today_view(
                         detail: detail.clone(),
                         date: date.to_owned(),
                         time: time_part(departure),
+                        target: Some(TodayItemTarget::confirmed_fact(&fact.id)),
                     };
                     if date == today {
                         today_items.push(item);
@@ -292,6 +332,7 @@ pub fn build_today_view(
                             detail,
                             date: date.to_owned(),
                             time: time_part(arrival),
+                            target: Some(TodayItemTarget::confirmed_fact(&fact.id)),
                         });
                     }
                 }
@@ -312,6 +353,7 @@ pub fn build_today_view(
                         detail: payload.address.clone().unwrap_or_default(),
                         date: checkin.to_owned(),
                         time: None,
+                        target: Some(TodayItemTarget::confirmed_fact(&fact.id)),
                     };
                     if checkin == today {
                         today_items.push(item);
@@ -330,6 +372,7 @@ pub fn build_today_view(
                         detail: String::new(),
                         date: today.to_owned(),
                         time: None,
+                        target: Some(TodayItemTarget::confirmed_fact(&fact.id)),
                     });
                 } else if let (Some(checkin), Some(checkout)) = (checkin, checkout) {
                     // A night in the middle of a stay (not the check-in/out day).
@@ -344,6 +387,7 @@ pub fn build_today_view(
                             detail: payload.address.clone().unwrap_or_default(),
                             date: today.to_owned(),
                             time: None,
+                            target: Some(TodayItemTarget::confirmed_fact(&fact.id)),
                         });
                     }
                 }
@@ -367,6 +411,7 @@ pub fn build_today_view(
             detail: planned.location.clone().unwrap_or_default(),
             date: date.to_owned(),
             time: time_part(start),
+            target: Some(TodayItemTarget::trip_item(&planned.id)),
         };
         if date == today {
             today_items.push(item);
@@ -482,6 +527,9 @@ mod tests {
         let next = view.next.expect("next");
         assert_eq!(next.kind, TodayItemKind::FlightDeparture);
         assert_eq!(next.date, "2026-11-03");
+        let target = serde_json::to_value(&next).expect("serialize next item");
+        assert_eq!(target["target"]["source"], "confirmed_fact");
+        assert_eq!(target["target"]["recordId"], "f1");
     }
 
     #[test]
@@ -494,12 +542,33 @@ mod tests {
         let kinds: Vec<TodayItemKind> = view.today.iter().map(|i| i.kind).collect();
         assert!(kinds.contains(&TodayItemKind::FlightArrival));
         assert!(kinds.contains(&TodayItemKind::Checkin));
+        assert!(view.today.iter().all(|item| matches!(
+            item.target.as_ref(),
+            Some(TodayItemTarget {
+                source: TodayItemTargetSource::ConfirmedFact,
+                ..
+            })
+        )));
+        assert_eq!(
+            view.today
+                .iter()
+                .filter_map(|item| item.target.as_ref().map(|target| target.record_id.as_str()))
+                .collect::<Vec<_>>(),
+            vec!["l1", "f1"]
+        );
 
         // A middle night shows "staying tonight" and no next anchor remains.
         let mid = build_today_view(&trip(), &[flight(), stay()], &[], "2026-11-06");
         assert_eq!(
             mid.today.iter().map(|i| i.kind).collect::<Vec<_>>(),
             vec![TodayItemKind::StayingTonight]
+        );
+        assert_eq!(
+            mid.today[0]
+                .target
+                .as_ref()
+                .map(|target| target.record_id.as_str()),
+            Some("l1")
         );
         assert!(mid.next.is_none());
     }
@@ -563,6 +632,13 @@ mod tests {
         assert_eq!(view.today[0].title, "Tea ceremony");
         assert_eq!(view.today[0].detail, "Gion");
         assert!(!view.today[0].detail.contains("PRIVATE"));
-        assert_eq!(view.next.expect("next").kind, TodayItemKind::Rail);
+        let today_target = serde_json::to_value(&view.today[0]).expect("serialize today item");
+        assert_eq!(today_target["target"]["source"], "trip_item");
+        assert_eq!(today_target["target"]["recordId"], "a");
+        let next = view.next.expect("next");
+        assert_eq!(next.kind, TodayItemKind::Rail);
+        let next_target = serde_json::to_value(next).expect("serialize next item");
+        assert_eq!(next_target["target"]["source"], "trip_item");
+        assert_eq!(next_target["target"]["recordId"], "r");
     }
 }

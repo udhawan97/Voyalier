@@ -1300,6 +1300,11 @@ export interface TodayItem {
   detail?: string;
   date: string;
   time?: string;
+  /** The local record behind this projection; absent on older gateways. */
+  target?: {
+    source: "confirmed_fact" | "trip_item";
+    recordId: string;
+  };
 }
 /** A deterministic "now / next" projection of a trip against the current date. */
 export interface TodayView {
