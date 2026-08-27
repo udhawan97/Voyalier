@@ -24,8 +24,8 @@ action, booking ability, or new authority claim.
 - **Disruption dependencies can open their records.** Each handoff,
   exposed leg, and operator pointer in **If something slips** can focus the
   approved fact behind it. Recorded gaps and stacked commitments use only local
-  plan times and labels: the projection does not fetch live status, predict a
-  delay, grade a connection, find an alternative, or invent contact details.
+  plan times and labels: the surface does not display connection grades, fetch
+  live status, predict a delay, find an alternative, or invent contact details.
 
 ### Fixed
 
