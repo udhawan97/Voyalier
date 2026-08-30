@@ -273,7 +273,15 @@ function ResourceRow({
  * thing on the panel that can reach the network, so it stays behind a standing
  * permission the traveler grants and can withdraw.
  */
-export function ResourcesPanel({ tripId }: { tripId: string }) {
+export function ResourcesPanel({
+  tripId,
+  filter,
+  onFilterChange,
+}: {
+  tripId: string;
+  filter: string | null;
+  onFilterChange: (filter: string | null) => void;
+}) {
   const gateway = useGateway();
   const announce = useAnnounce();
   const fieldId = useId();
@@ -298,7 +306,6 @@ export function ResourcesPanel({ tripId }: { tripId: string }) {
   const [tags, setTags] = useState("");
   const [submittedTags, setSubmittedTags] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState(false);
-  const [filter, setFilter] = useState<string | null>(null);
   const tagsRef = useRef<HTMLInputElement>(null);
 
   const addAction = useAsyncAction(
@@ -355,7 +362,11 @@ export function ResourcesPanel({ tripId }: { tripId: string }) {
       : resources.filter((resource) => resource.tags.includes(filter));
 
   return (
-    <section className="voy-docs" aria-labelledby="resources-title">
+    <section
+      className="voy-docs"
+      aria-labelledby="resources-title"
+      data-continuity-state={status}
+    >
       <SectionTitle id="resources-title" icon={<CompassIcon />} tabIndex={-1}>
         {t("resources.title")}
       </SectionTitle>
@@ -475,7 +486,7 @@ export function ResourcesPanel({ tripId }: { tripId: string }) {
                 type="button"
                 className="voy-search__chip"
                 aria-pressed={filter === null}
-                onClick={() => setFilter(null)}
+                onClick={() => onFilterChange(null)}
               >
                 {t("resources.filter.all")}
               </button>
@@ -486,7 +497,7 @@ export function ResourcesPanel({ tripId }: { tripId: string }) {
                   type="button"
                   className="voy-search__chip"
                   aria-pressed={filter === tag}
-                  onClick={() => setFilter(tag)}
+                  onClick={() => onFilterChange(tag)}
                 >
                   {tag}
                 </button>

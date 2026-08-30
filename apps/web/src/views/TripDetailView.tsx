@@ -558,6 +558,7 @@ type ContinuityTarget = {
         recordId: string;
       };
   fallbackId: string;
+  mountDeferred?: boolean;
   unavailable?: MessageKey;
   announcement?: MessageKey;
 };
@@ -580,17 +581,11 @@ function ContinuityNavigator({
 
   useEffect(() => {
     if (!target) return;
-    // Confirmed facts and traveler-authored trip items already live in the
-    // eager Plan section. Mounting every deferred section for those local
-    // handoffs would trigger unrelated below-fold gateway work (including the
-    // optional local-AI probe) before the traveler ever reached it. Element
-    // jumps may point below the fold, and documents do, so retain the stable
-    // mount-before-scroll behavior only for those destinations.
-    if (
-      target.destination.kind === "element" ||
-      target.destination.source === "document" ||
-      target.destination.source === "resource"
-    ) {
+    // Element jumps and the duplicate-import handoff may point into a section
+    // that has not mounted. Search itself already lives beside documents and
+    // saved reading in Prepare, so its record handoffs must not mount unrelated
+    // sections (or trigger the optional local-AI probe) merely to focus a row.
+    if (target.destination.kind === "element" || target.mountDeferred) {
       mountAllSections();
     }
     let cancelled = false;
@@ -624,13 +619,21 @@ function ContinuityNavigator({
         return;
       }
       attempts += 1;
-      if (attempts < 20) {
+      const fallback = document.getElementById(target.fallbackId);
+      const owner = fallback?.closest<HTMLElement>("[data-continuity-state]");
+      const ownerState = owner?.dataset.continuityState;
+      if (attempts < 20 || (ownerState === "loading" && attempts < 200)) {
         timer = setTimeout(tryFocus, 50);
         return;
       }
-      const fallback = document.getElementById(target.fallbackId);
-      if (fallback) finish(fallback, target.unavailable);
-      else onSettled(target.requestId);
+      if (fallback) {
+        // A panel that failed or is still waiting after ten seconds already
+        // shows its own honest state. Do not turn that into a deletion claim.
+        finish(
+          fallback,
+          ownerState === "success" ? target.unavailable : undefined,
+        );
+      } else onSettled(target.requestId);
     };
 
     timer = setTimeout(tryFocus, 0);
@@ -981,6 +984,7 @@ export function TripDetailView({
   const reviewReturnFocusRef = useRef<HTMLElement | null>(null);
   const reviewCompletionFocusRef = useRef<HTMLElement | null>(null);
   const navigationSequence = useRef(0);
+  const [resourceFilter, setResourceFilter] = useState<string | null>(null);
   const [continuityTarget, setContinuityTarget] =
     useState<ContinuityTarget | null>(null);
 
@@ -1004,14 +1008,15 @@ export function TripDetailView({
     recordId: string,
     fallbackId: string,
     unavailable: MessageKey,
-    announcement?: MessageKey,
+    options: { announcement?: MessageKey; mountDeferred?: boolean } = {},
   ) {
     setContinuityTarget({
       requestId: ++navigationSequence.current,
       destination: { kind: "record", source, recordId },
       fallbackId,
+      mountDeferred: options.mountDeferred,
       unavailable,
-      announcement,
+      announcement: options.announcement,
     });
   }
 
@@ -1568,7 +1573,11 @@ export function TripDetailView({
           {/* Reading material sits with the other things the traveler keeps —
               next to notes and imported documents, and pointedly not next to
               the confirmed itinerary it is never allowed to become. */}
-          <ResourcesPanel tripId={tripId} />
+          <ResourcesPanel
+            tripId={tripId}
+            filter={resourceFilter}
+            onFilterChange={setResourceFilter}
+          />
 
           <DocumentsPanel tripId={tripId} />
 
@@ -1588,6 +1597,7 @@ export function TripDetailView({
                 );
                 return;
               }
+              setResourceFilter(null);
               navigateToRecord(
                 "resource",
                 hit.recordId,
@@ -1668,7 +1678,10 @@ export function TripDetailView({
                   documentId,
                   "documents-title",
                   "continuity.document.unavailable",
-                  "continuity.document.opened",
+                  {
+                    announcement: "continuity.document.opened",
+                    mountDeferred: true,
+                  },
                 );
               } else {
                 navigateToElement(

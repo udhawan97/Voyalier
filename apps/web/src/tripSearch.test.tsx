@@ -1,4 +1,10 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
 
 import { setLocalePreference } from "./app/locale";
@@ -255,6 +261,191 @@ describe("trip search", () => {
     expect(fetchResourceDetails).not.toHaveBeenCalled();
     expect(window.location.href).not.toContain(resource.id);
     expect(searchInput(search)).toHaveValue("moss");
+  });
+
+  it("reveals a research result hidden by an active tag filter", async () => {
+    const gateway = createMockGateway();
+    const hidden = await gateway.createResource({
+      tripId: "trip_kyoto",
+      kind: "link",
+      url: "https://example.test/hidden-garden",
+      title: "Hidden garden notes",
+      note: "Moss garden photography",
+      tags: ["garden"],
+    });
+    await gateway.createResource({
+      tripId: "trip_kyoto",
+      kind: "link",
+      url: "https://example.test/noodle-notes",
+      title: "Noodle notes",
+      note: "Dinner shortlist",
+      tags: ["food"],
+    });
+    renderApp(gateway);
+    const search = await openSearch();
+    const resources = await screen.findByRole("region", {
+      name: "Saved reading",
+    });
+    const filters = await within(resources).findByRole("list", {
+      name: "Filter saved reading by tag",
+    });
+    fireEvent.click(within(filters).getByRole("button", { name: "food" }));
+    expect(
+      within(resources).queryByRole("link", { name: /Hidden garden notes/ }),
+    ).toBeNull();
+
+    fireEvent.change(searchInput(search), { target: { value: "moss" } });
+    const result = (
+      await within(search).findByText("Hidden garden notes")
+    ).closest("li")!;
+    fireEvent.click(
+      within(result).getByRole("button", {
+        name: "Show source: Hidden garden notes",
+      }),
+    );
+
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector<HTMLElement>(
+            `[data-search-source="resource"][data-search-record="${hidden.id}"]`,
+          ),
+        ).toHaveFocus(),
+      { timeout: 2_000 },
+    );
+    expect(
+      screen.queryByText(
+        "That research resource is no longer available. Saved reading opened.",
+      ),
+    ).toBeNull();
+    expect(
+      within(filters).getByRole("button", { name: "All" }),
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("waits for a slow saved-reading list before deciding a result is missing", async () => {
+    const base = createMockGateway();
+    const resource = await base.createResource({
+      tripId: "trip_kyoto",
+      kind: "link",
+      url: "https://example.test/slow-garden",
+      title: "Slow garden notes",
+      note: "Moss garden photography",
+      tags: ["garden"],
+    });
+    let releaseResources: (() => void) | undefined;
+    const listResources = vi.fn(
+      (tripId: string) =>
+        new Promise<Awaited<ReturnType<typeof base.listResources>>>(
+          (resolve) => {
+            releaseResources = () =>
+              void base.listResources(tripId).then(resolve);
+          },
+        ),
+    );
+    renderApp({ ...base, listResources });
+    const search = await openSearch();
+    await waitFor(() => expect(releaseResources).toBeDefined());
+    fireEvent.change(searchInput(search), { target: { value: "slow moss" } });
+    const result = (
+      await within(search).findByText("Slow garden notes")
+    ).closest("li")!;
+    fireEvent.click(
+      within(result).getByRole("button", {
+        name: "Show source: Slow garden notes",
+      }),
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+    expect(
+      screen.queryByText(
+        "That research resource is no longer available. Saved reading opened.",
+      ),
+    ).toBeNull();
+    await act(async () => releaseResources?.());
+    await waitFor(() =>
+      expect(
+        document.querySelector<HTMLElement>(
+          `[data-search-source="resource"][data-search-record="${resource.id}"]`,
+        ),
+      ).toHaveFocus(),
+    );
+  });
+
+  it("opens document and research rows without mounting unrelated deferred work", async () => {
+    class PrepareOnlyIntersectionObserver {
+      private readonly callback: IntersectionObserverCallback;
+
+      constructor(callback: IntersectionObserverCallback) {
+        this.callback = callback;
+      }
+
+      observe(target: Element): void {
+        if ((target as HTMLElement).id === "section-prepare") {
+          this.callback(
+            [{ isIntersecting: true, target } as IntersectionObserverEntry],
+            this as unknown as IntersectionObserver,
+          );
+        }
+      }
+
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+    vi.stubGlobal("IntersectionObserver", PrepareOnlyIntersectionObserver);
+
+    const base = createMockGateway();
+    const resource = await base.createResource({
+      tripId: "trip_kyoto",
+      kind: "link",
+      url: "https://example.test/quiet-gardens",
+      title: "Quiet garden notes",
+      note: "Moss garden photography",
+      tags: ["garden"],
+    });
+    const detectLocalAi = vi.fn(base.detectLocalAi);
+    const listChatMessages = vi.fn(base.listChatMessages);
+    renderApp({ ...base, detectLocalAi, listChatMessages });
+    const search = await openSearch();
+
+    fireEvent.change(searchInput(search), {
+      target: { value: "Maple Lantern" },
+    });
+    const documentResult = (
+      await within(search).findByText("Kyoto confirmations")
+    ).closest("li")!;
+    fireEvent.click(
+      within(documentResult).getByRole("button", {
+        name: "Show source: Kyoto confirmations",
+      }),
+    );
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute(
+        "data-search-source",
+        "document",
+      ),
+    );
+    expect(detectLocalAi).not.toHaveBeenCalled();
+    expect(listChatMessages).not.toHaveBeenCalled();
+
+    fireEvent.change(searchInput(search), { target: { value: "moss" } });
+    const resourceResult = (
+      await within(search).findByText(resource.title)
+    ).closest("li")!;
+    fireEvent.click(
+      within(resourceResult).getByRole("button", {
+        name: `Show source: ${resource.title}`,
+      }),
+    );
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute(
+        "data-search-source",
+        "resource",
+      ),
+    );
+    expect(detectLocalAi).not.toHaveBeenCalled();
+    expect(listChatMessages).not.toHaveBeenCalled();
+    expect(screen.queryByText("Ask this trip")).toBeNull();
   });
 
   it("falls back honestly when a research result disappears", async () => {
