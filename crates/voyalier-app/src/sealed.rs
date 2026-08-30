@@ -88,18 +88,22 @@ impl Vault {
                 vault_locked_error()
             } else {
                 AppError::new(
-                    ErrorCode::StorageFailure,
+                    ErrorCode::VaultUnreadable,
                     "this data is encrypted but the vault key is unavailable",
                 )
             });
         };
+        // Every failure below this line is the same situation and carries the
+        // same code: the row was read, and its plaintext cannot be recovered.
+        // `storage/failure` said the opposite, and the interface believed it
+        // (ADR-0018).
         let bytes = BASE64
             .decode(encoded)
-            .map_err(|_| AppError::new(ErrorCode::StorageFailure, "corrupt encrypted field"))?;
+            .map_err(|_| AppError::new(ErrorCode::VaultUnreadable, "corrupt encrypted field"))?;
         let opened = vault_open(&key, &bytes)?;
         String::from_utf8(opened).map_err(|_| {
             AppError::new(
-                ErrorCode::StorageFailure,
+                ErrorCode::VaultUnreadable,
                 "decrypted data was not valid text",
             )
         })

@@ -2693,6 +2693,121 @@ fn a_second_data_directory_cannot_delete_the_first_ones_vault_key() {
     cleanup_database(database_b);
 }
 
+/// The state ADR-0017 names in passing and never reports: a workspace holding a
+/// key its sealed rows were not written under. It answered `storage/failure`,
+/// which the interface renders as "Local storage is unavailable — Voyalier
+/// couldn't read or write your local data. Nothing was changed" with a Retry.
+/// Every clause is wrong. The unsealed read at the end is the other half of it:
+/// it succeeds, which is why the topbar reads Ready beside that banner.
+/// ADR-0018.
+#[test]
+fn a_sealed_row_under_a_replaced_key_reports_a_vault_failure_not_a_storage_one() {
+    let database = temp_database("vault-unreadable");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let service = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .expect("service");
+    let trip = service
+        .create_trip(CreateTripInput {
+            origin: "London".to_owned(),
+            destination: "Tokyo".to_owned(),
+            start_date: "2026-10-12".to_owned(),
+            end_date: "2026-10-22".to_owned(),
+            title: None,
+        })
+        .expect("trip");
+    // `trip_notes.body` is a SEALED column. A trip's title is not, so a title
+    // would still read back cleanly under any key at all.
+    service
+        .set_trip_notes(&trip.id, "gate 42, terminal 3")
+        .expect("note");
+
+    // What an orphaned ADR-0017 copy leaves behind: a well-formed key that
+    // never sealed anything here.
+    secrets
+        .set(&vault_key_account(&database), &BASE64.encode([9u8; 32]))
+        .expect("replace the key");
+
+    let reopened = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .expect("reopen");
+    assert_eq!(
+        reopened
+            .get_trip_notes(&trip.id)
+            .expect_err("a row sealed under another key must not open")
+            .code,
+        ErrorCode::VaultUnreadable
+    );
+    assert_eq!(
+        reopened
+            .list_trips()
+            .expect("unsealed reads still work")
+            .len(),
+        1,
+        "storage is fine; only the decryption failed"
+    );
+
+    cleanup_database(database);
+}
+
+/// The same condition arriving the other way. `load_or_init` folds a keychain
+/// account it cannot decode into "vault inactive", so the sealed rows are met
+/// by a vault with no key at all rather than by the wrong one. `Vault::open`
+/// answers that from its own branch, and it too used to say `storage/failure`.
+#[test]
+fn a_sealed_row_met_by_an_inactive_vault_reports_the_same_vault_failure() {
+    let database = temp_database("vault-unreadable-inactive");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let service = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .expect("service");
+    let trip = service
+        .create_trip(CreateTripInput {
+            origin: "London".to_owned(),
+            destination: "Tokyo".to_owned(),
+            start_date: "2026-10-12".to_owned(),
+            end_date: "2026-10-22".to_owned(),
+            title: None,
+        })
+        .expect("trip");
+    service
+        .set_trip_notes(&trip.id, "gate 42, terminal 3")
+        .expect("note");
+
+    secrets
+        .set(&vault_key_account(&database), "not a key")
+        .expect("corrupt the account");
+
+    let reopened = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .expect("reopen");
+    assert!(
+        !reopened.get_vault_status().expect("status").active,
+        "an undecodable account must leave the vault inactive"
+    );
+    assert_eq!(
+        reopened
+            .get_trip_notes(&trip.id)
+            .expect_err("a v1: row cannot be read without a key")
+            .code,
+        ErrorCode::VaultUnreadable
+    );
+
+    cleanup_database(database);
+}
+
 /// ADR-0017 buys its guarantee by copying: every data directory leaves a vault
 /// key behind under its own account, and `SecretStore` cannot enumerate, so
 /// nothing could ever find them again. The registry is what makes them findable;
