@@ -4058,6 +4058,15 @@ h3 {
   align-self: center;
 }
 
+.voy-search__hit-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-self: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
 .voy-search__hit-label {
   font-size: 0.92rem;
   font-weight: var(--voy-w-medium);
@@ -4767,6 +4776,15 @@ h3 {
   .voy-triplist__head {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .voy-search__hit {
+    flex-wrap: wrap;
+  }
+
+  .voy-search__hit-actions {
+    width: 100%;
+    padding-left: 1.7rem;
   }
 }
 

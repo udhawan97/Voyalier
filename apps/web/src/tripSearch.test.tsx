@@ -13,14 +13,15 @@ async function openSearch() {
 
 function searchInput(region: HTMLElement) {
   return within(region).getByLabelText(
-    "Search your documents and confirmed plans",
+    "Search documents, confirmed plans, and saved research",
   );
 }
 
 /**
- * "Find in this trip" is relaxed, as-you-type local search over stored documents
- * and confirmed facts: any word matches (partial too), matching terms are
- * offered as autofill suggestions, and results can be copied to reuse.
+ * "Find in this trip" is relaxed, as-you-type local search over stored documents,
+ * confirmed facts, and saved research: any word matches (partial too), matching
+ * terms are offered as autofill suggestions, and results can return to their
+ * local source or be copied to reuse.
  */
 describe("trip search", () => {
   afterEach(() => setLocalePreference("en"));
@@ -38,6 +39,35 @@ describe("trip search", () => {
       within(results).getAllByText("River Paper Inn").length,
     ).toBeGreaterThanOrEqual(1);
     expect(within(results).getByText(/confirmed plan/)).toBeInTheDocument();
+  });
+
+  it("names saved research without presenting it as a confirmed stay", async () => {
+    const gateway = createMockGateway();
+    await gateway.createResource({
+      tripId: "trip_kyoto",
+      kind: "link",
+      url: "https://example.test/kyoto-etiquette",
+      title: "Kyoto etiquette notes",
+      note: "Temple photography guidance",
+      tags: ["etiquette"],
+    });
+    renderApp(gateway);
+    const search = await openSearch();
+
+    fireEvent.change(searchInput(search), {
+      target: { value: "photography" },
+    });
+
+    const results = await within(search).findByRole("list", {
+      name: "Search results",
+    });
+    const result = within(results)
+      .getByText("Kyoto etiquette notes")
+      .closest("li")!;
+    expect(within(result).getByText(/research resource/)).toBeInTheDocument();
+    expect(within(result).queryByText("confirmed plan")).toBeNull();
+    expect(within(result).queryByText("Stay")).toBeNull();
+    expect(within(result).getByText(/photography guidance/i)).toBeVisible();
   });
 
   it("matches partial words and reports a plain empty state", async () => {
@@ -139,6 +169,131 @@ describe("trip search", () => {
     expect(await within(firstHit).findByText("Copied")).toBeInTheDocument();
   });
 
+  it("returns a confirmed-plan result to its exact Blueprint record", async () => {
+    const gateway = createMockGateway();
+    const hit = (await gateway.searchTrip("trip_kyoto", "FP18")).find(
+      (candidate) => candidate.source === "confirmed_fact",
+    )!;
+    renderApp(gateway);
+    const search = await openSearch();
+    fireEvent.change(searchInput(search), { target: { value: "FP18" } });
+
+    const result = (await within(search).findByText("Flight FP18")).closest(
+      "li",
+    )!;
+    fireEvent.click(
+      within(result).getByRole("button", {
+        name: "Show source: Flight FP18",
+      }),
+    );
+
+    const target = document.querySelector<HTMLElement>(
+      `[data-search-source="confirmed_fact"][data-search-record="${hit.recordId}"]`,
+    )!;
+    await waitFor(() => expect(target).toHaveFocus());
+    expect(window.location.href).not.toContain(hit.recordId);
+    expect(window.location.href).not.toContain("FP18");
+    expect(searchInput(search)).toHaveValue("FP18");
+  });
+
+  it("returns an imported-document result without reading its sealed body", async () => {
+    const base = createMockGateway();
+    const hit = (await base.searchTrip("trip_kyoto", "Maple Lantern")).find(
+      (candidate) => candidate.source === "document",
+    )!;
+    const getDocument = vi.fn(base.getDocument);
+    renderApp({ ...base, getDocument });
+    const search = await openSearch();
+    fireEvent.change(searchInput(search), {
+      target: { value: "Maple Lantern" },
+    });
+
+    const result = (await within(search).findByText(hit.label)).closest("li")!;
+    fireEvent.click(
+      within(result).getByRole("button", {
+        name: `Show source: ${hit.label}`,
+      }),
+    );
+
+    const target = document.querySelector<HTMLElement>(
+      `[data-search-source="document"][data-search-record="${hit.recordId}"]`,
+    )!;
+    await waitFor(() => expect(target).toHaveFocus());
+    expect(getDocument).not.toHaveBeenCalled();
+    expect(window.location.href).not.toContain(hit.recordId);
+    expect(searchInput(search)).toHaveValue("Maple Lantern");
+  });
+
+  it("returns a research result without fetching the saved page", async () => {
+    const base = createMockGateway();
+    const resource = await base.createResource({
+      tripId: "trip_kyoto",
+      kind: "link",
+      url: "https://example.test/quiet-gardens",
+      title: "Quiet garden notes",
+      note: "Moss garden photography",
+      tags: ["garden"],
+    });
+    const fetchResourceDetails = vi.fn(base.fetchResourceDetails);
+    renderApp({ ...base, fetchResourceDetails });
+    const search = await openSearch();
+    fireEvent.change(searchInput(search), { target: { value: "moss" } });
+
+    const result = (await within(search).findByText(resource.title)).closest(
+      "li",
+    )!;
+    fireEvent.click(
+      within(result).getByRole("button", {
+        name: `Show source: ${resource.title}`,
+      }),
+    );
+
+    const target = document.querySelector<HTMLElement>(
+      `[data-search-source="resource"][data-search-record="${resource.id}"]`,
+    )!;
+    await waitFor(() => expect(target).toHaveFocus());
+    expect(fetchResourceDetails).not.toHaveBeenCalled();
+    expect(window.location.href).not.toContain(resource.id);
+    expect(searchInput(search)).toHaveValue("moss");
+  });
+
+  it("falls back honestly when a research result disappears", async () => {
+    const base = createMockGateway();
+    renderApp({
+      ...base,
+      searchTrip: async () => [
+        {
+          source: "resource" as const,
+          recordId: "resource_removed_after_search",
+          label: "Removed research",
+          snippet: "removed research",
+          score: 1,
+        },
+      ],
+      suggestSearchTerms: async () => [],
+    });
+    const search = await openSearch();
+    fireEvent.change(searchInput(search), { target: { value: "removed" } });
+    const result = (
+      await within(search).findByText("Removed research")
+    ).closest("li")!;
+
+    fireEvent.click(
+      within(result).getByRole("button", {
+        name: "Show source: Removed research",
+      }),
+    );
+
+    const fallback = screen.getByRole("heading", { name: "Saved reading" });
+    await waitFor(() => expect(fallback).toHaveFocus(), { timeout: 2_000 });
+    expect(
+      await screen.findByText(
+        "That research resource is no longer available. Saved reading opened.",
+      ),
+    ).toBeInTheDocument();
+    expect(window.location.href).not.toContain("resource_removed_after_search");
+  });
+
   it("does not resurrect results after the box is cleared (stale-response guard)", async () => {
     let releaseSearch: (() => void) | undefined;
     const base = createMockGateway();
@@ -201,7 +356,16 @@ describe("trip search", () => {
 
   it("localizes fact labels while preserving their source subject", async () => {
     setLocalePreference("es");
-    renderApp(createMockGateway());
+    const gateway = createMockGateway();
+    await gateway.createResource({
+      tripId: "trip_kyoto",
+      kind: "link",
+      url: "https://example.test/ceramica",
+      title: "Notas de cerámica",
+      note: "Taller de cerámica local",
+      tags: ["cerámica"],
+    });
+    renderApp(gateway);
     fireEvent.click(
       await screen.findByRole("button", {
         name: "Abrir Kyoto autumn journey",
@@ -212,11 +376,29 @@ describe("trip search", () => {
     });
     fireEvent.change(
       within(search).getByLabelText(
-        "Busca en tus documentos y planes confirmados",
+        "Busca en documentos, planes confirmados e investigación guardada",
       ),
       { target: { value: "FP18" } },
     );
     expect(await within(search).findByText("Vuelo FP18")).toBeInTheDocument();
     expect(within(search).queryByText("Flight FP18")).toBeNull();
+
+    fireEvent.change(
+      within(search).getByLabelText(
+        "Busca en documentos, planes confirmados e investigación guardada",
+      ),
+      { target: { value: "cerámica" } },
+    );
+    const resource = (
+      await within(search).findByText("Notas de cerámica")
+    ).closest("li")!;
+    expect(
+      within(resource).getByText(/recurso de investigación/),
+    ).toBeVisible();
+    expect(
+      within(resource).getByRole("button", {
+        name: "Mostrar fuente: Notas de cerámica",
+      }),
+    ).toBeVisible();
   });
 });

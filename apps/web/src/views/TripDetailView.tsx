@@ -554,7 +554,7 @@ type ContinuityTarget = {
     | { kind: "element"; elementId: string }
     | {
         kind: "record";
-        source: "confirmed_fact" | "trip_item" | "document";
+        source: "confirmed_fact" | "trip_item" | "document" | "resource";
         recordId: string;
       };
   fallbackId: string;
@@ -588,7 +588,8 @@ function ContinuityNavigator({
     // mount-before-scroll behavior only for those destinations.
     if (
       target.destination.kind === "element" ||
-      target.destination.source === "document"
+      target.destination.source === "document" ||
+      target.destination.source === "resource"
     ) {
       mountAllSections();
     }
@@ -999,7 +1000,7 @@ export function TripDetailView({
   }
 
   function navigateToRecord(
-    source: "confirmed_fact" | "trip_item" | "document",
+    source: "confirmed_fact" | "trip_item" | "document" | "resource",
     recordId: string,
     fallbackId: string,
     unavailable: MessageKey,
@@ -1571,7 +1572,30 @@ export function TripDetailView({
 
           <DocumentsPanel tripId={tripId} />
 
-          <TripSearch tripId={tripId} />
+          <TripSearch
+            tripId={tripId}
+            onOpenResult={(hit) => {
+              if (hit.source === "confirmed_fact") {
+                navigateToPlanningRecord("confirmed_fact", hit.recordId);
+                return;
+              }
+              if (hit.source === "document") {
+                navigateToRecord(
+                  "document",
+                  hit.recordId,
+                  "documents-title",
+                  "continuity.document.unavailable",
+                );
+                return;
+              }
+              navigateToRecord(
+                "resource",
+                hit.recordId,
+                "resources-title",
+                "continuity.resource.unavailable",
+              );
+            }}
+          />
         </DeferredSection>
 
         <DeferredSection id="section-visa">

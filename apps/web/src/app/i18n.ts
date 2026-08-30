@@ -337,15 +337,15 @@ const en = {
   "a11y.skipToContent": "Skip to content",
 
   "search.title": "Find in this trip",
-  "search.label": "Search your documents and confirmed plans",
+  "search.label": "Search documents, confirmed plans, and saved research",
   "search.placeholder": "Shuttle, confirmation code, hotel…",
   "search.submit": "Search",
   "search.hint":
-    "Type to search as you go — partial words work, and any word matches. Pick a suggestion, or copy a result to reuse it.",
+    "Type to search as you go — partial words work, and any word matches across documents, confirmed plans, and saved research. Pick a suggestion, or copy a result to reuse it.",
   "search.error.empty": "Type something to search for.",
   "search.announce.none": "No matches for {query}.",
   "search.none":
-    "No matches for “{query}” in your documents or confirmed plans.",
+    "No matches for “{query}” in your documents, confirmed plans, or saved research.",
   "search.results.aria": "Search results",
   "search.suggestions.aria": "Search suggestions",
   "search.suggestions.label": "Try:",
@@ -353,8 +353,11 @@ const en = {
   "search.copied": "Copied",
   "search.copy.aria": "Copy “{value}”",
   "search.announce.copied": "Copied to clipboard.",
+  "search.showSource": "Show source",
+  "search.showSource.aria": "Show source: {label}",
   "search.hit.document": "imported document",
   "search.hit.confirmed": "confirmed plan",
+  "search.hit.resource": "research resource",
   "search.label.flight": "Flight {subject}",
   "search.label.flightGeneric": "Flight",
   "search.label.stayGeneric": "Stay",
@@ -1390,6 +1393,8 @@ const en = {
   "continuity.document.opened": "Existing document opened.",
   "continuity.document.unavailable":
     "The existing document could not be located. Imported documents opened.",
+  "continuity.resource.unavailable":
+    "That research resource is no longer available. Saved reading opened.",
 
   "map.title": "Map",
   "map.intro":
@@ -1984,15 +1989,16 @@ const es: Record<MessageKey, string> = {
   "a11y.opensInNewTab": " (se abre en una pestaña nueva)",
   "a11y.skipToContent": "Saltar al contenido",
   "search.title": "Buscar en este viaje",
-  "search.label": "Busca en tus documentos y planes confirmados",
+  "search.label":
+    "Busca en documentos, planes confirmados e investigación guardada",
   "search.placeholder": "Traslado, código de confirmación, hotel…",
   "search.submit": "Buscar",
   "search.hint":
-    "Escribe para buscar mientras tecleas; funcionan palabras parciales y cualquier palabra coincide. Elige una sugerencia o copia un resultado para reutilizarlo.",
+    "Escribe para buscar mientras tecleas; funcionan palabras parciales y cualquier palabra coincide en documentos, planes confirmados e investigación guardada. Elige una sugerencia o copia un resultado para reutilizarlo.",
   "search.error.empty": "Escribe algo para buscar.",
   "search.announce.none": "Sin coincidencias para {query}.",
   "search.none":
-    "No hay coincidencias para “{query}” en tus documentos ni planes confirmados.",
+    "No hay coincidencias para “{query}” en tus documentos, planes confirmados ni investigación guardada.",
   "search.results.aria": "Resultados de búsqueda",
   "search.suggestions.aria": "Sugerencias de búsqueda",
   "search.suggestions.label": "Intenta:",
@@ -2000,8 +2006,11 @@ const es: Record<MessageKey, string> = {
   "search.copied": "Copiado",
   "search.copy.aria": "Copiar “{value}”",
   "search.announce.copied": "Copiado al portapapeles.",
+  "search.showSource": "Mostrar fuente",
+  "search.showSource.aria": "Mostrar fuente: {label}",
   "search.hit.document": "documento importado",
   "search.hit.confirmed": "plan confirmado",
+  "search.hit.resource": "recurso de investigación",
   "search.label.flight": "Vuelo {subject}",
   "search.label.flightGeneric": "Vuelo",
   "search.label.stayGeneric": "Estancia",
@@ -3003,6 +3012,8 @@ const es: Record<MessageKey, string> = {
   "continuity.document.opened": "Se abrió el documento existente.",
   "continuity.document.unavailable":
     "No se pudo encontrar el documento existente. Se abrieron los documentos importados.",
+  "continuity.resource.unavailable":
+    "Ese recurso de investigación ya no está disponible. Se abrieron las lecturas guardadas.",
   "map.title": "Mapa",
   "map.intro":
     "Mira tu destino y los lugares recomendados en un mapa. Un mapa base sin conexión descargado permanece en este dispositivo. De lo contrario, OpenFreeMap recibe solicitudes de mosaicos para el área mostrada, que puede reflejar el destino y las coordenadas de lugares guardados; no se envían nombres de lugares, notas ni registros del itinerario.",

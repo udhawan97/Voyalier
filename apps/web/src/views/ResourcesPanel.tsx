@@ -356,7 +356,7 @@ export function ResourcesPanel({ tripId }: { tripId: string }) {
 
   return (
     <section className="voy-docs" aria-labelledby="resources-title">
-      <SectionTitle id="resources-title" icon={<CompassIcon />}>
+      <SectionTitle id="resources-title" icon={<CompassIcon />} tabIndex={-1}>
         {t("resources.title")}
       </SectionTitle>
       <p className="voy-docs__intro">{t("resources.intro")}</p>

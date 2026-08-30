@@ -7,12 +7,18 @@ import { plural, t } from "../app/i18n";
 import { useAsyncAction } from "../app/useAsync";
 import { SectionTitle } from "../components/primitives";
 import { Button } from "../components/Button";
-import { BedIcon, PlaneIcon, SearchIcon } from "../components/icons";
+import {
+  BedIcon,
+  CompassIcon,
+  PlaneIcon,
+  SearchIcon,
+} from "../components/icons";
 
 const MIN_QUERY = 2;
 const DEBOUNCE_MS = 200;
 
 function hitIcon(hit: SearchHit) {
+  if (hit.source === "resource") return <CompassIcon />;
   if (hit.source === "confirmed_fact") {
     return hit.factType === "flight_segment" ? <PlaneIcon /> : <BedIcon />;
   }
@@ -20,13 +26,19 @@ function hitIcon(hit: SearchHit) {
 }
 
 function hitLabel(hit: SearchHit): string {
-  if (hit.source === "document") return hit.label;
+  if (hit.source === "document" || hit.source === "resource") return hit.label;
   if (hit.factType === "flight_segment") {
     return hit.subject
       ? t("search.label.flight", { subject: hit.subject })
       : t("search.label.flightGeneric");
   }
   return hit.subject ?? t("search.label.stayGeneric");
+}
+
+function hitKindLabel(hit: SearchHit): string {
+  if (hit.source === "document") return t("search.hit.document");
+  if (hit.source === "resource") return t("search.hit.resource");
+  return t("search.hit.confirmed");
 }
 
 /** Replace the query's last whitespace word with a chosen suggestion term. */
@@ -38,12 +50,19 @@ function withLastWord(query: string, term: string): string {
 }
 
 /**
- * Relaxed, as-you-type search over this trip's imported documents and confirmed
- * facts. Any query word matches (partial words too), matching terms are offered
- * as autofill suggestions, and each result can be copied to reuse its value.
- * Purely local; nothing leaves the device.
+ * Relaxed, as-you-type search over this trip's imported documents, confirmed
+ * facts, and saved research. Any query word matches (partial words too),
+ * matching terms are offered as autofill suggestions, and each result can
+ * return to its local source or be copied for reuse. Purely local; nothing
+ * leaves the device.
  */
-export function TripSearch({ tripId }: { tripId: string }) {
+export function TripSearch({
+  tripId,
+  onOpenResult,
+}: {
+  tripId: string;
+  onOpenResult: (hit: SearchHit) => void;
+}) {
   const gateway = useGateway();
   const announce = useAnnounce();
   const inputId = useId();
@@ -224,22 +243,33 @@ export function TripSearch({ tripId }: { tripId: string }) {
                       {hitLabel(hit)}
                       <span className="voy-search__hit-kind">
                         {" · "}
-                        {hit.source === "document"
-                          ? t("search.hit.document")
-                          : t("search.hit.confirmed")}
+                        {hitKindLabel(hit)}
                       </span>
                     </span>
                     <span className="voy-search__hit-snippet">
                       {hit.snippet}
                     </span>
                   </span>
-                  <Button
-                    variant="ghost"
-                    onClick={() => copyHit(hit)}
-                    aria-label={t("search.copy.aria", { value: hit.snippet })}
-                  >
-                    {copiedKey === key ? t("search.copied") : t("search.copy")}
-                  </Button>
+                  <span className="voy-search__hit-actions">
+                    <Button
+                      variant="secondary"
+                      onClick={() => onOpenResult(hit)}
+                      aria-label={t("search.showSource.aria", {
+                        label: hitLabel(hit),
+                      })}
+                    >
+                      {t("search.showSource")}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => copyHit(hit)}
+                      aria-label={t("search.copy.aria", { value: hit.snippet })}
+                    >
+                      {copiedKey === key
+                        ? t("search.copied")
+                        : t("search.copy")}
+                    </Button>
+                  </span>
                 </li>
               );
             })}
