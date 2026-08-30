@@ -55,7 +55,7 @@ Acceptance:
 - A resource result mounts the deferred preparation section and focuses the
   exact saved-resource row without fetching the page.
 - If the record disappeared between search and activation, focus falls back to
-  the owning Blueprint, Imported documents, or Saved research heading and an
+  the owning Blueprint, Imported documents, or Saved reading heading and an
   honest localized announcement names the missing source.
 - The query and result list remain available after the in-page detour. Record ids
   and query text never enter the URL.

@@ -6,6 +6,23 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+### Added
+
+- **Find in this trip now returns every match to its local source.** A visible
+  **Show source** action focuses the exact confirmed fact, imported document, or
+  saved-reading row while keeping the query and record identifier out of the
+  URL. The action is read-only: it does not reopen sealed document bodies or
+  fetch a saved page, and a record removed after the search falls back to its
+  section with an honest unavailable notice.
+
+### Fixed
+
+- **Saved research no longer arrives looking like a confirmed stay.** Trip
+  search gives imported documents, confirmed plans, and research resources
+  distinct labels in English and Spanish. Search remains a deterministic local
+  scan; this change adds no provider, index, migration, background action, or
+  authority claim.
+
 ## [0.11.1] - 2026-08-27 — The day returns to its source
 
 Travel-day summaries now preserve the route back to the local record that made

@@ -101,9 +101,10 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   missing key is refused before any request. The same redaction, system prompt,
   disclaimer, and activity logging as on-device apply. Provider (C) is complete.
 - ✓ Local retrieval, first slice: `searchTrip` ships as a deterministic scan
-  over stored documents and confirmed facts with provenance and transparent
-  scoring ("Find in this trip"). FTS5/embeddings may replace the internals
-  later without contract change.
+  over stored documents, confirmed facts, and saved research with provenance
+  and transparent scoring ("Find in this trip"). Results name their source kind
+  and return to the exact local row without fetching or opening source content.
+  FTS5/embeddings may replace the internals later without contract change.
 - ✓ OpenAI, Anthropic, and Ollama providers behind one interface (`runAssist`
   dispatches all three; preview + consent + activity log shared).
 
