@@ -17,21 +17,29 @@ import {
 describe("DeferredSection", () => {
   /** An observer whose callback we fire on demand. */
   function controllable() {
-    const observers: IntersectionObserverCallback[] = [];
+    const observers: Array<{
+      callback: IntersectionObserverCallback;
+      active: boolean;
+    }> = [];
     class Controlled {
+      private readonly observer: (typeof observers)[number];
+
       constructor(callback: IntersectionObserverCallback) {
-        observers.push(callback);
+        this.observer = { callback, active: true };
+        observers.push(this.observer);
       }
       observe(): void {}
       unobserve(): void {}
-      disconnect(): void {}
+      disconnect(): void {
+        this.observer.active = false;
+      }
     }
     vi.stubGlobal("IntersectionObserver", Controlled);
     return {
       arrive: () =>
         act(() => {
-          for (const callback of observers) {
-            callback(
+          for (const observer of observers.filter((item) => item.active)) {
+            observer.callback(
               [{ isIntersecting: true } as IntersectionObserverEntry],
               {} as IntersectionObserver,
             );
@@ -108,7 +116,7 @@ describe("DeferredSection", () => {
   });
 
   it("can mount one requested section without waking its siblings", () => {
-    controllable();
+    const observer = controllable();
     function Harness() {
       const mountSection = useMountSection();
       return (
@@ -132,6 +140,14 @@ describe("DeferredSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reveal" }));
 
     expect(screen.getByText("Target content")).toBeInTheDocument();
+    // A programmatic focus/scroll can put adjacent placeholders inside their
+    // observer margin. They must remain dormant for the targeted handoff.
+    observer.arrive();
     expect(screen.queryByText("Sibling content")).toBeNull();
+
+    // Manual scrolling is fresh intent, so ordinary proximity deferral resumes.
+    fireEvent.wheel(window);
+    observer.arrive();
+    expect(screen.getByText("Sibling content")).toBeInTheDocument();
   });
 });

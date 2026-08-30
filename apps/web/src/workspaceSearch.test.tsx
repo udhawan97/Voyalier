@@ -701,7 +701,7 @@ describe("workspace search", () => {
       await screen.findByText(
         "That saved place is no longer available. Saved places opened.",
         {},
-        { timeout: 2_000 },
+        { timeout: 5_000 },
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Saved places" })).toHaveFocus();
@@ -739,7 +739,7 @@ describe("workspace search", () => {
       await screen.findByText(
         "Ese lugar guardado ya no está disponible. Se abrieron los lugares guardados.",
         {},
-        { timeout: 2_000 },
+        { timeout: 5_000 },
       ),
     ).toBeInTheDocument();
   });

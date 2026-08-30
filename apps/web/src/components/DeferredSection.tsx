@@ -14,6 +14,17 @@ const MountedSectionsContext = createContext<ReadonlySet<string>>(new Set());
 const MountSectionSetterContext = createContext<
   ((sectionId: string) => void) | null
 >(null);
+const ExclusiveSectionContext = createContext<string | null>(null);
+
+const SCROLL_INTENT_KEYS = new Set([
+  "ArrowDown",
+  "ArrowUp",
+  "End",
+  "Home",
+  "PageDown",
+  "PageUp",
+  " ",
+]);
 
 /**
  * Lets controls request every deferred section or one named section.
@@ -26,11 +37,19 @@ const MountSectionSetterContext = createContext<
  */
 export function DeferredMountProvider({ children }: { children: ReactNode }) {
   const [mountAll, setMountAll] = useState(false);
+  const [exclusiveSection, setExclusiveSection] = useState<string | null>(null);
   const [mountedSections, setMountedSections] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
-  const mountAllSections = useCallback(() => setMountAll(true), []);
+  const mountAllSections = useCallback(() => {
+    setExclusiveSection(null);
+    setMountAll(true);
+  }, []);
   const mountSection = useCallback((sectionId: string) => {
+    // Keep adjacent observers dormant through the programmatic scroll that
+    // follows an exact search handoff. Without this, a document near the end
+    // of Prepare can pull Visa, Discover and AI inside their 300px margins.
+    setExclusiveSection(sectionId);
     setMountedSections((current) => {
       if (current.has(sectionId)) return current;
       const next = new Set(current);
@@ -38,12 +57,39 @@ export function DeferredMountProvider({ children }: { children: ReactNode }) {
       return next;
     });
   }, []);
+
+  useEffect(() => {
+    if (!exclusiveSection || typeof window === "undefined") return;
+    const release = () => setExclusiveSection(null);
+    const releaseForKeyboardScroll = (event: KeyboardEvent) => {
+      if (!SCROLL_INTENT_KEYS.has(event.key)) return;
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        target.closest("input, textarea, select, [contenteditable='true']")
+      ) {
+        return;
+      }
+      release();
+    };
+    window.addEventListener("wheel", release, { passive: true });
+    window.addEventListener("touchmove", release, { passive: true });
+    window.addEventListener("keydown", releaseForKeyboardScroll);
+    return () => {
+      window.removeEventListener("wheel", release);
+      window.removeEventListener("touchmove", release);
+      window.removeEventListener("keydown", releaseForKeyboardScroll);
+    };
+  }, [exclusiveSection]);
+
   return (
     <MountAllContext.Provider value={mountAll}>
       <MountAllSetterContext.Provider value={mountAllSections}>
         <MountedSectionsContext.Provider value={mountedSections}>
           <MountSectionSetterContext.Provider value={mountSection}>
-            {children}
+            <ExclusiveSectionContext.Provider value={exclusiveSection}>
+              {children}
+            </ExclusiveSectionContext.Provider>
           </MountSectionSetterContext.Provider>
         </MountedSectionsContext.Provider>
       </MountAllSetterContext.Provider>
@@ -98,12 +144,15 @@ export function DeferredSection({
   const ref = useRef<HTMLDivElement>(null);
   const mountAll = useContext(MountAllContext);
   const mountThisSection = useContext(MountedSectionsContext).has(id);
+  const exclusiveSection = useContext(ExclusiveSectionContext);
+  const suppressAutomaticMount =
+    exclusiveSection !== null && exclusiveSection !== id;
   const [shown, setShown] = useState(
     () => typeof IntersectionObserver === "undefined",
   );
 
   useEffect(() => {
-    if (shown || mountAll || mountThisSection) return;
+    if (shown || mountAll || mountThisSection || suppressAutomaticMount) return;
     const node = ref.current;
     if (!node) return;
     const observer = new IntersectionObserver(
@@ -118,7 +167,7 @@ export function DeferredSection({
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [shown, mountAll, mountThisSection]);
+  }, [shown, mountAll, mountThisSection, suppressAutomaticMount]);
 
   if (shown || mountAll || mountThisSection)
     return <div id={id}>{children}</div>;
