@@ -214,9 +214,10 @@ Phase A shipped reviewed-clean; the reviewer logged four minor items to carry
 forward (none blocked Phase A):
 
 - ✓ **B — package-mode signal, not `debug_assertions`.** Commands and plugin
-  registration now use Tauri's `is_dev()` signal. An optimized source build
-  therefore stays disabled and cannot reach the updater endpoint; the shared
-  desktop gate invokes both commands under that exact release-profile boundary.
+  registration now use Tauri's `is_dev()` signal. An ordinary optimized Cargo
+  source build therefore stays disabled and cannot reach the updater endpoint;
+  the shared desktop gate invokes both commands under that exact release-profile
+  boundary. Tauri production/custom-protocol mode retains the updater path.
 - ✓ **D — release guard against an unreplaced pubkey.** Tagged release jobs fail
   before signing when `plugins.updater.pubkey` is the documented placeholder or
   empty. Workflow-dispatch dry runs remain keyless and build-only.

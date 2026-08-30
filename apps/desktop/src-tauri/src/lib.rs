@@ -1448,9 +1448,10 @@ struct InstallOutcome {
     version: String,
 }
 
-/// Tauri sets `custom-protocol` only for packaged builds. Cargo optimization is
-/// deliberately irrelevant: `cargo build --release` from source must stay on
-/// the disabled path and must not register a network-capable updater.
+/// Tauri's packaging flow enables `custom-protocol` for production builds.
+/// Cargo optimization is deliberately irrelevant: an ordinary
+/// `cargo build --release` must stay on the disabled path and must not register
+/// a network-capable updater.
 const fn updater_is_enabled() -> bool {
     !tauri::is_dev()
 }
@@ -1756,8 +1757,9 @@ pub fn run() {
     // Only our Rust commands call it; the webview holds no dialog capability.
     app = app.plugin(tauri_plugin_dialog::init());
     // The updater plugin reads its fixed endpoint + pubkey from tauri.conf.json.
-    // Registered only in packaged/release builds: a source/dev build has no
-    // signing key, and its updater commands report the disabled state instead.
+    // Registered only in Tauri production/custom-protocol mode: an ordinary
+    // source/dev build has no signing key, and its updater commands report the
+    // disabled state instead.
     if updater_is_enabled() {
         app = app.plugin(tauri_plugin_updater::Builder::new().build());
     }
@@ -2512,8 +2514,10 @@ mod tests {
         );
 
         // Install is refused in a source build (no signing key, no plugin).
-        invoke_with_body(&webview, "updater_install", json!({}))
+        let install = invoke_with_body(&webview, "updater_install", json!({}))
             .expect_err("install disabled in source build");
+        assert_eq!(install["code"], "internal/unexpected");
+        assert_eq!(install["message"], "updates are disabled in this build");
         // updater_relaunch is intentionally not invoked here: it restarts the
         // process, which would tear down the test runner.
 

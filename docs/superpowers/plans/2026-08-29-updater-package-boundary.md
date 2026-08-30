@@ -7,9 +7,9 @@
 The public-beta roadmap is otherwise complete apart from external feasibility, paid signing, and
 large `Later` bets. `docs/architecture/UPDATES.md` still records one bounded code-owned defect in
 the shipped updater: native commands and plugin registration use Rust's `debug_assertions` as a
-proxy for whether Tauri produced a packaged app. An optimized `cargo build --release` from source
+proxy for Tauri production/custom-protocol mode. An ordinary optimized `cargo build --release`
 therefore registers the updater and can let an explicit **Check for updates** click contact GitHub,
-even though source builds are meant to keep that surface disabled.
+even though that source build is meant to keep the surface disabled.
 
 The repository's tagged-release pubkey guard already exists. This phase closes the independent
 package-boundary defect without changing updater endpoints, keys, signatures, versioning, or
@@ -17,11 +17,11 @@ release state.
 
 ## Product and trust boundaries
 
-- Use Tauri's package-mode signal (`tauri::is_dev()`, backed by the custom-protocol feature), not
-  compilation optimization, as the one updater availability decision.
-- Every source build stays disabled, including an optimized release-profile build. A Tauri package
-  may register the existing Rust-wrapped updater and may contact only its fixed HTTPS endpoint
-  after the traveler's explicit click.
+- Use Tauri's production-mode signal (`tauri::is_dev()`, backed by the custom-protocol feature),
+  not compilation optimization, as the one updater availability decision.
+- Ordinary Cargo source builds stay disabled, including an optimized release-profile build. Tauri
+  production/custom-protocol mode may register the existing Rust-wrapped updater and may contact
+  only its fixed HTTPS endpoint after the traveler's explicit click.
 - Keep the webview without updater or process capabilities. Do not add a route, contract method,
   provider, background check, storage field, migration, or caller-supplied endpoint/header.
 - Tests must not contact GitHub, install an update, mutate the OS keychain, or create a release.
