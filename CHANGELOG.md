@@ -25,6 +25,12 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Fixed
 
+- **Optimized source builds no longer cross the packaged-updater boundary.**
+  Updater commands and native plugin registration now follow Tauri's package
+  mode instead of Rust's optimization mode, so `cargo build --release` remains
+  updater-disabled unless Tauri is actually producing a package. The shared
+  desktop gate exercises that exact release-profile source journey; endpoints,
+  signing keys, update consent, and packaged-app behavior are unchanged.
 - **Saved research no longer arrives looking like a confirmed stay.** Trip
   search gives imported documents, confirmed plans, and research resources
   distinct labels in English and Spanish. Search remains a deterministic local

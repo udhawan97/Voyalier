@@ -213,18 +213,13 @@ missing download).
 Phase A shipped reviewed-clean; the reviewer logged four minor items to carry
 forward (none blocked Phase A):
 
-- **B — mode signal off `is_packaged`, not `debug_assertions`.** The wrappers
-  currently gate the plugin on `!debug_assertions`. That makes an unpackaged
-  release build from source (debug off) register the plugin and let
-  `updater_check` make a live GitHub call (install still fails safe at verify).
-  Normal `tauri dev` is correctly "disabled". When Phase B adds the gateway mode
-  signal, drive it off `is_packaged`/`!is_dev` and scope the "disabled in source"
-  wording to debug builds.
-- **D — release guard against an unreplaced pubkey.** Nothing stops a real
-  release from being cut with the placeholder (or empty) `plugins.updater.pubkey`
-  → a silently broken updater (installs that can never verify). Add a step to the
-  hardened `release.yml` that fails the release job if the pubkey equals the
-  placeholder or is empty. (Highest-value follow-up.)
+- ✓ **B — package-mode signal, not `debug_assertions`.** Commands and plugin
+  registration now use Tauri's `is_dev()` signal. An optimized source build
+  therefore stays disabled and cannot reach the updater endpoint; the shared
+  desktop gate invokes both commands under that exact release-profile boundary.
+- ✓ **D — release guard against an unreplaced pubkey.** Tagged release jobs fail
+  before signing when `plugins.updater.pubkey` is the documented placeholder or
+  empty. Workflow-dispatch dry runs remain keyless and build-only.
 - **D — tighten `bundle.targets`.** It is `"all"` while D4 scopes platforms to
   macOS aarch64 + Windows (Linux deferred). Harmless now (the CI matrix scopes
   actual builds) but tighten targets / rely on `--target` so Linux artifacts are
