@@ -132,7 +132,7 @@ function Missions({ missions }: { missions: Mission[] }) {
   const regionId = useId();
   return (
     <section className="voy-visa__missions" aria-labelledby={`${regionId}-t`}>
-      <h4 className="voy-visa__missions-title">
+      <h3 className="voy-visa__missions-title">
         <button
           type="button"
           id={`${regionId}-t`}
@@ -146,7 +146,7 @@ function Missions({ missions }: { missions: Mission[] }) {
           </span>
           {t("visa.missions.title")}
         </button>
-      </h4>
+      </h3>
       {open ? (
         <div id={regionId}>
           <ul className="voy-visa__missions-list">
@@ -530,9 +530,9 @@ function StatsCard({
 
   return (
     <section className="voy-visa__stats" aria-labelledby="visa-stats-title">
-      <h4 id="visa-stats-title" className="voy-visa__stats-title">
+      <h3 id="visa-stats-title" className="voy-visa__stats-title">
         {source.authorityName}
-      </h4>
+      </h3>
 
       {snapshot ? (
         <>

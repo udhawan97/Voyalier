@@ -797,26 +797,32 @@ describe("visa cockpit v2", () => {
   it("has no accessibility violations with playbook, stats, and missions open", async () => {
     const gateway = createMockGateway();
     renderApp(gateway);
-    const region = await openVisaFor("Lisbon spring draft");
-    await pickPassportViaField(region, "IN");
-    await within(region).findByText(/Step 1/);
 
-    const missionsToggle = within(region).queryByRole("button", {
-      name: /Your country's missions here/i,
+    const lisbon = await openVisaFor("Lisbon spring draft");
+    await pickPassportViaField(lisbon, "IN");
+    await within(lisbon).findByText(/Step 1/);
+    const stats = within(lisbon).getByRole("region", {
+      name: /Immigration, Refugees and Citizenship Canada/,
     });
-    if (missionsToggle) fireEvent.click(missionsToggle);
-    const fetchButton = within(region).queryByRole("button", {
-      name: /Fetch current published times/,
-    });
-    if (fetchButton) fireEvent.click(fetchButton);
-    // The retry is for the fetch above settling, but each attempt is a full-body
-    // axe scan of the longest page in the app, which on its own costs about the
-    // default one-second budget — so on a loaded machine this timed out before
-    // finishing a single pass and reported it as a failure. The budget has to
-    // fit a scan, not just a re-render.
-    await waitFor(async () => expect(await findA11yViolations()).toEqual([]), {
-      timeout: 10_000,
-    });
+    fireEvent.click(
+      within(stats).getByRole("button", {
+        name: /Fetch current published times/,
+      }),
+    );
+    await within(stats).findByRole("table");
+    expect(await findA11yViolations()).toEqual([]);
+
+    fireEvent.click(screen.getByRole("button", { name: "All trips" }));
+    await screen.findByRole("heading", { name: "Trips", level: 1 });
+    const kyoto = await openVisaFor("Kyoto autumn journey");
+    await pickPassportViaField(kyoto, "CA");
+    fireEvent.click(
+      await within(kyoto).findByRole("button", {
+        name: /Your country's missions here/i,
+      }),
+    );
+    await within(kyoto).findByText(/Embassy in Akasaka/i);
+    expect(await findA11yViolations()).toEqual([]);
   });
 });
 

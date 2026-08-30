@@ -1,7 +1,7 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
 
-import { renderApp } from "./test/helpers";
+import { findA11yViolations, renderApp } from "./test/helpers";
 
 /**
  * Public holidays are fetched on an explicit click and narrowed to the travel
@@ -89,5 +89,28 @@ describe("public holidays", () => {
     expect(detail.publicHolidays?.schoolHolidays[0]?.subdivisions).toEqual([
       "DE-BE",
     ]);
+  });
+
+  it("has no accessibility violations with school terms listed", async () => {
+    const gateway = createMockGateway();
+    const trip = await gateway.createTrip({
+      origin: "Chicago",
+      destination: "Berlin",
+      startDate: "2027-07-10",
+      endDate: "2027-07-17",
+    });
+    renderApp(gateway);
+    fireEvent.click(
+      await screen.findByRole("button", { name: `Open ${trip.title}` }),
+    );
+    const panel = await screen.findByRole("region", {
+      name: "Public holidays",
+    });
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Fetch public holidays" }),
+    );
+    await within(panel).findByRole("heading", { name: "School holidays" });
+
+    expect(await findA11yViolations()).toEqual([]);
   });
 });

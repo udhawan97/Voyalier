@@ -39,7 +39,7 @@ function SchoolTerms({ snapshot }: { snapshot: PublicHolidaysSnapshot }) {
   }
   return (
     <>
-      <h4 className="voy-holidays__subtitle">{t("holidays.school.title")}</h4>
+      <h3 className="voy-holidays__subtitle">{t("holidays.school.title")}</h3>
       <ul className="voy-holidays__list">
         {snapshot.schoolHolidays.map((holiday) => (
           <li
