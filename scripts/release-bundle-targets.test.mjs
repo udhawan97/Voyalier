@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -32,4 +32,8 @@ test("macOS and Windows own disjoint, platform-specific bundle targets", () => {
   assert.equal(supported.has("deb"), false);
   assert.equal(supported.has("rpm"), false);
   assert.equal(supported.has("appimage"), false);
+  assert.equal(
+    existsSync(path.join(TAURI_DIR, "tauri.linux.conf.json")),
+    false,
+  );
 });
