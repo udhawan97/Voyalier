@@ -222,10 +222,10 @@ forward (none blocked Phase A):
   before signing when `plugins.updater.pubkey` is the documented placeholder or
   empty. Workflow-dispatch dry runs remain keyless and build-only.
 - ✓ **D — tighten `bundle.targets`.** The base config now names no publishable
-  bundle. Tauri's automatically merged platform configs give macOS only `app`
-  - `dmg` and Windows only `nsis` + `msi`; there is deliberately no Linux
-    override. Adding a Linux workflow leg therefore cannot publish a Linux bundle
-    without a separate reviewed config change.
+  bundle. Tauri's automatically merged platform configs give macOS only the
+  `app` and `dmg` targets, and Windows only `nsis` and `msi`; there is deliberately
+  no Linux override. Adding a Linux workflow leg therefore cannot publish a Linux
+  bundle without a separate reviewed config change.
 - **(standing) app_settings is "never secrets" by convention only.** Values are
   unencrypted KV; keep the doc-comment authoritative and never route a secret
   through it — secrets stay in the OS keychain.
