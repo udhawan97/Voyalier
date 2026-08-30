@@ -631,7 +631,9 @@ function ContinuityNavigator({
         // shows its own honest state. Do not turn that into a deletion claim.
         finish(
           fallback,
-          ownerState === "success" ? target.unavailable : undefined,
+          ownerState === "loading" || ownerState === "error"
+            ? undefined
+            : target.unavailable,
         );
       } else onSettled(target.requestId);
     };
