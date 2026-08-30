@@ -1421,8 +1421,9 @@ fn default_backup_file_name() -> String {
 // these commands accept NO caller-supplied proxy or headers, so there is no
 // hidden network path. Notes from GitHub are attacker-influencable, so the
 // frontend renders them as inert plain text (never raw HTML) — here we only
-// length-cap them. The updater plugin is registered only in packaged/release
-// builds; in dev/source builds these commands report a disabled state.
+// length-cap them. The updater plugin is registered only in Tauri
+// production/custom-protocol mode; ordinary source builds report a disabled
+// state.
 // ---------------------------------------------------------------------------
 
 /// Result of an update check. `status` is one of `"disabled"` (dev/source

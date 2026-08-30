@@ -120,8 +120,8 @@ an ad-hoc-signature mismatch after swap could brick launch, and we have **no bun
 
 - **`UpdaterGateway`** (separate from the frozen AppGateway): `{ mode: "packaged"|"devShell"|"browser";
 check(); downloadAndInstall(onProgress); relaunch() }`. `mode` (fact-check via Rust
-  `cfg(debug_assertions)`/`is_packaged`) fixes reviewer #2's tauri-dev gap — devShell shows "dev
-  build — updates disabled", not a live button.
+  `tauri::is_dev()`, the inverse of Tauri's custom-protocol production mode) fixes reviewer #2's
+  tauri-dev gap — devShell shows "dev build — updates disabled", not a live button.
 - Impls: `tauriUpdater` (→ our custom Rust commands), `unsupportedUpdater` (browser/source: honest
   dual copy — "run from source: `git pull && make bootstrap`" OR "download the packaged app"),
   `mockUpdater` (scripted, for tests/UI dev).
