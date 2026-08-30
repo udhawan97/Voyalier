@@ -44,9 +44,11 @@ slow local list, a failed local list, or a record removed after search.
 1. Add a failing search-intent test where an old failure lands during the next
    query's debounce. Invalidate the action synchronously with the edit and when
    leaving Search.
-2. Add a failing slow-resource handoff test that remains loading beyond ten
-   seconds. Route workspace targets through the shared continuity navigator and
-   keep polling at the existing low cadence until the owning list is terminal.
+2. Add a failing slow-resource handoff test past the former one-second retry
+   window. Route workspace targets through the shared continuity navigator and
+   keep polling at the existing low cadence until the owning list is terminal;
+   the shared navigator's existing trip-search test retains the beyond-ten-second
+   coverage.
 3. Add a failing missing-saved-place test. Extend exact-record continuity to all
    workspace source kinds and add localized, source-specific fallbacks.
 4. Cover slow trip notes and panel-error behavior if the earlier slices expose
@@ -54,6 +56,15 @@ slow local list, a failed local list, or a record removed after search.
    panel, not to unrelated sections.
 5. Synchronize the changelog, workflow guide, roadmap, and public planning/search
    guide with the verified behavior.
+
+## Discovery during implementation
+
+The public `AppGateway` mock omitted saved research from `searchWorkspace`, even
+though the Rust `AppService` and core corpus already search it. The mock is a
+shipped development seam, so the phase adds a parity test and mirrors the
+existing Rust text projection: title, traveler note, tags, snapshot description,
+and snapshot text are searchable; the resource URL remains excluded. This is no
+production corpus, ranking, route, or contract change.
 
 ## Verification
 
@@ -70,6 +81,6 @@ slow local list, a failed local list, or a record removed after search.
 ## Non-goals
 
 - No FTS5 or embedding index.
-- No search contract, transport, ranking, or corpus change.
+- No production search contract, transport, ranking, or corpus change.
 - No new provider, network call, background search, monitoring, or source fetch.
 - No version bump, tag, installer, release, or signing work.

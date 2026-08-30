@@ -15,6 +15,13 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
   fetch a saved page. A slow local list says it is still loading and completes
   the handoff when ready; a record removed after the search falls back to its
   section with an honest unavailable notice.
+- **Workspace search now keeps the selected source handoff alive.** Opening a
+  result focuses the exact confirmed fact, plan item, saved place, trip notes,
+  imported document, or saved-reading row. Slow local reads announce that the
+  source is still loading and finish when ready; missing records fall back to a
+  focused owning-section heading with localized, source-specific copy. Queries
+  and record identifiers remain outside the URL, and opening a result does not
+  mount unrelated deferred work.
 
 ### Fixed
 
@@ -23,6 +30,12 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
   distinct labels in English and Spanish. Search remains a deterministic local
   scan; this change adds no provider, index, migration, background action, or
   authority claim.
+- **Editing a workspace query now revokes the previous intent immediately.** A
+  late success, late failure, busy state, or transport-recovery claim from the
+  old request cannot appear during the replacement query's debounce. The
+  shipped mock also searches saved-research notes, tags, and fetched text like
+  the existing Rust service, without adding URLs to the corpus or changing the
+  production search contract.
 
 ## [0.11.1] - 2026-08-27 — The day returns to its source
 

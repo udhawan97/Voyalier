@@ -130,8 +130,11 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   evidence. Manual items can feed planning-only overlap notices, Today, brief,
   calendar, and local search while private notes stay excluded from exports.
 - ✓ Workspace-wide search: scan documents, confirmed facts, trip notes, saved
-  places, and manual plans across every trip with bounded deterministic scoring
-  and explicit trip/source provenance. Pending candidates remain excluded.
+  places, manual plans, and saved research across every trip with bounded
+  deterministic scoring and explicit trip/source provenance. Pending candidates
+  remain excluded. Every result returns to its exact local source; slow reads
+  keep that handoff alive, stale query work is revoked immediately, and missing
+  records fall back with an honest localized notice.
 - ✓ Product-visible source register: one shared golden drives Settings and is
   pinned by Rust and React tests, including license/attribution and authority
   boundaries.
