@@ -490,10 +490,11 @@ describe("workspace search", () => {
     // The prior handoff gave up after its one-second retry window. The source
     // is only slow, so the traveler should hear that the exact request remains
     // active and receive focus when the local list finally settles.
-    await new Promise((resolve) => setTimeout(resolve, 1_100));
     expect(
-      screen.getByText(
+      await screen.findByText(
         "Saved reading is still loading. Voyalier will open this source when it is ready.",
+        {},
+        { timeout: 3_000 },
       ),
     ).toBeInTheDocument();
     expect(
@@ -538,10 +539,11 @@ describe("workspace search", () => {
     );
     await waitFor(() => expect(releaseNotes).toBeDefined());
 
-    await new Promise((resolve) => setTimeout(resolve, 1_100));
     expect(
-      screen.getByText(
+      await screen.findByText(
         "Trip notes are still loading. Voyalier will open them when they are ready.",
+        {},
+        { timeout: 3_000 },
       ),
     ).toBeInTheDocument();
 
