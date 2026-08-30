@@ -88,13 +88,16 @@ reads "Something went wrong", which is vaguer than the new copy and still less
 wrong than today's confident, incorrect one.
 
 **The copy has to earn the separate code.** Its body says the records are still
-there and encrypted, and offers the two recoveries that exist — restore the data
-directory from a backup made while the key still worked, or reopen the workspace
-whose vault holds that key. Neither is a button Voyalier can render, which is
-exactly why the banner must stop rendering Retry: an action that cannot work is
-worse than no action, because it invites the traveler to keep pressing it.
-`isRetryable()` in `format.ts` is the single definition of that rule, and both
-banners that offered a load-failure Retry consult it.
+there and encrypted, and offers the two recoveries that do not require guessing
+the cause — restore a Voyalier backup made while the records still opened, or
+reopen the workspace that can still open them. It does not claim that the key is
+missing: the AEAD check cannot distinguish a replaced key from a tampered row,
+and malformed ciphertext reaches the same boundary. Neither recovery is a
+button Voyalier can render, which is exactly why the banner must stop rendering
+Retry: an action that cannot work is worse than no action, because it invites
+the traveler to keep pressing it. `isRetryable()` in `format.ts` is the single
+definition of that rule, and both banners that offered a load-failure Retry
+consult it.
 
 **One sibling stays behind, on purpose.** `unwrap_data_key` in
 `service_vault.rs` returns `storage/failure` when the stored wrap record decrypts

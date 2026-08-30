@@ -24,6 +24,7 @@ import {
   fieldsForType,
   formatDateRange,
   formatFieldValue,
+  isRetryable,
   tripRoute,
 } from "../app/format";
 import { buildIcs, icsFilename } from "../app/ics";
@@ -1262,11 +1263,11 @@ export function TripDetailView({
               <Button variant="secondary" onClick={onBack}>
                 {t("detail.backToTrips")}
               </Button>
-            ) : (
+            ) : isRetryable(error!) ? (
               <Button variant="secondary" icon={<RetryIcon />} onClick={reload}>
                 {t("action.retry")}
               </Button>
-            )
+            ) : null
           }
         >
           {describeError(error!).body}

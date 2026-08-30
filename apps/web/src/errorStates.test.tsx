@@ -255,6 +255,54 @@ describe("AppError rendered states", () => {
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
 
+  it("vault/unreadable is not retryable on the trip list", async () => {
+    renderApp(
+      failingGateway({
+        listTrips: rejectWith({
+          code: "vault/unreadable",
+          message: "the encrypted data could not be opened",
+        }),
+      }),
+    );
+    expect(
+      await screen.findByText("This encrypted data can't be opened"),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+  });
+
+  /**
+   * Measured against the real loopback server in 0.10.7. A workspace holding a
+   * vault key its sealed rows were not written under answered
+   * `GET /trips/{id}/candidates` with 500 `storage/failure`, so opening the
+   * trip read "Local storage is unavailable — Voyalier couldn't read or write
+   * your local data. Nothing was changed" above a Retry. Storage was working,
+   * nothing was being written, and no number of retries brings a key back.
+   * ADR-0018 gave the condition its own code so this copy can be true.
+   */
+  it("vault/unreadable names the encryption and offers no Retry", async () => {
+    renderApp(
+      failingGateway({
+        listCandidates: rejectWith({
+          code: "vault/unreadable",
+          message:
+            "the encrypted data could not be opened (wrong key or tampered)",
+        }),
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    );
+
+    expect(
+      await screen.findByText("This encrypted data can't be opened"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Local storage is unavailable")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+    // The other half of what the traveler saw: unsealed reads never failed, so
+    // the topbar reported Ready under a banner claiming storage was gone.
+    expect(screen.getByText("Ready")).toBeInTheDocument();
+  });
+
   it("transport/failure shows the offline banner", async () => {
     renderApp(
       failingGateway({

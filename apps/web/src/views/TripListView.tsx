@@ -2,7 +2,12 @@ import { useRef, useState } from "react";
 import type { TripSummary } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
-import { describeError, formatDateRange, tripRoute } from "../app/format";
+import {
+  describeError,
+  formatDateRange,
+  isRetryable,
+  tripRoute,
+} from "../app/format";
 import { plural, t } from "../app/i18n";
 import { createSampleTrip } from "../app/sampleTrip";
 import { tripsScope, useRevalidate, useScopeKey } from "../app/revalidate";
@@ -272,9 +277,11 @@ export function TripListView({
           role="alert"
           title={describeError(error!).title}
           action={
-            <Button variant="secondary" icon={<RetryIcon />} onClick={reload}>
-              {t("action.retry")}
-            </Button>
+            isRetryable(error!) ? (
+              <Button variant="secondary" icon={<RetryIcon />} onClick={reload}>
+                {t("action.retry")}
+              </Button>
+            ) : null
           }
         >
           {describeError(error!).body}

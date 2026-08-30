@@ -434,6 +434,11 @@ export function describeError(error: AppError): ErrorCopy {
       };
     case "storage/failure":
       return { title: t("error.storage.title"), body: t("error.storage.body") };
+    case "vault/unreadable":
+      return {
+        title: t("error.vaultUnreadable.title"),
+        body: t("error.vaultUnreadable.body"),
+      };
     case "trip/not_found":
       return {
         title: t("error.tripNotFound.title"),
@@ -504,6 +509,17 @@ export function describeError(error: AppError): ErrorCopy {
         body: t("error.unexpected.body"),
       };
   }
+}
+
+/**
+ * Whether re-running the failed call could plausibly succeed.
+ *
+ * Only `vault/unreadable` says no: the records were read and could not be
+ * decrypted, and a key does not come back by asking again. One definition is
+ * consulted by every banner that renders a load failure (ADR-0018).
+ */
+export function isRetryable(error: AppError): boolean {
+  return error.code !== "vault/unreadable";
 }
 
 export type TripFieldKey =

@@ -100,6 +100,9 @@ const en = {
   "error.storage.title": "Local storage is unavailable",
   "error.storage.body":
     "Voyalier couldn't read or write your local data. Nothing was changed.",
+  "error.vaultUnreadable.title": "This encrypted data can't be opened",
+  "error.vaultUnreadable.body":
+    "The records are still on this device, but Voyalier can't decrypt them with this workspace's vault. Trying again won't help, and nothing was deleted. Restore a Voyalier backup made while the records still opened, or reopen the workspace that can still open them.",
   "error.tripNotFound.title": "This trip is no longer here",
   "error.tripNotFound.body": "It may have been deleted on this device.",
   "error.candidateNotFound.title": "This suggestion is no longer here",
@@ -1771,6 +1774,9 @@ const es: Record<MessageKey, string> = {
   "error.storage.title": "Almacenamiento local no disponible",
   "error.storage.body":
     "Voyalier no pudo leer ni escribir tus datos locales. No se realizó ningún cambio.",
+  "error.vaultUnreadable.title": "Estos datos cifrados no se pueden abrir",
+  "error.vaultUnreadable.body":
+    "Los registros siguen en este dispositivo, pero Voyalier no puede descifrarlos con la bóveda de este espacio de trabajo. Volver a intentarlo no sirve y no se eliminó nada. Restaura una copia de seguridad de Voyalier creada cuando los registros aún se abrían, o vuelve a abrir el espacio que todavía puede abrirlos.",
   "error.tripNotFound.title": "Este viaje ya no está aquí",
   "error.tripNotFound.body":
     "Es posible que haya sido eliminado en este dispositivo.",
