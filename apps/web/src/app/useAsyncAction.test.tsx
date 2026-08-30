@@ -144,6 +144,29 @@ describe("useAsyncAction", () => {
     await waitFor(() => expect(result.current.busy).toBe(false));
   });
 
+  it("can invalidate a run when intent changes before its replacement starts", async () => {
+    let release: (value: string) => void = () => {};
+    const onSuccess = vi.fn();
+    const { result } = renderHook(() =>
+      useAsyncAction(
+        () =>
+          new Promise<string>((resolve) => {
+            release = resolve;
+          }),
+        onSuccess,
+      ),
+    );
+
+    act(() => void result.current.run());
+    await waitFor(() => expect(result.current.busy).toBe(true));
+    act(() => result.current.invalidate());
+    expect(result.current.busy).toBe(false);
+    expect(result.current.error).toBeUndefined();
+
+    await act(async () => release("stale"));
+    expect(onSuccess).not.toHaveBeenCalled();
+  });
+
   it("does not write state after the view unmounts", async () => {
     let release: (value: string) => void = () => {};
     const onSuccess = vi.fn();

@@ -118,33 +118,44 @@ export function TripSearch({
     },
   );
 
-  function runSearch(raw: string) {
+  function runSearch(raw: string, requestId: number) {
     const trimmed = raw.trim();
-    // Invalidate any in-flight request on every call, including the too-short
-    // path — otherwise an older query that lands after the box is cleared would
-    // repopulate results and announce a stale count.
-    requestRef.current += 1;
     if (trimmed.length < MIN_QUERY) {
       setResults(null);
       setSuggestions([]);
       return;
     }
-    void action.run(trimmed, requestRef.current);
+    void action.run(trimmed, requestId);
   }
 
   function handleChange(next: string) {
+    // Intent changes synchronously; waiting for the debounce to invalidate the
+    // old request briefly put actionable old results under the new query and
+    // let an old failure flash before its replacement even started.
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
+    action.invalidate();
     setQuery(next);
+    setResults(null);
+    setSuggestions([]);
     setCopiedKey(null);
     if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => void runSearch(next), DEBOUNCE_MS);
+    timerRef.current = setTimeout(
+      () => void runSearch(next, requestId),
+      DEBOUNCE_MS,
+    );
   }
 
   function applySuggestion(term: string) {
     const next = withLastWord(query, term);
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
+    action.invalidate();
     setQuery(next);
+    setResults(null);
     setSuggestions([]);
     if (timerRef.current) clearTimeout(timerRef.current);
-    void runSearch(next);
+    void runSearch(next, requestId);
   }
 
   async function copyHit(hit: SearchHit) {

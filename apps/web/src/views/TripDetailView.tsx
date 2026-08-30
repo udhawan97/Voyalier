@@ -559,6 +559,7 @@ type ContinuityTarget = {
       };
   fallbackId: string;
   mountDeferred?: boolean;
+  loading?: MessageKey;
   unavailable?: MessageKey;
   announcement?: MessageKey;
 };
@@ -622,13 +623,21 @@ function ContinuityNavigator({
       const fallback = document.getElementById(target.fallbackId);
       const owner = fallback?.closest<HTMLElement>("[data-continuity-state]");
       const ownerState = owner?.dataset.continuityState;
-      if (attempts < 20 || (ownerState === "loading" && attempts < 200)) {
+      if (attempts < 20) {
         timer = setTimeout(tryFocus, 50);
         return;
       }
+      if (ownerState === "loading") {
+        if (attempts === 20 && target.loading) announce(t(target.loading));
+        // Once the ordinary render window has passed, keep the handoff alive at
+        // a low polling rate. A slow local read must not silently become either
+        // a deletion claim or an abandoned exact-source request.
+        timer = setTimeout(tryFocus, 500);
+        return;
+      }
       if (fallback) {
-        // A panel that failed or is still waiting after ten seconds already
-        // shows its own honest state. Do not turn that into a deletion claim.
+        // A panel that failed already shows its own honest state. Do not turn
+        // that into a deletion claim.
         finish(
           fallback,
           ownerState === "loading" || ownerState === "error"
@@ -1010,13 +1019,18 @@ export function TripDetailView({
     recordId: string,
     fallbackId: string,
     unavailable: MessageKey,
-    options: { announcement?: MessageKey; mountDeferred?: boolean } = {},
+    options: {
+      announcement?: MessageKey;
+      mountDeferred?: boolean;
+      loading?: MessageKey;
+    } = {},
   ) {
     setContinuityTarget({
       requestId: ++navigationSequence.current,
       destination: { kind: "record", source, recordId },
       fallbackId,
       mountDeferred: options.mountDeferred,
+      loading: options.loading,
       unavailable,
       announcement: options.announcement,
     });
@@ -1596,6 +1610,7 @@ export function TripDetailView({
                   hit.recordId,
                   "documents-title",
                   "continuity.document.unavailable",
+                  { loading: "continuity.document.loading" },
                 );
                 return;
               }
@@ -1605,6 +1620,7 @@ export function TripDetailView({
                 hit.recordId,
                 "resources-title",
                 "continuity.resource.unavailable",
+                { loading: "continuity.resource.loading" },
               );
             }}
           />
@@ -1683,6 +1699,7 @@ export function TripDetailView({
                   {
                     announcement: "continuity.document.opened",
                     mountDeferred: true,
+                    loading: "continuity.document.loading",
                   },
                 );
               } else {

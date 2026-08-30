@@ -323,7 +323,7 @@ describe("trip search", () => {
     ).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("waits for a slow saved-reading list before deciding a result is missing", async () => {
+  it("keeps waiting and explains when a saved-reading list is unusually slow", async () => {
     const base = createMockGateway();
     const resource = await base.createResource({
       tripId: "trip_kyoto",
@@ -356,12 +356,17 @@ describe("trip search", () => {
       }),
     );
 
-    await new Promise((resolve) => setTimeout(resolve, 1_100));
+    await new Promise((resolve) => setTimeout(resolve, 10_100));
     expect(
       screen.queryByText(
         "That research resource is no longer available. Saved reading opened.",
       ),
     ).toBeNull();
+    expect(
+      screen.getByText(
+        "Saved reading is still loading. Voyalier will open this source when it is ready.",
+      ),
+    ).toBeInTheDocument();
     await act(async () => releaseResources?.());
     await waitFor(() =>
       expect(
@@ -517,6 +522,76 @@ describe("trip search", () => {
     expect(
       within(search).queryByRole("list", { name: "Search results" }),
     ).toBeNull();
+  });
+
+  it("drops an old success before the replacement query starts, even if that query fails", async () => {
+    const base = createMockGateway();
+    let releaseFirst: (() => void) | undefined;
+    const searchTrip = vi.fn((tripId: string, query: string) => {
+      if (query === "paper") {
+        return new Promise<Awaited<ReturnType<typeof base.searchTrip>>>(
+          (resolve) => {
+            releaseFirst = () =>
+              void base.searchTrip(tripId, query).then(resolve);
+          },
+        );
+      }
+      if (query === "zeppelin") {
+        return Promise.reject({
+          code: "transport/failure",
+          message: "engine unreachable",
+        });
+      }
+      return base.searchTrip(tripId, query);
+    });
+    renderApp({ ...base, searchTrip });
+    const search = await openSearch();
+    const input = searchInput(search);
+    fireEvent.change(input, { target: { value: "paper" } });
+    await waitFor(() => expect(releaseFirst).toBeDefined());
+
+    fireEvent.change(input, { target: { value: "zeppelin" } });
+    await act(async () => releaseFirst?.());
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(within(search).queryByText("River Paper Inn")).toBeNull();
+    expect(
+      within(search).queryByRole("list", { name: "Search results" }),
+    ).toBeNull();
+
+    expect(await within(search).findByRole("alert")).toHaveTextContent(
+      "Voyalier can't reach its engine",
+    );
+    expect(within(search).queryByText("River Paper Inn")).toBeNull();
+  });
+
+  it("drops an old failure before the replacement query starts", async () => {
+    const base = createMockGateway();
+    let rejectFirst: (() => void) | undefined;
+    const searchTrip = vi.fn((tripId: string, query: string) => {
+      if (query === "paper") {
+        return new Promise<Awaited<ReturnType<typeof base.searchTrip>>>(
+          (_resolve, reject) => {
+            rejectFirst = () =>
+              reject({
+                code: "transport/failure",
+                message: "engine unreachable",
+              });
+          },
+        );
+      }
+      return base.searchTrip(tripId, query);
+    });
+    renderApp({ ...base, searchTrip });
+    const search = await openSearch();
+    const input = searchInput(search);
+    fireEvent.change(input, { target: { value: "paper" } });
+    await waitFor(() => expect(rejectFirst).toBeDefined());
+
+    fireEvent.change(input, { target: { value: "FP18" } });
+    await act(async () => rejectFirst?.());
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(within(search).queryByRole("alert")).toBeNull();
+    expect(await within(search).findByText("Flight FP18")).toBeInTheDocument();
   });
 
   it("finds imported document content, matching any word (relaxed)", async () => {

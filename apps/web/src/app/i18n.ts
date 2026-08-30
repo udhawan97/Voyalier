@@ -1391,8 +1391,12 @@ const en = {
   "continuity.plan.unavailable":
     "That trip item is no longer available. Trip plan opened.",
   "continuity.document.opened": "Existing document opened.",
+  "continuity.document.loading":
+    "Imported documents are still loading. Voyalier will open this source when it is ready.",
   "continuity.document.unavailable":
     "The existing document could not be located. Imported documents opened.",
+  "continuity.resource.loading":
+    "Saved reading is still loading. Voyalier will open this source when it is ready.",
   "continuity.resource.unavailable":
     "That research resource is no longer available. Saved reading opened.",
 
@@ -3010,8 +3014,12 @@ const es: Record<MessageKey, string> = {
   "continuity.plan.unavailable":
     "Ese elemento del viaje ya no está disponible. Se abrió el plan del viaje.",
   "continuity.document.opened": "Se abrió el documento existente.",
+  "continuity.document.loading":
+    "Los documentos importados todavía se están cargando. Voyalier abrirá esta fuente cuando esté lista.",
   "continuity.document.unavailable":
     "No se pudo encontrar el documento existente. Se abrieron los documentos importados.",
+  "continuity.resource.loading":
+    "Las lecturas guardadas todavía se están cargando. Voyalier abrirá esta fuente cuando esté lista.",
   "continuity.resource.unavailable":
     "Ese recurso de investigación ya no está disponible. Se abrieron las lecturas guardadas.",
   "map.title": "Mapa",

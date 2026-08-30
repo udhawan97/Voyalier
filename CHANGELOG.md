@@ -12,7 +12,8 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
   **Show source** action focuses the exact confirmed fact, imported document, or
   saved-reading row while keeping the query and record identifier out of the
   URL. The action is read-only: it does not reopen sealed document bodies or
-  fetch a saved page, and a record removed after the search falls back to its
+  fetch a saved page. A slow local list says it is still loading and completes
+  the handoff when ready; a record removed after the search falls back to its
   section with an honest unavailable notice.
 
 ### Fixed

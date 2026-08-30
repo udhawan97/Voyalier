@@ -57,6 +57,8 @@ Acceptance:
 - If the record disappeared between search and activation, focus falls back to
   the owning Blueprint, Imported documents, or Saved reading heading and an
   honest localized announcement names the missing source.
+- A slow local document or resource list announces that it is still loading and
+  retains the exact-row handoff until the list settles.
 - The query and result list remain available after the in-page detour. Record ids
   and query text never enter the URL.
 - Repeated result controls have source-specific accessible names and remain

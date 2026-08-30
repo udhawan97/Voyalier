@@ -94,6 +94,8 @@ export interface AsyncAction<Args extends unknown[]> {
   busy: boolean;
   /** The last failure, normalized. Undefined once a new run starts. */
   error: AppError | undefined;
+  /** Supersede in-flight work when the intent changes before another run. */
+  invalidate: () => void;
 }
 
 /**
@@ -216,5 +218,11 @@ export function useAsyncAction<Args extends unknown[], T>(
     [transportHealth],
   );
 
-  return { run, busy, error };
+  const invalidate = useCallback(() => {
+    latest.current += 1;
+    setBusy(false);
+    setFailure(undefined);
+  }, []);
+
+  return { run, busy, error, invalidate };
 }
