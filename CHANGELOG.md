@@ -25,6 +25,16 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Fixed
 
+- **Unreadable encrypted records no longer masquerade as broken storage.** A
+  sealed row that this workspace cannot decrypt now reports a dedicated vault
+  error with honest recovery guidance and no futile Retry action. Voyalier does
+  not guess whether the cause is a replaced key or damaged ciphertext, and this
+  change does not recover or delete any data.
+- **Visa and school-holiday subsections now keep the panel heading order.** The
+  authority figures, diplomatic missions, and listed school terms sit one level
+  beneath their owning panel for assistive navigation. Rendered accessibility
+  tests now open each real state; the underlying travel guidance and source data
+  are unchanged.
 - **Optimized source builds no longer cross the packaged-updater boundary.**
   Updater commands and native plugin registration now follow Tauri's package
   mode instead of Rust's optimization mode, so `cargo build --release` remains
