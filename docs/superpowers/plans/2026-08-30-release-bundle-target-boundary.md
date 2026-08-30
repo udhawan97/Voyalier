@@ -34,7 +34,7 @@ contract, transport, storage, provider, or product-rule change.
 
 1. Add a Node test that reads the base and platform-specific Tauri JSON files.
 2. Assert the base target list is empty, macOS is exactly `app` + `dmg`, Windows is exactly `nsis`
-   + `msi`, the sets do not overlap, and Linux package formats are absent.
+   - `msi`, the sets do not overlap, and Linux package formats are absent.
 3. Run the focused test before adding the platform configs. Expected red: the base config still
    requests `"all"` and the platform files do not exist.
 4. Add `tauri.macos.conf.json` and `tauri.windows.conf.json`; replace the base `"all"` target with
@@ -43,7 +43,7 @@ contract, transport, storage, provider, or product-rule change.
 ### 2. Put the boundary in the shared gate
 
 1. Name the test `scripts/release-bundle-targets.test.mjs`; the existing `node --test
-   scripts/*.test.mjs` command then covers it locally and in the hosted web/check job.
+scripts/*.test.mjs` command then covers it locally and in the hosted web/check job.
 2. Run Tauri's config-consuming desktop checks on macOS so the platform override is parsed by the
    real build stack, not only by the static assertion.
 

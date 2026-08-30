@@ -25,6 +25,11 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Fixed
 
+- **Release builds no longer inherit every Tauri bundle format.** The base
+  configuration now fails closed with no publishable target; macOS explicitly
+  owns app and DMG bundles, while Windows owns NSIS and MSI. Linux remains
+  deferred and cannot become a published artifact through a workflow-matrix
+  edit alone. This changes no installer, version, signing key, or release.
 - **Unreadable encrypted records no longer masquerade as broken storage.** A
   sealed row that this workspace cannot decrypt now reports a dedicated vault
   error with honest recovery guidance and no futile Retry action. Voyalier does

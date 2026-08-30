@@ -172,7 +172,9 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   per-platform install fork, staged restart, just-updated toast, clear-backups.
   Native updater availability follows Tauri package mode rather than Cargo's
   optimization profile, so even an optimized source build remains offline at
-  that seam; the desktop CI gate exercises the boundary directly.
+  that seam; the desktop CI gate exercises the boundary directly. Bundle
+  ownership is likewise explicit: macOS builds app/DMG, Windows builds
+  NSIS/MSI, and the fail-closed base config leaves Linux deferred.
   See `docs/architecture/UPDATES.md`. Turning it on is the owner's key +
   `v0.3.0` publish (the first install-once base); the free updater signing is
   independent of the paid OS code-signing below.

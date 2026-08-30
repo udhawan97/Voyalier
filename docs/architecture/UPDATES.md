@@ -221,10 +221,11 @@ forward (none blocked Phase A):
 - ✓ **D — release guard against an unreplaced pubkey.** Tagged release jobs fail
   before signing when `plugins.updater.pubkey` is the documented placeholder or
   empty. Workflow-dispatch dry runs remain keyless and build-only.
-- **D — tighten `bundle.targets`.** It is `"all"` while D4 scopes platforms to
-  macOS aarch64 + Windows (Linux deferred). Harmless now (the CI matrix scopes
-  actual builds) but tighten targets / rely on `--target` so Linux artifacts are
-  not published inadvertently.
+- ✓ **D — tighten `bundle.targets`.** The base config now names no publishable
+  bundle. Tauri's automatically merged platform configs give macOS only `app`
+  - `dmg` and Windows only `nsis` + `msi`; there is deliberately no Linux
+    override. Adding a Linux workflow leg therefore cannot publish a Linux bundle
+    without a separate reviewed config change.
 - **(standing) app_settings is "never secrets" by convention only.** Values are
   unencrypted KV; keep the doc-comment authoritative and never route a secret
   through it — secrets stay in the OS keychain.
