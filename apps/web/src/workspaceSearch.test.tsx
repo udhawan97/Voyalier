@@ -364,6 +364,50 @@ describe("workspace search", () => {
     expect(await screen.findByText("Kyoto autumn journey")).toBeInTheDocument();
   });
 
+  it("revokes a pending Search in the same turn as Back", async () => {
+    const base = createMockGateway();
+    let rejectSearch: (() => void) | undefined;
+    const searchWorkspace = vi.fn(
+      () =>
+        new Promise<WorkspaceSearchHit[]>((_resolve, reject) => {
+          rejectSearch = () =>
+            reject({
+              code: "transport/failure",
+              message: "late engine failure",
+            });
+        }),
+    );
+    renderApp({ ...base, searchWorkspace });
+    expect(await screen.findByText("Ready")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+    const input = await screen.findByLabelText("Search all trips");
+    fireEvent.change(input, { target: { value: "Kyoto" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => expect(rejectSearch).toBeDefined());
+    expect(screen.getByRole("button", { name: "Search" })).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+
+    // Hold browser traversal so the same render can prove that Back revokes
+    // Search-owned busy/error/transport state before popstate unmounts it.
+    const back = vi
+      .spyOn(window.history, "back")
+      .mockImplementation(() => undefined);
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(back).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: "Search" })).not.toHaveAttribute(
+      "aria-busy",
+    );
+    await act(async () => rejectSearch?.());
+
+    expect(screen.getByText("Ready")).toBeInTheDocument();
+    expect(screen.queryByText("Offline")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(searchWorkspace).toHaveBeenCalledTimes(1);
+    back.mockRestore();
+  });
+
   it("finds local records across trips and opens the owning trip", async () => {
     renderApp(createMockGateway());
     fireEvent.click(
@@ -453,6 +497,45 @@ describe("workspace search", () => {
     fireEvent.click(add);
     await screen.findByText("Revalidation marker");
     expect(add).toHaveFocus();
+  });
+
+  it("moves focus to the matching saved place", async () => {
+    const gateway = createMockGateway();
+    await gateway.downloadPack("trip_kyoto", "jp-kyoto");
+    const weights = {
+      food: 1,
+      culture: 0.5,
+      nature: 0.5,
+      nightlife: 0.5,
+      shopping: 0.5,
+    };
+    const recommendation = (
+      await gateway.getRecommendations("trip_kyoto", weights)
+    )[0];
+    const savedPlace = await gateway.savePlace({
+      tripId: "trip_kyoto",
+      recommendation,
+      weights,
+      notes: "savedplacefocustoken",
+    });
+    renderApp(gateway);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Search workspace" }),
+    );
+    fireEvent.change(screen.getByLabelText("Search all trips"), {
+      target: { value: "savedplacefocustoken" },
+    });
+    fireEvent.click(
+      (await screen.findByText(savedPlace.name)).closest("button")!,
+    );
+
+    await waitFor(() =>
+      expect(
+        document.querySelector<HTMLElement>(
+          `[data-search-source="saved_place"][data-search-record="${savedPlace.id}"]`,
+        ),
+      ).toHaveFocus(),
+    );
   });
 
   it("keeps an exact resource handoff alive while its local list is slow", async () => {
@@ -835,6 +918,8 @@ describe("workspace search", () => {
   // beside it instead of naming which fact matched.
   it("names a confirmed-fact result with the traveler's own data", async () => {
     const gateway = createMockGateway();
+    const hits = await gateway.searchWorkspace("FP18");
+    const fact = hits.find((hit) => hit.source === "confirmed_fact")!;
     renderApp(gateway);
     fireEvent.click(
       await screen.findByRole("button", { name: "Search workspace" }),
@@ -852,10 +937,17 @@ describe("workspace search", () => {
     expect(result.textContent).toContain("Confirmed fact");
 
     // The gateway carries identifying data, never a product noun.
-    const hits = await gateway.searchWorkspace("FP18");
-    const fact = hits.find((hit) => hit.source === "confirmed_fact")!;
     expect(fact.label).not.toBe("Confirmed fact");
     expect(fact.label).toBe("ORD → HND");
+
+    fireEvent.click(result);
+    await waitFor(() =>
+      expect(
+        document.querySelector<HTMLElement>(
+          `[data-search-source="confirmed_fact"][data-search-record="${fact.recordId}"]`,
+        ),
+      ).toHaveFocus(),
+    );
   });
 });
 

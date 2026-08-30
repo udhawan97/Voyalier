@@ -4720,13 +4720,14 @@ fn fetching_page_details_is_refused_before_consent_and_reaches_no_site() {
 }
 
 #[test]
-fn a_fetched_page_becomes_a_dated_snapshot_that_search_can_find() {
+fn a_fetched_page_becomes_a_dated_snapshot_and_every_owned_field_is_searchable() {
     let database = temp_database("resource-snapshot");
     let fetcher = Arc::new(
         FakeFetcher::default().route_bytes(
-            "example.com/guide",
-            b"<html><head><title>Kyoto in April</title></head><body>\
-          <script>alert('x')</script><p>Peak bloom is the first week.</p></body></html>"
+            "urlonlytoken.example/guide",
+            b"<html><head><title>Fetched page title</title>\
+          <meta name=\"description\" content=\"descriptiononlytoken\"></head><body>\
+          <script>alert('x')</script><p>bodyonlytoken is the first week.</p></body></html>"
                 .to_vec(),
         ),
     );
@@ -4738,30 +4739,61 @@ fn a_fetched_page_becomes_a_dated_snapshot_that_search_can_find() {
         })
         .expect("consent");
     let resource = service
-        .create_resource(link_input(&trip.id, "https://example.com/guide", ""))
+        .create_resource(CreateResourceInput {
+            trip_id: trip.id.clone(),
+            kind: ResourceKind::Link,
+            url: Some("https://urlonlytoken.example/guide".to_owned()),
+            file_name: None,
+            title: "titleonlytoken".to_owned(),
+            note: "noteonlytoken".to_owned(),
+            tags: vec!["tagonlytoken".to_owned()],
+        })
         .expect("resource");
 
     let fetched = service
         .fetch_resource_details(&resource.id)
         .expect("fetched");
     let snapshot = fetched.snapshot.as_ref().expect("snapshot");
-    assert!(snapshot.text.contains("Peak bloom"));
+    assert!(snapshot.text.contains("bodyonlytoken"));
+    assert_eq!(
+        snapshot.description.as_deref(),
+        Some("descriptiononlytoken")
+    );
     assert!(
         !snapshot.text.contains("alert"),
         "script text is never stored"
     );
     assert!(!snapshot.fetched_at.is_empty());
     assert!(!snapshot.content_hash.is_empty());
-    // The title was derived from the address, so the page's own name replaces it.
-    assert_eq!(fetched.title, "Kyoto in April");
+    // A title the traveler chose remains theirs after the fetch.
+    assert_eq!(fetched.title, "titleonlytoken");
 
-    let hits = service.search_trip(&trip.id, "bloom").expect("search");
+    let hits = service
+        .search_trip(&trip.id, "bodyonlytoken")
+        .expect("search");
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].source, SearchHitSource::Resource);
     assert_eq!(hits[0].record_id, resource.id);
 
-    let workspace = service.search_workspace("bloom").expect("workspace");
-    assert_eq!(workspace[0].source, WorkspaceSearchSource::Resource);
+    for query in [
+        "titleonlytoken",
+        "noteonlytoken",
+        "tagonlytoken",
+        "descriptiononlytoken",
+        "bodyonlytoken",
+    ] {
+        let workspace = service.search_workspace(query).expect("workspace");
+        assert_eq!(workspace.len(), 1, "workspace query: {query}");
+        assert_eq!(workspace[0].source, WorkspaceSearchSource::Resource);
+        assert_eq!(workspace[0].record_id, resource.id);
+    }
+    assert!(
+        service
+            .search_workspace("urlonlytoken")
+            .expect("URL exclusion")
+            .is_empty(),
+        "a resource address is identity, not searchable traveler content"
+    );
 
     drop(service);
     cleanup_database(database);
