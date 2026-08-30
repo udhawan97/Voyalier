@@ -83,6 +83,23 @@ describe("i18n message catalog", () => {
     }
   });
 
+  it("keeps the unreadable-vault recovery truthful in both locales", () => {
+    expect(t("error.vaultUnreadable.title")).toBe(
+      "This encrypted data can't be opened",
+    );
+    expect(t("error.vaultUnreadable.body")).toBe(
+      "The records are still on this device, but Voyalier can't decrypt them with this workspace's vault. Trying again won't help, and nothing was deleted. Restore a Voyalier backup made while the records still opened, or reopen the workspace that can still open them.",
+    );
+
+    setLocalePreference("es");
+    expect(t("error.vaultUnreadable.title")).toBe(
+      "Estos datos cifrados no se pueden abrir",
+    );
+    expect(t("error.vaultUnreadable.body")).toBe(
+      "Los registros siguen en este dispositivo, pero Voyalier no puede descifrarlos con la bóveda de este espacio de trabajo. Volver a intentarlo no sirve y no se eliminó nada. Restaura una copia de seguridad de Voyalier creada cuando los registros aún se abrían, o vuelve a abrir el espacio que todavía puede abrirlos.",
+    );
+  });
+
   it("catalogs every product-authored source boundary", () => {
     for (const source of register.sources) {
       for (const field of ["use", "network", "authority"]) {

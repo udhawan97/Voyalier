@@ -2808,6 +2808,73 @@ fn a_sealed_row_met_by_an_inactive_vault_reports_the_same_vault_failure() {
     cleanup_database(database);
 }
 
+/// `Vault::open` owns two decoding boundaries after the row and data key have
+/// both been found: the stored body must be Base64, and successfully decrypted
+/// bytes must be UTF-8 before a text column can leave the app layer. Both are
+/// unreadable encrypted data, not SQLite failures (ADR-0018).
+#[test]
+fn malformed_sealed_rows_keep_the_vault_unreadable_code_at_each_decode_boundary() {
+    let database = temp_database("vault-unreadable-decode");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let service = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .expect("service");
+    let trip = service
+        .create_trip(CreateTripInput {
+            origin: "London".to_owned(),
+            destination: "Tokyo".to_owned(),
+            start_date: "2026-10-12".to_owned(),
+            end_date: "2026-10-22".to_owned(),
+            title: None,
+        })
+        .expect("trip");
+    service
+        .set_trip_notes(&trip.id, "gate 42, terminal 3")
+        .expect("note");
+
+    let writer = Connection::open(&database).expect("writer");
+    writer
+        .execute(
+            "UPDATE trip_notes SET body = 'v1:not!base64' WHERE trip_id = ?1",
+            params![trip.id],
+        )
+        .expect("replace with malformed Base64");
+    assert_eq!(
+        service
+            .get_trip_notes(&trip.id)
+            .expect_err("malformed Base64 must not open")
+            .code,
+        ErrorCode::VaultUnreadable
+    );
+
+    let encoded_key = secrets
+        .get(&vault_key_account(&database))
+        .expect("read key account")
+        .expect("data key");
+    let key = decode_key(&encoded_key).expect("valid data key");
+    let sealed_non_text =
+        vault_seal(&key, &[5u8; VAULT_NONCE_LEN], &[0xff, 0xfe]).expect("seal non-text bytes");
+    writer
+        .execute(
+            "UPDATE trip_notes SET body = ?1 WHERE trip_id = ?2",
+            params![format!("v1:{}", BASE64.encode(sealed_non_text)), trip.id],
+        )
+        .expect("replace with authenticated non-text");
+    assert_eq!(
+        service
+            .get_trip_notes(&trip.id)
+            .expect_err("authenticated non-UTF-8 must not render as text")
+            .code,
+        ErrorCode::VaultUnreadable
+    );
+
+    drop(writer);
+    cleanup_database(database);
+}
+
 /// ADR-0017 buys its guarantee by copying: every data directory leaves a vault
 /// key behind under its own account, and `SecretStore` cannot enumerate, so
 /// nothing could ever find them again. The registry is what makes them findable;
