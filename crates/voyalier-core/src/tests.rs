@@ -540,6 +540,7 @@ fn every_error_code_is_in_the_contract_schema() {
         ErrorCode::PackDownloadFailed,
         ErrorCode::VaultLocked,
         ErrorCode::VaultPassphraseIncorrect,
+        ErrorCode::VaultUnreadable,
         ErrorCode::StorageFailure,
         ErrorCode::TransportFailure,
         ErrorCode::InternalUnexpected,
@@ -568,6 +569,7 @@ fn every_error_code_is_in_the_contract_schema() {
             | ErrorCode::PackDownloadFailed
             | ErrorCode::VaultLocked
             | ErrorCode::VaultPassphraseIncorrect
+            | ErrorCode::VaultUnreadable
             | ErrorCode::StorageFailure
             | ErrorCode::TransportFailure
             | ErrorCode::InternalUnexpected => {}

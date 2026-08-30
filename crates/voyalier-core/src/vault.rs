@@ -78,9 +78,12 @@ pub fn open(key: &[u8; VAULT_KEY_LEN], sealed: &[u8]) -> Result<Vec<u8>, AppErro
         .map_err(|_| vault_open_error())
 }
 
+/// Not `StorageFailure`: the bytes were found where they were expected. Only
+/// the decryption failed, which has a different recovery — and one no retry
+/// reaches (ADR-0018).
 fn vault_open_error() -> AppError {
     AppError::new(
-        ErrorCode::StorageFailure,
+        ErrorCode::VaultUnreadable,
         "the encrypted data could not be opened (wrong key or tampered)",
     )
 }
@@ -135,7 +138,7 @@ mod tests {
         other[0] ^= 0xff;
         assert_eq!(
             open(&other, &sealed).expect_err("wrong key").code,
-            ErrorCode::StorageFailure
+            ErrorCode::VaultUnreadable
         );
     }
 
@@ -144,8 +147,14 @@ mod tests {
         let mut sealed = seal(&key(), &nonce(), b"secret").expect("seal");
         let last = sealed.len() - 1;
         sealed[last] ^= 0x01; // flip a ciphertext/tag bit
-        assert!(open(&key(), &sealed).is_err());
-        assert!(open(&key(), &[0u8; 4]).is_err());
+        assert_eq!(
+            open(&key(), &sealed).expect_err("tampered").code,
+            ErrorCode::VaultUnreadable
+        );
+        assert_eq!(
+            open(&key(), &[0u8; 4]).expect_err("too short").code,
+            ErrorCode::VaultUnreadable
+        );
     }
 
     #[test]

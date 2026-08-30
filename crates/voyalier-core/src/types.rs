@@ -784,6 +784,12 @@ pub enum ErrorCode {
     VaultLocked,
     #[serde(rename = "vault/passphrase_incorrect")]
     VaultPassphraseIncorrect,
+    /// The stored value was found and its plaintext could not be recovered —
+    /// a wrong or missing data key, or a row that no longer authenticates.
+    /// Storage is working; only decryption failed, and no retry can fix it
+    /// (ADR-0018).
+    #[serde(rename = "vault/unreadable")]
+    VaultUnreadable,
     #[serde(rename = "storage/failure")]
     StorageFailure,
     #[serde(rename = "transport/failure")]
@@ -812,6 +818,7 @@ impl ErrorCode {
             Self::PackDownloadFailed => "pack/download_failed",
             Self::VaultLocked => "vault/locked",
             Self::VaultPassphraseIncorrect => "vault/passphrase_incorrect",
+            Self::VaultUnreadable => "vault/unreadable",
             Self::StorageFailure => "storage/failure",
             Self::TransportFailure => "transport/failure",
             Self::InternalUnexpected => "internal/unexpected",

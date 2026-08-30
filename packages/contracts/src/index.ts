@@ -1645,6 +1645,12 @@ export type ErrorCode =
   | "pack/download_failed"
   | "vault/locked"
   | "vault/passphrase_incorrect"
+  /**
+   * The stored value was found and its plaintext could not be recovered — a
+   * wrong or missing vault key, or a row that no longer authenticates. Storage
+   * is working; only decryption failed, and no retry can fix it (ADR-0018).
+   */
+  | "vault/unreadable"
   | "storage/failure"
   | "transport/failure"
   | "internal/unexpected";

@@ -26,6 +26,7 @@
         "pack/download_failed",
         "vault/locked",
         "vault/passphrase_incorrect",
+        "vault/unreadable",
         "storage/failure",
         "transport/failure",
         "internal/unexpected"
