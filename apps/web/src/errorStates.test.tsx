@@ -495,6 +495,10 @@ describe("AppError rendered states", () => {
     const { gateway, state } = unpluggableGateway();
     renderApp(gateway);
     await openFixtureTrip();
+    // Settle the deferred notes read before unplugging the gateway. This case
+    // owns the archive action's recovery; racing an unrelated panel load would
+    // correctly leave that panel's now-visible error on screen after Retry.
+    await screen.findByLabelText("Trip notes");
 
     state.offline = true;
     fireEvent.click(screen.getByRole("button", { name: /^Archive\b/ }));
