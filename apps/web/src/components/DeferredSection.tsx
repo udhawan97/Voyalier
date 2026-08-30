@@ -10,9 +10,13 @@ import {
 
 const MountAllContext = createContext(false);
 const MountAllSetterContext = createContext<(() => void) | null>(null);
+const MountedSectionsContext = createContext<ReadonlySet<string>>(new Set());
+const MountSectionSetterContext = createContext<
+  ((sectionId: string) => void) | null
+>(null);
 
 /**
- * Lets one control announce "mount every deferred section now".
+ * Lets controls request every deferred section or one named section.
  *
  * Deferral is an idle-time optimisation, and a traveler who clicks a jump chip
  * has said they want that part of the page. Mounting on demand is what makes
@@ -22,11 +26,26 @@ const MountAllSetterContext = createContext<(() => void) | null>(null);
  */
 export function DeferredMountProvider({ children }: { children: ReactNode }) {
   const [mountAll, setMountAll] = useState(false);
+  const [mountedSections, setMountedSections] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const mountAllSections = useCallback(() => setMountAll(true), []);
+  const mountSection = useCallback((sectionId: string) => {
+    setMountedSections((current) => {
+      if (current.has(sectionId)) return current;
+      const next = new Set(current);
+      next.add(sectionId);
+      return next;
+    });
+  }, []);
   return (
     <MountAllContext.Provider value={mountAll}>
       <MountAllSetterContext.Provider value={mountAllSections}>
-        {children}
+        <MountedSectionsContext.Provider value={mountedSections}>
+          <MountSectionSetterContext.Provider value={mountSection}>
+            {children}
+          </MountSectionSetterContext.Provider>
+        </MountedSectionsContext.Provider>
       </MountAllSetterContext.Provider>
     </MountAllContext.Provider>
   );
@@ -41,6 +60,12 @@ export function DeferredMountProvider({ children }: { children: ReactNode }) {
 export function useMountAllSections(): () => void {
   const setter = useContext(MountAllSetterContext);
   return useCallback(() => setter?.(), [setter]);
+}
+
+/** Mount one deferred section without waking its network-owning siblings. */
+export function useMountSection(): (sectionId: string) => void {
+  const setter = useContext(MountSectionSetterContext);
+  return useCallback((sectionId: string) => setter?.(sectionId), [setter]);
 }
 
 /**
@@ -72,12 +97,13 @@ export function DeferredSection({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const mountAll = useContext(MountAllContext);
+  const mountThisSection = useContext(MountedSectionsContext).has(id);
   const [shown, setShown] = useState(
     () => typeof IntersectionObserver === "undefined",
   );
 
   useEffect(() => {
-    if (shown || mountAll) return;
+    if (shown || mountAll || mountThisSection) return;
     const node = ref.current;
     if (!node) return;
     const observer = new IntersectionObserver(
@@ -92,9 +118,10 @@ export function DeferredSection({
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [shown, mountAll]);
+  }, [shown, mountAll, mountThisSection]);
 
-  if (shown || mountAll) return <div id={id}>{children}</div>;
+  if (shown || mountAll || mountThisSection)
+    return <div id={id}>{children}</div>;
   // Deliberately NOT aria-hidden. This element is the section nav's jump target,
   // and hiding it from assistive tech would make those chips silently fail for
   // screen-reader users while appearing to work for everyone else. It is an

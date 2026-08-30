@@ -1,7 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { act } from "react";
 
-import { DeferredSection } from "./components/DeferredSection";
+import {
+  DeferredMountProvider,
+  DeferredSection,
+  useMountSection,
+} from "./components/DeferredSection";
 
 /**
  * The wrapper that keeps the long trip page from fetching everything at once.
@@ -101,5 +105,33 @@ describe("DeferredSection", () => {
       </DeferredSection>,
     );
     expect(screen.getByText("Expensive content")).toBeInTheDocument();
+  });
+
+  it("can mount one requested section without waking its siblings", () => {
+    controllable();
+    function Harness() {
+      const mountSection = useMountSection();
+      return (
+        <>
+          <button onClick={() => mountSection("section-target")}>Reveal</button>
+          <DeferredSection id="section-target">
+            <p>Target content</p>
+          </DeferredSection>
+          <DeferredSection id="section-sibling">
+            <p>Sibling content</p>
+          </DeferredSection>
+        </>
+      );
+    }
+    render(
+      <DeferredMountProvider>
+        <Harness />
+      </DeferredMountProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Reveal" }));
+
+    expect(screen.getByText("Target content")).toBeInTheDocument();
+    expect(screen.queryByText("Sibling content")).toBeNull();
   });
 });

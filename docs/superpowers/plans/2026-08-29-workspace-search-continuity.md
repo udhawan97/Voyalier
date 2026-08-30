@@ -1,6 +1,6 @@
 # Workspace-search continuity plan
 
-**Date:** 2026-08-29  
+**Date:** 2026-08-29
 **Status:** Approved for implementation by the owner's request to build and merge the next phase
 
 ## Why this is next

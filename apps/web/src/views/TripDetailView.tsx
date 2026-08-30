@@ -43,6 +43,7 @@ import {
   DeferredMountProvider,
   DeferredSection,
   useMountAllSections,
+  useMountSection,
 } from "../components/DeferredSection";
 import {
   AlertIcon,
@@ -558,7 +559,7 @@ type ContinuityTarget = {
         recordId: string;
       };
   fallbackId: string;
-  revealId?: string;
+  mountSectionId?: string;
   mountDeferred?: boolean;
   loading?: MessageKey;
   unavailable?: MessageKey;
@@ -568,34 +569,31 @@ type ContinuityTarget = {
 const WORKSPACE_SEARCH_CONTINUITY = {
   confirmed_fact: {
     fallbackId: "blueprint-title",
-    revealId: "section-plan",
     unavailable: "continuity.fact.unavailable",
   },
   trip_item: {
     fallbackId: "manual-plan-title",
-    revealId: "section-plan",
     unavailable: "continuity.plan.unavailable",
   },
   saved_place: {
     fallbackId: "saved-places-title",
-    revealId: "section-plan",
     unavailable: "continuity.savedPlace.unavailable",
   },
   note: {
     fallbackId: "notes-title",
-    revealId: "section-prepare",
+    mountSectionId: "section-prepare",
     loading: "continuity.note.loading",
     unavailable: "continuity.note.unavailable",
   },
   document: {
     fallbackId: "documents-title",
-    revealId: "section-prepare",
+    mountSectionId: "section-prepare",
     loading: "continuity.document.loading",
     unavailable: "continuity.document.unavailable",
   },
   resource: {
     fallbackId: "resources-title",
-    revealId: "section-prepare",
+    mountSectionId: "section-prepare",
     loading: "continuity.resource.loading",
     unavailable: "continuity.resource.unavailable",
   },
@@ -603,7 +601,7 @@ const WORKSPACE_SEARCH_CONTINUITY = {
   WorkspaceSearchHit["source"],
   {
     fallbackId: string;
-    revealId: string;
+    mountSectionId?: string;
     loading?: MessageKey;
     unavailable: MessageKey;
   }
@@ -623,6 +621,7 @@ function ContinuityNavigator({
   onSettled: (requestId: number) => void;
 }) {
   const mountAllSections = useMountAllSections();
+  const mountSection = useMountSection();
   const announce = useAnnounce();
 
   useEffect(() => {
@@ -634,6 +633,7 @@ function ContinuityNavigator({
     if (target.destination.kind === "element" || target.mountDeferred) {
       mountAllSections();
     }
+    if (target.mountSectionId) mountSection(target.mountSectionId);
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let attempts = 0;
@@ -656,11 +656,6 @@ function ContinuityNavigator({
 
     const tryFocus = () => {
       if (cancelled) return;
-      if (attempts === 0 && target.revealId) {
-        document.getElementById(target.revealId)?.scrollIntoView?.({
-          block: "start",
-        });
-      }
       const exact =
         target.destination.kind === "element"
           ? document.getElementById(target.destination.elementId)
@@ -702,7 +697,7 @@ function ContinuityNavigator({
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [announce, mountAllSections, onSettled, target]);
+  }, [announce, mountAllSections, mountSection, onSettled, target]);
 
   return null;
 }

@@ -211,20 +211,40 @@ describe("workspace search", () => {
       tripId: "trip_kyoto",
       kind: "link",
       url: "https://example.test/workspace-resource",
-      title: "Workspace blossom guide",
+      title: "Workspace reading",
       note: "Quiet temple photography",
-      tags: ["blossom"],
+      tags: ["tagonlyblossom"],
     });
 
-    expect(await gateway.searchWorkspace("Workspace blossom")).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          source: "resource",
-          recordId: resource.id,
-          label: "Workspace blossom guide",
-        }),
-      ]),
-    );
+    const expectsResource = async (query: string) =>
+      expect(await gateway.searchWorkspace(query)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            source: "resource",
+            recordId: resource.id,
+            label: "Workspace reading",
+          }),
+        ]),
+      );
+
+    await expectsResource("Workspace reading");
+    await expectsResource("photography");
+    await expectsResource("tagonlyblossom");
+
+    await gateway.setResearchSettings({ autoFetchDetails: true });
+    await gateway.fetchResourceDetails(resource.id);
+    await expectsResource("fetched on request");
+    await expectsResource("Readable text captured");
+
+    await gateway.createResource({
+      tripId: "trip_kyoto",
+      kind: "link",
+      url: "https://url-only-token.example.test/private-path",
+      title: "Neutral reference",
+      note: "",
+      tags: [],
+    });
+    expect(await gateway.searchWorkspace("url-only-token")).toEqual([]);
   });
 
   it("does not let an older slow response replace a newer query", async () => {
@@ -317,7 +337,10 @@ describe("workspace search", () => {
       if (query === "Fjord") {
         return new Promise<WorkspaceSearchHit[]>((_resolve, reject) => {
           rejectFirst = () =>
-            reject({ code: "storage/failure", message: "disk unavailable" });
+            reject({
+              code: "transport/failure",
+              message: "engine unavailable",
+            });
         });
       }
       return base.searchWorkspace(query);
@@ -337,6 +360,7 @@ describe("workspace search", () => {
     await act(async () => rejectFirst?.());
     await new Promise((resolve) => setTimeout(resolve, 25));
     expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByText("Offline")).toBeNull();
     expect(await screen.findByText("Kyoto autumn journey")).toBeInTheDocument();
   });
 
@@ -635,27 +659,13 @@ describe("workspace search", () => {
     ).toBeInTheDocument();
   });
 
-  it("opens a workspace source without mounting unrelated deferred work", async () => {
-    class PrepareOnlyIntersectionObserver {
-      private readonly callback: IntersectionObserverCallback;
-
-      constructor(callback: IntersectionObserverCallback) {
-        this.callback = callback;
-      }
-
-      observe(target: Element): void {
-        if ((target as HTMLElement).id === "section-prepare") {
-          this.callback(
-            [{ isIntersecting: true, target } as IntersectionObserverEntry],
-            this as unknown as IntersectionObserver,
-          );
-        }
-      }
-
+  it("mounts only the workspace result's deferred section", async () => {
+    class NeverIntersectingObserver {
+      observe(): void {}
       unobserve(): void {}
       disconnect(): void {}
     }
-    vi.stubGlobal("IntersectionObserver", PrepareOnlyIntersectionObserver);
+    vi.stubGlobal("IntersectionObserver", NeverIntersectingObserver);
 
     const base = createMockGateway();
     const resource = await base.createResource({
