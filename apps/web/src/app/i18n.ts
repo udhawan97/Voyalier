@@ -1390,6 +1390,12 @@ const en = {
     "That confirmed reservation is no longer available. Blueprint opened.",
   "continuity.plan.unavailable":
     "That trip item is no longer available. Trip plan opened.",
+  "continuity.savedPlace.unavailable":
+    "That saved place is no longer available. Saved places opened.",
+  "continuity.note.loading":
+    "Trip notes are still loading. Voyalier will open them when they are ready.",
+  "continuity.note.unavailable":
+    "Trip notes could not be opened. Trip preparation opened.",
   "continuity.document.opened": "Existing document opened.",
   "continuity.document.loading":
     "Imported documents are still loading. Voyalier will open this source when it is ready.",
@@ -3013,6 +3019,12 @@ const es: Record<MessageKey, string> = {
     "Esa reserva confirmada ya no está disponible. Se abrió el itinerario.",
   "continuity.plan.unavailable":
     "Ese elemento del viaje ya no está disponible. Se abrió el plan del viaje.",
+  "continuity.savedPlace.unavailable":
+    "Ese lugar guardado ya no está disponible. Se abrieron los lugares guardados.",
+  "continuity.note.loading":
+    "Las notas del viaje todavía se están cargando. Voyalier las abrirá cuando estén listas.",
+  "continuity.note.unavailable":
+    "No se pudieron abrir las notas del viaje. Se abrió la preparación del viaje.",
   "continuity.document.opened": "Se abrió el documento existente.",
   "continuity.document.loading":
     "Los documentos importados todavía se están cargando. Voyalier abrirá esta fuente cuando esté lista.",

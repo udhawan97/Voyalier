@@ -69,6 +69,7 @@ export function WorkspaceSearch({
     run: runAction,
     busy,
     error,
+    invalidate: invalidateAction,
   } = useAsyncAction(
     (...args: [value: string, requestId: number]) =>
       gateway.searchWorkspace(args[0]),
@@ -148,6 +149,7 @@ export function WorkspaceSearch({
     // Editing makes the old result set and failed request stale immediately,
     // before the replacement request starts after its debounce.
     requestIdRef.current += 1;
+    invalidateAction();
     failedSearchRef.current = null;
     setHits(null);
     if (!next.trim()) {
@@ -167,6 +169,7 @@ export function WorkspaceSearch({
       timerRef.current = null;
     }
     requestIdRef.current += 1;
+    invalidateAction();
     failedSearchRef.current = null;
     onBack();
   }

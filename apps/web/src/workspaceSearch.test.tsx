@@ -205,6 +205,28 @@ describe("workspace search", () => {
     expect(hits[0].score).toBeGreaterThan(hits[1].score);
   });
 
+  it("keeps the mock workspace corpus aligned with saved research", async () => {
+    const gateway = createMockGateway();
+    const resource = await gateway.createResource({
+      tripId: "trip_kyoto",
+      kind: "link",
+      url: "https://example.test/workspace-resource",
+      title: "Workspace blossom guide",
+      note: "Quiet temple photography",
+      tags: ["blossom"],
+    });
+
+    expect(await gateway.searchWorkspace("Workspace blossom")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: "resource",
+          recordId: resource.id,
+          label: "Workspace blossom guide",
+        }),
+      ]),
+    );
+  });
+
   it("does not let an older slow response replace a newer query", async () => {
     const base = createMockGateway();
     let resolveOld!: (hits: WorkspaceSearchHit[]) => void;
@@ -247,6 +269,77 @@ describe("workspace search", () => {
     expect(screen.queryByText("Old response")).not.toBeInTheDocument();
   });
 
+  it("drops an old success during the replacement query's debounce", async () => {
+    const base = createMockGateway();
+    let resolveFirst: ((hits: WorkspaceSearchHit[]) => void) | undefined;
+    const searchWorkspace = vi.fn((query: string) => {
+      if (query === "Fjord") {
+        return new Promise<WorkspaceSearchHit[]>((resolve) => {
+          resolveFirst = resolve;
+        });
+      }
+      return base.searchWorkspace(query);
+    });
+    renderApp({ ...base, searchWorkspace });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Search workspace" }),
+    );
+    const input = screen.getByLabelText("Search all trips");
+    fireEvent.change(input, { target: { value: "Fjord" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => expect(resolveFirst).toBeDefined());
+
+    fireEvent.change(input, { target: { value: "Maple Lantern" } });
+    await act(async () =>
+      resolveFirst?.([
+        {
+          source: "note",
+          tripId: "trip_oslo",
+          tripTitle: "Archived Oslo notes",
+          tripStatus: "archived",
+          tripUpdatedAt: "2026-01-01T00:00:00Z",
+          recordId: "old-note",
+          label: "Old response",
+          snippet: "Fjord",
+          score: 1,
+        },
+      ]),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(screen.queryByText("Old response")).not.toBeInTheDocument();
+    expect(await screen.findByText("Kyoto autumn journey")).toBeInTheDocument();
+  });
+
+  it("drops an old failure as soon as the traveler starts a replacement query", async () => {
+    const base = createMockGateway();
+    let rejectFirst: (() => void) | undefined;
+    const searchWorkspace = vi.fn((query: string) => {
+      if (query === "Fjord") {
+        return new Promise<WorkspaceSearchHit[]>((_resolve, reject) => {
+          rejectFirst = () =>
+            reject({ code: "storage/failure", message: "disk unavailable" });
+        });
+      }
+      return base.searchWorkspace(query);
+    });
+    renderApp({ ...base, searchWorkspace });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Search workspace" }),
+    );
+    const input = screen.getByLabelText("Search all trips");
+    fireEvent.change(input, { target: { value: "Fjord" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => expect(rejectFirst).toBeDefined());
+
+    // The next request is intentionally still inside its debounce. Changing
+    // intent must revoke the old action now, not only when that timer fires.
+    fireEvent.change(input, { target: { value: "Maple Lantern" } });
+    await act(async () => rejectFirst?.());
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(await screen.findByText("Kyoto autumn journey")).toBeInTheDocument();
+  });
+
   it("finds local records across trips and opens the owning trip", async () => {
     renderApp(createMockGateway());
     fireEvent.click(
@@ -271,6 +364,13 @@ describe("workspace search", () => {
         level: 1,
       }),
     ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute(
+        "data-search-source",
+        "document",
+      ),
+    );
+    expect(window.location.href).not.toContain("Maple%20Lantern");
   });
 
   it("labels archived results and their source kind", async () => {
@@ -329,6 +429,267 @@ describe("workspace search", () => {
     fireEvent.click(add);
     await screen.findByText("Revalidation marker");
     expect(add).toHaveFocus();
+  });
+
+  it("keeps an exact resource handoff alive while its local list is slow", async () => {
+    const base = createMockGateway();
+    const resource = await base.createResource({
+      tripId: "trip_kyoto",
+      kind: "link",
+      url: "https://example.test/workspace-slow-garden",
+      title: "Slow workspace garden",
+      note: "Moss photography notes",
+      tags: ["garden"],
+    });
+    let releaseResources: (() => void) | undefined;
+    const listResources = vi.fn(
+      (tripId: string) =>
+        new Promise<Awaited<ReturnType<typeof base.listResources>>>(
+          (resolve) => {
+            releaseResources = () =>
+              void base.listResources(tripId).then(resolve);
+          },
+        ),
+    );
+    renderApp({ ...base, listResources });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Search workspace" }),
+    );
+    fireEvent.change(screen.getByLabelText("Search all trips"), {
+      target: { value: "Slow workspace garden" },
+    });
+    fireEvent.click(
+      (await screen.findByText("Slow workspace garden")).closest("button")!,
+    );
+    await waitFor(() => expect(releaseResources).toBeDefined());
+
+    // The prior handoff gave up after its one-second retry window. The source
+    // is only slow, so the traveler should hear that the exact request remains
+    // active and receive focus when the local list finally settles.
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+    expect(
+      screen.getByText(
+        "Saved reading is still loading. Voyalier will open this source when it is ready.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "That research resource is no longer available. Saved reading opened.",
+      ),
+    ).toBeNull();
+
+    await act(async () => releaseResources?.());
+    await waitFor(() =>
+      expect(
+        document.querySelector<HTMLElement>(
+          `[data-search-source="resource"][data-search-record="${resource.id}"]`,
+        ),
+      ).toHaveFocus(),
+    );
+  });
+
+  it("keeps an exact notes handoff alive while the local record is slow", async () => {
+    const base = createMockGateway();
+    await base.setTripNotes("trip_kyoto", "Slow workspace note");
+    let releaseNotes: (() => void) | undefined;
+    const getTripNotes = vi.fn(
+      (tripId: string) =>
+        new Promise<Awaited<ReturnType<typeof base.getTripNotes>>>(
+          (resolve) => {
+            releaseNotes = () => void base.getTripNotes(tripId).then(resolve);
+          },
+        ),
+    );
+    renderApp({ ...base, getTripNotes });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Search workspace" }),
+    );
+    fireEvent.change(screen.getByLabelText("Search all trips"), {
+      target: { value: "Slow workspace note" },
+    });
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /Trip notes.*Kyoto autumn journey/,
+      }),
+    );
+    await waitFor(() => expect(releaseNotes).toBeDefined());
+
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+    expect(
+      screen.getByText(
+        "Trip notes are still loading. Voyalier will open them when they are ready.",
+      ),
+    ).toBeInTheDocument();
+
+    await act(async () => releaseNotes?.());
+    await waitFor(() =>
+      expect(
+        document.querySelector<HTMLElement>(
+          '[data-search-source="note"][data-search-record="trip_kyoto"]',
+        ),
+      ).toHaveFocus(),
+    );
+  });
+
+  it("keeps a notes read failure honest during a workspace handoff", async () => {
+    const base = createMockGateway();
+    await base.setTripNotes("trip_kyoto", "Broken workspace note");
+    renderApp({
+      ...base,
+      getTripNotes: async () =>
+        Promise.reject({
+          code: "storage/failure",
+          message: "notes unavailable",
+        }),
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Search workspace" }),
+    );
+    fireEvent.change(screen.getByLabelText("Search all trips"), {
+      target: { value: "Broken workspace note" },
+    });
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /Trip notes.*Kyoto autumn journey/,
+      }),
+    );
+
+    expect(
+      await screen.findByText("Local storage is unavailable"),
+    ).toHaveAttribute("role", "alert");
+    expect(
+      screen.queryByText(
+        "Trip notes could not be opened. Trip preparation opened.",
+      ),
+    ).toBeNull();
+  });
+
+  it("explains when a saved place disappeared after the workspace search", async () => {
+    const base = createMockGateway();
+    const removed: WorkspaceSearchHit = {
+      source: "saved_place",
+      tripId: "trip_kyoto",
+      tripTitle: "Kyoto autumn journey",
+      tripStatus: "draft",
+      tripUpdatedAt: "2026-01-01T00:00:00Z",
+      recordId: "removed-workspace-place",
+      label: "Removed courtyard",
+      snippet: "quiet courtyard",
+      score: 1,
+    };
+    renderApp({ ...base, searchWorkspace: async () => [removed] });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Search workspace" }),
+    );
+    fireEvent.change(screen.getByLabelText("Search all trips"), {
+      target: { value: "Removed courtyard" },
+    });
+    fireEvent.click(
+      (await screen.findByText("Removed courtyard")).closest("button")!,
+    );
+
+    expect(
+      await screen.findByText(
+        "That saved place is no longer available. Saved places opened.",
+        {},
+        { timeout: 2_000 },
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Saved places" })).toHaveFocus();
+    expect(window.location.href).not.toContain(removed.recordId);
+  });
+
+  it("localizes a missing workspace source fallback in Spanish", async () => {
+    setLocalePreference("es");
+    const base = createMockGateway();
+    const removed: WorkspaceSearchHit = {
+      source: "saved_place",
+      tripId: "trip_kyoto",
+      tripTitle: "Kyoto autumn journey",
+      tripStatus: "draft",
+      tripUpdatedAt: "2026-01-01T00:00:00Z",
+      recordId: "removed-spanish-place",
+      label: "Patio retirado",
+      snippet: "patio tranquilo",
+      score: 1,
+    };
+    renderApp({ ...base, searchWorkspace: async () => [removed] });
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Buscar en el espacio de trabajo",
+      }),
+    );
+    fireEvent.change(screen.getByLabelText("Buscar en todos los viajes"), {
+      target: { value: "Patio retirado" },
+    });
+    fireEvent.click(
+      (await screen.findByText("Patio retirado")).closest("button")!,
+    );
+
+    expect(
+      await screen.findByText(
+        "Ese lugar guardado ya no está disponible. Se abrieron los lugares guardados.",
+        {},
+        { timeout: 2_000 },
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("opens a workspace source without mounting unrelated deferred work", async () => {
+    class PrepareOnlyIntersectionObserver {
+      private readonly callback: IntersectionObserverCallback;
+
+      constructor(callback: IntersectionObserverCallback) {
+        this.callback = callback;
+      }
+
+      observe(target: Element): void {
+        if ((target as HTMLElement).id === "section-prepare") {
+          this.callback(
+            [{ isIntersecting: true, target } as IntersectionObserverEntry],
+            this as unknown as IntersectionObserver,
+          );
+        }
+      }
+
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+    vi.stubGlobal("IntersectionObserver", PrepareOnlyIntersectionObserver);
+
+    const base = createMockGateway();
+    const resource = await base.createResource({
+      tripId: "trip_kyoto",
+      kind: "link",
+      url: "https://example.test/workspace-selective-mount",
+      title: "Selective workspace source",
+      note: "deferred mount proof",
+      tags: ["proof"],
+    });
+    const detectLocalAi = vi.fn(base.detectLocalAi);
+    const listChatMessages = vi.fn(base.listChatMessages);
+    renderApp({ ...base, detectLocalAi, listChatMessages });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Search workspace" }),
+    );
+    fireEvent.change(screen.getByLabelText("Search all trips"), {
+      target: { value: "Selective workspace source" },
+    });
+    fireEvent.click(
+      (await screen.findByText("Selective workspace source")).closest(
+        "button",
+      )!,
+    );
+
+    await waitFor(() =>
+      expect(
+        document.querySelector<HTMLElement>(
+          `[data-search-source="resource"][data-search-record="${resource.id}"]`,
+        ),
+      ).toHaveFocus(),
+    );
+    expect(detectLocalAi).not.toHaveBeenCalled();
+    expect(listChatMessages).not.toHaveBeenCalled();
   });
 
   /**

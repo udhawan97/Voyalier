@@ -28,10 +28,11 @@ const SAVE_DEBOUNCE_MS = 800;
 export function TripNotes({ tripId }: { tripId: string }) {
   const gateway = useGateway();
   const fieldId = useId();
-  const { status, data } = useAsyncData(
-    () => gateway.getTripNotes(tripId),
-    `notes:${tripId}`,
-  );
+  const {
+    status,
+    data,
+    error: loadError,
+  } = useAsyncData(() => gateway.getTripNotes(tripId), `notes:${tripId}`);
   // The traveler's unsaved edit. `null` means "untouched", in which case the
   // loaded notes are shown.
   //
@@ -120,16 +121,21 @@ export function TripNotes({ tripId }: { tripId: string }) {
       className="voy-notes"
       aria-labelledby="notes-title"
       tabIndex={-1}
-      data-search-source="note"
-      data-search-record={tripId}
+      data-continuity-state={status}
+      data-search-source={data ? "note" : undefined}
+      data-search-record={data ? tripId : undefined}
     >
-      <SectionTitle id="notes-title" icon={<PencilIcon />}>
+      <SectionTitle id="notes-title" icon={<PencilIcon />} tabIndex={-1}>
         {t("notes.title")}
       </SectionTitle>
       <p className="voy-notes__intro">{t("notes.intro")}</p>
 
       {status === "loading" && data === undefined ? (
         <Skeleton height="7rem" />
+      ) : loadError && data === undefined ? (
+        <p className="voy-notes__error" role="alert">
+          {describeError(loadError).title}
+        </p>
       ) : (
         <>
           <label className="voy-sr-only" htmlFor={fieldId}>

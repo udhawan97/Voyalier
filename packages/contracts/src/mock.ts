@@ -3236,7 +3236,8 @@ export function createMockGateway(options?: {
           const searchesSourceLabel =
             source === "document" ||
             source === "saved_place" ||
-            source === "trip_item";
+            source === "trip_item" ||
+            source === "resource";
           const haystack = searchesSourceLabel ? `${label} ${text}` : text;
           if (!trip) return;
           const { matched, occurrences, first } = mockScoreHaystack(
@@ -3300,6 +3301,21 @@ export function createMockGateway(options?: {
             item.id,
             item.title,
             `${item.location ?? ""} ${item.notes ?? ""} ${item.startAt ?? ""} ${item.endAt ?? ""}`,
+          );
+        for (const resource of resources.values())
+          add(
+            "resource",
+            resource.tripId,
+            resource.id,
+            resource.title,
+            [
+              resource.note,
+              ...resource.tags,
+              resource.snapshot?.description ?? "",
+              resource.snapshot?.text ?? "",
+            ]
+              .filter(Boolean)
+              .join(" "),
           );
         return ranked
           .sort(

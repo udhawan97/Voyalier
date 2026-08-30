@@ -209,7 +209,7 @@ export function PlanningPanel({
   return (
     <div className="voy-planning">
       <section aria-labelledby="saved-places-title">
-        <SectionTitle id="saved-places-title" icon={<PlusIcon />}>
+        <SectionTitle id="saved-places-title" icon={<PlusIcon />} tabIndex={-1}>
           {t("planning.saved.title")}
         </SectionTitle>
         <p>{t("planning.saved.intro")}</p>

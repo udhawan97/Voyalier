@@ -554,15 +554,60 @@ type ContinuityTarget = {
     | { kind: "element"; elementId: string }
     | {
         kind: "record";
-        source: "confirmed_fact" | "trip_item" | "document" | "resource";
+        source: WorkspaceSearchHit["source"];
         recordId: string;
       };
   fallbackId: string;
+  revealId?: string;
   mountDeferred?: boolean;
   loading?: MessageKey;
   unavailable?: MessageKey;
   announcement?: MessageKey;
 };
+
+const WORKSPACE_SEARCH_CONTINUITY = {
+  confirmed_fact: {
+    fallbackId: "blueprint-title",
+    revealId: "section-plan",
+    unavailable: "continuity.fact.unavailable",
+  },
+  trip_item: {
+    fallbackId: "manual-plan-title",
+    revealId: "section-plan",
+    unavailable: "continuity.plan.unavailable",
+  },
+  saved_place: {
+    fallbackId: "saved-places-title",
+    revealId: "section-plan",
+    unavailable: "continuity.savedPlace.unavailable",
+  },
+  note: {
+    fallbackId: "notes-title",
+    revealId: "section-prepare",
+    loading: "continuity.note.loading",
+    unavailable: "continuity.note.unavailable",
+  },
+  document: {
+    fallbackId: "documents-title",
+    revealId: "section-prepare",
+    loading: "continuity.document.loading",
+    unavailable: "continuity.document.unavailable",
+  },
+  resource: {
+    fallbackId: "resources-title",
+    revealId: "section-prepare",
+    loading: "continuity.resource.loading",
+    unavailable: "continuity.resource.unavailable",
+  },
+} satisfies Record<
+  WorkspaceSearchHit["source"],
+  {
+    fallbackId: string;
+    revealId: string;
+    loading?: MessageKey;
+    unavailable: MessageKey;
+  }
+>;
 
 /**
  * Complete one transient in-page handoff after deferred panels have mounted.
@@ -611,6 +656,11 @@ function ContinuityNavigator({
 
     const tryFocus = () => {
       if (cancelled) return;
+      if (attempts === 0 && target.revealId) {
+        document.getElementById(target.revealId)?.scrollIntoView?.({
+          block: "start",
+        });
+      }
       const exact =
         target.destination.kind === "element"
           ? document.getElementById(target.destination.elementId)
@@ -1052,40 +1102,21 @@ export function TripDetailView({
 
   useEffect(() => {
     if (!data || !searchTarget || searchTargetConsumed.current) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let attempts = 0;
-    const focusTarget = () => {
-      const exact = [
-        ...document.querySelectorAll<HTMLElement>("[data-search-source]"),
-      ].find(
-        (element) =>
-          element.dataset.searchSource === searchTarget.source &&
-          element.dataset.searchRecord === searchTarget.recordId,
-      );
-      if (exact) {
-        searchTargetConsumed.current = true;
-        exact.scrollIntoView?.({ block: "center" });
-        exact.focus({ preventScroll: true });
-        return;
-      }
-      attempts += 1;
-      const owningSection = tripSectionForSearchSource(searchTarget.source);
-      if (attempts === 1 && owningSection === "section-prepare") {
-        document.getElementById(owningSection)?.scrollIntoView?.();
-      }
-      if (attempts < 20) {
-        timer = setTimeout(focusTarget, 50);
-        return;
-      }
-      const fallback = document.getElementById(owningSection);
+    const timer = setTimeout(() => {
+      if (searchTargetConsumed.current) return;
       searchTargetConsumed.current = true;
-      fallback?.setAttribute("tabindex", "-1");
-      fallback?.focus({ preventScroll: true });
-    };
-    timer = setTimeout(focusTarget, 0);
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
+      if (searchTarget.source === "resource") setResourceFilter(null);
+      setContinuityTarget({
+        requestId: ++navigationSequence.current,
+        destination: {
+          kind: "record",
+          source: searchTarget.source,
+          recordId: searchTarget.recordId,
+        },
+        ...WORKSPACE_SEARCH_CONTINUITY[searchTarget.source],
+      });
+    }, 0);
+    return () => clearTimeout(timer);
   }, [data, searchTarget]);
 
   const [showImport, setShowImport] = useState(false);
