@@ -23,6 +23,7 @@ mod geo;
 mod heritage;
 mod holidays;
 mod itinerary;
+mod journey_board;
 mod local_ai;
 mod missions;
 mod packing;
@@ -119,6 +120,7 @@ pub use holidays::{
     school_holidays, school_holidays_covered, school_holidays_within,
 };
 pub use itinerary::{detect_itinerary_conflicts, detect_planned_item_conflicts, fact_label};
+pub use journey_board::{JourneyBoard, JourneyBoardDay, JourneyBoardEntry, build_journey_board};
 pub use local_ai::{
     LocalAiModel, LocalAiStatus, LocalModelPullResult, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,
     build_pull_body, interpret_pull_response, parse_ollama_models,

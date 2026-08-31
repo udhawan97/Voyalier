@@ -113,6 +113,8 @@ export interface TripDetail {
   packingItems: PackingItem[];
   /** Manual activities, rail segments, and transfers; never confirmed evidence. */
   tripItems: TripItem[];
+  /** Deterministic day-by-day projection over confirmed facts and authored plans. */
+  journeyBoard: JourneyBoard;
 }
 /** The destination-vs-origin wall-clock gap on the trip's dates. */
 export interface TimeDifference {
@@ -1312,6 +1314,23 @@ export interface TodayView {
   phase: TripPhase;
   today: TodayItem[];
   next?: TodayItem;
+}
+export interface JourneyBoardEntry extends Omit<TodayItem, "date" | "target"> {
+  date?: string;
+  target: NonNullable<TodayItem["target"]>;
+  /** Stable UI-only identity; never reused as an external calendar UID. */
+  focusLocator: string;
+}
+export interface JourneyBoardDay {
+  date: string;
+  entries: JourneyBoardEntry[];
+}
+/** A deterministic itinerary spine, including out-of-window and undated rows. */
+export interface JourneyBoard {
+  before: JourneyBoardEntry[];
+  days: JourneyBoardDay[];
+  after: JourneyBoardEntry[];
+  unscheduled: JourneyBoardEntry[];
 }
 /**
  * `resource` is deliberately not folded into `document`: a source document is

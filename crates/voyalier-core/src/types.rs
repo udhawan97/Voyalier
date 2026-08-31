@@ -13,6 +13,7 @@ use crate::contingency::DisruptionPlan;
 use crate::facts::{ClockChange, CountryFacts, DestinationFactsSnapshot, TimeDifference};
 use crate::heritage::HeritageSite;
 use crate::holidays::PublicHolidaysSnapshot;
+use crate::journey_board::JourneyBoard;
 use crate::packing::PackingSuggestion;
 use crate::place_summary::PlaceSummary;
 use crate::planning::{InterestProfile, PackingItem, SavedPlace, TripItem};
@@ -174,6 +175,9 @@ pub struct TripDetail {
     /// evidence-backed confirmed facts.
     #[serde(default)]
     pub trip_items: Vec<TripItem>,
+    /// Deterministic itinerary spine over confirmed facts and authored plans.
+    #[serde(default, skip_deserializing)]
+    pub journey_board: JourneyBoard,
     /// Where the plan depends on the previous thing having gone right, derived
     /// on read from the confirmed facts. Advisory only: it never enters the
     /// readiness rollup, and it never proposes an alternative service

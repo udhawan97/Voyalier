@@ -74,6 +74,8 @@ import type {
   ImportResult,
   InterestProfile,
   ItineraryConflict,
+  JourneyBoard,
+  JourneyBoardEntry,
   KeyValidation,
   LocalAiStatus,
   LocalModelPullResult,
@@ -1884,6 +1886,190 @@ function buildDisruptionPlan(
   return { handoffs, exposedLegs, pointers };
 }
 
+function mockDateRange(start: string, end: string): string[] {
+  const dates: string[] = [];
+  const cursor = new Date(`${start}T00:00:00Z`);
+  const finish = new Date(`${end}T00:00:00Z`);
+  while (cursor <= finish) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+function mockValidDate(value: string | undefined): string | undefined {
+  const date = value?.split("T")[0];
+  if (!date || !DATE_PATTERN.test(date)) return undefined;
+  const parsed = new Date(`${date}T00:00:00Z`);
+  return Number.isNaN(parsed.valueOf()) ||
+    parsed.toISOString().slice(0, 10) !== date
+    ? undefined
+    : date;
+}
+
+function mockBoardEntry(item: TodayItem): JourneyBoardEntry {
+  const target = item.target!;
+  return {
+    ...item,
+    target,
+    focusLocator: `focus:${target.source === "confirmed_fact" ? "fact" : "plan"}:${target.recordId}`,
+  };
+}
+
+function mockUnscheduledEntry(
+  fact: ConfirmedFact,
+  kind: JourneyBoardEntry["kind"],
+  subject: string | undefined,
+  title: string,
+  detail = "",
+): JourneyBoardEntry {
+  return {
+    kind,
+    subject,
+    title,
+    ...(detail ? { detail } : {}),
+    target: { source: "confirmed_fact", recordId: fact.id },
+    focusLocator: `focus:fact:${fact.id}`,
+  };
+}
+
+/** Mirrors the core Journey Board projection for the in-memory shell. */
+export function mockBuildJourneyBoard(
+  trip: Trip,
+  tripFacts: ConfirmedFact[],
+  manualItems: TripItem[],
+): JourneyBoard {
+  const dates = mockDateRange(trip.startDate, trip.endDate);
+  const rawDates = new Set<string>();
+  const unscheduled: JourneyBoardEntry[] = [];
+
+  for (const fact of tripFacts) {
+    if (fact.factType === "lodging_stay") {
+      const payload = fact.payload as LodgingStayPayload;
+      const subject = payload.propertyName;
+      const checkin = mockValidDate(payload.checkinDate);
+      const checkout = mockValidDate(payload.checkoutDate);
+      if (checkin) rawDates.add(checkin);
+      else
+        unscheduled.push(
+          mockUnscheduledEntry(
+            fact,
+            "checkin",
+            subject,
+            "Check in",
+            payload.address,
+          ),
+        );
+      if (checkout) rawDates.add(checkout);
+      else
+        unscheduled.push(
+          mockUnscheduledEntry(fact, "checkout", subject, "Check out"),
+        );
+      if (checkin && checkout) {
+        for (const night of mockDateRange(checkin, checkout).slice(0, -1)) {
+          rawDates.add(night);
+        }
+      }
+      continue;
+    }
+    const payload = fact.payload as FlightSegmentPayload &
+      SurfaceJourneyPayload;
+    const flight = fact.factType === "flight_segment";
+    const subject = flight
+      ? [payload.airlineName, payload.flightNumber].filter(Boolean).join(" ") ||
+        undefined
+      : [payload.carrierName, payload.serviceNumber]
+          .filter(Boolean)
+          .join(" ") || undefined;
+    const detail = flight
+      ? payload.departureAirportIata && payload.arrivalAirportIata
+        ? `${payload.departureAirportIata} → ${payload.arrivalAirportIata}`
+        : ""
+      : payload.departurePlace && payload.arrivalPlace
+        ? `${payload.departurePlace} → ${payload.arrivalPlace}`
+        : "";
+    const departure = mockValidDate(payload.departureLocal);
+    const arrival = mockValidDate(payload.arrivalLocal);
+    if (departure) rawDates.add(departure);
+    else
+      unscheduled.push(
+        mockUnscheduledEntry(
+          fact,
+          flight ? "flight_departure" : "journey_departure",
+          subject,
+          "Depart",
+          detail,
+        ),
+      );
+    if (arrival) rawDates.add(arrival);
+    else
+      unscheduled.push(
+        mockUnscheduledEntry(
+          fact,
+          flight ? "flight_arrival" : "journey_arrival",
+          subject,
+          "Arrive",
+          detail,
+        ),
+      );
+  }
+  for (const item of manualItems) {
+    const date = mockValidDate(item.startAt);
+    if (date) rawDates.add(date);
+    else {
+      unscheduled.push({
+        kind: item.kind,
+        title: item.title,
+        ...(item.location ? { detail: item.location } : {}),
+        target: { source: "trip_item", recordId: item.id },
+        focusLocator: `focus:plan:${item.id}`,
+      });
+    }
+  }
+
+  const entriesOn = (date: string) => {
+    const entries = mockBuildTodayView(
+      trip,
+      tripFacts,
+      manualItems,
+      date,
+    ).today.map(mockBoardEntry);
+    for (const fact of tripFacts.filter(
+      (candidate) => candidate.factType === "lodging_stay",
+    )) {
+      const payload = fact.payload as LodgingStayPayload;
+      if (mockValidDate(payload.checkinDate) !== date) continue;
+      entries.push({
+        kind: "staying_tonight",
+        subject: payload.propertyName,
+        title: payload.propertyName
+          ? `Staying at ${payload.propertyName}`
+          : "Staying tonight",
+        ...(payload.address ? { detail: payload.address } : {}),
+        date,
+        target: { source: "confirmed_fact", recordId: fact.id },
+        focusLocator: `focus:fact:${fact.id}`,
+      });
+    }
+    return entries;
+  };
+  const outside = [...rawDates].filter(
+    (date) => date < trip.startDate || date > trip.endDate,
+  );
+  return {
+    before: outside
+      .filter((date) => date < trip.startDate)
+      .sort()
+      .flatMap(entriesOn),
+    days: dates.map((date) => ({ date, entries: entriesOn(date) })),
+    after: outside
+      .filter((date) => date > trip.endDate)
+      .sort()
+      .flatMap(entriesOn),
+    unscheduled,
+  };
+}
+
 export function mockBuildShareBrief(
   trip: Trip,
   tripFacts: ConfirmedFact[],
@@ -2832,6 +3018,11 @@ export function createMockGateway(options?: {
             )
             .map(clone),
           tripItems: manualItems.map(clone),
+          journeyBoard: mockBuildJourneyBoard(
+            trip,
+            confirmedFacts,
+            manualItems,
+          ),
         } satisfies TripDetail;
       }),
 

@@ -59,6 +59,7 @@ impl AppService {
             .map_err(storage_error)?;
         let pending_candidate_count = pending_candidate_count as u32;
         let trip_items = self.records(&connection).trip_items(trip_id)?;
+        let journey_board = build_journey_board(&trip, &confirmed_facts, &trip_items);
         let TripAssessment {
             conflicts: mut itinerary_conflicts,
             readiness,
@@ -215,6 +216,7 @@ impl AppService {
             saved_places,
             packing_items,
             trip_items,
+            journey_board,
             disruption_plan,
         })
     }
