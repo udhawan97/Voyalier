@@ -1226,6 +1226,7 @@ export function TripDetailView({
    */
   const exportAction = useAsyncAction(
     async () => {
+      if (!data) throw new Error("trip detail is not loaded");
       const snapshot = data.detail.calendarSnapshot;
       const ics = buildIcs(snapshot, {
         summary: calendarSummary,

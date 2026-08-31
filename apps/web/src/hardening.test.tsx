@@ -41,6 +41,7 @@ describe("review hardening", () => {
       },
       parserRunId: "parser_run_new",
       candidates: [imported],
+      duplicatesIgnored: 0,
     };
     const gateway = failingGateway({
       importDocument: () => Promise.resolve(result),

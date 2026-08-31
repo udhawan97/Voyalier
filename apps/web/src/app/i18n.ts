@@ -1533,7 +1533,8 @@ const en = {
   "ics.preview.limit.title": "One-time file, floating local times",
   "ics.preview.limit.body":
     "This is not synchronization. Voyalier does not infer time zones or remove events already imported into another calendar.",
-  "ics.preview.count": "{count} events will be included.",
+  "ics.preview.count.one": "{count} event will be included.",
+  "ics.preview.count.other": "{count} events will be included.",
   "ics.preview.omissions": "Not included",
   "ics.preview.noOmissions": "Every scheduled item can be included.",
   "ics.preview.removals": "Previously exported roles no longer present",
@@ -3211,7 +3212,8 @@ const es: Record<MessageKey, string> = {
   "ics.preview.limit.title": "Archivo único con horas locales",
   "ics.preview.limit.body":
     "Esto no es sincronización. Voyalier no deduce zonas horarias ni elimina eventos ya importados en otro calendario.",
-  "ics.preview.count": "Se incluirán {count} eventos.",
+  "ics.preview.count.one": "Se incluirá {count} evento.",
+  "ics.preview.count.other": "Se incluirán {count} eventos.",
   "ics.preview.omissions": "No incluido",
   "ics.preview.noOmissions":
     "Se pueden incluir todos los elementos programados.",

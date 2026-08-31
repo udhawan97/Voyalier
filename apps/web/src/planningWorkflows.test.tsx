@@ -400,7 +400,7 @@ describe("traveler-owned planning workflows", () => {
       name: "Calendar snapshot",
     });
     expect(
-      within(calendar).getByText("1 events will be included."),
+      within(calendar).getByText("1 event will be included."),
     ).toBeVisible();
     expect(
       within(calendar).getByText("Every scheduled item can be included."),

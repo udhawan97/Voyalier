@@ -1,6 +1,6 @@
 import type { CalendarSnapshot } from "@voyalier/contracts";
 
-import { t } from "../app/i18n";
+import { plural, t } from "../app/i18n";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 import { Dialog } from "../components/Dialog";
@@ -38,7 +38,7 @@ export function CalendarExportDialog({
           {t("ics.preview.limit.body")}
         </Banner>
         <p className="voy-calendar-preview__count">
-          {t("ics.preview.count", { count: snapshot.events.length })}
+          {plural("ics.preview.count", snapshot.events.length)}
         </p>
         {snapshot.omissions.length > 0 ? (
           <section aria-labelledby="calendar-omissions-title">

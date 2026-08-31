@@ -132,7 +132,7 @@ mod tests {
             classify_amendment(
                 FactType::FlightSegment,
                 &flight("2026-06-02T08:00"),
-                &[existing.clone()]
+                std::slice::from_ref(&existing)
             ),
             AmendmentMatch::Duplicate {
                 fact_id: "fact_1".into()
@@ -156,7 +156,11 @@ mod tests {
         let mut missing = flight("2026-06-02T09:00");
         missing.departure_airport_iata = None;
         assert_eq!(
-            classify_amendment(FactType::FlightSegment, &missing, &[existing.clone()]),
+            classify_amendment(
+                FactType::FlightSegment,
+                &missing,
+                std::slice::from_ref(&existing),
+            ),
             AmendmentMatch::Ordinary
         );
         assert_eq!(

@@ -21,7 +21,7 @@ describe("explicit amendment review", () => {
       payload: { ...current.payload, arrivalLocal: "2026-11-04T17:20" },
       amendsFactId: current.id,
     });
-    const confirmCandidate = vi.fn(async (input) => ({
+    const confirmCandidate = vi.fn(async () => ({
       candidate: {
         ...candidate,
         status: "confirmed" as const,

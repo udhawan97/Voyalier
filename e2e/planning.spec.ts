@@ -442,7 +442,9 @@ test("new map, packing, and brief states reflow and remain keyboard operable", a
   await shareBrief.focus();
   await page.keyboard.press("Enter");
   const brief = page.getByRole("dialog", { name: "Shareable brief" });
-  await expect(brief.getByText("Fictional Rail")).toBeVisible();
+  await expect(
+    brief.getByText("Fictional Rail", { exact: true }),
+  ).toBeVisible();
   await expect(brief.getByRole("button", { name: "Copy brief" })).toBeVisible();
   await expect(mappedPlaces).toHaveJSProperty("open", true);
   await expect(
@@ -491,7 +493,9 @@ test("new map, packing, and brief states reflow and remain keyboard operable", a
   await session.detach();
 
   await shareBrief.click();
-  await expect(brief.getByText("Fictional Rail")).toBeVisible();
+  await expect(
+    brief.getByText("Fictional Rail", { exact: true }),
+  ).toBeVisible();
   const pdfPath = testInfo.outputPath("shareable-brief.pdf");
   await page.pdf({
     path: pdfPath,
