@@ -74,6 +74,7 @@ import { RouteIcon } from "../components/icons";
 import { DisruptionPanel } from "./DisruptionPanel";
 import { RecheckPanel } from "./RecheckPanel";
 import { TodayPanel } from "./TodayPanel";
+import { JourneyBoard } from "./JourneyBoard";
 import { TripCover } from "./TripCover";
 import { AssistPreview } from "./AssistPreview";
 import { AssistDraft } from "./AssistDraft";
@@ -1407,6 +1408,13 @@ export function TripDetailView({
 
         <TodayPanel
           tripId={tripId}
+          onFocusTarget={(target) =>
+            navigateToPlanningRecord(target.source, target.recordId)
+          }
+        />
+
+        <JourneyBoard
+          board={data.detail.journeyBoard}
           onFocusTarget={(target) =>
             navigateToPlanningRecord(target.source, target.recordId)
           }

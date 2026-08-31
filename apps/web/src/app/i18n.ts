@@ -281,6 +281,16 @@ const en = {
   "today.item.checkoutGeneric": "Check out",
   "today.item.staying": "Staying at {subject}",
   "today.item.stayingGeneric": "Staying tonight",
+  "journey.title": "Journey Board",
+  "journey.description":
+    "Your approved travel and authored plans, arranged by their recorded local dates.",
+  "journey.before": "Before trip",
+  "journey.after": "After trip",
+  "journey.unscheduled": "Unscheduled",
+  "journey.day.empty": "Nothing scheduled.",
+  "journey.item.departGeneric": "Departure",
+  "journey.item.arriveGeneric": "Arrival",
+  "journey.open.label": "Show in Plan: {item}",
   "today.error":
     "Today couldn't load right now. The rest of your trip is fine.",
 
@@ -1961,6 +1971,16 @@ const es: Record<MessageKey, string> = {
   "today.item.checkoutGeneric": "Salida del alojamiento",
   "today.item.staying": "Estancia en {subject}",
   "today.item.stayingGeneric": "Estancia esta noche",
+  "journey.title": "Itinerario diario",
+  "journey.description":
+    "Tu viaje aprobado y tus planes, ordenados por las fechas locales registradas.",
+  "journey.before": "Antes del viaje",
+  "journey.after": "Después del viaje",
+  "journey.unscheduled": "Sin programar",
+  "journey.day.empty": "Nada programado.",
+  "journey.item.departGeneric": "Salida",
+  "journey.item.arriveGeneric": "Llegada",
+  "journey.open.label": "Mostrar en Plan: {item}",
   "today.error":
     "No se pudo cargar la agenda de hoy. El resto del viaje está bien.",
   "localai.title": "IA en el dispositivo",

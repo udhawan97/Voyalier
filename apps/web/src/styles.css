@@ -4084,6 +4084,154 @@ h3 {
   overflow-wrap: anywhere;
 }
 
+/* ===== Journey Board =================================================== */
+
+.voy-journey {
+  margin: var(--voy-space-xl) 0;
+  padding: clamp(1rem, 3vw, 1.6rem);
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-lg);
+  background: var(--voy-paper-raised);
+  box-shadow: var(--voy-shadow-sm);
+}
+
+.voy-journey__head {
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.45fr) minmax(16rem, 1fr);
+  gap: var(--voy-space-lg);
+  align-items: baseline;
+  padding-bottom: var(--voy-space-md);
+  border-bottom: 1px solid var(--voy-line);
+}
+
+.voy-journey__head p {
+  margin: 0;
+  color: var(--voy-ink-muted);
+  line-height: 1.55;
+}
+
+.voy-journey__days,
+.voy-journey__entries {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.voy-journey__days {
+  position: relative;
+}
+
+.voy-journey__days::before {
+  content: "";
+  position: absolute;
+  inset-block: 1.3rem;
+  inset-inline-start: 8.6rem;
+  width: 1px;
+  background: var(--voy-line-strong);
+}
+
+.voy-journey__day {
+  position: relative;
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: var(--voy-space-lg);
+  padding: var(--voy-space-md) 0;
+}
+
+.voy-journey__day > h3 {
+  margin: 0;
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+  font-weight: var(--voy-w-strong);
+  line-height: 1.45;
+}
+
+.voy-journey__day--outside > h3 {
+  color: var(--voy-vermilion);
+}
+
+.voy-journey__entries {
+  display: grid;
+  gap: var(--voy-space-sm);
+}
+
+.voy-journey__entry {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--voy-space-sm);
+  align-items: start;
+  min-width: 0;
+  padding-inline-start: var(--voy-space-md);
+}
+
+.voy-journey__dot {
+  position: absolute;
+  inset-inline-start: -1.92rem;
+  inset-block-start: 0.45rem;
+  width: 0.68rem;
+  height: 0.68rem;
+  border: 2px solid var(--voy-paper-raised);
+  border-radius: 999px;
+  background: var(--voy-indigo);
+  box-shadow: 0 0 0 1px var(--voy-indigo);
+}
+
+.voy-journey__entry--trip_item .voy-journey__dot {
+  background: var(--voy-moss);
+  box-shadow: 0 0 0 1px var(--voy-moss);
+}
+
+.voy-journey__entry-copy {
+  display: grid;
+  min-width: 0;
+}
+
+.voy-journey__entry-title {
+  font-weight: var(--voy-w-medium);
+}
+
+.voy-journey__entry-detail,
+.voy-journey__empty {
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+  line-height: 1.45;
+}
+
+.voy-journey__entry-detail {
+  overflow-wrap: anywhere;
+}
+
+.voy-journey__empty {
+  margin: 0;
+  padding-inline-start: var(--voy-space-md);
+}
+
+.voy-journey__open {
+  padding-block: var(--voy-space-2xs);
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .voy-journey__head,
+  .voy-journey__day {
+    grid-template-columns: 1fr;
+    gap: var(--voy-space-sm);
+  }
+
+  .voy-journey__days::before {
+    inset-inline-start: 0.3rem;
+  }
+
+  .voy-journey__entries {
+    padding-inline-start: var(--voy-space-md);
+  }
+
+  .voy-journey__dot {
+    inset-inline-start: -1.08rem;
+  }
+}
+
 /* ===== Shareable brief ================================================= */
 
 .voy-brief-shell,
