@@ -412,6 +412,7 @@ fn unconfirm_fact_returns_linked_candidate_to_pending() {
         .confirm_candidate(ConfirmCandidateInput {
             candidate_id: candidate.id.clone(),
             edited_payload: None,
+            amendment_action: None,
         })
         .expect("confirm");
 
@@ -430,6 +431,104 @@ fn unconfirm_fact_returns_linked_candidate_to_pending() {
 
     assert_eq!(pending.len(), 1);
     assert_eq!(pending[0].id, candidate.id);
+    cleanup_database(database);
+}
+
+#[test]
+fn repeat_imports_deduplicate_replace_and_restore_without_rewriting_history() {
+    let database = temp_database("fact-amendment-history");
+    let service = open_test_service(&database).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    let original = include_str!("../../voyalier-core/fixtures/parser/jsonld-flight/input.html");
+
+    let first = service
+        .import_document(ImportDocumentInput {
+            trip_id: trip.id.clone(),
+            kind: DocumentKind::Html,
+            label: Some("Original".into()),
+            content: original.into(),
+        })
+        .expect("first import");
+    let (_, original_fact) = service
+        .confirm_candidate(ConfirmCandidateInput {
+            candidate_id: first.candidates[0].id.clone(),
+            edited_payload: None,
+            amendment_action: None,
+        })
+        .expect("confirm original");
+    let original_snapshot = service.get_trip(&trip.id).expect("original detail");
+    let original_uid = original_snapshot.calendar_snapshot.events[0].uid.clone();
+
+    let unchanged = service
+        .import_document(ImportDocumentInput {
+            trip_id: trip.id.clone(),
+            kind: DocumentKind::Html,
+            label: Some("Forwarded unchanged".into()),
+            content: original.replace(
+                "Fictional booking only.",
+                "Fictional booking only. Forwarded copy.",
+            ),
+        })
+        .expect("unchanged import");
+    assert!(unchanged.candidates.is_empty());
+    assert_eq!(unchanged.duplicates_ignored, 1);
+
+    let amendment = service
+        .import_document(ImportDocumentInput {
+            trip_id: trip.id.clone(),
+            kind: DocumentKind::Html,
+            label: Some("Schedule change".into()),
+            content: original.replace("2026-08-02T04:55", "2026-08-02T06:10"),
+        })
+        .expect("amendment import");
+    let candidate = amendment.candidates.first().expect("amendment candidate");
+    assert_eq!(
+        candidate.amends_fact_id.as_deref(),
+        Some(original_fact.id.as_str())
+    );
+
+    let choice_required = service
+        .confirm_candidate(ConfirmCandidateInput {
+            candidate_id: candidate.id.clone(),
+            edited_payload: None,
+            amendment_action: None,
+        })
+        .expect_err("choice required");
+    assert_eq!(choice_required.code, ErrorCode::ValidationInvalidInput);
+
+    let (_, replacement) = service
+        .confirm_candidate(ConfirmCandidateInput {
+            candidate_id: candidate.id.clone(),
+            edited_payload: None,
+            amendment_action: Some(AmendmentAction::Replace),
+        })
+        .expect("replace");
+    let replaced = service.get_trip(&trip.id).expect("replaced detail");
+    assert_eq!(replaced.confirmed_facts, vec![replacement.clone()]);
+    assert_eq!(replaced.fact_versions.len(), 2);
+    assert_eq!(
+        replaced.fact_versions.iter().filter(|v| v.active).count(),
+        1
+    );
+    assert_eq!(replaced.calendar_snapshot.events[0].uid, original_uid);
+    assert_eq!(replaced.calendar_snapshot.events[0].sequence, 1);
+
+    let restored = service
+        .restore_fact_version(RestoreFactVersionInput {
+            fact_id: original_fact.id,
+        })
+        .expect("restore original");
+    let detail = service.get_trip(&trip.id).expect("restored detail");
+    assert_eq!(detail.confirmed_facts, vec![restored]);
+    assert_eq!(detail.fact_versions.len(), 3);
+    assert_eq!(detail.fact_versions.iter().filter(|v| v.active).count(), 1);
+    assert_eq!(detail.calendar_snapshot.events[0].uid, original_uid);
+    assert_eq!(detail.calendar_snapshot.events[0].sequence, 2);
+    assert_eq!(
+        detail.confirmed_facts[0].payload.arrival_local.as_deref(),
+        Some("2026-08-02T04:55")
+    );
+
     cleanup_database(database);
 }
 
@@ -5209,6 +5308,7 @@ fn sealed_columns_round_trip_through_the_vault() {
         .confirm_candidate(ConfirmCandidateInput {
             candidate_id: candidate_ids[0].clone(),
             edited_payload: None,
+            amendment_action: None,
         })
         .expect("confirm");
     service
@@ -5389,7 +5489,9 @@ fn a_legacy_database_migrates_in_order_and_keeps_its_rows() {
     // The widened constraint took effect.
     connection
         .execute(
-            "INSERT INTO candidate_facts VALUES
+            "INSERT INTO candidate_facts
+             (id, trip_id, document_id, parser_run_id, fact_type, payload, method,
+              field_spans, warnings, status, created_at, resolved_at) VALUES
              ('c2','t1','d1','r1','lodging_stay','{}','assisted','[]','[]','pending','now',NULL)",
             [],
         )
@@ -6028,6 +6130,7 @@ fn documents_are_listed_newest_first_with_their_candidate_counts() {
         .confirm_candidate(ConfirmCandidateInput {
             candidate_id: pending[0].id.clone(),
             edited_payload: None,
+            amendment_action: None,
         })
         .expect("confirm");
     let documents = service.list_documents(&trip.id).expect("list");
@@ -6070,6 +6173,7 @@ fn deleting_a_document_drops_pending_candidates_but_keeps_confirmed_facts() {
         .confirm_candidate(ConfirmCandidateInput {
             candidate_id: candidates[0].clone(),
             edited_payload: None,
+            amendment_action: None,
         })
         .expect("confirm");
 

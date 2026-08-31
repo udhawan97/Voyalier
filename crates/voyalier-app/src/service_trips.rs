@@ -50,6 +50,7 @@ impl AppService {
         let connection = self.connection()?;
         let trip = self.records(&connection).trip(trip_id)?;
         let confirmed_facts = self.records(&connection).confirmed_facts(trip_id)?;
+        let fact_versions = self.records(&connection).confirmed_fact_versions(trip_id)?;
         let pending_candidate_count: i64 = connection
             .query_row(
                 "SELECT COUNT(*) FROM candidate_facts WHERE trip_id = ?1 AND status = 'pending'",
@@ -66,8 +67,9 @@ impl AppService {
             &trip_items,
             &itinerary_identities,
         );
-        let calendar_snapshot =
+        let mut calendar_snapshot =
             build_calendar_snapshot(&trip, &confirmed_facts, &trip_items, &itinerary_identities);
+        calendar_snapshot.removals = removed_calendar_roles(&fact_versions);
         let TripAssessment {
             conflicts: mut itinerary_conflicts,
             readiness,
@@ -201,6 +203,7 @@ impl AppService {
         Ok(TripDetail {
             trip,
             confirmed_facts,
+            fact_versions,
             pending_candidate_count,
             itinerary_conflicts,
             readiness,

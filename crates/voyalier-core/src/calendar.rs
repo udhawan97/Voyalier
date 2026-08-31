@@ -6,7 +6,7 @@
 use jiff::civil::{Date, DateTime};
 use serde::{Deserialize, Serialize};
 
-use crate::{ConfirmedFact, FactType, Trip, TripItem, TripItemKind};
+use crate::{ConfirmedFact, ConfirmedFactVersion, FactType, Trip, TripItem, TripItemKind};
 use crate::{TodayItemKind, TodayItemTargetSource};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -28,6 +28,16 @@ impl CalendarRole {
             Self::Checkout => "checkout",
             Self::Plan => "plan",
         }
+    }
+}
+
+fn label(role: CalendarRole) -> &'static str {
+    match role {
+        CalendarRole::Departure => "Departure",
+        CalendarRole::Arrival => "Arrival",
+        CalendarRole::Checkin => "Check-in",
+        CalendarRole::Checkout => "Check-out",
+        CalendarRole::Plan => "Plan",
     }
 }
 
@@ -371,10 +381,66 @@ pub fn build_calendar_snapshot(
     }
 }
 
+fn present_roles(fact: &ConfirmedFact) -> Vec<CalendarRole> {
+    let payload = &fact.payload;
+    let timed = |value: Option<&String>| value.is_some_and(|value| valid_value(value, false));
+    let dated = |value: Option<&String>| value.is_some_and(|value| valid_value(value, true));
+    match fact.fact_type {
+        FactType::FlightSegment
+        | FactType::RailJourney
+        | FactType::CoachJourney
+        | FactType::FerryCrossing
+        | FactType::CarRental => [
+            (
+                CalendarRole::Departure,
+                timed(payload.departure_local.as_ref()),
+            ),
+            (CalendarRole::Arrival, timed(payload.arrival_local.as_ref())),
+        ],
+        FactType::LodgingStay => [
+            (CalendarRole::Checkin, dated(payload.checkin_date.as_ref())),
+            (
+                CalendarRole::Checkout,
+                dated(payload.checkout_date.as_ref()),
+            ),
+        ],
+    }
+    .into_iter()
+    .filter_map(|(role, present)| present.then_some(role))
+    .collect()
+}
+
+/// Human-readable, redacted warning labels for event roles a replacement or
+/// restore removed. A downloaded calendar cannot cancel an event previously
+/// imported into another application, so the preview must surface the gap.
+pub fn removed_calendar_roles(versions: &[ConfirmedFactVersion]) -> Vec<String> {
+    let mut removals = Vec::new();
+    for current in versions.iter().filter(|version| version.active) {
+        let Some(previous_id) = current.supersedes_fact_id.as_deref() else {
+            continue;
+        };
+        let Some(previous) = versions
+            .iter()
+            .find(|version| version.fact.id == previous_id)
+        else {
+            continue;
+        };
+        let current_roles = present_roles(&current.fact);
+        for role in present_roles(&previous.fact) {
+            if !current_roles.contains(&role) {
+                removals.push(label(role).to_owned());
+            }
+        }
+    }
+    removals.sort();
+    removals.dedup();
+    removals
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ExtractionMethod, FactPayload, TripStatus};
+    use crate::{ExtractionMethod, FactPayload, FactRevisionReason, TripStatus};
 
     fn trip() -> Trip {
         Trip {
@@ -409,6 +475,32 @@ mod tests {
             confirmed_at: "2026-01-01T00:00:00Z".into(),
             source_removed: false,
         }
+    }
+
+    #[test]
+    fn amendment_history_reports_roles_that_a_download_cannot_remove() {
+        let previous = journey("old");
+        let mut current = journey("new");
+        current.payload.arrival_local = None;
+        let versions = vec![
+            ConfirmedFactVersion {
+                fact: previous,
+                active: false,
+                revision: 0,
+                reason: FactRevisionReason::Initial,
+                lineage_root_id: "old".into(),
+                supersedes_fact_id: None,
+            },
+            ConfirmedFactVersion {
+                fact: current,
+                active: true,
+                revision: 1,
+                reason: FactRevisionReason::Amendment,
+                lineage_root_id: "old".into(),
+                supersedes_fact_id: Some("old".into()),
+            },
+        ];
+        assert_eq!(removed_calendar_roles(&versions), vec!["Arrival"]);
     }
 
     #[test]

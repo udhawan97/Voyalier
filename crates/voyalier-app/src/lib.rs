@@ -17,22 +17,22 @@ use sha2::{Digest, Sha256};
 use voyalier_core::{
     ASSIST_DRAFT_LODGING_DATES, ASSIST_SYSTEM_PROMPT, AddManualFactInput, AddPackingItemInput,
     AdvisoryEntry, AdvisoryPanel, AdvisorySource, AiPrompt, AiPromptKind, AiPromptSettings,
-    AirQualityDay, AppError, AssistActivityEntry, AssistDraftResult, AssistReply,
-    AssistRequestPreview, AstroDay, AttributedPackPlace, CandidateFact, CandidateStatus,
-    ChatContext, ChatMessage, ChatRole, ClimateNormals, ClockChange, ConfirmCandidateInput,
-    ConfirmedFact, CreateResourceInput, CreateTripInput, CreateTripItemInput,
-    DRAFT_LODGING_DATES_SYSTEM_PROMPT, DestinationFactsSnapshot, DisruptionContext,
-    DocumentContent, DocumentKind, DocumentParse, DocumentSummary, DownloadedPack, ErrorCode,
-    ExtractionMethod, FCDO_COUNTRIES, FIELD_SUGGESTION_LIMIT, FactPayload, FactType, FcdoCountry,
-    FieldSuggestion, GeocodedPlace, HealthNotice, HealthResponse, ImportDocumentInput,
-    ImportResult, IntelligenceMode, InterestProfile, KeyValidation, LocalAiStatus,
-    LocalModelPullResult, LodgingDateProposal, MAX_AI_PROMPT_LEN, MAX_CHAT_CONTEXT_RECORDS,
-    MAX_CHAT_EXCERPT_CHARS, MAX_NOTES_CHARS, MAX_OFFLINE_MAP_BYTES, OLLAMA_PULL_URL,
-    OLLAMA_TAGS_URL, OfflineMapArchive, OfflineMapChunk, OfflineMapDescriptor, PROVIDERS,
-    PackContent, PackInfo, PackSuggestion, PackingItem, PersonaWeights, PlaceSummary,
+    AirQualityDay, AmendmentAction, AmendmentMatch, AppError, AssistActivityEntry,
+    AssistDraftResult, AssistReply, AssistRequestPreview, AstroDay, AttributedPackPlace,
+    CandidateFact, CandidateStatus, ChatContext, ChatMessage, ChatRole, ClimateNormals,
+    ClockChange, ConfirmCandidateInput, ConfirmedFact, CreateResourceInput, CreateTripInput,
+    CreateTripItemInput, DRAFT_LODGING_DATES_SYSTEM_PROMPT, DestinationFactsSnapshot,
+    DisruptionContext, DocumentContent, DocumentKind, DocumentParse, DocumentSummary,
+    DownloadedPack, ErrorCode, ExtractionMethod, FCDO_COUNTRIES, FIELD_SUGGESTION_LIMIT,
+    FactPayload, FactType, FcdoCountry, FieldSuggestion, GeocodedPlace, HealthNotice,
+    HealthResponse, ImportDocumentInput, ImportResult, IntelligenceMode, InterestProfile,
+    KeyValidation, LocalAiStatus, LocalModelPullResult, LodgingDateProposal, MAX_AI_PROMPT_LEN,
+    MAX_CHAT_CONTEXT_RECORDS, MAX_CHAT_EXCERPT_CHARS, MAX_NOTES_CHARS, MAX_OFFLINE_MAP_BYTES,
+    OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OfflineMapArchive, OfflineMapChunk, OfflineMapDescriptor,
+    PROVIDERS, PackContent, PackInfo, PackSuggestion, PackingItem, PersonaWeights, PlaceSummary,
     ProviderConfig, ProviderId, PublicHolidaysSnapshot, Recommendation, RedactionPolicy,
-    ResearchSettings, Resource, ResourceSnapshot, SEARCH_SUGGESTION_LIMIT, SavePlaceInput,
-    SavedPlace, SearchHit, SearchHitSource, SearchableDocument, SearchableResource,
+    ResearchSettings, Resource, ResourceSnapshot, RestoreFactVersionInput, SEARCH_SUGGESTION_LIMIT,
+    SavePlaceInput, SavedPlace, SearchHit, SearchHitSource, SearchableDocument, SearchableResource,
     SetInterestProfileInput, SetResearchSettingsInput, SetVisaItemProgressInput,
     SetVisaNationalityInput, SourceDocument, SourceState, SourceStatus, SuggestionSource,
     TodayItemTargetSource, TodayView, Trip, TripAssessment, TripBrief, TripDetail, TripItem,
@@ -43,19 +43,20 @@ use voyalier_core::{
     build_assist_request, build_calendar_snapshot, build_chat_prompt, build_disruption_plan,
     build_draft_preview, build_journey_board_with_identities, build_key_validation_request,
     build_packing_list, build_pull_body, build_today_view, build_trip_brief, ca_gac_advisory,
-    cdc_health_notices, changed_payload_fields, climate_normals, compute_astro_day, country_facts,
-    de_aa_advisory, derived_link_title, detect_planned_item_conflicts, ecb_rates, entry_from_fcdo,
-    estimate_flight_emissions, estimate_tokens, extract_readable_page, fact_identity,
-    fact_search_text, forecast, geocode, high_stakes_topics, holidays_within,
-    interpret_key_validation, interpret_pull_response, matching_airports, missions_in,
-    nearest_airports, new_id, now_rfc3339, nws_alerts, offline_map_download_url, pack_catalog,
-    pack_download_url, parse_assist_reply, parse_import, parse_lodging_dates_reply,
-    parse_pack_content, place_summary, provider_info, public_holidays, rank_field_suggestions,
-    recommend_attributed_places, resource_url_identity, saved_place_identity, school_holidays,
-    school_holidays_covered, school_holidays_within, search_cities, search_trip_corpus,
-    search_workspace_corpus, sky_events_within, suggest_packs, suggest_search_terms,
-    time_difference, tipping_guidance, travel_advice, us_state_advisory, validate_api_key,
-    validate_chat_message, validate_country_slug, validate_create_resource, validate_create_trip,
+    cdc_health_notices, changed_payload_fields, classify_amendment, climate_normals,
+    compute_astro_day, country_facts, de_aa_advisory, derived_link_title,
+    detect_planned_item_conflicts, ecb_rates, entry_from_fcdo, estimate_flight_emissions,
+    estimate_tokens, extract_readable_page, fact_identity, fact_search_text, forecast, geocode,
+    high_stakes_topics, holidays_within, interpret_key_validation, interpret_pull_response,
+    matching_airports, missions_in, nearest_airports, new_id, now_rfc3339, nws_alerts,
+    offline_map_download_url, pack_catalog, pack_download_url, parse_assist_reply, parse_import,
+    parse_lodging_dates_reply, parse_pack_content, place_summary, provider_info, public_holidays,
+    rank_field_suggestions, recommend_attributed_places, removed_calendar_roles,
+    resource_url_identity, saved_place_identity, school_holidays, school_holidays_covered,
+    school_holidays_within, search_cities, search_trip_corpus, search_workspace_corpus,
+    sky_events_within, suggest_packs, suggest_search_terms, time_difference, tipping_guidance,
+    travel_advice, us_state_advisory, validate_api_key, validate_chat_message,
+    validate_country_slug, validate_create_resource, validate_create_trip,
     validate_create_trip_item, validate_fact_payload, validate_model_name, validate_pack_id,
     validate_packing_label, validate_planning_notes, validate_provider_id, validate_resource_url,
     validate_search_query, validate_update_resource, validate_update_trip, world_heritage_near,
@@ -1446,7 +1447,8 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
                 warnings TEXT NOT NULL,
                 status TEXT NOT NULL CHECK (status IN ('pending', 'confirmed', 'rejected')),
                 created_at TEXT NOT NULL,
-                resolved_at TEXT
+                resolved_at TEXT,
+                amends_fact_id TEXT
             );
 
             CREATE TABLE IF NOT EXISTS advisory_snapshots (
@@ -1541,7 +1543,13 @@ fn init_connection(connection: &Connection) -> Result<(), AppError> {
                 confirmed_at TEXT NOT NULL,
                 -- Set when the document this fact came from is deleted. The fact
                 -- stays (the traveler approved it); only its evidence is gone.
-                source_removed INTEGER NOT NULL DEFAULT 0
+                source_removed INTEGER NOT NULL DEFAULT 0,
+                active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+                supersedes_fact_id TEXT,
+                revision_reason TEXT NOT NULL DEFAULT 'initial'
+                    CHECK (revision_reason IN ('initial', 'amendment', 'restore')),
+                version INTEGER NOT NULL DEFAULT 0 CHECK (version >= 0),
+                lineage_root_id TEXT
             );
 
             CREATE TABLE IF NOT EXISTS assist_activity (
@@ -1707,6 +1715,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "itinerary_projection_identity",
         run: migrate_itinerary_projection_identity,
     },
+    Migration {
+        to: 20,
+        name: "confirmed_fact_history",
+        run: migrate_confirmed_fact_history,
+    },
 ];
 
 /// The version a fully migrated database carries. Stamped into a backup's
@@ -1822,6 +1835,74 @@ fn migrate_itinerary_projection_identity(connection: &Connection) -> Result<(), 
                     DELETE FROM itinerary_identities
                      WHERE source_kind='trip_item' AND source_id=OLD.id;
                   END;",
+            )
+            .map_err(storage_error)?;
+    }
+    Ok(())
+}
+
+/// Add conservative amendment pointers and append-only confirmed-fact version
+/// metadata. Every ALTER is guarded because a failed open may retry this step
+/// before `user_version` was stamped.
+fn migrate_confirmed_fact_history(connection: &Connection) -> Result<(), AppError> {
+    let table_exists = |table: &str| -> Result<bool, AppError> {
+        connection
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1)",
+                params![table],
+                |row| row.get(0),
+            )
+            .map_err(storage_error)
+    };
+    let has_column = |table: &str, column: &str| -> Result<bool, AppError> {
+        let mut statement = connection
+            .prepare(&format!("PRAGMA table_info({table})"))
+            .map_err(storage_error)?;
+        let names = statement
+            .query_map([], |row| row.get::<_, String>(1))
+            .map_err(storage_error)?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(storage_error)?;
+        Ok(names.iter().any(|name| name == column))
+    };
+    let additions = [
+        ("candidate_facts", "amends_fact_id", "TEXT"),
+        (
+            "confirmed_facts",
+            "active",
+            "INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1))",
+        ),
+        ("confirmed_facts", "supersedes_fact_id", "TEXT"),
+        (
+            "confirmed_facts",
+            "revision_reason",
+            "TEXT NOT NULL DEFAULT 'initial' CHECK (revision_reason IN ('initial', 'amendment', 'restore'))",
+        ),
+        (
+            "confirmed_facts",
+            "version",
+            "INTEGER NOT NULL DEFAULT 0 CHECK (version >= 0)",
+        ),
+        ("confirmed_facts", "lineage_root_id", "TEXT"),
+    ];
+    for (table, column, definition) in additions {
+        if table_exists(table)? && !has_column(table, column)? {
+            connection
+                .execute_batch(&format!(
+                    "ALTER TABLE {table} ADD COLUMN {column} {definition};"
+                ))
+                .map_err(storage_error)?;
+        }
+    }
+    if table_exists("confirmed_facts")? {
+        connection
+            .execute_batch(
+                "UPDATE confirmed_facts SET lineage_root_id=id WHERE lineage_root_id IS NULL;
+                 CREATE TRIGGER IF NOT EXISTS confirmed_fact_history_initial
+                   AFTER INSERT ON confirmed_facts
+                   WHEN NEW.lineage_root_id IS NULL BEGIN
+                     UPDATE confirmed_facts SET lineage_root_id=NEW.id WHERE id=NEW.id;
+                   END;",
             )
             .map_err(storage_error)?;
     }

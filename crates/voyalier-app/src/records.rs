@@ -28,9 +28,9 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 use voyalier_core::{
-    AppError, CandidateFact, CandidateStatus, ChatMessage, ConfirmedFact, DocumentContent,
-    ErrorCode, InterestProfile, ItineraryIdentity, PackingItem, PersonaWeights, Resource,
-    ResourceSnapshot, SavedPlace, SourceDocument, TodayItemTargetSource, Trip, TripItem,
+    AppError, CandidateFact, CandidateStatus, ChatMessage, ConfirmedFact, ConfirmedFactVersion,
+    DocumentContent, ErrorCode, InterestProfile, ItineraryIdentity, PackingItem, PersonaWeights,
+    Resource, ResourceSnapshot, SavedPlace, SourceDocument, TodayItemTargetSource, Trip, TripItem,
     TripItemKind, TripNotes, TripSummary, VisaPrepItem, saved_place_identity,
 };
 
@@ -78,7 +78,7 @@ pub(crate) const SEALED_COLUMNS: &[(&str, &str)] = &[
 const TRIP_COLUMNS: &str =
     "id, title, origin, destination, start_date, end_date, status, created_at, updated_at";
 const CANDIDATE_COLUMNS: &str = "id, trip_id, document_id, parser_run_id, fact_type, payload, \
-     method, field_spans, warnings, status, created_at, resolved_at";
+     method, field_spans, warnings, status, created_at, resolved_at, amends_fact_id";
 const CONFIRMED_COLUMNS: &str = "id, trip_id, fact_type, payload, method, candidate_id, \
      corrected_fields, confirmed_at, source_removed";
 /// A document's metadata. `raw_content` is deliberately not here: it is sealed,
@@ -109,7 +109,7 @@ impl<'a> Records<'a> {
                 "SELECT source_kind, source_id, calendar_lineage, ui_locator, revision
                    FROM itinerary_identities
                   WHERE (source_kind='confirmed_fact' AND source_id IN
-                         (SELECT id FROM confirmed_facts WHERE trip_id=?1))
+                         (SELECT id FROM confirmed_facts WHERE trip_id=?1 AND active=1))
                      OR (source_kind='trip_item' AND source_id IN
                          (SELECT id FROM trip_items WHERE trip_id=?1))
                   ORDER BY source_kind, source_id",
@@ -179,7 +179,7 @@ impl<'a> Records<'a> {
     pub(crate) fn trip_summaries(&self) -> Result<Vec<TripSummary>, AppError> {
         let sql = format!(
             "SELECT {},
-                    (SELECT COUNT(*) FROM confirmed_facts f WHERE f.trip_id = t.id)
+                    (SELECT COUNT(*) FROM confirmed_facts f WHERE f.trip_id = t.id AND f.active=1)
                         AS confirmed_fact_count,
                     (SELECT COUNT(*) FROM candidate_facts c
                      WHERE c.trip_id = t.id AND c.status = 'pending')
@@ -273,7 +273,7 @@ impl<'a> Records<'a> {
             .execute(
                 &format!(
                     "INSERT INTO candidate_facts ({CANDIDATE_COLUMNS})
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)"
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)"
                 ),
                 params![
                     candidate.id,
@@ -288,7 +288,8 @@ impl<'a> Records<'a> {
                     to_sql_json(&candidate.warnings)?,
                     to_sql_enum(candidate.status)?,
                     candidate.created_at,
-                    candidate.resolved_at
+                    candidate.resolved_at,
+                    candidate.amends_fact_id
                 ],
             )
             .map_err(storage_error)?;
@@ -320,7 +321,7 @@ impl<'a> Records<'a> {
             .connection
             .prepare(&format!(
                 "SELECT {CONFIRMED_COLUMNS} FROM confirmed_facts
-                 WHERE trip_id = ?1
+                 WHERE trip_id = ?1 AND active = 1
                  ORDER BY confirmed_at ASC, id ASC"
             ))
             .map_err(storage_error)?;
@@ -355,7 +356,71 @@ impl<'a> Records<'a> {
                 ],
             )
             .map_err(storage_error)?;
+        self.connection
+            .execute(
+                "UPDATE confirmed_facts SET lineage_root_id=id WHERE id=?1 AND lineage_root_id IS NULL",
+                params![confirmed.id],
+            )
+            .map_err(storage_error)?;
         Ok(())
+    }
+
+    pub(crate) fn confirmed_fact(&self, fact_id: &str) -> Result<ConfirmedFact, AppError> {
+        let raw = self
+            .connection
+            .query_row(
+                &format!("SELECT {CONFIRMED_COLUMNS} FROM confirmed_facts WHERE id=?1"),
+                params![fact_id],
+                raw_confirmed,
+            )
+            .optional()
+            .map_err(storage_error)?
+            .ok_or_else(|| AppError::new(ErrorCode::FactNotFound, "fact not found"))?;
+        self.open_confirmed(raw)
+    }
+
+    pub(crate) fn confirmed_fact_versions(
+        &self,
+        trip_id: &str,
+    ) -> Result<Vec<ConfirmedFactVersion>, AppError> {
+        let mut statement = self
+            .connection
+            .prepare(&format!(
+                "SELECT {CONFIRMED_COLUMNS}, active, version, revision_reason,
+                        lineage_root_id, supersedes_fact_id
+                   FROM confirmed_facts
+                  WHERE trip_id=?1
+                  ORDER BY lineage_root_id, version, confirmed_at, id"
+            ))
+            .map_err(storage_error)?;
+        let raws = statement
+            .query_map(params![trip_id], |row| {
+                Ok((
+                    raw_confirmed(row)?,
+                    row.get::<_, i64>("active")?,
+                    row.get::<_, u32>("version")?,
+                    row.get::<_, String>("revision_reason")?,
+                    row.get::<_, String>("lineage_root_id")?,
+                    row.get::<_, Option<String>>("supersedes_fact_id")?,
+                ))
+            })
+            .map_err(storage_error)?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(storage_error)?;
+        raws.into_iter()
+            .map(
+                |(raw, active, revision, reason, lineage_root_id, supersedes_fact_id)| {
+                    Ok(ConfirmedFactVersion {
+                        fact: self.open_confirmed(raw)?,
+                        active: active != 0,
+                        revision,
+                        reason: from_sql_enum(&reason)?,
+                        lineage_root_id,
+                        supersedes_fact_id,
+                    })
+                },
+            )
+            .collect()
     }
 
     /// Read one string field from a trip's confirmed lodging facts, newest first.
@@ -373,7 +438,7 @@ impl<'a> Records<'a> {
             .connection
             .prepare(
                 "SELECT payload FROM confirmed_facts
-                 WHERE fact_type = 'lodging_stay' AND trip_id = ?1
+                 WHERE fact_type = 'lodging_stay' AND trip_id = ?1 AND active=1
                  ORDER BY confirmed_at DESC, id ASC",
             )
             .map_err(storage_error)?;
@@ -1070,6 +1135,7 @@ impl<'a> Records<'a> {
             status: from_sql_enum(&raw.status)?,
             created_at: raw.created_at,
             resolved_at: raw.resolved_at,
+            amends_fact_id: raw.amends_fact_id,
         })
     }
 
@@ -1127,6 +1193,7 @@ struct RawCandidate {
     status: String,
     created_at: String,
     resolved_at: Option<String>,
+    amends_fact_id: Option<String>,
 }
 
 struct RawConfirmed {
@@ -1155,6 +1222,7 @@ fn raw_candidate(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawCandidate> {
         status: row.get("status")?,
         created_at: row.get("created_at")?,
         resolved_at: row.get("resolved_at")?,
+        amends_fact_id: row.get("amends_fact_id")?,
     })
 }
 

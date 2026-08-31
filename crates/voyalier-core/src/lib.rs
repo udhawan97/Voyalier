@@ -7,6 +7,7 @@ mod advice;
 mod advisories;
 mod airports;
 mod alerts;
+mod amendment;
 mod assist;
 mod assist_draft;
 mod astro;
@@ -69,6 +70,7 @@ pub use airports::{
     nearest_airports,
 };
 pub use alerts::{WeatherAlert, nws_alerts, parse_nws_alerts};
+pub use amendment::{AmendmentMatch, classify_amendment};
 pub use assist::{
     ASSIST_SYSTEM_PROMPT, AssistActivityEntry, AssistReply, AssistRequest, AssistRequestPreview,
     MAX_AI_PROMPT_LEN, build_assist_preview, build_assist_request, estimate_tokens,
@@ -91,7 +93,7 @@ pub use backup::{
 pub use brief::{BriefTripItem, RedactionPolicy, TripBrief, build_trip_brief};
 pub use calendar::{
     CalendarEvent, CalendarOmission, CalendarOmissionReason, CalendarRole, CalendarSnapshot,
-    ItineraryIdentity, build_calendar_snapshot,
+    ItineraryIdentity, build_calendar_snapshot, removed_calendar_roles,
 };
 pub use chat::{
     CHAT_SYSTEM_PROMPT, ChatContext, ChatGrounding, ChatMessage, ChatPrompt, ChatRole,
