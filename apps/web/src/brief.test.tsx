@@ -42,6 +42,10 @@ describe("shareable brief", () => {
     expect(await within(dialog).findByText("Flight FP18")).toBeInTheDocument();
     expect(within(dialog).getByText("River Paper Inn")).toBeInTheDocument();
     expect(within(dialog).getByText("NX41")).toBeInTheDocument();
+    const preview = within(dialog).getByRole("textbox", {
+      name: "Exact plain-text copy preview",
+    }) as HTMLTextAreaElement;
+    expect(preview.value).toContain("NX41");
 
     // Secrets are excluded from the brief (scoped to the dialog — the Blueprint
     // behind it still shows the traveler their own codes).
@@ -50,7 +54,7 @@ describe("shareable brief", () => {
 
     // The redaction is disclosed.
     expect(
-      within(dialog).getByText(/Hidden from this brief/),
+      within(dialog).getByText(/Hidden from this brief/, { selector: "p" }),
     ).toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Copy brief" }));
@@ -63,6 +67,48 @@ describe("shareable brief", () => {
     expect(copied).not.toContain("VOY182");
     expect(copied).not.toContain("RAIL55");
     expect(getTripBrief).toHaveBeenCalledTimes(1);
+  });
+
+  it("copies and prints the selected essentials without traveler activities", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const gateway = createMockGateway();
+    const getTripBrief = gateway.getTripBrief.bind(gateway);
+    vi.spyOn(gateway, "getTripBrief").mockImplementation(async (tripId) => ({
+      ...(await getTripBrief(tripId)),
+      tripItems: [
+        {
+          id: "plan_share_test",
+          kind: "activity",
+          title: "Tea ceremony",
+          location: "Gion",
+        },
+      ],
+    }));
+    renderApp(gateway);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Share brief" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Shareable brief",
+    });
+
+    fireEvent.click(
+      within(dialog).getByRole("radio", { name: /Travel essentials/ }),
+    );
+    const preview = within(dialog).getByRole("textbox", {
+      name: "Exact plain-text copy preview",
+    }) as HTMLTextAreaElement;
+    expect(preview.value).toContain("Flight FP18");
+    expect(preview.value).not.toContain("Tea ceremony");
+    expect(within(dialog).queryByText("Tea ceremony")).toBeNull();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Copy brief" }));
+    expect(writeText).toHaveBeenCalledWith(preview.value);
   });
 
   it("reports an unavailable clipboard without claiming success", async () => {
@@ -159,6 +205,7 @@ describe("shareable brief", () => {
     expect(
       within(dialog).getByText(
         /Oculto en este resumen: códigos de confirmación, nombres de los viajeros\./,
+        { selector: "p" },
       ),
     ).toBeInTheDocument();
     expect(within(dialog).queryByText(/Confirmation codes/)).toBeNull();

@@ -4086,10 +4086,56 @@ h3 {
 
 /* ===== Shareable brief ================================================= */
 
+.voy-brief-shell,
 .voy-brief {
   display: flex;
   flex-direction: column;
   gap: 1.6rem;
+}
+
+.voy-brief__controls {
+  display: grid;
+  gap: var(--voy-space-md);
+  padding: var(--voy-space-md);
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-lg);
+  background: var(--voy-paper-sunken);
+}
+
+.voy-brief__copy-preview {
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.42fr) minmax(16rem, 1fr);
+  gap: var(--voy-space-md);
+  align-items: start;
+}
+
+.voy-brief__copy-preview h3,
+.voy-brief__copy-preview p {
+  margin: 0;
+}
+
+.voy-brief__copy-preview h3 {
+  font-family: var(--voy-font-display);
+  font-size: var(--voy-text-md);
+}
+
+.voy-brief__copy-preview p {
+  margin-top: var(--voy-space-2xs);
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+  line-height: 1.45;
+}
+
+.voy-brief__copy-preview textarea {
+  width: 100%;
+  min-height: 11rem;
+  resize: vertical;
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-md);
+  padding: var(--voy-space-sm);
+  background: var(--voy-paper-raised);
+  color: var(--voy-ink);
+  font: 0.78rem/1.55 var(--voy-font-mono);
 }
 
 .voy-brief__head {
@@ -4218,8 +4264,15 @@ h3 {
 
   .voy-dialog__desc,
   .voy-dialog__foot,
-  .voy-dialog__head .voy-icon-btn {
+  .voy-dialog__head .voy-icon-btn,
+  .voy-brief__controls {
     display: none !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .voy-brief__copy-preview {
+    grid-template-columns: 1fr;
   }
 }
 

@@ -1,6 +1,10 @@
 import type { TripBrief } from "@voyalier/contracts";
 
-import { buildBriefText, type BriefTextLabels } from "./briefText";
+import {
+  buildBriefText,
+  selectBriefContent,
+  type BriefTextLabels,
+} from "./briefText";
 
 const labels: BriefTextLabels = {
   flights: "Flights",
@@ -30,6 +34,17 @@ function brief(overrides: Partial<TripBrief> = {}): TripBrief {
 }
 
 describe("redacted brief text", () => {
+  it("selects travel essentials without mutating the full brief", () => {
+    const source = brief({
+      flights: [{ flightNumber: "FP18" }],
+      tripItems: [{ id: "plan_1", kind: "activity", title: "Tea ceremony" }],
+    });
+
+    expect(selectBriefContent(source, "essentials").tripItems).toEqual([]);
+    expect(selectBriefContent(source, "full").tripItems).toHaveLength(1);
+    expect(source.tripItems).toHaveLength(1);
+  });
+
   it("formats the route, safe facts, journeys, and traveler plans", () => {
     const output = buildBriefText(
       brief({
