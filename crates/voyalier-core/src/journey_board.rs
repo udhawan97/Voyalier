@@ -5,6 +5,7 @@
 use jiff::civil::{Date, DateTime};
 use serde::{Deserialize, Serialize};
 
+use crate::ItineraryIdentity;
 use crate::planning::{TripItem, TripItemKind};
 use crate::today::{TodayItemKind, TodayItemTarget, TodayItemTargetSource};
 use crate::types::{ConfirmedFact, FactPayload, FactType, Trip};
@@ -175,6 +176,15 @@ pub fn build_journey_board(
     facts: &[ConfirmedFact],
     trip_items: &[TripItem],
 ) -> JourneyBoard {
+    build_journey_board_with_identities(trip, facts, trip_items, &[])
+}
+
+pub fn build_journey_board_with_identities(
+    trip: &Trip,
+    facts: &[ConfirmedFact],
+    trip_items: &[TripItem],
+    identities: &[ItineraryIdentity],
+) -> JourneyBoard {
     let mut entries = Vec::new();
     for fact in facts {
         let payload = &fact.payload;
@@ -270,6 +280,13 @@ pub fn build_journey_board(
         }
     }
     entries.extend(trip_items.iter().map(plan_entry));
+    for entry in &mut entries {
+        if let Some(identity) = identities.iter().find(|identity| {
+            identity.source == entry.target.source && identity.source_id == entry.target.record_id
+        }) {
+            entry.focus_locator.clone_from(&identity.ui_locator);
+        }
+    }
 
     let bounds = (
         trip.start_date.parse::<Date>().ok(),

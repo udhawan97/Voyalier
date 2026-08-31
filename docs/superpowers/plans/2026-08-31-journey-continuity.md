@@ -61,8 +61,9 @@ control. Map behavior remains unchanged; the board never routes or reorders anyt
 
 ## Phase 3 — stable repeatable calendar snapshots
 
-Replace the index-based web exporter with a redacted core projection. Confirmed fact lineages and
-traveler-authored items receive opaque calendar lineages and monotonic revisions. Each source has
+Replace the index-based web exporter with a redacted core projection. Confirmed facts and
+traveler-authored items receive opaque calendar lineages and monotonic revisions from one local
+identity sidecar. Each source has
 explicit roles (`departure`, `arrival`, `checkin`, `checkout`, or `plan`) so a multi-event record is
 matched deterministically across versions.
 

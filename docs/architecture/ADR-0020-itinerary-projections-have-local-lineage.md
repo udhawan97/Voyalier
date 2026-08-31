@@ -49,11 +49,12 @@ This is a repeatable downloaded snapshot, not synchronization or duplicate preve
 
 ### 3. Confirmed facts form an append-only lineage
 
-`confirmed_facts` gains an opaque calendar lineage, an opaque UI locator, a monotonic revision, an
-active flag, a superseded-fact link, and a reason (`initial`, `amendment`, `restore`). Existing rows
-become active initial version zero records with freshly assigned opaque identities. `trip_items`
-gain their own calendar lineage, UI locator, and revision. A trip-item revision increments only
-when its canonical calendar semantics change.
+An `itinerary_identities` sidecar gives confirmed facts and trip items an opaque calendar lineage,
+an opaque UI locator, and a monotonic projection revision without placing transport or UI concerns
+inside either domain record. Existing rows receive freshly assigned identities; insert/delete
+triggers keep sidecar lifecycle atomic. A trip-item revision increments only when its canonical
+calendar semantics change. `confirmed_facts` separately gains an active flag, a superseded-fact
+link, and a reason (`initial`, `amendment`, `restore`) for amendment history.
 
 Normal product reads return active facts. Trip detail also returns inactive history explicitly so
 the traveler can inspect prior approved evidence; downstream readiness, Today, search, brief,

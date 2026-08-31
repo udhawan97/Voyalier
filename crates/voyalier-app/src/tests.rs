@@ -5377,6 +5377,15 @@ fn a_legacy_database_migrates_in_order_and_keeps_its_rows() {
         .query_row("SELECT count(*) FROM confirmed_facts", [], |row| row.get(0))
         .expect("count");
     assert_eq!(kept, 1);
+    let identity_count: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM itinerary_identities
+              WHERE source_kind='confirmed_fact' AND source_id='f1'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("identity backfill");
+    assert_eq!(identity_count, 1);
     // The widened constraint took effect.
     connection
         .execute(
@@ -5397,6 +5406,14 @@ fn migrating_twice_is_a_no_op() {
             [],
         )
         .expect("mark");
+    let lineage_before: String = connection
+        .query_row(
+            "SELECT calendar_lineage FROM itinerary_identities
+              WHERE source_kind='confirmed_fact' AND source_id='f1'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("lineage before retry");
 
     migrate(&connection).expect("second");
 
@@ -5413,6 +5430,15 @@ fn migrating_twice_is_a_no_op() {
         )
         .expect("value");
     assert_eq!(removed, 1);
+    let lineage_after: String = connection
+        .query_row(
+            "SELECT calendar_lineage FROM itinerary_identities
+              WHERE source_kind='confirmed_fact' AND source_id='f1'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("lineage after retry");
+    assert_eq!(lineage_after, lineage_before);
 }
 
 #[test]
@@ -5428,6 +5454,110 @@ fn a_fresh_database_is_stamped_at_the_target_version() {
         assert!(columns_of(&connection, "confirmed_facts").contains(&"source_removed".to_owned()));
     }
     drop(service);
+    cleanup_database(path);
+}
+
+#[test]
+fn itinerary_identity_survives_reads_and_only_semantic_plan_edits_increment() {
+    let path = temp_database("itinerary-identity");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let service = AppService::open_path_with_deps(&path, Arc::new(UreqFetcher), secrets.clone())
+        .expect("service");
+    let trip = service
+        .create_trip(CreateTripInput {
+            title: Some("Paris".into()),
+            origin: "Chicago".into(),
+            destination: "Paris".into(),
+            start_date: "2027-04-01".into(),
+            end_date: "2027-04-05".into(),
+        })
+        .expect("trip");
+    let item = service
+        .create_trip_item(CreateTripItemInput {
+            trip_id: trip.id.clone(),
+            kind: voyalier_core::TripItemKind::Activity,
+            title: "Museum".into(),
+            location: Some("Center".into()),
+            start_at: Some("2027-04-02T10:00".into()),
+            end_at: None,
+            notes: Some("private first note".into()),
+            saved_place_id: None,
+        })
+        .expect("item");
+    let first = service.get_trip(&trip.id).expect("first projection");
+    let event = first
+        .calendar_snapshot
+        .events
+        .iter()
+        .find(|event| event.role == voyalier_core::CalendarRole::Plan)
+        .expect("plan event");
+    let uid = event.uid.clone();
+    assert_eq!(event.sequence, 0);
+    assert!(!uid.contains(&item.id));
+    assert!(
+        !first.journey_board.days[1].entries[0]
+            .focus_locator
+            .contains(&item.id)
+    );
+
+    service
+        .update_trip_item(UpdateTripItemInput {
+            trip_item_id: item.id.clone(),
+            kind: item.kind,
+            title: item.title.clone(),
+            location: item.location.clone(),
+            start_at: item.start_at.clone(),
+            end_at: item.end_at.clone(),
+            notes: Some("private changed note".into()),
+            saved_place_id: None,
+        })
+        .expect("note-only edit");
+    let note_only = service.get_trip(&trip.id).expect("note-only projection");
+    let note_event = note_only
+        .calendar_snapshot
+        .events
+        .iter()
+        .find(|event| event.role == voyalier_core::CalendarRole::Plan)
+        .expect("plan event");
+    assert_eq!(note_event.uid, uid);
+    assert_eq!(note_event.sequence, 0);
+
+    service
+        .update_trip_item(UpdateTripItemInput {
+            trip_item_id: item.id,
+            kind: item.kind,
+            title: "Museum after lunch".into(),
+            location: item.location,
+            start_at: item.start_at,
+            end_at: item.end_at,
+            notes: Some("private changed note".into()),
+            saved_place_id: None,
+        })
+        .expect("semantic edit");
+    let changed = service.get_trip(&trip.id).expect("changed projection");
+    let changed_event = changed
+        .calendar_snapshot
+        .events
+        .iter()
+        .find(|event| event.role == voyalier_core::CalendarRole::Plan)
+        .expect("plan event");
+    assert_eq!(changed_event.uid, uid);
+    assert_eq!(changed_event.sequence, 1);
+    drop(service);
+
+    let reopened =
+        AppService::open_path_with_deps(&path, Arc::new(UreqFetcher), secrets).expect("reopen");
+    let reopened_event = reopened
+        .get_trip(&trip.id)
+        .expect("reopened projection")
+        .calendar_snapshot
+        .events
+        .into_iter()
+        .find(|event| event.role == voyalier_core::CalendarRole::Plan)
+        .expect("plan event");
+    assert_eq!(reopened_event.uid, uid);
+    assert_eq!(reopened_event.sequence, 1);
+    drop(reopened);
     cleanup_database(path);
 }
 

@@ -29,9 +29,9 @@ use serde::de::DeserializeOwned;
 
 use voyalier_core::{
     AppError, CandidateFact, CandidateStatus, ChatMessage, ConfirmedFact, DocumentContent,
-    ErrorCode, InterestProfile, PackingItem, PersonaWeights, Resource, ResourceSnapshot,
-    SavedPlace, SourceDocument, Trip, TripItem, TripItemKind, TripNotes, TripSummary, VisaPrepItem,
-    saved_place_identity,
+    ErrorCode, InterestProfile, ItineraryIdentity, PackingItem, PersonaWeights, Resource,
+    ResourceSnapshot, SavedPlace, SourceDocument, TodayItemTargetSource, Trip, TripItem,
+    TripItemKind, TripNotes, TripSummary, VisaPrepItem, saved_place_identity,
 };
 
 use crate::{DocumentText, Vault, sealed::Sealed, storage_error};
@@ -97,6 +97,62 @@ pub(crate) struct Records<'a> {
 impl<'a> Records<'a> {
     pub(crate) fn new(connection: &'a Connection, vault: &'a Vault) -> Self {
         Self { connection, vault }
+    }
+
+    pub(crate) fn itinerary_identities(
+        &self,
+        trip_id: &str,
+    ) -> Result<Vec<ItineraryIdentity>, AppError> {
+        let mut statement = self
+            .connection
+            .prepare(
+                "SELECT source_kind, source_id, calendar_lineage, ui_locator, revision
+                   FROM itinerary_identities
+                  WHERE (source_kind='confirmed_fact' AND source_id IN
+                         (SELECT id FROM confirmed_facts WHERE trip_id=?1))
+                     OR (source_kind='trip_item' AND source_id IN
+                         (SELECT id FROM trip_items WHERE trip_id=?1))
+                  ORDER BY source_kind, source_id",
+            )
+            .map_err(storage_error)?;
+        statement
+            .query_map(params![trip_id], |row| {
+                let source: String = row.get(0)?;
+                Ok(ItineraryIdentity {
+                    source: if source == "confirmed_fact" {
+                        TodayItemTargetSource::ConfirmedFact
+                    } else {
+                        TodayItemTargetSource::TripItem
+                    },
+                    source_id: row.get(1)?,
+                    calendar_lineage: row.get(2)?,
+                    ui_locator: row.get(3)?,
+                    revision: row.get::<_, u32>(4)?,
+                })
+            })
+            .map_err(storage_error)?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(storage_error)
+    }
+
+    pub(crate) fn bump_itinerary_revision(
+        &self,
+        source: TodayItemTargetSource,
+        source_id: &str,
+    ) -> Result<(), AppError> {
+        let source = match source {
+            TodayItemTargetSource::ConfirmedFact => "confirmed_fact",
+            TodayItemTargetSource::TripItem => "trip_item",
+        };
+        let changed = self
+            .connection
+            .execute(
+                "UPDATE itinerary_identities SET revision=revision+1
+                  WHERE source_kind=?1 AND source_id=?2",
+                params![source, source_id],
+            )
+            .map_err(storage_error)?;
+        require_changed(changed, "itinerary identity")
     }
 
     // ---- trips -----------------------------------------------------------

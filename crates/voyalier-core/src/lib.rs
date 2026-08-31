@@ -12,6 +12,7 @@ mod assist_draft;
 mod astro;
 mod backup;
 mod brief;
+mod calendar;
 mod chat;
 mod climate;
 mod co2;
@@ -88,6 +89,10 @@ pub use backup::{
     BACKUP_FORMAT_VERSION, BACKUP_MAGIC, BackupManifest, OpenedBackup, open_backup, seal_backup,
 };
 pub use brief::{BriefTripItem, RedactionPolicy, TripBrief, build_trip_brief};
+pub use calendar::{
+    CalendarEvent, CalendarOmission, CalendarOmissionReason, CalendarRole, CalendarSnapshot,
+    ItineraryIdentity, build_calendar_snapshot,
+};
 pub use chat::{
     CHAT_SYSTEM_PROMPT, ChatContext, ChatGrounding, ChatMessage, ChatPrompt, ChatRole,
     HighStakesTopic, MAX_CHAT_CONTEXT_RECORDS, MAX_CHAT_EXCERPT_CHARS, MAX_CHAT_HISTORY_MESSAGES,
@@ -120,7 +125,10 @@ pub use holidays::{
     school_holidays, school_holidays_covered, school_holidays_within,
 };
 pub use itinerary::{detect_itinerary_conflicts, detect_planned_item_conflicts, fact_label};
-pub use journey_board::{JourneyBoard, JourneyBoardDay, JourneyBoardEntry, build_journey_board};
+pub use journey_board::{
+    JourneyBoard, JourneyBoardDay, JourneyBoardEntry, build_journey_board,
+    build_journey_board_with_identities,
+};
 pub use local_ai::{
     LocalAiModel, LocalAiStatus, LocalModelPullResult, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,
     build_pull_body, interpret_pull_response, parse_ollama_models,

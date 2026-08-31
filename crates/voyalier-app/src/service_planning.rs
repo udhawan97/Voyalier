@@ -231,6 +231,11 @@ impl AppService {
             .ok_or_else(|| {
                 AppError::new(ErrorCode::ValidationInvalidInput, "trip item not found")
             })?;
+        let calendar_changed = existing.kind != normalized.kind
+            || existing.title != normalized.title
+            || existing.location != normalized.location
+            || existing.start_at != normalized.start_at
+            || existing.end_at != normalized.end_at;
         let item = TripItem {
             kind: normalized.kind,
             title: normalized.title,
@@ -243,6 +248,10 @@ impl AppService {
             ..existing
         };
         self.records(&connection).update_trip_item(&item)?;
+        if calendar_changed {
+            self.records(&connection)
+                .bump_itinerary_revision(TodayItemTargetSource::TripItem, &item.id)?;
+        }
         Ok(item)
     }
 

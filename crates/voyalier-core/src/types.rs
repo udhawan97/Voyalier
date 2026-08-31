@@ -8,6 +8,7 @@ use uuid::Uuid;
 use crate::advisories::AdvisoryPanel;
 use crate::airports::NearbyAirport;
 use crate::astro::{AstroDay, SkyEvent};
+use crate::calendar::CalendarSnapshot;
 use crate::co2::FlightEmissions;
 use crate::contingency::DisruptionPlan;
 use crate::facts::{ClockChange, CountryFacts, DestinationFactsSnapshot, TimeDifference};
@@ -178,6 +179,9 @@ pub struct TripDetail {
     /// Deterministic itinerary spine over confirmed facts and authored plans.
     #[serde(default, skip_deserializing)]
     pub journey_board: JourneyBoard,
+    /// Redacted one-shot calendar projection with stable local lineage.
+    #[serde(default, skip_deserializing)]
+    pub calendar_snapshot: CalendarSnapshot,
     /// Where the plan depends on the previous thing having gone right, derived
     /// on read from the confirmed facts. Advisory only: it never enters the
     /// readiness rollup, and it never proposes an alternative service

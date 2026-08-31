@@ -35,30 +35,30 @@ use voyalier_core::{
     SavedPlace, SearchHit, SearchHitSource, SearchableDocument, SearchableResource,
     SetInterestProfileInput, SetResearchSettingsInput, SetVisaItemProgressInput,
     SetVisaNationalityInput, SourceDocument, SourceState, SourceStatus, SuggestionSource,
-    TodayView, Trip, TripAssessment, TripBrief, TripDetail, TripItem, TripNotes, TripStatus,
-    TripSummary, UpdatePackingItemInput, UpdateResourceInput, UpdateSavedPlaceInput,
-    UpdateTripInput, UpdateTripItemInput, VisaPrep, VisaSelfReport, WarningCode, WeatherAlert,
-    WeatherSnapshot, WorkspaceSearchHit, WorkspaceSearchRecord, WorkspaceSearchSource,
-    advisory_country, air_quality, assess_trip, build_assist_preview, build_assist_request,
-    build_chat_prompt, build_disruption_plan, build_draft_preview, build_journey_board,
-    build_key_validation_request, build_packing_list, build_pull_body, build_today_view,
-    build_trip_brief, ca_gac_advisory, cdc_health_notices, changed_payload_fields, climate_normals,
-    compute_astro_day, country_facts, de_aa_advisory, derived_link_title,
-    detect_planned_item_conflicts, ecb_rates, entry_from_fcdo, estimate_flight_emissions,
-    estimate_tokens, extract_readable_page, fact_identity, fact_search_text, forecast, geocode,
-    high_stakes_topics, holidays_within, interpret_key_validation, interpret_pull_response,
-    matching_airports, missions_in, nearest_airports, new_id, now_rfc3339, nws_alerts,
-    offline_map_download_url, pack_catalog, pack_download_url, parse_assist_reply, parse_import,
-    parse_lodging_dates_reply, parse_pack_content, place_summary, provider_info, public_holidays,
-    rank_field_suggestions, recommend_attributed_places, resource_url_identity,
-    saved_place_identity, school_holidays, school_holidays_covered, school_holidays_within,
-    search_cities, search_trip_corpus, search_workspace_corpus, sky_events_within, suggest_packs,
-    suggest_search_terms, time_difference, tipping_guidance, travel_advice, us_state_advisory,
-    validate_api_key, validate_chat_message, validate_country_slug, validate_create_resource,
-    validate_create_trip, validate_create_trip_item, validate_fact_payload, validate_model_name,
-    validate_pack_id, validate_packing_label, validate_planning_notes, validate_provider_id,
-    validate_resource_url, validate_search_query, validate_update_resource, validate_update_trip,
-    world_heritage_near,
+    TodayItemTargetSource, TodayView, Trip, TripAssessment, TripBrief, TripDetail, TripItem,
+    TripNotes, TripStatus, TripSummary, UpdatePackingItemInput, UpdateResourceInput,
+    UpdateSavedPlaceInput, UpdateTripInput, UpdateTripItemInput, VisaPrep, VisaSelfReport,
+    WarningCode, WeatherAlert, WeatherSnapshot, WorkspaceSearchHit, WorkspaceSearchRecord,
+    WorkspaceSearchSource, advisory_country, air_quality, assess_trip, build_assist_preview,
+    build_assist_request, build_calendar_snapshot, build_chat_prompt, build_disruption_plan,
+    build_draft_preview, build_journey_board_with_identities, build_key_validation_request,
+    build_packing_list, build_pull_body, build_today_view, build_trip_brief, ca_gac_advisory,
+    cdc_health_notices, changed_payload_fields, climate_normals, compute_astro_day, country_facts,
+    de_aa_advisory, derived_link_title, detect_planned_item_conflicts, ecb_rates, entry_from_fcdo,
+    estimate_flight_emissions, estimate_tokens, extract_readable_page, fact_identity,
+    fact_search_text, forecast, geocode, high_stakes_topics, holidays_within,
+    interpret_key_validation, interpret_pull_response, matching_airports, missions_in,
+    nearest_airports, new_id, now_rfc3339, nws_alerts, offline_map_download_url, pack_catalog,
+    pack_download_url, parse_assist_reply, parse_import, parse_lodging_dates_reply,
+    parse_pack_content, place_summary, provider_info, public_holidays, rank_field_suggestions,
+    recommend_attributed_places, resource_url_identity, saved_place_identity, school_holidays,
+    school_holidays_covered, school_holidays_within, search_cities, search_trip_corpus,
+    search_workspace_corpus, sky_events_within, suggest_packs, suggest_search_terms,
+    time_difference, tipping_guidance, travel_advice, us_state_advisory, validate_api_key,
+    validate_chat_message, validate_country_slug, validate_create_resource, validate_create_trip,
+    validate_create_trip_item, validate_fact_payload, validate_model_name, validate_pack_id,
+    validate_packing_label, validate_planning_notes, validate_provider_id, validate_resource_url,
+    validate_search_query, validate_update_resource, validate_update_trip, world_heritage_near,
 };
 use voyalier_core::{
     BACKUP_FORMAT_VERSION, BackupManifest, VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN,
@@ -1702,6 +1702,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "widen_fact_type_check",
         run: migrate_fact_type_check,
     },
+    Migration {
+        to: 19,
+        name: "itinerary_projection_identity",
+        run: migrate_itinerary_projection_identity,
+    },
 ];
 
 /// The version a fully migrated database carries. Stamped into a backup's
@@ -1740,6 +1745,85 @@ fn migrate(connection: &Connection) -> Result<(), AppError> {
             .execute_batch(&format!("PRAGMA user_version = {};", migration.to))
             .map_err(storage_error)?;
         version = migration.to;
+    }
+    Ok(())
+}
+
+/// Stable identities for local focus and external calendar roles. Kept in one
+/// sidecar so evidence and traveler-plan tables do not acquire transport/UI
+/// concerns. Triggers make creation/deletion atomic with their owning record;
+/// semantic revision increments remain an app-layer decision.
+fn migrate_itinerary_projection_identity(connection: &Connection) -> Result<(), AppError> {
+    connection
+        .execute_batch(
+            "CREATE TABLE IF NOT EXISTS itinerary_identities (
+                source_kind TEXT NOT NULL CHECK(source_kind IN ('confirmed_fact', 'trip_item')),
+                source_id TEXT NOT NULL,
+                calendar_lineage TEXT NOT NULL UNIQUE,
+                ui_locator TEXT NOT NULL UNIQUE,
+                revision INTEGER NOT NULL DEFAULT 0 CHECK(revision >= 0),
+                PRIMARY KEY(source_kind, source_id)
+            );",
+        )
+        .map_err(storage_error)?;
+    let table_exists = |name: &str| -> Result<bool, AppError> {
+        connection
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1)",
+                params![name],
+                |row| row.get(0),
+            )
+            .map_err(storage_error)
+    };
+    if table_exists("confirmed_facts")? {
+        connection
+            .execute_batch(
+                "INSERT OR IGNORE INTO itinerary_identities
+                    (source_kind, source_id, calendar_lineage, ui_locator, revision)
+                  SELECT 'confirmed_fact', id,
+                         'cal_' || lower(hex(randomblob(16))),
+                         'focus_' || lower(hex(randomblob(16))), 0
+                    FROM confirmed_facts;
+                CREATE TRIGGER IF NOT EXISTS itinerary_identity_confirmed_insert
+                  AFTER INSERT ON confirmed_facts BEGIN
+                    INSERT OR IGNORE INTO itinerary_identities
+                      (source_kind, source_id, calendar_lineage, ui_locator, revision)
+                    VALUES ('confirmed_fact', NEW.id,
+                            'cal_' || lower(hex(randomblob(16))),
+                            'focus_' || lower(hex(randomblob(16))), 0);
+                  END;
+                CREATE TRIGGER IF NOT EXISTS itinerary_identity_confirmed_delete
+                  AFTER DELETE ON confirmed_facts BEGIN
+                    DELETE FROM itinerary_identities
+                     WHERE source_kind='confirmed_fact' AND source_id=OLD.id;
+                  END;",
+            )
+            .map_err(storage_error)?;
+    }
+    if table_exists("trip_items")? {
+        connection
+            .execute_batch(
+                "INSERT OR IGNORE INTO itinerary_identities
+                    (source_kind, source_id, calendar_lineage, ui_locator, revision)
+                  SELECT 'trip_item', id,
+                         'cal_' || lower(hex(randomblob(16))),
+                         'focus_' || lower(hex(randomblob(16))), 0
+                    FROM trip_items;
+                CREATE TRIGGER IF NOT EXISTS itinerary_identity_trip_item_insert
+                  AFTER INSERT ON trip_items BEGIN
+                    INSERT OR IGNORE INTO itinerary_identities
+                      (source_kind, source_id, calendar_lineage, ui_locator, revision)
+                    VALUES ('trip_item', NEW.id,
+                            'cal_' || lower(hex(randomblob(16))),
+                            'focus_' || lower(hex(randomblob(16))), 0);
+                  END;
+                CREATE TRIGGER IF NOT EXISTS itinerary_identity_trip_item_delete
+                  AFTER DELETE ON trip_items BEGIN
+                    DELETE FROM itinerary_identities
+                     WHERE source_kind='trip_item' AND source_id=OLD.id;
+                  END;",
+            )
+            .map_err(storage_error)?;
     }
     Ok(())
 }
