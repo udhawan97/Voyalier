@@ -281,6 +281,21 @@ const en = {
   "today.item.checkoutGeneric": "Check out",
   "today.item.staying": "Staying at {subject}",
   "today.item.stayingGeneric": "Staying tonight",
+  "journey.title": "Journey Board",
+  "journey.description":
+    "Your approved travel and authored plans, arranged by their recorded local dates.",
+  "journey.before": "Before trip",
+  "journey.after": "After trip",
+  "journey.unscheduled": "Unscheduled",
+  "journey.day.empty": "Nothing scheduled.",
+  "journey.item.departGeneric": "Departure",
+  "journey.item.arriveGeneric": "Arrival",
+  "journey.open.label": "Show in Plan: {item}",
+  "journey.source.confirmed": "Confirmed evidence",
+  "journey.source.plan": "Your plan",
+  "journey.return": "Back to Journey Board",
+  "journey.truncated":
+    "This stay is unusually long, so the board shows only its first 400 nights. Check the confirmed dates before relying on this view.",
   "today.error":
     "Today couldn't load right now. The rest of your trip is fine.",
 
@@ -427,6 +442,14 @@ const en = {
   "brief.copy.done": "Copied",
   "brief.copy.failed":
     "Clipboard access is unavailable. Print or save the brief as a PDF instead.",
+  "brief.scope.label": "Brief contents",
+  "brief.scope.full": "Full brief",
+  "brief.scope.full.hint": "Confirmed travel and your activities",
+  "brief.scope.essentials": "Travel essentials",
+  "brief.scope.essentials.hint": "Confirmed transport and stays only",
+  "brief.preview.title": "Plain-text copy preview",
+  "brief.preview.hint": "Exactly what Copy brief will place on the clipboard.",
+  "brief.preview.label": "Exact plain-text copy preview",
   "brief.loading": "Preparing the brief…",
   "brief.flights": "Flights",
   "brief.stays": "Stays",
@@ -453,6 +476,20 @@ const en = {
   "review.confirm": "Confirm",
   "review.editConfirm": "Edit & confirm",
   "review.dismiss": "Dismiss",
+  "review.amendment.label": "Possible amendment",
+  "review.amendment.title": "This may update an approved reservation",
+  "review.amendment.note":
+    "Compare the changed fields. Replace keeps both approved versions in history; Keep both starts a separate reservation.",
+  "review.amendment.current": "Current",
+  "review.amendment.imported": "Imported",
+  "review.amendment.blank": "Blank or removed",
+  "review.amendment.stale.title": "The approved reservation changed again",
+  "review.amendment.stale.body":
+    "This suggestion no longer points to the current version. It cannot replace anything safely; keep it as a separate reservation or dismiss it.",
+  "review.amendment.replace": "Replace current",
+  "review.amendment.keep": "Keep both",
+  "review.amendment.replace.label": "Replace current version of {fact}",
+  "review.amendment.keep.label": "Keep current and add {fact}",
   // One card per candidate, five verbs repeated down the queue. Confirming the
   // wrong one writes a fact into the trip, so each name says which suggestion
   // it acts on; each opens with its visible label to keep Label in Name.
@@ -461,6 +498,25 @@ const en = {
   "review.confirm.label": "Confirm {fact}",
   "review.editConfirm.label": "Edit & confirm {fact}",
   "review.dismiss.label": "Dismiss {fact}",
+  "history.current": "Versioned · restore from history",
+  "history.previous.one": "{count} previous approved version",
+  "history.previous.other": "{count} previous approved versions",
+  "history.note":
+    "History is append-only. Restoring creates a new current version and keeps every prior approval.",
+  "history.currentVersion": "Current: {fact}",
+  "history.approvedAt": "Approved {date}",
+  "history.method": "Extraction: {method}",
+  "history.source.imported": "Imported evidence retained",
+  "history.source.removed": "Source document removed",
+  "history.source.manual": "Added manually",
+  "history.values": "Approved values",
+  "history.reason.initial": "Original approval",
+  "history.reason.amendment": "Replaced by an amendment",
+  "history.reason.restore": "Replaced by a restore",
+  "history.restore": "Restore",
+  "history.restore.label":
+    "Restore approved version of {fact}; this will supersede current version {current}",
+  "history.announce.restored": "Restored {fact} as a new current version.",
   "review.empty.title": "All caught up",
   "review.empty.body": "Every suggestion has been confirmed or dismissed.",
   "review.filters.label": "Review filters",
@@ -1071,6 +1127,10 @@ const en = {
     "Voyalier found {count} new suggestion to review — nothing changes until you confirm.",
   "import.found.other":
     "Voyalier found {count} new suggestions to review — nothing changes until you confirm.",
+  "import.duplicatesIgnored.one":
+    "Ignored {count} unchanged reservation already in your trip.",
+  "import.duplicatesIgnored.other":
+    "Ignored {count} unchanged reservations already in your trip.",
   "review.count.one": "{count} suggestion to review",
   "review.count.other": "{count} suggestions to review",
   "packs.places.one": "{count} place",
@@ -1476,6 +1536,7 @@ const en = {
   "notes.tooLong": "That's longer than Voyalier can store. Nothing was saved.",
 
   "ics.export": "Export calendar",
+  "ics.download": "Download .ics",
   "ics.exporting": "Preparing…",
   "ics.error": "Couldn't build the calendar file.",
   "ics.done": "Calendar file saved.",
@@ -1485,6 +1546,21 @@ const en = {
   // the caveat has to travel with it.
   "ics.description":
     "Exported from Voyalier. Times are as printed on your confirmation, with no timezone — Voyalier doesn't guess one, so your calendar shows them in its own local time. Confirmation codes and traveler names are not included.",
+  "ics.preview.title": "Calendar snapshot",
+  "ics.preview.description":
+    "Review what can enter the one-time file before downloading it.",
+  "ics.preview.limit.title": "One-time file, floating local times",
+  "ics.preview.limit.body":
+    "This plaintext file is not synchronization. Voyalier does not infer time zones or remove events already imported into another calendar. Your calendar app may copy or sync the file, and importing it again may create duplicates.",
+  "ics.preview.count.one": "{count} event will be included.",
+  "ics.preview.count.other": "{count} events will be included.",
+  "ics.preview.events": "Exact events in the file",
+  "ics.preview.empty": "There are no dated events to download.",
+  "ics.preview.omissions": "Not included",
+  "ics.preview.noOmissions": "Every scheduled item can be included.",
+  "ics.preview.removals": "Previously exported roles no longer present",
+  "ics.omission.missing_date": "no recorded date",
+  "ics.omission.invalid_date": "invalid recorded date",
 
   "documents.title": "Imported documents",
   "documents.intro":
@@ -1586,8 +1662,7 @@ const en = {
   "hint.dismiss": "Dismiss tip",
 
   "resources.title": "Saved reading",
-  "resources.intro":
-    "Links and files you're keeping with this trip to read later.",
+  "resources.intro": "Links you're keeping with this trip to read later.",
   // The product's position, not a notice: everything else on a trip page is
   // evidence the traveler confirmed, and a saved page must never be mistaken
   // for one.
@@ -1953,6 +2028,21 @@ const es: Record<MessageKey, string> = {
   "today.item.checkoutGeneric": "Salida del alojamiento",
   "today.item.staying": "Estancia en {subject}",
   "today.item.stayingGeneric": "Estancia esta noche",
+  "journey.title": "Itinerario diario",
+  "journey.description":
+    "Tu viaje aprobado y tus planes, ordenados por las fechas locales registradas.",
+  "journey.before": "Antes del viaje",
+  "journey.after": "Después del viaje",
+  "journey.unscheduled": "Sin programar",
+  "journey.day.empty": "Nada programado.",
+  "journey.item.departGeneric": "Salida",
+  "journey.item.arriveGeneric": "Llegada",
+  "journey.open.label": "Mostrar en Plan: {item}",
+  "journey.source.confirmed": "Evidencia confirmada",
+  "journey.source.plan": "Tu plan",
+  "journey.return": "Volver al itinerario diario",
+  "journey.truncated":
+    "Esta estancia es inusualmente larga, por lo que el itinerario muestra solo las primeras 400 noches. Comprueba las fechas confirmadas antes de usar esta vista.",
   "today.error":
     "No se pudo cargar la agenda de hoy. El resto del viaje está bien.",
   "localai.title": "IA en el dispositivo",
@@ -2092,6 +2182,15 @@ const es: Record<MessageKey, string> = {
   "brief.copy.done": "Copiado",
   "brief.copy.failed":
     "El acceso al portapapeles no está disponible. Imprime o guarda el resumen como PDF.",
+  "brief.scope.label": "Contenido del resumen",
+  "brief.scope.full": "Resumen completo",
+  "brief.scope.full.hint": "Viaje confirmado y tus actividades",
+  "brief.scope.essentials": "Datos esenciales",
+  "brief.scope.essentials.hint": "Solo transporte y estancias confirmados",
+  "brief.preview.title": "Vista previa de texto",
+  "brief.preview.hint":
+    "Exactamente lo que Copiar resumen pondrá en el portapapeles.",
+  "brief.preview.label": "Vista previa exacta del texto para copiar",
   "brief.loading": "Preparando el resumen…",
   "brief.flights": "Vuelos",
   "brief.stays": "Estancias",
@@ -2117,11 +2216,45 @@ const es: Record<MessageKey, string> = {
   "review.confirm": "Confirmar",
   "review.editConfirm": "Editar y confirmar",
   "review.dismiss": "Descartar",
+  "review.amendment.label": "Posible modificación",
+  "review.amendment.title": "Esto puede actualizar una reserva aprobada",
+  "review.amendment.note":
+    "Compara los campos modificados. Reemplazar conserva ambas versiones aprobadas en el historial; Conservar ambas crea una reserva separada.",
+  "review.amendment.current": "Actual",
+  "review.amendment.imported": "Importado",
+  "review.amendment.blank": "Vacío o eliminado",
+  "review.amendment.stale.title": "La reserva aprobada volvió a cambiar",
+  "review.amendment.stale.body":
+    "Esta sugerencia ya no apunta a la versión actual. No puede reemplazar nada de forma segura; consérvala como una reserva separada o descártala.",
+  "review.amendment.replace": "Reemplazar actual",
+  "review.amendment.keep": "Conservar ambas",
+  "review.amendment.replace.label": "Reemplazar la versión actual de {fact}",
+  "review.amendment.keep.label": "Conservar la actual y agregar {fact}",
   "review.cancelEdit.label": "Cancelar edición de {fact}",
   "review.saveConfirm.label": "Guardar y confirmar {fact}",
   "review.confirm.label": "Confirmar {fact}",
   "review.editConfirm.label": "Editar y confirmar {fact}",
   "review.dismiss.label": "Descartar {fact}",
+  "history.current": "Con versiones · restaurar desde el historial",
+  "history.previous.one": "{count} versión aprobada anterior",
+  "history.previous.other": "{count} versiones aprobadas anteriores",
+  "history.note":
+    "El historial solo se amplía. Restaurar crea una nueva versión actual y conserva cada aprobación anterior.",
+  "history.currentVersion": "Actual: {fact}",
+  "history.approvedAt": "Aprobada el {date}",
+  "history.method": "Extracción: {method}",
+  "history.source.imported": "Evidencia importada conservada",
+  "history.source.removed": "Documento fuente eliminado",
+  "history.source.manual": "Agregada manualmente",
+  "history.values": "Valores aprobados",
+  "history.reason.initial": "Aprobación original",
+  "history.reason.amendment": "Reemplazada por una modificación",
+  "history.reason.restore": "Reemplazada por una restauración",
+  "history.restore": "Restaurar",
+  "history.restore.label":
+    "Restaurar la versión aprobada de {fact}; esto sustituirá la versión actual {current}",
+  "history.announce.restored":
+    "Se restauró {fact} como una nueva versión actual.",
   "review.empty.title": "Todo al día",
   "review.empty.body":
     "Todas las sugerencias han sido confirmadas o descartadas.",
@@ -2722,6 +2855,10 @@ const es: Record<MessageKey, string> = {
     "Voyalier encontró {count} nueva sugerencia para revisar; nada cambia hasta que confirmes.",
   "import.found.other":
     "Voyalier encontró {count} nuevas sugerencias para revisar; nada cambia hasta que confirmes.",
+  "import.duplicatesIgnored.one":
+    "Se ignoró {count} reserva sin cambios que ya estaba en tu viaje.",
+  "import.duplicatesIgnored.other":
+    "Se ignoraron {count} reservas sin cambios que ya estaban en tu viaje.",
   "review.count.one": "{count} sugerencia para revisar",
   "review.count.other": "{count} sugerencias para revisar",
   "packs.places.one": "{count} lugar",
@@ -3100,6 +3237,7 @@ const es: Record<MessageKey, string> = {
   "notes.tooLong":
     "Eso es más largo de lo que Voyalier puede almacenar. No se guardó nada.",
   "ics.export": "Exportar calendario",
+  "ics.download": "Descargar .ics",
   "ics.exporting": "Preparando…",
   "ics.error": "No se pudo generar el archivo de calendario.",
   "ics.done": "Archivo de calendario guardado.",
@@ -3107,6 +3245,23 @@ const es: Record<MessageKey, string> = {
   "ics.summary.stay": "Estancia — {property}",
   "ics.description":
     "Exportado desde Voyalier. Las horas son las que aparecen en tu confirmación, sin zona horaria; Voyalier no la asume, por lo que tu calendario las mostrará en su propia hora local. No se incluyen códigos de confirmación ni nombres de viajeros.",
+  "ics.preview.title": "Instantánea del calendario",
+  "ics.preview.description":
+    "Revisa lo que puede entrar en el archivo único antes de descargarlo.",
+  "ics.preview.limit.title": "Archivo único con horas locales",
+  "ics.preview.limit.body":
+    "Este archivo de texto sin cifrar no es sincronización. Voyalier no deduce zonas horarias ni elimina eventos ya importados en otro calendario. Tu aplicación de calendario puede copiar o sincronizar el archivo, e importarlo de nuevo puede crear duplicados.",
+  "ics.preview.count.one": "Se incluirá {count} evento.",
+  "ics.preview.count.other": "Se incluirán {count} eventos.",
+  "ics.preview.events": "Eventos exactos del archivo",
+  "ics.preview.empty": "No hay eventos con fecha para descargar.",
+  "ics.preview.omissions": "No incluido",
+  "ics.preview.noOmissions":
+    "Se pueden incluir todos los elementos programados.",
+  "ics.preview.removals":
+    "Funciones exportadas anteriormente que ya no existen",
+  "ics.omission.missing_date": "sin fecha registrada",
+  "ics.omission.invalid_date": "fecha registrada no válida",
   "documents.title": "Documentos importados",
   "documents.intro":
     "Las confirmaciones que trajiste. Voyalier conserva el texto original para que puedas verificar qué leyó y eliminarlo cuando quieras.",
@@ -3205,7 +3360,7 @@ const es: Record<MessageKey, string> = {
 
   "resources.title": "Lecturas guardadas",
   "resources.intro":
-    "Enlaces y archivos que guardas con este viaje para leerlos más tarde.",
+    "Enlaces que guardas con este viaje para leerlos más tarde.",
   "resources.hint.notEvidence":
     "Una lectura guardada es material de lectura y nada más. Voyalier nunca la convierte en una reserva confirmada, nunca la trata como evidencia y nunca cambia la preparación de tu viaje.",
   "resources.hint.import":

@@ -11,12 +11,12 @@ use voyalier_core::{
     ImportDocumentInput, ImportResult, InterestProfile, KeyValidation, LocalAiStatus,
     LocalModelPullResult, OfflineMapArchive, OfflineMapChunk, PackInfo, PackSuggestion,
     PackingItem, PersonaWeights, PlaceSummary, ProviderConfig, PublicHolidaysSnapshot,
-    RecheckReport, Recommendation, ResearchSettings, Resource, SavePlaceInput, SavedPlace,
-    SearchHit, SetInterestProfileInput, SetResearchSettingsInput, SetVisaItemProgressInput,
-    SetVisaNationalityInput, TodayView, Trip, TripBrief, TripDetail, TripItem, TripNotes,
-    TripSummary, UpdatePackingItemInput, UpdateResourceInput, UpdateSavedPlaceInput,
-    UpdateTripInput, UpdateTripItemInput, VaultStatus, VisaPrep, WeatherSnapshot,
-    WorkspaceSearchHit,
+    RecheckReport, Recommendation, ResearchSettings, Resource, RestoreFactVersionInput,
+    SavePlaceInput, SavedPlace, SearchHit, SetInterestProfileInput, SetResearchSettingsInput,
+    SetVisaItemProgressInput, SetVisaNationalityInput, TodayView, Trip, TripBrief, TripDetail,
+    TripItem, TripNotes, TripSummary, UpdatePackingItemInput, UpdateResourceInput,
+    UpdateSavedPlaceInput, UpdateTripInput, UpdateTripItemInput, VaultStatus, VisaPrep,
+    WeatherSnapshot, WorkspaceSearchHit,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -858,6 +858,14 @@ fn unconfirm_fact(input: FactIdInput, service: State<'_, AppService>) -> Result<
     service.unconfirm_fact(&input.fact_id)
 }
 
+#[tauri::command]
+fn restore_fact_version(
+    input: RestoreFactVersionInput,
+    service: State<'_, AppService>,
+) -> Result<ConfirmedFact, AppError> {
+    service.restore_fact_version(input)
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct GetAppSettingInput {
@@ -1660,6 +1668,7 @@ fn builder<R: tauri::Runtime>(
             reject_candidate,
             add_manual_fact,
             unconfirm_fact,
+            restore_fact_version,
             get_app_setting,
             set_app_setting,
             backup_database,

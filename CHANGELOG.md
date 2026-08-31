@@ -8,6 +8,27 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Added
 
+- **Repeat confirmations can now be reviewed as explicit amendments.** Exact
+  unchanged reservations are left out of the review queue; a conservative
+  single match shows the current/imported difference and requires Replace or
+  Keep both. Replacements and restores append approved versions, preserve local
+  calendar lineage, and keep prior evidence inspectable. Missing or ambiguous
+  reservation context remains an ordinary suggestion rather than a guessed
+  overwrite.
+- **Journey Board now reads approved travel and authored plans as one itinerary spine.**
+  Departures, arrivals, check-ins, stay nights, check-outs, and traveler plans
+  keep their distinct source identity across trip days, with honest Before,
+  After, and Unscheduled lanes. The board does not route, optimize, infer time
+  zones, or claim live status.
+- **Calendar export now uses stable local lineage and an omission preview.**
+  Reordering or inserting records no longer changes existing event UIDs;
+  departures and arrivals have separate roles, surface travel is included, and
+  semantic plan edits increment `SEQUENCE`. The download remains a one-time
+  floating-time snapshot, not synchronization, and does not infer a timezone.
+- **Shareable briefs can now be narrowed before Copy or Print.** Full redacted
+  remains the default; Travel essentials excludes traveler-authored activities,
+  and the dialog shows the exact plain text Copy will place on the clipboard.
+  Both choices stay inside the existing generation-time redaction boundary.
 - **Find in this trip now returns every match to its local source.** A visible
   **Show source** action focuses the exact confirmed fact, imported document, or
   saved-reading row while keeping the query and record identifier out of the
@@ -25,6 +46,10 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Fixed
 
+- **Research-resource copy now matches the shipped link-only capture flow.**
+  Current product guidance no longer promises dropped-file storage that the
+  interface does not provide. The dormant file-kind contract remains for
+  metadata-only compatibility; Voyalier still does not store resource bytes.
 - **Release builds no longer inherit every Tauri bundle format.** The base
   configuration now fails closed with no publishable target; macOS explicitly
   owns app and DMG bundles, while Windows owns NSIS and MSI. Linux remains
@@ -1022,13 +1047,13 @@ below for the bulk of the work.
   from material you have confirmed, and the line between them does not move
   because something would be more convenient on the other side.
 
-  **Research resources** are links and files you keep with a trip, each with your
+  **Research resources** are links you keep with a trip, each with your
   own title, note, and tags. The important word is _reading_. A resource is never
   evidence: it produces no confirmed booking, no pending candidate to review, and
   it cannot move the readiness rollup. Drop a booking confirmation into it and it
   is filed rather than imported — the panel says so and points at the import flow,
   because quietly parsing it would be the app deciding that your filing was a
-  mistake. Saving contacts nothing and is instant.
+  mistake. Saving a link contacts nothing and is instant.
 
   Fetching what a page _says_ is a separate thing, and it asks. One reversible
   setting, off until you turn it on, and until then the fetch control is absent

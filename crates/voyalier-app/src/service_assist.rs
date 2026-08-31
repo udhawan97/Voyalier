@@ -273,6 +273,7 @@ impl AppService {
                 status: CandidateStatus::Pending,
                 created_at: now.clone(),
                 resolved_at: None,
+                amends_fact_id: None,
             };
             self.records(&connection).insert_candidate(&candidate)?;
             candidates.push(candidate);

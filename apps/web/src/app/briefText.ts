@@ -79,6 +79,30 @@ export interface BriefTextLabels {
   redaction: (fields: RedactedField[]) => string;
 }
 
+export type BriefContentMode = "full" | "essentials";
+
+/**
+ * Select from the already-redacted allowlist. Essentials keeps confirmed
+ * transport and stays while leaving traveler-authored activities out.
+ */
+export function selectBriefContent(
+  brief: TripBrief,
+  mode: BriefContentMode,
+): ShareSafeBriefText {
+  return {
+    title: brief.title,
+    origin: brief.origin,
+    destination: brief.destination,
+    startDate: brief.startDate,
+    endDate: brief.endDate,
+    flights: brief.flights,
+    stays: brief.stays,
+    journeys: brief.journeys,
+    tripItems: mode === "full" ? brief.tripItems : [],
+    redactedFields: brief.redactedFields,
+  };
+}
+
 type SafeValues = Record<string, string | undefined>;
 
 function detailLines(values: SafeValues, keys: readonly string[]): string[] {

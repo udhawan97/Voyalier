@@ -17,6 +17,8 @@ export interface TripSummary extends Trip {
 export interface TripDetail {
   trip: Trip;
   confirmedFacts: ConfirmedFact[];
+  /** Approved version history; product projections still use confirmedFacts only. */
+  factVersions: ConfirmedFactVersion[];
   pendingCandidateCount: number;
   /** Deterministic advisory checks over the confirmed itinerary. Empty when coherent. */
   itineraryConflicts: ItineraryConflict[];
@@ -113,6 +115,10 @@ export interface TripDetail {
   packingItems: PackingItem[];
   /** Manual activities, rail segments, and transfers; never confirmed evidence. */
   tripItems: TripItem[];
+  /** Deterministic day-by-day projection over confirmed facts and authored plans. */
+  journeyBoard: JourneyBoard;
+  /** Redacted, repeatable, floating-time calendar snapshot. */
+  calendarSnapshot: CalendarSnapshot;
 }
 /** The destination-vs-origin wall-clock gap on the trip's dates. */
 export interface TimeDifference {
@@ -569,6 +575,8 @@ export interface CandidateFact {
   status: CandidateStatus;
   createdAt: string;
   resolvedAt: string | null;
+  /** Sole active fact this candidate may amend; absent when ordinary/ambiguous. */
+  amendsFactId?: string;
 }
 export interface ConfirmedFact {
   id: string;
@@ -590,6 +598,14 @@ export interface ConfirmedFact {
    */
   sourceRemoved: boolean;
 }
+export type FactRevisionReason = "initial" | "amendment" | "restore";
+export interface ConfirmedFactVersion extends ConfirmedFact {
+  active: boolean;
+  revision: number;
+  reason: FactRevisionReason;
+  lineageRootId: string;
+  supersedesFactId?: string;
+}
 // "email" is input-only for imports: the Rust core extracts the confirmation
 // body and stores it as "html" or "pasted_text", so a stored document's kind is
 // only ever one of those two.
@@ -607,6 +623,7 @@ export interface ImportResult {
   document: SourceDocument;
   parserRunId: string;
   candidates: CandidateFact[];
+  duplicatesIgnored: number;
 }
 /**
  * A stored document plus what it produced, for the documents manager. The counts
@@ -1313,6 +1330,53 @@ export interface TodayView {
   today: TodayItem[];
   next?: TodayItem;
 }
+export interface JourneyBoardEntry extends Omit<TodayItem, "date" | "target"> {
+  date?: string;
+  target: NonNullable<TodayItem["target"]>;
+  /** Stable UI-only identity; never reused as an external calendar UID. */
+  focusLocator: string;
+}
+export interface JourneyBoardDay {
+  date: string;
+  entries: JourneyBoardEntry[];
+}
+/** A deterministic itinerary spine, including out-of-window and undated rows. */
+export interface JourneyBoard {
+  before: JourneyBoardEntry[];
+  days: JourneyBoardDay[];
+  after: JourneyBoardEntry[];
+  unscheduled: JourneyBoardEntry[];
+  /** True when a defensively capped lodging span omitted additional nights. */
+  truncated: boolean;
+}
+export type CalendarRole =
+  "departure" | "arrival" | "checkin" | "checkout" | "plan";
+export interface CalendarEvent {
+  uid: string;
+  sequence: number;
+  dtstamp: string;
+  role: CalendarRole;
+  kind: TodayItemKind;
+  subject?: string;
+  title: string;
+  detail?: string;
+  start: string;
+  end?: string;
+  allDay: boolean;
+}
+export interface CalendarOmission {
+  source: "confirmed_fact" | "trip_item";
+  role: CalendarRole;
+  title: string;
+  reason: "missing_date" | "invalid_date";
+}
+/** Redacted one-shot export state; it is not a calendar subscription. */
+export interface CalendarSnapshot {
+  title: string;
+  events: CalendarEvent[];
+  omissions: CalendarOmission[];
+  removals: string[];
+}
 /**
  * `resource` is deliberately not folded into `document`: a source document is
  * imported evidence that gets parsed, and a resource is reading material that
@@ -1350,7 +1414,10 @@ export interface WorkspaceSearchHit {
   snippet: string;
   score: number;
 }
-/** How a resource arrived: pasted as a link, or dropped in as a file. */
+/**
+ * The shipped interface saves links. `file` is a metadata-only compatibility
+ * tag; resource records never contain file bytes.
+ */
 export type ResourceKind = "link" | "file";
 
 /**
@@ -1371,7 +1438,8 @@ export interface ResourceSnapshot {
 }
 
 /**
- * A link or file the traveler deliberately kept with a trip for reading.
+ * Reading material the traveler deliberately kept with a trip. The shipped
+ * interface creates links; legacy file-kind records contain metadata only.
  *
  * Reading material, not evidence: it yields no candidate facts and affects no
  * readiness item. See `CONTEXT.md`.
@@ -1382,7 +1450,7 @@ export interface Resource {
   kind: ResourceKind;
   /** Present on links. */
   url?: string;
-  /** Present on files. */
+  /** File-name metadata on compatibility records; no file bytes are stored. */
   fileName?: string;
   title: string;
   note: string;
@@ -1682,6 +1750,14 @@ export interface ImportDocumentInput {
 export interface ConfirmCandidateInput {
   candidateId: string;
   editedPayload?: FactPayload;
+  amendmentAction?: "replace" | "keep_both";
+  expectedAmendmentFactId?: string;
+  expectedAmendmentRevision?: number;
+}
+export interface RestoreFactVersionInput {
+  factId: string;
+  expectedCurrentFactId?: string;
+  expectedCurrentRevision?: number;
 }
 export interface AddManualFactInput {
   tripId: string;
@@ -1988,7 +2064,7 @@ export interface AppGateway {
   /** Fetch a Wikipedia summary of the destination (Wikimedia REST), consent-gated. */
   fetchPlaceSummary(tripId: string): Promise<PlaceSummary>;
   listResources(tripId: string): Promise<Resource[]>;
-  /** Keep a link or file. Saving the same address twice returns the original. */
+  /** Keep a web link. Saving the same address twice returns the original. */
   createResource(input: CreateResourceInput): Promise<Resource>;
   updateResource(input: UpdateResourceInput): Promise<Resource>;
   deleteResource(resourceId: string): Promise<void>;
@@ -2043,6 +2119,8 @@ export interface AppGateway {
   rejectCandidate(candidateId: string): Promise<CandidateFact>;
   addManualFact(input: AddManualFactInput): Promise<ConfirmedFact>;
   unconfirmFact(factId: string): Promise<void>;
+  /** Append a compensating active version from retained approved history. */
+  restoreFactVersion(input: RestoreFactVersionInput): Promise<ConfirmedFact>;
 }
 
 export { createMockGateway } from "./mock";
@@ -2061,6 +2139,9 @@ export {
   mockScoreHaystack,
   mockSuggestPacks,
   mockBuildShareBrief,
+  mockBuildCalendarSnapshot,
+  mockBuildJourneyBoard,
+  mockClassifyAmendment,
   mockBuildTodayView,
   mockTimeDifference,
   mockTippingGuidance,

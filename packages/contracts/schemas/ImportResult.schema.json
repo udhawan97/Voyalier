@@ -4,14 +4,15 @@
   "title": "ImportResult",
   "type": "object",
   "additionalProperties": false,
-  "required": ["document", "parserRunId", "candidates"],
+  "required": ["document", "parserRunId", "candidates", "duplicatesIgnored"],
   "properties": {
     "document": { "$ref": "#/$defs/sourceDocument" },
     "parserRunId": { "type": "string" },
     "candidates": {
       "type": "array",
       "items": { "$ref": "CandidateFact.schema.json" }
-    }
+    },
+    "duplicatesIgnored": { "type": "integer", "minimum": 0 }
   },
   "$defs": {
     "sourceDocument": {

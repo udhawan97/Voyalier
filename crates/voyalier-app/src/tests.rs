@@ -9,8 +9,8 @@ use std::{fs, path::PathBuf};
 use super::*;
 use voyalier_core::KeyValidationStatus;
 use voyalier_core::{
-    CandidateStatus, DocumentKind, FactPayload, FactType, HighStakesTopic, RecheckOutcome,
-    RecheckSource, ResourceKind,
+    CalendarRole, CandidateStatus, DocumentKind, FactPayload, FactType, HighStakesTopic,
+    RecheckOutcome, RecheckSource, ResourceKind,
 };
 
 #[test]
@@ -412,6 +412,9 @@ fn unconfirm_fact_returns_linked_candidate_to_pending() {
         .confirm_candidate(ConfirmCandidateInput {
             candidate_id: candidate.id.clone(),
             edited_payload: None,
+            amendment_action: None,
+            expected_amendment_fact_id: None,
+            expected_amendment_revision: None,
         })
         .expect("confirm");
 
@@ -430,6 +433,495 @@ fn unconfirm_fact_returns_linked_candidate_to_pending() {
 
     assert_eq!(pending.len(), 1);
     assert_eq!(pending[0].id, candidate.id);
+    cleanup_database(database);
+}
+
+#[test]
+fn repeat_imports_deduplicate_replace_and_restore_without_rewriting_history() {
+    let database = temp_database("fact-amendment-history");
+    let service = open_test_service(&database).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    let original = include_str!("../../voyalier-core/fixtures/parser/jsonld-flight/input.html");
+
+    let first = service
+        .import_document(ImportDocumentInput {
+            trip_id: trip.id.clone(),
+            kind: DocumentKind::Html,
+            label: Some("Original".into()),
+            content: original.into(),
+        })
+        .expect("first import");
+    let (_, original_fact) = service
+        .confirm_candidate(ConfirmCandidateInput {
+            candidate_id: first.candidates[0].id.clone(),
+            edited_payload: None,
+            amendment_action: None,
+            expected_amendment_fact_id: None,
+            expected_amendment_revision: None,
+        })
+        .expect("confirm original");
+    let original_snapshot = service.get_trip(&trip.id).expect("original detail");
+    let original_uid = original_snapshot.calendar_snapshot.events[0].uid.clone();
+
+    let unchanged = service
+        .import_document(ImportDocumentInput {
+            trip_id: trip.id.clone(),
+            kind: DocumentKind::Html,
+            label: Some("Forwarded unchanged".into()),
+            content: original.replace(
+                "Fictional booking only.",
+                "Fictional booking only. Forwarded copy.",
+            ),
+        })
+        .expect("unchanged import");
+    assert!(unchanged.candidates.is_empty());
+    assert_eq!(unchanged.duplicates_ignored, 1);
+
+    let amendment = service
+        .import_document(ImportDocumentInput {
+            trip_id: trip.id.clone(),
+            kind: DocumentKind::Html,
+            label: Some("Schedule change".into()),
+            content: original.replace("2026-08-02T04:55", "2026-08-02T06:10"),
+        })
+        .expect("amendment import");
+    let candidate = amendment.candidates.first().expect("amendment candidate");
+    assert_eq!(
+        candidate.amends_fact_id.as_deref(),
+        Some(original_fact.id.as_str())
+    );
+
+    let (_, replacement) = service
+        .confirm_candidate(ConfirmCandidateInput {
+            candidate_id: candidate.id.clone(),
+            edited_payload: None,
+            amendment_action: Some(AmendmentAction::Replace),
+            expected_amendment_fact_id: Some(original_fact.id.clone()),
+            expected_amendment_revision: Some(0),
+        })
+        .expect("replace");
+    let replaced = service.get_trip(&trip.id).expect("replaced detail");
+    assert_eq!(replaced.confirmed_facts, vec![replacement.clone()]);
+    assert_eq!(replaced.fact_versions.len(), 2);
+    assert_eq!(
+        replaced.fact_versions.iter().filter(|v| v.active).count(),
+        1
+    );
+    assert_eq!(replaced.calendar_snapshot.events[0].uid, original_uid);
+    assert_eq!(
+        replaced
+            .calendar_snapshot
+            .events
+            .iter()
+            .find(|event| event.role == CalendarRole::Departure)
+            .expect("departure")
+            .sequence,
+        0
+    );
+    assert_eq!(
+        replaced
+            .calendar_snapshot
+            .events
+            .iter()
+            .find(|event| event.role == CalendarRole::Arrival)
+            .expect("arrival")
+            .sequence,
+        1
+    );
+
+    let original_version_id = replaced
+        .fact_versions
+        .iter()
+        .find(|version| !version.active)
+        .expect("original version")
+        .fact
+        .id
+        .clone();
+
+    let stale_restore = service
+        .restore_fact_version(RestoreFactVersionInput {
+            fact_id: original_version_id.clone(),
+            expected_current_fact_id: Some(replacement.id.clone()),
+            expected_current_revision: Some(0),
+        })
+        .expect_err("restore must compare the reviewed active version");
+    assert_eq!(stale_restore.code, ErrorCode::ValidationInvalidInput);
+
+    let restored = service
+        .restore_fact_version(RestoreFactVersionInput {
+            fact_id: original_version_id,
+            expected_current_fact_id: Some(replacement.id.clone()),
+            expected_current_revision: Some(1),
+        })
+        .expect("restore original");
+    let detail = service.get_trip(&trip.id).expect("restored detail");
+    assert_eq!(detail.confirmed_facts, vec![restored]);
+    assert_eq!(detail.fact_versions.len(), 3);
+    assert_eq!(detail.fact_versions.iter().filter(|v| v.active).count(), 1);
+    assert_eq!(detail.calendar_snapshot.events[0].uid, original_uid);
+    assert_eq!(
+        detail
+            .calendar_snapshot
+            .events
+            .iter()
+            .find(|event| event.role == CalendarRole::Departure)
+            .expect("departure")
+            .sequence,
+        0
+    );
+    assert_eq!(
+        detail
+            .calendar_snapshot
+            .events
+            .iter()
+            .find(|event| event.role == CalendarRole::Arrival)
+            .expect("arrival")
+            .sequence,
+        2
+    );
+    assert_eq!(
+        detail.confirmed_facts[0].payload.arrival_local.as_deref(),
+        Some("2026-08-02T04:55")
+    );
+
+    cleanup_database(database);
+}
+
+#[test]
+fn old_clients_default_amendments_to_keep_both() {
+    let database = temp_database("fact-amendment-default");
+    let service = open_test_service(&database).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    let original = include_str!("../../voyalier-core/fixtures/parser/jsonld-flight/input.html");
+    let first = service
+        .import_document(ImportDocumentInput {
+            trip_id: trip.id.clone(),
+            kind: DocumentKind::Html,
+            label: Some("Original".into()),
+            content: original.into(),
+        })
+        .expect("first import");
+    service
+        .confirm_candidate(ConfirmCandidateInput {
+            candidate_id: first.candidates[0].id.clone(),
+            edited_payload: None,
+            amendment_action: None,
+            expected_amendment_fact_id: None,
+            expected_amendment_revision: None,
+        })
+        .expect("confirm original");
+    let amendment = service
+        .import_document(ImportDocumentInput {
+            trip_id: trip.id.clone(),
+            kind: DocumentKind::Html,
+            label: Some("Schedule change".into()),
+            content: original.replace("2026-08-02T04:55", "2026-08-02T06:10"),
+        })
+        .expect("amendment import");
+    service
+        .confirm_candidate(ConfirmCandidateInput {
+            candidate_id: amendment.candidates[0].id.clone(),
+            edited_payload: None,
+            amendment_action: None,
+            expected_amendment_fact_id: None,
+            expected_amendment_revision: None,
+        })
+        .expect("legacy confirmation keeps both");
+    assert_eq!(
+        service
+            .get_trip(&trip.id)
+            .expect("detail")
+            .confirmed_facts
+            .len(),
+        2
+    );
+    cleanup_database(database);
+}
+
+#[test]
+fn replace_reclassifies_the_final_edited_payload() {
+    let database = temp_database("fact-amendment-final-payload");
+    let service = open_test_service(&database).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    let original = include_str!("../../voyalier-core/fixtures/parser/jsonld-flight/input.html");
+    let first = service
+        .import_document(ImportDocumentInput {
+            trip_id: trip.id.clone(),
+            kind: DocumentKind::Html,
+            label: Some("Original".into()),
+            content: original.into(),
+        })
+        .expect("first import");
+    let (_, current) = service
+        .confirm_candidate(ConfirmCandidateInput {
+            candidate_id: first.candidates[0].id.clone(),
+            edited_payload: None,
+            amendment_action: None,
+            expected_amendment_fact_id: None,
+            expected_amendment_revision: None,
+        })
+        .expect("confirm original");
+    let amendment = service
+        .import_document(ImportDocumentInput {
+            trip_id: trip.id.clone(),
+            kind: DocumentKind::Html,
+            label: Some("Schedule change".into()),
+            content: original.replace("2026-08-02T04:55", "2026-08-02T06:10"),
+        })
+        .expect("amendment import");
+    let candidate_id = amendment.candidates[0].id.clone();
+
+    let mut ordinary = current.payload.clone();
+    ordinary.confirmation_code = Some("A DIFFERENT BOOKING".into());
+    let error = service
+        .confirm_candidate(ConfirmCandidateInput {
+            candidate_id: candidate_id.clone(),
+            edited_payload: Some(ordinary),
+            amendment_action: Some(AmendmentAction::Replace),
+            expected_amendment_fact_id: Some(current.id.clone()),
+            expected_amendment_revision: Some(0),
+        })
+        .expect_err("edited ordinary payload cannot replace");
+    assert_eq!(error.code, ErrorCode::ValidationInvalidInput);
+
+    let error = service
+        .confirm_candidate(ConfirmCandidateInput {
+            candidate_id,
+            edited_payload: Some(current.payload.clone()),
+            amendment_action: Some(AmendmentAction::Replace),
+            expected_amendment_fact_id: Some(current.id),
+            expected_amendment_revision: Some(0),
+        })
+        .expect_err("edited duplicate payload cannot replace");
+    assert_eq!(error.code, ErrorCode::ValidationInvalidInput);
+    cleanup_database(database);
+}
+
+#[test]
+fn queued_amendments_reclassify_against_the_latest_current_fact() {
+    let database = temp_database("fact-amendment-queue");
+    let service = open_test_service(&database).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    let original = include_str!("../../voyalier-core/fixtures/parser/jsonld-flight/input.html");
+    let first = service
+        .import_document(ImportDocumentInput {
+            trip_id: trip.id.clone(),
+            kind: DocumentKind::Html,
+            label: Some("Original".into()),
+            content: original.into(),
+        })
+        .expect("first import");
+    let (_, initial) = service
+        .confirm_candidate(ConfirmCandidateInput {
+            candidate_id: first.candidates[0].id.clone(),
+            edited_payload: None,
+            amendment_action: None,
+            expected_amendment_fact_id: None,
+            expected_amendment_revision: None,
+        })
+        .expect("confirm original");
+    let first_change = service
+        .import_document(ImportDocumentInput {
+            trip_id: trip.id.clone(),
+            kind: DocumentKind::Html,
+            label: Some("First schedule change".into()),
+            content: original.replace("2026-08-02T04:55", "2026-08-02T06:10"),
+        })
+        .expect("first change");
+    let second_change = service
+        .import_document(ImportDocumentInput {
+            trip_id: trip.id.clone(),
+            kind: DocumentKind::Html,
+            label: Some("Second schedule change".into()),
+            content: original
+                .replace("2026-08-02T04:55", "2026-08-02T07:20")
+                .replace(
+                    "Fictional booking only.",
+                    "Fictional booking only. Second notice.",
+                ),
+        })
+        .expect("second change");
+    assert_eq!(
+        first_change.candidates[0].amends_fact_id.as_deref(),
+        Some(initial.id.as_str())
+    );
+    assert_eq!(
+        second_change.candidates[0].amends_fact_id.as_deref(),
+        Some(initial.id.as_str())
+    );
+    service
+        .confirm_candidate(ConfirmCandidateInput {
+            candidate_id: first_change.candidates[0].id.clone(),
+            edited_payload: None,
+            amendment_action: Some(AmendmentAction::Replace),
+            expected_amendment_fact_id: Some(initial.id.clone()),
+            expected_amendment_revision: Some(0),
+        })
+        .expect("first replace");
+    let stale = service
+        .confirm_candidate(ConfirmCandidateInput {
+            candidate_id: second_change.candidates[0].id.clone(),
+            edited_payload: None,
+            amendment_action: Some(AmendmentAction::Replace),
+            expected_amendment_fact_id: Some(initial.id.clone()),
+            expected_amendment_revision: Some(0),
+        })
+        .expect_err("stale review must refresh");
+    assert_eq!(stale.code, ErrorCode::ValidationInvalidInput);
+    let (_, latest) = service
+        .confirm_candidate(ConfirmCandidateInput {
+            candidate_id: second_change.candidates[0].id.clone(),
+            edited_payload: None,
+            amendment_action: Some(AmendmentAction::Replace),
+            expected_amendment_fact_id: Some(initial.id.clone()),
+            expected_amendment_revision: Some(1),
+        })
+        .expect("refreshed second replace");
+    assert_eq!(latest.id, initial.id);
+    let detail = service.get_trip(&trip.id).expect("detail");
+    assert_eq!(detail.fact_versions.len(), 3);
+    assert_eq!(
+        detail.confirmed_facts[0].payload.arrival_local.as_deref(),
+        Some("2026-08-02T07:20")
+    );
+    cleanup_database(database);
+}
+
+#[test]
+fn legacy_delete_cannot_orphan_history_but_trip_cascade_still_works() {
+    let database = temp_database("fact-history-downgrade-delete");
+    let service = open_test_service(&database).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    let fact = service
+        .add_manual_fact(AddManualFactInput {
+            trip_id: trip.id.clone(),
+            fact_type: FactType::FlightSegment,
+            payload: FactPayload {
+                departure_airport_iata: Some("ORD".into()),
+                arrival_airport_iata: Some("LHR".into()),
+                departure_local: Some("2027-04-02T10:00".into()),
+                arrival_local: Some("2027-04-02T23:00".into()),
+                ..FactPayload::default()
+            },
+        })
+        .expect("fact");
+    let connection = service.connection().expect("connection");
+    service
+        .records(&connection)
+        .snapshot_confirmed_fact(&fact.id, "fact-history-legacy")
+        .expect("snapshot");
+    let mut replacement = fact.clone();
+    replacement.payload.arrival_local = Some("2027-04-03T00:30".into());
+    replacement.confirmed_at = "2027-01-02T00:00:00Z".into();
+    service
+        .records(&connection)
+        .replace_confirmed_fact(
+            &fact.id,
+            0,
+            &replacement,
+            FactRevisionReason::Amendment,
+            "fact-history-legacy",
+        )
+        .expect("replace");
+
+    let legacy_error = connection
+        .execute("DELETE FROM confirmed_facts WHERE id=?1", params![fact.id])
+        .expect_err("old unconfirm must fail closed");
+    assert!(legacy_error.to_string().contains("append-only"));
+    assert_eq!(
+        connection
+            .query_row(
+                "SELECT COUNT(*) FROM confirmed_facts WHERE trip_id=?1",
+                params![trip.id],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("current count"),
+        1
+    );
+
+    connection
+        .execute("DELETE FROM trips WHERE id=?1", params![trip.id])
+        .expect("trip cascade remains valid");
+    assert_eq!(
+        connection
+            .query_row("SELECT COUNT(*) FROM confirmed_facts", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .expect("fact count"),
+        0
+    );
+    assert_eq!(
+        connection
+            .query_row("SELECT COUNT(*) FROM confirmed_fact_versions", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .expect("history count"),
+        0
+    );
+    drop(connection);
+    cleanup_database(database);
+}
+
+#[test]
+fn restoring_source_removed_history_nulls_only_the_current_candidate_reference() {
+    let database = temp_database("fact-history-removed-source-restore");
+    let service = open_test_service(&database).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    let fact = service
+        .add_manual_fact(AddManualFactInput {
+            trip_id: trip.id.clone(),
+            fact_type: FactType::LodgingStay,
+            payload: FactPayload {
+                property_name: Some("Paper House".into()),
+                checkin_date: Some("2027-04-02".into()),
+                checkout_date: Some("2027-04-05".into()),
+                ..FactPayload::default()
+            },
+        })
+        .expect("fact");
+    let connection = service.connection().expect("connection");
+    service
+        .records(&connection)
+        .snapshot_confirmed_fact(&fact.id, "removed-source-history")
+        .expect("snapshot");
+    connection
+        .execute(
+            "UPDATE confirmed_fact_versions
+                SET candidate_id='deleted-candidate', source_removed=1
+              WHERE id='removed-source-history'",
+            [],
+        )
+        .expect("mark removed source");
+    let mut replacement = fact.clone();
+    replacement.payload.checkout_date = Some("2027-04-06".into());
+    replacement.confirmed_at = "2027-01-02T00:00:00Z".into();
+    service
+        .records(&connection)
+        .replace_confirmed_fact(
+            &fact.id,
+            0,
+            &replacement,
+            FactRevisionReason::Amendment,
+            "removed-source-history",
+        )
+        .expect("replace");
+    drop(connection);
+
+    let restored = service
+        .restore_fact_version(RestoreFactVersionInput {
+            fact_id: "removed-source-history".into(),
+            expected_current_fact_id: Some(fact.id.clone()),
+            expected_current_revision: Some(1),
+        })
+        .expect("restore removed source");
+    assert!(restored.source_removed);
+    assert_eq!(restored.candidate_id, None);
+    let detail = service.get_trip(&trip.id).expect("detail");
+    assert!(detail.fact_versions.iter().any(|version| {
+        !version.active
+            && version.fact.candidate_id.as_deref() == Some("deleted-candidate")
+            && version.fact.source_removed
+    }));
     cleanup_database(database);
 }
 
@@ -2125,10 +2617,19 @@ fn restores_a_backup_onto_another_machine_at_the_next_launch() {
             payload: FactPayload {
                 flight_number: Some("FP18".to_owned()),
                 confirmation_code: Some("SECRET-PNR".to_owned()),
+                departure_local: Some("2027-04-02T10:00".to_owned()),
+                arrival_local: Some("2027-04-02T14:00".to_owned()),
                 ..FactPayload::default()
             },
         })
         .expect("fact a");
+    let source_uid = service_a
+        .get_trip(&trip_a.id)
+        .expect("source detail")
+        .calendar_snapshot
+        .events[0]
+        .uid
+        .clone();
     let container = service_a
         .export_backup("correct horse battery")
         .expect("export");
@@ -2177,6 +2678,7 @@ fn restores_a_backup_onto_another_machine_at_the_next_launch() {
     // The sealed payload decrypts, which is only possible because the data
     // key travelled inside the container — B's keychain never had it.
     let detail = reopened.get_trip(&trip_a.id).expect("detail");
+    assert_eq!(detail.calendar_snapshot.events[0].uid, source_uid);
     assert!(
         detail
             .confirmed_facts
@@ -5205,12 +5707,21 @@ fn sealed_columns_round_trip_through_the_vault() {
     // Populate every sealed column: a document, its candidates, a confirmed
     // fact, and notes.
     let (_document_id, candidate_ids) = import_flight_memo(&service, &trip.id);
-    service
+    let (_, confirmed_for_history) = service
         .confirm_candidate(ConfirmCandidateInput {
             candidate_id: candidate_ids[0].clone(),
             edited_payload: None,
+            amendment_action: None,
+            expected_amendment_fact_id: None,
+            expected_amendment_revision: None,
         })
         .expect("confirm");
+    let connection = service.connection().expect("history connection");
+    service
+        .records(&connection)
+        .snapshot_confirmed_fact(&confirmed_for_history.id, "fact_version_sealed")
+        .expect("history snapshot");
+    drop(connection);
     service
         .set_trip_notes(&trip.id, "Gate code 5150, ask for Rin")
         .expect("notes");
@@ -5377,10 +5888,21 @@ fn a_legacy_database_migrates_in_order_and_keeps_its_rows() {
         .query_row("SELECT count(*) FROM confirmed_facts", [], |row| row.get(0))
         .expect("count");
     assert_eq!(kept, 1);
+    let identity_count: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM itinerary_identities
+              WHERE source_kind='confirmed_fact' AND source_id='f1'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("identity backfill");
+    assert_eq!(identity_count, 1);
     // The widened constraint took effect.
     connection
         .execute(
-            "INSERT INTO candidate_facts VALUES
+            "INSERT INTO candidate_facts
+             (id, trip_id, document_id, parser_run_id, fact_type, payload, method,
+              field_spans, warnings, status, created_at, resolved_at) VALUES
              ('c2','t1','d1','r1','lodging_stay','{}','assisted','[]','[]','pending','now',NULL)",
             [],
         )
@@ -5397,6 +5919,14 @@ fn migrating_twice_is_a_no_op() {
             [],
         )
         .expect("mark");
+    let lineage_before: String = connection
+        .query_row(
+            "SELECT calendar_lineage FROM itinerary_identities
+              WHERE source_kind='confirmed_fact' AND source_id='f1'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("lineage before retry");
 
     migrate(&connection).expect("second");
 
@@ -5413,6 +5943,38 @@ fn migrating_twice_is_a_no_op() {
         )
         .expect("value");
     assert_eq!(removed, 1);
+    let lineage_after: String = connection
+        .query_row(
+            "SELECT calendar_lineage FROM itinerary_identities
+              WHERE source_kind='confirmed_fact' AND source_id='f1'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("lineage after retry");
+    assert_eq!(lineage_after, lineage_before);
+}
+
+#[test]
+fn downgrade_safe_history_migration_retries_after_a_partial_start() {
+    let connection = legacy_database();
+    for migration in MIGRATIONS.iter().filter(|migration| migration.to <= 20) {
+        (migration.run)(&connection).expect("migration through v20");
+    }
+    connection
+        .execute_batch(
+            "ALTER TABLE itinerary_identities
+               ADD COLUMN semantic_updated_at TEXT NOT NULL
+               DEFAULT '1970-01-01T00:00:00Z';",
+        )
+        .expect("partial first operation");
+
+    migrate_downgrade_safe_fact_versions(&connection).expect("resume migration");
+    migrate_downgrade_safe_fact_versions(&connection).expect("retry migration");
+
+    assert!(columns_of(&connection, "confirmed_fact_versions").contains(&"payload".to_owned()));
+    assert!(
+        columns_of(&connection, "itinerary_identities").contains(&"semantic_updated_at".to_owned())
+    );
 }
 
 #[test]
@@ -5428,6 +5990,134 @@ fn a_fresh_database_is_stamped_at_the_target_version() {
         assert!(columns_of(&connection, "confirmed_facts").contains(&"source_removed".to_owned()));
     }
     drop(service);
+    cleanup_database(path);
+}
+
+#[test]
+fn itinerary_identity_survives_reads_and_only_semantic_plan_edits_increment() {
+    let path = temp_database("itinerary-identity");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let service = AppService::open_path_with_deps(&path, Arc::new(UreqFetcher), secrets.clone())
+        .expect("service");
+    let trip = service
+        .create_trip(CreateTripInput {
+            title: Some("Paris".into()),
+            origin: "Chicago".into(),
+            destination: "Paris".into(),
+            start_date: "2027-04-01".into(),
+            end_date: "2027-04-05".into(),
+        })
+        .expect("trip");
+    let item = service
+        .create_trip_item(CreateTripItemInput {
+            trip_id: trip.id.clone(),
+            kind: voyalier_core::TripItemKind::Activity,
+            title: "Museum".into(),
+            location: Some("Center".into()),
+            start_at: Some("2027-04-02T10:00".into()),
+            end_at: None,
+            notes: Some("private first note".into()),
+            saved_place_id: None,
+        })
+        .expect("item");
+    let item_id = item.id.clone();
+    let first = service.get_trip(&trip.id).expect("first projection");
+    let event = first
+        .calendar_snapshot
+        .events
+        .iter()
+        .find(|event| event.role == voyalier_core::CalendarRole::Plan)
+        .expect("plan event");
+    let uid = event.uid.clone();
+    assert_eq!(event.sequence, 0);
+    assert!(!uid.contains(&item.id));
+    assert!(
+        !first
+            .journey_board
+            .days
+            .iter()
+            .flat_map(|day| &day.entries)
+            .find(|entry| entry.target.record_id == item.id)
+            .expect("plan entry")
+            .focus_locator
+            .contains(&item.id)
+    );
+
+    service
+        .update_trip_item(UpdateTripItemInput {
+            trip_item_id: item.id.clone(),
+            kind: item.kind,
+            title: item.title.clone(),
+            location: item.location.clone(),
+            start_at: item.start_at.clone(),
+            end_at: item.end_at.clone(),
+            notes: Some("private changed note".into()),
+            saved_place_id: None,
+        })
+        .expect("note-only edit");
+    let note_only = service.get_trip(&trip.id).expect("note-only projection");
+    let note_event = note_only
+        .calendar_snapshot
+        .events
+        .iter()
+        .find(|event| event.role == voyalier_core::CalendarRole::Plan)
+        .expect("plan event");
+    assert_eq!(note_event, event);
+    assert_eq!(note_event.uid, uid);
+    assert_eq!(note_event.sequence, 0);
+
+    service
+        .update_trip_item(UpdateTripItemInput {
+            trip_item_id: item_id.clone(),
+            kind: item.kind,
+            title: "Museum after lunch".into(),
+            location: item.location,
+            start_at: item.start_at,
+            end_at: item.end_at,
+            notes: Some("private changed note".into()),
+            saved_place_id: None,
+        })
+        .expect("semantic edit");
+    let changed = service.get_trip(&trip.id).expect("changed projection");
+    let changed_event = changed
+        .calendar_snapshot
+        .events
+        .iter()
+        .find(|event| event.role == voyalier_core::CalendarRole::Plan)
+        .expect("plan event");
+    assert_eq!(changed_event.uid, uid);
+    assert_eq!(changed_event.sequence, 1);
+    drop(service);
+
+    let reopened =
+        AppService::open_path_with_deps(&path, Arc::new(UreqFetcher), secrets).expect("reopen");
+    let reopened_event = reopened
+        .get_trip(&trip.id)
+        .expect("reopened projection")
+        .calendar_snapshot
+        .events
+        .into_iter()
+        .find(|event| event.role == voyalier_core::CalendarRole::Plan)
+        .expect("plan event");
+    assert_eq!(reopened_event.uid, uid);
+    assert_eq!(reopened_event.sequence, 1);
+    reopened
+        .connection()
+        .expect("connection")
+        .execute(
+            "DELETE FROM itinerary_identities
+              WHERE source_kind='trip_item' AND source_id=?1",
+            params![item_id],
+        )
+        .expect("remove identity");
+    assert_eq!(
+        reopened
+            .get_trip(&trip.id)
+            .expect_err("missing identity fails closed")
+            .code,
+        ErrorCode::StorageFailure
+    );
+    drop(reopened);
     cleanup_database(path);
 }
 
@@ -5898,6 +6588,9 @@ fn documents_are_listed_newest_first_with_their_candidate_counts() {
         .confirm_candidate(ConfirmCandidateInput {
             candidate_id: pending[0].id.clone(),
             edited_payload: None,
+            amendment_action: None,
+            expected_amendment_fact_id: None,
+            expected_amendment_revision: None,
         })
         .expect("confirm");
     let documents = service.list_documents(&trip.id).expect("list");
@@ -5940,6 +6633,9 @@ fn deleting_a_document_drops_pending_candidates_but_keeps_confirmed_facts() {
         .confirm_candidate(ConfirmCandidateInput {
             candidate_id: candidates[0].clone(),
             edited_payload: None,
+            amendment_action: None,
+            expected_amendment_fact_id: None,
+            expected_amendment_revision: None,
         })
         .expect("confirm");
 

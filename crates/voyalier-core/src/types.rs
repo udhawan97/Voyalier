@@ -8,11 +8,13 @@ use uuid::Uuid;
 use crate::advisories::AdvisoryPanel;
 use crate::airports::NearbyAirport;
 use crate::astro::{AstroDay, SkyEvent};
+use crate::calendar::CalendarSnapshot;
 use crate::co2::FlightEmissions;
 use crate::contingency::DisruptionPlan;
 use crate::facts::{ClockChange, CountryFacts, DestinationFactsSnapshot, TimeDifference};
 use crate::heritage::HeritageSite;
 use crate::holidays::PublicHolidaysSnapshot;
+use crate::journey_board::JourneyBoard;
 use crate::packing::PackingSuggestion;
 use crate::place_summary::PlaceSummary;
 use crate::planning::{InterestProfile, PackingItem, SavedPlace, TripItem};
@@ -80,6 +82,11 @@ pub struct TripSummary {
 pub struct TripDetail {
     pub trip: Trip,
     pub confirmed_facts: Vec<ConfirmedFact>,
+    /// Every approved version, including the active one. Consumers use
+    /// `confirmed_facts` for product projections and this explicit collection
+    /// only for inspect/restore history.
+    #[serde(default)]
+    pub fact_versions: Vec<ConfirmedFactVersion>,
     pub pending_candidate_count: u32,
     /// Deterministic, advisory cross-segment checks over the confirmed facts.
     /// Always present; empty when the itinerary is coherent. Never blocks confirmation.
@@ -174,6 +181,12 @@ pub struct TripDetail {
     /// evidence-backed confirmed facts.
     #[serde(default)]
     pub trip_items: Vec<TripItem>,
+    /// Deterministic itinerary spine over confirmed facts and authored plans.
+    #[serde(default, skip_deserializing)]
+    pub journey_board: JourneyBoard,
+    /// Redacted one-shot calendar projection with stable local lineage.
+    #[serde(default, skip_deserializing)]
+    pub calendar_snapshot: CalendarSnapshot,
     /// Where the plan depends on the previous thing having gone right, derived
     /// on read from the confirmed facts. Advisory only: it never enters the
     /// readiness rollup, and it never proposes an alternative service
@@ -633,6 +646,10 @@ pub struct CandidateFact {
     pub status: CandidateStatus,
     pub created_at: String,
     pub resolved_at: Option<String>,
+    /// The sole active fact this import may amend. Absent means the candidate
+    /// is an ordinary new fact; ambiguity is never collapsed into a guess.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub amends_fact_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -654,6 +671,27 @@ pub struct ConfirmedFact {
     /// "added by hand". A fact whose source was removed is a different thing,
     /// and conflating the two would offer to show evidence that no longer exists.
     pub source_removed: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FactRevisionReason {
+    Initial,
+    Amendment,
+    Restore,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfirmedFactVersion {
+    #[serde(flatten)]
+    pub fact: ConfirmedFact,
+    pub active: bool,
+    pub revision: u32,
+    pub reason: FactRevisionReason,
+    pub lineage_root_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supersedes_fact_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -684,6 +722,9 @@ pub struct ImportResult {
     pub document: SourceDocument,
     pub parser_run_id: String,
     pub candidates: Vec<CandidateFact>,
+    /// Exact unchanged reservation matches intentionally omitted from review.
+    #[serde(default)]
+    pub duplicates_ignored: u32,
 }
 
 /// The most a trip's notes may hold. Generous for prose, bounded so a paste
@@ -903,6 +944,34 @@ pub struct ConfirmCandidateInput {
     pub candidate_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub edited_payload: Option<FactPayload>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub amendment_action: Option<AmendmentAction>,
+    /// Exact active version the traveler reviewed before choosing Replace.
+    /// Omitted by older clients, which remain safe because omission is accepted
+    /// only for Keep both / ordinary confirmation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_amendment_fact_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_amendment_revision: Option<u32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AmendmentAction {
+    Replace,
+    KeepBoth,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreFactVersionInput {
+    pub fact_id: String,
+    /// Exact active version shown beside the historical value. Restore is a
+    /// compare-and-swap decision and fails when either value is absent/stale.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_current_fact_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_current_revision: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

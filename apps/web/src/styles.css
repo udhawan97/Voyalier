@@ -4084,12 +4084,246 @@ h3 {
   overflow-wrap: anywhere;
 }
 
+/* ===== Journey Board =================================================== */
+
+.voy-calendar-preview {
+  display: grid;
+  gap: var(--voy-space-md);
+}
+
+.voy-calendar-preview h3,
+.voy-calendar-preview p,
+.voy-calendar-preview ul {
+  margin: 0;
+}
+
+.voy-calendar-preview h3 {
+  font-family: var(--voy-font-display);
+  font-size: var(--voy-text-md);
+}
+
+.voy-calendar-preview ul {
+  padding-inline-start: var(--voy-space-lg);
+  color: var(--voy-ink-muted);
+}
+
+.voy-calendar-preview__count {
+  font-weight: var(--voy-w-medium);
+}
+
+.voy-journey {
+  margin: var(--voy-space-xl) 0;
+  padding: clamp(1rem, 3vw, 1.6rem);
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-lg);
+  background: var(--voy-paper-raised);
+  box-shadow: var(--voy-shadow-sm);
+}
+
+.voy-journey__head {
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.45fr) minmax(16rem, 1fr);
+  gap: var(--voy-space-lg);
+  align-items: baseline;
+  padding-bottom: var(--voy-space-md);
+  border-bottom: 1px solid var(--voy-line);
+}
+
+.voy-journey__head p {
+  margin: 0;
+  color: var(--voy-ink-muted);
+  line-height: 1.55;
+}
+
+.voy-journey__days,
+.voy-journey__entries {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.voy-journey__days {
+  position: relative;
+}
+
+.voy-journey__days::before {
+  content: "";
+  position: absolute;
+  inset-block: 1.3rem;
+  inset-inline-start: 8.6rem;
+  width: 1px;
+  background: var(--voy-line-strong);
+}
+
+.voy-journey__day {
+  position: relative;
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: var(--voy-space-lg);
+  padding: var(--voy-space-md) 0;
+}
+
+.voy-journey__day > h3 {
+  margin: 0;
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+  font-weight: var(--voy-w-strong);
+  line-height: 1.45;
+}
+
+.voy-journey__day--outside > h3 {
+  color: var(--voy-vermilion);
+}
+
+.voy-journey__entries {
+  display: grid;
+  gap: var(--voy-space-sm);
+}
+
+.voy-journey__entry {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--voy-space-sm);
+  align-items: start;
+  min-width: 0;
+  padding-inline-start: var(--voy-space-md);
+}
+
+.voy-journey__dot {
+  position: absolute;
+  inset-inline-start: -1.92rem;
+  inset-block-start: 0.45rem;
+  width: 0.68rem;
+  height: 0.68rem;
+  border: 2px solid var(--voy-paper-raised);
+  border-radius: 999px;
+  background: var(--voy-indigo);
+  box-shadow: 0 0 0 1px var(--voy-indigo);
+}
+
+.voy-journey__entry--trip_item .voy-journey__dot {
+  background: var(--voy-moss);
+  box-shadow: 0 0 0 1px var(--voy-moss);
+}
+
+.voy-journey__entry-copy {
+  display: grid;
+  min-width: 0;
+}
+
+.voy-journey__entry-title {
+  font-weight: var(--voy-w-medium);
+}
+
+.voy-journey__entry-detail,
+.voy-journey__empty {
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+  line-height: 1.45;
+}
+
+.voy-journey__entry-detail {
+  overflow-wrap: anywhere;
+}
+
+.voy-journey__source {
+  width: fit-content;
+  margin-top: 0.2rem;
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-xs);
+  font-weight: var(--voy-w-strong);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.voy-journey__warning {
+  color: var(--voy-warn, #b45309);
+  max-width: 72ch;
+}
+
+.voy-journey__empty {
+  margin: 0;
+  padding-inline-start: var(--voy-space-md);
+}
+
+.voy-journey__open {
+  padding-block: var(--voy-space-2xs);
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .voy-journey__head,
+  .voy-journey__day {
+    grid-template-columns: 1fr;
+    gap: var(--voy-space-sm);
+  }
+
+  .voy-journey__days::before {
+    inset-inline-start: 0.3rem;
+  }
+
+  .voy-journey__entries {
+    padding-inline-start: var(--voy-space-md);
+  }
+
+  .voy-journey__dot {
+    inset-inline-start: -1.08rem;
+  }
+}
+
 /* ===== Shareable brief ================================================= */
 
+.voy-brief-shell,
 .voy-brief {
   display: flex;
   flex-direction: column;
   gap: 1.6rem;
+}
+
+.voy-brief__controls {
+  display: grid;
+  gap: var(--voy-space-md);
+  padding: var(--voy-space-md);
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-lg);
+  background: var(--voy-paper-sunken);
+}
+
+.voy-brief__copy-preview {
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.42fr) minmax(16rem, 1fr);
+  gap: var(--voy-space-md);
+  align-items: start;
+}
+
+.voy-brief__copy-preview h3,
+.voy-brief__copy-preview p {
+  margin: 0;
+}
+
+.voy-brief__copy-preview h3 {
+  font-family: var(--voy-font-display);
+  font-size: var(--voy-text-md);
+}
+
+.voy-brief__copy-preview p {
+  margin-top: var(--voy-space-2xs);
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+  line-height: 1.45;
+}
+
+.voy-brief__copy-preview textarea {
+  width: 100%;
+  min-height: 11rem;
+  resize: vertical;
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-md);
+  padding: var(--voy-space-sm);
+  background: var(--voy-paper-raised);
+  color: var(--voy-ink);
+  font: 0.78rem/1.55 var(--voy-font-mono);
 }
 
 .voy-brief__head {
@@ -4218,8 +4452,15 @@ h3 {
 
   .voy-dialog__desc,
   .voy-dialog__foot,
-  .voy-dialog__head .voy-icon-btn {
+  .voy-dialog__head .voy-icon-btn,
+  .voy-brief__controls {
     display: none !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .voy-brief__copy-preview {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -4466,6 +4707,94 @@ h3 {
   justify-content: flex-end;
 }
 
+.voy-fact__versioned {
+  color: var(--voy-ink-muted);
+  font-size: 0.78rem;
+}
+
+.voy-fact-history {
+  margin-top: 1.2rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-sunken);
+}
+
+.voy-fact-history summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.voy-fact-history__note {
+  color: var(--voy-ink-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.voy-fact-history__list {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0.8rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.voy-fact-history__lineage + .voy-fact-history__lineage {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--voy-line-strong);
+}
+
+.voy-fact-history__lineage > h3 {
+  margin: 1rem 0 0;
+  font-size: var(--voy-text-sm);
+}
+
+.voy-fact-history__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 1rem;
+  padding: 0.8rem 0;
+  border-top: 1px solid var(--voy-line);
+}
+
+.voy-fact-history__head {
+  grid-column: 1 / -1;
+}
+
+.voy-fact-history__values {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0.5rem 0 0;
+}
+
+.voy-fact-history__values div {
+  min-width: 0;
+}
+
+.voy-fact-history__values dt {
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-xs);
+}
+
+.voy-fact-history__values dd {
+  margin: 0.1rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.voy-fact-history__item div,
+.voy-fact-history__item span {
+  display: block;
+}
+
+.voy-fact-history__item span {
+  margin-top: 0.15rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.78rem;
+}
+
 /* ===== Overlay & dialog ================================================ */
 
 .voy-overlay {
@@ -4702,6 +5031,52 @@ h3 {
   margin: 1rem 0;
   color: var(--voy-ink-muted);
   font-size: 0.85rem;
+}
+
+.voy-review__amendment {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--voy-copper) 42%, transparent);
+  border-radius: var(--voy-radius-md);
+  background: color-mix(in srgb, var(--voy-copper) 7%, var(--voy-paper));
+}
+
+.voy-review__amendment-title,
+.voy-review__amendment-note {
+  margin: 0;
+}
+
+.voy-review__amendment-title {
+  font-weight: 700;
+}
+
+.voy-review__amendment-note {
+  margin-top: 0.3rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.voy-review__diff {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0.8rem 0 0;
+}
+
+.voy-review__diff div {
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.4fr) 1fr;
+  gap: 0.7rem;
+}
+
+.voy-review__diff dt {
+  color: var(--voy-ink-muted);
+  font-size: 0.78rem;
+}
+
+.voy-review__diff dd {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .voy-review__actions {

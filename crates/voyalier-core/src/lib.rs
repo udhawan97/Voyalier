@@ -7,11 +7,13 @@ mod advice;
 mod advisories;
 mod airports;
 mod alerts;
+mod amendment;
 mod assist;
 mod assist_draft;
 mod astro;
 mod backup;
 mod brief;
+mod calendar;
 mod chat;
 mod climate;
 mod co2;
@@ -23,6 +25,7 @@ mod geo;
 mod heritage;
 mod holidays;
 mod itinerary;
+mod journey_board;
 mod local_ai;
 mod missions;
 mod packing;
@@ -67,6 +70,7 @@ pub use airports::{
     nearest_airports,
 };
 pub use alerts::{WeatherAlert, nws_alerts, parse_nws_alerts};
+pub use amendment::{AmendmentMatch, classify_amendment};
 pub use assist::{
     ASSIST_SYSTEM_PROMPT, AssistActivityEntry, AssistReply, AssistRequest, AssistRequestPreview,
     MAX_AI_PROMPT_LEN, build_assist_preview, build_assist_request, estimate_tokens,
@@ -87,6 +91,11 @@ pub use backup::{
     BACKUP_FORMAT_VERSION, BACKUP_MAGIC, BackupManifest, OpenedBackup, open_backup, seal_backup,
 };
 pub use brief::{BriefTripItem, RedactionPolicy, TripBrief, build_trip_brief};
+pub use calendar::{
+    CalendarEvent, CalendarOmission, CalendarOmissionReason, CalendarRole, CalendarSnapshot,
+    ItineraryIdentity, ProjectionError, apply_fact_history_revisions, build_calendar_snapshot,
+    removed_calendar_roles,
+};
 pub use chat::{
     CHAT_SYSTEM_PROMPT, ChatContext, ChatGrounding, ChatMessage, ChatPrompt, ChatRole,
     HighStakesTopic, MAX_CHAT_CONTEXT_RECORDS, MAX_CHAT_EXCERPT_CHARS, MAX_CHAT_HISTORY_MESSAGES,
@@ -119,6 +128,9 @@ pub use holidays::{
     school_holidays, school_holidays_covered, school_holidays_within,
 };
 pub use itinerary::{detect_itinerary_conflicts, detect_planned_item_conflicts, fact_label};
+pub use journey_board::{
+    JourneyBoard, JourneyBoardDay, JourneyBoardEntry, build_journey_board_with_identities,
+};
 pub use local_ai::{
     LocalAiModel, LocalAiStatus, LocalModelPullResult, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,
     build_pull_body, interpret_pull_response, parse_ollama_models,

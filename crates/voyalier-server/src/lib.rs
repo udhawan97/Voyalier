@@ -16,9 +16,9 @@ use voyalier_core::{
     AddManualFactInput, AddPackingItemInput, AppError, CandidateFact, CandidateStatus,
     ConfirmCandidateInput, ConfirmedFact, CreateResourceInput, CreateTripInput,
     CreateTripItemInput, ErrorCode, HealthResponse, ImportDocumentInput, PersonaWeights,
-    SavePlaceInput, SetInterestProfileInput, SetResearchSettingsInput, SetVisaItemProgressInput,
-    SetVisaNationalityInput, UpdatePackingItemInput, UpdateResourceInput, UpdateSavedPlaceInput,
-    UpdateTripInput, UpdateTripItemInput,
+    RestoreFactVersionInput, SavePlaceInput, SetInterestProfileInput, SetResearchSettingsInput,
+    SetVisaItemProgressInput, SetVisaNationalityInput, UpdatePackingItemInput, UpdateResourceInput,
+    UpdateSavedPlaceInput, UpdateTripInput, UpdateTripItemInput,
 };
 
 #[derive(Debug, Serialize)]
@@ -325,6 +325,10 @@ pub fn app(service: AppService, address: SocketAddr) -> Router {
         )
         .route("/api/v1/trips/{trip_id}/facts", post(add_manual_fact))
         .route("/api/v1/facts/{fact_id}", delete(unconfirm_fact))
+        .route(
+            "/api/v1/facts/{fact_id}/restore",
+            post(restore_fact_version),
+        )
         .with_state(service)
         .layer(middleware::from_fn_with_state(
             Arc::new(allowed_hosts(address)),
@@ -975,6 +979,20 @@ async fn unconfirm_fact(
 ) -> Result<impl IntoResponse, ApiError> {
     service.unconfirm_fact(&fact_id)?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+async fn restore_fact_version(
+    State(service): State<AppService>,
+    Path(fact_id): Path<String>,
+    Json(input): Json<RestoreFactVersionInput>,
+) -> Result<impl IntoResponse, ApiError> {
+    if fact_id != input.fact_id {
+        return Err(ApiError(AppError::new(
+            ErrorCode::ValidationInvalidInput,
+            "path fact id does not match body fact id",
+        )));
+    }
+    Ok(Json(service.restore_fact_version(input)?))
 }
 
 /// The `Host` values this server answers to, derived from the address it bound.

@@ -47,7 +47,8 @@
     "createdAt": { "type": "string", "format": "date-time" },
     "resolvedAt": {
       "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }]
-    }
+    },
+    "amendsFactId": { "type": "string" }
   },
   "$defs": {
     "factPayload": {

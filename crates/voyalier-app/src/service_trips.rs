@@ -50,6 +50,7 @@ impl AppService {
         let connection = self.connection()?;
         let trip = self.records(&connection).trip(trip_id)?;
         let confirmed_facts = self.records(&connection).confirmed_facts(trip_id)?;
+        let fact_versions = self.records(&connection).confirmed_fact_versions(trip_id)?;
         let pending_candidate_count: i64 = connection
             .query_row(
                 "SELECT COUNT(*) FROM candidate_facts WHERE trip_id = ?1 AND status = 'pending'",
@@ -59,6 +60,19 @@ impl AppService {
             .map_err(storage_error)?;
         let pending_candidate_count = pending_candidate_count as u32;
         let trip_items = self.records(&connection).trip_items(trip_id)?;
+        let mut itinerary_identities = self.records(&connection).itinerary_identities(trip_id)?;
+        apply_fact_history_revisions(&mut itinerary_identities, &fact_versions);
+        let journey_board = build_journey_board_with_identities(
+            &trip,
+            &confirmed_facts,
+            &trip_items,
+            &itinerary_identities,
+        )
+        .map_err(|error| AppError::new(ErrorCode::StorageFailure, error.to_string()))?;
+        let mut calendar_snapshot =
+            build_calendar_snapshot(&trip, &confirmed_facts, &trip_items, &itinerary_identities)
+                .map_err(|error| AppError::new(ErrorCode::StorageFailure, error.to_string()))?;
+        calendar_snapshot.removals = removed_calendar_roles(&fact_versions);
         let TripAssessment {
             conflicts: mut itinerary_conflicts,
             readiness,
@@ -192,6 +206,7 @@ impl AppService {
         Ok(TripDetail {
             trip,
             confirmed_facts,
+            fact_versions,
             pending_candidate_count,
             itinerary_conflicts,
             readiness,
@@ -215,6 +230,8 @@ impl AppService {
             saved_places,
             packing_items,
             trip_items,
+            journey_board,
+            calendar_snapshot,
             disruption_plan,
         })
     }

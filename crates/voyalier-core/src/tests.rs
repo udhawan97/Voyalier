@@ -1171,6 +1171,7 @@ fn rust_examples_validate_against_contract_schemas() {
         status: CandidateStatus::Pending,
         created_at: "2026-07-10T00:00:00Z".to_owned(),
         resolved_at: None,
+        amends_fact_id: None,
     };
 
     let confirmed = ConfirmedFact {
@@ -1198,6 +1199,7 @@ fn rust_examples_validate_against_contract_schemas() {
         },
         parser_run_id: candidate.parser_run_id.clone(),
         candidates: vec![candidate.clone()],
+        duplicates_ignored: 0,
     };
 
     let app_error = AppError {
@@ -1237,6 +1239,9 @@ fn rust_examples_validate_against_contract_schemas() {
     let _ = serde_json::to_value(ConfirmCandidateInput {
         candidate_id: candidate.id,
         edited_payload: None,
+        amendment_action: None,
+        expected_amendment_fact_id: None,
+        expected_amendment_revision: None,
     })
     .expect("confirm input");
     let _ = serde_json::to_value(ImportDocumentInput {
