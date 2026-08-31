@@ -210,8 +210,9 @@ impl AppService {
     }
 
     pub fn update_trip_item(&self, input: UpdateTripItemInput) -> Result<TripItem, AppError> {
-        let connection = self.connection()?;
-        let trip_id = record_trip_id(&connection, "trip_items", &input.trip_item_id)?;
+        let mut connection = self.connection()?;
+        let transaction = connection.transaction().map_err(storage_error)?;
+        let trip_id = record_trip_id(&transaction, "trip_items", &input.trip_item_id)?;
         let normalized = validate_create_trip_item(CreateTripItemInput {
             trip_id: trip_id.clone(),
             kind: input.kind,
@@ -222,9 +223,9 @@ impl AppService {
             notes: input.notes,
             saved_place_id: input.saved_place_id,
         })?;
-        validate_saved_place_trip(&connection, normalized.saved_place_id.as_deref(), &trip_id)?;
+        validate_saved_place_trip(&transaction, normalized.saved_place_id.as_deref(), &trip_id)?;
         let existing = self
-            .records(&connection)
+            .records(&transaction)
             .trip_items(&trip_id)?
             .into_iter()
             .find(|item| item.id == input.trip_item_id)
@@ -236,6 +237,7 @@ impl AppService {
             || existing.location != normalized.location
             || existing.start_at != normalized.start_at
             || existing.end_at != normalized.end_at;
+        let semantic_updated_at = now_rfc3339();
         let item = TripItem {
             kind: normalized.kind,
             title: normalized.title,
@@ -244,14 +246,18 @@ impl AppService {
             end_at: normalized.end_at,
             notes: normalized.notes,
             saved_place_id: normalized.saved_place_id,
-            updated_at: now_rfc3339(),
+            updated_at: semantic_updated_at.clone(),
             ..existing
         };
-        self.records(&connection).update_trip_item(&item)?;
+        self.records(&transaction).update_trip_item(&item)?;
         if calendar_changed {
-            self.records(&connection)
-                .bump_itinerary_revision(TodayItemTargetSource::TripItem, &item.id)?;
+            self.records(&transaction).bump_itinerary_revision(
+                TodayItemTargetSource::TripItem,
+                &item.id,
+                &semantic_updated_at,
+            )?;
         }
+        transaction.commit().map_err(storage_error)?;
         Ok(item)
     }
 

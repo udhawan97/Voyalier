@@ -3,10 +3,17 @@ import type { CalendarEvent, CalendarSnapshot } from "@voyalier/contracts";
 /** RFC 5545 §3.3.11 text escaping. */
 function escapeText(value: string): string {
   return value
+    .replace(/\r\n|\r|\n/g, "\n")
+    .split("")
+    .filter((character) => {
+      const code = character.charCodeAt(0);
+      return code === 10 || (code >= 32 && code !== 127);
+    })
+    .join("")
     .replace(/\\/g, "\\\\")
     .replace(/;/g, "\\;")
     .replace(/,/g, "\\,")
-    .replace(/\r?\n/g, "\\n");
+    .replace(/\n/g, "\\n");
 }
 
 function dateValue(date: string): string {

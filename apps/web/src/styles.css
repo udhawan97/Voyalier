@@ -4227,6 +4227,21 @@ h3 {
   overflow-wrap: anywhere;
 }
 
+.voy-journey__source {
+  width: fit-content;
+  margin-top: 0.2rem;
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-xs);
+  font-weight: var(--voy-w-strong);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.voy-journey__warning {
+  color: var(--voy-warn, #b45309);
+  max-width: 72ch;
+}
+
 .voy-journey__empty {
   margin: 0;
   padding-inline-start: var(--voy-space-md);
@@ -4724,13 +4739,49 @@ h3 {
   list-style: none;
 }
 
+.voy-fact-history__lineage + .voy-fact-history__lineage {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--voy-line-strong);
+}
+
+.voy-fact-history__lineage > h3 {
+  margin: 1rem 0 0;
+  font-size: var(--voy-text-sm);
+}
+
 .voy-fact-history__item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   gap: 1rem;
-  padding-top: 0.65rem;
+  padding: 0.8rem 0;
   border-top: 1px solid var(--voy-line);
+}
+
+.voy-fact-history__head {
+  grid-column: 1 / -1;
+}
+
+.voy-fact-history__values {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0.5rem 0 0;
+}
+
+.voy-fact-history__values div {
+  min-width: 0;
+}
+
+.voy-fact-history__values dt {
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-xs);
+}
+
+.voy-fact-history__values dd {
+  margin: 0.1rem 0 0;
+  overflow-wrap: anywhere;
 }
 
 .voy-fact-history__item div,

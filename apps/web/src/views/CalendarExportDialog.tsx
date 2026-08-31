@@ -1,5 +1,6 @@
-import type { CalendarSnapshot } from "@voyalier/contracts";
+import type { CalendarEvent, CalendarSnapshot } from "@voyalier/contracts";
 
+import { formatDateTimeLocal } from "../app/format";
 import { plural, t } from "../app/i18n";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
@@ -10,18 +11,25 @@ export function CalendarExportDialog({
   busy,
   onClose,
   onDownload,
+  summary,
 }: {
   snapshot: CalendarSnapshot;
   busy: boolean;
   onClose: () => void;
   onDownload: () => void;
+  summary: (event: CalendarEvent) => string;
 }) {
   const footer = (
     <>
       <Button variant="ghost" onClick={onClose}>
         {t("action.close")}
       </Button>
-      <Button variant="primary" busy={busy} onClick={onDownload}>
+      <Button
+        variant="primary"
+        busy={busy}
+        disabled={snapshot.events.length === 0}
+        onClick={onDownload}
+      >
         {busy ? t("ics.exporting") : t("ics.download")}
       </Button>
     </>
@@ -40,6 +48,22 @@ export function CalendarExportDialog({
         <p className="voy-calendar-preview__count">
           {plural("ics.preview.count", snapshot.events.length)}
         </p>
+        {snapshot.events.length > 0 ? (
+          <section aria-labelledby="calendar-events-title">
+            <h3 id="calendar-events-title">{t("ics.preview.events")}</h3>
+            <ul className="voy-calendar-preview__events">
+              {snapshot.events.map((event) => (
+                <li key={event.uid}>
+                  <strong>{summary(event)}</strong>
+                  <span>{formatDateTimeLocal(event.start)}</span>
+                  {event.detail ? <span>{event.detail}</span> : null}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : (
+          <p>{t("ics.preview.empty")}</p>
+        )}
         {snapshot.omissions.length > 0 ? (
           <section aria-labelledby="calendar-omissions-title">
             <h3 id="calendar-omissions-title">{t("ics.preview.omissions")}</h3>

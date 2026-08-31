@@ -134,6 +134,9 @@ mod tests {
             "source_documents",
             "candidate_facts",
             "confirmed_facts",
+            // Approved history is traveler-owned evidence. It must survive a
+            // destination edit so a later restore remains inspectable.
+            "confirmed_fact_versions",
             "parser_runs",
             "assist_activity",
             "downloaded_packs",

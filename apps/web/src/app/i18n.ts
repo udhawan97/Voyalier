@@ -291,6 +291,11 @@ const en = {
   "journey.item.departGeneric": "Departure",
   "journey.item.arriveGeneric": "Arrival",
   "journey.open.label": "Show in Plan: {item}",
+  "journey.source.confirmed": "Confirmed evidence",
+  "journey.source.plan": "Your plan",
+  "journey.return": "Back to Journey Board",
+  "journey.truncated":
+    "This stay is unusually long, so the board shows only its first 400 nights. Check the confirmed dates before relying on this view.",
   "today.error":
     "Today couldn't load right now. The rest of your trip is fine.",
 
@@ -475,6 +480,12 @@ const en = {
   "review.amendment.title": "This may update an approved reservation",
   "review.amendment.note":
     "Compare the changed fields. Replace keeps both approved versions in history; Keep both starts a separate reservation.",
+  "review.amendment.current": "Current",
+  "review.amendment.imported": "Imported",
+  "review.amendment.blank": "Blank or removed",
+  "review.amendment.stale.title": "The approved reservation changed again",
+  "review.amendment.stale.body":
+    "This suggestion no longer points to the current version. It cannot replace anything safely; keep it as a separate reservation or dismiss it.",
   "review.amendment.replace": "Replace current",
   "review.amendment.keep": "Keep both",
   "review.amendment.replace.label": "Replace current version of {fact}",
@@ -492,11 +503,19 @@ const en = {
   "history.previous.other": "{count} previous approved versions",
   "history.note":
     "History is append-only. Restoring creates a new current version and keeps every prior approval.",
+  "history.currentVersion": "Current: {fact}",
+  "history.approvedAt": "Approved {date}",
+  "history.method": "Extraction: {method}",
+  "history.source.imported": "Imported evidence retained",
+  "history.source.removed": "Source document removed",
+  "history.source.manual": "Added manually",
+  "history.values": "Approved values",
   "history.reason.initial": "Original approval",
   "history.reason.amendment": "Replaced by an amendment",
   "history.reason.restore": "Replaced by a restore",
   "history.restore": "Restore",
-  "history.restore.label": "Restore approved version of {fact}",
+  "history.restore.label":
+    "Restore approved version of {fact}; this will supersede current version {current}",
   "history.announce.restored": "Restored {fact} as a new current version.",
   "review.empty.title": "All caught up",
   "review.empty.body": "Every suggestion has been confirmed or dismissed.",
@@ -1532,9 +1551,11 @@ const en = {
     "Review what can enter the one-time file before downloading it.",
   "ics.preview.limit.title": "One-time file, floating local times",
   "ics.preview.limit.body":
-    "This is not synchronization. Voyalier does not infer time zones or remove events already imported into another calendar.",
+    "This plaintext file is not synchronization. Voyalier does not infer time zones or remove events already imported into another calendar. Your calendar app may copy or sync the file, and importing it again may create duplicates.",
   "ics.preview.count.one": "{count} event will be included.",
   "ics.preview.count.other": "{count} events will be included.",
+  "ics.preview.events": "Exact events in the file",
+  "ics.preview.empty": "There are no dated events to download.",
   "ics.preview.omissions": "Not included",
   "ics.preview.noOmissions": "Every scheduled item can be included.",
   "ics.preview.removals": "Previously exported roles no longer present",
@@ -1641,8 +1662,7 @@ const en = {
   "hint.dismiss": "Dismiss tip",
 
   "resources.title": "Saved reading",
-  "resources.intro":
-    "Links and files you're keeping with this trip to read later.",
+  "resources.intro": "Links you're keeping with this trip to read later.",
   // The product's position, not a notice: everything else on a trip page is
   // evidence the traveler confirmed, and a saved page must never be mistaken
   // for one.
@@ -2018,6 +2038,11 @@ const es: Record<MessageKey, string> = {
   "journey.item.departGeneric": "Salida",
   "journey.item.arriveGeneric": "Llegada",
   "journey.open.label": "Mostrar en Plan: {item}",
+  "journey.source.confirmed": "Evidencia confirmada",
+  "journey.source.plan": "Tu plan",
+  "journey.return": "Volver al itinerario diario",
+  "journey.truncated":
+    "Esta estancia es inusualmente larga, por lo que el itinerario muestra solo las primeras 400 noches. Comprueba las fechas confirmadas antes de usar esta vista.",
   "today.error":
     "No se pudo cargar la agenda de hoy. El resto del viaje está bien.",
   "localai.title": "IA en el dispositivo",
@@ -2195,6 +2220,12 @@ const es: Record<MessageKey, string> = {
   "review.amendment.title": "Esto puede actualizar una reserva aprobada",
   "review.amendment.note":
     "Compara los campos modificados. Reemplazar conserva ambas versiones aprobadas en el historial; Conservar ambas crea una reserva separada.",
+  "review.amendment.current": "Actual",
+  "review.amendment.imported": "Importado",
+  "review.amendment.blank": "Vacío o eliminado",
+  "review.amendment.stale.title": "La reserva aprobada volvió a cambiar",
+  "review.amendment.stale.body":
+    "Esta sugerencia ya no apunta a la versión actual. No puede reemplazar nada de forma segura; consérvala como una reserva separada o descártala.",
   "review.amendment.replace": "Reemplazar actual",
   "review.amendment.keep": "Conservar ambas",
   "review.amendment.replace.label": "Reemplazar la versión actual de {fact}",
@@ -2209,11 +2240,19 @@ const es: Record<MessageKey, string> = {
   "history.previous.other": "{count} versiones aprobadas anteriores",
   "history.note":
     "El historial solo se amplía. Restaurar crea una nueva versión actual y conserva cada aprobación anterior.",
+  "history.currentVersion": "Actual: {fact}",
+  "history.approvedAt": "Aprobada el {date}",
+  "history.method": "Extracción: {method}",
+  "history.source.imported": "Evidencia importada conservada",
+  "history.source.removed": "Documento fuente eliminado",
+  "history.source.manual": "Agregada manualmente",
+  "history.values": "Valores aprobados",
   "history.reason.initial": "Aprobación original",
   "history.reason.amendment": "Reemplazada por una modificación",
   "history.reason.restore": "Reemplazada por una restauración",
   "history.restore": "Restaurar",
-  "history.restore.label": "Restaurar la versión aprobada de {fact}",
+  "history.restore.label":
+    "Restaurar la versión aprobada de {fact}; esto sustituirá la versión actual {current}",
   "history.announce.restored":
     "Se restauró {fact} como una nueva versión actual.",
   "review.empty.title": "Todo al día",
@@ -3211,9 +3250,11 @@ const es: Record<MessageKey, string> = {
     "Revisa lo que puede entrar en el archivo único antes de descargarlo.",
   "ics.preview.limit.title": "Archivo único con horas locales",
   "ics.preview.limit.body":
-    "Esto no es sincronización. Voyalier no deduce zonas horarias ni elimina eventos ya importados en otro calendario.",
+    "Este archivo de texto sin cifrar no es sincronización. Voyalier no deduce zonas horarias ni elimina eventos ya importados en otro calendario. Tu aplicación de calendario puede copiar o sincronizar el archivo, e importarlo de nuevo puede crear duplicados.",
   "ics.preview.count.one": "Se incluirá {count} evento.",
   "ics.preview.count.other": "Se incluirán {count} eventos.",
+  "ics.preview.events": "Eventos exactos del archivo",
+  "ics.preview.empty": "No hay eventos con fecha para descargar.",
   "ics.preview.omissions": "No incluido",
   "ics.preview.noOmissions":
     "Se pueden incluir todos los elementos programados.",
@@ -3319,7 +3360,7 @@ const es: Record<MessageKey, string> = {
 
   "resources.title": "Lecturas guardadas",
   "resources.intro":
-    "Enlaces y archivos que guardas con este viaje para leerlos más tarde.",
+    "Enlaces que guardas con este viaje para leerlos más tarde.",
   "resources.hint.notEvidence":
     "Una lectura guardada es material de lectura y nada más. Voyalier nunca la convierte en una reserva confirmada, nunca la trata como evidencia y nunca cambia la preparación de tu viaje.",
   "resources.hint.import":

@@ -48,6 +48,7 @@ use crate::{DocumentText, Vault, sealed::Sealed, storage_error};
 /// would otherwise stop encrypting a column in silence.
 pub(crate) const SEALED_COLUMNS: &[(&str, &str)] = &[
     ("confirmed_facts", "payload"),
+    ("confirmed_fact_versions", "payload"),
     ("source_documents", "raw_content"),
     // Pending candidates hold the same parsed secrets, and their field spans
     // carry verbatim excerpts of the source text (often the code itself).
@@ -106,7 +107,8 @@ impl<'a> Records<'a> {
         let mut statement = self
             .connection
             .prepare(
-                "SELECT source_kind, source_id, calendar_lineage, ui_locator, revision
+                "SELECT source_kind, source_id, calendar_lineage, ui_locator, revision,
+                        semantic_updated_at
                    FROM itinerary_identities
                   WHERE (source_kind='confirmed_fact' AND source_id IN
                          (SELECT id FROM confirmed_facts WHERE trip_id=?1 AND active=1))
@@ -128,17 +130,47 @@ impl<'a> Records<'a> {
                     calendar_lineage: row.get(2)?,
                     ui_locator: row.get(3)?,
                     revision: row.get::<_, u32>(4)?,
+                    semantic_updated_at: row.get(5)?,
+                    role_revisions: Default::default(),
+                    role_updated_at: Default::default(),
                 })
             })
             .map_err(storage_error)?
             .collect::<rusqlite::Result<Vec<_>>>()
             .map_err(storage_error)
+            .and_then(|identities| {
+                let expected: u32 = self
+                    .connection
+                    .query_row(
+                        "SELECT
+                           (SELECT COUNT(*) FROM confirmed_facts WHERE trip_id=?1 AND active=1) +
+                           (SELECT COUNT(*) FROM trip_items WHERE trip_id=?1)",
+                        params![trip_id],
+                        |row| row.get(0),
+                    )
+                    .map_err(storage_error)?;
+                let complete = identities.len() == expected as usize
+                    && identities.iter().all(|identity| {
+                        !identity.calendar_lineage.is_empty()
+                            && !identity.ui_locator.is_empty()
+                            && !identity.semantic_updated_at.is_empty()
+                    });
+                if complete {
+                    Ok(identities)
+                } else {
+                    Err(AppError::new(
+                        ErrorCode::StorageFailure,
+                        "itinerary projection identity is incomplete",
+                    ))
+                }
+            })
     }
 
     pub(crate) fn bump_itinerary_revision(
         &self,
         source: TodayItemTargetSource,
         source_id: &str,
+        semantic_updated_at: &str,
     ) -> Result<(), AppError> {
         let source = match source {
             TodayItemTargetSource::ConfirmedFact => "confirmed_fact",
@@ -147,9 +179,10 @@ impl<'a> Records<'a> {
         let changed = self
             .connection
             .execute(
-                "UPDATE itinerary_identities SET revision=revision+1
+                "UPDATE itinerary_identities
+                    SET revision=revision+1, semantic_updated_at=?3
                   WHERE source_kind=?1 AND source_id=?2",
-                params![source, source_id],
+                params![source, source_id, semantic_updated_at],
             )
             .map_err(storage_error)?;
         require_changed(changed, "itinerary identity")
@@ -362,28 +395,21 @@ impl<'a> Records<'a> {
                 params![confirmed.id],
             )
             .map_err(storage_error)?;
-        Ok(())
-    }
-
-    pub(crate) fn confirmed_fact(&self, fact_id: &str) -> Result<ConfirmedFact, AppError> {
-        let raw = self
-            .connection
-            .query_row(
-                &format!("SELECT {CONFIRMED_COLUMNS} FROM confirmed_facts WHERE id=?1"),
-                params![fact_id],
-                raw_confirmed,
+        self.connection
+            .execute(
+                "UPDATE itinerary_identities SET semantic_updated_at=?2
+                  WHERE source_kind='confirmed_fact' AND source_id=?1",
+                params![confirmed.id, confirmed.confirmed_at],
             )
-            .optional()
-            .map_err(storage_error)?
-            .ok_or_else(|| AppError::new(ErrorCode::FactNotFound, "fact not found"))?;
-        self.open_confirmed(raw)
+            .map_err(storage_error)?;
+        Ok(())
     }
 
     pub(crate) fn confirmed_fact_versions(
         &self,
         trip_id: &str,
     ) -> Result<Vec<ConfirmedFactVersion>, AppError> {
-        let mut statement = self
+        let mut current_statement = self
             .connection
             .prepare(&format!(
                 "SELECT {CONFIRMED_COLUMNS}, active, version, revision_reason,
@@ -393,7 +419,7 @@ impl<'a> Records<'a> {
                   ORDER BY lineage_root_id, version, confirmed_at, id"
             ))
             .map_err(storage_error)?;
-        let raws = statement
+        let mut raws = current_statement
             .query_map(params![trip_id], |row| {
                 Ok((
                     raw_confirmed(row)?,
@@ -407,6 +433,41 @@ impl<'a> Records<'a> {
             .map_err(storage_error)?
             .collect::<rusqlite::Result<Vec<_>>>()
             .map_err(storage_error)?;
+        let mut history_statement = self
+            .connection
+            .prepare(
+                "SELECT id, trip_id, fact_type, payload, method, candidate_id,
+                        corrected_fields, confirmed_at, source_removed,
+                        0 AS active, revision, revision_reason,
+                        lineage_root_id, supersedes_fact_id
+                   FROM confirmed_fact_versions
+                  WHERE trip_id=?1
+                  ORDER BY lineage_root_id, revision, confirmed_at, id",
+            )
+            .map_err(storage_error)?;
+        raws.extend(
+            history_statement
+                .query_map(params![trip_id], |row| {
+                    Ok((
+                        raw_confirmed(row)?,
+                        row.get::<_, i64>("active")?,
+                        row.get::<_, u32>("revision")?,
+                        row.get::<_, String>("revision_reason")?,
+                        row.get::<_, String>("lineage_root_id")?,
+                        row.get::<_, Option<String>>("supersedes_fact_id")?,
+                    ))
+                })
+                .map_err(storage_error)?
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .map_err(storage_error)?,
+        );
+        raws.sort_by(|left, right| {
+            left.4
+                .cmp(&right.4)
+                .then(left.2.cmp(&right.2))
+                .then(left.0.confirmed_at.cmp(&right.0.confirmed_at))
+                .then(left.0.id.cmp(&right.0.id))
+        });
         raws.into_iter()
             .map(
                 |(raw, active, revision, reason, lineage_root_id, supersedes_fact_id)| {
@@ -421,6 +482,111 @@ impl<'a> Records<'a> {
                 },
             )
             .collect()
+    }
+
+    pub(crate) fn confirmed_fact_version(
+        &self,
+        fact_id: &str,
+    ) -> Result<ConfirmedFactVersion, AppError> {
+        let raw = self
+            .connection
+            .query_row(
+                "SELECT id, trip_id, fact_type, payload, method, candidate_id,
+                        corrected_fields, confirmed_at, source_removed,
+                        revision, revision_reason, lineage_root_id, supersedes_fact_id
+                   FROM confirmed_fact_versions WHERE id=?1",
+                params![fact_id],
+                |row| {
+                    Ok((
+                        raw_confirmed(row)?,
+                        row.get::<_, u32>("revision")?,
+                        row.get::<_, String>("revision_reason")?,
+                        row.get::<_, String>("lineage_root_id")?,
+                        row.get::<_, Option<String>>("supersedes_fact_id")?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(storage_error)?
+            .ok_or_else(|| AppError::new(ErrorCode::FactNotFound, "fact version not found"))?;
+        Ok(ConfirmedFactVersion {
+            fact: self.open_confirmed(raw.0)?,
+            active: false,
+            revision: raw.1,
+            reason: from_sql_enum(&raw.2)?,
+            lineage_root_id: raw.3,
+            supersedes_fact_id: raw.4,
+        })
+    }
+
+    pub(crate) fn snapshot_confirmed_fact(
+        &self,
+        current_fact_id: &str,
+        snapshot_id: &str,
+    ) -> Result<(), AppError> {
+        let changed = self
+            .connection
+            .execute(
+                "INSERT INTO confirmed_fact_versions
+                   (id, current_fact_id, trip_id, fact_type, payload, method,
+                    candidate_id, corrected_fields, confirmed_at, source_removed,
+                    revision, revision_reason, lineage_root_id, supersedes_fact_id)
+                 SELECT ?2, id, trip_id, fact_type, payload, method, candidate_id,
+                        corrected_fields, confirmed_at, source_removed, version,
+                        revision_reason, lineage_root_id, supersedes_fact_id
+                   FROM confirmed_facts WHERE id=?1 AND active=1",
+                params![current_fact_id, snapshot_id],
+            )
+            .map_err(storage_error)?;
+        require_changed(changed, "current fact")
+    }
+
+    pub(crate) fn replace_confirmed_fact(
+        &self,
+        current_fact_id: &str,
+        expected_version: u32,
+        replacement: &ConfirmedFact,
+        reason: voyalier_core::FactRevisionReason,
+        supersedes_fact_id: &str,
+    ) -> Result<(), AppError> {
+        let changed = self
+            .connection
+            .execute(
+                "UPDATE confirmed_facts
+                    SET fact_type=?3, payload=?4, method=?5, candidate_id=?6,
+                        corrected_fields=?7, confirmed_at=?8, source_removed=?9,
+                        version=?2+1, revision_reason=?10, supersedes_fact_id=?11
+                  WHERE id=?1 AND active=1 AND version=?2",
+                params![
+                    current_fact_id,
+                    expected_version,
+                    to_sql_enum(replacement.fact_type)?,
+                    self.vault.seal(&to_sql_json(&replacement.payload)?)?,
+                    to_sql_enum(replacement.method)?,
+                    replacement.candidate_id,
+                    to_sql_json(&replacement.corrected_fields)?,
+                    replacement.confirmed_at,
+                    i64::from(replacement.source_removed),
+                    to_sql_enum(reason)?,
+                    supersedes_fact_id,
+                ],
+            )
+            .map_err(storage_error)?;
+        if changed == 0 {
+            return Err(AppError::new(
+                ErrorCode::ValidationInvalidInput,
+                "the fact changed while this decision was being applied; review the latest version",
+            ));
+        }
+        let identity_changed = self
+            .connection
+            .execute(
+                "UPDATE itinerary_identities SET semantic_updated_at=?2
+                  WHERE source_kind='confirmed_fact' AND source_id=?1",
+                params![current_fact_id, replacement.confirmed_at],
+            )
+            .map_err(storage_error)?;
+        require_changed(identity_changed, "itinerary identity")
     }
 
     /// Read one string field from a trip's confirmed lodging facts, newest first.
@@ -1082,6 +1248,13 @@ impl<'a> Records<'a> {
                 item.notes.as_deref().map(|value| self.vault.seal(value)).transpose()?,
                 item.saved_place_id, item.created_at, item.updated_at],
         ).map_err(storage_error)?;
+        self.connection
+            .execute(
+                "UPDATE itinerary_identities SET semantic_updated_at=?2
+                  WHERE source_kind='trip_item' AND source_id=?1",
+                params![item.id, item.updated_at],
+            )
+            .map_err(storage_error)?;
         Ok(())
     }
 

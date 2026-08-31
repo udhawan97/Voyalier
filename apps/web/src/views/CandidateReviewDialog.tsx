@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type Ref, type RefObject } from "react";
 import type {
   CandidateFact,
   ConfirmedFact,
+  ConfirmedFactVersion,
   ExtractionMethod,
   FactPayload,
   FactType,
@@ -76,7 +77,7 @@ function ReviewCard({
   hidden,
 }: {
   candidate: CandidateFact;
-  currentFact?: ConfirmedFact;
+  currentFact?: ConfirmedFactVersion;
   onDone: (id: string) => void;
   confirmRef: Ref<HTMLButtonElement>;
   hidden: boolean;
@@ -99,6 +100,11 @@ function ReviewCard({
   const presentFields = fieldsForType(candidate.factType).filter(
     (key) => values[key] != null && values[key] !== "",
   );
+  const staleAmendment = Boolean(candidate.amendsFactId && !currentFact);
+  const diffValue = (key: string, value: string | undefined) =>
+    value == null || value === ""
+      ? t("review.amendment.blank")
+      : formatFieldValue(key, value);
 
   // Two actions rather than one three-state `busy`, so each button reports its
   // own. Both used to cast `caught as AppError` over whatever was thrown --
@@ -113,6 +119,12 @@ function ReviewCard({
         candidateId: candidate.id,
         ...(editedPayload ? { editedPayload } : {}),
         ...(amendmentAction ? { amendmentAction } : {}),
+        ...(amendmentAction === "replace" && currentFact
+          ? {
+              expectedAmendmentFactId: currentFact.id,
+              expectedAmendmentRevision: currentFact.revision,
+            }
+          : {}),
       }),
     // The type arguments are explicit because `Args` is inferred from both
     // parameters, and a zero-argument onSuccess narrows the action's optional
@@ -190,18 +202,25 @@ function ReviewCard({
                   <dt>{fieldLabel(key)}</dt>
                   <dd>
                     <span>
-                      {formatFieldValue(
-                        key,
-                        (currentFact.payload as Values)[key] ?? "—",
-                      )}
+                      <strong>{t("review.amendment.current")}:</strong>{" "}
+                      {diffValue(key, (currentFact.payload as Values)[key])}
                     </span>
                     <span aria-hidden="true"> → </span>
-                    <span>{formatFieldValue(key, values[key] ?? "—")}</span>
+                    <span>
+                      <strong>{t("review.amendment.imported")}:</strong>{" "}
+                      {diffValue(key, values[key])}
+                    </span>
                   </dd>
                 </div>
               ))}
           </dl>
         </section>
+      ) : null}
+
+      {staleAmendment ? (
+        <Banner tone="warn" title={t("review.amendment.stale.title")}>
+          {t("review.amendment.stale.body")}
+        </Banner>
       ) : null}
 
       {editing ? (
@@ -299,6 +318,25 @@ function ReviewCard({
               onConfirm={() => void rejectAction.run()}
             />
           </>
+        ) : staleAmendment ? (
+          <>
+            <Button
+              ref={confirmRef}
+              variant="secondary"
+              aria-label={t("review.amendment.keep.label", { fact: title })}
+              disabled={busy}
+              onClick={() => void confirmAction.run(undefined, "keep_both")}
+            >
+              {t("review.amendment.keep")}
+            </Button>
+            <ConfirmButton
+              label={t("review.dismiss")}
+              ariaLabel={t("review.dismiss.label", { fact: title })}
+              busy={rejectAction.busy}
+              disabled={busy}
+              onConfirm={() => void rejectAction.run()}
+            />
+          </>
         ) : (
           <>
             <Button
@@ -335,14 +373,14 @@ function ReviewCard({
 
 export function CandidateReviewDialog({
   candidates,
-  confirmedFacts = [],
+  confirmedFactVersions = [],
   onClose,
   onResolved,
   returnFocusRef,
   completionFocusRef,
 }: {
   candidates: CandidateFact[];
-  confirmedFacts?: ConfirmedFact[];
+  confirmedFactVersions?: ConfirmedFactVersion[];
   onClose: () => void;
   onResolved: () => void;
   returnFocusRef?: RefObject<HTMLElement | null>;
@@ -505,8 +543,8 @@ export function CandidateReviewDialog({
               <ReviewCard
                 key={candidate.id}
                 candidate={candidate}
-                currentFact={confirmedFacts.find(
-                  (fact) => fact.id === candidate.amendsFactId,
+                currentFact={confirmedFactVersions.find(
+                  (fact) => fact.active && fact.id === candidate.amendsFactId,
                 )}
                 onDone={handleDone}
                 hidden={!visibleIds.has(candidate.id)}

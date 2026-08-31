@@ -405,12 +405,49 @@ describe("traveler-owned planning workflows", () => {
     expect(
       within(calendar).getByText("Every scheduled item can be included."),
     ).toBeVisible();
+    expect(within(calendar).getByText("Traveler-authored walk")).toBeVisible();
+    expect(within(calendar).getByText(/Apr 2, 2027/)).toBeVisible();
+    expect(
+      within(calendar).getByText(/calendar app may copy or sync the file/i),
+    ).toBeVisible();
     expect(
       within(calendar).getByRole("button", { name: "Download .ics" }),
     ).toBeEnabled();
     expect(
       screen.getByRole("heading", { name: "Schedule check" }),
     ).toBeInTheDocument();
+  });
+
+  it("disables calendar download when every item lacks a date", async () => {
+    const gateway = createMockGateway();
+    const trip = await gateway.createTrip({
+      origin: "Chicago",
+      destination: "Paris",
+      startDate: "2027-04-01",
+      endDate: "2027-04-05",
+    });
+    await gateway.createTripItem({
+      tripId: trip.id,
+      kind: "activity",
+      title: "Choose a walking route",
+    });
+    renderApp(gateway);
+    fireEvent.click(
+      await screen.findByRole("button", { name: `Open ${trip.title}` }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Export calendar" }),
+    );
+    const calendar = await screen.findByRole("dialog", {
+      name: "Calendar snapshot",
+    });
+    expect(
+      within(calendar).getByText("There are no dated events to download."),
+    ).toBeVisible();
+    expect(
+      within(calendar).getByRole("button", { name: "Download .ics" }),
+    ).toBeDisabled();
+    expect(within(calendar).getByText(/Choose a walking route/)).toBeVisible();
   });
 
   it("requires a deliberate second click before deleting planning records", async () => {

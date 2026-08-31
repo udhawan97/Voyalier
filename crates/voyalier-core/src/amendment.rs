@@ -74,10 +74,19 @@ pub fn classify_amendment(
     let Some(code) = normalized(payload.confirmation_code.as_ref()) else {
         return AmendmentMatch::Ordinary;
     };
-    let matches = active_facts
+    let code_matches = active_facts
         .iter()
         .filter(|fact| fact.fact_type == fact_type)
         .filter(|fact| normalized(fact.payload.confirmation_code.as_ref()).as_ref() == Some(&code))
+        .collect::<Vec<_>>();
+    // A shared PNR is ambiguous before looking at route context. Narrowing it
+    // to one segment would make a multi-segment reservation look uniquely safe
+    // even though this first version does not model reservation groups.
+    if code_matches.len() != 1 {
+        return AmendmentMatch::Ordinary;
+    }
+    let matches = code_matches
+        .into_iter()
         .filter(|fact| conservative_context(fact_type, payload, &fact.payload))
         .collect::<Vec<_>>();
     if matches.len() != 1 {
@@ -168,6 +177,24 @@ mod tests {
                 FactType::FlightSegment,
                 &flight("2026-06-02T09:00"),
                 &[existing.clone(), existing]
+            ),
+            AmendmentMatch::Ordinary
+        );
+    }
+
+    #[test]
+    fn a_shared_code_is_ambiguous_before_route_narrowing() {
+        let first = fact("fact_1", flight("2026-06-02T08:00"));
+        let mut second_payload = flight("2026-06-03T08:00");
+        second_payload.departure_airport_iata = Some("LHR".into());
+        second_payload.arrival_airport_iata = Some("CDG".into());
+        let second = fact("fact_2", second_payload);
+
+        assert_eq!(
+            classify_amendment(
+                FactType::FlightSegment,
+                &flight("2026-06-02T09:00"),
+                &[first, second],
             ),
             AmendmentMatch::Ordinary
         );

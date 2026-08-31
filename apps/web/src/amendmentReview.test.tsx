@@ -53,6 +53,12 @@ describe("explicit amendment review", () => {
     expect(
       screen.getByRole("region", { name: "Possible amendment" }),
     ).toHaveTextContent("5:20 PM");
+    expect(
+      screen.getByRole("region", { name: "Possible amendment" }),
+    ).toHaveTextContent("Current:");
+    expect(
+      screen.getByRole("region", { name: "Possible amendment" }),
+    ).toHaveTextContent("Imported:");
 
     fireEvent.click(
       screen.getByRole("button", { name: /Replace current version/ }),
@@ -61,6 +67,8 @@ describe("explicit amendment review", () => {
       expect(confirmCandidate).toHaveBeenCalledWith({
         candidateId: candidate.id,
         amendmentAction: "replace",
+        expectedAmendmentFactId: current.id,
+        expectedAmendmentRevision: 0,
       }),
     );
   });
@@ -72,6 +80,7 @@ describe("explicit amendment review", () => {
     const previous: ConfirmedFactVersion = {
       ...current,
       id: "fact_previous",
+      candidateId: "candidate_source",
       active: false,
       revision: 0,
       reason: "initial",
@@ -97,11 +106,21 @@ describe("explicit amendment review", () => {
 
     await renderTrip(gateway);
     fireEvent.click(await screen.findByText("1 previous approved version"));
+    expect(screen.getByText("Approved values")).toBeVisible();
+    expect(screen.getByText(/Extraction:/)).toBeVisible();
+    expect(screen.getByText("Imported evidence retained")).toBeVisible();
     fireEvent.click(
       screen.getByRole("button", { name: /Restore approved version/ }),
     );
+    fireEvent.click(
+      screen.getByRole("button", { name: /Restore approved version.*sure/ }),
+    );
     await waitFor(() =>
-      expect(restoreFactVersion).toHaveBeenCalledWith({ factId: previous.id }),
+      expect(restoreFactVersion).toHaveBeenCalledWith({
+        factId: previous.id,
+        expectedCurrentFactId: current.id,
+        expectedCurrentRevision: 1,
+      }),
     );
   });
 });

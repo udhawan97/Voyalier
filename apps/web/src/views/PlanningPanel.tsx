@@ -80,6 +80,7 @@ type Props = {
   packingItems: PackingItem[];
   tripItems: TripItem[];
   onChanged: () => void;
+  journeyReturn?: { recordId: string; onReturn: () => void };
 };
 
 export function PlanningPanel({
@@ -89,6 +90,7 @@ export function PlanningPanel({
   packingItems,
   tripItems,
   onChanged,
+  journeyReturn,
 }: Props) {
   const gateway = useGateway();
   const announce = useAnnounce();
@@ -727,6 +729,11 @@ export function PlanningPanel({
                 </p>
               </div>
               <div className="voy-planning__actions">
+                {journeyReturn?.recordId === item.id ? (
+                  <Button variant="secondary" onClick={journeyReturn.onReturn}>
+                    {t("journey.return")}
+                  </Button>
+                ) : null}
                 <Button
                   variant="ghost"
                   aria-label={t("planning.items.editLabel", {

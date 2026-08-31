@@ -5,10 +5,11 @@
 use jiff::civil::{Date, DateTime};
 use serde::{Deserialize, Serialize};
 
-use crate::ItineraryIdentity;
 use crate::planning::{TripItem, TripItemKind};
 use crate::today::{TodayItemKind, TodayItemTarget, TodayItemTargetSource};
 use crate::types::{ConfirmedFact, FactPayload, FactType, Trip};
+use crate::{ItineraryIdentity, ProjectionError};
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -42,6 +43,25 @@ pub struct JourneyBoard {
     pub days: Vec<JourneyBoardDay>,
     pub after: Vec<JourneyBoardEntry>,
     pub unscheduled: Vec<JourneyBoardEntry>,
+    /// True when an excessive lodging span or total projection was capped.
+    pub truncated: bool,
+}
+
+const MAX_PROJECTED_STAY_NIGHTS: usize = 400;
+const MAX_JOURNEY_BOARD_ENTRIES: usize = 2_000;
+
+fn push_capped(
+    entries: &mut Vec<JourneyBoardEntry>,
+    entry: JourneyBoardEntry,
+    truncated: &mut bool,
+) -> bool {
+    if entries.len() >= MAX_JOURNEY_BOARD_ENTRIES {
+        *truncated = true;
+        false
+    } else {
+        entries.push(entry);
+        true
+    }
 }
 
 fn date_and_time(value: Option<&str>) -> (Option<String>, Option<String>) {
@@ -113,7 +133,7 @@ fn fact_entry(
             record_id: fact.id.clone(),
         },
         // UI namespace only. Calendar export never consumes it.
-        focus_locator: format!("focus:fact:{}", fact.id),
+        focus_locator: String::new(),
     }
 }
 
@@ -134,7 +154,7 @@ fn plan_entry(item: &TripItem) -> JourneyBoardEntry {
             source: TodayItemTargetSource::TripItem,
             record_id: item.id.clone(),
         },
-        focus_locator: format!("focus:plan:{}", item.id),
+        focus_locator: String::new(),
     }
 }
 
@@ -171,12 +191,36 @@ fn sort_entries(entries: &mut [JourneyBoardEntry]) {
 }
 
 /// Build the complete itinerary spine from local records only.
-pub fn build_journey_board(
+#[cfg(test)]
+fn build_journey_board(
     trip: &Trip,
     facts: &[ConfirmedFact],
     trip_items: &[TripItem],
-) -> JourneyBoard {
-    build_journey_board_with_identities(trip, facts, trip_items, &[])
+) -> Result<JourneyBoard, ProjectionError> {
+    let identities = facts
+        .iter()
+        .map(|fact| ItineraryIdentity {
+            source: TodayItemTargetSource::ConfirmedFact,
+            source_id: fact.id.clone(),
+            calendar_lineage: format!("test-cal-{}", fact.id),
+            ui_locator: format!("test-focus-{}", fact.id),
+            revision: 0,
+            semantic_updated_at: fact.confirmed_at.clone(),
+            role_revisions: BTreeMap::new(),
+            role_updated_at: BTreeMap::new(),
+        })
+        .chain(trip_items.iter().map(|item| ItineraryIdentity {
+            source: TodayItemTargetSource::TripItem,
+            source_id: item.id.clone(),
+            calendar_lineage: format!("test-cal-{}", item.id),
+            ui_locator: format!("test-focus-{}", item.id),
+            revision: 0,
+            semantic_updated_at: item.updated_at.clone(),
+            role_revisions: BTreeMap::new(),
+            role_updated_at: BTreeMap::new(),
+        }))
+        .collect::<Vec<_>>();
+    build_journey_board_with_identities(trip, facts, trip_items, &identities)
 }
 
 pub fn build_journey_board_with_identities(
@@ -184,30 +228,64 @@ pub fn build_journey_board_with_identities(
     facts: &[ConfirmedFact],
     trip_items: &[TripItem],
     identities: &[ItineraryIdentity],
-) -> JourneyBoard {
+) -> Result<JourneyBoard, ProjectionError> {
     let mut entries = Vec::new();
+    let mut truncated = false;
+    let identity_index = identities
+        .iter()
+        .map(|identity| {
+            (
+                (source_order(identity.source), identity.source_id.as_str()),
+                identity,
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    for (source, source_id) in facts
+        .iter()
+        .map(|fact| (TodayItemTargetSource::ConfirmedFact, fact.id.as_str()))
+        .chain(
+            trip_items
+                .iter()
+                .map(|item| (TodayItemTargetSource::TripItem, item.id.as_str())),
+        )
+    {
+        if !identity_index.contains_key(&(source_order(source), source_id)) {
+            return Err(ProjectionError::MissingIdentity {
+                target_source: source,
+                source_id: source_id.to_owned(),
+            });
+        }
+    }
     for fact in facts {
         let payload = &fact.payload;
         match fact.fact_type {
             FactType::FlightSegment => {
                 let subject = carrier_subject(payload, true);
                 let detail = route(payload, true);
-                entries.push(fact_entry(
-                    fact,
-                    TodayItemKind::FlightDeparture,
-                    subject.clone(),
-                    "Depart",
-                    detail.clone(),
-                    payload.departure_local.as_deref(),
-                ));
-                entries.push(fact_entry(
-                    fact,
-                    TodayItemKind::FlightArrival,
-                    subject,
-                    "Arrive",
-                    detail,
-                    payload.arrival_local.as_deref(),
-                ));
+                push_capped(
+                    &mut entries,
+                    fact_entry(
+                        fact,
+                        TodayItemKind::FlightDeparture,
+                        subject.clone(),
+                        "Depart",
+                        detail.clone(),
+                        payload.departure_local.as_deref(),
+                    ),
+                    &mut truncated,
+                );
+                push_capped(
+                    &mut entries,
+                    fact_entry(
+                        fact,
+                        TodayItemKind::FlightArrival,
+                        subject,
+                        "Arrive",
+                        detail,
+                        payload.arrival_local.as_deref(),
+                    ),
+                    &mut truncated,
+                );
             }
             FactType::RailJourney
             | FactType::CoachJourney
@@ -215,42 +293,58 @@ pub fn build_journey_board_with_identities(
             | FactType::CarRental => {
                 let subject = carrier_subject(payload, false);
                 let detail = route(payload, false);
-                entries.push(fact_entry(
-                    fact,
-                    TodayItemKind::JourneyDeparture,
-                    subject.clone(),
-                    "Depart",
-                    detail.clone(),
-                    payload.departure_local.as_deref(),
-                ));
-                entries.push(fact_entry(
-                    fact,
-                    TodayItemKind::JourneyArrival,
-                    subject,
-                    "Arrive",
-                    detail,
-                    payload.arrival_local.as_deref(),
-                ));
+                push_capped(
+                    &mut entries,
+                    fact_entry(
+                        fact,
+                        TodayItemKind::JourneyDeparture,
+                        subject.clone(),
+                        "Depart",
+                        detail.clone(),
+                        payload.departure_local.as_deref(),
+                    ),
+                    &mut truncated,
+                );
+                push_capped(
+                    &mut entries,
+                    fact_entry(
+                        fact,
+                        TodayItemKind::JourneyArrival,
+                        subject,
+                        "Arrive",
+                        detail,
+                        payload.arrival_local.as_deref(),
+                    ),
+                    &mut truncated,
+                );
             }
             FactType::LodgingStay => {
                 let subject = payload.property_name.clone();
                 let detail = payload.address.clone().unwrap_or_default();
-                entries.push(fact_entry(
-                    fact,
-                    TodayItemKind::Checkin,
-                    subject.clone(),
-                    "Check in",
-                    detail.clone(),
-                    payload.checkin_date.as_deref(),
-                ));
-                entries.push(fact_entry(
-                    fact,
-                    TodayItemKind::Checkout,
-                    subject.clone(),
-                    "Check out",
-                    String::new(),
-                    payload.checkout_date.as_deref(),
-                ));
+                push_capped(
+                    &mut entries,
+                    fact_entry(
+                        fact,
+                        TodayItemKind::Checkin,
+                        subject.clone(),
+                        "Check in",
+                        detail.clone(),
+                        payload.checkin_date.as_deref(),
+                    ),
+                    &mut truncated,
+                );
+                push_capped(
+                    &mut entries,
+                    fact_entry(
+                        fact,
+                        TodayItemKind::Checkout,
+                        subject.clone(),
+                        "Check out",
+                        String::new(),
+                        payload.checkout_date.as_deref(),
+                    ),
+                    &mut truncated,
+                );
                 let dates = (
                     payload
                         .checkin_date
@@ -262,30 +356,45 @@ pub fn build_journey_board_with_identities(
                         .and_then(|value| value.parse::<Date>().ok()),
                 );
                 if let (Some(mut night), Some(checkout)) = dates {
-                    while night < checkout {
+                    let mut projected = 0usize;
+                    while night < checkout && projected < MAX_PROJECTED_STAY_NIGHTS {
                         let night_value = night.to_string();
-                        entries.push(fact_entry(
-                            fact,
-                            TodayItemKind::StayingTonight,
-                            subject.clone(),
-                            "Staying tonight",
-                            detail.clone(),
-                            Some(&night_value),
-                        ));
+                        if !push_capped(
+                            &mut entries,
+                            fact_entry(
+                                fact,
+                                TodayItemKind::StayingTonight,
+                                subject.clone(),
+                                "Staying tonight",
+                                detail.clone(),
+                                Some(&night_value),
+                            ),
+                            &mut truncated,
+                        ) {
+                            break;
+                        }
                         let Ok(next) = night.tomorrow() else { break };
                         night = next;
+                        projected += 1;
+                    }
+                    if night < checkout {
+                        truncated = true;
                     }
                 }
             }
         }
     }
-    entries.extend(trip_items.iter().map(plan_entry));
+    for item in trip_items {
+        push_capped(&mut entries, plan_entry(item), &mut truncated);
+    }
     for entry in &mut entries {
-        if let Some(identity) = identities.iter().find(|identity| {
-            identity.source == entry.target.source && identity.source_id == entry.target.record_id
-        }) {
-            entry.focus_locator.clone_from(&identity.ui_locator);
-        }
+        let identity = identity_index
+            .get(&(
+                source_order(entry.target.source),
+                entry.target.record_id.as_str(),
+            ))
+            .expect("identity completeness was validated above");
+        entry.focus_locator.clone_from(&identity.ui_locator);
     }
 
     let bounds = (
@@ -295,17 +404,8 @@ pub fn build_journey_board_with_identities(
     let mut before = Vec::new();
     let mut after = Vec::new();
     let mut unscheduled = Vec::new();
-    let mut days = Vec::new();
+    let mut day_entries = BTreeMap::<String, Vec<JourneyBoardEntry>>::new();
     if let (Some(start), Some(end)) = bounds {
-        let mut date = start;
-        while date <= end {
-            days.push(JourneyBoardDay {
-                date: date.to_string(),
-                entries: Vec::new(),
-            });
-            let Ok(next) = date.tomorrow() else { break };
-            date = next;
-        }
         for entry in entries {
             match entry
                 .date
@@ -316,9 +416,7 @@ pub fn build_journey_board_with_identities(
                 Some(date) if date < start => before.push(entry),
                 Some(date) if date > end => after.push(entry),
                 Some(date) => {
-                    if let Some(day) = days.iter_mut().find(|day| day.date == date.to_string()) {
-                        day.entries.push(entry);
-                    }
+                    day_entries.entry(date.to_string()).or_default().push(entry);
                 }
             }
         }
@@ -329,15 +427,20 @@ pub fn build_journey_board_with_identities(
     sort_entries(&mut before);
     sort_entries(&mut after);
     sort_entries(&mut unscheduled);
-    for day in &mut days {
-        sort_entries(&mut day.entries);
-    }
-    JourneyBoard {
+    let days = day_entries
+        .into_iter()
+        .map(|(date, mut entries)| {
+            sort_entries(&mut entries);
+            JourneyBoardDay { date, entries }
+        })
+        .collect();
+    Ok(JourneyBoard {
         before,
         days,
         after,
         unscheduled,
-    }
+        truncated,
+    })
 }
 
 #[cfg(test)]
@@ -393,7 +496,7 @@ mod tests {
                 ..FactPayload::default()
             },
         );
-        let board = build_journey_board(&trip(), &[flight, stay], &[]);
+        let board = build_journey_board(&trip(), &[flight, stay], &[]).expect("identity");
         assert_eq!(board.before[0].kind, TodayItemKind::FlightDeparture);
         assert!(
             board.days[0]
@@ -433,8 +536,67 @@ mod tests {
             created_at: "2026-01-01T00:00:00Z".into(),
             updated_at: "2026-01-01T00:00:00Z".into(),
         };
-        let board = build_journey_board(&trip(), &[], &[item]);
+        let board = build_journey_board(&trip(), &[], &[item]).expect("identity");
         assert_eq!(board.unscheduled[0].title, "Museum");
         assert!(!serde_json::to_string(&board).unwrap().contains("PRIVATE"));
+    }
+
+    #[test]
+    fn extreme_ranges_are_sparse_and_cap_lodging_nights() {
+        let mut wide_trip = trip();
+        wide_trip.start_date = "1900-01-01".into();
+        wide_trip.end_date = "9999-12-31".into();
+        let stay = fact(
+            "stay",
+            FactType::LodgingStay,
+            FactPayload {
+                checkin_date: Some("1900-01-01".into()),
+                checkout_date: Some("9999-12-31".into()),
+                ..FactPayload::default()
+            },
+        );
+        let board = build_journey_board(&wide_trip, &[stay], &[]).expect("identity");
+        assert!(board.truncated);
+        assert_eq!(
+            board
+                .days
+                .iter()
+                .flat_map(|day| &day.entries)
+                .filter(|entry| entry.kind == TodayItemKind::StayingTonight)
+                .count(),
+            MAX_PROJECTED_STAY_NIGHTS
+        );
+        assert_eq!(board.days.len(), MAX_PROJECTED_STAY_NIGHTS + 1);
+    }
+
+    #[test]
+    fn many_long_stays_share_one_global_projection_budget() {
+        let mut wide_trip = trip();
+        wide_trip.start_date = "1900-01-01".into();
+        wide_trip.end_date = "9999-12-31".into();
+        let stays = (0..10)
+            .map(|index| {
+                fact(
+                    &format!("stay-{index}"),
+                    FactType::LodgingStay,
+                    FactPayload {
+                        checkin_date: Some("1900-01-01".into()),
+                        checkout_date: Some("9999-12-31".into()),
+                        ..FactPayload::default()
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+        let board = build_journey_board(&wide_trip, &stays, &[]).expect("identity");
+        let total = board.before.len()
+            + board.after.len()
+            + board.unscheduled.len()
+            + board
+                .days
+                .iter()
+                .map(|day| day.entries.len())
+                .sum::<usize>();
+        assert!(board.truncated);
+        assert_eq!(total, MAX_JOURNEY_BOARD_ENTRIES);
     }
 }

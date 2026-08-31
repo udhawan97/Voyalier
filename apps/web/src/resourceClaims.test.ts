@@ -3,6 +3,14 @@ import roadmap from "../../../docs/roadmap/ROADMAP.md?raw";
 import gettingStarted from "../../../docs-site/src/content/docs/getting-started.mdx?raw";
 import privacy from "../../../docs-site/src/content/docs/privacy.mdx?raw";
 import resources from "../../../docs-site/src/content/docs/guides/research-resources.mdx?raw";
+import localeStrings from "./app/i18n.ts?raw";
+import changelog from "../../../CHANGELOG.md?raw";
+
+const resourceLocaleStrings = [
+  ...localeStrings.matchAll(/"resources\.[^"]+"\s*:\s*\n?\s*"[^"]*"/g),
+]
+  .map(([message]) => message)
+  .join("\n");
 
 const currentClaimFiles = [
   ["CONTEXT.md", context],
@@ -10,6 +18,8 @@ const currentClaimFiles = [
   ["getting-started.mdx", gettingStarted],
   ["privacy.mdx", privacy],
   ["research-resources.mdx", resources],
+  ["app/i18n.ts resource messages", resourceLocaleStrings],
+  ["CHANGELOG.md", changelog],
 ] as const;
 
 describe("research-resource public claims", () => {

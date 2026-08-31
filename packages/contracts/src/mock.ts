@@ -1934,30 +1934,118 @@ function mockValidDate(value: string | undefined): string | undefined {
     : date;
 }
 
-function mockBoardEntry(item: TodayItem): JourneyBoardEntry {
-  const target = item.target!;
-  return {
-    ...item,
-    target,
-    focusLocator: `focus:${target.source === "confirmed_fact" ? "fact" : "plan"}:${target.recordId}`,
-  };
+interface MockItineraryIdentity {
+  calendarLineage: string;
+  focusLocator: string;
+  revision: number;
+  semanticUpdatedAt: string;
 }
 
-function mockUnscheduledEntry(
-  fact: ConfirmedFact,
-  kind: JourneyBoardEntry["kind"],
-  subject: string | undefined,
-  title: string,
-  detail = "",
-): JourneyBoardEntry {
-  return {
-    kind,
-    subject,
-    title,
-    ...(detail ? { detail } : {}),
-    target: { source: "confirmed_fact", recordId: fact.id },
-    focusLocator: `focus:fact:${fact.id}`,
-  };
+function mockIdentity(
+  source: "confirmed_fact" | "trip_item",
+  recordId: string,
+  identities: ReadonlyMap<string, MockItineraryIdentity>,
+): MockItineraryIdentity {
+  const key = `${source}:${recordId}`;
+  const stored = identities.get(key);
+  if (!stored) {
+    throw appError(
+      "storage/failure",
+      "Itinerary identity is missing; repair local storage before projecting this trip",
+      { source, recordId },
+    );
+  }
+  return stored;
+}
+
+function mockNormalized(value: string | undefined): string | undefined {
+  const normalized = value?.trim().split(/\s+/u).join(" ").toUpperCase();
+  return normalized ? normalized : undefined;
+}
+
+function mockSameRequired(
+  left: string | undefined,
+  right: string | undefined,
+): boolean {
+  const normalizedLeft = mockNormalized(left);
+  const normalizedRight = mockNormalized(right);
+  return (
+    normalizedLeft !== undefined &&
+    normalizedRight !== undefined &&
+    normalizedLeft === normalizedRight
+  );
+}
+
+function mockConservativeContext(
+  factType: FactType,
+  left: FactPayload,
+  right: FactPayload,
+): boolean {
+  if (factType === "flight_segment") {
+    const candidate = left as FlightSegmentPayload;
+    const current = right as FlightSegmentPayload;
+    const candidateIata = mockNormalized(candidate.airlineIata);
+    const currentIata = mockNormalized(current.airlineIata);
+    const sameOperator =
+      candidateIata && currentIata
+        ? candidateIata === currentIata
+        : mockSameRequired(candidate.airlineName, current.airlineName);
+    return (
+      sameOperator &&
+      mockSameRequired(
+        candidate.departureAirportIata,
+        current.departureAirportIata,
+      ) &&
+      mockSameRequired(candidate.arrivalAirportIata, current.arrivalAirportIata)
+    );
+  }
+  if (factType === "lodging_stay") {
+    return mockSameRequired(
+      (left as LodgingStayPayload).propertyName,
+      (right as LodgingStayPayload).propertyName,
+    );
+  }
+  const candidate = left as SurfaceJourneyPayload;
+  const current = right as SurfaceJourneyPayload;
+  return (
+    mockSameRequired(candidate.carrierName, current.carrierName) &&
+    mockSameRequired(candidate.departurePlace, current.departurePlace) &&
+    mockSameRequired(candidate.arrivalPlace, current.arrivalPlace)
+  );
+}
+
+function mockPayloadEqual(left: FactPayload, right: FactPayload): boolean {
+  const canonical = (payload: FactPayload) =>
+    JSON.stringify(
+      Object.entries(payload)
+        .filter(([, value]) => value !== undefined)
+        .sort(([leftKey], [rightKey]) => compareRustStrings(leftKey, rightKey)),
+    );
+  return canonical(left) === canonical(right);
+}
+
+export function mockClassifyAmendment(
+  factType: FactType,
+  payload: FactPayload,
+  activeFacts: readonly ConfirmedFact[],
+):
+  | { kind: "ordinary" }
+  | { kind: "duplicate"; factId: string }
+  | { kind: "amendment"; factId: string } {
+  const code = mockNormalized(payload.confirmationCode);
+  if (!code) return { kind: "ordinary" };
+  const codeMatches = activeFacts.filter(
+    (fact) =>
+      fact.factType === factType &&
+      mockNormalized(fact.payload.confirmationCode) === code,
+  );
+  if (codeMatches.length !== 1) return { kind: "ordinary" };
+  const current = codeMatches[0]!;
+  if (!mockConservativeContext(factType, payload, current.payload))
+    return { kind: "ordinary" };
+  return mockPayloadEqual(payload, current.payload)
+    ? { kind: "duplicate", factId: current.id }
+    : { kind: "amendment", factId: current.id };
 }
 
 /** Mirrors the core Journey Board projection for the in-memory shell. */
@@ -1965,10 +2053,56 @@ export function mockBuildJourneyBoard(
   trip: Trip,
   tripFacts: ConfirmedFact[],
   manualItems: TripItem[],
+  identities: ReadonlyMap<string, MockItineraryIdentity> = new Map(),
 ): JourneyBoard {
-  const dates = mockDateRange(trip.startDate, trip.endDate);
-  const rawDates = new Set<string>();
-  const unscheduled: JourneyBoardEntry[] = [];
+  const entries: JourneyBoardEntry[] = [];
+  let truncated = false;
+  const MAX_ENTRIES = 2_000;
+  const push = (entry: JourneyBoardEntry): boolean => {
+    if (entries.length >= MAX_ENTRIES) {
+      truncated = true;
+      return false;
+    }
+    entries.push(entry);
+    return true;
+  };
+  const entryDateTime = (value: string | undefined) => {
+    const date = mockValidDate(value);
+    const time =
+      value && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)
+        ? value.split("T")[1]
+        : undefined;
+    return { date, time };
+  };
+  const factEntry = (
+    fact: ConfirmedFact,
+    kind: JourneyBoardEntry["kind"],
+    subject: string | undefined,
+    title: string,
+    detail: string,
+    value: string | undefined,
+  ): JourneyBoardEntry => {
+    const { date, time } = entryDateTime(value);
+    return {
+      kind,
+      ...(subject ? { subject } : {}),
+      title,
+      ...(detail ? { detail } : {}),
+      ...(date ? { date } : {}),
+      ...(time ? { time } : {}),
+      target: { source: "confirmed_fact", recordId: fact.id },
+      focusLocator: mockIdentity("confirmed_fact", fact.id, identities)
+        .focusLocator,
+    };
+  };
+
+  // Projection identity is required for every source, even when a global cap
+  // means a later entry is omitted. Corruption must never silently mint a new
+  // calendar UID or focus target.
+  for (const fact of tripFacts)
+    mockIdentity("confirmed_fact", fact.id, identities);
+  for (const item of manualItems)
+    mockIdentity("trip_item", item.id, identities);
 
   for (const fact of tripFacts) {
     if (fact.factType === "lodging_stay") {
@@ -1976,26 +2110,49 @@ export function mockBuildJourneyBoard(
       const subject = payload.propertyName;
       const checkin = mockValidDate(payload.checkinDate);
       const checkout = mockValidDate(payload.checkoutDate);
-      if (checkin) rawDates.add(checkin);
-      else
-        unscheduled.push(
-          mockUnscheduledEntry(
-            fact,
-            "checkin",
-            subject,
-            "Check in",
-            payload.address,
-          ),
-        );
-      if (checkout) rawDates.add(checkout);
-      else
-        unscheduled.push(
-          mockUnscheduledEntry(fact, "checkout", subject, "Check out"),
-        );
+      push(
+        factEntry(
+          fact,
+          "checkin",
+          subject,
+          "Check in",
+          payload.address ?? "",
+          payload.checkinDate,
+        ),
+      );
+      push(
+        factEntry(
+          fact,
+          "checkout",
+          subject,
+          "Check out",
+          "",
+          payload.checkoutDate,
+        ),
+      );
       if (checkin && checkout) {
-        for (const night of mockDateRange(checkin, checkout).slice(0, -1)) {
-          rawDates.add(night);
+        const cursor = new Date(`${checkin}T00:00:00Z`);
+        const finish = new Date(`${checkout}T00:00:00Z`);
+        let projected = 0;
+        while (cursor < finish && projected < 400) {
+          const date = cursor.toISOString().slice(0, 10);
+          if (
+            !push(
+              factEntry(
+                fact,
+                "staying_tonight",
+                subject,
+                "Staying tonight",
+                payload.address ?? "",
+                date,
+              ),
+            )
+          )
+            break;
+          cursor.setUTCDate(cursor.getUTCDate() + 1);
+          projected += 1;
         }
+        if (cursor < finish) truncated = true;
       }
       continue;
     }
@@ -2015,85 +2172,92 @@ export function mockBuildJourneyBoard(
       : payload.departurePlace && payload.arrivalPlace
         ? `${payload.departurePlace} → ${payload.arrivalPlace}`
         : "";
-    const departure = mockValidDate(payload.departureLocal);
-    const arrival = mockValidDate(payload.arrivalLocal);
-    if (departure) rawDates.add(departure);
-    else
-      unscheduled.push(
-        mockUnscheduledEntry(
-          fact,
-          flight ? "flight_departure" : "journey_departure",
-          subject,
-          "Depart",
-          detail,
-        ),
-      );
-    if (arrival) rawDates.add(arrival);
-    else
-      unscheduled.push(
-        mockUnscheduledEntry(
-          fact,
-          flight ? "flight_arrival" : "journey_arrival",
-          subject,
-          "Arrive",
-          detail,
-        ),
-      );
+    push(
+      factEntry(
+        fact,
+        flight ? "flight_departure" : "journey_departure",
+        subject,
+        "Depart",
+        detail,
+        payload.departureLocal,
+      ),
+    );
+    push(
+      factEntry(
+        fact,
+        flight ? "flight_arrival" : "journey_arrival",
+        subject,
+        "Arrive",
+        detail,
+        payload.arrivalLocal,
+      ),
+    );
   }
   for (const item of manualItems) {
-    const date = mockValidDate(item.startAt);
-    if (date) rawDates.add(date);
-    else {
-      unscheduled.push({
-        kind: item.kind,
-        title: item.title,
-        ...(item.location ? { detail: item.location } : {}),
-        target: { source: "trip_item", recordId: item.id },
-        focusLocator: `focus:plan:${item.id}`,
-      });
-    }
+    const { date, time } = entryDateTime(item.startAt);
+    push({
+      kind: item.kind,
+      title: item.title,
+      ...(item.location ? { detail: item.location } : {}),
+      ...(date ? { date } : {}),
+      ...(time ? { time } : {}),
+      target: { source: "trip_item", recordId: item.id },
+      focusLocator: mockIdentity("trip_item", item.id, identities).focusLocator,
+    });
   }
 
-  const entriesOn = (date: string) => {
-    const entries = mockBuildTodayView(
-      trip,
-      tripFacts,
-      manualItems,
-      date,
-    ).today.map(mockBoardEntry);
-    for (const fact of tripFacts.filter(
-      (candidate) => candidate.factType === "lodging_stay",
-    )) {
-      const payload = fact.payload as LodgingStayPayload;
-      if (mockValidDate(payload.checkinDate) !== date) continue;
-      entries.push({
-        kind: "staying_tonight",
-        subject: payload.propertyName,
-        title: payload.propertyName
-          ? `Staying at ${payload.propertyName}`
-          : "Staying tonight",
-        ...(payload.address ? { detail: payload.address } : {}),
-        date,
-        target: { source: "confirmed_fact", recordId: fact.id },
-        focusLocator: `focus:fact:${fact.id}`,
-      });
-    }
-    return entries;
+  const kindOrder: Record<JourneyBoardEntry["kind"], number> = {
+    checkout: 0,
+    flight_departure: 1,
+    flight_arrival: 2,
+    journey_departure: 3,
+    journey_arrival: 4,
+    checkin: 5,
+    staying_tonight: 6,
+    activity: 7,
+    rail: 8,
+    transfer: 9,
   };
-  const outside = [...rawDates].filter(
-    (date) => date < trip.startDate || date > trip.endDate,
-  );
+  const sourceOrder = { confirmed_fact: 0, trip_item: 1 } as const;
+  const sortEntries = (bucket: JourneyBoardEntry[]) =>
+    bucket.sort(
+      (left, right) =>
+        compareRustStrings(left.time ?? "", right.time ?? "") ||
+        kindOrder[left.kind] - kindOrder[right.kind] ||
+        sourceOrder[left.target.source] - sourceOrder[right.target.source] ||
+        compareRustStrings(left.focusLocator, right.focusLocator),
+    );
+  const before: JourneyBoardEntry[] = [];
+  const after: JourneyBoardEntry[] = [];
+  const unscheduled: JourneyBoardEntry[] = [];
+  const byDay = new Map<string, JourneyBoardEntry[]>();
+  const validBounds =
+    mockValidDate(trip.startDate) !== undefined &&
+    mockValidDate(trip.endDate) !== undefined;
+  for (const entry of entries) {
+    if (!validBounds || !entry.date) unscheduled.push(entry);
+    else if (entry.date < trip.startDate) before.push(entry);
+    else if (entry.date > trip.endDate) after.push(entry);
+    else {
+      const day = byDay.get(entry.date) ?? [];
+      day.push(entry);
+      byDay.set(entry.date, day);
+    }
+  }
+  sortEntries(before);
+  sortEntries(after);
+  sortEntries(unscheduled);
   return {
-    before: outside
-      .filter((date) => date < trip.startDate)
-      .sort()
-      .flatMap(entriesOn),
-    days: dates.map((date) => ({ date, entries: entriesOn(date) })),
-    after: outside
-      .filter((date) => date > trip.endDate)
-      .sort()
-      .flatMap(entriesOn),
+    before,
+    days: [...byDay.entries()]
+      .sort(([left], [right]) => compareRustStrings(left, right))
+      .map(([date, dayEntries]) => ({
+        date,
+        entries: sortEntries(dayEntries),
+      })),
+    after,
     unscheduled,
+    truncated,
   };
 }
 
@@ -2118,14 +2282,90 @@ function mockCalendarRole(kind: TodayItem["kind"]): CalendarRole | undefined {
   }
 }
 
+function mockCalendarSemantic(
+  fact: ConfirmedFactVersion,
+  role: CalendarRole,
+): string | undefined {
+  const payload = fact.payload;
+  if (fact.factType === "lodging_stay") {
+    if (role !== "checkin" && role !== "checkout") return undefined;
+    const stay = payload as LodgingStayPayload;
+    const start = mockValidDate(
+      role === "checkin" ? stay.checkinDate : stay.checkoutDate,
+    );
+    if (!start) return undefined;
+    return JSON.stringify({
+      role,
+      subject: stay.propertyName ?? "",
+      detail: stay.address ?? "",
+      start,
+    });
+  }
+  if (role !== "departure" && role !== "arrival") return undefined;
+  const journey = payload as FlightSegmentPayload & SurfaceJourneyPayload;
+  const flight = fact.factType === "flight_segment";
+  const start =
+    role === "departure" ? journey.departureLocal : journey.arrivalLocal;
+  if (!start || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(start)) return undefined;
+  return JSON.stringify({
+    role,
+    subject: flight
+      ? [journey.airlineName, journey.flightNumber].filter(Boolean).join(" ")
+      : [journey.carrierName, journey.serviceNumber].filter(Boolean).join(" "),
+    detail: flight
+      ? [journey.departureAirportIata, journey.arrivalAirportIata]
+          .filter(Boolean)
+          .join(" → ")
+      : [journey.departurePlace, journey.arrivalPlace]
+          .filter(Boolean)
+          .join(" → "),
+    start,
+  });
+}
+
+function mockFactRoleState(
+  currentFactId: string,
+  role: CalendarRole,
+  versions: readonly ConfirmedFactVersion[],
+): { sequence: number; updatedAt?: string } {
+  const lineage = versions
+    .filter((version) => version.lineageRootId === currentFactId)
+    .sort((left, right) => left.revision - right.revision);
+  let seen = false;
+  let previous: string | undefined;
+  let sequence = 0;
+  let updatedAt: string | undefined;
+  for (const version of lineage) {
+    const semantic = mockCalendarSemantic(version, role);
+    if (!seen) {
+      if (semantic === undefined) continue;
+      seen = true;
+      previous = semantic;
+      updatedAt = version.confirmedAt;
+      continue;
+    }
+    if (semantic === undefined) {
+      previous = undefined;
+      continue;
+    }
+    if (semantic !== previous) {
+      sequence += 1;
+      previous = semantic;
+      updatedAt = version.confirmedAt;
+    }
+  }
+  return { sequence, updatedAt };
+}
+
 /** Mirrors the redacted core calendar projection for the in-memory shell. */
 export function mockBuildCalendarSnapshot(
   trip: Trip,
   tripFacts: ConfirmedFact[],
   manualItems: TripItem[],
-  revisions: ReadonlyMap<string, number> = new Map(),
+  identities: ReadonlyMap<string, MockItineraryIdentity> = new Map(),
+  versions: readonly ConfirmedFactVersion[] = [],
 ): CalendarSnapshot {
-  const board = mockBuildJourneyBoard(trip, tripFacts, manualItems);
+  const board = mockBuildJourneyBoard(trip, tripFacts, manualItems, identities);
   const entries = [
     ...board.before,
     ...board.days.flatMap((day) => day.entries),
@@ -2134,24 +2374,63 @@ export function mockBuildCalendarSnapshot(
   const events = entries.flatMap((entry): CalendarEvent[] => {
     const role = mockCalendarRole(entry.kind);
     if (!role || !entry.date) return [];
-    const sourceKey = `${entry.target.source}:${entry.target.recordId}`;
     const fact = tripFacts.find(
       (candidate) => candidate.id === entry.target.recordId,
     );
     const item = manualItems.find(
       (candidate) => candidate.id === entry.target.recordId,
     );
+    const identity = mockIdentity(
+      entry.target.source,
+      entry.target.recordId,
+      identities,
+    );
+    const roleState = fact
+      ? mockFactRoleState(fact.id, role, versions)
+      : undefined;
     const start = entry.time ? `${entry.date}T${entry.time}` : entry.date;
+    const calendarDetail = fact
+      ? fact.factType === "lodging_stay"
+        ? ((fact.payload as LodgingStayPayload).address ?? "")
+        : fact.factType === "flight_segment"
+          ? [
+              (fact.payload as FlightSegmentPayload).departureAirportIata,
+              (fact.payload as FlightSegmentPayload).arrivalAirportIata,
+            ]
+              .filter(Boolean)
+              .join(" → ")
+          : [
+              (fact.payload as SurfaceJourneyPayload).departurePlace,
+              (fact.payload as SurfaceJourneyPayload).arrivalPlace,
+            ]
+              .filter(Boolean)
+              .join(" → ")
+      : (entry.detail ?? "");
+    const calendarTitle =
+      role === "departure"
+        ? "Departure"
+        : role === "arrival"
+          ? "Arrival"
+          : role === "checkin"
+            ? "Check in"
+            : role === "checkout"
+              ? "Check out"
+              : entry.title;
     return [
       {
-        uid: `cal:${sourceKey}:${role}@voyalier.local`,
-        sequence: revisions.get(sourceKey) ?? 0,
-        dtstamp: fact?.confirmedAt ?? item?.updatedAt ?? trip.updatedAt,
+        uid: `${identity.calendarLineage}:${role}@voyalier.local`,
+        sequence: roleState?.sequence ?? identity.revision,
+        dtstamp:
+          roleState?.updatedAt ??
+          identity.semanticUpdatedAt ??
+          fact?.confirmedAt ??
+          item?.updatedAt ??
+          trip.updatedAt,
         role,
         kind: entry.kind,
         subject: entry.subject,
-        title: entry.title,
-        ...(entry.detail ? { detail: entry.detail } : {}),
+        title: calendarTitle,
+        ...(calendarDetail ? { detail: calendarDetail } : {}),
         start,
         ...(role === "plan" && item?.endAt ? { end: item.endAt } : {}),
         allDay: role === "checkin" || role === "checkout",
@@ -2201,16 +2480,32 @@ function mockRemovedCalendarRoles(versions: ConfirmedFactVersion[]): string[] {
     checkout: "Check-out",
     plan: "Plan",
   };
+  const context = (version: ConfirmedFactVersion): string => {
+    if (version.factType === "lodging_stay") {
+      return (version.payload as LodgingStayPayload).propertyName ?? "";
+    }
+    const payload = version.payload as FlightSegmentPayload &
+      SurfaceJourneyPayload;
+    return version.factType === "flight_segment"
+      ? [payload.airlineName, payload.flightNumber].filter(Boolean).join(" ")
+      : [payload.carrierName, payload.serviceNumber].filter(Boolean).join(" ");
+  };
   const removed = versions.flatMap((current) => {
-    if (!current.active || !current.supersedesFactId) return [];
-    const previous = versions.find(
-      (version) => version.id === current.supersedesFactId,
-    );
-    if (!previous) return [];
+    if (!current.active) return [];
     const currentRoles = present(current);
-    return present(previous)
-      .filter((role) => !currentRoles.includes(role))
-      .map((role) => labels[role]);
+    return versions
+      .filter(
+        (previous) =>
+          !previous.active && previous.lineageRootId === current.lineageRootId,
+      )
+      .flatMap((previous) =>
+        present(previous)
+          .filter((role) => !currentRoles.includes(role))
+          .map((role) => {
+            const subject = context(previous);
+            return subject ? `${labels[role]} — ${subject}` : labels[role];
+          }),
+      );
   });
   return [...new Set(removed)].sort();
 }
@@ -2743,6 +3038,17 @@ export function createMockGateway(options?: {
       },
     ]),
   );
+  const itineraryIdentities = new Map<string, MockItineraryIdentity>(
+    fixtureConfirmedFacts.map((fact, index) => [
+      `confirmed_fact:${fact.id}`,
+      {
+        calendarLineage: `cal_fixture_${String(index + 1).padStart(3, "0")}`,
+        focusLocator: `focus_fixture_${String(index + 1).padStart(3, "0")}`,
+        revision: 0,
+        semanticUpdatedAt: fact.confirmedAt,
+      },
+    ]),
+  );
   const notes = new Map<string, TripNotes>();
   const documents = new Map<string, StoredDocument>(
     fixtureDocuments.map((stored) => [stored.document.id, clone(stored)]),
@@ -2789,7 +3095,6 @@ export function createMockGateway(options?: {
   /** `${tripId}:${documentId}` -> the traveler's tick and note. */
   const visaItems = new Map<string, VisaPrepItem>();
   const tripItems = new Map<string, TripItem>();
-  const itineraryRevisions = new Map<string, number>();
   const resources = new Map<string, Resource>();
   const chatThreads = new Map<string, ChatMessage[]>();
   let autoFetchDetails = false;
@@ -3183,13 +3488,17 @@ export function createMockGateway(options?: {
             trip,
             confirmedFacts,
             manualItems,
+            itineraryIdentities,
           ),
           calendarSnapshot: {
             ...mockBuildCalendarSnapshot(
               trip,
               confirmedFacts,
               manualItems,
-              itineraryRevisions,
+              itineraryIdentities,
+              [...factVersions.values()].filter(
+                (version) => version.tripId === tripId,
+              ),
             ),
             removals: mockRemovedCalendarRoles(
               [...factVersions.values()].filter(
@@ -4491,7 +4800,12 @@ export function createMockGateway(options?: {
           updatedAt: now,
         };
         tripItems.set(item.id, item);
-        itineraryRevisions.set(`trip_item:${item.id}`, 0);
+        itineraryIdentities.set(`trip_item:${item.id}`, {
+          calendarLineage: nextId("cal"),
+          focusLocator: nextId("focus"),
+          revision: 0,
+          semanticUpdatedAt: now,
+        });
         return clone(item);
       }),
 
@@ -4528,7 +4842,11 @@ export function createMockGateway(options?: {
         tripItems.set(updated.id, updated);
         if (calendarChanged) {
           const key = `trip_item:${updated.id}`;
-          itineraryRevisions.set(key, (itineraryRevisions.get(key) ?? 0) + 1);
+          const identity = itineraryIdentities.get(key);
+          if (identity) {
+            identity.revision += 1;
+            identity.semanticUpdatedAt = updated.updatedAt;
+          }
         }
         return clone(updated);
       }),
@@ -4537,7 +4855,7 @@ export function createMockGateway(options?: {
       execute("deleteTripItem", () => {
         if (!tripItems.delete(tripItemId))
           throw appError("validation/invalid_input", "trip item not found");
-        itineraryRevisions.delete(`trip_item:${tripItemId}`);
+        itineraryIdentities.delete(`trip_item:${tripItemId}`);
       }),
 
     getVisaPrep: (tripId: string) =>
@@ -4969,7 +5287,10 @@ export function createMockGateway(options?: {
           if (candidate.tripId === tripId) candidates.delete(id);
         }
         for (const [id, fact] of facts) {
-          if (fact.tripId === tripId) facts.delete(id);
+          if (fact.tripId === tripId) {
+            facts.delete(id);
+            itineraryIdentities.delete(`confirmed_fact:${id}`);
+          }
         }
         for (const [id, version] of factVersions) {
           if (version.tripId === tripId) factVersions.delete(id);
@@ -4995,7 +5316,10 @@ export function createMockGateway(options?: {
           if (key.startsWith(`${tripId}:`)) visaItems.delete(key);
         }
         for (const [id, item] of tripItems) {
-          if (item.tripId === tripId) tripItems.delete(id);
+          if (item.tripId === tripId) {
+            tripItems.delete(id);
+            itineraryIdentities.delete(`trip_item:${id}`);
+          }
         }
       }),
 
@@ -5125,11 +5449,12 @@ export function createMockGateway(options?: {
             if (fact.candidateId === candidate.id) {
               fact.candidateId = null;
               fact.sourceRemoved = true;
-              const version = factVersions.get(fact.id);
-              if (version) {
-                version.candidateId = null;
-                version.sourceRemoved = true;
-              }
+            }
+          }
+          for (const version of factVersions.values()) {
+            if (version.candidateId === candidate.id) {
+              version.candidateId = null;
+              version.sourceRemoved = true;
             }
           }
           candidates.delete(candidate.id);
@@ -5161,7 +5486,7 @@ export function createMockGateway(options?: {
         }
         const confirmedAt = timestamp();
         const payload = input.editedPayload ?? clone(candidate.payload);
-        const confirmedFact: ConfirmedFact = {
+        let confirmedFact: ConfirmedFact = {
           id: nextId("fact"),
           tripId: candidate.tripId,
           factType: candidate.factType,
@@ -5181,35 +5506,61 @@ export function createMockGateway(options?: {
           reason: "initial",
           lineageRootId: confirmedFact.id,
         };
-        if (candidate.amendsFactId) {
-          if (!input.amendmentAction) {
-            throw appError(
-              "validation/invalid_input",
-              "Choose Replace or Keep both for this amendment",
-            );
-          }
-          if (input.amendmentAction === "replace") {
-            const previous = factVersions.get(candidate.amendsFactId);
-            if (!previous?.active) {
-              throw appError(
-                "validation/invalid_input",
-                "This amendment is stale; review the latest active version",
-              );
-            }
-            previous.active = false;
-            facts.delete(previous.id);
-            version = {
-              ...version,
-              revision: previous.revision + 1,
-              reason: "amendment",
-              lineageRootId: previous.lineageRootId,
-              supersedesFactId: previous.id,
-            };
-          }
-        } else if (input.amendmentAction) {
+        const classification = mockClassifyAmendment(
+          candidate.factType,
+          payload,
+          [...facts.values()].filter(
+            (fact) => fact.tripId === candidate.tripId,
+          ),
+        );
+        if (classification.kind === "duplicate") {
           throw appError(
             "validation/invalid_input",
-            "Amendment action is only valid for a matched amendment",
+            "This confirmation is already approved",
+          );
+        }
+        if (
+          classification.kind === "amendment" &&
+          input.amendmentAction === "replace"
+        ) {
+          const previous = factVersions.get(classification.factId);
+          const previousFact = facts.get(classification.factId);
+          if (
+            !previous?.active ||
+            !previousFact ||
+            input.expectedAmendmentFactId !== previous.id ||
+            input.expectedAmendmentRevision !== previous.revision
+          ) {
+            throw appError(
+              "validation/invalid_input",
+              "The matched fact changed after review; compare the latest version before replacing it",
+            );
+          }
+          const snapshotId = nextId("fact_version");
+          factVersions.set(snapshotId, {
+            ...clone(previous),
+            id: snapshotId,
+            active: false,
+          });
+          confirmedFact = {
+            ...confirmedFact,
+            id: previous.id,
+          };
+          version = {
+            ...confirmedFact,
+            active: true,
+            revision: previous.revision + 1,
+            reason: "amendment",
+            lineageRootId: previous.lineageRootId,
+            supersedesFactId: snapshotId,
+          };
+        } else if (
+          classification.kind === "ordinary" &&
+          input.amendmentAction === "replace"
+        ) {
+          throw appError(
+            "validation/invalid_input",
+            "This amendment is stale; review the latest approved facts",
           );
         }
         const resolvedCandidate: CandidateFact = {
@@ -5220,6 +5571,15 @@ export function createMockGateway(options?: {
         candidates.set(candidate.id, resolvedCandidate);
         facts.set(confirmedFact.id, confirmedFact);
         factVersions.set(version.id, version);
+        const identityKey = `confirmed_fact:${confirmedFact.id}`;
+        if (!itineraryIdentities.has(identityKey)) {
+          itineraryIdentities.set(identityKey, {
+            calendarLineage: nextId("cal"),
+            focusLocator: nextId("focus"),
+            revision: 0,
+            semanticUpdatedAt: confirmedFact.confirmedAt,
+          });
+        }
         return {
           candidate: clone(resolvedCandidate),
           confirmedFact: clone(confirmedFact),
@@ -5267,6 +5627,12 @@ export function createMockGateway(options?: {
           reason: "initial",
           lineageRootId: fact.id,
         });
+        itineraryIdentities.set(`confirmed_fact:${fact.id}`, {
+          calendarLineage: nextId("cal"),
+          focusLocator: nextId("focus"),
+          revision: 0,
+          semanticUpdatedAt: fact.confirmedAt,
+        });
         return clone(fact);
       }),
 
@@ -5284,6 +5650,7 @@ export function createMockGateway(options?: {
         }
         facts.delete(factId);
         factVersions.delete(factId);
+        itineraryIdentities.delete(`confirmed_fact:${factId}`);
         if (fact.candidateId) {
           const candidate = candidates.get(fact.candidateId);
           if (candidate) {
@@ -5317,8 +5684,21 @@ export function createMockGateway(options?: {
         if (!current) {
           throw appError("fact/not_found", "Active fact version not found");
         }
-        current.active = false;
-        facts.delete(current.id);
+        if (
+          input.expectedCurrentFactId !== current.id ||
+          input.expectedCurrentRevision !== current.revision
+        ) {
+          throw appError(
+            "validation/invalid_input",
+            "The active fact changed after review; compare the latest version before restoring",
+          );
+        }
+        const snapshotId = nextId("fact_version");
+        factVersions.set(snapshotId, {
+          ...clone(current),
+          id: snapshotId,
+          active: false,
+        });
         const {
           active: _active,
           revision: _revision,
@@ -5329,7 +5709,8 @@ export function createMockGateway(options?: {
         } = selected;
         const restored: ConfirmedFact = {
           ...clone(selectedFact),
-          id: nextId("fact"),
+          id: current.lineageRootId,
+          candidateId: selected.sourceRemoved ? null : selectedFact.candidateId,
           confirmedAt: timestamp(),
         };
         facts.set(restored.id, restored);
@@ -5339,7 +5720,7 @@ export function createMockGateway(options?: {
           revision: current.revision + 1,
           reason: "restore",
           lineageRootId: current.lineageRootId,
-          supersedesFactId: current.id,
+          supersedesFactId: snapshotId,
         });
         return clone(restored);
       }),

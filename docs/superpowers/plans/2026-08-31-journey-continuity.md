@@ -30,8 +30,8 @@ ADR-0020 records the additive contract, storage, identity, and history decisions
 
 Audit current public and product documentation for claims that Voyalier stores dropped resource
 files. The shipped resource form stores links; `ResourceKind.file` remains a dormant compatibility
-value. Narrow current-tense claims, add an Unreleased correction, and leave historical ADRs,
-release notes, and implementation plans intact. Add a scoped documentation assertion that permits
+value. Narrow all public claims, including historical release notes that describe current product
+behavior, and add an Unreleased correction. Add a scoped documentation assertion that permits
 clearly future-gated file-wallet language.
 
 ## Phase 1 — selective redacted Copy and Print
@@ -52,6 +52,8 @@ Add an IO-free core projection over active confirmed facts plus traveler-authore
 - dated authored items use their recorded start date; missing or invalid dates go to Unscheduled;
 - entries outside the trip window go to Before trip or After trip rather than being dropped;
 - same-time ties sort by kind, source, then a dedicated opaque focus locator;
+- only days with entries are materialized, unusually long stays cap at 400 projected nights, and
+  the whole board shares a 2,000-entry ceiling with a visible truncation warning;
 - no merging, time-zone inference, route optimization, travel-time inference, availability, or
   live status.
 
@@ -62,16 +64,17 @@ control. Map behavior remains unchanged; the board never routes or reorders anyt
 ## Phase 3 — stable repeatable calendar snapshots
 
 Replace the index-based web exporter with a redacted core projection. Confirmed facts and
-traveler-authored items receive opaque calendar lineages and monotonic revisions from one local
-identity sidecar. Each source has
+traveler-authored items receive opaque calendar lineages from one local identity sidecar. Each source has
 explicit roles (`departure`, `arrival`, `checkin`, `checkout`, or `plan`) so a multi-event record is
 matched deterministically across versions.
 
 Revision comparison is over canonical semantic event content only. `UID`, `SEQUENCE`, `DTSTAMP`,
 export time, property order, line folding, and serialization format are excluded. Existing roles
 keep UIDs; new roles get new UIDs; roles removed by an amendment appear in the preview as removals.
-Unscheduled records appear as omissions. The `.ics` remains floating wall-clock output with no
-`TZID` or inferred offset and carries explicit one-shot warnings.
+Unscheduled records appear as omissions. Confirmed-role revisions are derived independently from
+append-only version semantics; plan revisions and semantic timestamps update atomically. The `.ics`
+remains floating wall-clock plaintext output with no `TZID` or inferred offset and carries explicit
+one-shot, possible-duplicate, and calendar-sync warnings.
 
 Tests cover insertion/reordering, unchanged output, semantic revision increments, multi-role
 amendments, removed roles, surface journeys, CRLF injection, Unicode folding, all-day records,
@@ -91,10 +94,14 @@ stored as a possible amendment. Shared codes, missing context, or multiple match
 candidates; the initial slice does not group multi-segment reservations.
 
 The review card shows an escaped current/imported diff and requires Replace, Keep both, or Dismiss.
-Replace is a fresh-version-guarded transaction: the old version becomes inactive, the new version
-inherits its lineage, revision increments once, and both records and their evidence remain. Keep
-both starts a new lineage. Undo writes a compensating restore version; it never deletes or mutates
-history. Only active facts feed readiness, Today, search, brief, Journey Board, and calendar.
+Replace reclassifies the final payload and compare-and-swaps the exact reviewed current id and
+revision in one transaction: it
+appends the prior state to a sealed history table, then updates the one current compatibility row
+without changing its opaque identity. Keep both starts a new lineage. Undo appends the displaced
+current state and applies a compare-and-swap compensating restore version; it never deletes or
+mutates history. A database trigger also prevents a downgraded reader from physically deleting a
+lineage with retained history without blocking whole-trip cascades.
+Only current facts feed readiness, Today, search, brief, Journey Board, and calendar.
 
 ## Verification and integration
 

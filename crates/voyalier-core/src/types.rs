@@ -946,6 +946,13 @@ pub struct ConfirmCandidateInput {
     pub edited_payload: Option<FactPayload>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub amendment_action: Option<AmendmentAction>,
+    /// Exact active version the traveler reviewed before choosing Replace.
+    /// Omitted by older clients, which remain safe because omission is accepted
+    /// only for Keep both / ordinary confirmation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_amendment_fact_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_amendment_revision: Option<u32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -959,6 +966,12 @@ pub enum AmendmentAction {
 #[serde(rename_all = "camelCase")]
 pub struct RestoreFactVersionInput {
     pub fact_id: String,
+    /// Exact active version shown beside the historical value. Restore is a
+    /// compare-and-swap decision and fails when either value is absent/stale.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_current_fact_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_current_revision: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

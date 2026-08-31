@@ -223,6 +223,14 @@ impl AppService {
                 params![document_id],
             )
             .map_err(storage_error)?;
+        transaction
+            .execute(
+                "UPDATE confirmed_fact_versions SET source_removed = 1
+                 WHERE candidate_id IN
+                   (SELECT id FROM candidate_facts WHERE document_id = ?1)",
+                params![document_id],
+            )
+            .map_err(storage_error)?;
         let deleted = transaction
             .execute(
                 "DELETE FROM source_documents WHERE id = ?1",
@@ -253,7 +261,7 @@ impl AppService {
             .unwrap_or_else(|| candidate.payload.clone());
         validate_fact_payload(candidate.fact_type, &payload)?;
         let corrected_fields = changed_payload_fields(&candidate.payload, &payload);
-        let confirmed = ConfirmedFact {
+        let mut confirmed = ConfirmedFact {
             id: new_id("fact"),
             trip_id: candidate.trip_id.clone(),
             fact_type: candidate.fact_type,
@@ -264,97 +272,70 @@ impl AppService {
             confirmed_at: now_rfc3339(),
             source_removed: false,
         };
-        match (candidate.amends_fact_id.as_deref(), input.amendment_action) {
-            (Some(_), None) => {
+        // Reclassify the final, possibly edited payload against the current
+        // approved state inside the same transaction as the decision. The
+        // candidate's stored pointer is only a preview from import time.
+        let active_facts = self
+            .records(&transaction)
+            .confirmed_facts(&candidate.trip_id)?;
+        let amendment = classify_amendment(candidate.fact_type, &confirmed.payload, &active_facts);
+        match (amendment, input.amendment_action) {
+            (AmendmentMatch::Duplicate { .. }, _) => {
                 return Err(AppError::new(
                     ErrorCode::ValidationInvalidInput,
-                    "choose Replace or Keep both for this amendment",
+                    "this confirmation is already approved",
                 ));
             }
-            (None, Some(_)) => {
-                return Err(AppError::new(
-                    ErrorCode::ValidationInvalidInput,
-                    "amendment action is only valid for a matched amendment",
-                ));
-            }
-            (Some(previous_id), Some(AmendmentAction::Replace)) => {
-                let (active, version, lineage_root_id) = transaction
+            (
+                AmendmentMatch::Amendment {
+                    fact_id: previous_id,
+                },
+                Some(AmendmentAction::Replace),
+            ) => {
+                let version = transaction
                     .query_row(
-                        "SELECT active, version, lineage_root_id FROM confirmed_facts WHERE id=?1",
+                        "SELECT version FROM confirmed_facts WHERE id=?1 AND active=1",
                         params![previous_id],
-                        |row| {
-                            Ok((
-                                row.get::<_, i64>(0)?,
-                                row.get::<_, u32>(1)?,
-                                row.get::<_, String>(2)?,
-                            ))
-                        },
+                        |row| row.get::<_, u32>(0),
                     )
                     .optional()
                     .map_err(storage_error)?
                     .ok_or_else(|| {
-                        AppError::new(ErrorCode::FactNotFound, "matched fact no longer exists")
+                        AppError::new(
+                            ErrorCode::ValidationInvalidInput,
+                            "the matched fact changed; review the latest version",
+                        )
                     })?;
-                if active == 0 {
+                if input.expected_amendment_fact_id.as_deref() != Some(previous_id.as_str())
+                    || input.expected_amendment_revision != Some(version)
+                {
                     return Err(AppError::new(
                         ErrorCode::ValidationInvalidInput,
-                        "this amendment is stale; review the latest active version",
+                        "the matched fact changed after review; compare the latest version before replacing it",
                     ));
                 }
-                let (calendar_lineage, ui_locator, projection_revision) = transaction
-                    .query_row(
-                        "SELECT calendar_lineage, ui_locator, revision
-                           FROM itinerary_identities
-                          WHERE source_kind='confirmed_fact' AND source_id=?1",
-                        params![previous_id],
-                        |row| {
-                            Ok((
-                                row.get::<_, String>(0)?,
-                                row.get::<_, String>(1)?,
-                                row.get::<_, u32>(2)?,
-                            ))
-                        },
-                    )
-                    .map_err(storage_error)?;
-                transaction
-                    .execute(
-                        "UPDATE confirmed_facts SET active=0 WHERE id=?1 AND active=1",
-                        params![previous_id],
-                    )
-                    .map_err(storage_error)?;
-                transaction
-                    .execute(
-                        "DELETE FROM itinerary_identities
-                          WHERE source_kind='confirmed_fact' AND source_id=?1",
-                        params![previous_id],
-                    )
-                    .map_err(storage_error)?;
+                let snapshot_id = new_id("fact_version");
                 self.records(&transaction)
-                    .insert_confirmed_fact(&confirmed)?;
-                transaction
-                    .execute(
-                        "UPDATE confirmed_facts
-                            SET supersedes_fact_id=?2, revision_reason='amendment',
-                                version=?3, lineage_root_id=?4
-                          WHERE id=?1",
-                        params![confirmed.id, previous_id, version + 1, lineage_root_id],
-                    )
-                    .map_err(storage_error)?;
-                transaction
-                    .execute(
-                        "UPDATE itinerary_identities
-                            SET calendar_lineage=?2, ui_locator=?3, revision=?4
-                          WHERE source_kind='confirmed_fact' AND source_id=?1",
-                        params![
-                            confirmed.id,
-                            calendar_lineage,
-                            ui_locator,
-                            projection_revision + 1
-                        ],
-                    )
-                    .map_err(storage_error)?;
+                    .snapshot_confirmed_fact(&previous_id, &snapshot_id)?;
+                confirmed.id = previous_id.clone();
+                self.records(&transaction).replace_confirmed_fact(
+                    &previous_id,
+                    version,
+                    &confirmed,
+                    FactRevisionReason::Amendment,
+                    &snapshot_id,
+                )?;
             }
-            (Some(_), Some(AmendmentAction::KeepBoth)) | (None, None) => {
+            (AmendmentMatch::Ordinary, Some(AmendmentAction::Replace)) => {
+                return Err(AppError::new(
+                    ErrorCode::ValidationInvalidInput,
+                    "this amendment is stale; review the latest approved facts",
+                ));
+            }
+            (AmendmentMatch::Amendment { .. }, Some(AmendmentAction::KeepBoth))
+            | (AmendmentMatch::Amendment { .. }, None)
+            | (AmendmentMatch::Ordinary, Some(AmendmentAction::KeepBoth))
+            | (AmendmentMatch::Ordinary, None) => {
                 self.records(&transaction)
                     .insert_confirmed_fact(&confirmed)?;
             }
@@ -449,25 +430,13 @@ impl AppService {
     ) -> Result<ConfirmedFact, AppError> {
         let mut connection = self.connection()?;
         let transaction = connection.transaction().map_err(storage_error)?;
-        let selected = self.records(&transaction).confirmed_fact(&input.fact_id)?;
-        let (selected_active, lineage_root_id) = transaction
+        let selected = self
+            .records(&transaction)
+            .confirmed_fact_version(&input.fact_id)?;
+        let (current_fact_id, current_version) = transaction
             .query_row(
-                "SELECT active, lineage_root_id FROM confirmed_facts WHERE id=?1",
-                params![input.fact_id],
-                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
-            )
-            .map_err(storage_error)?;
-        if selected_active != 0 {
-            return Err(AppError::new(
-                ErrorCode::ValidationInvalidInput,
-                "that fact version is already active",
-            ));
-        }
-        let (current_id, current_version) = transaction
-            .query_row(
-                "SELECT id, version FROM confirmed_facts
-                  WHERE lineage_root_id=?1 AND active=1",
-                params![lineage_root_id],
+                "SELECT id, version FROM confirmed_facts WHERE id=?1 AND active=1",
+                params![selected.lineage_root_id],
                 |row| Ok((row.get::<_, String>(0)?, row.get::<_, u32>(1)?)),
             )
             .optional()
@@ -475,68 +444,34 @@ impl AppService {
             .ok_or_else(|| {
                 AppError::new(ErrorCode::FactNotFound, "active fact version not found")
             })?;
-        let (calendar_lineage, ui_locator, projection_revision) = transaction
-            .query_row(
-                "SELECT calendar_lineage, ui_locator, revision
-                   FROM itinerary_identities
-                  WHERE source_kind='confirmed_fact' AND source_id=?1",
-                params![current_id],
-                |row| {
-                    Ok((
-                        row.get::<_, String>(0)?,
-                        row.get::<_, String>(1)?,
-                        row.get::<_, u32>(2)?,
-                    ))
-                },
-            )
-            .map_err(storage_error)?;
-        transaction
-            .execute(
-                "UPDATE confirmed_facts SET active=0 WHERE id=?1 AND active=1",
-                params![current_id],
-            )
-            .map_err(storage_error)?;
-        transaction
-            .execute(
-                "DELETE FROM itinerary_identities
-                  WHERE source_kind='confirmed_fact' AND source_id=?1",
-                params![current_id],
-            )
-            .map_err(storage_error)?;
-        let restored = ConfirmedFact {
-            id: new_id("fact"),
-            confirmed_at: now_rfc3339(),
-            ..selected
-        };
+        if input.expected_current_fact_id.as_deref() != Some(current_fact_id.as_str())
+            || input.expected_current_revision != Some(current_version)
+        {
+            return Err(AppError::new(
+                ErrorCode::ValidationInvalidInput,
+                "the active fact changed after review; compare the latest version before restoring",
+            ));
+        }
+        let snapshot_id = new_id("fact_version");
         self.records(&transaction)
-            .insert_confirmed_fact(&restored)?;
-        transaction
-            .execute(
-                "UPDATE confirmed_facts
-                    SET supersedes_fact_id=?2, revision_reason='restore',
-                        version=?3, lineage_root_id=?4
-                  WHERE id=?1",
-                params![
-                    restored.id,
-                    current_id,
-                    current_version + 1,
-                    lineage_root_id
-                ],
-            )
-            .map_err(storage_error)?;
-        transaction
-            .execute(
-                "UPDATE itinerary_identities
-                    SET calendar_lineage=?2, ui_locator=?3, revision=?4
-                  WHERE source_kind='confirmed_fact' AND source_id=?1",
-                params![
-                    restored.id,
-                    calendar_lineage,
-                    ui_locator,
-                    projection_revision + 1
-                ],
-            )
-            .map_err(storage_error)?;
+            .snapshot_confirmed_fact(&selected.lineage_root_id, &snapshot_id)?;
+        let mut restored = ConfirmedFact {
+            id: selected.lineage_root_id.clone(),
+            confirmed_at: now_rfc3339(),
+            ..selected.fact
+        };
+        // The historical row keeps the evidence tombstone, but a deleted
+        // candidate cannot be written back through the current table's FK.
+        if restored.source_removed {
+            restored.candidate_id = None;
+        }
+        self.records(&transaction).replace_confirmed_fact(
+            &restored.id,
+            current_version,
+            &restored,
+            FactRevisionReason::Restore,
+            &snapshot_id,
+        )?;
         transaction.commit().map_err(storage_error)?;
         Ok(restored)
     }

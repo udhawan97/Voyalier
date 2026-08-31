@@ -104,10 +104,24 @@ describe("calendar export", () => {
   it("escapes injection text and folds long UTF-8 lines", () => {
     const event = {
       ...snapshot().events[0],
-      subject: `旅`.repeat(100) + ";Best,\\Place\nInjected",
+      subject: `旅`.repeat(100) + ";Best,\\Place\rInjected\nAgain\r\nLast",
+      detail: "Gate\rOne\nTwo\r\nThree\u0000",
     };
-    const ics = buildIcs(snapshot({ events: [event] }), labels);
-    expect(ics).toContain("\\;Best\\,\\\\Place\\nInjected");
+    const ics = buildIcs(
+      snapshot({ title: "Kyoto\rAutumn\nJourney", events: [event] }),
+      { ...labels, description: "Exported\rfrom\nVoyalier.\u0007" },
+    );
+    expect(ics).toContain("\\;Best\\,\\\\Place\\nInjected\\nAgain\\nLast");
+    expect(ics).toContain("X-WR-CALNAME:Kyoto\\nAutumn\\nJourney");
+    expect(ics).toContain("LOCATION:Gate\\nOne\\nTwo\\nThree");
+    expect(ics).toContain("DESCRIPTION:Exported\\nfrom\\nVoyalier.");
+    expect(ics.replaceAll("\r\n", "")).not.toContain("\r");
+    expect(
+      [...ics].some((character) => {
+        const code = character.charCodeAt(0);
+        return code < 32 && code !== 10 && code !== 13;
+      }),
+    ).toBe(false);
     const encoder = new TextEncoder();
     for (const line of ics.split("\r\n")) {
       expect(encoder.encode(line).length).toBeLessThanOrEqual(75);

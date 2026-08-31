@@ -25,12 +25,14 @@ describe("Journey Board", () => {
     expect(
       within(board).getAllByText(/Staying at River Paper Inn/),
     ).not.toHaveLength(0);
+    expect(
+      within(board).getAllByText("Confirmed evidence").length,
+    ).toBeGreaterThan(0);
 
-    fireEvent.click(
-      within(board).getByRole("button", {
-        name: /Show in Plan:.*Depart — Fictional Pacific FP18/,
-      }),
-    );
+    const trigger = within(board).getByRole("button", {
+      name: /Show in Plan:.*Depart — Fictional Pacific FP18/,
+    });
+    fireEvent.click(trigger);
     await waitFor(() =>
       expect(document.activeElement).toHaveAttribute(
         "data-search-source",
@@ -40,6 +42,10 @@ describe("Journey Board", () => {
     expect(globalThis.location.href).not.toContain(
       document.activeElement?.getAttribute("data-search-record") ?? "missing",
     );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Back to Journey Board" }),
+    );
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 
   it("localizes the projection without changing stored titles", async () => {
@@ -64,5 +70,54 @@ describe("Journey Board", () => {
     expect(
       within(board).getByText(/Salida — Fictional Pacific FP18/),
     ).toBeInTheDocument();
+  });
+
+  it("keeps opaque plan focus and calendar identity stable across edits", async () => {
+    const gateway = createMockGateway();
+    const item = await gateway.createTripItem({
+      tripId: "trip_kyoto",
+      kind: "activity",
+      title: "Tea bowls",
+      startAt: "2026-11-05T10:00",
+      notes: "first note",
+    });
+    const before = await gateway.getTrip("trip_kyoto");
+    const beforeEntry = before.journeyBoard.days
+      .flatMap((day) => day.entries)
+      .find((entry) => entry.target.recordId === item.id)!;
+    const beforeEvent = before.calendarSnapshot.events.find(
+      (event) => event.title === "Tea bowls",
+    )!;
+
+    await gateway.updateTripItem({
+      tripItemId: item.id,
+      kind: item.kind,
+      title: item.title,
+      startAt: item.startAt,
+      notes: "note-only edit",
+    });
+    const noteOnly = await gateway.getTrip("trip_kyoto");
+    const noteOnlyEvent = noteOnly.calendarSnapshot.events.find(
+      (event) => event.title === "Tea bowls",
+    )!;
+    expect(noteOnlyEvent).toEqual(beforeEvent);
+
+    await gateway.updateTripItem({
+      tripItemId: item.id,
+      kind: item.kind,
+      title: "Tea ceremony",
+      startAt: item.startAt,
+      notes: "note-only edit",
+    });
+    const changed = await gateway.getTrip("trip_kyoto");
+    const changedEntry = changed.journeyBoard.days
+      .flatMap((day) => day.entries)
+      .find((entry) => entry.target.recordId === item.id)!;
+    const changedEvent = changed.calendarSnapshot.events.find(
+      (event) => event.title === "Tea ceremony",
+    )!;
+    expect(changedEntry.focusLocator).toBe(beforeEntry.focusLocator);
+    expect(changedEvent.uid).toBe(beforeEvent.uid);
+    expect(changedEvent.sequence).toBe(beforeEvent.sequence + 1);
   });
 });

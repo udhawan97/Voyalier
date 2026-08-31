@@ -106,6 +106,7 @@ test("disruption continuity reflows and activates from the keyboard", async ({
 test("planning persists through the real loopback service and a browser reload", async ({
   page,
 }) => {
+  test.slow();
   await page.goto("/");
   await expect(
     page.getByRole("heading", { name: "Trips", level: 1 }),

@@ -24,22 +24,23 @@ use voyalier_core::{
     CreateTripItemInput, DRAFT_LODGING_DATES_SYSTEM_PROMPT, DestinationFactsSnapshot,
     DisruptionContext, DocumentContent, DocumentKind, DocumentParse, DocumentSummary,
     DownloadedPack, ErrorCode, ExtractionMethod, FCDO_COUNTRIES, FIELD_SUGGESTION_LIMIT,
-    FactPayload, FactType, FcdoCountry, FieldSuggestion, GeocodedPlace, HealthNotice,
-    HealthResponse, ImportDocumentInput, ImportResult, IntelligenceMode, InterestProfile,
-    KeyValidation, LocalAiStatus, LocalModelPullResult, LodgingDateProposal, MAX_AI_PROMPT_LEN,
-    MAX_CHAT_CONTEXT_RECORDS, MAX_CHAT_EXCERPT_CHARS, MAX_NOTES_CHARS, MAX_OFFLINE_MAP_BYTES,
-    OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OfflineMapArchive, OfflineMapChunk, OfflineMapDescriptor,
-    PROVIDERS, PackContent, PackInfo, PackSuggestion, PackingItem, PersonaWeights, PlaceSummary,
-    ProviderConfig, ProviderId, PublicHolidaysSnapshot, Recommendation, RedactionPolicy,
-    ResearchSettings, Resource, ResourceSnapshot, RestoreFactVersionInput, SEARCH_SUGGESTION_LIMIT,
-    SavePlaceInput, SavedPlace, SearchHit, SearchHitSource, SearchableDocument, SearchableResource,
-    SetInterestProfileInput, SetResearchSettingsInput, SetVisaItemProgressInput,
-    SetVisaNationalityInput, SourceDocument, SourceState, SourceStatus, SuggestionSource,
-    TodayItemTargetSource, TodayView, Trip, TripAssessment, TripBrief, TripDetail, TripItem,
-    TripNotes, TripStatus, TripSummary, UpdatePackingItemInput, UpdateResourceInput,
-    UpdateSavedPlaceInput, UpdateTripInput, UpdateTripItemInput, VisaPrep, VisaSelfReport,
-    WarningCode, WeatherAlert, WeatherSnapshot, WorkspaceSearchHit, WorkspaceSearchRecord,
-    WorkspaceSearchSource, advisory_country, air_quality, assess_trip, build_assist_preview,
+    FactPayload, FactRevisionReason, FactType, FcdoCountry, FieldSuggestion, GeocodedPlace,
+    HealthNotice, HealthResponse, ImportDocumentInput, ImportResult, IntelligenceMode,
+    InterestProfile, KeyValidation, LocalAiStatus, LocalModelPullResult, LodgingDateProposal,
+    MAX_AI_PROMPT_LEN, MAX_CHAT_CONTEXT_RECORDS, MAX_CHAT_EXCERPT_CHARS, MAX_NOTES_CHARS,
+    MAX_OFFLINE_MAP_BYTES, OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OfflineMapArchive, OfflineMapChunk,
+    OfflineMapDescriptor, PROVIDERS, PackContent, PackInfo, PackSuggestion, PackingItem,
+    PersonaWeights, PlaceSummary, ProviderConfig, ProviderId, PublicHolidaysSnapshot,
+    Recommendation, RedactionPolicy, ResearchSettings, Resource, ResourceSnapshot,
+    RestoreFactVersionInput, SEARCH_SUGGESTION_LIMIT, SavePlaceInput, SavedPlace, SearchHit,
+    SearchHitSource, SearchableDocument, SearchableResource, SetInterestProfileInput,
+    SetResearchSettingsInput, SetVisaItemProgressInput, SetVisaNationalityInput, SourceDocument,
+    SourceState, SourceStatus, SuggestionSource, TodayItemTargetSource, TodayView, Trip,
+    TripAssessment, TripBrief, TripDetail, TripItem, TripNotes, TripStatus, TripSummary,
+    UpdatePackingItemInput, UpdateResourceInput, UpdateSavedPlaceInput, UpdateTripInput,
+    UpdateTripItemInput, VisaPrep, VisaSelfReport, WarningCode, WeatherAlert, WeatherSnapshot,
+    WorkspaceSearchHit, WorkspaceSearchRecord, WorkspaceSearchSource, advisory_country,
+    air_quality, apply_fact_history_revisions, assess_trip, build_assist_preview,
     build_assist_request, build_calendar_snapshot, build_chat_prompt, build_disruption_plan,
     build_draft_preview, build_journey_board_with_identities, build_key_validation_request,
     build_packing_list, build_pull_body, build_today_view, build_trip_brief, ca_gac_advisory,
@@ -1720,6 +1721,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "confirmed_fact_history",
         run: migrate_confirmed_fact_history,
     },
+    Migration {
+        to: 21,
+        name: "downgrade_safe_fact_versions",
+        run: migrate_downgrade_safe_fact_versions,
+    },
 ];
 
 /// The version a fully migrated database carries. Stamped into a backup's
@@ -1903,6 +1909,132 @@ fn migrate_confirmed_fact_history(connection: &Connection) -> Result<(), AppErro
                    WHEN NEW.lineage_root_id IS NULL BEGIN
                      UPDATE confirmed_facts SET lineage_root_id=NEW.id WHERE id=NEW.id;
                    END;",
+            )
+            .map_err(storage_error)?;
+    }
+    Ok(())
+}
+
+/// Move prior approved snapshots out of the current-fact table. Older Voyalier
+/// builds know only `confirmed_facts`; keeping that table current-only prevents
+/// a downgrade from displaying history as duplicate reservations or deleting
+/// it through the legacy unconfirm action.
+fn migrate_downgrade_safe_fact_versions(connection: &Connection) -> Result<(), AppError> {
+    let table_exists = |table: &str| -> Result<bool, AppError> {
+        connection
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1)",
+                params![table],
+                |row| row.get(0),
+            )
+            .map_err(storage_error)
+    };
+    let has_column = |table: &str, column: &str| -> Result<bool, AppError> {
+        let mut statement = connection
+            .prepare(&format!("PRAGMA table_info({table})"))
+            .map_err(storage_error)?;
+        let names = statement
+            .query_map([], |row| row.get::<_, String>(1))
+            .map_err(storage_error)?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(storage_error)?;
+        Ok(names.iter().any(|name| name == column))
+    };
+    if table_exists("itinerary_identities")?
+        && !has_column("itinerary_identities", "semantic_updated_at")?
+    {
+        connection
+            .execute_batch(
+                "ALTER TABLE itinerary_identities ADD COLUMN semantic_updated_at TEXT NOT NULL DEFAULT '1970-01-01T00:00:00Z';",
+            )
+            .map_err(storage_error)?;
+    }
+    if table_exists("itinerary_identities")? {
+        if table_exists("confirmed_facts")? {
+            connection
+                .execute_batch(
+                    "UPDATE itinerary_identities
+                        SET semantic_updated_at=COALESCE(
+                          (SELECT confirmed_at FROM confirmed_facts
+                            WHERE id=itinerary_identities.source_id
+                              AND itinerary_identities.source_kind='confirmed_fact'),
+                          semantic_updated_at);",
+                )
+                .map_err(storage_error)?;
+        }
+        if table_exists("trip_items")? {
+            connection
+                .execute_batch(
+                    "UPDATE itinerary_identities
+                        SET semantic_updated_at=COALESCE(
+                          (SELECT updated_at FROM trip_items
+                            WHERE id=itinerary_identities.source_id
+                              AND itinerary_identities.source_kind='trip_item'),
+                          semantic_updated_at);",
+                )
+                .map_err(storage_error)?;
+        }
+    }
+    connection
+        .execute_batch(
+            "CREATE TABLE IF NOT EXISTS confirmed_fact_versions (
+                id TEXT PRIMARY KEY,
+                current_fact_id TEXT NOT NULL,
+                trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                fact_type TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                method TEXT NOT NULL,
+                candidate_id TEXT,
+                corrected_fields TEXT NOT NULL,
+                confirmed_at TEXT NOT NULL,
+                source_removed INTEGER NOT NULL CHECK(source_removed IN (0, 1)),
+                revision INTEGER NOT NULL CHECK(revision >= 0),
+                revision_reason TEXT NOT NULL CHECK(revision_reason IN ('initial', 'amendment', 'restore')),
+                lineage_root_id TEXT NOT NULL,
+                supersedes_fact_id TEXT
+             );
+             CREATE INDEX IF NOT EXISTS confirmed_fact_versions_trip_lineage
+               ON confirmed_fact_versions(trip_id, lineage_root_id, revision);
+             CREATE UNIQUE INDEX IF NOT EXISTS confirmed_fact_versions_current_revision
+               ON confirmed_fact_versions(current_fact_id, revision);",
+        )
+        .map_err(storage_error)?;
+    if table_exists("confirmed_facts")? {
+        connection
+            .execute_batch(
+                "INSERT OR IGNORE INTO confirmed_fact_versions
+               (id, current_fact_id, trip_id, fact_type, payload, method,
+                candidate_id, corrected_fields, confirmed_at, source_removed,
+                revision, revision_reason, lineage_root_id, supersedes_fact_id)
+             SELECT id,
+                    COALESCE((SELECT active_fact.id FROM confirmed_facts active_fact
+                              WHERE active_fact.lineage_root_id=confirmed_facts.lineage_root_id
+                                AND active_fact.active=1 LIMIT 1), lineage_root_id),
+                    trip_id, fact_type, payload, method, candidate_id,
+                    corrected_fields, confirmed_at, source_removed, version,
+                    revision_reason, lineage_root_id, supersedes_fact_id
+               FROM confirmed_facts WHERE active=0;
+             DELETE FROM confirmed_facts WHERE active=0;
+             UPDATE confirmed_fact_versions SET lineage_root_id=current_fact_id;
+             UPDATE confirmed_facts SET active=1, lineage_root_id=id
+              WHERE active<>1 OR lineage_root_id<>id OR lineage_root_id IS NULL;
+
+             -- Old binaries know only a physical DELETE for Unconfirm. Once a
+             -- lineage has history, fail closed at the database boundary so a
+             -- downgrade cannot orphan that history. A trip cascade remains
+             -- valid: after the parent delete begins the trip is no longer
+             -- visible to this guard.
+             CREATE TRIGGER IF NOT EXISTS confirmed_fact_history_protect_delete
+               BEFORE DELETE ON confirmed_facts
+               WHEN EXISTS (
+                 SELECT 1 FROM confirmed_fact_versions
+                  WHERE current_fact_id=OLD.id
+               ) AND EXISTS (
+                 SELECT 1 FROM trips WHERE id=OLD.trip_id
+               )
+               BEGIN
+                 SELECT RAISE(ABORT, 'amended facts are append-only');
+               END;",
             )
             .map_err(storage_error)?;
     }

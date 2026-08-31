@@ -37,24 +37,32 @@ A source record can produce more than one event. Confirmed travel uses `departur
 stays use `checkin` and `checkout`; authored plans use `plan`. UID is the source's opaque calendar
 lineage plus the role. Reordering, inserting another record, or replacing a fact does not change it.
 
-`SEQUENCE` is monotonic and stored with the source version. Whether it increments is decided by a
-canonical semantic event projection: role, kind, subject, location/detail, start/end value, and
+`SEQUENCE` is monotonic per logical role, not per source record. For confirmed facts it is derived
+from the append-only version lineage; authored plans keep their own semantic revision and timestamp
+in the identity sidecar. Whether a role increments is decided by a canonical semantic event
+projection: role, kind, subject, location/detail, start/end value, and
 all-day state. UID, sequence, DTSTAMP/export time, property order, line folding, and serialization
 format are not semantic content and cannot trigger themselves. Newly appearing roles get new UIDs;
 removed roles are reported in the preview because a downloaded file cannot remove an event already
 imported into another application.
+
+Projection identity is required. Missing, duplicate, or incomplete sidecars fail the trip read with
+a repairable storage error; calendar UIDs and Journey Board locators never fall back to row ids.
 
 Times remain floating local wall-clock values. No `TZID`, `Z`, offset, or DST rule is inferred.
 This is a repeatable downloaded snapshot, not synchronization or duplicate prevention.
 
 ### 3. Confirmed facts form an append-only lineage
 
-An `itinerary_identities` sidecar gives confirmed facts and trip items an opaque calendar lineage,
-an opaque UI locator, and a monotonic projection revision without placing transport or UI concerns
-inside either domain record. Existing rows receive freshly assigned identities; insert/delete
-triggers keep sidecar lifecycle atomic. A trip-item revision increments only when its canonical
-calendar semantics change. `confirmed_facts` separately gains an active flag, a superseded-fact
-link, and a reason (`initial`, `amendment`, `restore`) for amendment history.
+An `itinerary_identities` sidecar gives confirmed facts and trip items an opaque calendar lineage
+and an opaque UI locator without placing transport or UI concerns inside either domain record.
+Existing rows receive freshly assigned identities; insert/delete triggers keep sidecar lifecycle
+atomic. A trip-item role revision and semantic timestamp increment atomically with only a canonical
+calendar change. `confirmed_facts` remains a current-only compatibility table. Prior approved
+snapshots live in a separate sealed `confirmed_fact_versions` table so opening the database with an
+older reader cannot display history as duplicate current reservations. A persistent delete trigger
+fails closed when that reader attempts to unconfirm a lineage with retained history, while trip
+deletion still cascades through both tables.
 
 Normal product reads return active facts. Trip detail also returns inactive history explicitly so
 the traveler can inspect prior approved evidence; downstream readiness, Today, search, brief,
@@ -66,28 +74,36 @@ A parsed candidate is a possible amendment only when one active fact on the same
 fact type, exact normalized non-empty confirmation code, and conservative matching
 operator/property and route context. There must be exactly one match. No match, several matches,
 missing identifiers, or uncertain context produces an ordinary candidate. The first version does
-not group multi-segment records that share a code.
+not group multi-segment records that share a code: more than one same-type active fact with the code
+is ambiguous before route narrowing.
 
 An exactly unchanged match is a duplicate/no-op. A changed match records the proposed active fact
-id. Confirmation requires the traveler to choose Replace or Keep both. Replace checks that the
-record is still the expected active revision inside one transaction, deactivates it, and appends a
-new version with inherited lineage and incremented revision. Keep both starts a new lineage.
-Dismiss resolves only the candidate. Undo appends a compensating Restore version; it never deletes
-or rewrites history.
+id. Confirmation in the current UI requires the traveler to choose Replace or Keep both. An older
+consumer that omits the additive action safely defaults to Keep both. Replace reclassifies the final
+edited payload against freshly read active facts inside the transaction, requires the exact active
+fact id and revision the traveler reviewed, checks the affected row,
+appends the prior current snapshot to history, and updates the compatibility row without changing
+its opaque identity. Keep both starts a new lineage. Dismiss resolves only the candidate. Undo
+requires the same reviewed-current compare-and-swap and appends a compensating Restore version; it
+never deletes or rewrites history. A source-removed historical version retains its evidence
+tombstone, but its restored current row cannot revive a dangling candidate foreign key.
 
 The existing Back to review action remains available for an initial fact and keeps its existing
 behavior. Amendment history itself is append-only; restoration is the only amendment undo path.
 
-### 5. The contract change is additive
+### 5. The wire contract is additive; the schema is downgrade-tolerant
 
 The hand-written Rust/TypeScript contract gains optional amendment and lineage fields, Journey
 Board/calendar projections on `TripDetail`, and one `restoreFactVersion` method through AppService,
 Axum, Tauri, both gateways, the mock, and `parity/routes.json`. Older consumers can ignore the
-additive fields. No existing route or enum value changes meaning.
+additive fields and an omitted amendment action keeps the old, non-destructive create-another-fact
+behavior. The current-fact table remains readable as one row per reservation lineage; history is
+isolated in a new table. No existing route or enum value changes meaning.
 
 ## Consequences
 
-- The database receives one retry-safe append-only migration and backup schema version increment.
+- The database receives retry-safe append-only identity, history, and downgrade-safety migrations,
+  plus the corresponding backup schema version increment.
 - Confirmed-fact and trip-item write paths must mint identities and maintain semantic revisions.
 - Mock behavior must match active/history filtering, amendment matching, replacement, and restore;
   it cannot return a visually convenient fiction that the Rust service would reject.

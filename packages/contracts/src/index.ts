@@ -1346,6 +1346,8 @@ export interface JourneyBoard {
   days: JourneyBoardDay[];
   after: JourneyBoardEntry[];
   unscheduled: JourneyBoardEntry[];
+  /** True when a defensively capped lodging span omitted additional nights. */
+  truncated: boolean;
 }
 export type CalendarRole =
   "departure" | "arrival" | "checkin" | "checkout" | "plan";
@@ -1749,9 +1751,13 @@ export interface ConfirmCandidateInput {
   candidateId: string;
   editedPayload?: FactPayload;
   amendmentAction?: "replace" | "keep_both";
+  expectedAmendmentFactId?: string;
+  expectedAmendmentRevision?: number;
 }
 export interface RestoreFactVersionInput {
   factId: string;
+  expectedCurrentFactId?: string;
+  expectedCurrentRevision?: number;
 }
 export interface AddManualFactInput {
   tripId: string;
@@ -2133,6 +2139,9 @@ export {
   mockScoreHaystack,
   mockSuggestPacks,
   mockBuildShareBrief,
+  mockBuildCalendarSnapshot,
+  mockBuildJourneyBoard,
+  mockClassifyAmendment,
   mockBuildTodayView,
   mockTimeDifference,
   mockTippingGuidance,

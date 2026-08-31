@@ -51,7 +51,10 @@ function EntryList({
   onFocusTarget,
 }: {
   entries: JourneyBoardEntry[];
-  onFocusTarget: (target: JourneyBoardEntry["target"]) => void;
+  onFocusTarget: (
+    target: JourneyBoardEntry["target"],
+    trigger: HTMLElement,
+  ) => void;
 }) {
   if (entries.length === 0) {
     return <p className="voy-journey__empty">{t("journey.day.empty")}</p>;
@@ -69,12 +72,19 @@ function EntryList({
             {entry.detail ? (
               <span className="voy-journey__entry-detail">{entry.detail}</span>
             ) : null}
+            <span className="voy-journey__source">
+              {entry.target.source === "confirmed_fact"
+                ? t("journey.source.confirmed")
+                : t("journey.source.plan")}
+            </span>
           </span>
           <Button
             variant="ghost"
             className="voy-journey__open"
             aria-label={t("journey.open.label", { item: entryLine(entry) })}
-            onClick={() => onFocusTarget(entry.target)}
+            onClick={(event) =>
+              onFocusTarget(entry.target, event.currentTarget)
+            }
           >
             {t("today.openTarget")}
           </Button>
@@ -91,7 +101,7 @@ export function JourneyBoard({
   onFocusTarget,
 }: {
   board: JourneyBoardData;
-  onFocusTarget: (target: Target) => void;
+  onFocusTarget: (target: Target, trigger: HTMLElement) => void;
 }) {
   const hasAny =
     board.before.length > 0 ||
@@ -107,6 +117,11 @@ export function JourneyBoard({
           {t("journey.title")}
         </SectionTitle>
         <p>{t("journey.description")}</p>
+        {board.truncated ? (
+          <p className="voy-journey__warning" role="status">
+            {t("journey.truncated")}
+          </p>
+        ) : null}
       </div>
 
       <ol className="voy-journey__days">

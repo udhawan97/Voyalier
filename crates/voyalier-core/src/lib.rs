@@ -93,7 +93,8 @@ pub use backup::{
 pub use brief::{BriefTripItem, RedactionPolicy, TripBrief, build_trip_brief};
 pub use calendar::{
     CalendarEvent, CalendarOmission, CalendarOmissionReason, CalendarRole, CalendarSnapshot,
-    ItineraryIdentity, build_calendar_snapshot, removed_calendar_roles,
+    ItineraryIdentity, ProjectionError, apply_fact_history_revisions, build_calendar_snapshot,
+    removed_calendar_roles,
 };
 pub use chat::{
     CHAT_SYSTEM_PROMPT, ChatContext, ChatGrounding, ChatMessage, ChatPrompt, ChatRole,
@@ -128,8 +129,7 @@ pub use holidays::{
 };
 pub use itinerary::{detect_itinerary_conflicts, detect_planned_item_conflicts, fact_label};
 pub use journey_board::{
-    JourneyBoard, JourneyBoardDay, JourneyBoardEntry, build_journey_board,
-    build_journey_board_with_identities,
+    JourneyBoard, JourneyBoardDay, JourneyBoardEntry, build_journey_board_with_identities,
 };
 pub use local_ai::{
     LocalAiModel, LocalAiStatus, LocalModelPullResult, OLLAMA_PULL_URL, OLLAMA_TAGS_URL,

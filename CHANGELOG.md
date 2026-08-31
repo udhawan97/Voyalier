@@ -1047,13 +1047,13 @@ below for the bulk of the work.
   from material you have confirmed, and the line between them does not move
   because something would be more convenient on the other side.
 
-  **Research resources** are links and files you keep with a trip, each with your
+  **Research resources** are links you keep with a trip, each with your
   own title, note, and tags. The important word is _reading_. A resource is never
   evidence: it produces no confirmed booking, no pending candidate to review, and
   it cannot move the readiness rollup. Drop a booking confirmation into it and it
   is filed rather than imported — the panel says so and points at the import flow,
   because quietly parsing it would be the app deciding that your filing was a
-  mistake. Saving contacts nothing and is instant.
+  mistake. Saving a link contacts nothing and is instant.
 
   Fetching what a page _says_ is a separate thing, and it asks. One reversible
   setting, off until you turn it on, and until then the fetch control is absent

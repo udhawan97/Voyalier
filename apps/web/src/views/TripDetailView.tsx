@@ -26,7 +26,9 @@ import {
   fieldsForType,
   formatDateRange,
   formatFieldValue,
+  formatInstant,
   isRetryable,
+  methodLabel,
   tripRoute,
 } from "../app/format";
 import { buildIcs, icsFilename } from "../app/ics";
@@ -150,11 +152,13 @@ function FactCard({
   versioned,
   onUnconfirm,
   unconfirming,
+  onReturnToJourney,
 }: {
   fact: ConfirmedFact;
   versioned: boolean;
   onUnconfirm: (fact: ConfirmedFact) => void;
   unconfirming: boolean;
+  onReturnToJourney?: () => void;
 }) {
   const values = fact.payload as Values;
   const present = fieldsForType(fact.factType).filter(
@@ -205,6 +209,11 @@ function FactCard({
         <p className="voy-fact__sourceless">{t("documents.sourceRemoved")}</p>
       ) : null}
       <div className="voy-fact__actions">
+        {onReturnToJourney ? (
+          <Button variant="secondary" onClick={onReturnToJourney}>
+            {t("journey.return")}
+          </Button>
+        ) : null}
         {/* No candidate means there is nothing to return the fact to, so
             unconfirming destroys it — guard that behind a two-step confirm. That
             covers both a hand-typed fact and one whose source document was
@@ -241,6 +250,7 @@ function FactGroup({
   onUnconfirm,
   unconfirmingId,
   versionedIds,
+  journeyReturn,
 }: {
   title: string;
   icon: React.ReactNode;
@@ -248,6 +258,7 @@ function FactGroup({
   onUnconfirm: (fact: ConfirmedFact) => void;
   unconfirmingId: string | null;
   versionedIds: Set<string>;
+  journeyReturn?: { recordId: string; onReturn: () => void };
 }) {
   if (facts.length === 0) return null;
   return (
@@ -267,6 +278,11 @@ function FactGroup({
             versioned={versionedIds.has(fact.id)}
             onUnconfirm={onUnconfirm}
             unconfirming={unconfirmingId === fact.id}
+            onReturnToJourney={
+              journeyReturn?.recordId === fact.id
+                ? journeyReturn.onReturn
+                : undefined
+            }
           />
         ))}
       </div>
@@ -285,30 +301,93 @@ function FactHistory({
 }) {
   const previous = versions.filter((version) => !version.active);
   if (previous.length === 0) return null;
+  const groups = [...new Set(previous.map((version) => version.lineageRootId))]
+    .map((lineageRootId) => ({
+      lineageRootId,
+      active: versions.find(
+        (version) => version.active && version.lineageRootId === lineageRootId,
+      ),
+      previous: previous.filter(
+        (version) => version.lineageRootId === lineageRootId,
+      ),
+    }))
+    .filter((group) => group.active);
   return (
     <details className="voy-fact-history">
       <summary>{plural("history.previous", previous.length)}</summary>
       <p className="voy-fact-history__note">{t("history.note")}</p>
-      <ul className="voy-fact-history__list">
-        {previous.map((version) => (
-          <li key={version.id} className="voy-fact-history__item">
-            <div>
-              <strong>{factTitle(version.factType, version.payload)}</strong>
-              <span>{t(`history.reason.${version.reason}` as MessageKey)}</span>
-            </div>
-            <Button
-              variant="secondary"
-              busy={restoringId === version.id}
-              aria-label={t("history.restore.label", {
-                fact: factTitle(version.factType, version.payload),
+      {groups.map((group) => {
+        const current = group.active!;
+        const currentTitle = factTitle(current.factType, current.payload);
+        return (
+          <section
+            key={group.lineageRootId}
+            className="voy-fact-history__lineage"
+            aria-label={t("history.currentVersion", { fact: currentTitle })}
+          >
+            <h3>{t("history.currentVersion", { fact: currentTitle })}</h3>
+            <ul className="voy-fact-history__list">
+              {group.previous.map((version) => {
+                const values = version.payload as Values;
+                const fields = fieldsForType(version.factType).filter(
+                  (key) => values[key] != null && values[key] !== "",
+                );
+                const title = factTitle(version.factType, version.payload);
+                return (
+                  <li key={version.id} className="voy-fact-history__item">
+                    <div className="voy-fact-history__head">
+                      <strong>{title}</strong>
+                      <span>
+                        {t(`history.reason.${version.reason}` as MessageKey)}
+                      </span>
+                      <span>
+                        {t("history.approvedAt", {
+                          date: formatInstant(version.confirmedAt),
+                        })}
+                      </span>
+                      <span>
+                        {t("history.method", {
+                          method: methodLabel(version.method),
+                        })}
+                      </span>
+                      <span>
+                        {version.sourceRemoved
+                          ? t("history.source.removed")
+                          : version.candidateId
+                            ? t("history.source.imported")
+                            : t("history.source.manual")}
+                      </span>
+                    </div>
+                    <div>
+                      <h4>{t("history.values")}</h4>
+                      <dl className="voy-fact-history__values">
+                        {fields.map((key) => (
+                          <div key={key}>
+                            <dt>{fieldLabel(key)}</dt>
+                            <dd>
+                              {formatFieldValue(key, values[key] as string)}
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </div>
+                    <ConfirmButton
+                      label={t("history.restore")}
+                      variant="secondary"
+                      busy={restoringId === version.id}
+                      ariaLabel={t("history.restore.label", {
+                        fact: title,
+                        current: currentTitle,
+                      })}
+                      onConfirm={() => onRestore(version)}
+                    />
+                  </li>
+                );
               })}
-              onClick={() => onRestore(version)}
-            >
-              {t("history.restore")}
-            </Button>
-          </li>
-        ))}
-      </ul>
+            </ul>
+          </section>
+        );
+      })}
     </details>
   );
 }
@@ -1123,6 +1202,18 @@ export function TripDetailView({
   const [resourceFilter, setResourceFilter] = useState<string | null>(null);
   const [continuityTarget, setContinuityTarget] =
     useState<ContinuityTarget | null>(null);
+  const [journeyReturn, setJourneyReturn] = useState<{
+    source: "confirmed_fact" | "trip_item";
+    recordId: string;
+    trigger: HTMLElement;
+  } | null>(null);
+
+  const returnToJourney = useCallback(() => {
+    const trigger = journeyReturn?.trigger;
+    setJourneyReturn(null);
+    trigger?.scrollIntoView?.({ block: "center" });
+    trigger?.focus({ preventScroll: true });
+  }, [journeyReturn]);
 
   const settleContinuityTarget = useCallback((requestId: number) => {
     setContinuityTarget((current) =>
@@ -1278,8 +1369,21 @@ export function TripDetailView({
   );
 
   const restoreVersionAction = useAsyncAction(
-    (version: ConfirmedFactVersion) =>
-      gateway.restoreFactVersion({ factId: version.id }),
+    (version: ConfirmedFactVersion) => {
+      const current = data?.detail.factVersions.find(
+        (candidate) =>
+          candidate.active && candidate.lineageRootId === version.lineageRootId,
+      );
+      return gateway.restoreFactVersion({
+        factId: version.id,
+        ...(current
+          ? {
+              expectedCurrentFactId: current.id,
+              expectedCurrentRevision: current.revision,
+            }
+          : {}),
+      });
+    },
     (restored) => {
       announce(
         t("history.announce.restored", {
@@ -1287,6 +1391,7 @@ export function TripDetailView({
         }),
       );
       reload();
+      navigateToPlanningRecord("confirmed_fact", restored.id);
     },
   );
 
@@ -1310,7 +1415,8 @@ export function TripDetailView({
     exportAction.error ??
     archiveAction.error ??
     unarchiveAction.error ??
-    unconfirmAction.error;
+    unconfirmAction.error ??
+    restoreVersionAction.error;
 
   const backButton = (
     <button type="button" className="voy-back" onClick={onBack}>
@@ -1521,9 +1627,10 @@ export function TripDetailView({
 
         <JourneyBoard
           board={data.detail.journeyBoard}
-          onFocusTarget={(target) =>
-            navigateToPlanningRecord(target.source, target.recordId)
-          }
+          onFocusTarget={(target, trigger) => {
+            setJourneyReturn({ ...target, trigger });
+            navigateToPlanningRecord(target.source, target.recordId);
+          }}
         />
 
         {pendingCount > 0 ? (
@@ -1597,6 +1704,14 @@ export function TripDetailView({
                 onUnconfirm={unconfirm}
                 unconfirmingId={unconfirmingId}
                 versionedIds={versionedIds}
+                journeyReturn={
+                  journeyReturn?.source === "confirmed_fact"
+                    ? {
+                        recordId: journeyReturn.recordId,
+                        onReturn: returnToJourney,
+                      }
+                    : undefined
+                }
               />
               <CarbonEstimate estimate={data.detail.flightEmissions} />
               <FactGroup
@@ -1606,6 +1721,14 @@ export function TripDetailView({
                 onUnconfirm={unconfirm}
                 unconfirmingId={unconfirmingId}
                 versionedIds={versionedIds}
+                journeyReturn={
+                  journeyReturn?.source === "confirmed_fact"
+                    ? {
+                        recordId: journeyReturn.recordId,
+                        onReturn: returnToJourney,
+                      }
+                    : undefined
+                }
               />
               <FactGroup
                 title={t("brief.stays")}
@@ -1614,6 +1737,14 @@ export function TripDetailView({
                 onUnconfirm={unconfirm}
                 unconfirmingId={unconfirmingId}
                 versionedIds={versionedIds}
+                journeyReturn={
+                  journeyReturn?.source === "confirmed_fact"
+                    ? {
+                        recordId: journeyReturn.recordId,
+                        onReturn: returnToJourney,
+                      }
+                    : undefined
+                }
               />
               <FactHistory
                 versions={factVersions}
@@ -1639,6 +1770,11 @@ export function TripDetailView({
           suggestions={data.detail.packingList}
           packingItems={data.detail.packingItems}
           tripItems={data.detail.tripItems}
+          journeyReturn={
+            journeyReturn?.source === "trip_item"
+              ? { recordId: journeyReturn.recordId, onReturn: returnToJourney }
+              : undefined
+          }
           onChanged={() => revalidate(tripScope(tripId))}
         />
 
@@ -1890,7 +2026,7 @@ export function TripDetailView({
         {reviewCandidates ? (
           <CandidateReviewDialog
             candidates={reviewCandidates}
-            confirmedFacts={confirmedFacts}
+            confirmedFactVersions={factVersions}
             onClose={() => setReviewCandidates(null)}
             onResolved={() => {
               reload();
@@ -1917,6 +2053,7 @@ export function TripDetailView({
           <CalendarExportDialog
             snapshot={data.detail.calendarSnapshot}
             busy={exportAction.busy}
+            summary={calendarSummary}
             onClose={() => setShowCalendar(false)}
             onDownload={() => exportAction.run()}
           />

@@ -1240,6 +1240,8 @@ fn rust_examples_validate_against_contract_schemas() {
         candidate_id: candidate.id,
         edited_payload: None,
         amendment_action: None,
+        expected_amendment_fact_id: None,
+        expected_amendment_revision: None,
     })
     .expect("confirm input");
     let _ = serde_json::to_value(ImportDocumentInput {
