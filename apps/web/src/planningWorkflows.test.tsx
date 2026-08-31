@@ -395,6 +395,19 @@ describe("traveler-owned planning workflows", () => {
     expect(
       screen.getByRole("button", { name: "Export calendar" }),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Export calendar" }));
+    const calendar = await screen.findByRole("dialog", {
+      name: "Calendar snapshot",
+    });
+    expect(
+      within(calendar).getByText("1 events will be included."),
+    ).toBeVisible();
+    expect(
+      within(calendar).getByText("Every scheduled item can be included."),
+    ).toBeVisible();
+    expect(
+      within(calendar).getByRole("button", { name: "Download .ics" }),
+    ).toBeEnabled();
     expect(
       screen.getByRole("heading", { name: "Schedule check" }),
     ).toBeInTheDocument();
@@ -440,12 +453,14 @@ describe("traveler-owned planning workflows", () => {
       expect(
         screen.getByRole("button", { name: `${name} — sure?` }),
       ).toBeInTheDocument();
-      expect(screen.getByText(name.replace("Remove ", ""))).toBeInTheDocument();
+      expect(
+        screen.getAllByText(name.replace("Remove ", "")).length,
+      ).toBeGreaterThan(0);
       fireEvent.click(screen.getByRole("button", { name: `${name} — sure?` }));
       await waitFor(() =>
-        expect(
-          screen.queryByText(name.replace("Remove ", "")),
-        ).not.toBeInTheDocument(),
+        expect(screen.queryAllByText(name.replace("Remove ", ""))).toHaveLength(
+          0,
+        ),
       );
     }
   });

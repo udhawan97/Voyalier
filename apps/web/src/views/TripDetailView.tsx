@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
+  CalendarEvent,
   CandidateFact,
   ConfirmedFact,
   FactType,
@@ -67,6 +68,7 @@ import {
 } from "../components/primitives";
 import { AddFactDialog } from "./AddFactDialog";
 import { BriefDialog } from "./BriefDialog";
+import { CalendarExportDialog } from "./CalendarExportDialog";
 import { CandidateReviewDialog } from "./CandidateReviewDialog";
 import { DocumentsPanel } from "./DocumentsPanel";
 import { TripNotes } from "./TripNotes";
@@ -96,6 +98,35 @@ import { AboutPlace } from "./AboutPlace";
 import { WeatherOutlook } from "./WeatherOutlook";
 
 type Values = Record<string, string | undefined>;
+
+function calendarSummary(event: CalendarEvent): string {
+  switch (event.kind) {
+    case "flight_departure":
+    case "journey_departure":
+      return event.subject
+        ? t("today.item.depart", { subject: event.subject })
+        : t("journey.item.departGeneric");
+    case "flight_arrival":
+    case "journey_arrival":
+      return event.subject
+        ? t("today.item.arrive", { subject: event.subject })
+        : t("journey.item.arriveGeneric");
+    case "checkin":
+      return event.subject
+        ? t("today.item.checkin", { subject: event.subject })
+        : t("today.item.checkinGeneric");
+    case "checkout":
+      return event.subject
+        ? t("today.item.checkout", { subject: event.subject })
+        : t("today.item.checkoutGeneric");
+    case "staying_tonight":
+      return event.title;
+    case "activity":
+    case "rail":
+    case "transfer":
+      return event.title;
+  }
+}
 
 /** Itinerary order: by a wall-clock field, undated last. Lexicographic is safe. */
 function byField(key: string) {
@@ -1125,6 +1156,7 @@ export function TripDetailView({
   >(null);
   const [showDelete, setShowDelete] = useState(false);
   const [showBrief, setShowBrief] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [unconfirmingId, setUnconfirmingId] = useState<string | null>(null);
 
@@ -1138,16 +1170,15 @@ export function TripDetailView({
    * is built by the local core, turned into calendar text here, and handed to
    * the browser as a blob. Nothing is uploaded, and no calendar is contacted.
    *
-   * It exports the *brief*, not the raw facts, so the Rust core's
-   * generation-time exclusion of confirmation codes and traveler names carries
-   * into the file — a .ics usually ends up in a synced cloud calendar.
+   * It exports the core's redacted calendar snapshot, not raw facts, so codes,
+   * names, notes, and documents cannot enter a file commonly imported into a
+   * synced calendar.
    */
   const exportAction = useAsyncAction(
     async () => {
-      const brief = await gateway.getTripBrief(tripId);
-      const ics = buildIcs(brief, {
-        flightSummary: (flight) => t("ics.summary.flight", { flight }),
-        staySummary: (property) => t("ics.summary.stay", { property }),
+      const snapshot = data.detail.calendarSnapshot;
+      const ics = buildIcs(snapshot, {
+        summary: calendarSummary,
         description: t("ics.description"),
       });
       const url = URL.createObjectURL(
@@ -1155,12 +1186,15 @@ export function TripDetailView({
       );
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = icsFilename(brief.title);
+      anchor.download = icsFilename(snapshot.title);
       anchor.click();
       // Release the blob once the click has been handled.
       URL.revokeObjectURL(url);
     },
-    () => announce(t("ics.done")),
+    () => {
+      setShowCalendar(false);
+      announce(t("ics.done"));
+    },
   );
 
   const archiveAction = useAsyncAction(
@@ -1355,12 +1389,8 @@ export function TripDetailView({
             ) : null}
             {/* Both confirmed facts and traveler-authored plans are exportable. */}
             {hasItinerary ? (
-              <Button
-                variant="ghost"
-                onClick={() => exportAction.run()}
-                busy={exportAction.busy}
-              >
-                {exportAction.busy ? t("ics.exporting") : t("ics.export")}
+              <Button variant="ghost" onClick={() => setShowCalendar(true)}>
+                {t("ics.export")}
               </Button>
             ) : null}
             {isArchived ? (
@@ -1787,6 +1817,15 @@ export function TripDetailView({
 
         {showBrief ? (
           <BriefDialog tripId={tripId} onClose={() => setShowBrief(false)} />
+        ) : null}
+
+        {showCalendar ? (
+          <CalendarExportDialog
+            snapshot={data.detail.calendarSnapshot}
+            busy={exportAction.busy}
+            onClose={() => setShowCalendar(false)}
+            onDownload={() => exportAction.run()}
+          />
         ) : null}
 
         {showEdit ? (

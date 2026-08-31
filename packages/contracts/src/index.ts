@@ -115,6 +115,8 @@ export interface TripDetail {
   tripItems: TripItem[];
   /** Deterministic day-by-day projection over confirmed facts and authored plans. */
   journeyBoard: JourneyBoard;
+  /** Redacted, repeatable, floating-time calendar snapshot. */
+  calendarSnapshot: CalendarSnapshot;
 }
 /** The destination-vs-origin wall-clock gap on the trip's dates. */
 export interface TimeDifference {
@@ -1331,6 +1333,34 @@ export interface JourneyBoard {
   days: JourneyBoardDay[];
   after: JourneyBoardEntry[];
   unscheduled: JourneyBoardEntry[];
+}
+export type CalendarRole =
+  "departure" | "arrival" | "checkin" | "checkout" | "plan";
+export interface CalendarEvent {
+  uid: string;
+  sequence: number;
+  dtstamp: string;
+  role: CalendarRole;
+  kind: TodayItemKind;
+  subject?: string;
+  title: string;
+  detail?: string;
+  start: string;
+  end?: string;
+  allDay: boolean;
+}
+export interface CalendarOmission {
+  source: "confirmed_fact" | "trip_item";
+  role: CalendarRole;
+  title: string;
+  reason: "missing_date" | "invalid_date";
+}
+/** Redacted one-shot export state; it is not a calendar subscription. */
+export interface CalendarSnapshot {
+  title: string;
+  events: CalendarEvent[];
+  omissions: CalendarOmission[];
+  removals: string[];
 }
 /**
  * `resource` is deliberately not folded into `document`: a source document is

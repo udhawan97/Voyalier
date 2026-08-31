@@ -1494,6 +1494,7 @@ const en = {
   "notes.tooLong": "That's longer than Voyalier can store. Nothing was saved.",
 
   "ics.export": "Export calendar",
+  "ics.download": "Download .ics",
   "ics.exporting": "Preparing…",
   "ics.error": "Couldn't build the calendar file.",
   "ics.done": "Calendar file saved.",
@@ -1503,6 +1504,18 @@ const en = {
   // the caveat has to travel with it.
   "ics.description":
     "Exported from Voyalier. Times are as printed on your confirmation, with no timezone — Voyalier doesn't guess one, so your calendar shows them in its own local time. Confirmation codes and traveler names are not included.",
+  "ics.preview.title": "Calendar snapshot",
+  "ics.preview.description":
+    "Review what can enter the one-time file before downloading it.",
+  "ics.preview.limit.title": "One-time file, floating local times",
+  "ics.preview.limit.body":
+    "This is not synchronization. Voyalier does not infer time zones or remove events already imported into another calendar.",
+  "ics.preview.count": "{count} events will be included.",
+  "ics.preview.omissions": "Not included",
+  "ics.preview.noOmissions": "Every scheduled item can be included.",
+  "ics.preview.removals": "Previously exported roles no longer present",
+  "ics.omission.missing_date": "no recorded date",
+  "ics.omission.invalid_date": "invalid recorded date",
 
   "documents.title": "Imported documents",
   "documents.intro":
@@ -3137,6 +3150,7 @@ const es: Record<MessageKey, string> = {
   "notes.tooLong":
     "Eso es más largo de lo que Voyalier puede almacenar. No se guardó nada.",
   "ics.export": "Exportar calendario",
+  "ics.download": "Descargar .ics",
   "ics.exporting": "Preparando…",
   "ics.error": "No se pudo generar el archivo de calendario.",
   "ics.done": "Archivo de calendario guardado.",
@@ -3144,6 +3158,20 @@ const es: Record<MessageKey, string> = {
   "ics.summary.stay": "Estancia — {property}",
   "ics.description":
     "Exportado desde Voyalier. Las horas son las que aparecen en tu confirmación, sin zona horaria; Voyalier no la asume, por lo que tu calendario las mostrará en su propia hora local. No se incluyen códigos de confirmación ni nombres de viajeros.",
+  "ics.preview.title": "Instantánea del calendario",
+  "ics.preview.description":
+    "Revisa lo que puede entrar en el archivo único antes de descargarlo.",
+  "ics.preview.limit.title": "Archivo único con horas locales",
+  "ics.preview.limit.body":
+    "Esto no es sincronización. Voyalier no deduce zonas horarias ni elimina eventos ya importados en otro calendario.",
+  "ics.preview.count": "Se incluirán {count} eventos.",
+  "ics.preview.omissions": "No incluido",
+  "ics.preview.noOmissions":
+    "Se pueden incluir todos los elementos programados.",
+  "ics.preview.removals":
+    "Funciones exportadas anteriormente que ya no existen",
+  "ics.omission.missing_date": "sin fecha registrada",
+  "ics.omission.invalid_date": "fecha registrada no válida",
   "documents.title": "Documentos importados",
   "documents.intro":
     "Las confirmaciones que trajiste. Voyalier conserva el texto original para que puedas verificar qué leyó y eliminarlo cuando quieras.",

@@ -35,6 +35,9 @@ import type {
   AstroDay,
   CandidateFact,
   CandidateStatus,
+  CalendarEvent,
+  CalendarRole,
+  CalendarSnapshot,
   ChatGrounding,
   ChatMessage,
   ConfirmCandidateInput,
@@ -2070,6 +2073,83 @@ export function mockBuildJourneyBoard(
   };
 }
 
+function mockCalendarRole(kind: TodayItem["kind"]): CalendarRole | undefined {
+  switch (kind) {
+    case "flight_departure":
+    case "journey_departure":
+      return "departure";
+    case "flight_arrival":
+    case "journey_arrival":
+      return "arrival";
+    case "checkin":
+      return "checkin";
+    case "checkout":
+      return "checkout";
+    case "activity":
+    case "rail":
+    case "transfer":
+      return "plan";
+    case "staying_tonight":
+      return undefined;
+  }
+}
+
+/** Mirrors the redacted core calendar projection for the in-memory shell. */
+export function mockBuildCalendarSnapshot(
+  trip: Trip,
+  tripFacts: ConfirmedFact[],
+  manualItems: TripItem[],
+  revisions: ReadonlyMap<string, number> = new Map(),
+): CalendarSnapshot {
+  const board = mockBuildJourneyBoard(trip, tripFacts, manualItems);
+  const entries = [
+    ...board.before,
+    ...board.days.flatMap((day) => day.entries),
+    ...board.after,
+  ];
+  const events = entries.flatMap((entry): CalendarEvent[] => {
+    const role = mockCalendarRole(entry.kind);
+    if (!role || !entry.date) return [];
+    const sourceKey = `${entry.target.source}:${entry.target.recordId}`;
+    const fact = tripFacts.find(
+      (candidate) => candidate.id === entry.target.recordId,
+    );
+    const item = manualItems.find(
+      (candidate) => candidate.id === entry.target.recordId,
+    );
+    const start = entry.time ? `${entry.date}T${entry.time}` : entry.date;
+    return [
+      {
+        uid: `cal:${sourceKey}:${role}@voyalier.local`,
+        sequence: revisions.get(sourceKey) ?? 0,
+        dtstamp: fact?.confirmedAt ?? item?.updatedAt ?? trip.updatedAt,
+        role,
+        kind: entry.kind,
+        subject: entry.subject,
+        title: entry.title,
+        ...(entry.detail ? { detail: entry.detail } : {}),
+        start,
+        ...(role === "plan" && item?.endAt ? { end: item.endAt } : {}),
+        allDay: role === "checkin" || role === "checkout",
+      },
+    ];
+  });
+  const omissions = board.unscheduled.flatMap((entry) => {
+    const role = mockCalendarRole(entry.kind);
+    return role
+      ? [
+          {
+            source: entry.target.source,
+            role,
+            title: entry.title,
+            reason: "missing_date" as const,
+          },
+        ]
+      : [];
+  });
+  return { title: trip.title, events, omissions, removals: [] };
+}
+
 export function mockBuildShareBrief(
   trip: Trip,
   tripFacts: ConfirmedFact[],
@@ -2632,6 +2712,7 @@ export function createMockGateway(options?: {
   /** `${tripId}:${documentId}` -> the traveler's tick and note. */
   const visaItems = new Map<string, VisaPrepItem>();
   const tripItems = new Map<string, TripItem>();
+  const itineraryRevisions = new Map<string, number>();
   const resources = new Map<string, Resource>();
   const chatThreads = new Map<string, ChatMessage[]>();
   let autoFetchDetails = false;
@@ -3022,6 +3103,12 @@ export function createMockGateway(options?: {
             trip,
             confirmedFacts,
             manualItems,
+          ),
+          calendarSnapshot: mockBuildCalendarSnapshot(
+            trip,
+            confirmedFacts,
+            manualItems,
+            itineraryRevisions,
           ),
         } satisfies TripDetail;
       }),
@@ -4317,6 +4404,7 @@ export function createMockGateway(options?: {
           updatedAt: now,
         };
         tripItems.set(item.id, item);
+        itineraryRevisions.set(`trip_item:${item.id}`, 0);
         return clone(item);
       }),
 
@@ -4337,6 +4425,12 @@ export function createMockGateway(options?: {
         const title = input.title.trim();
         if (!title)
           throw appError("validation/invalid_input", "title is required");
+        const calendarChanged =
+          item.kind !== input.kind ||
+          item.title !== title ||
+          item.location !== input.location ||
+          item.startAt !== input.startAt ||
+          item.endAt !== input.endAt;
         const updated: TripItem = {
           ...item,
           ...clone(input),
@@ -4345,6 +4439,10 @@ export function createMockGateway(options?: {
           updatedAt: timestamp(),
         };
         tripItems.set(updated.id, updated);
+        if (calendarChanged) {
+          const key = `trip_item:${updated.id}`;
+          itineraryRevisions.set(key, (itineraryRevisions.get(key) ?? 0) + 1);
+        }
         return clone(updated);
       }),
 
@@ -4352,6 +4450,7 @@ export function createMockGateway(options?: {
       execute("deleteTripItem", () => {
         if (!tripItems.delete(tripItemId))
           throw appError("validation/invalid_input", "trip item not found");
+        itineraryRevisions.delete(`trip_item:${tripItemId}`);
       }),
 
     getVisaPrep: (tripId: string) =>

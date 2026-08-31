@@ -8,6 +8,20 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Added
 
+- **Journey Board now reads approved travel and authored plans as one itinerary spine.**
+  Departures, arrivals, check-ins, stay nights, check-outs, and traveler plans
+  keep their distinct source identity across trip days, with honest Before,
+  After, and Unscheduled lanes. The board does not route, optimize, infer time
+  zones, or claim live status.
+- **Calendar export now uses stable local lineage and an omission preview.**
+  Reordering or inserting records no longer changes existing event UIDs;
+  departures and arrivals have separate roles, surface travel is included, and
+  semantic plan edits increment `SEQUENCE`. The download remains a one-time
+  floating-time snapshot, not synchronization, and does not infer a timezone.
+- **Shareable briefs can now be narrowed before Copy or Print.** Full redacted
+  remains the default; Travel essentials excludes traveler-authored activities,
+  and the dialog shows the exact plain text Copy will place on the clipboard.
+  Both choices stay inside the existing generation-time redaction boundary.
 - **Find in this trip now returns every match to its local source.** A visible
   **Show source** action focuses the exact confirmed fact, imported document, or
   saved-reading row while keeping the query and record identifier out of the

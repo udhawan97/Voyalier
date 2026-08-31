@@ -4086,6 +4086,31 @@ h3 {
 
 /* ===== Journey Board =================================================== */
 
+.voy-calendar-preview {
+  display: grid;
+  gap: var(--voy-space-md);
+}
+
+.voy-calendar-preview h3,
+.voy-calendar-preview p,
+.voy-calendar-preview ul {
+  margin: 0;
+}
+
+.voy-calendar-preview h3 {
+  font-family: var(--voy-font-display);
+  font-size: var(--voy-text-md);
+}
+
+.voy-calendar-preview ul {
+  padding-inline-start: var(--voy-space-lg);
+  color: var(--voy-ink-muted);
+}
+
+.voy-calendar-preview__count {
+  font-weight: var(--voy-w-medium);
+}
+
 .voy-journey {
   margin: var(--voy-space-xl) 0;
   padding: clamp(1rem, 3vw, 1.6rem);
