@@ -136,6 +136,11 @@ const EXPECTED_ABSENT = new Set<string>([
   // whose dates move with the clock, which is worse than the gap.
   "TripPhase.day",
   "TripPhase.totalDays",
+
+  // Created only after a Replace or Restore action. The default mock workspace
+  // deliberately starts without version history; amendment behavior is tested
+  // by the review and gateway workflow fixtures instead.
+  "ConfirmedFactVersion.supersedesFactId",
 ]);
 
 /** A scripted workspace: every branch a response can take at least once. */

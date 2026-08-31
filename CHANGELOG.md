@@ -8,6 +8,13 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Added
 
+- **Repeat confirmations can now be reviewed as explicit amendments.** Exact
+  unchanged reservations are left out of the review queue; a conservative
+  single match shows the current/imported difference and requires Replace or
+  Keep both. Replacements and restores append approved versions, preserve local
+  calendar lineage, and keep prior evidence inspectable. Missing or ambiguous
+  reservation context remains an ordinary suggestion rather than a guessed
+  overwrite.
 - **Journey Board now reads approved travel and authored plans as one itinerary spine.**
   Departures, arrivals, check-ins, stay nights, check-outs, and traveler plans
   keep their distinct source identity across trip days, with honest Before,

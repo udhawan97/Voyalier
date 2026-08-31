@@ -527,5 +527,11 @@ export function createHttpGateway(
 
     unconfirmFact: (factId: string) =>
       request<void>(...route("unconfirmFact", { factId })),
+
+    restoreFactVersion: (input) =>
+      request<ConfirmedFact>(
+        ...route("restoreFactVersion", { factId: input.factId }),
+        input,
+      ),
   };
 }

@@ -70,11 +70,13 @@ function filterCandidates(
 
 function ReviewCard({
   candidate,
+  currentFact,
   onDone,
   confirmRef,
   hidden,
 }: {
   candidate: CandidateFact;
+  currentFact?: ConfirmedFact;
   onDone: (id: string) => void;
   confirmRef: Ref<HTMLButtonElement>;
   hidden: boolean;
@@ -103,15 +105,15 @@ function ReviewCard({
   // including a TypeError from draftToPayload, which would have rendered as
   // "the local core could not be reached". `useAsyncAction` normalizes instead.
   const confirmAction = useAsyncAction<
-    [FactPayload?],
+    [editedPayload?: FactPayload, amendmentAction?: "replace" | "keep_both"],
     { candidate: CandidateFact; confirmedFact: ConfirmedFact }
   >(
-    (editedPayload?: FactPayload) =>
-      gateway.confirmCandidate(
-        editedPayload
-          ? { candidateId: candidate.id, editedPayload }
-          : { candidateId: candidate.id },
-      ),
+    (editedPayload?: FactPayload, amendmentAction?: "replace" | "keep_both") =>
+      gateway.confirmCandidate({
+        candidateId: candidate.id,
+        ...(editedPayload ? { editedPayload } : {}),
+        ...(amendmentAction ? { amendmentAction } : {}),
+      }),
     // The type arguments are explicit because `Args` is inferred from both
     // parameters, and a zero-argument onSuccess narrows the action's optional
     // payload straight out of the signature.
@@ -163,6 +165,43 @@ function ReviewCard({
             </li>
           ))}
         </ul>
+      ) : null}
+
+      {currentFact ? (
+        <section
+          className="voy-review__amendment"
+          aria-label={t("review.amendment.label")}
+        >
+          <p className="voy-review__amendment-title">
+            {t("review.amendment.title")}
+          </p>
+          <p className="voy-review__amendment-note">
+            {t("review.amendment.note")}
+          </p>
+          <dl className="voy-review__diff">
+            {fieldsForType(candidate.factType)
+              .filter(
+                (key) =>
+                  (currentFact.payload as Values)[key] !==
+                  (candidate.payload as Values)[key],
+              )
+              .map((key) => (
+                <div key={key}>
+                  <dt>{fieldLabel(key)}</dt>
+                  <dd>
+                    <span>
+                      {formatFieldValue(
+                        key,
+                        (currentFact.payload as Values)[key] ?? "—",
+                      )}
+                    </span>
+                    <span aria-hidden="true"> → </span>
+                    <span>{formatFieldValue(key, values[key] ?? "—")}</span>
+                  </dd>
+                </div>
+              ))}
+          </dl>
+        </section>
       ) : null}
 
       {editing ? (
@@ -232,6 +271,34 @@ function ReviewCard({
               {t("review.saveConfirm")}
             </Button>
           </>
+        ) : currentFact ? (
+          <>
+            <Button
+              ref={confirmRef}
+              variant="primary"
+              aria-label={t("review.amendment.replace.label", { fact: title })}
+              busy={confirmAction.busy}
+              disabled={busy}
+              onClick={() => void confirmAction.run(undefined, "replace")}
+            >
+              {t("review.amendment.replace")}
+            </Button>
+            <Button
+              variant="secondary"
+              aria-label={t("review.amendment.keep.label", { fact: title })}
+              disabled={busy}
+              onClick={() => void confirmAction.run(undefined, "keep_both")}
+            >
+              {t("review.amendment.keep")}
+            </Button>
+            <ConfirmButton
+              label={t("review.dismiss")}
+              ariaLabel={t("review.dismiss.label", { fact: title })}
+              busy={rejectAction.busy}
+              disabled={busy}
+              onConfirm={() => void rejectAction.run()}
+            />
+          </>
         ) : (
           <>
             <Button
@@ -268,12 +335,14 @@ function ReviewCard({
 
 export function CandidateReviewDialog({
   candidates,
+  confirmedFacts = [],
   onClose,
   onResolved,
   returnFocusRef,
   completionFocusRef,
 }: {
   candidates: CandidateFact[];
+  confirmedFacts?: ConfirmedFact[];
   onClose: () => void;
   onResolved: () => void;
   returnFocusRef?: RefObject<HTMLElement | null>;
@@ -436,6 +505,9 @@ export function CandidateReviewDialog({
               <ReviewCard
                 key={candidate.id}
                 candidate={candidate}
+                currentFact={confirmedFacts.find(
+                  (fact) => fact.id === candidate.amendsFactId,
+                )}
                 onDone={handleDone}
                 hidden={!visibleIds.has(candidate.id)}
                 confirmRef={(node) => {

@@ -209,6 +209,11 @@ export function ImportDialog({
               ? t("import.done.none")
               : plural("import.found", found)}
           </p>
+          {result.duplicatesIgnored > 0 ? (
+            <p className="voy-import-done__body">
+              {plural("import.duplicatesIgnored", result.duplicatesIgnored)}
+            </p>
+          ) : null}
         </div>
       </Dialog>
     );

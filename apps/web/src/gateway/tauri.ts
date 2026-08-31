@@ -406,5 +406,8 @@ export function createTauriGateway(
 
     unconfirmFact: (factId: string) =>
       call<void>(command("unconfirmFact"), { factId }),
+
+    restoreFactVersion: (input) =>
+      call<ConfirmedFact>(command("restoreFactVersion"), input),
   };
 }

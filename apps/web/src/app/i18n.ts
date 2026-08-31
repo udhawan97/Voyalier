@@ -471,6 +471,14 @@ const en = {
   "review.confirm": "Confirm",
   "review.editConfirm": "Edit & confirm",
   "review.dismiss": "Dismiss",
+  "review.amendment.label": "Possible amendment",
+  "review.amendment.title": "This may update an approved reservation",
+  "review.amendment.note":
+    "Compare the changed fields. Replace keeps both approved versions in history; Keep both starts a separate reservation.",
+  "review.amendment.replace": "Replace current",
+  "review.amendment.keep": "Keep both",
+  "review.amendment.replace.label": "Replace current version of {fact}",
+  "review.amendment.keep.label": "Keep current and add {fact}",
   // One card per candidate, five verbs repeated down the queue. Confirming the
   // wrong one writes a fact into the trip, so each name says which suggestion
   // it acts on; each opens with its visible label to keep Label in Name.
@@ -479,6 +487,17 @@ const en = {
   "review.confirm.label": "Confirm {fact}",
   "review.editConfirm.label": "Edit & confirm {fact}",
   "review.dismiss.label": "Dismiss {fact}",
+  "history.current": "Versioned · restore from history",
+  "history.previous.one": "{count} previous approved version",
+  "history.previous.other": "{count} previous approved versions",
+  "history.note":
+    "History is append-only. Restoring creates a new current version and keeps every prior approval.",
+  "history.reason.initial": "Original approval",
+  "history.reason.amendment": "Replaced by an amendment",
+  "history.reason.restore": "Replaced by a restore",
+  "history.restore": "Restore",
+  "history.restore.label": "Restore approved version of {fact}",
+  "history.announce.restored": "Restored {fact} as a new current version.",
   "review.empty.title": "All caught up",
   "review.empty.body": "Every suggestion has been confirmed or dismissed.",
   "review.filters.label": "Review filters",
@@ -1089,6 +1108,10 @@ const en = {
     "Voyalier found {count} new suggestion to review — nothing changes until you confirm.",
   "import.found.other":
     "Voyalier found {count} new suggestions to review — nothing changes until you confirm.",
+  "import.duplicatesIgnored.one":
+    "Ignored {count} unchanged reservation already in your trip.",
+  "import.duplicatesIgnored.other":
+    "Ignored {count} unchanged reservations already in your trip.",
   "review.count.one": "{count} suggestion to review",
   "review.count.other": "{count} suggestions to review",
   "packs.places.one": "{count} place",
@@ -2167,11 +2190,31 @@ const es: Record<MessageKey, string> = {
   "review.confirm": "Confirmar",
   "review.editConfirm": "Editar y confirmar",
   "review.dismiss": "Descartar",
+  "review.amendment.label": "Posible modificación",
+  "review.amendment.title": "Esto puede actualizar una reserva aprobada",
+  "review.amendment.note":
+    "Compara los campos modificados. Reemplazar conserva ambas versiones aprobadas en el historial; Conservar ambas crea una reserva separada.",
+  "review.amendment.replace": "Reemplazar actual",
+  "review.amendment.keep": "Conservar ambas",
+  "review.amendment.replace.label": "Reemplazar la versión actual de {fact}",
+  "review.amendment.keep.label": "Conservar la actual y agregar {fact}",
   "review.cancelEdit.label": "Cancelar edición de {fact}",
   "review.saveConfirm.label": "Guardar y confirmar {fact}",
   "review.confirm.label": "Confirmar {fact}",
   "review.editConfirm.label": "Editar y confirmar {fact}",
   "review.dismiss.label": "Descartar {fact}",
+  "history.current": "Con versiones · restaurar desde el historial",
+  "history.previous.one": "{count} versión aprobada anterior",
+  "history.previous.other": "{count} versiones aprobadas anteriores",
+  "history.note":
+    "El historial solo se amplía. Restaurar crea una nueva versión actual y conserva cada aprobación anterior.",
+  "history.reason.initial": "Aprobación original",
+  "history.reason.amendment": "Reemplazada por una modificación",
+  "history.reason.restore": "Reemplazada por una restauración",
+  "history.restore": "Restaurar",
+  "history.restore.label": "Restaurar la versión aprobada de {fact}",
+  "history.announce.restored":
+    "Se restauró {fact} como una nueva versión actual.",
   "review.empty.title": "Todo al día",
   "review.empty.body":
     "Todas las sugerencias han sido confirmadas o descartadas.",
@@ -2772,6 +2815,10 @@ const es: Record<MessageKey, string> = {
     "Voyalier encontró {count} nueva sugerencia para revisar; nada cambia hasta que confirmes.",
   "import.found.other":
     "Voyalier encontró {count} nuevas sugerencias para revisar; nada cambia hasta que confirmes.",
+  "import.duplicatesIgnored.one":
+    "Se ignoró {count} reserva sin cambios que ya estaba en tu viaje.",
+  "import.duplicatesIgnored.other":
+    "Se ignoraron {count} reservas sin cambios que ya estaban en tu viaje.",
   "review.count.one": "{count} sugerencia para revisar",
   "review.count.other": "{count} sugerencias para revisar",
   "packs.places.one": "{count} lugar",

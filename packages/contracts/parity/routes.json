@@ -1109,6 +1109,17 @@
         "body": null,
         "query": []
       }
+    },
+    {
+      "method": "restoreFactVersion",
+      "verb": "POST",
+      "path": "/api/v1/facts/{factId}/restore",
+      "command": "restore_fact_version",
+      "payload": {
+        "command": "input",
+        "body": "input",
+        "query": []
+      }
     }
   ],
   "desktopOnly": [
@@ -1124,7 +1135,7 @@
     "updater_relaunch"
   ],
   "counts": {
-    "shared": 83,
+    "shared": 84,
     "desktopOnly": 10
   }
 }

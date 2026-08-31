@@ -42,6 +42,7 @@ import type {
   ChatMessage,
   ConfirmCandidateInput,
   ConfirmedFact,
+  ConfirmedFactVersion,
   CountryFacts,
   CreateResourceInput,
   CreateTripInput,
@@ -102,6 +103,7 @@ import type {
   ReadinessSummary,
   Recommendation,
   ResearchSettings,
+  RestoreFactVersionInput,
   Resource,
   SavedPlace,
   SavePlaceInput,
@@ -304,6 +306,28 @@ const fixtureCandidates: CandidateFact[] = [
     status: "pending",
     createdAt: "2026-07-09T15:21:00Z",
     resolvedAt: null,
+  },
+  {
+    id: "candidate_kyoto_prior_amendment",
+    tripId: "trip_kyoto",
+    documentId: "document_kyoto_confirmations",
+    parserRunId: "parser_run_kyoto_jsonld",
+    factType: "flight_segment",
+    payload: {
+      airlineName: "Fictional Pacific",
+      airlineIata: "FP",
+      departureAirportIata: "ORD",
+      arrivalAirportIata: "HND",
+      arrivalLocal: "2026-11-04T16:05",
+      confirmationCode: "VOY182",
+    },
+    method: "structured",
+    fieldSpans: [],
+    warnings: [],
+    status: "rejected",
+    createdAt: "2026-07-08T15:21:00Z",
+    resolvedAt: "2026-07-08T15:22:00Z",
+    amendsFactId: "fact_kyoto_outbound",
   },
 ];
 
@@ -2150,6 +2174,47 @@ export function mockBuildCalendarSnapshot(
   return { title: trip.title, events, omissions, removals: [] };
 }
 
+function mockRemovedCalendarRoles(versions: ConfirmedFactVersion[]): string[] {
+  const present = (version: ConfirmedFactVersion): CalendarRole[] => {
+    const payload = version.payload;
+    const validTime = (value: string | undefined) =>
+      value !== undefined && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value);
+    const validDate = (value: string | undefined) =>
+      value !== undefined && /^\d{4}-\d{2}-\d{2}$/.test(value);
+    if (version.factType === "lodging_stay") {
+      const stay = payload as LodgingStayPayload;
+      return [
+        ...(validDate(stay.checkinDate) ? (["checkin"] as const) : []),
+        ...(validDate(stay.checkoutDate) ? (["checkout"] as const) : []),
+      ];
+    }
+    const journey = payload as FlightSegmentPayload | SurfaceJourneyPayload;
+    return [
+      ...(validTime(journey.departureLocal) ? (["departure"] as const) : []),
+      ...(validTime(journey.arrivalLocal) ? (["arrival"] as const) : []),
+    ];
+  };
+  const labels: Record<CalendarRole, string> = {
+    departure: "Departure",
+    arrival: "Arrival",
+    checkin: "Check-in",
+    checkout: "Check-out",
+    plan: "Plan",
+  };
+  const removed = versions.flatMap((current) => {
+    if (!current.active || !current.supersedesFactId) return [];
+    const previous = versions.find(
+      (version) => version.id === current.supersedesFactId,
+    );
+    if (!previous) return [];
+    const currentRoles = present(current);
+    return present(previous)
+      .filter((role) => !currentRoles.includes(role))
+      .map((role) => labels[role]);
+  });
+  return [...new Set(removed)].sort();
+}
+
 export function mockBuildShareBrief(
   trip: Trip,
   tripFacts: ConfirmedFact[],
@@ -2666,6 +2731,18 @@ export function createMockGateway(options?: {
   const facts = new Map(
     fixtureConfirmedFacts.map((fact) => [fact.id, clone(fact)]),
   );
+  const factVersions = new Map<string, ConfirmedFactVersion>(
+    fixtureConfirmedFacts.map((fact) => [
+      fact.id,
+      {
+        ...clone(fact),
+        active: true,
+        revision: 0,
+        reason: "initial",
+        lineageRootId: fact.id,
+      },
+    ]),
+  );
   const notes = new Map<string, TripNotes>();
   const documents = new Map<string, StoredDocument>(
     fixtureDocuments.map((stored) => [stored.document.id, clone(stored)]),
@@ -3012,6 +3089,9 @@ export function createMockGateway(options?: {
         return {
           trip: clone(trip),
           confirmedFacts,
+          factVersions: [...factVersions.values()]
+            .filter((version) => version.tripId === tripId)
+            .map(clone),
           pendingCandidateCount,
           itineraryConflicts,
           readiness: assessReadiness(
@@ -3104,12 +3184,19 @@ export function createMockGateway(options?: {
             confirmedFacts,
             manualItems,
           ),
-          calendarSnapshot: mockBuildCalendarSnapshot(
-            trip,
-            confirmedFacts,
-            manualItems,
-            itineraryRevisions,
-          ),
+          calendarSnapshot: {
+            ...mockBuildCalendarSnapshot(
+              trip,
+              confirmedFacts,
+              manualItems,
+              itineraryRevisions,
+            ),
+            removals: mockRemovedCalendarRoles(
+              [...factVersions.values()].filter(
+                (version) => version.tripId === tripId,
+              ),
+            ),
+          },
         } satisfies TripDetail;
       }),
 
@@ -4884,6 +4971,9 @@ export function createMockGateway(options?: {
         for (const [id, fact] of facts) {
           if (fact.tripId === tripId) facts.delete(id);
         }
+        for (const [id, version] of factVersions) {
+          if (version.tripId === tripId) factVersions.delete(id);
+        }
         for (const [id, stored] of documents) {
           if (stored.document.tripId === tripId) documents.delete(id);
         }
@@ -4951,6 +5041,7 @@ export function createMockGateway(options?: {
           document: clone(document),
           parserRunId: nextId("parser_run"),
           candidates: [],
+          duplicatesIgnored: 0,
         } satisfies ImportResult;
       }),
 
@@ -5034,6 +5125,11 @@ export function createMockGateway(options?: {
             if (fact.candidateId === candidate.id) {
               fact.candidateId = null;
               fact.sourceRemoved = true;
+              const version = factVersions.get(fact.id);
+              if (version) {
+                version.candidateId = null;
+                version.sourceRemoved = true;
+              }
             }
           }
           candidates.delete(candidate.id);
@@ -5078,6 +5174,44 @@ export function createMockGateway(options?: {
           confirmedAt,
           sourceRemoved: false,
         };
+        let version: ConfirmedFactVersion = {
+          ...confirmedFact,
+          active: true,
+          revision: 0,
+          reason: "initial",
+          lineageRootId: confirmedFact.id,
+        };
+        if (candidate.amendsFactId) {
+          if (!input.amendmentAction) {
+            throw appError(
+              "validation/invalid_input",
+              "Choose Replace or Keep both for this amendment",
+            );
+          }
+          if (input.amendmentAction === "replace") {
+            const previous = factVersions.get(candidate.amendsFactId);
+            if (!previous?.active) {
+              throw appError(
+                "validation/invalid_input",
+                "This amendment is stale; review the latest active version",
+              );
+            }
+            previous.active = false;
+            facts.delete(previous.id);
+            version = {
+              ...version,
+              revision: previous.revision + 1,
+              reason: "amendment",
+              lineageRootId: previous.lineageRootId,
+              supersedesFactId: previous.id,
+            };
+          }
+        } else if (input.amendmentAction) {
+          throw appError(
+            "validation/invalid_input",
+            "Amendment action is only valid for a matched amendment",
+          );
+        }
         const resolvedCandidate: CandidateFact = {
           ...candidate,
           status: "confirmed",
@@ -5085,6 +5219,7 @@ export function createMockGateway(options?: {
         };
         candidates.set(candidate.id, resolvedCandidate);
         facts.set(confirmedFact.id, confirmedFact);
+        factVersions.set(version.id, version);
         return {
           candidate: clone(resolvedCandidate),
           confirmedFact: clone(confirmedFact),
@@ -5125,6 +5260,13 @@ export function createMockGateway(options?: {
           confirmedAt: timestamp(),
         };
         facts.set(fact.id, fact);
+        factVersions.set(fact.id, {
+          ...clone(fact),
+          active: true,
+          revision: 0,
+          reason: "initial",
+          lineageRootId: fact.id,
+        });
         return clone(fact);
       }),
 
@@ -5133,7 +5275,15 @@ export function createMockGateway(options?: {
         const fact = facts.get(factId);
         if (!fact)
           throw appError("fact/not_found", "Fact not found", { factId });
+        const version = factVersions.get(factId);
+        if (!version || version.revision > 0) {
+          throw appError(
+            "validation/invalid_input",
+            "Amended facts are append-only; restore a previous version instead",
+          );
+        }
         facts.delete(factId);
+        factVersions.delete(factId);
         if (fact.candidateId) {
           const candidate = candidates.get(fact.candidateId);
           if (candidate) {
@@ -5144,6 +5294,54 @@ export function createMockGateway(options?: {
             });
           }
         }
+      }),
+
+    restoreFactVersion: (input: RestoreFactVersionInput) =>
+      execute("restoreFactVersion", () => {
+        const selected = factVersions.get(input.factId);
+        if (!selected) {
+          throw appError("fact/not_found", "Fact not found", {
+            factId: input.factId,
+          });
+        }
+        if (selected.active) {
+          throw appError(
+            "validation/invalid_input",
+            "That fact version is already active",
+          );
+        }
+        const current = [...factVersions.values()].find(
+          (version) =>
+            version.lineageRootId === selected.lineageRootId && version.active,
+        );
+        if (!current) {
+          throw appError("fact/not_found", "Active fact version not found");
+        }
+        current.active = false;
+        facts.delete(current.id);
+        const {
+          active: _active,
+          revision: _revision,
+          reason: _reason,
+          lineageRootId: _lineageRootId,
+          supersedesFactId: _supersedesFactId,
+          ...selectedFact
+        } = selected;
+        const restored: ConfirmedFact = {
+          ...clone(selectedFact),
+          id: nextId("fact"),
+          confirmedAt: timestamp(),
+        };
+        facts.set(restored.id, restored);
+        factVersions.set(restored.id, {
+          ...clone(restored),
+          active: true,
+          revision: current.revision + 1,
+          reason: "restore",
+          lineageRootId: current.lineageRootId,
+          supersedesFactId: current.id,
+        });
+        return clone(restored);
       }),
   };
 

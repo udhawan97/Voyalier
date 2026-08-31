@@ -175,6 +175,7 @@ const ARGS: Record<keyof AppGateway, unknown[]> = {
   rejectCandidate: ["cand_1"],
   addManualFact: [{ tripId: "trip_1" }],
   unconfirmFact: ["fact_1"],
+  restoreFactVersion: [{ factId: "fact_1" }],
 };
 
 /**

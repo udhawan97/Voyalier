@@ -3,6 +3,7 @@ import type {
   CalendarEvent,
   CandidateFact,
   ConfirmedFact,
+  ConfirmedFactVersion,
   FactType,
   FactLabel,
   FlightEmissions,
@@ -146,10 +147,12 @@ function factIcon(factType: FactType) {
 
 function FactCard({
   fact,
+  versioned,
   onUnconfirm,
   unconfirming,
 }: {
   fact: ConfirmedFact;
+  versioned: boolean;
   onUnconfirm: (fact: ConfirmedFact) => void;
   unconfirming: boolean;
 }) {
@@ -207,7 +210,9 @@ function FactCard({
             covers both a hand-typed fact and one whose source document was
             deleted. Returning an imported fact to review is reversible, so it
             stays a plain click. */}
-        {fact.candidateId === null ? (
+        {versioned ? (
+          <span className="voy-fact__versioned">{t("history.current")}</span>
+        ) : fact.candidateId === null ? (
           <ConfirmButton
             label={t("detail.remove")}
             ariaLabel={t("detail.remove.label", { fact: title })}
@@ -235,12 +240,14 @@ function FactGroup({
   facts,
   onUnconfirm,
   unconfirmingId,
+  versionedIds,
 }: {
   title: string;
   icon: React.ReactNode;
   facts: ConfirmedFact[];
   onUnconfirm: (fact: ConfirmedFact) => void;
   unconfirmingId: string | null;
+  versionedIds: Set<string>;
 }) {
   if (facts.length === 0) return null;
   return (
@@ -257,12 +264,52 @@ function FactGroup({
           <FactCard
             key={fact.id}
             fact={fact}
+            versioned={versionedIds.has(fact.id)}
             onUnconfirm={onUnconfirm}
             unconfirming={unconfirmingId === fact.id}
           />
         ))}
       </div>
     </section>
+  );
+}
+
+function FactHistory({
+  versions,
+  restoringId,
+  onRestore,
+}: {
+  versions: ConfirmedFactVersion[];
+  restoringId: string | null;
+  onRestore: (version: ConfirmedFactVersion) => void;
+}) {
+  const previous = versions.filter((version) => !version.active);
+  if (previous.length === 0) return null;
+  return (
+    <details className="voy-fact-history">
+      <summary>{plural("history.previous", previous.length)}</summary>
+      <p className="voy-fact-history__note">{t("history.note")}</p>
+      <ul className="voy-fact-history__list">
+        {previous.map((version) => (
+          <li key={version.id} className="voy-fact-history__item">
+            <div>
+              <strong>{factTitle(version.factType, version.payload)}</strong>
+              <span>{t(`history.reason.${version.reason}` as MessageKey)}</span>
+            </div>
+            <Button
+              variant="secondary"
+              busy={restoringId === version.id}
+              aria-label={t("history.restore.label", {
+                fact: factTitle(version.factType, version.payload),
+              })}
+              onClick={() => onRestore(version)}
+            >
+              {t("history.restore")}
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 
@@ -1159,6 +1206,9 @@ export function TripDetailView({
   const [showCalendar, setShowCalendar] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [unconfirmingId, setUnconfirmingId] = useState<string | null>(null);
+  const [restoringVersionId, setRestoringVersionId] = useState<string | null>(
+    null,
+  );
 
   function openReview(candidates: CandidateFact[], trigger?: HTMLElement) {
     reviewReturnFocusRef.current = trigger ?? pendingReviewTriggerRef.current;
@@ -1226,11 +1276,30 @@ export function TripDetailView({
     },
   );
 
+  const restoreVersionAction = useAsyncAction(
+    (version: ConfirmedFactVersion) =>
+      gateway.restoreFactVersion({ factId: version.id }),
+    (restored) => {
+      announce(
+        t("history.announce.restored", {
+          fact: factTitle(restored.factType, restored.payload),
+        }),
+      );
+      reload();
+    },
+  );
+
   async function unconfirm(fact: ConfirmedFact) {
     setUnconfirmingId(fact.id);
     // run() never rejects, so the per-fact busy id always gets cleared.
     await unconfirmAction.run(fact);
     setUnconfirmingId(null);
+  }
+
+  async function restoreVersion(version: ConfirmedFactVersion) {
+    setRestoringVersionId(version.id);
+    await restoreVersionAction.run(version);
+    setRestoringVersionId(null);
   }
 
   // One place for whatever the last action failed with. These used to be
@@ -1314,6 +1383,12 @@ export function TripDetailView({
   if (!data) return null;
 
   const { trip, confirmedFacts, itineraryConflicts, readiness } = data.detail;
+  const factVersions = data.detail.factVersions ?? [];
+  const versionedIds = new Set(
+    factVersions
+      .filter((version) => version.active && version.revision > 0)
+      .map((version) => version.id),
+  );
   const pending = data.pending;
   const pendingCount = data.detail.pendingCandidateCount;
   const flights = confirmedFacts
@@ -1520,6 +1595,7 @@ export function TripDetailView({
                 facts={flights}
                 onUnconfirm={unconfirm}
                 unconfirmingId={unconfirmingId}
+                versionedIds={versionedIds}
               />
               <CarbonEstimate estimate={data.detail.flightEmissions} />
               <FactGroup
@@ -1528,6 +1604,7 @@ export function TripDetailView({
                 facts={journeys}
                 onUnconfirm={unconfirm}
                 unconfirmingId={unconfirmingId}
+                versionedIds={versionedIds}
               />
               <FactGroup
                 title={t("brief.stays")}
@@ -1535,7 +1612,22 @@ export function TripDetailView({
                 facts={stays}
                 onUnconfirm={unconfirm}
                 unconfirmingId={unconfirmingId}
+                versionedIds={versionedIds}
               />
+              <FactHistory
+                versions={factVersions}
+                restoringId={restoringVersionId}
+                onRestore={(version) => void restoreVersion(version)}
+              />
+              {restoreVersionAction.error ? (
+                <Banner
+                  tone="error"
+                  role="alert"
+                  title={describeError(restoreVersionAction.error).title}
+                >
+                  {describeError(restoreVersionAction.error).body}
+                </Banner>
+              ) : null}
             </>
           )}
         </div>
@@ -1797,6 +1889,7 @@ export function TripDetailView({
         {reviewCandidates ? (
           <CandidateReviewDialog
             candidates={reviewCandidates}
+            confirmedFacts={confirmedFacts}
             onClose={() => setReviewCandidates(null)}
             onResolved={() => {
               reload();

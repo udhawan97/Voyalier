@@ -17,6 +17,8 @@ export interface TripSummary extends Trip {
 export interface TripDetail {
   trip: Trip;
   confirmedFacts: ConfirmedFact[];
+  /** Approved version history; product projections still use confirmedFacts only. */
+  factVersions: ConfirmedFactVersion[];
   pendingCandidateCount: number;
   /** Deterministic advisory checks over the confirmed itinerary. Empty when coherent. */
   itineraryConflicts: ItineraryConflict[];
@@ -573,6 +575,8 @@ export interface CandidateFact {
   status: CandidateStatus;
   createdAt: string;
   resolvedAt: string | null;
+  /** Sole active fact this candidate may amend; absent when ordinary/ambiguous. */
+  amendsFactId?: string;
 }
 export interface ConfirmedFact {
   id: string;
@@ -594,6 +598,14 @@ export interface ConfirmedFact {
    */
   sourceRemoved: boolean;
 }
+export type FactRevisionReason = "initial" | "amendment" | "restore";
+export interface ConfirmedFactVersion extends ConfirmedFact {
+  active: boolean;
+  revision: number;
+  reason: FactRevisionReason;
+  lineageRootId: string;
+  supersedesFactId?: string;
+}
 // "email" is input-only for imports: the Rust core extracts the confirmation
 // body and stores it as "html" or "pasted_text", so a stored document's kind is
 // only ever one of those two.
@@ -611,6 +623,7 @@ export interface ImportResult {
   document: SourceDocument;
   parserRunId: string;
   candidates: CandidateFact[];
+  duplicatesIgnored: number;
 }
 /**
  * A stored document plus what it produced, for the documents manager. The counts
@@ -1735,6 +1748,10 @@ export interface ImportDocumentInput {
 export interface ConfirmCandidateInput {
   candidateId: string;
   editedPayload?: FactPayload;
+  amendmentAction?: "replace" | "keep_both";
+}
+export interface RestoreFactVersionInput {
+  factId: string;
 }
 export interface AddManualFactInput {
   tripId: string;
@@ -2096,6 +2113,8 @@ export interface AppGateway {
   rejectCandidate(candidateId: string): Promise<CandidateFact>;
   addManualFact(input: AddManualFactInput): Promise<ConfirmedFact>;
   unconfirmFact(factId: string): Promise<void>;
+  /** Append a compensating active version from retained approved history. */
+  restoreFactVersion(input: RestoreFactVersionInput): Promise<ConfirmedFact>;
 }
 
 export { createMockGateway } from "./mock";

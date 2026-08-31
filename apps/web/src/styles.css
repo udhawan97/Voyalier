@@ -4692,6 +4692,58 @@ h3 {
   justify-content: flex-end;
 }
 
+.voy-fact__versioned {
+  color: var(--voy-ink-muted);
+  font-size: 0.78rem;
+}
+
+.voy-fact-history {
+  margin-top: 1.2rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-sunken);
+}
+
+.voy-fact-history summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.voy-fact-history__note {
+  color: var(--voy-ink-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.voy-fact-history__list {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0.8rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.voy-fact-history__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--voy-line);
+}
+
+.voy-fact-history__item div,
+.voy-fact-history__item span {
+  display: block;
+}
+
+.voy-fact-history__item span {
+  margin-top: 0.15rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.78rem;
+}
+
 /* ===== Overlay & dialog ================================================ */
 
 .voy-overlay {
@@ -4928,6 +4980,52 @@ h3 {
   margin: 1rem 0;
   color: var(--voy-ink-muted);
   font-size: 0.85rem;
+}
+
+.voy-review__amendment {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--voy-copper) 42%, transparent);
+  border-radius: var(--voy-radius-md);
+  background: color-mix(in srgb, var(--voy-copper) 7%, var(--voy-paper));
+}
+
+.voy-review__amendment-title,
+.voy-review__amendment-note {
+  margin: 0;
+}
+
+.voy-review__amendment-title {
+  font-weight: 700;
+}
+
+.voy-review__amendment-note {
+  margin-top: 0.3rem;
+  color: var(--voy-ink-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.voy-review__diff {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0.8rem 0 0;
+}
+
+.voy-review__diff div {
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.4fr) 1fr;
+  gap: 0.7rem;
+}
+
+.voy-review__diff dt {
+  color: var(--voy-ink-muted);
+  font-size: 0.78rem;
+}
+
+.voy-review__diff dd {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .voy-review__actions {
