@@ -222,8 +222,10 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
   gains only a self-reported tally attributed to the traveler. Canada first, both
   routes; more destinations are curation work, not engineering.
 
-- ✓ Research workspace (0.7.0): per-trip **resources** — links and files kept for
-  reading, with the traveler's own title, note, and tags. Deliberately not
+- ✓ Research workspace (0.7.0): per-trip **resources** — web links kept for
+  reading, with the traveler's own title, note, and tags. The dormant file-kind
+  contract remains metadata-only compatibility; no file bytes are stored.
+  Deliberately not
   evidence: no candidate facts, no readiness effect, and a mis-filed confirmation
   gets an "import it instead" pointer rather than a silent parse. Saving is local;
   fetching what a page says is gated on one reversible standing preference, off by

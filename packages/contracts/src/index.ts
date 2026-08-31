@@ -1350,7 +1350,10 @@ export interface WorkspaceSearchHit {
   snippet: string;
   score: number;
 }
-/** How a resource arrived: pasted as a link, or dropped in as a file. */
+/**
+ * The shipped interface saves links. `file` is a metadata-only compatibility
+ * tag; resource records never contain file bytes.
+ */
 export type ResourceKind = "link" | "file";
 
 /**
@@ -1371,7 +1374,8 @@ export interface ResourceSnapshot {
 }
 
 /**
- * A link or file the traveler deliberately kept with a trip for reading.
+ * Reading material the traveler deliberately kept with a trip. The shipped
+ * interface creates links; legacy file-kind records contain metadata only.
  *
  * Reading material, not evidence: it yields no candidate facts and affects no
  * readiness item. See `CONTEXT.md`.
@@ -1382,7 +1386,7 @@ export interface Resource {
   kind: ResourceKind;
   /** Present on links. */
   url?: string;
-  /** Present on files. */
+  /** File-name metadata on compatibility records; no file bytes are stored. */
   fileName?: string;
   title: string;
   note: string;
@@ -1988,7 +1992,7 @@ export interface AppGateway {
   /** Fetch a Wikipedia summary of the destination (Wikimedia REST), consent-gated. */
   fetchPlaceSummary(tripId: string): Promise<PlaceSummary>;
   listResources(tripId: string): Promise<Resource[]>;
-  /** Keep a link or file. Saving the same address twice returns the original. */
+  /** Keep a web link. Saving the same address twice returns the original. */
   createResource(input: CreateResourceInput): Promise<Resource>;
   updateResource(input: UpdateResourceInput): Promise<Resource>;
   deleteResource(resourceId: string): Promise<void>;

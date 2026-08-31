@@ -1,12 +1,12 @@
-//! Traveler-curated research material. A resource is something the traveler
-//! deliberately kept to read — a link or a dropped file — never evidence.
+//! Traveler-curated research material. The shipped interface keeps web links
+//! to read, never evidence. A metadata-only file kind remains in the contract
+//! for compatibility; resource records never retain file bytes.
 //!
 //! The distinction matters more than it looks. A source document is imported to
 //! be parsed: it yields candidate facts and carries confirmation codes, so it is
 //! sealed and fed to nothing. A resource is imported to be *read*: it yields
-//! nothing, asserts nothing, and clears no readiness item. Dropping a boarding
-//! pass here is a mis-file, and the interface says so rather than quietly
-//! parsing it.
+//! nothing, asserts nothing, and clears no readiness item. Confirmation files
+//! belong in the separate import flow, where extracted candidates are reviewed.
 
 use serde::{Deserialize, Serialize};
 
@@ -38,6 +38,7 @@ const TRACKING_PARAMS: &[&str] = &[
 #[serde(rename_all = "snake_case")]
 pub enum ResourceKind {
     Link,
+    /// Compatibility tag for metadata-only records. No file bytes are stored.
     File,
 }
 

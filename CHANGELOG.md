@@ -25,6 +25,10 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Fixed
 
+- **Research-resource copy now matches the shipped link-only capture flow.**
+  Current product guidance no longer promises dropped-file storage that the
+  interface does not provide. The dormant file-kind contract remains for
+  metadata-only compatibility; Voyalier still does not store resource bytes.
 - **Release builds no longer inherit every Tauri bundle format.** The base
   configuration now fails closed with no publishable target; macOS explicitly
   owns app and DMG bundles, while Windows owns NSIS and MSI. Linux remains

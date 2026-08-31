@@ -72,9 +72,11 @@ _Avoid_: Packing suggestion, requirement
 ## Research
 
 **Resource**:
-A link or file the traveler deliberately keeps with a trip for reading,
-together with their own note and tags. It is reading material, not evidence:
-it never yields candidate facts and never affects readiness.
+A web link the traveler deliberately keeps with a trip for reading, together
+with their own note and tags. It is reading material, not evidence: it never
+yields candidate facts and never affects readiness. The contract retains a
+metadata-only file kind for compatibility, but the current interface does not
+store file bytes as resources.
 _Avoid_: Bookmark, attachment, source document
 
 ## Re-checking

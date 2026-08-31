@@ -151,7 +151,7 @@ fn score_haystack<'t>(haystack: &str, tokens: &'t [String]) -> (u32, u32, Option
     (matched, occurrences, earliest.map(|(_, token)| token))
 }
 
-/// One kept link or file offered to the trip scan.
+/// One kept research resource offered to the trip scan.
 ///
 /// Shaped like [`SearchableDocument`] and named apart from it deliberately:
 /// "document" is imported evidence in this product's language, and a resource
