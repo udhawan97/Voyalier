@@ -26,25 +26,38 @@ source-development surface.
   network, keychain, backup/restore, and vault choreography in `voyalier-app`; keep Axum and Tauri
   adapters thin; keep localization and interaction in `apps/web`.
 - Preserve append-only, retry-safe migrations. `SEALED_COLUMNS` remains the sole encrypted-column
-  declaration, and failed authentication never falls back to plaintext.
+  declaration. Stored sealed-column values have three explicit format states: authenticated
+  ciphertext is `v1:<base64>`, reserved-prefix plaintext is escaped as `p1:<base64 UTF-8>`, and
+  ordinary bare text remains valid plaintext for inactive-vault compatibility. A `p1:` value decodes
+  only as escaped plaintext; a historical `v1:` value that cannot authenticate is ambiguous and
+  fails closed rather than falling back to plaintext.
 - Every new gateway operation must be implemented through `AppService`, Axum where applicable,
   Tauri, contracts, mock, both gateways, and the hand-maintained route manifest. Desktop-only backup
   bridge changes must remain represented in `desktopOnly` parity.
 - Network and backup size limits are enforced before unbounded allocation. Model-download streaming
   remains a separate bounded operation.
 - Source-browser credentials stay in memory and out of URLs, logs, persisted browser storage,
-  screenshots, fixtures, and committed files. The chosen bootstrap channel must be inaccessible to
-  the constrained uncredentialed local client named by the threat model.
+  screenshots, fixtures, and committed files. The launcher gives the bearer to Axum through an
+  inherited anonymous pipe, receives Axum's assigned address through a separate pipe, and injects
+  both into the exact origin of a dedicated managed Chromium session before application code runs.
+  Browser API calls go directly to authenticated Axum; Vite does not proxy `/api`, and an unmanaged
+  uncredentialed browser has no bootstrap path.
 
 ## Phase 1 — storage discrimination and recoverable restore
 
 ### DR-21b55059-003 — unambiguous sealed representation
 
-Replace the content-prefix discriminator with an unambiguous stored representation owned by the
-vault/Records seam. Add a backup-first, resumable, idempotent migration that distinguishes legacy
-plaintext beginning with `v1:` from authenticated ciphertext without guessing. Existing valid
-ciphertext stays readable; corrupt ciphertext fails closed; ambiguous historical rows receive an
-explicit safe disposition; rollback can reopen the legacy generation.
+Replace the two-way content-prefix guess with an append-only, single-row storage-format state owned
+by the vault/Records seam. `v1:<base64>` remains authenticated ciphertext. After the format cutover,
+an inactive vault stores plaintext beginning with either reserved prefix (`v1:` or `p1:`) as
+`p1:<base64 UTF-8>` and decodes `p1:` only as escaped plaintext. Before the format state advances,
+`p1:` remains ordinary legacy plaintext. Ordinary bare plaintext remains valid in both states so
+inactive-vault workspaces stay compatible. Advance the state in the same SQLite transaction as the
+backup-first cell rewrites: an active vault authenticates existing `v1:` values and seals known
+plaintext; an inactive vault escapes known `p1:`-prefixed plaintext. Existing authenticating
+ciphertext stays readable. Malformed ciphertext and historical `v1:` plaintext that cannot
+authenticate remain deliberately ambiguous and fail closed with the format state unchanged; the
+migration never guesses, and rollback reopens the legacy generation.
 
 ### DR-21b55059-001 and DR-21b55059-011 — generation protocol and bounded reads
 
@@ -61,10 +74,16 @@ streamed model download path unchanged.
 ### DR-21b55059-015 — inspect, confirm, cancel, and unstage
 
 Only after the recovery protocol is safe, split restore selection from staging. A read-only inspect
-operation validates and previews the selected artifact without pending state. Explicit confirmation
-stages exactly one generation; cancel/close mutate nothing; unstage is durable across restart; an
-invalid backup never stages. Keep Rust-side file IO, native pickers, schema refusal, safety snapshots,
-and truthful next-launch copy.
+operation validates and previews the selected artifact without pending state. The native adapter
+binds the encrypted selected bytes to a random opaque, process-local inspection identifier and
+returns only that identifier plus safe metadata; no path, raw backup bytes, or decrypted snapshot
+crosses into the webview. The native session retains neither passphrase nor decrypted snapshot.
+Confirmation resubmits the transient form passphrase, consumes the exact inspected bytes, and stages
+exactly one generation. Cancel/close destroys the session and clears the form without persistent
+mutation; unstage durably removes the exact pending generation and key state across restart; an
+invalid backup never creates a session or stages. Keep Rust-side file IO, native pickers, schema
+refusal, safety snapshots, and truthful next-launch copy. Inspect, confirm, cancel-inspection, and
+unstage remain Tauri-only commands declared by `desktopOnly` parity, never Axum routes.
 
 ## Phase 2 — deterministic parser and calendar contracts
 
@@ -79,9 +98,11 @@ graph shapes.
 
 Represent removals by lineage root plus typed `CalendarRole`, deduplicate before presentation, and
 carry only redacted context. Keep distinct roles distinct and keep `.ics` UID, `SEQUENCE`, `DTSTAMP`,
-and serialized bytes stable. Add the typed additive contract to Rust, TypeScript, mock, and parity
-fixtures; localize role labels in English and Spanish at presentation time while retaining backward
-compatibility with the existing fixture shape.
+and serialized bytes stable. Preserve legacy `removals: string[]` and add optional typed
+`removalDetails` entries to Rust, TypeScript, mock, and parity fixtures. New presentation code prefers
+typed details, maps each role to English or Spanish at render time, and falls back to the legacy
+strings when old fixtures omit the optional field. Do not replace `removals` with a string/object
+union: that would break older consumers. Context remains redacted plain text, never raw source.
 
 ## Phase 3 — production trust boundaries
 
@@ -103,9 +124,14 @@ their existing rules; localhost Ollama remains available only for explicitly con
 ### DR-21b55059-014 and DR-21b55059-020 — authenticated source browser
 
 Bind Axum to an OS-assigned loopback port and require a cryptographically random per-launch bearer
-on reads and writes. Define a protected launcher-to-browser bootstrap that keeps the bearer in
-memory only, retains Host/Origin/CORS and DNS-rebinding guards, and leaves direct Tauri IPC
-unchanged. There must be no unauthenticated Vite-proxy bypass.
+on reads and writes. The source launcher sends the bearer to Axum through an inherited anonymous
+pipe and receives the assigned address through a separate anonymous pipe. It then starts a dedicated
+managed Chromium session and injects the address and bearer into that exact loopback document before
+application code runs; the gateway consumes the non-enumerable bootstrap into its request closure.
+The bearer never appears in a URL, log, browser storage, fixture, screenshot, or committed file. The
+browser calls authenticated Axum directly; Vite does not proxy `/api`. Retain Host/Origin/CORS and
+DNS-rebinding guards, leave direct Tauri IPC unchanged, and do not claim support for attaching an
+unmanaged browser to this authenticated source workflow.
 
 Serve the source-browser document with a tested CSP that limits scripts and API connections to the
 minimum development/HMR surface, forbids unintended frame/object/base/form behavior, keeps map
@@ -175,9 +201,12 @@ most two correction loops. Final receipts bind all four roles to one exact accep
    tracked credential-pattern scan from `security-hygiene.yml`.
 4. The bounded Research experiments needed to explain the existing aggregate web-gate failure and
    to exercise the production-shaped amendment/restore route without writing user data.
-5. Actual-browser acceptance after Obscura-level functional inspection, using Safari for the final
-   source-browser interaction and responsive/accessibility check. Packaged Tauri restore acceptance
-   uses a disposable local workspace and synthetic backup only.
+5. Actual-browser acceptance after Obscura-level functional inspection. Exercise the authenticated
+   source transport in the managed Chromium instance launched over the anonymous pipe; there is no
+   Vite-proxy or unmanaged-browser acceptance path. Use Safari separately for responsive,
+   accessibility, reduced-motion, and 200% zoom presentation checks without treating it as proof of
+   the managed source bootstrap. Packaged Tauri restore acceptance uses a disposable local workspace
+   and synthetic backup only.
 6. `graphify update .` plus scoped queries over the refreshed recovery, transport, and calendar
    paths before integration.
 7. A fresh private after-report and exactly two council rounds over the exact candidate diff, tree

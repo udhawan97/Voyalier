@@ -92,3 +92,46 @@ to accept that as a parameter anyway.
 - The advisory panel's multi-source fan-out stays in `AppService`. Which sources answer for a
   country, and what a partial answer means, is application choreography rather than any one
   source's protocol.
+
+## Amendment: execution carries a request class
+
+Accepted 2026-09-01. Owning a source URL does not by itself authorize every destination that URL can
+resolve or redirect to. The application IO layer therefore attaches a request class when it executes
+a core-owned request through `AdviceFetcher`. This deepens the existing network seam; it does not add
+a second fetch abstraction or move DNS, sockets, redirects, or response reading into core.
+
+An untrusted saved-page capture uses the `PublicResource` class. Its initial authority and every
+redirect are parsed and canonicalized, every DNS answer is checked at the resolver used for the
+actual connection, and the whole request is rejected if any answer is loopback, private,
+link-local, shared, documentation-only, multicast, reserved, unspecified, or otherwise non-public.
+Rejecting the whole answer set matters: filtering a private address while retaining a public one
+would let connection retry become a DNS-rebinding path. HTTPS-to-HTTP redirects are also rejected.
+The page body keeps its existing 2 MiB read ceiling.
+
+Trusted, application-constructed sources use their own named request class and their existing
+allowlisted protocol builders. They do not inherit the saved-page destination policy by accident,
+but each ordinary response must have an explicit body and time budget appropriate to that source.
+A generic unlimited `read_to_string` is not the default.
+
+Local AI is deliberately separate:
+
+- Ollama detection, inference, and chat remain restricted to the explicit loopback Ollama
+  authorities and never pass through `PublicResource`.
+- A traveler-initiated model installation may take many minutes, so it keeps a distinct long-running
+  request class rather than inheriting an ordinary global deadline. Its endpoint stays loopback and
+  its control/progress response remains explicitly bounded.
+- Cloud-provider requests keep their provider-owned URL and authentication construction, their
+  explicit-consent preview, and their own response budgets. No request class broadens the content or
+  credentials a provider receives.
+
+Consequences of the amendment:
+
+- Redirect and DNS policy is enforced below the `AdviceFetcher` seam against the addresses the
+  transport can actually connect to, not by a host-string precheck in a caller.
+- Encoded IP literals, IPv4-mapped IPv6, mixed public/private answer sets, and repeated resolution
+  require deterministic tests.
+- The production resolver API is version-sensitive. If the chosen HTTP client exposes it outside
+  its stable surface, that dependency is pinned exactly and its compile and behavior checks become
+  part of the repository gate.
+- Response ceilings remain request-specific. Resource safety must not make local inference or an
+  explicit model pull silently stop working.

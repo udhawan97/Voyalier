@@ -113,3 +113,22 @@ ADR-0017 situations produced the state, or distinguish a wrong key from a
 tampered row — the AEAD check cannot tell those apart, and a product that
 guessed would be inventing an accusation. The traveler is told what is true and
 what the two ways out are, and no more.
+
+## Amendment — an ambiguous legacy prefix also fails closed (2026-09-01)
+
+ADR-0007 now gives current plaintext an escaped representation, but historical databases can
+already contain raw text beginning `v1:`. When that text fails authentication, the bytes alone
+cannot distinguish traveler-authored plaintext from damaged ciphertext or a wrong key. Guessing
+"plaintext" would make a failed authenticity check disappear; guessing "ciphertext" and rewriting
+it could destroy valid traveler text.
+
+That condition is `vault/unreadable`. Before any format cutover, Voyalier creates and preserves a
+safety backup. It then leaves the ambiguous cell and the storage-format state unchanged, reports
+that no data was rewritten, and stops the migration. Retry under the same key is not presented as a
+recovery. The safe paths remain restoring a known-readable backup, reopening the workspace that
+still owns the correct key, or using a future explicit recovery tool that can preserve both
+interpretations for traveler review.
+
+The rule is deliberately asymmetric. A current `p1:` envelope is explicit plaintext and opens as
+such; an authenticated `v1:` value is explicit ciphertext. Only pre-cutover raw `v1:` values occupy
+the ambiguous state, and authentication failure never silently falls back to plaintext.
