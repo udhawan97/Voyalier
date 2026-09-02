@@ -97,6 +97,17 @@ pub struct CalendarOmission {
     pub reason: CalendarOmissionReason,
 }
 
+/// Structured, redacted detail for one logical role removed from a lineage.
+/// The lineage itself is used for core deduplication and stays out of the wire
+/// shape; the role is localized by the interface.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarRemovalDetail {
+    pub role: CalendarRole,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subject: Option<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CalendarOmissionReason {
@@ -113,6 +124,8 @@ pub struct CalendarSnapshot {
     /// Roles removed by a later fact version. Populated once amendment history
     /// exists; a downloaded file cannot remove an already imported event.
     pub removals: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub removal_details: Vec<CalendarRemovalDetail>,
 }
 
 fn identity<'a>(
@@ -409,6 +422,7 @@ pub fn build_calendar_snapshot(
         events,
         omissions,
         removals: Vec::new(),
+        removal_details: Vec::new(),
     })
 }
 
@@ -591,31 +605,60 @@ pub fn apply_fact_history_revisions(
 /// Human-readable, redacted warning labels for event roles a replacement or
 /// restore removed. A downloaded calendar cannot cancel an event previously
 /// imported into another application, so the preview must surface the gap.
-pub fn removed_calendar_roles(versions: &[ConfirmedFactVersion]) -> Vec<String> {
-    let mut removals = Vec::new();
+fn removed_calendar_role_entries(
+    versions: &[ConfirmedFactVersion],
+) -> Vec<((String, CalendarRole), CalendarRemovalDetail)> {
+    let mut removals = BTreeMap::new();
     for current in versions.iter().filter(|version| version.active) {
         let current_roles = present_roles(&current.fact);
-        for previous in versions
+        let current_context = subject(&current.fact)
+            .filter(|value| !value.is_empty())
+            .or_else(|| {
+                let value = detail(&current.fact);
+                (!value.is_empty()).then_some(value)
+            });
+        let mut previous_versions = versions
             .iter()
             .filter(|version| !version.active && version.lineage_root_id == current.lineage_root_id)
-        {
+            .collect::<Vec<_>>();
+        previous_versions.sort_by_key(|version| std::cmp::Reverse(version.revision));
+        for previous in previous_versions {
             for role in present_roles(&previous.fact) {
                 if !current_roles.contains(&role) {
-                    let context = subject(&previous.fact)
+                    let historical_context = subject(&previous.fact)
                         .filter(|value| !value.is_empty())
-                        .unwrap_or_else(|| detail(&previous.fact));
-                    removals.push(if context.is_empty() {
-                        label(role).to_owned()
-                    } else {
-                        format!("{} — {context}", label(role))
-                    });
+                        .or_else(|| {
+                            let value = detail(&previous.fact);
+                            (!value.is_empty()).then_some(value)
+                        });
+                    removals
+                        .entry((current.lineage_root_id.clone(), role))
+                        .or_insert_with(|| CalendarRemovalDetail {
+                            role,
+                            subject: current_context.clone().or(historical_context),
+                        });
                 }
             }
         }
     }
-    removals.sort();
-    removals.dedup();
-    removals
+    removals.into_iter().collect()
+}
+
+pub fn calendar_removal_details(versions: &[ConfirmedFactVersion]) -> Vec<CalendarRemovalDetail> {
+    removed_calendar_role_entries(versions)
+        .into_iter()
+        .map(|(_, detail)| detail)
+        .collect()
+}
+
+pub fn removed_calendar_roles(versions: &[ConfirmedFactVersion]) -> Vec<String> {
+    removed_calendar_role_entries(versions)
+        .into_iter()
+        .map(|(_, detail)| match detail.subject {
+            Some(subject) => format!("{} — {subject}", label(detail.role)),
+            None => label(detail.role).to_owned(),
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -682,6 +725,118 @@ mod tests {
             },
         ];
         assert_eq!(removed_calendar_roles(&versions), vec!["Arrival — Rail R1"]);
+        assert_eq!(
+            calendar_removal_details(&versions),
+            vec![CalendarRemovalDetail {
+                role: CalendarRole::Arrival,
+                subject: Some("Rail R1".into()),
+            }]
+        );
+    }
+
+    #[test]
+    fn removal_history_deduplicates_by_lineage_and_role_before_subject() {
+        let mut oldest = journey("oldest");
+        oldest.payload.carrier_name = Some("Old Rail".into());
+        let mut previous = journey("previous");
+        previous.payload.carrier_name = Some("New Rail".into());
+        let mut current = journey("current");
+        current.payload.carrier_name = Some("Current Rail".into());
+        current.payload.arrival_local = None;
+        let versions = vec![
+            ConfirmedFactVersion {
+                fact: oldest,
+                active: false,
+                revision: 0,
+                reason: FactRevisionReason::Initial,
+                lineage_root_id: "oldest".into(),
+                supersedes_fact_id: None,
+            },
+            ConfirmedFactVersion {
+                fact: previous,
+                active: false,
+                revision: 1,
+                reason: FactRevisionReason::Amendment,
+                lineage_root_id: "oldest".into(),
+                supersedes_fact_id: Some("oldest".into()),
+            },
+            ConfirmedFactVersion {
+                fact: current,
+                active: true,
+                revision: 2,
+                reason: FactRevisionReason::Amendment,
+                lineage_root_id: "oldest".into(),
+                supersedes_fact_id: Some("previous".into()),
+            },
+        ];
+        assert_eq!(
+            removed_calendar_roles(&versions),
+            vec!["Arrival — Current Rail R1"]
+        );
+        assert_eq!(calendar_removal_details(&versions).len(), 1);
+    }
+
+    #[test]
+    fn equal_role_labels_from_distinct_lineages_remain_distinct_removals() {
+        let mut first_previous = journey("first-old");
+        first_previous.payload.carrier_name = Some("First Rail".into());
+        let mut first_current = journey("first-new");
+        first_current.payload.carrier_name = Some("First Rail".into());
+        first_current.payload.arrival_local = None;
+        let mut second_previous = journey("second-old");
+        second_previous.payload.carrier_name = Some("Second Rail".into());
+        let mut second_current = journey("second-new");
+        second_current.payload.carrier_name = Some("Second Rail".into());
+        second_current.payload.arrival_local = None;
+        let versions = vec![
+            ConfirmedFactVersion {
+                fact: first_previous,
+                active: false,
+                revision: 0,
+                reason: FactRevisionReason::Initial,
+                lineage_root_id: "first-old".into(),
+                supersedes_fact_id: None,
+            },
+            ConfirmedFactVersion {
+                fact: first_current,
+                active: true,
+                revision: 1,
+                reason: FactRevisionReason::Amendment,
+                lineage_root_id: "first-old".into(),
+                supersedes_fact_id: Some("first-old".into()),
+            },
+            ConfirmedFactVersion {
+                fact: second_previous,
+                active: false,
+                revision: 0,
+                reason: FactRevisionReason::Initial,
+                lineage_root_id: "second-old".into(),
+                supersedes_fact_id: None,
+            },
+            ConfirmedFactVersion {
+                fact: second_current,
+                active: true,
+                revision: 1,
+                reason: FactRevisionReason::Amendment,
+                lineage_root_id: "second-old".into(),
+                supersedes_fact_id: Some("second-old".into()),
+            },
+        ];
+
+        assert_eq!(
+            calendar_removal_details(&versions),
+            vec![
+                CalendarRemovalDetail {
+                    role: CalendarRole::Arrival,
+                    subject: Some("First Rail R1".into()),
+                },
+                CalendarRemovalDetail {
+                    role: CalendarRole::Arrival,
+                    subject: Some("Second Rail R1".into()),
+                },
+            ]
+        );
+        assert_eq!(removed_calendar_roles(&versions).len(), 2);
     }
 
     #[test]

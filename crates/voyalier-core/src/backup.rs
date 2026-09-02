@@ -37,6 +37,9 @@ use crate::vault::{VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN, derive_key, o
 pub const BACKUP_MAGIC: &[u8; 4] = b"VBK1";
 /// The container layout version. Bumped only for a breaking layout change.
 pub const BACKUP_FORMAT_VERSION: u16 = 1;
+/// Hard allocation boundary for a portable backup container. The desktop
+/// picker enforces it while reading; core repeats the check for every caller.
+pub const MAX_BACKUP_CONTAINER_BYTES: usize = 2 * 1024 * 1024 * 1024;
 
 /// Magic + layout version + salt. The sealed body follows.
 const HEADER_LEN: usize = BACKUP_MAGIC.len() + 2 + VAULT_SALT_LEN;
@@ -87,6 +90,14 @@ pub fn seal_backup(
             "the backup manifest is too large",
         )
     })?;
+    let projected = HEADER_LEN
+        .checked_add(VAULT_NONCE_LEN)
+        .and_then(|length| length.checked_add(16)) // Poly1305 tag
+        .and_then(|length| length.checked_add(1 + VAULT_KEY_LEN + 4))
+        .and_then(|length| length.checked_add(manifest_json.len()))
+        .and_then(|length| length.checked_add(snapshot.len()))
+        .ok_or_else(oversized_backup)?;
+    validate_backup_container_size(projected)?;
 
     let mut body = Vec::with_capacity(1 + VAULT_KEY_LEN + 4 + manifest_json.len() + snapshot.len());
     match data_key {
@@ -115,6 +126,7 @@ pub fn seal_backup(
 /// or truncated file, or an unrecognised layout — never panics, never returns
 /// partial state.
 pub fn open_backup(passphrase: &str, container: &[u8]) -> Result<OpenedBackup, AppError> {
+    validate_backup_container_size(container.len())?;
     // Identify the file before doing any expensive key derivation.
     if container.get(..BACKUP_MAGIC.len()) != Some(&BACKUP_MAGIC[..]) {
         return Err(unreadable_backup());
@@ -192,6 +204,24 @@ fn unreadable_backup() -> AppError {
         ErrorCode::ValidationInvalidInput,
         "this file is not a readable Voyalier backup (wrong passphrase, or the file is damaged)",
     )
+}
+
+fn oversized_backup() -> AppError {
+    AppError::new(
+        ErrorCode::ValidationInvalidInput,
+        format!(
+            "this backup exceeds the {}-byte safety limit",
+            MAX_BACKUP_CONTAINER_BYTES
+        ),
+    )
+}
+
+fn validate_backup_container_size(size: usize) -> Result<(), AppError> {
+    if size > MAX_BACKUP_CONTAINER_BYTES {
+        Err(oversized_backup())
+    } else {
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -330,5 +360,14 @@ mod tests {
         container[4] = 0xff;
         container[5] = 0xff;
         assert!(open_backup("passphrase", &container).is_err());
+    }
+
+    #[test]
+    fn backup_container_limit_accepts_the_boundary_and_rejects_the_next_byte() {
+        validate_backup_container_size(MAX_BACKUP_CONTAINER_BYTES).expect("exact boundary");
+        let error = validate_backup_container_size(MAX_BACKUP_CONTAINER_BYTES + 1)
+            .expect_err("one byte over the boundary");
+        assert_eq!(error.code, ErrorCode::ValidationInvalidInput);
+        assert!(error.message.contains("safety limit"));
     }
 }

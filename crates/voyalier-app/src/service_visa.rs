@@ -131,7 +131,10 @@ impl AppService {
             &destination,
             &nationality_iso2,
             &retrieved_at,
-            |url| self.fetcher.fetch_text(url),
+            |url| {
+                self.fetcher
+                    .fetch_text_bounded(url, MAX_SOURCE_RESPONSE_BYTES)
+            },
         )?;
         let Some((snapshot, body)) = fetched else {
             return Err(AppError::new(

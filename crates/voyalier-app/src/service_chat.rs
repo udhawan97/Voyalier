@@ -93,7 +93,9 @@ impl AppService {
             &prompt.user_content,
             None,
         )?;
-        let response = self.fetcher.post_json(request.url, &request.body, &[])?;
+        let response =
+            self.fetcher
+                .post_json_bounded(request.url, &request.body, &[], MAX_AI_REPLY_BYTES)?;
         let text = parse_assist_reply(ProviderId::Ollama, &response)?;
 
         let reply = ChatMessage {

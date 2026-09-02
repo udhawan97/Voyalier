@@ -129,8 +129,15 @@ impl IntoResponse for ApiError {
     }
 }
 
-/// Where the local API listens unless `VOYALIER_BIND` says otherwise.
-pub const DEFAULT_BIND: &str = "127.0.0.1:8787";
+/// Where the source-browser API listens unless `VOYALIER_BIND` says otherwise.
+/// Port zero makes the kernel choose a fresh port for every launch.
+pub const DEFAULT_BIND: &str = "127.0.0.1:0";
+
+#[derive(Clone)]
+struct HttpSecurity {
+    allowed_hosts: Arc<Vec<String>>,
+    bearer: Arc<str>,
+}
 
 /// Build the router for a server that will be reachable at `address`.
 ///
@@ -139,13 +146,19 @@ pub const DEFAULT_BIND: &str = "127.0.0.1:8787";
 /// address stayed configurable, so any other port produced a server that bound,
 /// logged "ready", and then refused every request — health included — with a
 /// 403 from its own rebinding guard.
-pub fn app(service: AppService, address: SocketAddr) -> Router {
+pub fn app(service: AppService, address: SocketAddr, bearer: impl Into<Arc<str>>) -> Router {
     let cors = CorsLayer::new()
         .allow_origin([
             HeaderValue::from_static("http://127.0.0.1:5173"),
             HeaderValue::from_static("http://localhost:5173"),
         ])
-        .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE])
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::PATCH,
+            Method::DELETE,
+        ])
         .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION]);
 
     Router::new()
@@ -331,8 +344,11 @@ pub fn app(service: AppService, address: SocketAddr) -> Router {
         )
         .with_state(service)
         .layer(middleware::from_fn_with_state(
-            Arc::new(allowed_hosts(address)),
-            validate_host_origin,
+            HttpSecurity {
+                allowed_hosts: Arc::new(allowed_hosts(address)),
+                bearer: bearer.into(),
+            },
+            validate_request,
         ))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
@@ -997,13 +1013,6 @@ async fn restore_fact_version(
 
 /// The `Host` values this server answers to, derived from the address it bound.
 ///
-/// The bare forms carry over from when this list was a literal, and stay for
-/// exactly that reason: they were already accepted, and dropping them here
-/// would be a behaviour change smuggled into a bug fix. They are not the hole
-/// they look like — a browser sets `Host` from the URL it was given, so the
-/// guard against a page that resolved its own name to loopback is this list not
-/// containing that name, and the guard against a page fetching the address
-/// directly is `origin_is_allowed`.
 fn allowed_hosts(address: SocketAddr) -> Vec<String> {
     let port = address.port();
     vec![
@@ -1012,17 +1021,15 @@ fn allowed_hosts(address: SocketAddr) -> Vec<String> {
         // IPv6 loopback is the same trust level, and `VOYALIER_BIND=[::1]:…`
         // is the same trap as a non-default port.
         format!("[::1]:{port}"),
-        "127.0.0.1".to_owned(),
-        "localhost".to_owned(),
     ]
 }
 
-async fn validate_host_origin(
-    State(allowed): State<Arc<Vec<String>>>,
+async fn validate_request(
+    State(security): State<HttpSecurity>,
     request: Request<Body>,
     next: Next,
 ) -> Response {
-    if !host_is_allowed(&request, &allowed) || !origin_is_allowed(&request) {
+    if !host_is_allowed(&request, &security.allowed_hosts) || !origin_is_allowed(&request) {
         // A blocked host/origin is an authorization rejection (the DNS-rebinding
         // guard), not a server fault — respond 403, not 500.
         return (
@@ -1034,7 +1041,36 @@ async fn validate_host_origin(
         )
             .into_response();
     }
+    if !bearer_is_allowed(&request, &security.bearer) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(AppError::new(
+                ErrorCode::TransportFailure,
+                "request credential is missing or invalid",
+            )),
+        )
+            .into_response();
+    }
     next.run(request).await
+}
+
+fn bearer_is_allowed(request: &Request<Body>, expected: &str) -> bool {
+    let Some(provided) = request
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+    else {
+        return false;
+    };
+    provided.len() == expected.len()
+        && provided
+            .bytes()
+            .zip(expected.bytes())
+            .fold(0_u8, |difference, (left, right)| {
+                difference | (left ^ right)
+            })
+            == 0
 }
 
 fn ensure_path_trip_matches(path_trip_id: &str, body_trip_id: &str) -> Result<(), ApiError> {
@@ -1133,6 +1169,18 @@ mod tests {
     use tower::ServiceExt;
 
     use super::*;
+
+    const TEST_BIND: &str = "127.0.0.1:8787";
+    const TEST_BEARER: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+    fn app(service: AppService, address: SocketAddr) -> Router {
+        let address = if address.port() == 0 {
+            TEST_BIND.parse().expect("test bind")
+        } else {
+            address
+        };
+        super::app(service, address, TEST_BEARER)
+    }
 
     #[tokio::test]
     async fn http_contract_endpoints_work() {
@@ -2142,6 +2190,71 @@ mod tests {
         cleanup_database(database);
     }
 
+    #[tokio::test]
+    async fn every_route_requires_the_per_launch_bearer() {
+        let database = temp_database("bearer");
+        let service = open_test_service(&database).expect("service");
+        let router = app(service, TEST_BIND.parse().expect("test bind"));
+
+        for authorization in [None, Some("Bearer wrong")] {
+            let mut request = Request::builder()
+                .method(Method::GET)
+                .uri("/api/health")
+                .header(header::HOST, TEST_BIND);
+            if let Some(value) = authorization {
+                request = request.header(header::AUTHORIZATION, value);
+            }
+            let response = router
+                .clone()
+                .oneshot(request.body(Body::empty()).expect("request"))
+                .await
+                .expect("response");
+            assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        }
+
+        assert_eq!(
+            request(router, Method::GET, "/api/health", None)
+                .await
+                .status,
+            StatusCode::OK
+        );
+        cleanup_database(database);
+    }
+
+    #[tokio::test]
+    async fn cors_preflight_allows_the_managed_origin_to_send_authorization() {
+        let database = temp_database("cors-auth");
+        let service = open_test_service(&database).expect("service");
+        let router = app(service, TEST_BIND.parse().expect("test bind"));
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .method(Method::OPTIONS)
+                    .uri("/api/v1/trips")
+                    .header(header::HOST, TEST_BIND)
+                    .header(header::ORIGIN, "http://127.0.0.1:5173")
+                    .header(header::ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                    .header(
+                        header::ACCESS_CONTROL_REQUEST_HEADERS,
+                        "authorization,content-type",
+                    )
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(
+            response
+                .headers()
+                .get(header::ACCESS_CONTROL_ALLOW_HEADERS)
+                .and_then(|value| value.to_str().ok())
+                .is_some_and(|value| value.contains("authorization"))
+        );
+        cleanup_database(database);
+    }
+
     async fn create_trip_direct(router: &Router) -> Value {
         request(
             router.clone(),
@@ -2170,6 +2283,7 @@ mod tests {
             .method(Method::GET)
             .uri(uri)
             .header(header::HOST, host)
+            .header(header::AUTHORIZATION, format!("Bearer {TEST_BEARER}"))
             .body(Body::empty())
             .expect("request");
         router.oneshot(request).await.expect("response").status()
@@ -2236,6 +2350,7 @@ mod tests {
             .method(method)
             .uri(uri)
             .header(header::HOST, "127.0.0.1:8787")
+            .header(header::AUTHORIZATION, format!("Bearer {TEST_BEARER}"))
             .header(header::CONTENT_TYPE, "application/json")
             .body(match body {
                 Some(body) => Body::from(serde_json::to_vec(&body).expect("body")),
@@ -2392,6 +2507,7 @@ mod tests {
             .method(method)
             .uri(uri)
             .header(header::HOST, "127.0.0.1:8787")
+            .header(header::AUTHORIZATION, format!("Bearer {TEST_BEARER}"))
             .header(header::CONTENT_TYPE, "application/json")
             .body(Body::empty())
             .expect("request");
