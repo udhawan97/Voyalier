@@ -8,6 +8,30 @@
 use super::*;
 
 impl AppService {
+    /// Read and authenticate a selected backup without writing a candidate,
+    /// keychain entry, or pending marker. The desktop bridge uses this for the
+    /// inspect step; the encrypted bytes remain in its process-local session
+    /// until the traveler explicitly confirms or cancels.
+    pub fn inspect_restore(
+        &self,
+        passphrase: &str,
+        container: &[u8],
+    ) -> Result<RestorePreview, AppError> {
+        validate_passphrase(passphrase)?;
+        let opened = open_backup(passphrase, container)?;
+        if opened.manifest.schema_version > target_schema_version() {
+            return Err(AppError::new(
+                ErrorCode::ValidationInvalidInput,
+                "this backup was made by a newer version of Voyalier — update the app, then restore",
+            ));
+        }
+        Ok(RestorePreview {
+            created_at: opened.manifest.created_at,
+            app_version: opened.manifest.app_version,
+            schema_version: opened.manifest.schema_version,
+        })
+    }
+
     /// Snapshot the SQLite database to `<data-dir>/backups/` before a risky
     /// operation (a pre-update safety net). The write lock is held across a
     /// TRUNCATE WAL checkpoint and the file copy, so the copy is a consistent
@@ -120,15 +144,6 @@ impl AppService {
         passphrase: &str,
         container: &[u8],
     ) -> Result<RestorePreview, AppError> {
-        // Decrypting is what proves the passphrase; a wrong one stops here,
-        // before anything is written.
-        let opened = open_backup(passphrase, container)?;
-        if opened.manifest.schema_version > target_schema_version() {
-            return Err(AppError::new(
-                ErrorCode::ValidationInvalidInput,
-                "this backup was made by a newer version of Voyalier — update the app, then restore",
-            ));
-        }
         let dir = self
             .database_path
             .parent()
@@ -139,43 +154,84 @@ impl AppService {
                 )
             })?
             .to_path_buf();
-
-        // Park the key, then the snapshot, then the marker. The marker is the
-        // signal to apply, so writing it last means an interrupted stage is
-        // inert debris rather than a half-restore.
-        match opened.data_key {
-            Some(key) => self.secrets.set(
-                &vault_pending_key_account(&self.database_path),
-                &BASE64.encode(key),
-            )?,
-            None => {
-                let _ = self
-                    .secrets
-                    .delete(&vault_pending_key_account(&self.database_path));
-            }
+        let marker_path = dir.join(PENDING_RESTORE_MARKER);
+        if marker_path.exists() {
+            return Err(AppError::new(
+                ErrorCode::ValidationInvalidInput,
+                "a restore is already waiting; finish or cancel it before choosing another",
+            ));
         }
-        fs::write(dir.join(PENDING_RESTORE_FILE), &opened.snapshot).map_err(storage_error)?;
-
-        let preview = RestorePreview {
-            created_at: opened.manifest.created_at,
-            app_version: opened.manifest.app_version,
-            schema_version: opened.manifest.schema_version,
+        // Decrypting is what proves the passphrase; a wrong one stops here,
+        // before anything is written.
+        let opened = open_backup(passphrase, container)?;
+        if opened.manifest.schema_version > target_schema_version() {
+            return Err(AppError::new(
+                ErrorCode::ValidationInvalidInput,
+                "this backup was made by a newer version of Voyalier — update the app, then restore",
+            ));
+        }
+        let generation = new_id("restore");
+        let candidate_file = format!("pending-restore-{generation}.sqlite3");
+        let rollback_file = format!("rollback-restore-{generation}.sqlite3");
+        let candidate_path = dir.join(&candidate_file);
+        let pending_account = vault_pending_key_account(&self.database_path, &generation);
+        // A source workspace may have been running without a keychain. Give
+        // that plaintext snapshot a durable destination key while it is still
+        // only a candidate, so activation never opens current-format plaintext
+        // under a freshly generated key without actually sealing it.
+        let candidate_key = match opened.data_key {
+            Some(key) => key,
+            None => {
+                let mut key = [0u8; VAULT_KEY_LEN];
+                getrandom::fill(&mut key).map_err(|_| nonce_error())?;
+                key
+            }
         };
-        let marker = PendingRestore {
-            created_at: preview.created_at.clone(),
-            app_version: preview.app_version.clone(),
-            schema_version: preview.schema_version,
-            key_present: opened.data_key.is_some(),
-        };
-        let encoded = serde_json::to_vec(&marker).map_err(|_| {
-            AppError::new(
-                ErrorCode::InternalUnexpected,
-                "the pending restore could not be written",
-            )
-        })?;
-        fs::write(dir.join(PENDING_RESTORE_MARKER), encoded).map_err(storage_error)?;
+        let encoded_key = BASE64.encode(candidate_key);
 
-        Ok(preview)
+        let staged = (|| {
+            atomic_write_file(&candidate_path, &opened.snapshot)?;
+            restore_fault("copy");
+            let (schema_version, candidate_sha256) = prepare_restore_candidate(
+                &candidate_path,
+                opened.manifest.schema_version,
+                Some(candidate_key),
+            )?;
+            self.secrets.set(&pending_account, &encoded_key)?;
+            restore_fault("key_set_stage");
+
+            let preview = RestorePreview {
+                created_at: opened.manifest.created_at.clone(),
+                app_version: opened.manifest.app_version.clone(),
+                schema_version,
+            };
+            let marker = PendingRestore {
+                protocol_version: 2,
+                generation: generation.clone(),
+                phase: RestorePhase::Staged,
+                candidate_file: candidate_file.clone(),
+                rollback_file: rollback_file.clone(),
+                candidate_sha256,
+                created_at: preview.created_at.clone(),
+                app_version: preview.app_version.clone(),
+                schema_version,
+                backup_format_version: opened.manifest.format_version,
+                key_present: true,
+                key_sha256: Some(secret_digest(&encoded_key)),
+                old_database_sha256: None,
+                old_key_present: None,
+                old_key_sha256: None,
+            };
+            write_restore_marker(&marker_path, &marker)?;
+            restore_fault("marker");
+            Ok(preview)
+        })();
+
+        if staged.is_err() {
+            let _ = fs::remove_file(&candidate_path);
+            let _ = self.secrets.delete(&pending_account);
+        }
+        staged
     }
 
     /// Whether a staged restore is waiting for the next launch, so the UI can
@@ -184,6 +240,49 @@ impl AppService {
         self.database_path
             .parent()
             .is_some_and(|dir| dir.join(PENDING_RESTORE_MARKER).exists())
+    }
+
+    /// Cancel the exact staged generation without touching the live database.
+    /// The marker is removed last, so an interruption leaves retryable state;
+    /// a restart can finish the same cleanup rather than guessing which files
+    /// belong to the restore. Activated recovery generations are deliberately
+    /// not cancellable here — they must complete or roll back under the
+    /// generation protocol before their safety copy can be discarded.
+    pub fn unstage_restore(&self) -> Result<bool, AppError> {
+        let Some(dir) = self.database_path.parent() else {
+            return Ok(false);
+        };
+        let marker_path = dir.join(PENDING_RESTORE_MARKER);
+        if !marker_path.exists() {
+            return Ok(false);
+        }
+        let marker = read_restore_marker(&marker_path)?;
+        validate_restore_marker(&marker)?;
+        if marker.phase != RestorePhase::Staged {
+            return Err(AppError::new(
+                ErrorCode::ValidationInvalidInput,
+                "this restore is already being recovered and cannot be cancelled",
+            ));
+        }
+        let pending_account = vault_pending_key_account(&self.database_path, &marker.generation);
+        let rollback_account = vault_rollback_key_account(&self.database_path, &marker.generation);
+        // Remove credentials first. If either keychain operation fails, the
+        // marker remains and the next launch can retry without losing the
+        // association between the generation and its key.
+        self.secrets.delete(&pending_account)?;
+        self.secrets.delete(&rollback_account)?;
+        for file in [&marker.candidate_file, &marker.rollback_file] {
+            let path = dir.join(file);
+            match fs::remove_file(&path) {
+                Ok(()) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(storage_error(error)),
+            }
+            remove_sqlite_sidecars(&path);
+        }
+        fs::remove_file(&marker_path).map_err(storage_error)?;
+        sync_directory(dir)?;
+        Ok(true)
     }
 
     /// Delete every pre-update backup (and any `-wal`/`-shm` strays a reader

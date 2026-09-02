@@ -88,13 +88,14 @@ pub use assist_draft::{
     LodgingDateProposal, build_draft_preview, parse_lodging_dates_reply,
 };
 pub use backup::{
-    BACKUP_FORMAT_VERSION, BACKUP_MAGIC, BackupManifest, OpenedBackup, open_backup, seal_backup,
+    BACKUP_FORMAT_VERSION, BACKUP_MAGIC, BackupManifest, MAX_BACKUP_CONTAINER_BYTES, OpenedBackup,
+    open_backup, seal_backup,
 };
 pub use brief::{BriefTripItem, RedactionPolicy, TripBrief, build_trip_brief};
 pub use calendar::{
-    CalendarEvent, CalendarOmission, CalendarOmissionReason, CalendarRole, CalendarSnapshot,
-    ItineraryIdentity, ProjectionError, apply_fact_history_revisions, build_calendar_snapshot,
-    removed_calendar_roles,
+    CalendarEvent, CalendarOmission, CalendarOmissionReason, CalendarRemovalDetail, CalendarRole,
+    CalendarSnapshot, ItineraryIdentity, ProjectionError, apply_fact_history_revisions,
+    build_calendar_snapshot, calendar_removal_details, removed_calendar_roles,
 };
 pub use chat::{
     CHAT_SYSTEM_PROMPT, ChatContext, ChatGrounding, ChatMessage, ChatPrompt, ChatRole,

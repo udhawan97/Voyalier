@@ -19,6 +19,8 @@ import {
   TransportHealthContext,
   TransportRecoveryContext,
   UpdaterContext,
+  VaultStatusContext,
+  type VaultStatusSnapshot,
 } from "./app/context";
 import { RevalidateProvider, useRevalidateAll } from "./app/revalidate";
 import { t } from "./app/i18n";
@@ -259,9 +261,15 @@ function Workspace({
   // it so a recovery clears what it just disproved.
   const [recoveries, setRecoveries] = useState(0);
   const [message, setMessage] = useState("");
-  // Whether the encrypted vault needs a passphrase before the workspace opens.
-  // `null` until the first check completes (treated as "not locked").
-  const [locked, setLocked] = useState<boolean | null>(null);
+  // One retained vault-status read serves both the shell lock gate and the
+  // Settings panel. Keeping separate readers made global Retry call the same
+  // method twice while still leaving the panel's failure untouched.
+  const [vaultStatus, setVaultStatus] = useState<VaultStatusSnapshot>({
+    status: "loading",
+    data: undefined,
+    error: undefined,
+  });
+  const vaultRequest = useRef(0);
 
   const announce = useCallback((next: string) => setMessage(next), []);
 
@@ -285,17 +293,48 @@ function Workspace({
   );
 
   const checkVault = useCallback(() => {
-    gateway.getVaultStatus().then(
-      (status) => setLocked(status.locked),
-      // A gateway without vault support (or a transient error) must never wall
-      // off the app — fail open to the normal workspace.
-      () => setLocked(false),
-    );
-  }, [gateway]);
+    const requestId = vaultRequest.current + 1;
+    vaultRequest.current = requestId;
+    // Starting from a microtask keeps the mount effect subscription-shaped: it
+    // schedules external work rather than synchronously cascading a render.
+    // Strict Mode may schedule twice, so the request id is checked before the
+    // gateway call as well as when it settles; only the latest task performs IO.
+    queueMicrotask(() => {
+      if (requestId !== vaultRequest.current) return;
+      setVaultStatus((current) => ({
+        status: "loading",
+        data: current.data,
+        error: undefined,
+      }));
+      gateway.getVaultStatus().then(
+        (data) => {
+          if (requestId !== vaultRequest.current) return;
+          setVaultStatus({ status: "success", data, error: undefined });
+        },
+        (caught) => {
+          if (requestId !== vaultRequest.current) return;
+          const error = toAppError(caught);
+          transportHealth.reportTransportFailure(error);
+          // A transient failure must never wall off the app. Retain any last
+          // status for continuity; with no prior answer the shell still fails
+          // open while Settings explains the read failure.
+          setVaultStatus((current) => ({
+            status: "error",
+            data: current.data,
+            error,
+          }));
+        },
+      );
+    });
+  }, [gateway, transportHealth]);
 
   useEffect(() => {
     checkVault();
   }, [checkVault]);
+
+  const locked =
+    vaultStatus.data?.locked ??
+    (vaultStatus.status === "loading" ? null : false);
 
   // Only the async result touches state, so the mount effect never calls
   // setState synchronously; the retry handler does its own "checking" reset.
@@ -520,8 +559,8 @@ function Workspace({
   const retry = useCallback(() => {
     setHealth("checking");
     setHealthError(null);
-    // The one caller that cannot name what changed: the app just failed to
-    // reach its engine, so nothing on screen is trustworthy.
+    // Only registered local reads whose loader is safe to replay participate.
+    // Provider, weather, map, AI and consent-gated actions are not registered.
     revalidateAll();
     probeHealth();
     // Including whether the vault is still open. The ordinary reason an engine
@@ -532,6 +571,11 @@ function Workspace({
     // had already happened.
     checkVault();
   }, [checkVault, probeHealth, revalidateAll]);
+
+  const vaultStatusReader = useMemo(
+    () => ({ ...vaultStatus, reload: checkVault }),
+    [checkVault, vaultStatus],
+  );
 
   return (
     <GatewayContext.Provider value={gateway}>
@@ -561,7 +605,9 @@ function Workspace({
                       <UpdatesPanel />
                     </>
                   ) : view.name === "settings" ? (
-                    <SettingsView onBack={leaveDetour} />
+                    <VaultStatusContext.Provider value={vaultStatusReader}>
+                      <SettingsView onBack={leaveDetour} />
+                    </VaultStatusContext.Provider>
                   ) : view.name === "search" ? (
                     <WorkspaceSearch
                       onBack={leaveDetour}

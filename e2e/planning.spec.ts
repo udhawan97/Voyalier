@@ -1,10 +1,42 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 
 function isoDay(offset: number): string {
   const date = new Date();
   date.setUTCDate(date.getUTCDate() + offset);
   return date.toISOString().slice(0, 10);
 }
+
+test("managed source bootstrap is authenticated without browser persistence", async ({
+  page,
+  request,
+}) => {
+  const response = await page.goto("/");
+  const csp = response?.headers()["content-security-policy"];
+  expect(csp).toContain("script-src 'self' 'nonce-");
+  expect(csp).toContain("connect-src 'self'");
+  expect(csp).not.toContain("unsafe-eval");
+
+  const state = await page.evaluate(() => ({
+    bootstrapPresent: "__VOYALIER_HTTP_BOOTSTRAP__" in window,
+    cookies: document.cookie,
+    localStorageKeys: Object.keys(localStorage),
+    sessionStorageKeys: Object.keys(sessionStorage),
+    url: location.href,
+  }));
+  expect(state).toEqual({
+    bootstrapPresent: false,
+    cookies: "",
+    localStorageKeys: [],
+    sessionStorageKeys: [],
+    url: "http://127.0.0.1:5173/",
+  });
+  await expect(
+    page.getByRole("heading", { name: "Trips", level: 1 }),
+  ).toBeVisible();
+
+  const unauthenticated = await request.get("http://127.0.0.1:8787/api/health");
+  expect(unauthenticated.status()).toBe(401);
+});
 
 /**
  * Model desktop browser zoom: keep the same physical surface, halve the CSS

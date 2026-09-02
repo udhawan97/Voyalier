@@ -49,12 +49,15 @@ suggestions, offline packs, saved advice and weather snapshots, and your notes.
 Restoring **replaces** everything currently in Voyalier with the contents of the
 backup. It does not merge the two.
 
-It happens in two steps, on purpose:
+It happens in three explicit steps, on purpose:
 
-1. You pick the file and enter its passphrase. Voyalier checks both and stages
-   the restore. **Nothing has changed yet** — your current data is untouched, so
-   a wrong passphrase or a change of mind costs nothing.
-2. You quit and reopen Voyalier. The swap happens at startup, before the database
+1. You pick the file and enter its passphrase. Voyalier checks the container and
+   shows its metadata without changing anything.
+2. You review that preview and enter the passphrase again to confirm. Voyalier
+   stages the restore. **Nothing has changed yet** — your current data is
+   untouched, so a change of mind costs nothing; you can cancel the inspection
+   or the pending restore.
+3. You quit and reopen Voyalier. The swap happens at startup, before the database
    is opened, which is why the restart is needed.
 
 Just before the swap, Voyalier snapshots your current data into its `backups`

@@ -81,7 +81,11 @@ impl AppService {
     pub fn pull_local_model(&self, model: &str) -> Result<LocalModelPullResult, AppError> {
         let model = validate_model_name(model)?;
         let body = build_pull_body(&model);
-        match self.fetcher.post_json_long(OLLAMA_PULL_URL, &body) {
+        match self.fetcher.post_json_long_bounded(
+            OLLAMA_PULL_URL,
+            &body,
+            MAX_LOCAL_AI_PULL_REPLY_BYTES,
+        ) {
             Ok(response) => match interpret_pull_response(&response) {
                 Ok(()) => Ok(LocalModelPullResult {
                     ok: true,
@@ -185,7 +189,10 @@ impl AppService {
     /// reports `available: false`. No inference runs and nothing leaves the
     /// device — Voyalier stays fully usable whatever this returns.
     pub fn detect_local_ai(&self) -> LocalAiStatus {
-        match self.fetcher.fetch_text(OLLAMA_TAGS_URL) {
+        match self
+            .fetcher
+            .fetch_text_bounded(OLLAMA_TAGS_URL, MAX_LOCAL_AI_STATUS_BYTES)
+        {
             Ok(body) => LocalAiStatus::from_tags_body(&body),
             Err(_) => LocalAiStatus::unavailable(),
         }

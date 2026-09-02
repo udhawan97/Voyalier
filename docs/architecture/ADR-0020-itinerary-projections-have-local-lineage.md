@@ -128,3 +128,27 @@ review approval indistinguishable from a current one.
 
 **Fuzzy-match likely amendments.** Rejected: false replacement is worse than one extra ordinary
 candidate. Uncertainty stays visible and traveler-controlled.
+
+## Amendment — removals are logical roles before they are labels (2026-09-01)
+
+The first removal projection formatted every inactive historical subject and deduplicated the
+resulting English strings. Several versions of one lineage could therefore produce several
+warnings for the same removed arrival or checkout role merely because its carrier, property, or
+service label changed.
+
+Removal aggregation now keys on the opaque calendar lineage plus typed `CalendarRole` before any
+presentation text is generated. One lineage/role pair produces one removal. Distinct lineages and
+distinct roles remain distinct. Presentation context is chosen deterministically from the current
+lineage when available, otherwise from the newest historical version that carried the removed
+role; it cannot affect removal identity.
+
+The wire change is additive. `CalendarSnapshot` gains optional/defaulted typed `removalDetails`
+containing the role and optional redacted subject. The opaque lineage is used only to deduplicate in
+core and does not cross the presentation contract. The existing `removals` string array remains for
+older consumers and is derived from the already-deduplicated typed set. Current interfaces can
+localize the typed role instead of parsing an English Rust string, while older interfaces continue
+to render one compatibility label per logical removal.
+
+This amendment does not change event UID, `SEQUENCE`, `DTSTAMP`, semantic-revision calculation, or
+ICS serialization. Removal details still exclude document text, confirmation codes, traveler
+names, private notes, resources, and provider data.

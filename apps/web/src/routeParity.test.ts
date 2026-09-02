@@ -387,7 +387,10 @@ describe("route parity: the desktop-only bridges against the manifest", () => {
       updater.backup("label"),
       updater.clearBackups(),
       backup.exportBackup("pw"),
-      backup.stageRestore("pw"),
+      backup.inspectRestore("pw"),
+      backup.confirmRestore("restore_inspection_test", "pw"),
+      backup.cancelRestoreInspection("restore_inspection_test"),
+      backup.unstageRestore(),
       backup.hasPendingRestore(),
     ]);
 

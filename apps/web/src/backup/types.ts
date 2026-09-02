@@ -15,6 +15,12 @@ export interface RestorePreview {
   schemaVersion: number;
 }
 
+/** Opaque process-local handle for a read-only inspected backup. */
+export interface RestoreInspection {
+  inspectionId: string;
+  preview: RestorePreview;
+}
+
 export interface BackupGateway {
   /** "unsupported" outside the desktop app, which the panel shows plainly. */
   kind: "tauri" | "unsupported";
@@ -23,12 +29,17 @@ export interface BackupGateway {
    * traveler cancelled the picker — cancelling is a normal outcome, not an error.
    */
   exportBackup(passphrase: string): Promise<string | null>;
-  /**
-   * Validate a chosen backup and stage it for the next launch. Resolves to a
-   * preview, or `null` when the picker was cancelled. Nothing in the live
-   * workspace changes until the app restarts.
-   */
-  stageRestore(passphrase: string): Promise<RestorePreview | null>;
+  /** Read and preview a chosen backup without creating pending restore state. */
+  inspectRestore(passphrase: string): Promise<RestoreInspection | null>;
+  /** Consume one inspected artifact and stage exactly one generation. */
+  confirmRestore(
+    inspectionId: string,
+    passphrase: string,
+  ): Promise<RestorePreview>;
+  /** Discard an in-memory inspection session. */
+  cancelRestoreInspection(inspectionId: string): Promise<boolean>;
   /** Whether a staged restore is waiting, so the UI can prompt for a restart. */
   hasPendingRestore(): Promise<boolean>;
+  /** Remove the exact staged generation, without touching the live workspace. */
+  unstageRestore(): Promise<boolean>;
 }

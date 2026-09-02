@@ -1,4 +1,11 @@
-use std::{env, net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{
+    env,
+    fs::{File, OpenOptions},
+    io::{Read, Write},
+    net::SocketAddr,
+    path::PathBuf,
+    sync::Arc,
+};
 
 use tracing::info;
 use tracing_subscriber::EnvFilter;
@@ -35,11 +42,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
     }
 
+    let integration = env::var("VOYALIER_INTEGRATION_TEST").as_deref() == Ok("1");
+    let bearer = launch_bearer(integration)?;
     let bind =
         env::var("VOYALIER_BIND").unwrap_or_else(|_| voyalier_server::DEFAULT_BIND.to_owned());
     let requested: SocketAddr = bind.parse()?;
     let (listener, address) = bind_loopback(requested).await?;
-    let service = if env::var("VOYALIER_INTEGRATION_TEST").as_deref() == Ok("1") {
+    let service = if integration {
         // The live contract gate must not prompt or block on a developer's OS
         // keychain. Keep this seam test-only and require its disposable data
         // directory explicitly so it cannot silently become a production mode.
@@ -60,14 +69,86 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         voyalier_app::AppService::open_default()?
     };
 
+    publish_source_address(address, integration)?;
     info!(%address, "Voyalier local API ready");
     // The bound address, not a constant: the router derives its Host
     // allowlist from it, so a chosen port stays answerable.
-    axum::serve(listener, voyalier_server::app(service, address))
+    axum::serve(listener, voyalier_server::app(service, address, bearer))
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 
     Ok(())
+}
+
+fn launch_bearer(integration: bool) -> Result<String, Box<dyn std::error::Error>> {
+    let bearer = if integration {
+        env::var("VOYALIER_TEST_API_TOKEN").map_err(|_| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "integration mode requires VOYALIER_TEST_API_TOKEN",
+            )
+        })?
+    } else {
+        read_anonymous_pipe("VOYALIER_CREDENTIAL_FD")?
+    };
+    if bearer.len() != 64 || !bearer.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "launch credential must be 32 bytes encoded as hexadecimal",
+        )
+        .into());
+    }
+    Ok(bearer)
+}
+
+#[cfg(unix)]
+fn read_anonymous_pipe(variable: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let descriptor: u32 = env::var(variable)?.parse()?;
+    let mut input = File::open(format!("/dev/fd/{descriptor}"))?.take(129);
+    let mut value = String::new();
+    input.read_to_string(&mut value)?;
+    if value.len() > 128 {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "launch credential exceeded its maximum size",
+        )
+        .into());
+    }
+    Ok(value.trim_end().to_owned())
+}
+
+#[cfg(not(unix))]
+fn read_anonymous_pipe(_variable: &str) -> Result<String, Box<dyn std::error::Error>> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "the managed source-browser launcher requires anonymous pipes",
+    )
+    .into())
+}
+
+fn publish_source_address(
+    address: SocketAddr,
+    integration: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if integration {
+        return Ok(());
+    }
+    #[cfg(unix)]
+    {
+        let descriptor: u32 = env::var("VOYALIER_BOOTSTRAP_FD")?.parse()?;
+        let mut output = OpenOptions::new()
+            .write(true)
+            .open(format!("/dev/fd/{descriptor}"))?;
+        writeln!(output, "http://{address}")?;
+        output.flush()?;
+        Ok(())
+    }
+    #[cfg(not(unix))]
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "the managed source-browser launcher requires anonymous pipes",
+    )
+    .into())
 }
 
 /// Remove the keychain accounts of workspaces whose database no longer exists.

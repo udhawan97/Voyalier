@@ -15,5 +15,6 @@ cd "$repo_root"
 VOYALIER_BIND=127.0.0.1:8787 \
 VOYALIER_DATA_DIR="$playwright_tmp/data" \
 VOYALIER_INTEGRATION_TEST=1 \
+VOYALIER_TEST_API_TOKEN=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
 VOYALIER_LOG=warn \
   cargo run --locked -p voyalier-server

@@ -11,10 +11,6 @@ name: Build city packs
 on:
   workflow_dispatch:
     inputs:
-      release_tag:
-        description: Release tag to publish pack assets to
-        default: packs-v1
-        type: string
       overture_release:
         # Overture keeps only the newest couple of releases on S3, so this
         # default rots exactly the way the Protomaps one below does — and when
@@ -36,7 +32,7 @@ on:
         type: string
 
 permissions:
-  contents: write # create/update the release and upload assets
+  contents: read
 
 concurrency:
   group: build-packs
@@ -44,8 +40,12 @@ concurrency:
 
 jobs:
   build:
-    name: Build and publish packs
+    name: Build packs
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
@@ -57,16 +57,26 @@ jobs:
           node-version: 24
 
       - name: Install DuckDB
+        shell: bash
         run: |
-          curl -fsSL https://install.duckdb.org | sh
-          echo "$HOME/.duckdb/cli/latest" >> "$GITHUB_PATH"
+          set -euo pipefail
+          archive="$RUNNER_TEMP/duckdb_cli-linux-amd64.zip"
+          curl -fsSL \
+            https://github.com/duckdb/duckdb/releases/download/v1.5.5/duckdb_cli-linux-amd64.zip \
+            -o "$archive"
+          echo "08c0ca117111fcede14239d0093792352befdc174218c344d232c13279643d05  $archive" \
+            | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/duckdb"
+          unzip -q "$archive" -d "$RUNNER_TEMP/duckdb"
+          "$RUNNER_TEMP/duckdb/duckdb" --version | grep -F "v1.5.5"
+          echo "$RUNNER_TEMP/duckdb" >> "$GITHUB_PATH"
 
       - name: Dump the pack catalog (single source of truth)
         run: cargo run --locked -p voyalier-core --example pack_catalog > catalog.json
 
       - name: Build pack contents
         env:
-          PACK_RELEASE_TAG: ${{ inputs.release_tag }}
+          PACK_RELEASE_TAG: packs-v1
           OVERTURE_RELEASE: ${{ inputs.overture_release }}
         run: node scripts/build-packs.mjs catalog.json
 
@@ -94,25 +104,51 @@ jobs:
           PROTOMAPS_BUILD: ${{ inputs.protomaps_build }}
         run: node scripts/build-offline-map.mjs catalog.json
 
-      - name: Publish pack assets to the release
+      - name: Record pack checksums
+        run: (cd dist/packs && sha256sum -- *.json *.pmtiles > SHA256SUMS)
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        id: upload
+        with:
+          name: city-packs
+          path: dist/packs/
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish packs
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Download the build artifact
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
+          ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
         run: |
-          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+          mkdir -p dist/packs
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip" \
+            > "$RUNNER_TEMP/city-packs.zip"
+          unzip -q "$RUNNER_TEMP/city-packs.zip" -d dist/packs
+          (cd dist/packs && sha256sum --check --strict SHA256SUMS)
+
+      - name: Publish only to the fixed pack prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: packs-v1
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            test "$(gh release view "$RELEASE_TAG" --json isPrerelease --jq .isPrerelease)" = true
+          else
             gh release create "$RELEASE_TAG" \
               --prerelease \
               --title "City packs ($RELEASE_TAG)" \
               --notes "Overture places (CDLA-Permissive-2.0) + Wikivoyage prose (CC BY-SA 3.0), per pack. Built by .github/workflows/packs.yml."
           fi
-          # BLOCKER fix (UPDATES.md §5): pack releases MUST be pre-release so
-          # GitHub's releases/latest — which excludes pre-releases — never flips
-          # to a pack release and 404s the in-app updater's latest.json. Enforced
-          # even for a pre-existing release so it can't regress.
-          gh release edit "$RELEASE_TAG" --prerelease
-          gh release upload "$RELEASE_TAG" dist/packs/*.json dist/packs/*.pmtiles --clobber
-
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: city-packs
-          path: dist/packs/
+          gh release upload "$RELEASE_TAG" \
+            dist/packs/*.json dist/packs/*.pmtiles dist/packs/SHA256SUMS \
+            --clobber

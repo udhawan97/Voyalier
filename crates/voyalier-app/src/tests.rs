@@ -2605,6 +2605,80 @@ fn exports_the_workspace_as_a_portable_encrypted_backup() {
 }
 
 #[test]
+fn text_response_budgets_accept_the_boundary_and_reject_the_next_byte() {
+    let fetcher = FakeFetcher::new()
+        .route("get-exact", "1234")
+        .route("get-over", "12345")
+        .route("post-exact", "abcd")
+        .route("post-over", "abcde")
+        .route("long-over", "vwxyz");
+
+    assert_eq!(
+        fetcher
+            .fetch_text_bounded("https://test/get-exact", 4)
+            .expect("GET boundary"),
+        "1234"
+    );
+    let get_error = fetcher
+        .fetch_text_bounded("https://test/get-over", 4)
+        .expect_err("GET over budget");
+    assert_eq!(get_error.code, ErrorCode::AdviceFetchFailed);
+    assert!(get_error.message.contains("4-byte safety limit"));
+
+    assert_eq!(
+        fetcher
+            .post_json_bounded("https://test/post-exact", "{}", &[], 4)
+            .expect("POST boundary"),
+        "abcd"
+    );
+    let post_error = fetcher
+        .post_json_bounded("https://test/post-over", "{}", &[], 4)
+        .expect_err("POST over budget");
+    assert_eq!(post_error.code, ErrorCode::AssistFailed);
+    assert!(post_error.message.contains("4-byte safety limit"));
+
+    let long_error = fetcher
+        .post_json_long_bounded("https://test/long-over", "{}", 4)
+        .expect_err("long POST over budget");
+    assert_eq!(long_error.code, ErrorCode::AssistFailed);
+}
+
+#[test]
+fn production_fetcher_bounds_known_length_and_chunked_bodies_while_reading() {
+    fn serve(response: &'static [u8]) -> String {
+        use std::io::{Read as _, Write as _};
+        use std::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").expect("listener");
+        let address = listener.local_addr().expect("address");
+        std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("accept");
+            let mut request = [0u8; 1024];
+            let _ = stream.read(&mut request);
+            stream.write_all(response).expect("response");
+        });
+        format!("http://{address}/body")
+    }
+
+    let known_length =
+        serve(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\n12345");
+    let known_error = UreqFetcher
+        .fetch_text_bounded(&known_length, 4)
+        .expect_err("known length over budget");
+    assert_eq!(known_error.code, ErrorCode::AdviceFetchFailed);
+    assert!(known_error.message.contains("4-byte safety limit"));
+
+    let chunked = serve(
+        b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n5\r\n12345\r\n0\r\n\r\n",
+    );
+    let chunked_error = UreqFetcher
+        .fetch_text_bounded(&chunked, 4)
+        .expect_err("chunked body over budget");
+    assert_eq!(chunked_error.code, ErrorCode::AdviceFetchFailed);
+    assert!(chunked_error.message.contains("4-byte safety limit"));
+}
+
+#[test]
 fn restores_a_backup_onto_another_machine_at_the_next_launch() {
     // Workspace A — the machine being backed up.
     let database_a = temp_database("restore-source");
@@ -2647,6 +2721,26 @@ fn restores_a_backup_onto_another_machine_at_the_next_launch() {
         .stage_restore("correct horse battery", &container)
         .expect("stage");
     assert_eq!(preview.schema_version, target_schema_version());
+    assert_eq!(
+        service_b
+            .stage_restore("correct horse battery", &container)
+            .expect_err("a second generation cannot replace the first")
+            .code,
+        ErrorCode::ValidationInvalidInput
+    );
+    let marker_path = database_b.with_file_name(PENDING_RESTORE_MARKER);
+    let marker = read_restore_marker(&marker_path).expect("generation marker");
+    assert_eq!(marker.protocol_version, 2);
+    assert_eq!(marker.phase, RestorePhase::Staged);
+    let candidate = database_b.with_file_name(&marker.candidate_file);
+    assert_eq!(
+        sha256_file(&candidate).expect("candidate digest"),
+        marker.candidate_sha256
+    );
+    assert!(
+        secrets_b.has(&vault_pending_key_account(&database_b, &marker.generation)),
+        "the candidate key must be scoped to the same generation"
+    );
 
     // Staging is inert — B keeps its own data until the app restarts, so a
     // crash between staging and applying loses nothing.
@@ -2689,7 +2783,7 @@ fn restores_a_backup_onto_another_machine_at_the_next_launch() {
 
     // B's pre-restore data is snapshotted, so a mistaken restore is reversible.
     let backups = database_b.parent().expect("parent").join("backups");
-    let safety = fs::read_dir(&backups)
+    let safety: Vec<PathBuf> = fs::read_dir(&backups)
         .expect("backups dir")
         .filter_map(Result::ok)
         .filter(|entry| {
@@ -2698,14 +2792,319 @@ fn restores_a_backup_onto_another_machine_at_the_next_launch() {
                 .to_string_lossy()
                 .starts_with("pre-restore-")
         })
-        .count();
-    assert_eq!(safety, 1, "a pre-restore safety snapshot should exist");
+        .map(|entry| entry.path())
+        .collect();
+    assert_eq!(
+        safety.len(),
+        1,
+        "a pre-restore safety snapshot should exist"
+    );
+    let old_trip_count: i64 = Connection::open(&safety[0])
+        .expect("open safety snapshot")
+        .query_row(
+            "SELECT COUNT(*) FROM trips WHERE id = ?1",
+            params![trip_b.id],
+            |row| row.get(0),
+        )
+        .expect("read safety snapshot");
+    assert_eq!(
+        old_trip_count, 1,
+        "the checkpointed safety snapshot must include the old WAL generation"
+    );
 
     // The staging marker is consumed, so the restore does not repeat.
     assert!(!database_b.with_file_name("pending-restore.json").exists());
 
     cleanup_database(database_a);
     cleanup_database(database_b);
+}
+
+#[test]
+fn restore_inspection_is_read_only_and_unstage_removes_only_its_generation() {
+    let source_database = temp_database("restore-inspection-source");
+    let source = open_test_service(&source_database).expect("source");
+    let source_trip = source.create_trip(valid_trip_input()).expect("source trip");
+    let container = source
+        .export_backup("correct horse battery")
+        .expect("backup");
+    drop(source);
+
+    let target_database = temp_database("restore-inspection-target");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let target = AppService::open_path_with_deps(
+        &target_database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .expect("target");
+    let old_trip = target.create_trip(valid_trip_input()).expect("old trip");
+    let marker_path = target_database.with_file_name(PENDING_RESTORE_MARKER);
+
+    let preview = target
+        .inspect_restore("correct horse battery", &container)
+        .expect("inspect");
+    assert_eq!(preview.schema_version, target_schema_version());
+    assert!(
+        !marker_path.exists(),
+        "inspection must not create pending state"
+    );
+    assert!(
+        target.get_trip(&old_trip.id).is_ok(),
+        "inspection is read-only"
+    );
+    assert!(
+        target
+            .inspect_restore("wrong passphrase", &container)
+            .is_err()
+    );
+    assert!(
+        !marker_path.exists(),
+        "invalid inspection must leave no state"
+    );
+
+    target
+        .stage_restore("correct horse battery", &container)
+        .expect("stage");
+    let marker = read_restore_marker(&marker_path).expect("marker");
+    let candidate = target_database.with_file_name(&marker.candidate_file);
+    let pending_account = vault_pending_key_account(&target_database, &marker.generation);
+    assert!(candidate.exists());
+    assert!(secrets.has(&pending_account));
+
+    assert!(target.unstage_restore().expect("unstage"));
+    assert!(!marker_path.exists());
+    assert!(!candidate.exists());
+    assert!(!secrets.has(&pending_account));
+    assert!(
+        target.get_trip(&old_trip.id).is_ok(),
+        "unstage preserves live data"
+    );
+    assert!(!target.unstage_restore().expect("second unstage"));
+
+    drop(target);
+    let reopened = AppService::open_path_with_deps(
+        &target_database,
+        Arc::new(FakeFetcher::offline()),
+        secrets,
+    )
+    .expect("reopen after unstage");
+    assert!(reopened.get_trip(&old_trip.id).is_ok());
+    assert!(reopened.get_trip(&source_trip.id).is_err());
+    drop(reopened);
+    cleanup_database(source_database);
+    cleanup_database(target_database);
+}
+
+#[test]
+fn activated_restore_validation_failure_rolls_back_the_database_and_key_pair() {
+    let source_database = temp_database("restore-rollback-source");
+    let source_secrets = Arc::new(MemorySecretStore::default());
+    let source = AppService::open_path_with_deps(
+        &source_database,
+        Arc::new(FakeFetcher::offline()),
+        source_secrets,
+    )
+    .expect("source");
+    let source_trip = source.create_trip(valid_trip_input()).expect("source trip");
+    source
+        .set_trip_notes(&source_trip.id, "sealed source note")
+        .expect("source note");
+    let container = source
+        .export_backup("correct horse battery")
+        .expect("backup");
+
+    let target_database = temp_database("restore-rollback-target");
+    let target_secrets = Arc::new(MemorySecretStore::default());
+    let target = AppService::open_path_with_deps(
+        &target_database,
+        Arc::new(FakeFetcher::offline()),
+        target_secrets.clone(),
+    )
+    .expect("target");
+    let target_trip = target.create_trip(valid_trip_input()).expect("target trip");
+    target
+        .set_trip_notes(&target_trip.id, "old generation note")
+        .expect("target note");
+    target
+        .stage_restore("correct horse battery", &container)
+        .expect("stage");
+    drop(target);
+
+    // Simulate corruption discovered only by the activated sealed-row check.
+    // Recomputing the marker digest deliberately gets past the outer generation
+    // hash so the inner key/ciphertext validation is what exercises rollback.
+    let marker_path = target_database.with_file_name(PENDING_RESTORE_MARKER);
+    let mut marker = read_restore_marker(&marker_path).expect("marker");
+    let candidate = target_database.with_file_name(&marker.candidate_file);
+    {
+        let writer = Connection::open(&candidate).expect("candidate");
+        writer
+            .execute("UPDATE trip_notes SET body = 'v1:not!base64'", [])
+            .expect("corrupt sealed row");
+        writer
+            .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+            .expect("checkpoint corruption");
+    }
+    remove_sqlite_sidecars(&candidate);
+    marker.candidate_sha256 = sha256_file(&candidate).expect("candidate hash");
+    write_restore_marker(&marker_path, &marker).expect("updated marker");
+
+    let error = AppService::open_path_with_deps(
+        &target_database,
+        Arc::new(FakeFetcher::offline()),
+        target_secrets.clone(),
+    )
+    .err()
+    .expect("activation validation must fail");
+    assert_eq!(error.code, ErrorCode::VaultUnreadable);
+    assert!(
+        !marker_path.exists(),
+        "completed rollback consumes the marker"
+    );
+    assert!(
+        target_database
+            .with_file_name(format!("failed-restore-{}.sqlite3", marker.generation))
+            .exists(),
+        "the failed candidate is retained as recovery evidence"
+    );
+
+    let recovered = AppService::open_path_with_deps(
+        &target_database,
+        Arc::new(FakeFetcher::offline()),
+        target_secrets,
+    )
+    .expect("old generation reopens");
+    assert_eq!(
+        recovered
+            .get_trip_notes(&target_trip.id)
+            .expect("old note")
+            .body,
+        "old generation note"
+    );
+    assert!(
+        recovered.get_trip(&source_trip.id).is_err(),
+        "the failed candidate must not remain live"
+    );
+
+    drop(recovered);
+    cleanup_database(source_database);
+    cleanup_database(target_database);
+}
+
+#[test]
+fn restore_fault_matrix_converges_to_one_readable_generation() {
+    let source_database = temp_database("restore-fault-source");
+    let source = open_test_service(&source_database).expect("source");
+    let source_trip = source.create_trip(valid_trip_input()).expect("source trip");
+    source
+        .set_trip_notes(&source_trip.id, "new generation")
+        .expect("source note");
+    let container = source
+        .export_backup("correct horse battery")
+        .expect("backup");
+    drop(source);
+
+    // Crashes before the marker is durable leave the old generation live.
+    for point in ["copy", "key_set_stage"] {
+        let target_database = temp_database(&format!("restore-fault-{point}"));
+        let secrets = Arc::new(MemorySecretStore::default());
+        let target = AppService::open_path_with_deps(
+            &target_database,
+            Arc::new(FakeFetcher::offline()),
+            secrets,
+        )
+        .expect("target");
+        let old_trip = target.create_trip(valid_trip_input()).expect("old trip");
+        set_restore_fault(point);
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let _ = target.stage_restore("correct horse battery", &container);
+            }))
+            .is_err(),
+            "{point} must simulate a process crash"
+        );
+        assert!(
+            target.get_trip(&old_trip.id).is_ok(),
+            "{point} must leave the old live database untouched"
+        );
+        assert!(!target.has_pending_restore());
+        drop(target);
+        cleanup_database(target_database);
+    }
+
+    // Once the marker is durable, every apply checkpoint resumes to the exact
+    // candidate database/key pair, including committed cleanup whose pending
+    // key has already been deleted.
+    for point in [
+        "marker",
+        "key_set_rollback",
+        "rename_old",
+        "key_install",
+        "rename_candidate",
+        "reopen",
+        "key_delete",
+        "cleanup",
+    ] {
+        let target_database = temp_database(&format!("restore-fault-{point}"));
+        let secrets = Arc::new(MemorySecretStore::default());
+        let target = AppService::open_path_with_deps(
+            &target_database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .expect("target");
+        let old_trip = target.create_trip(valid_trip_input()).expect("old trip");
+
+        if point == "marker" {
+            set_restore_fault(point);
+            assert!(
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let _ = target.stage_restore("correct horse battery", &container);
+                }))
+                .is_err()
+            );
+            drop(target);
+        } else {
+            target
+                .stage_restore("correct horse battery", &container)
+                .expect("stage");
+            drop(target);
+            set_restore_fault(point);
+            assert!(
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let _ = AppService::open_path_with_deps(
+                        &target_database,
+                        Arc::new(FakeFetcher::offline()),
+                        secrets.clone(),
+                    );
+                }))
+                .is_err(),
+                "{point} must simulate a process crash"
+            );
+        }
+        let recovered = AppService::open_path_with_deps(
+            &target_database,
+            Arc::new(FakeFetcher::offline()),
+            secrets,
+        )
+        .unwrap_or_else(|error| panic!("{point} did not converge: {error:?}"));
+        assert_eq!(
+            recovered
+                .get_trip_notes(&source_trip.id)
+                .unwrap_or_else(|error| panic!("{point} opened the wrong generation: {error:?}"))
+                .body,
+            "new generation"
+        );
+        assert!(
+            recovered.get_trip(&old_trip.id).is_err(),
+            "{point} left the old database live"
+        );
+        assert!(!recovered.has_pending_restore());
+        drop(recovered);
+        cleanup_database(target_database);
+    }
+
+    cleanup_database(source_database);
 }
 
 #[test]
@@ -3091,6 +3490,12 @@ fn vault_encrypts_confirmed_fact_payloads_at_rest_and_migrates_legacy_rows() {
                 ],
             )
             .expect("legacy insert");
+        writer
+            .execute(
+                "UPDATE vault_storage_format SET format_version = 0 WHERE id = 1",
+                [],
+            )
+            .expect("mark the historical format pending");
     }
     let reopened = AppService::open_path_with_deps(
         &database,
@@ -3119,6 +3524,143 @@ fn vault_encrypts_confirmed_fact_payloads_at_rest_and_migrates_legacy_rows() {
             .iter()
             .any(|fact| fact.payload.confirmation_code.as_deref() == Some("LEGACY9"))
     );
+    cleanup_database(database);
+}
+
+#[test]
+fn inactive_vault_round_trips_reserved_prefix_plaintext_without_reclassifying_it() {
+    let database = temp_database("vault-reserved-plaintext");
+    let secrets = Arc::new(MemorySecretStore::unavailable());
+    let service =
+        AppService::open_path_with_deps(&database, Arc::new(FakeFetcher::offline()), secrets)
+            .expect("service");
+    assert!(!service.get_vault_status().expect("status").active);
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+
+    for plaintext in [
+        "ordinary note",
+        "v1:traveler wrote this",
+        "p1:literal prefix",
+    ] {
+        service
+            .set_trip_notes(&trip.id, plaintext)
+            .expect("write note");
+        assert_eq!(
+            service.get_trip_notes(&trip.id).expect("read note").body,
+            plaintext
+        );
+        let stored: String = Connection::open(&database)
+            .expect("reader")
+            .query_row(
+                "SELECT body FROM trip_notes WHERE trip_id = ?1",
+                params![trip.id],
+                |row| row.get(0),
+            )
+            .expect("stored note");
+        if plaintext == "ordinary note" {
+            assert_eq!(stored, plaintext, "ordinary bare plaintext stays valid");
+        } else {
+            assert!(stored.starts_with(PLAINTEXT_PREFIX));
+            assert_ne!(stored, plaintext, "reserved plaintext must be escaped");
+        }
+    }
+
+    drop(service);
+    cleanup_database(database);
+}
+
+#[test]
+fn historical_p1_is_plaintext_but_ambiguous_v1_fails_closed_before_cutover() {
+    let database = temp_database("vault-prefix-cutover");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let service = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    service.set_trip_notes(&trip.id, "initial").expect("note");
+    drop(service);
+
+    {
+        let writer = Connection::open(&database).expect("writer");
+        writer
+            .execute(
+                "UPDATE trip_notes SET body = 'p1:historical literal' WHERE trip_id = ?1",
+                params![trip.id],
+            )
+            .expect("legacy p1");
+        writer
+            .execute(
+                "UPDATE vault_storage_format SET format_version = 0 WHERE id = 1",
+                [],
+            )
+            .expect("pending format");
+    }
+    let reopened = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .expect("migrate historical p1");
+    assert_eq!(
+        reopened.get_trip_notes(&trip.id).expect("note").body,
+        "p1:historical literal"
+    );
+    let migrated: String = Connection::open(&database)
+        .expect("reader")
+        .query_row(
+            "SELECT body FROM trip_notes WHERE trip_id = ?1",
+            params![trip.id],
+            |row| row.get(0),
+        )
+        .expect("stored note");
+    assert!(migrated.starts_with(VAULT_PREFIX));
+    drop(reopened);
+
+    {
+        let writer = Connection::open(&database).expect("writer");
+        writer
+            .execute(
+                "UPDATE trip_notes SET body = 'v1:traveler-authored-or-corrupt' WHERE trip_id = ?1",
+                params![trip.id],
+            )
+            .expect("ambiguous v1");
+        writer
+            .execute(
+                "UPDATE vault_storage_format SET format_version = 0 WHERE id = 1",
+                [],
+            )
+            .expect("pending format");
+    }
+
+    let error =
+        AppService::open_path_with_deps(&database, Arc::new(FakeFetcher::offline()), secrets)
+            .err()
+            .expect("ambiguous v1 must stop open");
+    assert_eq!(error.code, ErrorCode::VaultUnreadable);
+    let reader = Connection::open(&database).expect("reader");
+    let (stored, format): (String, i64) = reader
+        .query_row(
+            "SELECT body, (SELECT format_version FROM vault_storage_format WHERE id = 1)
+               FROM trip_notes WHERE trip_id = ?1",
+            params![trip.id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("unchanged cell and format");
+    assert_eq!(stored, "v1:traveler-authored-or-corrupt");
+    assert_eq!(format, 0);
+    assert!(
+        database
+            .parent()
+            .expect("parent")
+            .join("backups/pre-vault-format-v1.sqlite3")
+            .exists(),
+        "the exact pre-cutover database must remain recoverable"
+    );
+
+    drop(reader);
     cleanup_database(database);
 }
 
@@ -3541,17 +4083,18 @@ fn clearing_a_provider_key_in_one_workspace_leaves_the_others_alone() {
 #[test]
 fn a_staged_restore_parks_its_key_where_only_its_own_database_looks() {
     let default_path = platform_database_path().expect("platform path");
+    let generation = "restore-generation";
     assert_eq!(
-        vault_pending_key_account(&default_path),
-        VAULT_PENDING_KEY_ACCOUNT,
-        "a default install must keep the bare account it has always used"
+        vault_pending_key_account(&default_path, generation),
+        format!("{VAULT_PENDING_KEY_ACCOUNT}.{generation}"),
+        "even the default install scopes staged keys to one restore generation"
     );
 
     let a = temp_database("pending-a");
     let b = temp_database("pending-b");
     assert_ne!(
-        vault_pending_key_account(&a),
-        vault_pending_key_account(&b),
+        vault_pending_key_account(&a, generation),
+        vault_pending_key_account(&b, generation),
         "two workspaces staging a restore would collide on one account"
     );
     // And it tracks the data key's namespace rather than inventing its own, so
@@ -3560,8 +4103,8 @@ fn a_staged_restore_parks_its_key_where_only_its_own_database_looks() {
         let suffix = vault_key_account(path);
         let suffix = suffix.strip_prefix(VAULT_KEY_ACCOUNT).expect("namespaced");
         assert_eq!(
-            vault_pending_key_account(path),
-            format!("{VAULT_PENDING_KEY_ACCOUNT}{suffix}")
+            vault_pending_key_account(path, generation),
+            format!("{VAULT_PENDING_KEY_ACCOUNT}{suffix}.{generation}")
         );
     }
 
@@ -5401,6 +5944,37 @@ fn fetching_page_details_is_refused_before_consent_and_reaches_no_site() {
 
     drop(service);
     cleanup_database(database);
+}
+
+#[test]
+fn resource_destination_policy_blocks_local_and_ambiguous_hosts_before_fetch() {
+    for (index, url) in [
+        "http://127.0.0.1:8080/admin",
+        "http://[::1]:8080/admin",
+        "http://2130706433/admin",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let database = temp_database(&format!("resource-destination-{index}"));
+        let fetcher = Arc::new(FakeFetcher::offline());
+        let service = open_test_service_with_fetcher(&database, fetcher).expect("service");
+        let trip = service.create_trip(valid_trip_input()).expect("trip");
+        service
+            .set_research_settings(SetResearchSettingsInput {
+                auto_fetch_details: true,
+            })
+            .expect("consent");
+        let resource = service
+            .create_resource(link_input(&trip.id, url, "local target"))
+            .expect("resource");
+        let error = service
+            .fetch_resource_details(&resource.id)
+            .expect_err("local destination must be rejected");
+        assert_eq!(error.code, ErrorCode::ValidationInvalidInput);
+        drop(service);
+        cleanup_database(database);
+    }
 }
 
 #[test]

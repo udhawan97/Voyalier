@@ -9,7 +9,7 @@
     "pnpm": ">=11"
   },
   "scripts": {
-    "dev": "concurrently -k -n api,web -c blue,green \"cargo run -p voyalier-server\" \"pnpm --filter @voyalier/web dev\"",
+    "dev": "node scripts/dev-launcher.mjs",
     "dev:web": "pnpm --filter @voyalier/web dev",
     "dev:docs": "pnpm --filter @voyalier/docs dev",
     "build": "pnpm --filter @voyalier/contracts typecheck && pnpm --filter @voyalier/web build && pnpm --filter @voyalier/docs build",

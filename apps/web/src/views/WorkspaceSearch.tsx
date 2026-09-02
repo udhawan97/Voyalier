@@ -1,5 +1,9 @@
 import { useEffect, useId, useRef, useState } from "react";
-import type { WorkspaceSearchHit } from "@voyalier/contracts";
+import {
+  MAX_QUERY_LEN,
+  countChars,
+  type WorkspaceSearchHit,
+} from "@voyalier/contracts";
 
 import { useGateway, useTransportRecovery } from "../app/context";
 import { describeError, formatInstantDate } from "../app/format";
@@ -7,6 +11,8 @@ import { searchSourceKey, t } from "../app/i18n";
 import { useAsyncAction } from "../app/useAsync";
 import { Button } from "../components/Button";
 import { ArrowLeftIcon, SearchIcon } from "../components/icons";
+
+const LIMIT_GUIDANCE_START = MAX_QUERY_LEN - 20;
 
 /**
  * What to call a result.
@@ -52,6 +58,7 @@ export function WorkspaceSearch({
   const recoveries = useTransportRecovery();
   const inputId = useId();
   const emptyHintId = useId();
+  const limitId = useId();
   const [query, setQuery] = useState(initialQuery);
   const [hits, setHits] = useState<WorkspaceSearchHit[] | null>(null);
   const requestIdRef = useRef(0);
@@ -62,6 +69,7 @@ export function WorkspaceSearch({
     recoveries: number;
   } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const composingRef = useRef(false);
   useEffect(() => {
     recoveriesRef.current = recoveries;
   });
@@ -90,11 +98,16 @@ export function WorkspaceSearch({
     },
   );
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hasQuery = Boolean(query.trim());
+  const normalizedQuery = query.trim();
+  const queryLength = countChars(normalizedQuery);
+  const hasQuery = Boolean(normalizedQuery);
+  const queryTooLong = queryLength > MAX_QUERY_LEN;
+  const showLimit = queryLength >= LIMIT_GUIDANCE_START;
+  const canSearch = hasQuery && !queryTooLong;
 
   function runSearch(value: string) {
     const normalized = value.trim();
-    if (!normalized) return;
+    if (!normalized || countChars(normalized) > MAX_QUERY_LEN) return;
     requestIdRef.current += 1;
     const requestId = requestIdRef.current;
     failedSearchRef.current = null;
@@ -115,9 +128,10 @@ export function WorkspaceSearch({
   // follow it. Restoring the text and leaving the list empty would read as
   // "your query now matches nothing", which is a worse lie than losing it was.
   useEffect(() => {
-    if (!initialQuery.trim()) return;
+    const normalized = initialQuery.trim();
+    if (!normalized || countChars(normalized) > MAX_QUERY_LEN) return;
     requestIdRef.current += 1;
-    void runAction(initialQuery.trim(), requestIdRef.current);
+    void runAction(normalized, requestIdRef.current);
     // Mount only: this seeds from the view state, and every later keystroke is
     // handled by handleQueryChange's own debounce.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -133,29 +147,35 @@ export function WorkspaceSearch({
     failedSearchRef.current = null;
     if (
       failed.requestId !== requestIdRef.current ||
-      query.trim() !== failed.query
+      normalizedQuery !== failed.query ||
+      queryTooLong
     ) {
       return;
     }
     requestIdRef.current += 1;
     void runAction(failed.query, requestIdRef.current);
     inputRef.current?.focus();
-  }, [query, recoveries, runAction]);
+  }, [normalizedQuery, queryTooLong, recoveries, runAction]);
+
+  function scheduleSearch(next: string) {
+    const normalized = next.trim();
+    if (!normalized || countChars(normalized) > MAX_QUERY_LEN) return;
+    timerRef.current = setTimeout(() => runSearch(normalized), 250);
+  }
 
   function handleQueryChange(next: string) {
     setQuery(next);
     onQueryChange?.(next);
     if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = null;
     // Editing makes the old result set and failed request stale immediately,
     // before the replacement request starts after its debounce.
     requestIdRef.current += 1;
     invalidateAction();
     failedSearchRef.current = null;
     setHits(null);
-    if (!next.trim()) {
-      return;
-    }
-    timerRef.current = setTimeout(() => runSearch(next.trim()), 250);
+    if (composingRef.current) return;
+    scheduleSearch(next);
   }
 
   function leaveSearch() {
@@ -200,7 +220,8 @@ export function WorkspaceSearch({
         onSubmit={(event) => {
           event.preventDefault();
           if (timerRef.current) clearTimeout(timerRef.current);
-          if (query.trim()) runSearch(query.trim());
+          timerRef.current = null;
+          runSearch(query);
         }}
       >
         <div className="voy-workspace-search__field">
@@ -212,20 +233,46 @@ export function WorkspaceSearch({
             ref={inputRef}
             type="search"
             value={query}
-            aria-describedby={!hasQuery ? emptyHintId : undefined}
+            aria-describedby={
+              !hasQuery ? emptyHintId : showLimit ? limitId : undefined
+            }
+            aria-errormessage={queryTooLong ? limitId : undefined}
+            aria-invalid={queryTooLong || undefined}
             placeholder={t("workspaceSearch.placeholder")}
+            onCompositionStart={() => {
+              composingRef.current = true;
+              if (timerRef.current) clearTimeout(timerRef.current);
+              timerRef.current = null;
+            }}
+            onCompositionEnd={(event) => {
+              composingRef.current = false;
+              handleQueryChange(event.currentTarget.value);
+            }}
             onChange={(event) => handleQueryChange(event.target.value)}
           />
           {!hasQuery ? (
             <small id={emptyHintId} className="voy-field-hint">
               {t("workspaceSearch.emptyHint")}
             </small>
+          ) : showLimit ? (
+            <small
+              id={limitId}
+              className={queryTooLong ? "voy-field-error" : "voy-field-hint"}
+              role={queryTooLong ? "alert" : "status"}
+            >
+              {queryTooLong
+                ? t("workspaceSearch.error.tooLong", { max: MAX_QUERY_LEN })
+                : t("workspaceSearch.limit", {
+                    count: queryLength,
+                    max: MAX_QUERY_LEN,
+                  })}
+            </small>
           ) : null}
         </div>
         <Button
           type="submit"
           busy={busy}
-          disabled={!hasQuery}
+          disabled={!canSearch}
           icon={<SearchIcon />}
         >
           {t("workspaceSearch.search")}

@@ -1,0 +1,18 @@
+{
+  "parser": "jsonld.v1",
+  "exact": true,
+  "expectedCandidates": [
+    {
+      "factType": "lodging_stay",
+      "method": "structured",
+      "payload": {
+        "propertyName": "Nested Inn",
+        "address": "8 Quiet Lane",
+        "checkinDate": "2026-11-03",
+        "checkoutDate": "2026-11-05",
+        "confirmationCode": "NESTED8"
+      }
+    }
+  ],
+  "expectedDiagnostics": []
+}

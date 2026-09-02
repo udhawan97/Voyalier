@@ -73,6 +73,7 @@ impl AppService {
             build_calendar_snapshot(&trip, &confirmed_facts, &trip_items, &itinerary_identities)
                 .map_err(|error| AppError::new(ErrorCode::StorageFailure, error.to_string()))?;
         calendar_snapshot.removals = removed_calendar_roles(&fact_versions);
+        calendar_snapshot.removal_details = calendar_removal_details(&fact_versions);
         let TripAssessment {
             conflicts: mut itinerary_conflicts,
             readiness,

@@ -224,7 +224,9 @@ impl AppService {
             &preview.user_content,
             None,
         )?;
-        let response = self.fetcher.post_json(request.url, &request.body, &[])?;
+        let response =
+            self.fetcher
+                .post_json_bounded(request.url, &request.body, &[], MAX_AI_REPLY_BYTES)?;
         let text = parse_assist_reply(ProviderId::Ollama, &response)?;
         let proposals = parse_lodging_dates_reply(&text)?;
         if proposals.is_empty() {
@@ -311,9 +313,12 @@ impl AppService {
             .iter()
             .map(|(name, value)| (name.as_str(), value.as_str()))
             .collect();
-        let response = self
-            .fetcher
-            .post_json(request.url, &request.body, &header_refs)?;
+        let response = self.fetcher.post_json_bounded(
+            request.url,
+            &request.body,
+            &header_refs,
+            MAX_AI_REPLY_BYTES,
+        )?;
         Ok((request.model, parse_assist_reply(id, &response)?))
     }
 

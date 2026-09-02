@@ -87,3 +87,35 @@ silent accidental copy of the other.
   category requires a builder test and a changelog explanation.
 - A valid but empty place result becomes a failed publication instead of a
   downloadable pack that looks healthy and ranks nothing.
+
+## Amendment: build and publication have separate authority
+
+Accepted 2026-09-01. The data build and the GitHub release mutation are separate trust domains even
+though one manually dispatched workflow coordinates them.
+
+The build job has read-only repository permission. It checks out the reviewed revision, installs a
+specific DuckDB CLI release from its immutable official asset URL, verifies that asset against the
+committed checksum published for that exact release, and executes it only after verification. It
+then builds and tests every catalog-enabled pack and offline map, records checksums for the complete
+output set, and uploads that closed artifact. A moving installer, a checksum learned from the same
+untrusted download, or an unverified executable is not an acceptable bootstrap.
+
+The publication job starts only after the complete build and its behavior checks succeed. It
+downloads and verifies that workflow artifact, accepts only the exact `packs-v1` destination, and is
+the only job granted `contents: write`. It may create or update that one pack prerelease and replace
+its named pack assets; it cannot accept a product `v*` tag or another caller-selected release. A
+failed or cancelled build never enters a job capable of editing an existing release.
+
+`packs-v1` remains a prerelease so it cannot become GitHub's `releases/latest` and displace the
+desktop updater manifest. Product releases, their assets, and their draft/publish state remain
+outside the pack workflow's authority.
+
+Consequences of the amendment:
+
+- Build scripts, provider inputs, and pack validation run without a release-write credential.
+- Publication gets only the repository and workflow-artifact permissions it needs, for the shortest
+  job that needs them; it receives no updater signing key.
+- Workflow tests pin the permission split, verified DuckDB bootstrap, dependency on a successful
+  build, exact pack tag, and rejection of product-release tags.
+- Updating DuckDB is a reviewed checksum change. Updating the pack tag is a product-contract change,
+  not a workflow-dispatch convenience.

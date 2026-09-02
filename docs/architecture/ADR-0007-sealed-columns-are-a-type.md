@@ -99,3 +99,40 @@ remains available as a supplement for the raw-SQL sites the type cannot reach.
 make a locked vault a `rusqlite::Error` deep inside a row closure, which is exactly the
 error-smuggling `records.rs` was created to remove — its module doc names that as one of the
 two reasons it exists.
+
+## Amendment — escaped plaintext has an explicit format (2026-09-01)
+
+The original representation used the content prefix `v1:` as its only sealed/plain discriminator.
+That made one valid traveler value indistinguishable from ciphertext: plaintext beginning `v1:`
+was skipped by activation migration and later sent to the decryptor. A content prefix alone cannot
+prove provenance because a traveler can write any prefix.
+
+The stored-text contract now reserves two representations while keeping existing ciphertext
+compatible:
+
+- authenticated ciphertext remains `v1:<base64>`; and
+- plaintext that begins with either reserved prefix is stored as `p1:<base64(original text)>`.
+
+Ordinary plaintext stays ordinary text. Escaping is recursive: traveler text beginning `p1:` is
+also encoded, so a current writer never stores an ambiguous raw `p1:` value. `Sealed` remains the
+crate-private storage type and `SEALED_COLUMNS` remains the only declaration of which cells follow
+this contract.
+
+An append-only schema step creates a single-row storage-format state. Before that state reaches the
+new version, `p1:` is legacy plaintext, not an envelope. The data cutover is backup-first and runs
+in one SQLite transaction with the format-state update:
+
+- an active vault authenticates existing `v1:` values, leaves valid ciphertext intact, and seals
+  legacy plaintext;
+- an inactive vault with no raw `v1:` cell escapes legacy plaintext beginning `p1:` and otherwise
+  preserves plaintext; a raw `v1:` cell cannot be authenticated without a key and therefore stops
+  the cutover as ambiguous; and
+- a crash rolls back both cell rewrites and the format-state update, so the next open retries from
+  one interpretation rather than a mixture.
+
+Historical `v1:` text that does not authenticate is irreducibly ambiguous: it may be traveler
+plaintext or damaged/wrong-key ciphertext. Voyalier preserves the pre-cutover backup, leaves the
+cell and format state unchanged, and fails closed with the explicit vault-unreadable disposition
+defined by ADR-0018. It never silently turns an authentication failure into plaintext. New
+`v1:`-prefixed plaintext round-trips through the escaped representation without reopening that
+ambiguity.

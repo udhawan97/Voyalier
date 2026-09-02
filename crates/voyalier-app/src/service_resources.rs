@@ -151,7 +151,10 @@ impl AppService {
         // Re-validate the stored address before it reaches the fetcher. It was
         // checked on the way in, but this is the call that leaves the machine.
         let url = validate_resource_url(&url)?;
-        let body = self.fetcher.fetch_bytes(&url, MAX_PAGE_BYTES)?;
+        network_policy::validate_resource_destination(&url).map_err(|detail| {
+            AppError::with_detail(ErrorCode::ValidationInvalidInput, detail, "field", "url")
+        })?;
+        let body = self.fetcher.fetch_resource_bytes(&url, MAX_PAGE_BYTES)?;
         let html = String::from_utf8_lossy(&body);
         let page = extract_readable_page(&html);
 

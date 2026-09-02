@@ -102,6 +102,37 @@ side takes a shared `voyalier-core` type; a row with a literal array asserts it 
 locally-declared struct whose serde keys are exactly those. The two cannot be confused,
 because each guard checks which kind it is looking at.
 
+## 2026-09-01 amendment: restore inspection remains desktop-only
+
+Restore selection and inspection use native file access and therefore do not become
+`AppGateway` methods or Axum routes. The restore interaction is represented by four Tauri
+capabilities: inspect, confirm, cancel inspection, and unstage. Their command names are declared in
+the manifest's `desktopOnly` list, and both sides of the desktop bridge must continue to prove that
+exact set: `routeParity.test.ts` records every command the web bridge can invoke, while the desktop
+guard compares every `generate_handler!` registration with `shared + desktopOnly`. Adding one of
+these commands on only one side, exposing it over HTTP, or leaving an obsolete direct-stage command
+reachable fails parity.
+
+Every restore command still takes exactly one Tauri argument named `input`. The manifest does not
+promote native restore payloads into shared HTTP payload declarations: their opaque identifiers and
+native-only inputs remain private to the backup bridge and desktop adapter. Source guards and focused
+command tests assert the corresponding Rust input fields.
+
+Inspection is read-only. The desktop opens the native picker, reads and validates the selected
+encrypted artifact, and returns only a safe preview plus a cryptographically random opaque
+inspection identifier. The selected encrypted bytes are bound to that identifier in process memory;
+the browser receives neither a filesystem path nor backup bytes. The session retains no passphrase
+or decrypted snapshot. Confirmation presents the opaque identifier and passphrase again, consumes
+the exact inspected bytes, and asks `AppService` to stage one generation under ADR-0021's recovery
+protocol. Cancellation discards the in-memory inspection session and performs no persistent
+mutation. Unstage is a separate durable AppService operation that removes the exact pending
+generation and its bound key state, including across restart.
+
+Inspection sessions are process-local, single-use, and invalid after cancel, successful confirm, or
+application exit. Unknown, expired, or already-consumed identifiers fail closed. Closing the dialog
+uses the same cancellation path; an invalid artifact never creates an inspection session or pending
+restore state.
+
 ## What this deliberately does not cover
 
 **The shared-type boundary.** When a row says `"input"`, the gateway forwards a

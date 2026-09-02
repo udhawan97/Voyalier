@@ -1495,7 +1495,7 @@ async function main() {
     );
     const portableRestorePreReadSha256 = await sha256(portableBackupPath);
     assert.equal(portableRestorePreReadSha256, portableBackupSha256);
-    await clickText(driver, "Restaurar esta copia", {
+    await clickText(driver, "Inspeccionar esta copia", {
       root: ".voy-backup__form",
     });
     const portableRestoreDialog = await driveNativeFileDialog({
@@ -1511,6 +1511,17 @@ async function main() {
     });
     await waitForText(driver, "Listo para restaurar la copia", {
       root: ".voy-backup",
+    });
+    await fillByLabel(
+      driver,
+      "Frase de contraseña de copia",
+      portablePassphrase,
+      {
+        root: ".voy-backup__form",
+      },
+    );
+    await clickText(driver, "Restaurar esta copia", {
+      root: ".voy-backup__form",
     });
     assert.equal(await invoke(driver, "has_pending_restore", {}), true);
     await screenshot(driver, "05-portable-restore-staged.png");

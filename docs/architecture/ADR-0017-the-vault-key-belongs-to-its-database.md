@@ -155,3 +155,21 @@ one secret store, a passphrase set on the second, and the first one's _sealed_
 note still readable afterwards. It was mutation-checked — restoring the shared
 account fails it. An earlier version of that test asserted on a trip title and
 passed under the mutation, because a title is not a sealed column.
+
+## Amendment — restore keys belong to a generation (2026-09-01)
+
+Namespacing the pending key by database path prevents two workspaces from sharing an account, but a
+single workspace can still stage more than one restore over time. ADR-0021 therefore adds the
+restore generation to temporary key accounts as well as the database suffix.
+
+Each generation has a pending-key account and, while activation is reversible, a rollback-key
+account. The durable marker records key presence and a digest, never the key. A new stage cannot
+overwrite an existing generation, and activation refuses a pending account whose digest does not
+match the marker. The current workspace account changes only while the same generation marker and
+bound database artifacts are present.
+
+The old live key is copied into the rollback account before the old database is renamed and remains
+there until the candidate database successfully reopens under the candidate key. A rollback
+restores the old database and old key intent together; an originally keyless workspace deletes the
+live account rather than inventing a replacement. Temporary generation accounts are cleaned only
+after commit or completed rollback and are not permanent workspace accounts in the prune registry.

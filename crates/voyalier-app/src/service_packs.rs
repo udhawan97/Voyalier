@@ -161,7 +161,7 @@ impl AppService {
         let url = pack_download_url(pack_id);
         let body = self
             .fetcher
-            .fetch_text(&url)
+            .fetch_text_bounded(&url, MAX_PACK_CATALOG_BYTES)
             .map_err(|error| AppError::new(ErrorCode::PackDownloadFailed, error.message))?;
         let content = parse_pack_content(pack_id, &body)?;
         let place_count = content.places.len() as u32;

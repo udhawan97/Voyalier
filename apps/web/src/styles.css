@@ -220,7 +220,7 @@ h3 {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  min-height: 2rem;
+  min-height: 2.75rem;
   padding: 0.3rem 0.7rem;
   background: none;
   border: 0;
@@ -351,8 +351,8 @@ h3 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2.75rem;
+  height: 2.75rem;
   background: none;
   border: 0;
   border-radius: 50%;
@@ -3953,6 +3953,23 @@ h3 {
   outline-offset: 1px;
 }
 
+.voy-search__input[aria-invalid="true"] {
+  border-color: var(--voy-danger);
+}
+
+.voy-search__limit {
+  max-width: 34rem;
+  margin: 0.35rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+  text-align: right;
+}
+
+.voy-search__limit--error {
+  color: var(--voy-danger);
+  text-align: left;
+}
+
 .voy-search__none {
   margin: 1rem 0 0;
   color: var(--voy-ink-muted);
@@ -5283,8 +5300,8 @@ body::before {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.2rem;
-  height: 2.2rem;
+  width: 2.75rem;
+  height: 2.75rem;
   padding: 0;
   background: none;
   border: 1px solid var(--voy-line);

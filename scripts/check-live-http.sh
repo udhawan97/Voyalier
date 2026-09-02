@@ -6,6 +6,7 @@ repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 integration_tmp=$(mktemp -d "${TMPDIR:-/tmp}/voyalier-live-http.XXXXXX")
 server_log="$integration_tmp/server.log"
 server_pid=""
+test_token="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
 cleanup() {
   if [[ -n "$server_pid" ]] && kill -0 "$server_pid" 2>/dev/null; then
@@ -18,7 +19,7 @@ trap cleanup EXIT INT TERM
 
 cd "$repo_root"
 
-if curl -fsS --max-time 1 http://127.0.0.1:8787/api/health >/dev/null 2>&1; then
+if curl -fsS --max-time 1 -H "Authorization: Bearer $test_token" http://127.0.0.1:8787/api/health >/dev/null 2>&1; then
   echo "live HTTP check needs 127.0.0.1:8787, but a server is already listening there" >&2
   exit 1
 fi
@@ -29,6 +30,7 @@ cargo build --locked -p voyalier-server
 VOYALIER_BIND=127.0.0.1:8787 \
 VOYALIER_DATA_DIR="$integration_tmp/data" \
 VOYALIER_INTEGRATION_TEST=1 \
+VOYALIER_TEST_API_TOKEN="$test_token" \
 VOYALIER_LOG=warn \
   cargo run --locked -p voyalier-server >"$server_log" 2>&1 &
 server_pid=$!
@@ -40,7 +42,7 @@ for _ in {1..120}; do
     sed -n '1,240p' "$server_log" >&2
     exit 1
   fi
-  if curl -fsS --max-time 1 http://127.0.0.1:8787/api/health >/dev/null 2>&1; then
+  if curl -fsS --max-time 1 -H "Authorization: Bearer $test_token" http://127.0.0.1:8787/api/health >/dev/null 2>&1; then
     ready=true
     break
   fi
@@ -55,4 +57,5 @@ fi
 
 VITE_LIVE_API=1 \
 VITE_LIVE_API_URL=http://127.0.0.1:8787 \
+VITE_LIVE_API_TOKEN="$test_token" \
   pnpm --filter @voyalier/web test --run gateway.live

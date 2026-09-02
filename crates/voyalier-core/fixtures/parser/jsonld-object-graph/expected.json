@@ -1,0 +1,20 @@
+{
+  "parser": "jsonld.v1",
+  "exact": true,
+  "expectedCandidates": [
+    {
+      "factType": "flight_segment",
+      "method": "structured",
+      "payload": {
+        "airlineName": "Object Air",
+        "flightNumber": "17",
+        "departureAirportIata": "ORD",
+        "arrivalAirportIata": "LIS",
+        "departureLocal": "2026-10-10T18:15",
+        "arrivalLocal": "2026-10-11T07:20",
+        "confirmationCode": "OBJECT7"
+      }
+    }
+  ],
+  "expectedDiagnostics": []
+}

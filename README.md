@@ -39,11 +39,11 @@ matching installer and keeps the GitHub Releases page as a fallback.
   <a href="https://udhawan97.github.io/Voyalier/getting-started/"><img src="packages/brand/src/download-source.svg" alt="Build Voyalier from source on a system supported by Node.js 24 and Rust" width="280"></a>
 </p>
 
-| Route           | Best for                                                | What you get                                                 |
-| --------------- | ------------------------------------------------------- | ------------------------------------------------------------ |
-| **macOS**       | Apple Silicon · macOS 13 or newer                       | Native `.dmg` desktop app                                    |
-| **Windows**     | 64-bit Windows                                          | Standard `.exe`; `.msi` also published                       |
-| **From source** | Supported Linux or Intel Mac; contributors and auditors | Same React interface through the guarded local browser stack |
+| Route           | Best for                                                  | What you get                                                 |
+| --------------- | --------------------------------------------------------- | ------------------------------------------------------------ |
+| **macOS**       | Apple Silicon · macOS 13 or newer                         | Native `.dmg` desktop app                                    |
+| **Windows**     | 64-bit Windows                                            | Standard `.exe`; `.msi` also published                       |
+| **From source** | Compatible macOS or Linux host; contributors and auditors | Same React interface through the guarded local browser stack |
 
 > [!IMPORTANT]
 > The desktop installers are public beta builds without paid platform publisher
@@ -264,7 +264,8 @@ community, and model content. AI can help explain a trip; it cannot clear one.
 ## Run from source
 
 The browser source route is supported on compatible macOS and Linux development
-hosts.
+hosts. Its protected bootstrap uses Unix anonymous pipes; Windows users should
+use the packaged desktop app rather than `make dev`.
 
 Requirements: Bash, Make, Node.js 24+, pnpm 11+, and a current stable Rust
 toolchain with `rustfmt` and `clippy`. Node.js 24 requires macOS 13.5 or newer;
@@ -278,15 +279,18 @@ make bootstrap
 make dev
 ```
 
-Open `http://127.0.0.1:5173`. Vite proxies `/api` to the loopback-only Axum
-service at `http://127.0.0.1:8787`. The desktop app uses the same React
-interface through direct Tauri IPC and does not bind a TCP port in release mode.
+`make dev` starts Axum on a fresh kernel-selected loopback port and opens a
+managed, disposable Chromium window. Keep that window open for source work: it
+receives the one-launch API credential through an in-memory bootstrap. Vite has
+no `/api` proxy, and opening `http://127.0.0.1:5173` in an arbitrary browser is
+intentionally unauthenticated. The desktop app uses the same React interface
+through direct Tauri IPC and does not bind a TCP port in release mode.
 
 <details>
 <summary><strong>Useful contributor commands</strong></summary>
 
 ```bash
-pnpm dev:web      # React interface only
+pnpm dev:web      # React interface only; no authenticated local API
 pnpm dev:docs     # Astro/Starlight documentation
 make check        # formatting, types, lint, Rust, desktop, integration, and browser gates
 pnpm test:e2e     # Chromium journeys plus shared Chromium/WebKit regressions

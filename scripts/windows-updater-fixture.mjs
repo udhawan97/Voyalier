@@ -66,7 +66,7 @@ export const WINDOWS_PICKER_PHASE_MARKERS = Object.freeze([
     "voyalier-picker-phase-restore-06-returned-path-valid",
   ],
   ["restore:backup-read", "voyalier-picker-phase-restore-07-backup-read"],
-  ["restore:staged", "voyalier-picker-phase-restore-08-staged"],
+  ["restore:inspected", "voyalier-picker-phase-restore-08-inspected"],
 ]);
 
 const PICKER_PHASE_TRANSITIONS = new Map([
@@ -91,8 +91,8 @@ const PICKER_PHASE_TRANSITIONS = new Map([
   ["restore:dialog-returned-none", []],
   ["restore:dialog-returned-some", ["restore:returned-path-valid"]],
   ["restore:returned-path-valid", ["restore:backup-read"]],
-  ["restore:backup-read", ["restore:staged"]],
-  ["restore:staged", []],
+  ["restore:backup-read", ["restore:inspected"]],
+  ["restore:inspected", []],
 ]);
 
 export function validateWindowsPickerPhaseTrace(
@@ -115,7 +115,7 @@ export function validateWindowsPickerPhaseTrace(
     }
     previous = phase;
   }
-  if (requireComplete && previous !== "restore:staged") {
+  if (requireComplete && previous !== "restore:inspected") {
     throw new Error("Windows picker phase trace is incomplete");
   }
   return phases;

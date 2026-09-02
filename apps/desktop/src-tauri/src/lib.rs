@@ -1,3 +1,5 @@
+use std::{collections::HashMap, io::Read, sync::Mutex};
+
 use serde::{Deserialize, Serialize};
 use tauri::State;
 use tauri_plugin_dialog::DialogExt;
@@ -9,14 +11,14 @@ use voyalier_core::{
     CreateTripInput, CreateTripItemInput, DestinationFactsSnapshot, DocumentContent,
     DocumentSummary, DownloadedPack, ErrorCode, FcdoCountry, FieldSuggestion, HealthResponse,
     ImportDocumentInput, ImportResult, InterestProfile, KeyValidation, LocalAiStatus,
-    LocalModelPullResult, OfflineMapArchive, OfflineMapChunk, PackInfo, PackSuggestion,
-    PackingItem, PersonaWeights, PlaceSummary, ProviderConfig, PublicHolidaysSnapshot,
-    RecheckReport, Recommendation, ResearchSettings, Resource, RestoreFactVersionInput,
-    SavePlaceInput, SavedPlace, SearchHit, SetInterestProfileInput, SetResearchSettingsInput,
-    SetVisaItemProgressInput, SetVisaNationalityInput, TodayView, Trip, TripBrief, TripDetail,
-    TripItem, TripNotes, TripSummary, UpdatePackingItemInput, UpdateResourceInput,
-    UpdateSavedPlaceInput, UpdateTripInput, UpdateTripItemInput, VaultStatus, VisaPrep,
-    WeatherSnapshot, WorkspaceSearchHit,
+    LocalModelPullResult, MAX_BACKUP_CONTAINER_BYTES, OfflineMapArchive, OfflineMapChunk, PackInfo,
+    PackSuggestion, PackingItem, PersonaWeights, PlaceSummary, ProviderConfig,
+    PublicHolidaysSnapshot, RecheckReport, Recommendation, ResearchSettings, Resource,
+    RestoreFactVersionInput, SavePlaceInput, SavedPlace, SearchHit, SetInterestProfileInput,
+    SetResearchSettingsInput, SetVisaItemProgressInput, SetVisaNationalityInput, TodayView, Trip,
+    TripBrief, TripDetail, TripItem, TripNotes, TripSummary, UpdatePackingItemInput,
+    UpdateResourceInput, UpdateSavedPlaceInput, UpdateTripInput, UpdateTripItemInput, VaultStatus,
+    VisaPrep, WeatherSnapshot, WorkspaceSearchHit,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -928,6 +930,97 @@ struct BackupPassphraseInput {
     passphrase: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ConfirmRestoreInput {
+    inspection_id: String,
+    passphrase: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RestoreInspectionIdInput {
+    inspection_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RestoreInspection {
+    inspection_id: String,
+    preview: RestorePreview,
+}
+
+/// Encrypted bytes selected by the native picker, keyed by a random opaque
+/// identifier. The browser sees only that identifier and safe manifest data;
+/// neither a passphrase nor decrypted snapshot is retained here.
+#[derive(Debug, Default)]
+struct RestoreInspectionStore(Mutex<HashMap<String, Vec<u8>>>);
+
+const MAX_RESTORE_INSPECTIONS: usize = 4;
+
+impl RestoreInspectionStore {
+    fn insert(&self, id: String, bytes: Vec<u8>) -> Result<(), AppError> {
+        let mut sessions = self.0.lock().map_err(|_| {
+            AppError::new(
+                ErrorCode::StorageFailure,
+                "restore inspection store is unavailable",
+            )
+        })?;
+        sessions.insert(id, bytes);
+        while sessions.len() > MAX_RESTORE_INSPECTIONS {
+            if let Some(oldest) = sessions.keys().next().cloned() {
+                sessions.remove(&oldest);
+            }
+        }
+        Ok(())
+    }
+
+    fn take(&self, id: &str) -> Result<Vec<u8>, AppError> {
+        self.0
+            .lock()
+            .map_err(|_| {
+                AppError::new(
+                    ErrorCode::StorageFailure,
+                    "restore inspection store is unavailable",
+                )
+            })?
+            .remove(id)
+            .ok_or_else(|| {
+                AppError::new(
+                    ErrorCode::ValidationInvalidInput,
+                    "the restore inspection is unknown or has already been consumed",
+                )
+            })
+    }
+
+    fn put_back(&self, id: String, bytes: Vec<u8>) -> Result<(), AppError> {
+        self.0
+            .lock()
+            .map_err(|_| {
+                AppError::new(
+                    ErrorCode::StorageFailure,
+                    "restore inspection store is unavailable",
+                )
+            })?
+            .insert(id, bytes);
+        Ok(())
+    }
+
+    fn discard(&self, id: &str) -> Result<bool, AppError> {
+        Ok(self
+            .0
+            .lock()
+            .map_err(|_| {
+                AppError::new(
+                    ErrorCode::StorageFailure,
+                    "restore inspection store is unavailable",
+                )
+            })?
+            .remove(id)
+            .is_some())
+    }
+}
+
 const WINDOWS_ACCEPTANCE_BACKUP_FILE_NAME: &str = "voyalier-portable-acceptance.vbk";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -953,7 +1046,7 @@ enum WindowsAcceptancePickerPhase {
     RestoreDialogReturnedSome,
     RestoreReturnedPathValid,
     RestoreBackupRead,
-    RestoreStaged,
+    RestoreInspected,
 }
 
 impl WindowsAcceptancePickerPhase {
@@ -984,7 +1077,7 @@ impl WindowsAcceptancePickerPhase {
                 "voyalier-picker-phase-restore-06-returned-path-valid"
             }
             Self::RestoreBackupRead => "voyalier-picker-phase-restore-07-backup-read",
-            Self::RestoreStaged => "voyalier-picker-phase-restore-08-staged",
+            Self::RestoreInspected => "voyalier-picker-phase-restore-08-inspected",
         }
     }
 
@@ -1007,7 +1100,7 @@ impl WindowsAcceptancePickerPhase {
             }
             Self::RestoreReturnedPathValid => Self::RestoreDialogReturnedSome,
             Self::RestoreBackupRead => Self::RestoreReturnedPathValid,
-            Self::RestoreStaged => Self::RestoreBackupRead,
+            Self::RestoreInspected => Self::RestoreBackupRead,
         })
     }
 
@@ -1356,13 +1449,10 @@ async fn export_backup<R: tauri::Runtime>(
     Ok(Some(path.to_string_lossy().into_owned()))
 }
 
-#[tauri::command]
-async fn stage_restore<R: tauri::Runtime>(
-    input: BackupPassphraseInput,
+async fn pick_restore_bytes<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
-    service: State<'_, AppService>,
-    dialog_automation: State<'_, WindowsDialogAutomation>,
-) -> Result<Option<RestorePreview>, AppError> {
+    dialog_automation: &WindowsDialogAutomation,
+) -> Result<Option<Vec<u8>>, AppError> {
     dialog_automation.record_phase(WindowsAcceptancePickerPhase::RestoreCommandEntered)?;
     let preset = dialog_automation.for_purpose(WindowsDialogPurpose::Restore)?;
     dialog_automation.record_phase(WindowsAcceptancePickerPhase::RestorePresetValid)?;
@@ -1394,16 +1484,124 @@ async fn stage_restore<R: tauri::Runtime>(
             .map_err(|detail| AppError::new(ErrorCode::StorageFailure, detail))?;
     }
     dialog_automation.record_phase(WindowsAcceptancePickerPhase::RestoreReturnedPathValid)?;
-    let bytes = std::fs::read(&path).map_err(|error| {
+    let bytes = read_backup_file_bounded(&path).map_err(|error| {
+        if error.code == ErrorCode::ValidationInvalidInput {
+            return error;
+        }
         AppError::new(
             ErrorCode::StorageFailure,
             format!("the backup could not be read: {error}"),
         )
     })?;
     dialog_automation.record_phase(WindowsAcceptancePickerPhase::RestoreBackupRead)?;
-    let preview = service.stage_restore(&input.passphrase, &bytes)?;
-    dialog_automation.record_phase(WindowsAcceptancePickerPhase::RestoreStaged)?;
-    Ok(Some(preview))
+    Ok(Some(bytes))
+}
+
+#[tauri::command]
+async fn inspect_restore<R: tauri::Runtime>(
+    input: BackupPassphraseInput,
+    app: tauri::AppHandle<R>,
+    service: State<'_, AppService>,
+    dialog_automation: State<'_, WindowsDialogAutomation>,
+    inspections: State<'_, RestoreInspectionStore>,
+) -> Result<Option<RestoreInspection>, AppError> {
+    let Some(bytes) = pick_restore_bytes(app, &dialog_automation).await? else {
+        return Ok(None);
+    };
+    // Authentication and schema refusal happen before the bytes enter the
+    // process-local session. An invalid artifact therefore leaves no state.
+    let preview = service.inspect_restore(&input.passphrase, &bytes)?;
+    let inspection_id = voyalier_core::new_id("restore_inspection");
+    inspections.insert(inspection_id.clone(), bytes)?;
+    dialog_automation.record_phase(WindowsAcceptancePickerPhase::RestoreInspected)?;
+    Ok(Some(RestoreInspection {
+        inspection_id,
+        preview,
+    }))
+}
+
+#[tauri::command]
+fn confirm_restore(
+    input: ConfirmRestoreInput,
+    service: State<'_, AppService>,
+    inspections: State<'_, RestoreInspectionStore>,
+) -> Result<RestorePreview, AppError> {
+    let bytes = inspections.take(&input.inspection_id)?;
+    match service.stage_restore(&input.passphrase, &bytes) {
+        Ok(preview) => Ok(preview),
+        Err(error) => {
+            // A mistyped passphrase or a transient staging failure must not
+            // consume the inspected artifact; the traveler can retry or
+            // cancel it explicitly. Successful staging is the single-use
+            // boundary.
+            inspections.put_back(input.inspection_id, bytes)?;
+            Err(error)
+        }
+    }
+}
+
+#[tauri::command]
+fn cancel_restore_inspection(
+    input: RestoreInspectionIdInput,
+    inspections: State<'_, RestoreInspectionStore>,
+) -> Result<bool, AppError> {
+    inspections.discard(&input.inspection_id)
+}
+
+#[tauri::command]
+fn unstage_restore(input: EmptyInput, service: State<'_, AppService>) -> Result<bool, AppError> {
+    let _ = input;
+    service.unstage_restore()
+}
+
+fn read_backup_file_bounded(path: &std::path::Path) -> Result<Vec<u8>, AppError> {
+    let file = std::fs::File::open(path).map_err(|error| {
+        AppError::new(
+            ErrorCode::StorageFailure,
+            format!("the backup could not be opened: {error}"),
+        )
+    })?;
+    let metadata = file.metadata().map_err(|error| {
+        AppError::new(
+            ErrorCode::StorageFailure,
+            format!("the backup size could not be read: {error}"),
+        )
+    })?;
+    if !metadata.is_file() {
+        return Err(AppError::new(
+            ErrorCode::ValidationInvalidInput,
+            "the restore target must be a regular file",
+        ));
+    }
+    if metadata.len() > MAX_BACKUP_CONTAINER_BYTES as u64 {
+        return Err(backup_too_large());
+    }
+    read_backup_stream_bounded(file, MAX_BACKUP_CONTAINER_BYTES)
+}
+
+fn read_backup_stream_bounded(reader: impl Read, limit: usize) -> Result<Vec<u8>, AppError> {
+    let mut bytes = Vec::new();
+    let mut bounded = reader.take(limit as u64 + 1);
+    bounded.read_to_end(&mut bytes).map_err(|error| {
+        AppError::new(
+            ErrorCode::StorageFailure,
+            format!("the backup could not be read: {error}"),
+        )
+    })?;
+    if bytes.len() > limit {
+        return Err(backup_too_large());
+    }
+    Ok(bytes)
+}
+
+fn backup_too_large() -> AppError {
+    AppError::new(
+        ErrorCode::ValidationInvalidInput,
+        format!(
+            "this backup exceeds the {}-byte safety limit",
+            MAX_BACKUP_CONTAINER_BYTES
+        ),
+    )
 }
 
 #[tauri::command]
@@ -1584,6 +1782,7 @@ fn builder<R: tauri::Runtime>(
     builder
         .manage(service)
         .manage(dialog_automation)
+        .manage(RestoreInspectionStore::default())
         .invoke_handler(tauri::generate_handler![
             health,
             create_trip,
@@ -1674,7 +1873,10 @@ fn builder<R: tauri::Runtime>(
             backup_database,
             clear_backups,
             export_backup,
-            stage_restore,
+            inspect_restore,
+            confirm_restore,
+            cancel_restore_inspection,
+            unstage_restore,
             has_pending_restore,
             updater_check,
             updater_install,
@@ -1778,7 +1980,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::PathBuf};
+    use std::{fs, io::Cursor, path::PathBuf};
 
     use serde_json::{Value, json};
     use tauri::{
@@ -1791,6 +1993,18 @@ mod tests {
     };
 
     use super::*;
+
+    #[test]
+    fn selected_backup_reader_stops_at_the_configured_byte_budget() {
+        assert_eq!(
+            read_backup_stream_bounded(Cursor::new(b"1234"), 4).expect("exact boundary"),
+            b"1234"
+        );
+        let error = read_backup_stream_bounded(Cursor::new(b"12345"), 4)
+            .expect_err("one byte over the boundary");
+        assert_eq!(error.code, ErrorCode::ValidationInvalidInput);
+        assert!(error.message.contains("safety limit"));
+    }
 
     #[test]
     fn windows_automation_is_explicit_and_fail_closed() {
@@ -2488,7 +2702,10 @@ mod tests {
             "backup_database",
             "clear_backups",
             "export_backup",
-            "stage_restore",
+            "inspect_restore",
+            "confirm_restore",
+            "cancel_restore_inspection",
+            "unstage_restore",
             "has_pending_restore",
         ] {
             let error = invoke_with_body(&webview, command, json!({})).expect_err(command);

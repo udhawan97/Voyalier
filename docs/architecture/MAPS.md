@@ -15,7 +15,9 @@ and nothing about the trip is ever sent to the tile server.
 
 2. **Offline / per-pack — PMTiles.** Nashville established the first complete
    vertical slice; Kyoto, Tokyo, and Paris now use the same enabled path. The
-   `Build city packs` workflow pins and verifies the PMTiles CLI, extracts every
+   `Build city packs` workflow pins and verifies the PMTiles and DuckDB CLIs,
+   builds under a read-only token, and hands the verified artifact to a separate
+   writer job that can publish only to `packs-v1`. It extracts every
    catalog-enabled pack's bounded archive from an exact dated Protomaps build,
    verifies each one, and
    publishes it beside pack JSON containing byte length,

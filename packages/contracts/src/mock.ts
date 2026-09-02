@@ -36,6 +36,7 @@ import type {
   CandidateFact,
   CandidateStatus,
   CalendarEvent,
+  CalendarRemovalDetail,
   CalendarRole,
   CalendarSnapshot,
   ChatGrounding,
@@ -2453,7 +2454,10 @@ export function mockBuildCalendarSnapshot(
   return { title: trip.title, events, omissions, removals: [] };
 }
 
-function mockRemovedCalendarRoles(versions: ConfirmedFactVersion[]): string[] {
+function mockCalendarRemovals(versions: ConfirmedFactVersion[]): {
+  removals: string[];
+  removalDetails: CalendarRemovalDetail[];
+} {
   const present = (version: ConfirmedFactVersion): CalendarRole[] => {
     const payload = version.payload;
     const validTime = (value: string | undefined) =>
@@ -2490,24 +2494,37 @@ function mockRemovedCalendarRoles(versions: ConfirmedFactVersion[]): string[] {
       ? [payload.airlineName, payload.flightNumber].filter(Boolean).join(" ")
       : [payload.carrierName, payload.serviceNumber].filter(Boolean).join(" ");
   };
-  const removed = versions.flatMap((current) => {
-    if (!current.active) return [];
+  const removed = new Map<string, { role: CalendarRole; subject?: string }>();
+  for (const current of versions) {
+    if (!current.active) continue;
     const currentRoles = present(current);
-    return versions
+    const currentSubject = context(current) || undefined;
+    const previous = versions
       .filter(
-        (previous) =>
-          !previous.active && previous.lineageRootId === current.lineageRootId,
+        (version) =>
+          !version.active && version.lineageRootId === current.lineageRootId,
       )
-      .flatMap((previous) =>
-        present(previous)
-          .filter((role) => !currentRoles.includes(role))
-          .map((role) => {
-            const subject = context(previous);
-            return subject ? `${labels[role]} — ${subject}` : labels[role];
-          }),
-      );
-  });
-  return [...new Set(removed)].sort();
+      .sort((left, right) => right.revision - left.revision);
+    for (const version of previous) {
+      for (const role of present(version)) {
+        if (currentRoles.includes(role)) continue;
+        const key = `${current.lineageRootId}:${role}`;
+        if (!removed.has(key)) {
+          const subject = currentSubject || context(version) || undefined;
+          removed.set(key, { role, ...(subject ? { subject } : {}) });
+        }
+      }
+    }
+  }
+  const removalDetails = [...removed.entries()]
+    .sort(([left], [right]) => compareRustStrings(left, right))
+    .map(([, detail]) => detail);
+  return {
+    removalDetails,
+    removals: removalDetails.map(({ role, subject }) =>
+      subject ? `${labels[role]} — ${subject}` : labels[role],
+    ),
+  };
 }
 
 export function mockBuildShareBrief(
@@ -3500,7 +3517,7 @@ export function createMockGateway(options?: {
                 (version) => version.tripId === tripId,
               ),
             ),
-            removals: mockRemovedCalendarRoles(
+            ...mockCalendarRemovals(
               [...factVersions.values()].filter(
                 (version) => version.tripId === tripId,
               ),

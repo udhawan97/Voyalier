@@ -353,7 +353,13 @@ fn collect_reservations<'a>(value: &'a Value, reservations: &mut Vec<&'a Value>)
             if let Some(graph) = object.get("@graph") {
                 collect_reservations(graph, reservations);
             }
-            for nested in object.values() {
+            for (key, nested) in object {
+                // `@graph` was traversed explicitly above. Visiting the same
+                // object-valued graph again here duplicates candidates and
+                // multiplies work for nested graphs.
+                if key == "@graph" {
+                    continue;
+                }
                 if nested.get("@type").is_some() || nested.get("@graph").is_some() {
                     collect_reservations(nested, reservations);
                 }

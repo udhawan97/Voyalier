@@ -3,7 +3,7 @@ use std::{
     env,
     fmt::Write as _,
     fs,
-    io::{Read, Seek, SeekFrom},
+    io::{Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
     sync::{Arc, Mutex, MutexGuard},
 };
@@ -44,8 +44,8 @@ use voyalier_core::{
     build_assist_request, build_calendar_snapshot, build_chat_prompt, build_disruption_plan,
     build_draft_preview, build_journey_board_with_identities, build_key_validation_request,
     build_packing_list, build_pull_body, build_today_view, build_trip_brief, ca_gac_advisory,
-    cdc_health_notices, changed_payload_fields, classify_amendment, climate_normals,
-    compute_astro_day, country_facts, de_aa_advisory, derived_link_title,
+    calendar_removal_details, cdc_health_notices, changed_payload_fields, classify_amendment,
+    climate_normals, compute_astro_day, country_facts, de_aa_advisory, derived_link_title,
     detect_planned_item_conflicts, ecb_rates, entry_from_fcdo, estimate_flight_emissions,
     estimate_tokens, extract_readable_page, fact_identity, fact_search_text, forecast, geocode,
     high_stakes_topics, holidays_within, interpret_key_validation, interpret_pull_response,
@@ -70,7 +70,13 @@ use voyalier_core::{
 
 const DATABASE_FILE: &str = "voyalier.sqlite3";
 const MAX_OFFLINE_MAP_RANGE: u32 = 4 * 1024 * 1024;
+const MAX_SOURCE_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
+const MAX_PACK_CATALOG_BYTES: usize = 2 * 1024 * 1024;
+const MAX_AI_REPLY_BYTES: usize = 2 * 1024 * 1024;
+const MAX_LOCAL_AI_STATUS_BYTES: usize = 1024 * 1024;
+const MAX_LOCAL_AI_PULL_REPLY_BYTES: usize = 1024 * 1024;
 
+mod network_policy;
 mod records;
 mod sealed;
 mod service_assist;
@@ -111,6 +117,14 @@ struct OwnedWorkspaceSearchRecord {
 pub trait AdviceFetcher: Send + Sync {
     fn fetch_text(&self, url: &str) -> Result<String, AppError>;
 
+    /// Fetch text with an explicit byte ceiling. Production overrides this so
+    /// the ceiling applies while reading; the default preserves existing
+    /// injected fetchers and still checks their deterministic fixture reply.
+    fn fetch_text_bounded(&self, url: &str, limit: usize) -> Result<String, AppError> {
+        let body = self.fetch_text(url)?;
+        ensure_text_limit(body, limit, ErrorCode::AdviceFetchFailed)
+    }
+
     /// Fetch a bounded binary response. Offline basemaps use this only after an
     /// explicit pack-download click. The default keeps text-only test fetchers
     /// source-compatible and fails closed if binary fetching was not provided.
@@ -119,6 +133,13 @@ pub trait AdviceFetcher: Send + Sync {
             ErrorCode::PackDownloadFailed,
             "this fetcher does not support binary pack assets",
         ))
+    }
+
+    /// Fetch a traveler-saved resource through the stricter public-destination
+    /// policy. Provider and local-AI request classes deliberately use their
+    /// existing methods instead.
+    fn fetch_resource_bytes(&self, url: &str, limit: usize) -> Result<Vec<u8>, AppError> {
+        self.fetch_bytes(url, limit)
     }
 
     /// POST a JSON body (with any extra request headers, e.g. an auth header)
@@ -135,6 +156,17 @@ pub trait AdviceFetcher: Send + Sync {
             ErrorCode::AssistFailed,
             "this fetcher does not support POST",
         ))
+    }
+
+    fn post_json_bounded(
+        &self,
+        url: &str,
+        body: &str,
+        headers: &[(&str, &str)],
+        limit: usize,
+    ) -> Result<String, AppError> {
+        let response = self.post_json(url, body, headers)?;
+        ensure_text_limit(response, limit, ErrorCode::AssistFailed)
     }
 
     /// Issue a GET and return only its HTTP status code, following the same
@@ -156,6 +188,16 @@ pub trait AdviceFetcher: Send + Sync {
             "this fetcher does not support long POST",
         ))
     }
+
+    fn post_json_long_bounded(
+        &self,
+        url: &str,
+        body: &str,
+        limit: usize,
+    ) -> Result<String, AppError> {
+        let response = self.post_json_long(url, body)?;
+        ensure_text_limit(response, limit, ErrorCode::AssistFailed)
+    }
 }
 
 /// Production fetcher: ureq with a global timeout and an identifying
@@ -164,13 +206,34 @@ struct UreqFetcher;
 
 impl AdviceFetcher for UreqFetcher {
     fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+        self.fetch_text_bounded(url, MAX_SOURCE_RESPONSE_BYTES)
+    }
+
+    fn fetch_text_bounded(&self, url: &str, limit: usize) -> Result<String, AppError> {
         let config = ureq::Agent::config_builder()
             .timeout_global(Some(std::time::Duration::from_secs(15)))
             .user_agent("Voyalier/0.1 (+https://github.com/udhawan97/Voyalier)")
             .build();
         let agent: ureq::Agent = config.into();
         let mut response = agent.get(url).call().map_err(fetch_failure)?;
-        response.body_mut().read_to_string().map_err(fetch_failure)
+        if response
+            .body()
+            .content_length()
+            .is_some_and(|length| length > limit as u64)
+        {
+            return Err(response_too_large(ErrorCode::AdviceFetchFailed, limit));
+        }
+        response
+            .body_mut()
+            .with_config()
+            .limit(limit as u64)
+            .read_to_string()
+            .map_err(|error| match error {
+                ureq::Error::BodyExceedsLimit(_) => {
+                    response_too_large(ErrorCode::AdviceFetchFailed, limit)
+                }
+                other => fetch_failure(other),
+            })
     }
 
     fn fetch_bytes(&self, url: &str, limit: usize) -> Result<Vec<u8>, AppError> {
@@ -188,11 +251,53 @@ impl AdviceFetcher for UreqFetcher {
             .map_err(pack_fetch_failure)
     }
 
+    fn fetch_resource_bytes(&self, url: &str, limit: usize) -> Result<Vec<u8>, AppError> {
+        network_policy::validate_resource_destination(url).map_err(|detail| {
+            AppError::with_detail(ErrorCode::ValidationInvalidInput, detail, "field", "url")
+        })?;
+        let agent = network_policy::resource_agent();
+        let mut response = agent.get(url).call().map_err(fetch_failure)?;
+        if (300..=399).contains(&response.status().as_u16()) {
+            return Err(AppError::new(
+                ErrorCode::AdviceFetchFailed,
+                "redirected resource destinations are not allowed",
+            ));
+        }
+        if response
+            .body()
+            .content_length()
+            .is_some_and(|length| length > limit as u64)
+        {
+            return Err(response_too_large(ErrorCode::AdviceFetchFailed, limit));
+        }
+        response
+            .body_mut()
+            .with_config()
+            .limit(limit as u64)
+            .read_to_vec()
+            .map_err(|error| match error {
+                ureq::Error::BodyExceedsLimit(_) => {
+                    response_too_large(ErrorCode::AdviceFetchFailed, limit)
+                }
+                other => fetch_failure(other),
+            })
+    }
+
     fn post_json(
         &self,
         url: &str,
         body: &str,
         headers: &[(&str, &str)],
+    ) -> Result<String, AppError> {
+        self.post_json_bounded(url, body, headers, MAX_AI_REPLY_BYTES)
+    }
+
+    fn post_json_bounded(
+        &self,
+        url: &str,
+        body: &str,
+        headers: &[(&str, &str)],
+        limit: usize,
     ) -> Result<String, AppError> {
         // Model inference can be slow; allow a generous timeout. Do NOT treat a
         // non-2xx status as a transport error — providers put the real cause
@@ -209,10 +314,24 @@ impl AdviceFetcher for UreqFetcher {
             request = request.header(*name, *value);
         }
         let mut response = request.send(body).map_err(assist_transport_failure)?;
+        if response
+            .body()
+            .content_length()
+            .is_some_and(|length| length > limit as u64)
+        {
+            return Err(response_too_large(ErrorCode::AssistFailed, limit));
+        }
         response
             .body_mut()
+            .with_config()
+            .limit(limit as u64)
             .read_to_string()
-            .map_err(assist_transport_failure)
+            .map_err(|error| match error {
+                ureq::Error::BodyExceedsLimit(_) => {
+                    response_too_large(ErrorCode::AssistFailed, limit)
+                }
+                other => assist_transport_failure(other),
+            })
     }
 
     fn get_status(&self, url: &str, headers: &[(&str, &str)]) -> Result<u16, AppError> {
@@ -233,6 +352,15 @@ impl AdviceFetcher for UreqFetcher {
     }
 
     fn post_json_long(&self, url: &str, body: &str) -> Result<String, AppError> {
+        self.post_json_long_bounded(url, body, MAX_LOCAL_AI_PULL_REPLY_BYTES)
+    }
+
+    fn post_json_long_bounded(
+        &self,
+        url: &str,
+        body: &str,
+        limit: usize,
+    ) -> Result<String, AppError> {
         // Pulling a model streams gigabytes and can take many minutes; allow a
         // generous ceiling rather than none so a truly stuck request still ends.
         let config = ureq::Agent::config_builder()
@@ -246,10 +374,24 @@ impl AdviceFetcher for UreqFetcher {
             .header("Content-Type", "application/json")
             .send(body)
             .map_err(assist_transport_failure)?;
+        if response
+            .body()
+            .content_length()
+            .is_some_and(|length| length > limit as u64)
+        {
+            return Err(response_too_large(ErrorCode::AssistFailed, limit));
+        }
         response
             .body_mut()
+            .with_config()
+            .limit(limit as u64)
             .read_to_string()
-            .map_err(assist_transport_failure)
+            .map_err(|error| match error {
+                ureq::Error::BodyExceedsLimit(_) => {
+                    response_too_large(ErrorCode::AssistFailed, limit)
+                }
+                other => assist_transport_failure(other),
+            })
     }
 }
 
@@ -259,6 +401,21 @@ fn assist_transport_failure(cause: ureq::Error) -> AppError {
     AppError::new(
         ErrorCode::AssistUnreachable,
         format!("could not reach the AI provider: {cause}"),
+    )
+}
+
+fn ensure_text_limit(body: String, limit: usize, code: ErrorCode) -> Result<String, AppError> {
+    if body.len() > limit {
+        Err(response_too_large(code, limit))
+    } else {
+        Ok(body)
+    }
+}
+
+fn response_too_large(code: ErrorCode, limit: usize) -> AppError {
+    AppError::new(
+        code,
+        format!("the response exceeded the {limit}-byte safety limit"),
     )
 }
 
@@ -354,9 +511,40 @@ impl SecretStore for KeyringSecretStore {
 }
 
 /// In-memory secret store for tests and embedding contexts without a keychain.
-#[derive(Default)]
 pub struct MemorySecretStore {
     entries: Mutex<std::collections::HashMap<String, String>>,
+    available: bool,
+}
+
+impl Default for MemorySecretStore {
+    fn default() -> Self {
+        Self {
+            entries: Mutex::new(std::collections::HashMap::new()),
+            available: true,
+        }
+    }
+}
+
+impl MemorySecretStore {
+    /// Shipped fake for a host whose keychain is unavailable. The app must stay
+    /// usable there, but it must never invent a transient encryption key.
+    pub fn unavailable() -> Self {
+        Self {
+            entries: Mutex::new(std::collections::HashMap::new()),
+            available: false,
+        }
+    }
+
+    fn ensure_available(&self) -> Result<(), AppError> {
+        if self.available {
+            Ok(())
+        } else {
+            Err(AppError::new(
+                ErrorCode::StorageFailure,
+                "the in-memory keychain is unavailable",
+            ))
+        }
+    }
 }
 
 impl SecretStore for MemorySecretStore {
@@ -367,6 +555,7 @@ impl SecretStore for MemorySecretStore {
     }
 
     fn set(&self, account: &str, secret: &str) -> Result<(), AppError> {
+        self.ensure_available()?;
         self.entries
             .lock()
             .map_err(|_| storage_error(PoisonError))?
@@ -375,6 +564,9 @@ impl SecretStore for MemorySecretStore {
     }
 
     fn has(&self, account: &str) -> bool {
+        if !self.available {
+            return false;
+        }
         self.entries
             .lock()
             .map(|entries| entries.contains_key(account))
@@ -382,6 +574,7 @@ impl SecretStore for MemorySecretStore {
     }
 
     fn delete(&self, account: &str) -> Result<(), AppError> {
+        self.ensure_available()?;
         self.entries
             .lock()
             .map_err(|_| storage_error(PoisonError))?
@@ -390,6 +583,7 @@ impl SecretStore for MemorySecretStore {
     }
 
     fn get(&self, account: &str) -> Result<Option<String>, AppError> {
+        self.ensure_available()?;
         Ok(self
             .entries
             .lock()
@@ -533,6 +727,10 @@ impl AdviceFetcher for FakeFetcher {
         self.text_for(url)
     }
 
+    fn fetch_text_bounded(&self, url: &str, limit: usize) -> Result<String, AppError> {
+        ensure_text_limit(self.text_for(url)?, limit, ErrorCode::AdviceFetchFailed)
+    }
+
     fn fetch_bytes(&self, url: &str, _limit: usize) -> Result<Vec<u8>, AppError> {
         match self.reply_for(url) {
             Reply::Bytes(bytes) => Ok(bytes),
@@ -545,6 +743,14 @@ impl AdviceFetcher for FakeFetcher {
         }
     }
 
+    fn fetch_resource_bytes(&self, url: &str, limit: usize) -> Result<Vec<u8>, AppError> {
+        let bytes = self.fetch_bytes(url, limit)?;
+        if bytes.len() > limit {
+            return Err(response_too_large(ErrorCode::AdviceFetchFailed, limit));
+        }
+        Ok(bytes)
+    }
+
     fn post_json(
         &self,
         url: &str,
@@ -553,6 +759,17 @@ impl AdviceFetcher for FakeFetcher {
     ) -> Result<String, AppError> {
         self.posted.lock().expect("posted").push(body.to_owned());
         self.text_for(url)
+    }
+
+    fn post_json_bounded(
+        &self,
+        url: &str,
+        body: &str,
+        _headers: &[(&str, &str)],
+        limit: usize,
+    ) -> Result<String, AppError> {
+        self.posted.lock().expect("posted").push(body.to_owned());
+        ensure_text_limit(self.text_for(url)?, limit, ErrorCode::AssistFailed)
     }
 
     fn get_status(&self, url: &str, _headers: &[(&str, &str)]) -> Result<u16, AppError> {
@@ -676,6 +893,10 @@ fn resolve_vault_key_account(secrets: &dyn SecretStore, database_path: &Path) ->
 }
 /// Tag marking a stored field as sealed; anything without it is legacy plaintext.
 const VAULT_PREFIX: &str = "v1:";
+/// Explicit envelope for plaintext whose own content begins with a reserved
+/// storage prefix. It becomes meaningful only after `vault_storage_format`
+/// commits version 1 (ADR-0007).
+const PLAINTEXT_PREFIX: &str = "p1:";
 /// Minimum passphrase length. Deliberately low friction — this is a second
 /// factor on an already-encrypted store, not the sole secret.
 const MIN_PASSPHRASE_LEN: usize = 8;
@@ -691,6 +912,9 @@ struct VaultState {
     /// True when a passphrase wraps the key. With `protected` set and no `key`,
     /// the vault is **locked**: sealed fields cannot be read or written.
     protected: bool,
+    /// Whether `p1:` is the explicit escaped-plaintext envelope. Before the
+    /// append-only cutover commits, historical `p1:` remains ordinary text.
+    escaped_plaintext: bool,
 }
 
 /// At-rest encryption for sensitive stored fields (confirmed-fact payloads).
@@ -735,12 +959,15 @@ impl Vault {
             return Ok(Self::new(VaultState {
                 key: None,
                 protected: true,
+                escaped_plaintext: vault_storage_format_is_current(connection)?,
             }));
         }
-        let state = match secrets.get(account) {
+        let escaped_plaintext = vault_storage_format_is_current(connection)?;
+        let mut state = match secrets.get(account) {
             Ok(Some(encoded)) => VaultState {
                 key: decode_key(&encoded),
                 protected: false,
+                escaped_plaintext,
             },
             Ok(None) => {
                 let mut key = [0u8; VAULT_KEY_LEN];
@@ -750,6 +977,7 @@ impl Vault {
                     VaultState {
                         key: Some(key),
                         protected: false,
+                        escaped_plaintext,
                     }
                 } else {
                     // Couldn't persist the key — never encrypt with a key we
@@ -759,6 +987,7 @@ impl Vault {
             }
             Err(_) => VaultState::default(),
         };
+        state.escaped_plaintext = escaped_plaintext;
         Ok(Self::new(state))
     }
 
@@ -772,8 +1001,10 @@ impl Vault {
         }
     }
 
-    fn is_active(&self) -> bool {
-        self.snapshot().key.is_some()
+    fn set_storage_format_current(&self) {
+        if let Ok(mut guard) = self.state.lock() {
+            guard.escaped_plaintext = true;
+        }
     }
 
     /// The data key held in memory, so a backup can re-wrap it under the user's
@@ -782,6 +1013,11 @@ impl Vault {
     /// locked vault has a key it cannot reach while an inactive one has none.
     fn active_data_key(&self) -> Option<[u8; VAULT_KEY_LEN]> {
         self.snapshot().key
+    }
+
+    #[cfg(test)]
+    fn is_active(&self) -> bool {
+        self.snapshot().key.is_some()
     }
 
     fn status(&self) -> VaultStatus {
@@ -876,12 +1112,31 @@ fn read_vault_wrap(connection: &Connection) -> Result<Option<VaultWrap>, AppErro
 fn migrate_encrypt_sensitive_columns(
     connection: &Connection,
     vault: &Vault,
+    database_path: &Path,
 ) -> Result<(), AppError> {
-    if !vault.is_active() {
+    migrate_encrypt_sensitive_columns_with_backup(connection, vault, database_path, true)
+}
+
+fn migrate_encrypt_sensitive_columns_with_backup(
+    connection: &Connection,
+    vault: &Vault,
+    database_path: &Path,
+    preserve_backup: bool,
+) -> Result<(), AppError> {
+    if vault_storage_format_is_current(connection)? {
+        vault.set_storage_format_current();
         return Ok(());
     }
+    let state = vault.snapshot();
+    if state.protected && state.key.is_none() {
+        // A locked vault cannot authenticate legacy `v1:` rows. Unlock retries
+        // this same cutover before any sealed record can be changed.
+        return Ok(());
+    }
+
+    let mut legacy = Vec::<(&str, &str, String, String)>::new();
     for (table, column) in SEALED_COLUMNS {
-        let legacy: Vec<(String, String)> = {
+        let cells: Vec<(String, String)> = {
             let mut statement = connection
                 .prepare(&format!("SELECT id, {column} FROM {table}"))
                 .map_err(storage_error)?;
@@ -895,19 +1150,109 @@ fn migrate_encrypt_sensitive_columns(
                 .filter_map(|(id, value): (String, Option<String>)| value.map(|value| (id, value)))
                 .collect()
         };
-        for (id, value) in legacy {
+        legacy.extend(
+            cells
+                .into_iter()
+                .map(|(id, value)| (*table, *column, id, value)),
+        );
+    }
+
+    if legacy.is_empty() {
+        connection
+            .execute(
+                "UPDATE vault_storage_format SET format_version = 1, updated_at = ?1 WHERE id = 1",
+                params![now_rfc3339()],
+            )
+            .map_err(storage_error)?;
+        vault.set_storage_format_current();
+        return Ok(());
+    }
+
+    if preserve_backup {
+        backup_before_vault_format_migration(connection, database_path)?;
+    }
+
+    // Classify every ambiguous prefix before beginning the write transaction.
+    // This prevents a valid earlier cell from being rewritten before a later
+    // corrupt/wrong-key value stops the cutover.
+    for (_, _, _, value) in &legacy {
+        if value.starts_with(VAULT_PREFIX) {
+            vault.authenticate_legacy_ciphertext(value)?;
+        }
+    }
+
+    connection
+        .execute_batch("BEGIN IMMEDIATE")
+        .map_err(storage_error)?;
+    let result = (|| {
+        for (table, column, id, value) in legacy {
             if value.starts_with(VAULT_PREFIX) {
                 continue;
             }
-            let sealed = vault.seal(&value)?;
+            let stored = if state.key.is_some() {
+                vault.seal(&value)?
+            } else if value.starts_with(PLAINTEXT_PREFIX) {
+                sealed::escaped_plaintext(&value)
+            } else {
+                continue;
+            };
             connection
                 .execute(
                     &format!("UPDATE {table} SET {column} = ?1 WHERE id = ?2"),
-                    params![sealed, id],
+                    params![stored, id],
                 )
                 .map_err(storage_error)?;
         }
+        connection
+            .execute(
+                "UPDATE vault_storage_format SET format_version = 1, updated_at = ?1 WHERE id = 1",
+                params![now_rfc3339()],
+            )
+            .map_err(storage_error)?;
+        connection.execute_batch("COMMIT").map_err(storage_error)
+    })();
+    if result.is_err() {
+        let _ = connection.execute_batch("ROLLBACK");
     }
+    result?;
+    vault.set_storage_format_current();
+    Ok(())
+}
+
+fn vault_storage_format_is_current(connection: &Connection) -> Result<bool, AppError> {
+    connection
+        .query_row(
+            "SELECT format_version FROM vault_storage_format WHERE id = 1",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .map(|version| version >= 1)
+        .map_err(storage_error)
+}
+
+/// Preserve the exact pre-cutover workspace before any sealed cell changes.
+/// The deterministic filename makes a failed/ambiguous retry idempotent and
+/// prevents repeated opens from pruning away the one known legacy copy.
+fn backup_before_vault_format_migration(
+    connection: &Connection,
+    database_path: &Path,
+) -> Result<(), AppError> {
+    let Some(parent) = database_path.parent() else {
+        return Err(AppError::new(
+            ErrorCode::StorageFailure,
+            "database has no parent directory for the vault migration backup",
+        ));
+    };
+    let backups = parent.join("backups");
+    fs::create_dir_all(&backups).map_err(storage_error)?;
+    let destination = backups.join("pre-vault-format-v1.sqlite3");
+    if destination.exists() {
+        return Ok(());
+    }
+    connection
+        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+        .map_err(storage_error)?;
+    fs::copy(database_path, destination).map_err(storage_error)?;
     Ok(())
 }
 
@@ -1005,7 +1350,7 @@ impl AppService {
         let vault_account = resolve_vault_key_account(secrets.as_ref(), path);
         let vault = Vault::load_or_init(secrets.as_ref(), &connection, &vault_account)?;
         // Encrypt any pre-existing plaintext payloads now the vault is available.
-        migrate_encrypt_sensitive_columns(&connection, &vault)?;
+        migrate_encrypt_sensitive_columns(&connection, &vault, path)?;
         Ok(Self {
             connection: Arc::new(Mutex::new(connection)),
             database_path: path.to_path_buf(),
@@ -1137,8 +1482,6 @@ fn filesystem_stamp(rfc3339: &str) -> String {
 /// Delete all but the `keep` most-recent `pre-update-*.sqlite3` backups in `dir`,
 /// ordered by file modification time. Best-effort: a file that can't be removed
 /// is left in place rather than failing the backup.
-/// The decrypted snapshot waiting to become the workspace at the next launch.
-const PENDING_RESTORE_FILE: &str = "pending-restore.sqlite3";
 /// The marker that says a staged restore is ready. Written last and removed
 /// first, so a crash at any point leaves no half-applied restore.
 const PENDING_RESTORE_MARKER: &str = "pending-restore.json";
@@ -1152,12 +1495,21 @@ const VAULT_PENDING_KEY_ACCOUNT: &str = "vault.pending_data_key";
 /// restarts would otherwise meet at one account — the second `set` overwriting
 /// the key the first is about to restore under, or a keyless backup's `delete`
 /// taking the first one's with it. Same silence, same unreadable rows.
-fn vault_pending_key_account(database_path: &Path) -> String {
-    match vault_key_account(database_path).strip_prefix(VAULT_KEY_ACCOUNT) {
+fn restore_key_account(database_path: &Path, family: &str, generation: &str) -> String {
+    let suffix = match vault_key_account(database_path).strip_prefix(VAULT_KEY_ACCOUNT) {
         // The default install keeps the bare account it always had.
-        Some("") | None => VAULT_PENDING_KEY_ACCOUNT.to_owned(),
-        Some(suffix) => format!("{VAULT_PENDING_KEY_ACCOUNT}{suffix}"),
-    }
+        Some("") | None => String::new(),
+        Some(suffix) => suffix.to_owned(),
+    };
+    format!("{family}{suffix}.{generation}")
+}
+
+fn vault_pending_key_account(database_path: &Path, generation: &str) -> String {
+    restore_key_account(database_path, VAULT_PENDING_KEY_ACCOUNT, generation)
+}
+
+fn vault_rollback_key_account(database_path: &Path, generation: &str) -> String {
+    restore_key_account(database_path, "vault.rollback_data_key", generation)
 }
 
 /// The marker's contents. Metadata only — the snapshot holds the trip data and
@@ -1165,13 +1517,438 @@ fn vault_pending_key_account(database_path: &Path) -> String {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PendingRestore {
+    protocol_version: u16,
+    generation: String,
+    phase: RestorePhase,
+    candidate_file: String,
+    rollback_file: String,
+    candidate_sha256: String,
     created_at: String,
     app_version: String,
     schema_version: i64,
+    backup_format_version: u16,
     /// Whether a data key was staged. `false` means the backup came from a
     /// vault with no key at all (a keychain-less host), so the restored
     /// workspace must start a fresh one rather than keep this machine's.
     key_present: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    key_sha256: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    old_database_sha256: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    old_key_present: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    old_key_sha256: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+enum RestorePhase {
+    Staged,
+    Prepared,
+    Activated,
+    Committed,
+}
+
+#[cfg(test)]
+std::thread_local! {
+    static RESTORE_FAULT_POINT: std::cell::RefCell<Option<&'static str>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+fn set_restore_fault(point: &'static str) {
+    RESTORE_FAULT_POINT.with(|selected| *selected.borrow_mut() = Some(point));
+}
+
+#[cfg(test)]
+fn restore_fault(point: &'static str) {
+    RESTORE_FAULT_POINT.with(|selected| {
+        if selected.borrow().as_ref() == Some(&point) {
+            selected.borrow_mut().take();
+            panic!("injected restore crash at {point}");
+        }
+    });
+}
+
+#[cfg(not(test))]
+fn restore_fault(_point: &'static str) {}
+
+fn secret_digest(secret: &str) -> String {
+    sha256_hex(secret.as_bytes())
+}
+
+fn atomic_write_file(path: &Path, bytes: &[u8]) -> Result<(), AppError> {
+    let parent = path.parent().ok_or_else(|| {
+        AppError::new(
+            ErrorCode::StorageFailure,
+            "restore artifact has no parent directory",
+        )
+    })?;
+    fs::create_dir_all(parent).map_err(storage_error)?;
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| AppError::new(ErrorCode::StorageFailure, "invalid restore artifact name"))?;
+    let temporary = parent.join(format!(".{file_name}.{}.tmp", new_id("write")));
+    let result = (|| {
+        let mut file = fs::File::create(&temporary).map_err(storage_error)?;
+        file.write_all(bytes).map_err(storage_error)?;
+        file.sync_all().map_err(storage_error)?;
+        fs::rename(&temporary, path).map_err(storage_error)?;
+        sync_directory(parent)
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result
+}
+
+fn sync_directory(directory: &Path) -> Result<(), AppError> {
+    fs::File::open(directory)
+        .and_then(|file| file.sync_all())
+        .map_err(storage_error)
+}
+
+fn write_restore_marker(path: &Path, marker: &PendingRestore) -> Result<(), AppError> {
+    let bytes = serde_json::to_vec(marker).map_err(|_| {
+        AppError::new(
+            ErrorCode::StorageFailure,
+            "the pending restore marker could not be written",
+        )
+    })?;
+    atomic_write_file(path, &bytes)
+}
+
+fn read_restore_marker(path: &Path) -> Result<PendingRestore, AppError> {
+    fs::read(path).map_err(storage_error).and_then(|raw| {
+        serde_json::from_slice(&raw).map_err(|_| {
+            AppError::new(
+                ErrorCode::StorageFailure,
+                "the pending restore could not be read",
+            )
+        })
+    })
+}
+
+fn sha256_file(path: &Path) -> Result<String, AppError> {
+    let mut file = fs::File::open(path).map_err(storage_error)?;
+    let mut hasher = Sha256::new();
+    let mut chunk = [0u8; 64 * 1024];
+    loop {
+        let read = file.read(&mut chunk).map_err(storage_error)?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&chunk[..read]);
+    }
+    Ok(hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect())
+}
+
+fn validate_sqlite_header(path: &Path) -> Result<(), AppError> {
+    let mut file = fs::File::open(path).map_err(storage_error)?;
+    let mut header = [0u8; 16];
+    file.read_exact(&mut header).map_err(|_| {
+        AppError::new(
+            ErrorCode::ValidationInvalidInput,
+            "the backup does not contain a readable SQLite workspace",
+        )
+    })?;
+    if &header != b"SQLite format 3\0" {
+        return Err(AppError::new(
+            ErrorCode::ValidationInvalidInput,
+            "the backup does not contain a readable SQLite workspace",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_sqlite_integrity(connection: &Connection) -> Result<(), AppError> {
+    let result: String = connection
+        .query_row("PRAGMA quick_check", [], |row| row.get(0))
+        .map_err(storage_error)?;
+    if result != "ok" {
+        return Err(AppError::new(
+            ErrorCode::StorageFailure,
+            "the restored workspace failed its SQLite integrity check",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_sealed_rows(connection: &Connection, vault: &Vault) -> Result<(), AppError> {
+    for (table, column) in SEALED_COLUMNS {
+        let mut statement = connection
+            .prepare(&format!("SELECT {column} FROM {table}"))
+            .map_err(storage_error)?;
+        let rows = statement
+            .query_map([], |row| row.get::<_, Option<String>>(0))
+            .map_err(storage_error)?;
+        for value in collect_rows(rows)?.into_iter().flatten() {
+            vault.validate_stored(value)?;
+        }
+    }
+    Ok(())
+}
+
+/// Validate and migrate a decrypted candidate before it can be paired with the
+/// live key account. The manifest's schema is corroborating evidence only: the
+/// SQLite header and `user_version` are read from the candidate itself.
+fn prepare_restore_candidate(
+    path: &Path,
+    manifest_schema_version: i64,
+    data_key: Option<[u8; VAULT_KEY_LEN]>,
+) -> Result<(i64, String), AppError> {
+    validate_sqlite_header(path)?;
+    let connection = Connection::open(path).map_err(storage_error)?;
+    let actual_schema = user_version(&connection)?;
+    if actual_schema != manifest_schema_version {
+        return Err(AppError::new(
+            ErrorCode::ValidationInvalidInput,
+            "the backup manifest does not match its SQLite workspace",
+        ));
+    }
+    if actual_schema > target_schema_version() {
+        return Err(AppError::new(
+            ErrorCode::ValidationInvalidInput,
+            "this backup was made by a newer version of Voyalier — update the app, then restore",
+        ));
+    }
+    validate_sqlite_integrity(&connection)?;
+    init_connection(&connection)?;
+    clear_vault_wrap(&connection)?;
+    let vault = Vault::new(VaultState {
+        key: data_key,
+        protected: false,
+        escaped_plaintext: vault_storage_format_is_current(&connection)?,
+    });
+    migrate_encrypt_sensitive_columns_with_backup(&connection, &vault, path, false)?;
+    validate_sealed_rows(&connection, &vault)?;
+    validate_sqlite_integrity(&connection)?;
+    connection
+        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+        .map_err(storage_error)?;
+    drop(connection);
+    remove_sqlite_sidecars(path);
+    Ok((target_schema_version(), sha256_file(path)?))
+}
+
+fn remove_sqlite_sidecars(database_path: &Path) {
+    for suffix in ["-wal", "-shm"] {
+        let mut sidecar = database_path.as_os_str().to_owned();
+        sidecar.push(suffix);
+        let _ = fs::remove_file(PathBuf::from(sidecar));
+    }
+}
+
+fn valid_restore_generation(generation: &str) -> bool {
+    !generation.is_empty()
+        && generation.len() <= 128
+        && generation
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+}
+
+fn validate_restore_marker(marker: &PendingRestore) -> Result<(), AppError> {
+    let expected_candidate = format!("pending-restore-{}.sqlite3", marker.generation);
+    let expected_rollback = format!("rollback-restore-{}.sqlite3", marker.generation);
+    if marker.protocol_version != 2
+        || !valid_restore_generation(&marker.generation)
+        || marker.candidate_file != expected_candidate
+        || marker.rollback_file != expected_rollback
+        || marker.backup_format_version != BACKUP_FORMAT_VERSION
+        || marker.schema_version != target_schema_version()
+    {
+        return Err(AppError::new(
+            ErrorCode::StorageFailure,
+            "the pending restore marker is invalid",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_generation_key(
+    secrets: &dyn SecretStore,
+    account: &str,
+    present: bool,
+    expected_sha256: Option<&str>,
+) -> Result<Option<String>, AppError> {
+    let secret = secrets.get(account)?;
+    match (present, secret) {
+        (false, None) => Ok(None),
+        (true, Some(secret))
+            if expected_sha256.is_some_and(|expected| secret_digest(&secret) == expected) =>
+        {
+            Ok(Some(secret))
+        }
+        _ => Err(AppError::new(
+            ErrorCode::StorageFailure,
+            "the pending restore key does not match its generation",
+        )),
+    }
+}
+
+fn snapshot_pre_restore(
+    source: &Path,
+    directory: &Path,
+    generation: &str,
+    expected_sha256: Option<&str>,
+) -> Result<(), AppError> {
+    if let Some(expected) = expected_sha256 {
+        if sha256_file(source)? != expected {
+            return Err(AppError::new(
+                ErrorCode::StorageFailure,
+                "the rollback workspace changed during restore",
+            ));
+        }
+    }
+    let backups_dir = directory.join("backups");
+    fs::create_dir_all(&backups_dir).map_err(storage_error)?;
+    let destination = backups_dir.join(format!("pre-restore-{generation}.sqlite3"));
+    if destination.exists() {
+        if expected_sha256
+            .is_none_or(|expected| sha256_file(&destination).is_ok_and(|actual| actual == expected))
+        {
+            return Ok(());
+        }
+        return Err(AppError::new(
+            ErrorCode::StorageFailure,
+            "the pre-restore safety snapshot does not match its generation",
+        ));
+    }
+    // Never expose a partially copied safety snapshot. A crash during the
+    // copy must leave either the old complete generation or no generation,
+    // not a destination that looks valid but cannot support rollback.
+    let temporary = backups_dir.join(format!(".pre-restore-{generation}.sqlite3.tmp"));
+    let _ = fs::remove_file(&temporary);
+    fs::copy(source, &temporary).map_err(storage_error)?;
+    fs::File::open(&temporary)
+        .and_then(|file| file.sync_all())
+        .map_err(storage_error)?;
+    if let Some(expected) = expected_sha256
+        && sha256_file(&temporary)? != expected
+    {
+        let _ = fs::remove_file(&temporary);
+        return Err(AppError::new(
+            ErrorCode::StorageFailure,
+            "the pre-restore safety snapshot changed during copy",
+        ));
+    }
+    fs::rename(&temporary, &destination).map_err(storage_error)?;
+    sync_directory(&backups_dir)?;
+    prune_backups(&backups_dir, MAX_BACKUPS)
+}
+
+fn finish_restore_cleanup(
+    secrets: &dyn SecretStore,
+    database_path: &Path,
+    marker_path: &Path,
+    marker: &PendingRestore,
+) -> Result<(), AppError> {
+    let directory = database_path.parent().ok_or_else(|| {
+        AppError::new(
+            ErrorCode::StorageFailure,
+            "database has no parent directory",
+        )
+    })?;
+    if !database_path.exists() || sha256_file(database_path)? != marker.candidate_sha256 {
+        return Err(AppError::new(
+            ErrorCode::StorageFailure,
+            "the committed restore database does not match its generation",
+        ));
+    }
+    let restored_account = vault_key_account(database_path);
+    validate_generation_key(
+        secrets,
+        &restored_account,
+        marker.key_present,
+        marker.key_sha256.as_deref(),
+    )?;
+    let rollback_path = directory.join(&marker.rollback_file);
+    if rollback_path.exists() {
+        snapshot_pre_restore(
+            &rollback_path,
+            directory,
+            &marker.generation,
+            marker.old_database_sha256.as_deref(),
+        )?;
+        fs::remove_file(&rollback_path).map_err(storage_error)?;
+    }
+    let pending_account = vault_pending_key_account(database_path, &marker.generation);
+    let rollback_account = vault_rollback_key_account(database_path, &marker.generation);
+    let _ = secrets.delete(&pending_account);
+    restore_fault("key_delete");
+    let _ = secrets.delete(&rollback_account);
+    restore_fault("cleanup");
+    fs::remove_file(marker_path).map_err(storage_error)?;
+    sync_directory(directory)
+}
+
+fn rollback_restore(
+    secrets: &dyn SecretStore,
+    database_path: &Path,
+    marker: &PendingRestore,
+) -> Result<(), AppError> {
+    let directory = database_path.parent().ok_or_else(|| {
+        AppError::new(
+            ErrorCode::StorageFailure,
+            "database has no parent directory",
+        )
+    })?;
+    let marker_path = directory.join(PENDING_RESTORE_MARKER);
+    let rollback_path = directory.join(&marker.rollback_file);
+    let pending_account = vault_pending_key_account(database_path, &marker.generation);
+    let rollback_account = vault_rollback_key_account(database_path, &marker.generation);
+    let restored_account = vault_key_account(database_path);
+    let old_hash = marker.old_database_sha256.as_deref().ok_or_else(|| {
+        AppError::new(
+            ErrorCode::StorageFailure,
+            "the failed restore has no recoverable database generation",
+        )
+    })?;
+    if !rollback_path.exists() || sha256_file(&rollback_path)? != old_hash {
+        return Err(AppError::new(
+            ErrorCode::StorageFailure,
+            "the failed restore rollback database is unavailable",
+        ));
+    }
+    let old_key_present = marker.old_key_present.ok_or_else(|| {
+        AppError::new(
+            ErrorCode::StorageFailure,
+            "the failed restore has no recoverable key generation",
+        )
+    })?;
+    let old_key = validate_generation_key(
+        secrets,
+        &rollback_account,
+        old_key_present,
+        marker.old_key_sha256.as_deref(),
+    )?;
+
+    if database_path.exists() {
+        let failed_path =
+            database_path.with_file_name(format!("failed-restore-{}.sqlite3", marker.generation));
+        if !failed_path.exists() {
+            fs::rename(database_path, failed_path).map_err(storage_error)?;
+        } else {
+            fs::remove_file(database_path).map_err(storage_error)?;
+        }
+    }
+    fs::rename(&rollback_path, database_path).map_err(storage_error)?;
+    remove_sqlite_sidecars(database_path);
+    match old_key.as_deref() {
+        Some(key) => secrets.set(&restored_account, key)?,
+        None => {
+            let _ = secrets.delete(&restored_account);
+        }
+    }
+    let _ = secrets.delete(&pending_account);
+    let _ = secrets.delete(&rollback_account);
+    fs::remove_file(&marker_path).map_err(storage_error)?;
+    sync_directory(directory)
 }
 
 /// Apply a staged restore, if one is waiting, **before** the database is opened.
@@ -1191,61 +1968,141 @@ fn apply_pending_restore(
     // must not overwrite the key another data directory is still using.
     let restored_account = vault_key_account(database_path);
     let marker_path = dir.join(PENDING_RESTORE_MARKER);
-    let staged_path = dir.join(PENDING_RESTORE_FILE);
-    // Both halves must be present; a lone marker or a lone snapshot is the
-    // debris of an interrupted stage and is cleaned up rather than applied.
-    if !marker_path.exists() || !staged_path.exists() {
-        let _ = fs::remove_file(&marker_path);
-        let _ = fs::remove_file(&staged_path);
+    if !marker_path.exists() {
         return Ok(false);
     }
-    let marker: PendingRestore = fs::read(&marker_path)
-        .map_err(storage_error)
-        .and_then(|raw| {
-            serde_json::from_slice(&raw).map_err(|_| {
-                AppError::new(
-                    ErrorCode::StorageFailure,
-                    "the pending restore could not be read",
-                )
-            })
-        })?;
+    let mut marker = read_restore_marker(&marker_path)?;
+    validate_restore_marker(&marker)?;
+    let candidate_path = dir.join(&marker.candidate_file);
+    let rollback_path = dir.join(&marker.rollback_file);
+    let pending_account = vault_pending_key_account(database_path, &marker.generation);
+    let rollback_account = vault_rollback_key_account(database_path, &marker.generation);
+    if marker.phase == RestorePhase::Committed {
+        finish_restore_cleanup(secrets, database_path, &marker_path, &marker)?;
+        return Ok(true);
+    }
+    let pending_key = validate_generation_key(
+        secrets,
+        &pending_account,
+        marker.key_present,
+        marker.key_sha256.as_deref(),
+    )?;
 
-    // Snapshot what is about to be replaced.
-    if database_path.exists() {
-        let backups_dir = dir.join("backups");
-        fs::create_dir_all(&backups_dir).map_err(storage_error)?;
-        let stamp = filesystem_stamp(&now_rfc3339());
-        let mut dest = backups_dir.join(format!("pre-restore-{stamp}.sqlite3"));
-        let mut collision = 1;
-        while dest.exists() {
-            dest = backups_dir.join(format!("pre-restore-{stamp}-{collision}.sqlite3"));
-            collision += 1;
+    // Prepare the old generation before either half of the pair moves. The WAL
+    // checkpoint makes the rollback file a complete snapshot, and its key is
+    // copied to the generation account before the marker says it is prepared.
+    if !rollback_path.exists() {
+        if !candidate_path.exists() || sha256_file(&candidate_path)? != marker.candidate_sha256 {
+            return Err(AppError::new(
+                ErrorCode::StorageFailure,
+                "the pending restore database does not match its generation",
+            ));
         }
-        fs::copy(database_path, &dest).map_err(storage_error)?;
-        prune_backups(&backups_dir, MAX_BACKUPS)?;
+        let old_key = secrets.get(&restored_account)?;
+        match old_key.as_deref() {
+            Some(key) => secrets.set(&rollback_account, key)?,
+            None => {
+                let _ = secrets.delete(&rollback_account);
+            }
+        }
+        restore_fault("key_set_rollback");
+        marker.old_key_present = Some(old_key.is_some());
+        marker.old_key_sha256 = old_key.as_deref().map(secret_digest);
+        marker.old_database_sha256 = if database_path.exists() {
+            let connection = Connection::open(database_path).map_err(storage_error)?;
+            connection
+                .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+                .map_err(storage_error)?;
+            drop(connection);
+            remove_sqlite_sidecars(database_path);
+            Some(sha256_file(database_path)?)
+        } else {
+            None
+        };
+        marker.phase = RestorePhase::Prepared;
+        write_restore_marker(&marker_path, &marker)?;
+        if database_path.exists() {
+            fs::rename(database_path, &rollback_path).map_err(storage_error)?;
+            sync_directory(dir)?;
+            restore_fault("rename_old");
+        }
     }
 
-    // Same directory, so this is an atomic swap.
-    fs::rename(&staged_path, database_path).map_err(storage_error)?;
-    // Any journal beside the replaced database describes the old file.
-    for suffix in ["-wal", "-shm"] {
-        let mut stray = database_path.as_os_str().to_owned();
-        stray.push(suffix);
-        let _ = fs::remove_file(PathBuf::from(stray));
+    if let Some(expected) = marker.old_database_sha256.as_deref() {
+        if !rollback_path.exists() || sha256_file(&rollback_path)? != expected {
+            return Err(AppError::new(
+                ErrorCode::StorageFailure,
+                "the rollback database does not match its generation",
+            ));
+        }
     }
 
-    // Install the key the backup carried, so its sealed rows open here. Without
-    // a carried key the restored rows are plaintext and a fresh key is
-    // generated on open, which then seals them.
-    let pending_account = vault_pending_key_account(database_path);
-    match (marker.key_present, secrets.get(&pending_account)?) {
-        (true, Some(key)) => secrets.set(&restored_account, &key)?,
-        _ => {
+    match pending_key.as_deref() {
+        Some(key) => secrets.set(&restored_account, key)?,
+        None => {
             let _ = secrets.delete(&restored_account);
         }
     }
-    let _ = secrets.delete(&pending_account);
-    fs::remove_file(&marker_path).map_err(storage_error)?;
+    restore_fault("key_install");
+    if candidate_path.exists() {
+        if sha256_file(&candidate_path)? != marker.candidate_sha256 {
+            return Err(AppError::new(
+                ErrorCode::StorageFailure,
+                "the pending restore database changed before activation",
+            ));
+        }
+        if database_path.exists() {
+            return Err(AppError::new(
+                ErrorCode::StorageFailure,
+                "the restore generations are ambiguous; no database was overwritten",
+            ));
+        }
+        fs::rename(&candidate_path, database_path).map_err(storage_error)?;
+        sync_directory(dir)?;
+        restore_fault("rename_candidate");
+    }
+    if !database_path.exists() || sha256_file(database_path)? != marker.candidate_sha256 {
+        return Err(AppError::new(
+            ErrorCode::StorageFailure,
+            "the activated restore database does not match its generation",
+        ));
+    }
+
+    marker.phase = RestorePhase::Activated;
+    write_restore_marker(&marker_path, &marker)?;
+    let activated = (|| {
+        let connection = Connection::open(database_path).map_err(storage_error)?;
+        restore_fault("reopen");
+        validate_sqlite_integrity(&connection)?;
+        if user_version(&connection)? != marker.schema_version {
+            return Err(AppError::new(
+                ErrorCode::StorageFailure,
+                "the activated restore has an unexpected schema version",
+            ));
+        }
+        let vault = Vault::new(VaultState {
+            key: pending_key.as_deref().and_then(decode_key),
+            protected: false,
+            escaped_plaintext: vault_storage_format_is_current(&connection)?,
+        });
+        validate_sealed_rows(&connection, &vault)
+    })();
+    if let Err(error) = activated {
+        rollback_restore(secrets, database_path, &marker)?;
+        return Err(error);
+    }
+
+    marker.phase = RestorePhase::Committed;
+    if rollback_path.exists() {
+        snapshot_pre_restore(
+            &rollback_path,
+            dir,
+            &marker.generation,
+            marker.old_database_sha256.as_deref(),
+        )?;
+    }
+    write_restore_marker(&marker_path, &marker)?;
+    finish_restore_cleanup(secrets, database_path, &marker_path, &marker)?;
     Ok(true)
 }
 
@@ -1263,7 +2120,9 @@ fn clear_vault_wrap(connection: &Connection) -> Result<(), AppError> {
 /// together — either sort outlives a deleted trip, so neither may escape the
 /// retention cap or the "clear backups" affordance.
 fn has_backup_snapshot_prefix(name: &str) -> bool {
-    name.starts_with("pre-update-") || name.starts_with("pre-restore-")
+    name.starts_with("pre-update-")
+        || name.starts_with("pre-restore-")
+        || name.starts_with("pre-vault-format-")
 }
 
 /// A complete snapshot file, as opposed to a `-wal`/`-shm` stray beside one.
@@ -1726,6 +2585,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "downgrade_safe_fact_versions",
         run: migrate_downgrade_safe_fact_versions,
     },
+    Migration {
+        to: 22,
+        name: "vault_storage_format",
+        run: migrate_vault_storage_format,
+    },
 ];
 
 /// The version a fully migrated database carries. Stamped into a backup's
@@ -1765,6 +2629,21 @@ fn migrate(connection: &Connection) -> Result<(), AppError> {
             .map_err(storage_error)?;
         version = migration.to;
     }
+    Ok(())
+}
+
+fn migrate_vault_storage_format(connection: &Connection) -> Result<(), AppError> {
+    connection
+        .execute_batch(
+            "CREATE TABLE IF NOT EXISTS vault_storage_format (
+                id INTEGER PRIMARY KEY CHECK(id = 1),
+                format_version INTEGER NOT NULL DEFAULT 0 CHECK(format_version BETWEEN 0 AND 1),
+                updated_at TEXT NOT NULL
+            );
+            INSERT OR IGNORE INTO vault_storage_format (id, format_version, updated_at)
+            VALUES (1, 0, '1970-01-01T00:00:00Z');",
+        )
+        .map_err(storage_error)?;
     Ok(())
 }
 

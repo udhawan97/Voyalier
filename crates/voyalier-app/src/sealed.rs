@@ -27,7 +27,9 @@ use rusqlite::{
 };
 use voyalier_core::{AppError, ErrorCode, open as vault_open, seal as vault_seal};
 
-use crate::{BASE64, VAULT_NONCE_LEN, VAULT_PREFIX, Vault, nonce_error, vault_locked_error};
+use crate::{
+    BASE64, PLAINTEXT_PREFIX, VAULT_NONCE_LEN, VAULT_PREFIX, Vault, nonce_error, vault_locked_error,
+};
 
 /// A sealed column's value exactly as the database holds it: `v1:<base64>` when
 /// the vault is active, legacy plaintext when it never was.
@@ -36,6 +38,15 @@ use crate::{BASE64, VAULT_NONCE_LEN, VAULT_PREFIX, Vault, nonce_error, vault_loc
 /// with one instantiation is scaffolding for a second one that does not exist.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Sealed(String);
+
+/// Encode explicit plaintext during the one-time format cutover. Construction
+/// stays in this sibling module, preserving ADR-0007's privacy boundary.
+pub(crate) fn escaped_plaintext(value: &str) -> Sealed {
+    Sealed(format!(
+        "{PLAINTEXT_PREFIX}{}",
+        BASE64.encode(value.as_bytes())
+    ))
+}
 
 impl FromSql for Sealed {
     fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
@@ -62,6 +73,13 @@ impl Vault {
         let Some(key) = state.key else {
             return if state.protected {
                 Err(vault_locked_error())
+            } else if state.escaped_plaintext
+                && (plaintext.starts_with(VAULT_PREFIX) || plaintext.starts_with(PLAINTEXT_PREFIX))
+            {
+                Ok(Sealed(format!(
+                    "{PLAINTEXT_PREFIX}{}",
+                    BASE64.encode(plaintext.as_bytes())
+                )))
             } else {
                 Ok(Sealed(plaintext.to_owned()))
             };
@@ -79,10 +97,26 @@ impl Vault {
     /// value it cannot render, so returning ciphertext to the interface stops
     /// being something to remember not to do.
     pub(crate) fn open(&self, stored: &Sealed) -> Result<String, AppError> {
+        let state = self.snapshot();
+        if state.escaped_plaintext {
+            if let Some(encoded) = stored.0.strip_prefix(PLAINTEXT_PREFIX) {
+                let bytes = BASE64.decode(encoded).map_err(|_| {
+                    AppError::new(
+                        ErrorCode::StorageFailure,
+                        "the escaped plaintext field is corrupt",
+                    )
+                })?;
+                return String::from_utf8(bytes).map_err(|_| {
+                    AppError::new(
+                        ErrorCode::StorageFailure,
+                        "the escaped plaintext field is not valid text",
+                    )
+                });
+            }
+        }
         let Some(encoded) = stored.0.strip_prefix(VAULT_PREFIX) else {
             return Ok(stored.0.clone());
         };
-        let state = self.snapshot();
         let Some(key) = state.key else {
             return Err(if state.protected {
                 vault_locked_error()
@@ -108,4 +142,36 @@ impl Vault {
             )
         })
     }
+
+    /// Authenticate a legacy `v1:` value during the storage-format cutover.
+    /// The plaintext is intentionally discarded; success is the evidence that
+    /// the prefix describes ciphertext rather than traveler-authored text.
+    pub(crate) fn authenticate_legacy_ciphertext(&self, stored: &str) -> Result<(), AppError> {
+        let Some(encoded) = stored.strip_prefix(VAULT_PREFIX) else {
+            return Ok(());
+        };
+        let Some(key) = self.snapshot().key else {
+            return Err(AppError::new(
+                ErrorCode::VaultUnreadable,
+                "a legacy v1 field cannot be classified without its vault key",
+            ));
+        };
+        let bytes = BASE64
+            .decode(encoded)
+            .map_err(|_| ambiguous_legacy_field())?;
+        let opened = vault_open(&key, &bytes).map_err(|_| ambiguous_legacy_field())?;
+        String::from_utf8(opened).map_err(|_| ambiguous_legacy_field())?;
+        Ok(())
+    }
+
+    pub(crate) fn validate_stored(&self, stored: String) -> Result<(), AppError> {
+        self.open(&Sealed(stored)).map(|_| ())
+    }
+}
+
+fn ambiguous_legacy_field() -> AppError {
+    AppError::new(
+        ErrorCode::VaultUnreadable,
+        "a historical v1 field is ambiguous; no data was rewritten and the safety backup was preserved",
+    )
 }

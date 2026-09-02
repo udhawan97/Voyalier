@@ -1,7 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach } from "vitest";
 
-import type { BackupGateway, RestorePreview } from "./backup";
+import type {
+  BackupGateway,
+  RestoreInspection,
+  RestorePreview,
+} from "./backup";
 import { createUnsupportedBackup } from "./backup";
 import { setLocalePreference } from "./app/locale";
 import { BackupPanel } from "./views/BackupPanel";
@@ -10,8 +14,11 @@ function fakeBackup(overrides: Partial<BackupGateway> = {}): BackupGateway {
   return {
     kind: "tauri",
     exportBackup: () => Promise.resolve("/Users/traveler/voyalier-backup.vbk"),
-    stageRestore: () => Promise.resolve(null),
+    inspectRestore: () => Promise.resolve(null),
+    confirmRestore: () => Promise.resolve(PREVIEW),
+    cancelRestoreInspection: () => Promise.resolve(false),
     hasPendingRestore: () => Promise.resolve(false),
+    unstageRestore: () => Promise.resolve(false),
     ...overrides,
   };
 }
@@ -116,16 +123,38 @@ describe("Backup & restore panel", () => {
     await screen.findByText("No backup was saved.");
   });
 
-  it("stages a restore and says it has not happened yet", async () => {
+  it("inspects, then confirms a restore before staging it", async () => {
+    const inspection: RestoreInspection = {
+      inspectionId: "restore_inspection_test",
+      preview: PREVIEW,
+    };
+    const inspected: string[] = [];
+    const confirmed: string[] = [];
     render(
       <BackupPanel
-        backup={fakeBackup({ stageRestore: () => Promise.resolve(PREVIEW) })}
+        backup={fakeBackup({
+          inspectRestore: (passphrase) => {
+            inspected.push(passphrase);
+            return Promise.resolve(inspection);
+          },
+          confirmRestore: (id, passphrase) => {
+            confirmed.push(`${id}:${passphrase}`);
+            return Promise.resolve(PREVIEW);
+          },
+        })}
       />,
     );
 
     fireEvent.click(
       screen.getByRole("button", { name: "Restore from a backup" }),
     );
+    typeInto("Backup passphrase", "correct horse battery");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Inspect this backup" }),
+    );
+
+    await screen.findByText(/^Backup from/);
+    expect(inspected).toEqual(["correct horse battery"]);
     typeInto("Backup passphrase", "correct horse battery");
     fireEvent.click(
       screen.getByRole("button", { name: "Restore this backup" }),
@@ -137,13 +166,16 @@ describe("Backup & restore panel", () => {
     expect(staged.textContent).toMatch(/nothing has changed yet/);
     expect(staged.textContent).toContain("Jul 18, 2026");
     expect(staged.textContent).not.toContain("T10:00:00Z");
+    expect(confirmed).toEqual([
+      "restore_inspection_test:correct horse battery",
+    ]);
   });
 
   it("surfaces a refused restore instead of staging it", async () => {
     render(
       <BackupPanel
         backup={fakeBackup({
-          stageRestore: () =>
+          inspectRestore: () =>
             Promise.reject(
               new Error(
                 "this backup was made by a newer version of Voyalier — update the app, then restore",
@@ -158,7 +190,7 @@ describe("Backup & restore panel", () => {
     );
     typeInto("Backup passphrase", "correct horse battery");
     fireEvent.click(
-      screen.getByRole("button", { name: "Restore this backup" }),
+      screen.getByRole("button", { name: "Inspect this backup" }),
     );
 
     await screen.findByRole("alert");

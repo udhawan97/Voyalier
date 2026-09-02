@@ -1126,7 +1126,10 @@
     "backup_database",
     "clear_backups",
     "export_backup",
-    "stage_restore",
+    "inspect_restore",
+    "confirm_restore",
+    "cancel_restore_inspection",
+    "unstage_restore",
     "has_pending_restore",
     "get_app_setting",
     "set_app_setting",
@@ -1136,6 +1139,6 @@
   ],
   "counts": {
     "shared": 84,
-    "desktopOnly": 10
+    "desktopOnly": 13
   }
 }

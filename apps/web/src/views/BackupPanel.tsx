@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useAnnounce } from "../app/context";
 import { t } from "../app/i18n";
 import { formatInstantDate } from "../app/format";
-import { type BackupGateway, selectBackup } from "../backup";
+import {
+  type BackupGateway,
+  type RestoreInspection,
+  selectBackup,
+} from "../backup";
 import { Button } from "../components/Button";
 import { SectionTitle } from "../components/primitives";
 import { LockIcon } from "../components/icons";
@@ -38,6 +42,8 @@ export function BackupPanel({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [inspection, setInspection] = useState<RestoreInspection | null>(null);
+  const inspectionRef = useRef<RestoreInspection | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -52,19 +58,36 @@ export function BackupPanel({
     };
   }, [backup]);
 
+  // Closing the settings view must discard a read-only inspection session even
+  // when the caller unmounts the panel without pressing its cancel button.
+  useEffect(() => {
+    return () => {
+      const id = inspectionRef.current?.inspectionId;
+      if (id) void backup.cancelRestoreInspection(id);
+    };
+  }, [backup]);
+
   function reset() {
     setMode("idle");
     setPassphrase("");
     setConfirm("");
+    setInspection(null);
+    inspectionRef.current = null;
     setError(null);
   }
 
-  async function run(action: () => Promise<void>) {
+  function closeRestore() {
+    const id = inspectionRef.current?.inspectionId;
+    reset();
+    if (id) void backup.cancelRestoreInspection(id);
+  }
+
+  async function run(action: () => Promise<void>, resetAfter = true) {
     setBusy(true);
     setError(null);
     try {
       await action();
-      reset();
+      if (resetAfter) reset();
     } catch (cause) {
       const detail =
         cause instanceof Error
@@ -109,9 +132,25 @@ export function BackupPanel({
       <p className="voy-backup__intro">{t("backup.intro")}</p>
 
       {pending ? (
-        <p className="voy-backup__pending" role="status">
-          {t("backup.restore.pending")}
-        </p>
+        <div className="voy-backup__pending" role="status">
+          <p>{t("backup.restore.pending")}</p>
+          <Button
+            variant="ghost"
+            busy={busy}
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                await backup.unstageRestore();
+                setPending(false);
+                const message = t("backup.restore.unstaged");
+                setNotice(message);
+                announce(message);
+              })
+            }
+          >
+            {t("backup.restore.unstage")}
+          </Button>
+        </div>
       ) : null}
 
       {notice ? (
@@ -197,25 +236,47 @@ export function BackupPanel({
             event.preventDefault();
             if (!guardPassphrase()) return;
             void run(async () => {
-              const preview = await backup.stageRestore(passphrase);
-              if (!preview) {
-                const message = t("backup.restore.cancelled");
+              if (!inspection) {
+                const selected = await backup.inspectRestore(passphrase);
+                if (!selected) {
+                  const message = t("backup.restore.cancelled");
+                  setNotice(message);
+                  announce(message);
+                  return;
+                }
+                setInspection(selected);
+                inspectionRef.current = selected;
+                setPassphrase("");
+                const message = t("backup.restore.inspected", {
+                  // The manifest stamps an RFC3339 instant, so it needs the
+                  // instant formatter: the traveler's calendar day, not UTC's.
+                  date: formatInstantDate(selected.preview.createdAt),
+                });
                 setNotice(message);
                 announce(message);
                 return;
               }
+              const preview = await backup.confirmRestore(
+                inspection.inspectionId,
+                passphrase,
+              );
               setPending(true);
               const message = t("backup.restore.staged", {
-                // The manifest stamps an RFC3339 instant, so it needs the
-                // instant formatter: the traveler's calendar day, not UTC's.
                 date: formatInstantDate(preview.createdAt),
               });
               setNotice(message);
               announce(message);
-            });
+              reset();
+            }, false);
           }}
         >
-          <p className="voy-backup__hint">{t("backup.restore.hint")}</p>
+          <p className="voy-backup__hint">
+            {inspection
+              ? t("backup.restore.confirmHint", {
+                  date: formatInstantDate(inspection.preview.createdAt),
+                })
+              : t("backup.restore.hint")}
+          </p>
           <label className="voy-sr-only" htmlFor="restore-passphrase">
             {t("backup.passphrase")}
           </label>
@@ -238,9 +299,11 @@ export function BackupPanel({
               busy={busy}
               disabled={passphrase.length === 0}
             >
-              {t("backup.restore.confirm")}
+              {inspection
+                ? t("backup.restore.confirm")
+                : t("backup.restore.inspect")}
             </Button>
-            <Button variant="ghost" onClick={reset} disabled={busy}>
+            <Button variant="ghost" onClick={closeRestore} disabled={busy}>
               {t("vault.action.cancel")}
             </Button>
           </div>

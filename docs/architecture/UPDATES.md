@@ -86,9 +86,11 @@ update through an attacker proxy = a hidden network path, violating our promise.
 The updater reads `releases/latest`. This repo ALSO publishes city-pack contents as a `packs-v1`
 release. GitHub's `/latest` = newest **non-draft, non-prerelease** release → if the pack workflow
 (re)publishes after v0.3.0, `latest` flips to packs, `latest.json` 404s, and **every user's update
-check breaks**. **Fix (must ship with the feature):** mark all pack releases **pre-release**
-(excluded from `/latest`); enforce in `packs.yml` + the release checklist. (Alt: serve `latest.json`
-from a stable gh-pages URL — more work, considered.)
+check breaks**. **Shipped control:** pack builders now have read-only repository authority and
+upload a checked artifact. A separate writer job is hard-coded to the existing `packs-v1`
+pre-release (and refuses an existing release that is not marked pre-release), so a dispatch input
+cannot redirect pack assets onto a product tag. DuckDB is an immutable official v1.5.5 asset whose
+published SHA-256 is checked before execution. The release checklist retains the same invariant.
 
 ## 6. BLOCKER — per-platform flow fork (reviewer #2 blocker #2; fact-check #12)
 

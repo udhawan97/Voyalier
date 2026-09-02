@@ -58,6 +58,7 @@ impl AppService {
         self.vault.set_state(VaultState {
             key: Some(data_key),
             protected: true,
+            escaped_plaintext: state.escaped_plaintext,
         });
         Ok(self.vault.status())
     }
@@ -69,15 +70,17 @@ impl AppService {
             return Ok(self.vault.status());
         }
         let data_key = self.unwrap_data_key(passphrase)?;
+        let escaped_plaintext = self.vault.snapshot().escaped_plaintext;
         self.vault.set_state(VaultState {
             key: Some(data_key),
             protected: true,
+            escaped_plaintext,
         });
         // Now active: seal any plaintext rows that could not be migrated while
         // the vault was opened locked (migration is skipped for a locked vault).
         {
             let connection = self.connection()?;
-            migrate_encrypt_sensitive_columns(&connection, &self.vault)?;
+            migrate_encrypt_sensitive_columns(&connection, &self.vault, &self.database_path)?;
         }
         Ok(self.vault.status())
     }
@@ -91,9 +94,11 @@ impl AppService {
         self.connection()?
             .execute("DELETE FROM vault_meta WHERE id = 1", [])
             .map_err(storage_error)?;
+        let escaped_plaintext = self.vault.snapshot().escaped_plaintext;
         self.vault.set_state(VaultState {
             key: Some(data_key),
             protected: false,
+            escaped_plaintext,
         });
         Ok(self.vault.status())
     }

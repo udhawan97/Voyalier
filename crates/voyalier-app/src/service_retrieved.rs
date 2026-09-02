@@ -32,7 +32,10 @@ impl AppService {
         // one government being down would hide the other three. `Ok(None)`
         // means that government publishes nothing for this country; `Err` means
         // we could not read it this time and fall back to what is stored.
-        let get = |url: &str| self.fetcher.fetch_text(url);
+        let get = |url: &str| {
+            self.fetcher
+                .fetch_text_bounded(url, MAX_SOURCE_RESPONSE_BYTES)
+        };
         let uk = travel_advice(fcdo, &retrieved_at, get)
             .map(|snapshot| Some(entry_from_fcdo(&snapshot)));
         let us = us_state_advisory(country, fcdo.name, &retrieved_at, get);
@@ -125,7 +128,7 @@ impl AppService {
 
         let place = geocode(&trip.destination, |url| {
             self.fetcher
-                .fetch_text(url)
+                .fetch_text_bounded(url, MAX_SOURCE_RESPONSE_BYTES)
                 .map_err(weather_network_failure)
         })?;
 
@@ -136,7 +139,7 @@ impl AppService {
             &now_rfc3339(),
             |url| {
                 self.fetcher
-                    .fetch_text(url)
+                    .fetch_text_bounded(url, MAX_SOURCE_RESPONSE_BYTES)
                     .map_err(weather_network_failure)
             },
         )?;
@@ -201,7 +204,10 @@ impl AppService {
             &trip.start_date,
             &trip.end_date,
             NORMALS_YEARS,
-            |url| self.fetcher.fetch_text(url),
+            |url| {
+                self.fetcher
+                    .fetch_text_bounded(url, MAX_SOURCE_RESPONSE_BYTES)
+            },
         )
         .ok()?
     }
@@ -212,14 +218,18 @@ impl AppService {
             place.longitude,
             &trip.start_date,
             &trip.end_date,
-            |url| self.fetcher.fetch_text(url),
+            |url| {
+                self.fetcher
+                    .fetch_text_bounded(url, MAX_SOURCE_RESPONSE_BYTES)
+            },
         )
         .ok()
     }
 
     fn fetch_nws_alerts(&self, place: &GeocodedPlace) -> Option<Vec<WeatherAlert>> {
         nws_alerts(place.latitude, place.longitude, |url| {
-            self.fetcher.fetch_text(url)
+            self.fetcher
+                .fetch_text_bounded(url, MAX_SOURCE_RESPONSE_BYTES)
         })
         .ok()
     }
@@ -241,13 +251,16 @@ impl AppService {
 
         let place = geocode(&trip.destination, |url| {
             self.fetcher
-                .fetch_text(url)
+                .fetch_text_bounded(url, MAX_SOURCE_RESPONSE_BYTES)
                 .map_err(weather_network_failure)
         })?;
 
         // The ECB feed is a small daily file; a failure here leaves the card
         // with the place and its country facts but no rates.
-        let (rate_date, currency_rates) = match ecb_rates(|url| self.fetcher.fetch_text(url)) {
+        let (rate_date, currency_rates) = match ecb_rates(|url| {
+            self.fetcher
+                .fetch_text_bounded(url, MAX_SOURCE_RESPONSE_BYTES)
+        }) {
             Ok((date, rates)) => (date, rates),
             Err(_) => (String::new(), Vec::new()),
         };
@@ -260,7 +273,12 @@ impl AppService {
             if trip.origin.trim().is_empty() {
                 (None, None, None)
             } else {
-                match geocode(&trip.origin, |url| self.fetcher.fetch_text(url)).ok() {
+                match geocode(&trip.origin, |url| {
+                    self.fetcher
+                        .fetch_text_bounded(url, MAX_SOURCE_RESPONSE_BYTES)
+                })
+                .ok()
+                {
                     Some(origin) => (
                         Some(origin.name),
                         Some(offset_minutes_for(&origin.timezone, &trip.start_date)),
@@ -347,14 +365,17 @@ impl AppService {
         // already use; Nager keys on the ISO-3166-1 alpha-2 code.
         let place = geocode(&trip.destination, |url| {
             self.fetcher
-                .fetch_text(url)
+                .fetch_text_bounded(url, MAX_SOURCE_RESPONSE_BYTES)
                 .map_err(weather_network_failure)
         })?;
 
         let holidays = public_holidays(
             &place.country_code,
             trip_years(&trip.start_date, &trip.end_date),
-            |url| self.fetcher.fetch_text(url),
+            |url| {
+                self.fetcher
+                    .fetch_text_bounded(url, MAX_SOURCE_RESPONSE_BYTES)
+            },
         );
 
         // School terms, from a second source that covers fewer countries. It is
@@ -365,7 +386,10 @@ impl AppService {
             &place.country_code,
             &format!("{}-01-01", year_of(&trip.start_date)),
             &format!("{}-12-31", year_of(&trip.end_date)),
-            |url| self.fetcher.fetch_text(url),
+            |url| {
+                self.fetcher
+                    .fetch_text_bounded(url, MAX_SOURCE_RESPONSE_BYTES)
+            },
         );
 
         let snapshot = PublicHolidaysSnapshot {
@@ -416,7 +440,7 @@ impl AppService {
         };
         let summary = place_summary(&trip.destination, &now_rfc3339(), |url| {
             self.fetcher
-                .fetch_text(url)
+                .fetch_text_bounded(url, MAX_SOURCE_RESPONSE_BYTES)
                 .map_err(weather_network_failure)
         })?;
 
