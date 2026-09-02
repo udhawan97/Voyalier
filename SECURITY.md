@@ -8,21 +8,30 @@ Include the affected version or commit, reproduction steps, expected impact, and
 
 ## Supported versions
 
-Voyalier is a source-only public beta. Security fixes target the latest `main`
-branch and the most recent tagged release.
+Voyalier is a public beta. Security fixes target the latest `main` branch and
+the most recent public-beta release. Older releases must be upgraded before a
+report can be evaluated against a supported build.
 
-| Version             | Supported                  |
-| ------------------- | -------------------------- |
-| `main` (unreleased) | ✅                         |
-| 0.4.x               | ✅                         |
-| < 0.4.0             | ❌ (upgrade to the latest) |
+| Version                              | Supported                  |
+| ------------------------------------ | -------------------------- |
+| `main` (unreleased source)           | ✅                         |
+| Latest published public-beta release | ✅                         |
+| Older releases                       | ❌ (upgrade to the latest) |
 
 ## Security boundaries
 
 Voyalier handles sensitive itineraries and documents. The project treats these as release-blocking requirements:
 
 - secrets never live in browser storage or committed configuration;
-- the desktop app uses direct Tauri IPC and binds no TCP port; the browser-development loopback service is guarded by strict Host, Origin, and CORS checks (DNS-rebinding protection). A per-launch bearer token remains defense-in-depth work, tracked in the [threat model](docs/security/THREAT_MODEL.md);
+- the desktop app uses direct Tauri IPC and binds no TCP port;
+- on supported macOS and Linux hosts, the source route opens a managed,
+  disposable Chromium context. Its loopback server uses a kernel-selected port,
+  a 32-byte per-launch bearer sent through a Unix anonymous pipe, strict
+  Host/Origin/CORS checks, and a source-only nonce CSP. Windows source launch is
+  not supported; use the packaged desktop app. The bearer is not placed in
+  process arguments,
+  environment variables, URLs, browser storage, cookies, logs, response bodies,
+  page source, files, or screenshots;
 - document and web content are untrusted and cannot directly invoke tools;
 - cloud AI receives only user-approved, redacted excerpts;
 - exports default to excluding sensitive identity fields;

@@ -36,7 +36,9 @@ anonymous pipe, while Axum returns only its assigned address through a separate 
 bearer must not appear in a command argument, process environment, file, URL, log, response body,
 browser storage, cookie, or screenshot.
 
-The launcher opens the repository's managed, disposable Chromium session and injects the address
+This protected launcher is supported on Unix hosts (macOS and Linux); Windows source launch is not
+supported and must use the packaged Tauri app. The launcher opens the repository's managed,
+disposable Chromium session and injects the address
 and bearer into that exact loopback document before application code runs. The HTTP gateway consumes
 and removes the non-enumerable bootstrap value, then retains it only in its request closure. The
 injection is origin-scoped and is not repeated for a document that navigates elsewhere. A manually

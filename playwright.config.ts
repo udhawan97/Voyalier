@@ -30,7 +30,7 @@ export default defineConfig({
     },
     {
       command:
-        "pnpm --filter @voyalier/web exec vite --host 127.0.0.1 --port 5173",
+        "VOYALIER_SOURCE_API_ORIGIN=http://127.0.0.1:8787 VOYALIER_SOURCE_LAUNCH_ID=0123456789abcdef0123456789abcdef pnpm --filter @voyalier/web exec vite --host 127.0.0.1 --port 5173",
       url: "http://127.0.0.1:5173",
       reuseExistingServer: false,
       timeout: 120_000,

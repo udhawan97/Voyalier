@@ -396,6 +396,7 @@ test("keeps product setup, updater backup, and portable restore on the installed
     "Configuración",
     "Voyalier — todos los viajes",
     "Guardar copia de seguridad",
+    "Inspeccionar esta copia",
     "Restaurar esta copia",
   ]) {
     assert.match(source, new RegExp(requiredControl));
@@ -584,15 +585,15 @@ test("keeps product setup, updater backup, and portable restore on the installed
   );
   assert.match(
     desktopSource,
-    /async fn stage_restore/,
+    /async fn inspect_restore/,
     "the blocking Open picker must run from an asynchronous Tauri command",
   );
   const exportSource = desktopSource.slice(
     desktopSource.indexOf("fn export_backup"),
-    desktopSource.indexOf("fn stage_restore"),
+    desktopSource.indexOf("fn inspect_restore"),
   );
   const restoreSource = desktopSource.slice(
-    desktopSource.indexOf("fn stage_restore"),
+    desktopSource.indexOf("fn pick_restore_bytes"),
     desktopSource.indexOf("fn has_pending_restore"),
   );
   assert.ok(
@@ -618,7 +619,7 @@ test("keeps product setup, updater backup, and portable restore on the installed
   assert.ok(
     restoreSource.indexOf("validate_chosen_path") !== -1 &&
       restoreSource.indexOf("validate_chosen_path") <
-        restoreSource.indexOf("std::fs::read"),
+        restoreSource.indexOf("std::fs::File::open"),
     "the returned restore target must be validated before any read",
   );
   assert.ok(
