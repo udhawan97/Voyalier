@@ -11,6 +11,7 @@ import type {
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError, formatInstant } from "../app/format";
 import { t } from "../app/i18n";
+import { adviceCountriesScope, useScopeKey } from "../app/revalidate";
 import { SectionTitle } from "../components/primitives";
 import { GlobeIcon } from "../components/icons";
 import { useAsyncAction, useAsyncData } from "../app/useAsync";
@@ -179,7 +180,7 @@ export function TravelAdvice({
   const selectId = useId();
   const { data: countries } = useAsyncData<FcdoCountry[]>(
     () => gateway.listAdviceCountries(),
-    "advice-countries",
+    useScopeKey(adviceCountriesScope),
   );
   const [slug, setSlug] = useState("");
   const fetchAction = useAsyncAction(

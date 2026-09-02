@@ -1,10 +1,35 @@
-import type { CalendarEvent, CalendarSnapshot } from "@voyalier/contracts";
+import type {
+  CalendarEvent,
+  CalendarRemovalDetail,
+  CalendarRole,
+  CalendarSnapshot,
+} from "@voyalier/contracts";
 
 import { formatDateTimeLocal } from "../app/format";
 import { plural, t } from "../app/i18n";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 import { Dialog } from "../components/Dialog";
+
+function removalRoleLabel(role: CalendarRole): string {
+  switch (role) {
+    case "departure":
+      return t("ics.removal.departure");
+    case "arrival":
+      return t("ics.removal.arrival");
+    case "checkin":
+      return t("ics.removal.checkin");
+    case "checkout":
+      return t("ics.removal.checkout");
+    case "plan":
+      return t("ics.removal.plan");
+  }
+}
+
+function removalText(detail: CalendarRemovalDetail): string {
+  const label = removalRoleLabel(detail.role);
+  return detail.subject ? `${label} — ${detail.subject}` : label;
+}
 
 export function CalendarExportDialog({
   snapshot,
@@ -82,9 +107,15 @@ export function CalendarExportDialog({
           <section aria-labelledby="calendar-removals-title">
             <h3 id="calendar-removals-title">{t("ics.preview.removals")}</h3>
             <ul>
-              {snapshot.removals.map((removal) => (
-                <li key={removal}>{removal}</li>
-              ))}
+              {snapshot.removalDetails?.length
+                ? snapshot.removalDetails.map((detail, index) => (
+                    <li key={`${detail.role}:${detail.subject ?? index}`}>
+                      {removalText(detail)}
+                    </li>
+                  ))
+                : snapshot.removals.map((removal) => (
+                    <li key={removal}>{removal}</li>
+                  ))}
             </ul>
           </section>
         ) : null}

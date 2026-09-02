@@ -4,6 +4,7 @@ import type { AppError } from "@voyalier/contracts";
 import { useGateway } from "../app/context";
 import { describeError } from "../app/format";
 import { t } from "../app/i18n";
+import { notesScope, useScopeKey } from "../app/revalidate";
 import { useAsyncData } from "../app/useAsync";
 import { PencilIcon } from "../components/icons";
 import { SectionTitle, Skeleton } from "../components/primitives";
@@ -32,7 +33,10 @@ export function TripNotes({ tripId }: { tripId: string }) {
     status,
     data,
     error: loadError,
-  } = useAsyncData(() => gateway.getTripNotes(tripId), `notes:${tripId}`);
+  } = useAsyncData(
+    () => gateway.getTripNotes(tripId),
+    useScopeKey(notesScope(tripId)),
+  );
   // The traveler's unsaved edit. `null` means "untouched", in which case the
   // loaded notes are shown.
   //

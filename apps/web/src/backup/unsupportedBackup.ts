@@ -17,7 +17,10 @@ export function createUnsupportedBackup(): BackupGateway {
   return {
     kind: "unsupported",
     exportBackup: unavailable,
-    stageRestore: unavailable,
+    inspectRestore: unavailable,
+    confirmRestore: unavailable,
+    cancelRestoreInspection: () => Promise.resolve(false),
     hasPendingRestore: () => Promise.resolve(false),
+    unstageRestore: () => Promise.resolve(false),
   };
 }

@@ -3,7 +3,10 @@ import type { ReactNode } from "react";
 
 import {
   RevalidateProvider,
+  adviceCountriesScope,
+  chatScope,
   documentsScope,
+  notesScope,
   tripScope,
   tripsScope,
   useRevalidate,
@@ -102,12 +105,15 @@ describe("revalidate", () => {
     expect(result.current.two).toBe(before);
   });
 
-  it("revalidateAll refreshes every scope on screen", () => {
+  it("revalidateAll refreshes retry-safe scopes without replaying AI-coupled chat", () => {
     const { result } = renderHook(
       () => ({
         trips: useScopeKey(tripsScope),
         trip: useScopeKey(tripScope("t1")),
         documents: useScopeKey(documentsScope("t1")),
+        notes: useScopeKey(notesScope("t1")),
+        adviceCountries: useScopeKey(adviceCountriesScope),
+        chat: useScopeKey(chatScope("t1")),
         revalidateAll: useRevalidateAll(),
       }),
       { wrapper },
@@ -120,6 +126,9 @@ describe("revalidate", () => {
     expect(result.current.trips).not.toBe(before.trips);
     expect(result.current.trip).not.toBe(before.trip);
     expect(result.current.documents).not.toBe(before.documents);
+    expect(result.current.notes).not.toBe(before.notes);
+    expect(result.current.adviceCountries).not.toBe(before.adviceCountries);
+    expect(result.current.chat).toBe(before.chat);
   });
 
   it("stops tracking a scope once nothing reads it", () => {

@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { AppError, AppGateway } from "@voyalier/contracts";
+import type { AppError, AppGateway, VaultStatus } from "@voyalier/contracts";
 
 import type { UpdaterController } from "../updater/useUpdater";
 
@@ -65,6 +65,31 @@ export const TransportRecoveryContext = createContext(0);
 
 export function useTransportRecovery(): number {
   return useContext(TransportRecoveryContext);
+}
+
+/** One shared read of vault status, owned by the shell and retained on failure. */
+export interface VaultStatusSnapshot {
+  status: "loading" | "success" | "error";
+  data: VaultStatus | undefined;
+  error: AppError | undefined;
+}
+
+export interface VaultStatusReader extends VaultStatusSnapshot {
+  reload: () => void;
+}
+
+const NOOP_VAULT_STATUS: VaultStatusReader = {
+  status: "loading",
+  data: undefined,
+  error: undefined,
+  reload: () => {},
+};
+
+export const VaultStatusContext =
+  createContext<VaultStatusReader>(NOOP_VAULT_STATUS);
+
+export function useVaultStatus(): VaultStatusReader {
+  return useContext(VaultStatusContext);
 }
 
 /**

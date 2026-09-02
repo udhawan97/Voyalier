@@ -951,6 +951,59 @@ describe("workspace search", () => {
   });
 });
 
+describe("workspace search Unicode limit", () => {
+  afterEach(() => setLocalePreference("en"));
+
+  it("blocks 201 astral characters, associates the error, and resumes once corrected", async () => {
+    const base = createMockGateway();
+    const searchWorkspace = vi.fn(base.searchWorkspace);
+    renderApp({ ...base, searchWorkspace });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Search workspace" }),
+    );
+    const input = screen.getByLabelText("Search all trips");
+    const atLimit = "\u{1F3D4}".repeat(200);
+    const overLimit = `${atLimit}\u{1F3D4}`;
+
+    fireEvent.change(input, { target: { value: overLimit } });
+    expect(input).toHaveValue(overLimit);
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAccessibleDescription(
+      "Shorten this search to 200 characters or fewer.",
+    );
+    expect(screen.getByRole("button", { name: "Search" })).toBeDisabled();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(searchWorkspace).not.toHaveBeenCalled();
+
+    fireEvent.change(input, { target: { value: atLimit } });
+    expect(input).toHaveValue(atLimit);
+    expect(input).not.toHaveAttribute("aria-invalid");
+    expect(screen.getByText("200 / 200 characters")).toBeVisible();
+    await waitFor(() => expect(searchWorkspace).toHaveBeenCalledWith(atLimit));
+    expect(searchWorkspace).toHaveBeenCalledTimes(1);
+  });
+
+  it("localizes over-limit guidance in Spanish without sending the query", async () => {
+    setLocalePreference("es");
+    const base = createMockGateway();
+    const searchWorkspace = vi.fn(base.searchWorkspace);
+    renderApp({ ...base, searchWorkspace });
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Buscar en el espacio de trabajo",
+      }),
+    );
+    const input = screen.getByLabelText("Buscar en todos los viajes");
+
+    fireEvent.change(input, { target: { value: "\u{1F3D4}".repeat(201) } });
+    expect(input).toHaveAccessibleDescription(
+      "Acorta esta búsqueda a 200 caracteres o menos.",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(searchWorkspace).not.toHaveBeenCalled();
+  });
+});
+
 /**
  * Every other top-level view — the trip list, a trip, Settings, the vault
  * unlock — hand-rolls its own `h1`. This one used `SectionTitle`, which renders

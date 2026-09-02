@@ -12,9 +12,13 @@ const LIVE = import.meta.env.VITE_LIVE_API === "1";
 const BASE_URL =
   (import.meta.env.VITE_LIVE_API_URL as string | undefined) ??
   "http://127.0.0.1:8787";
+const API_TOKEN = import.meta.env.VITE_LIVE_API_TOKEN as string | undefined;
 
 describe.skipIf(!LIVE)("HTTP gateway against the live core", () => {
-  const gateway = createHttpGateway({ baseUrl: BASE_URL });
+  const gateway = createHttpGateway({
+    baseUrl: BASE_URL,
+    authToken: API_TOKEN,
+  });
 
   it("reports a healthy local core", async () => {
     const health = await gateway.health();

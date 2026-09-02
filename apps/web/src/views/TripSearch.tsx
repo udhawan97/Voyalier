@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { MAX_QUERY_LEN, type SearchHit } from "@voyalier/contracts";
+import { MAX_QUERY_LEN, countChars, type SearchHit } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError } from "../app/format";
@@ -16,6 +16,7 @@ import {
 
 const MIN_QUERY = 2;
 const DEBOUNCE_MS = 200;
+const LIMIT_GUIDANCE_START = MAX_QUERY_LEN - 20;
 
 function hitIcon(hit: SearchHit) {
   if (hit.source === "resource") return <CompassIcon />;
@@ -66,6 +67,7 @@ export function TripSearch({
   const gateway = useGateway();
   const announce = useAnnounce();
   const inputId = useId();
+  const limitId = useId();
   const [query, setQuery] = useState("");
   // null = nothing searched yet; [] = searched, nothing found.
   const [results, setResults] = useState<SearchHit[] | null>(null);
@@ -74,6 +76,10 @@ export function TripSearch({
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestRef = useRef(0);
+  const composingRef = useRef(false);
+  const queryLength = countChars(query.trim());
+  const queryTooLong = queryLength > MAX_QUERY_LEN;
+  const showLimit = queryLength >= LIMIT_GUIDANCE_START;
 
   useEffect(() => {
     return () => {
@@ -120,7 +126,8 @@ export function TripSearch({
 
   function runSearch(raw: string, requestId: number) {
     const trimmed = raw.trim();
-    if (trimmed.length < MIN_QUERY) {
+    const length = countChars(trimmed);
+    if (length < MIN_QUERY || length > MAX_QUERY_LEN) {
       setResults(null);
       setSuggestions([]);
       return;
@@ -140,6 +147,8 @@ export function TripSearch({
     setSuggestions([]);
     setCopiedKey(null);
     if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = null;
+    if (composingRef.current || countChars(next.trim()) > MAX_QUERY_LEN) return;
     timerRef.current = setTimeout(
       () => void runSearch(next, requestId),
       DEBOUNCE_MS,
@@ -155,6 +164,7 @@ export function TripSearch({
     setResults(null);
     setSuggestions([]);
     if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = null;
     void runSearch(next, requestId);
   }
 
@@ -183,24 +193,46 @@ export function TripSearch({
         <label className="voy-sr-only" htmlFor={inputId}>
           {t("search.label")}
         </label>
-        {/* Deliberately still a hard cap, unlike the trip form's place fields.
-            `maxLength` truncates in UTF-16 units, which is wrong in principle —
-            but this is a query, not authored content: nothing the traveler wrote
-            is lost, the whole value stays visible in the box, and a
-            200-character search is already past the point of usefulness.
-            Trading a silent cut for an error message would be worse here. */}
         <input
           id={inputId}
           className="voy-search__input"
           type="search"
           role="searchbox"
           value={query}
-          maxLength={MAX_QUERY_LEN}
+          aria-describedby={showLimit ? limitId : undefined}
+          aria-errormessage={queryTooLong ? limitId : undefined}
+          aria-invalid={queryTooLong || undefined}
           placeholder={t("search.placeholder")}
           autoComplete="off"
+          onCompositionStart={() => {
+            composingRef.current = true;
+            if (timerRef.current) clearTimeout(timerRef.current);
+            timerRef.current = null;
+          }}
+          onCompositionEnd={(event) => {
+            composingRef.current = false;
+            handleChange(event.currentTarget.value);
+          }}
           onChange={(event) => handleChange(event.target.value)}
         />
       </div>
+
+      {showLimit ? (
+        <p
+          id={limitId}
+          className={`voy-search__limit${
+            queryTooLong ? " voy-search__limit--error" : ""
+          }`}
+          role={queryTooLong ? "alert" : "status"}
+        >
+          {queryTooLong
+            ? t("search.error.tooLong", { max: MAX_QUERY_LEN })
+            : t("search.limit", {
+                count: queryLength,
+                max: MAX_QUERY_LEN,
+              })}
+        </p>
+      ) : null}
 
       {action.error ? (
         <p className="voy-search__error" role="alert">

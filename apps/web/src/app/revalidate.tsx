@@ -19,6 +19,8 @@ import {
  * - `` `visa:${id}` `` — one trip's visa preparation
  * - `` `resources:${id}` `` — one trip's kept research
  * - `` `chat:${id}` `` — one trip's conversation
+ * - `` `notes:${id}` `` — one trip's private notes
+ * - `advice-countries` — the local country catalog used by advice selection
  */
 export type Scope = string;
 
@@ -40,6 +42,32 @@ export const visaScope = (tripId: string): Scope => `visa:${tripId}`;
  */
 export const resourcesScope = (tripId: string): Scope => `resources:${tripId}`;
 export const chatScope = (tripId: string): Scope => `chat:${tripId}`;
+/** One trip's private notes. */
+export const notesScope = (tripId: string): Scope => `notes:${tripId}`;
+/** The local country catalog used by the consent-gated advice chooser. */
+export const adviceCountriesScope: Scope = "advice-countries";
+
+/**
+ * Scopes global recovery may replay without creating a new user intent.
+ *
+ * This is deliberately closed rather than "every registered scope". In
+ * particular, the chat scope couples its local message read to an Ollama
+ * availability probe; an engine Retry must not silently turn into an AI probe.
+ * New scopes stay out until their loader is reviewed as a local, read-only
+ * operation. Mutation-driven `revalidate(scope)` remains available to all
+ * scopes regardless of this list.
+ */
+function isGlobalRetrySafe(scope: Scope): boolean {
+  return (
+    scope === tripsScope ||
+    scope === adviceCountriesScope ||
+    scope.startsWith("trip:") ||
+    scope.startsWith("documents:") ||
+    scope.startsWith("visa:") ||
+    scope.startsWith("resources:") ||
+    scope.startsWith("notes:")
+  );
+}
 
 type Listener = () => void;
 
@@ -80,14 +108,9 @@ class Revalidator {
     }
   };
 
-  /**
-   * Re-fetch everything currently on screen.
-   *
-   * The retry-after-failure path, and the only caller that legitimately cannot
-   * name what changed — the app just failed to reach its engine, so nothing on
-   * screen is trustworthy.
-   */
-  revalidateAll = () => this.revalidate(...this.listeners.keys());
+  /** Re-fetch every registered local read that is safe for global recovery. */
+  revalidateAll = () =>
+    this.revalidate(...[...this.listeners.keys()].filter(isGlobalRetrySafe));
 }
 
 const RevalidatorContext = createContext<Revalidator | null>(null);
@@ -132,7 +155,7 @@ export function useRevalidate(): (...scopes: Scope[]) => void {
   return useRevalidator().revalidate;
 }
 
-/** Re-fetch everything on screen. For retry-after-failure only. */
+/** Re-fetch registered retry-safe local reads. For recovery only. */
 export function useRevalidateAll(): () => void {
   const revalidator = useRevalidator();
   return useCallback(() => revalidator.revalidateAll(), [revalidator]);

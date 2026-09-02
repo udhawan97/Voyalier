@@ -40,12 +40,20 @@ const en = {
   "backup.restore.hint":
     "Restoring replaces everything currently in Voyalier with the contents of the backup. Your current data is snapshotted first, so this can be undone.",
   "backup.restore.action": "Restore from a backup",
+  "backup.restore.inspect": "Inspect this backup",
   "backup.restore.confirm": "Restore this backup",
+  "backup.restore.inspected":
+    "Backup from {date} is ready for your confirmation. Nothing has changed yet.",
+  "backup.restore.confirmHint":
+    "This backup from {date} passed its integrity check. Enter its passphrase again to stage it for the next launch.",
   "backup.restore.cancelled": "No backup was restored.",
   "backup.restore.staged":
     "Ready to restore a backup from {date}. Quit and reopen Voyalier to finish — nothing has changed yet.",
   "backup.restore.pending":
     "A restore is waiting. Quit and reopen Voyalier to finish it.",
+  "backup.restore.unstage": "Cancel staged restore",
+  "backup.restore.unstaged":
+    "The staged restore was cancelled. Nothing changed.",
   "backup.passphrase": "Backup passphrase",
   "backup.passphrase.placeholder": "Backup passphrase ({min}+ characters)",
   "backup.confirmPassphrase": "Confirm backup passphrase",
@@ -361,6 +369,8 @@ const en = {
   "search.hint":
     "Type to search as you go — partial words work, and any word matches across documents, confirmed plans, and saved research. Pick a suggestion, or copy a result to reuse it.",
   "search.error.empty": "Type something to search for.",
+  "search.error.tooLong": "Shorten this search to {max} characters or fewer.",
+  "search.limit": "{count} / {max} characters",
   "search.announce.none": "No matches for {query}.",
   "search.none":
     "No matches for “{query}” in your documents, confirmed plans, or saved research.",
@@ -724,6 +734,9 @@ const en = {
   "workspaceSearch.placeholder": "Search all trips",
   "workspaceSearch.search": "Search",
   "workspaceSearch.emptyHint": "Enter a search term to enable Search.",
+  "workspaceSearch.error.tooLong":
+    "Shorten this search to {max} characters or fewer.",
+  "workspaceSearch.limit": "{count} / {max} characters",
   "workspaceSearch.none": "No matches in this workspace.",
   "workspaceSearch.none.recover":
     "Search covers imported documents, confirmed facts, notes, saved places, saved resources, and your own plans. Visa checklists, suggestions you have not confirmed, and trip names are not included — try a word from the record itself, or a shorter one.",
@@ -1559,6 +1572,11 @@ const en = {
   "ics.preview.omissions": "Not included",
   "ics.preview.noOmissions": "Every scheduled item can be included.",
   "ics.preview.removals": "Previously exported roles no longer present",
+  "ics.removal.departure": "Departure",
+  "ics.removal.arrival": "Arrival",
+  "ics.removal.checkin": "Check-in",
+  "ics.removal.checkout": "Check-out",
+  "ics.removal.plan": "Plan",
   "ics.omission.missing_date": "no recorded date",
   "ics.omission.invalid_date": "invalid recorded date",
 
@@ -1788,12 +1806,20 @@ const es: Record<MessageKey, string> = {
   "backup.restore.hint":
     "Restaurar reemplaza todo lo que hay actualmente en Voyalier con el contenido de la copia. Primero se crea una instantánea de tus datos actuales, por lo que esto se puede deshacer.",
   "backup.restore.action": "Restaurar desde copia",
+  "backup.restore.inspect": "Inspeccionar esta copia",
   "backup.restore.confirm": "Restaurar esta copia",
+  "backup.restore.inspected":
+    "La copia del {date} está lista para que la confirmes. Aún no ha cambiado nada.",
+  "backup.restore.confirmHint":
+    "Esta copia del {date} superó la comprobación de integridad. Vuelve a introducir su frase para dejarla lista para el próximo inicio.",
   "backup.restore.cancelled": "No se restauró ninguna copia.",
   "backup.restore.staged":
     "Listo para restaurar la copia del {date}. Sal y vuelve a abrir Voyalier para finalizar; aún no ha cambiado nada.",
   "backup.restore.pending":
     "Hay una restauración pendiente. Sal y vuelve a abrir Voyalier para completarla.",
+  "backup.restore.unstage": "Cancelar restauración pendiente",
+  "backup.restore.unstaged":
+    "Se canceló la restauración pendiente. No cambió nada.",
   "backup.passphrase": "Frase de contraseña de copia",
   "backup.passphrase.placeholder": "Frase de contraseña ({min}+ caracteres)",
   "backup.confirmPassphrase": "Confirmar frase de contraseña",
@@ -2102,6 +2128,8 @@ const es: Record<MessageKey, string> = {
   "search.hint":
     "Escribe para buscar mientras tecleas; funcionan palabras parciales y cualquier palabra coincide en documentos, planes confirmados e investigación guardada. Elige una sugerencia o copia un resultado para reutilizarlo.",
   "search.error.empty": "Escribe algo para buscar.",
+  "search.error.tooLong": "Acorta esta búsqueda a {max} caracteres o menos.",
+  "search.limit": "{count} / {max} caracteres",
   "search.announce.none": "Sin coincidencias para {query}.",
   "search.none":
     "No hay coincidencias para “{query}” en tus documentos, planes confirmados ni investigación guardada.",
@@ -2464,6 +2492,9 @@ const es: Record<MessageKey, string> = {
   "workspaceSearch.search": "Buscar",
   "workspaceSearch.emptyHint":
     "Escribe un término de búsqueda para activar Buscar.",
+  "workspaceSearch.error.tooLong":
+    "Acorta esta búsqueda a {max} caracteres o menos.",
+  "workspaceSearch.limit": "{count} / {max} caracteres",
   "workspaceSearch.none": "No hay coincidencias en este espacio de trabajo.",
   "workspaceSearch.none.recover":
     "La búsqueda abarca documentos importados, datos confirmados, notas, lugares guardados, recursos guardados y tus propios planes. No incluye las listas de visado, las sugerencias sin confirmar ni los nombres de los viajes: prueba con una palabra del propio registro, o con una más corta.",
@@ -3260,6 +3291,11 @@ const es: Record<MessageKey, string> = {
     "Se pueden incluir todos los elementos programados.",
   "ics.preview.removals":
     "Funciones exportadas anteriormente que ya no existen",
+  "ics.removal.departure": "Salida",
+  "ics.removal.arrival": "Llegada",
+  "ics.removal.checkin": "Entrada",
+  "ics.removal.checkout": "Salida",
+  "ics.removal.plan": "Plan",
   "ics.omission.missing_date": "sin fecha registrada",
   "ics.omission.invalid_date": "fecha registrada no válida",
   "documents.title": "Documentos importados",

@@ -1,5 +1,5 @@
 import { toAppError } from "../gateway/errors";
-import type { BackupGateway, RestorePreview } from "./types";
+import type { BackupGateway, RestoreInspection, RestorePreview } from "./types";
 
 // Non-generic on purpose, matching the updater: a concrete injected mock is
 // assignable to this, whereas a generic `<T>() => Promise<T>` would not be.
@@ -48,9 +48,17 @@ export function createTauriBackup(
     exportBackup: (passphrase: string) =>
       call<string | null>("export_backup", { passphrase }),
 
-    stageRestore: (passphrase: string) =>
-      call<RestorePreview | null>("stage_restore", { passphrase }),
+    inspectRestore: (passphrase: string) =>
+      call<RestoreInspection | null>("inspect_restore", { passphrase }),
+
+    confirmRestore: (inspectionId: string, passphrase: string) =>
+      call<RestorePreview>("confirm_restore", { inspectionId, passphrase }),
+
+    cancelRestoreInspection: (inspectionId: string) =>
+      call<boolean>("cancel_restore_inspection", { inspectionId }),
 
     hasPendingRestore: () => call<boolean>("has_pending_restore", {}),
+
+    unstageRestore: () => call<boolean>("unstage_restore", {}),
   };
 }

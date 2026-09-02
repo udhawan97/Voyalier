@@ -668,3 +668,58 @@ describe("trip search", () => {
     ).toBeVisible();
   });
 });
+
+describe("trip search Unicode limit", () => {
+  afterEach(() => setLocalePreference("en"));
+
+  it("accepts 200 astral characters and retains 201 with associated guidance", async () => {
+    const base = createMockGateway();
+    const searchTrip = vi.fn(base.searchTrip);
+    renderApp({ ...base, searchTrip });
+    const search = await openSearch();
+    const input = searchInput(search);
+    const atLimit = "\u{1F3D4}".repeat(200);
+    const overLimit = `${atLimit}\u{1F3D4}`;
+
+    fireEvent.change(input, { target: { value: atLimit } });
+    expect(input).toHaveValue(atLimit);
+    expect(within(search).getByText("200 / 200 characters")).toBeVisible();
+    await waitFor(() =>
+      expect(searchTrip).toHaveBeenCalledWith("trip_kyoto", atLimit),
+    );
+
+    fireEvent.change(input, { target: { value: overLimit } });
+    expect(input).toHaveValue(overLimit);
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAccessibleDescription(
+      "Shorten this search to 200 characters or fewer.",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(searchTrip).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps ordinary input quiet and waits for IME composition to finish", async () => {
+    const base = createMockGateway();
+    const searchTrip = vi.fn(base.searchTrip);
+    renderApp({ ...base, searchTrip });
+    const search = await openSearch();
+    const input = searchInput(search);
+
+    fireEvent.change(input, { target: { value: "maple" } });
+    expect(within(search).queryByText(/\/ 200 characters/)).toBeNull();
+    await waitFor(() => expect(searchTrip).toHaveBeenCalledTimes(1));
+
+    searchTrip.mockClear();
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "日本" } });
+    expect(input).toHaveValue("日本");
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(searchTrip).not.toHaveBeenCalled();
+
+    fireEvent.compositionEnd(input);
+    await waitFor(() =>
+      expect(searchTrip).toHaveBeenCalledWith("trip_kyoto", "日本"),
+    );
+    expect(searchTrip).toHaveBeenCalledTimes(1);
+  });
+});

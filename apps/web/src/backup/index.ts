@@ -2,7 +2,7 @@ import { createTauriBackup } from "./tauriBackup";
 import type { BackupGateway } from "./types";
 import { createUnsupportedBackup } from "./unsupportedBackup";
 
-export type { BackupGateway, RestorePreview } from "./types";
+export type { BackupGateway, RestoreInspection, RestorePreview } from "./types";
 export { createTauriBackup } from "./tauriBackup";
 export { createUnsupportedBackup } from "./unsupportedBackup";
 

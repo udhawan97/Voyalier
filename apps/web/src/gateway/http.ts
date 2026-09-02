@@ -79,8 +79,10 @@ import type {
 import { toAppError } from "./errors";
 
 export interface HttpGatewayOptions {
-  /** Base origin for requests. "" (default) is same-origin, proxied in dev. */
+  /** Base origin for requests. Source launches use the authenticated API origin. */
   baseUrl?: string;
+  /** Per-launch loopback credential. It remains inside this gateway closure. */
+  authToken?: string;
   /** Injectable fetch, for tests. */
   fetch?: typeof fetch;
 }
@@ -111,6 +113,7 @@ export function createHttpGateway(
   options: HttpGatewayOptions = {},
 ): AppGateway {
   const baseUrl = options.baseUrl ?? "";
+  const authToken = options.authToken;
   const doFetch = options.fetch ?? globalThis.fetch.bind(globalThis);
   const enc = encodeURIComponent;
 
@@ -123,10 +126,10 @@ export function createHttpGateway(
     try {
       response = await doFetch(`${baseUrl}${path}`, {
         method,
-        headers:
-          body === undefined
-            ? undefined
-            : { "Content-Type": "application/json" },
+        headers: {
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+          ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+        },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
     } catch (error) {

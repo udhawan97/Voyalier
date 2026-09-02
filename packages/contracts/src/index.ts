@@ -1370,12 +1370,19 @@ export interface CalendarOmission {
   title: string;
   reason: "missing_date" | "invalid_date";
 }
+export interface CalendarRemovalDetail {
+  role: CalendarRole;
+  /** Redacted subject only; lineage is used for core deduplication. */
+  subject?: string;
+}
 /** Redacted one-shot export state; it is not a calendar subscription. */
 export interface CalendarSnapshot {
   title: string;
   events: CalendarEvent[];
   omissions: CalendarOmission[];
   removals: string[];
+  /** Additive typed detail for localized current interfaces. */
+  removalDetails?: CalendarRemovalDetail[];
 }
 /**
  * `resource` is deliberately not folded into `document`: a source document is

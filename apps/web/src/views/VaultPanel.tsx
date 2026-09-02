@@ -1,10 +1,10 @@
 import { useState } from "react";
 import type { VaultStatus } from "@voyalier/contracts";
 
-import { useAnnounce, useGateway } from "../app/context";
+import { useAnnounce, useGateway, useVaultStatus } from "../app/context";
 import { describeError } from "../app/format";
 import { t } from "../app/i18n";
-import { useAsyncData, useAsyncAction } from "../app/useAsync";
+import { useAsyncAction } from "../app/useAsync";
 import { Button } from "../components/Button";
 import { SectionTitle } from "../components/primitives";
 import { LockIcon } from "../components/icons";
@@ -35,7 +35,7 @@ export function VaultPanel() {
   // The status read used to swallow its rejection with an empty handler, and
   // `status === null` renders nothing, so an unreachable engine made the whole
   // vault section vanish out of Settings with no explanation at all.
-  const vault = useAsyncData(() => gateway.getVaultStatus(), "vault");
+  const vault = useVaultStatus();
   const status = vault.data;
 
   function reset() {
