@@ -18,7 +18,7 @@ jobs:
     name: Web, contracts, tests, and docs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - uses: pnpm/action-setup@v6
         with:
           version: 11.7.0
@@ -33,7 +33,7 @@ jobs:
     name: Rust core, app, and local API
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -48,7 +48,7 @@ jobs:
     name: Desktop IPC
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -73,7 +73,7 @@ jobs:
     name: Live HTTP serialization
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - uses: pnpm/action-setup@v6
         with:
           version: 11.7.0
