@@ -1,3 +1,4 @@
+import { updaterSettingKey, validateUpdaterSetting } from "./settings";
 import type {
   BackupInfo,
   InstallOutcome,
@@ -89,10 +90,21 @@ export function createMockUpdater(
       return Promise.resolve();
     },
 
-    getSetting: (key: string): Promise<string | null> =>
-      Promise.resolve(store.get(key) ?? null),
+    getSetting: async (key: string): Promise<string | null> => {
+      key = updaterSettingKey(key);
+      const value = store.get(key);
+      if (value === undefined) return null;
+      try {
+        validateUpdaterSetting(key, value);
+        return value;
+      } catch {
+        return null;
+      }
+    },
 
-    setSetting: (key: string, value: string): Promise<void> => {
+    setSetting: async (key: string, value: string): Promise<void> => {
+      key = updaterSettingKey(key);
+      validateUpdaterSetting(key, value);
       store.set(key, value);
       return Promise.resolve();
     },

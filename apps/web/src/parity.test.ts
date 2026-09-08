@@ -1,3 +1,5 @@
+import updaterSettingsGolden from "@voyalier/contracts/parity/updater-settings.json";
+import { createMockUpdater } from "./updater/mockUpdater";
 import chatTopicsGolden from "@voyalier/contracts/parity/chat-topics.json";
 import limits from "@voyalier/contracts/parity/limits.json";
 import normalizePlaceGolden from "@voyalier/contracts/parity/normalize-place.json";
@@ -628,6 +630,24 @@ describe("parity: redacted trip brief", () => {
     for (const canary of sensitiveCanaries) {
       expect(inputText).toContain(canary);
       expect(outputText).not.toContain(canary);
+    }
+  });
+});
+
+describe("updater settings parity", () => {
+  it("pins the closed schema against the same inputs as Rust", async () => {
+    expect(updaterSettingsGolden).toHaveLength(40);
+    for (const row of updaterSettingsGolden) {
+      const updater = createMockUpdater();
+      if (row.valid) {
+        await updater.setSetting(row.key, row.value);
+        expect(await updater.getSetting(row.key)).toBe(row.value);
+      } else {
+        await expect(
+          updater.setSetting(row.key, row.value),
+        ).rejects.toMatchObject({ code: "validation/invalid_input" });
+        expect(updater.store.size).toBe(0);
+      }
     }
   });
 });

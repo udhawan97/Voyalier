@@ -46,6 +46,13 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Fixed
 
+- **Updater settings can no longer read or overwrite another feature's preferences.**
+  The desktop commands now accept only update consent and skipped, staged, or
+  last-seen versions, with validation before storage. Invalid older values read
+  as unset without changing stored data; updates remain available while the vault
+  is locked. Research preferences and custom AI instructions keep their dedicated
+  controls. This does not encrypt settings or detect secret content.
+
 - **Research-resource copy now matches the shipped link-only capture flow.**
   Current product guidance no longer promises dropped-file storage that the
   interface does not provide. The dormant file-kind contract remains for

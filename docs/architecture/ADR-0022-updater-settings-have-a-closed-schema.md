@@ -16,7 +16,7 @@ Retain command names, string payload fields, and success shapes. Approve narrowi
 previously generic desktop API to its shipped consumer: `updater.auto_check_consent`,
 `updater.skipped_version`, `updater.staged_version`, and `updater.last_seen_version`.
 Unknown keys (including research and AI instruction keys) fail with the existing
-`validation.invalid_input` code, on reads and writes, before database access.
+`validation/invalid_input` code, on reads and writes, before database access.
 
 Core owns the closed key list and value validation. Consent accepts only `yes` and
 `no`. Version fields accept an empty clear marker or a valid Semantic Version with at

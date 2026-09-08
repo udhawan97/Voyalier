@@ -39,14 +39,14 @@ describe("tauriUpdater", () => {
     });
     const updater = createTauriUpdater({ invoke, platform: "windows" });
 
-    expect(await updater.getSetting("updater.consent")).toBe("yes");
+    expect(await updater.getSetting("updater.auto_check_consent")).toBe("yes");
     expect(invoke).toHaveBeenCalledWith("get_app_setting", {
-      input: { key: "updater.consent" },
+      input: { key: "updater.auto_check_consent" },
     });
 
-    await updater.setSetting("updater.consent", "no");
+    await updater.setSetting("updater.auto_check_consent", "no");
     expect(invoke).toHaveBeenCalledWith("set_app_setting", {
-      input: { key: "updater.consent", value: "no" },
+      input: { key: "updater.auto_check_consent", value: "no" },
     });
 
     const backup = await updater.backup("v0.3.0");
@@ -118,7 +118,7 @@ describe("unsupportedUpdater", () => {
     expect(status.currentVersion).toBe("0.3.0");
 
     // KV is a silent no-op; there is no desktop store to read.
-    expect(await updater.getSetting("updater.consent")).toBeNull();
+    expect(await updater.getSetting("updater.auto_check_consent")).toBeNull();
     await expect(updater.setSetting("k", "v")).resolves.toBeUndefined();
 
     await expect(updater.install()).rejects.toThrow(/unavailable/i);
@@ -159,12 +159,34 @@ describe("mockUpdater", () => {
   });
 
   it("persists settings in its in-memory store", async () => {
-    const updater = createMockUpdater({ settings: { seeded: "1" } });
-    expect(await updater.getSetting("seeded")).toBe("1");
-    expect(await updater.getSetting("missing")).toBeNull();
-    await updater.setSetting("updater.consent", "yes");
-    expect(await updater.getSetting("updater.consent")).toBe("yes");
-    expect(updater.store.get("updater.consent")).toBe("yes");
+    const updater = createMockUpdater({
+      settings: { "updater.staged_version": "0.3.1" },
+    });
+    expect(await updater.getSetting("updater.staged_version")).toBe("0.3.1");
+    expect(await updater.getSetting("updater.last_seen_version")).toBeNull();
+    await updater.setSetting("updater.auto_check_consent", "yes");
+    expect(await updater.getSetting("updater.auto_check_consent")).toBe("yes");
+    expect(updater.store.get("updater.auto_check_consent")).toBe("yes");
+  });
+
+  it("treats malformed stored metadata as unset without rewriting it", async () => {
+    const updater = createMockUpdater({
+      settings: {
+        "updater.auto_check_consent": "true",
+        "updater.staged_version": "bad",
+        "ai_prompt.assist": "private owner",
+      },
+    });
+    expect(await updater.getSetting("updater.auto_check_consent")).toBeNull();
+    expect(await updater.getSetting("updater.staged_version")).toBeNull();
+    await expect(updater.getSetting("ai_prompt.assist")).rejects.toMatchObject({
+      code: "validation/invalid_input",
+    });
+    expect([...updater.store.values()]).toEqual([
+      "true",
+      "bad",
+      "private owner",
+    ]);
   });
 
   it("rejects check and install when scripted to fail", async () => {
