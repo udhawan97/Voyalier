@@ -1,0 +1,202 @@
+[
+  {
+    "key": "updater.auto_check_consent",
+    "value": "yes",
+    "valid": true
+  },
+  {
+    "key": "updater.auto_check_consent",
+    "value": "no",
+    "valid": true
+  },
+  {
+    "key": "updater.auto_check_consent",
+    "value": "",
+    "valid": false
+  },
+  {
+    "key": "updater.auto_check_consent",
+    "value": "true",
+    "valid": false
+  },
+  {
+    "key": "updater.auto_check_consent",
+    "value": "YES",
+    "valid": false
+  },
+  {
+    "key": "updater.auto_check_consent",
+    "value": " yes",
+    "valid": false
+  },
+  {
+    "key": "updater.auto_check_consent",
+    "value": "no\n",
+    "valid": false
+  },
+  {
+    "key": "updater.auto_check_consent",
+    "value": "synthetic-secret",
+    "valid": false
+  },
+  {
+    "key": "updater.staged_version",
+    "value": "",
+    "valid": true
+  },
+  {
+    "key": "updater.staged_version",
+    "value": "0.11.1",
+    "valid": true
+  },
+  {
+    "key": "updater.staged_version",
+    "value": "1.0.0-rc.1",
+    "valid": true
+  },
+  {
+    "key": "updater.staged_version",
+    "value": "1.0.0+build.001",
+    "valid": true
+  },
+  {
+    "key": "updater.staged_version",
+    "value": "1.0.0-rc.1+build.2",
+    "valid": true
+  },
+  {
+    "key": "updater.staged_version",
+    "value": "18446744073709551615.0.0",
+    "valid": true
+  },
+  {
+    "key": "updater.staged_version",
+    "value": "1.0.0-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "valid": true
+  },
+  {
+    "key": "updater.staged_version",
+    "value": "1.0.0-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "valid": false
+  },
+  {
+    "key": "updater.staged_version",
+    "value": "v1.0.0",
+    "valid": false
+  },
+  {
+    "key": "updater.staged_version",
+    "value": "1.0",
+    "valid": false
+  },
+  {
+    "key": "updater.staged_version",
+    "value": "01.0.0",
+    "valid": false
+  },
+  {
+    "key": "updater.staged_version",
+    "value": "1.0.0-01",
+    "valid": false
+  },
+  {
+    "key": "updater.staged_version",
+    "value": "1.0.0-",
+    "valid": false
+  },
+  {
+    "key": "updater.staged_version",
+    "value": "1.0.0+",
+    "valid": false
+  },
+  {
+    "key": "updater.staged_version",
+    "value": "1.0.0-a..b",
+    "valid": false
+  },
+  {
+    "key": "updater.staged_version",
+    "value": "1.0.0+one+two",
+    "valid": false
+  },
+  {
+    "key": "updater.staged_version",
+    "value": "1.0.0\n",
+    "valid": false
+  },
+  {
+    "key": "updater.staged_version",
+    "value": " 1.0.0",
+    "valid": false
+  },
+  {
+    "key": "updater.staged_version",
+    "value": "18446744073709551616.0.0",
+    "valid": false
+  },
+  {
+    "key": "updater.staged_version",
+    "value": "1.0.0-旅",
+    "valid": false
+  },
+  {
+    "key": "updater.staged_version",
+    "value": "1.0.0/secret",
+    "valid": false
+  },
+  {
+    "key": "updater.skipped_version",
+    "value": "0.11.1",
+    "valid": true
+  },
+  {
+    "key": "updater.last_seen_version",
+    "value": "0.11.1",
+    "valid": true
+  },
+  {
+    "key": " updater.staged_version ",
+    "value": "0.11.1",
+    "valid": true
+  },
+  {
+    "key": "updater.staged_version",
+    "value": "0.11.1",
+    "valid": true
+  },
+  {
+    "key": "updater.consent",
+    "value": "yes",
+    "valid": false
+  },
+  {
+    "key": "provider.openai_key",
+    "value": "yes",
+    "valid": false
+  },
+  {
+    "key": "ai_prompt.assist",
+    "value": "yes",
+    "valid": false
+  },
+  {
+    "key": "research.auto_fetch_details",
+    "value": "yes",
+    "valid": false
+  },
+  {
+    "key": "",
+    "value": "yes",
+    "valid": false
+  },
+  {
+    "key": "updater.unknown",
+    "value": "yes",
+    "valid": false
+  },
+  {
+    "key": "﻿updater.staged_version",
+    "value": "0.11.1",
+    "valid": false
+  }
+]

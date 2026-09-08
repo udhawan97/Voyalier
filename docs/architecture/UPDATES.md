@@ -228,9 +228,14 @@ forward (none blocked Phase A):
   `app` and `dmg` targets, and Windows only `nsis` and `msi`; there is deliberately
   no Linux override. Adding a Linux workflow leg therefore cannot publish a Linux
   bundle without a separate reviewed config change.
-- **(standing) app_settings is "never secrets" by convention only.** Values are
-  unencrypted KV; keep the doc-comment authoritative and never route a secret
-  through it — secrets stay in the OS keychain.
+- ✓ **Public updater settings have a closed schema (ADR-0022).** The existing
+  desktop commands accept only the four updater metadata keys, explicit yes/no
+  consent, and bounded Semantic Versions (or an empty version to clear). Unknown
+  keys and malformed writes fail before storage; malformed legacy values read as
+  unset without rewriting them. Research preferences and AI instructions retain
+  their dedicated service methods and private persistence. The table remains
+  plaintext: this is an API boundary, not secret detection or encryption of custom
+  instructions. Provider secrets stay in the OS keychain.
 
 ## Net changes vs the original draft (what the reviews forced)
 

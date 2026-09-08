@@ -2592,7 +2592,7 @@ mod tests {
             invoke(
                 &webview,
                 "get_app_setting",
-                json!({ "key": "updater.consent" })
+                json!({ "key": "updater.auto_check_consent" })
             )
             .expect("get setting")
             .is_null()
@@ -2600,16 +2600,48 @@ mod tests {
         invoke(
             &webview,
             "set_app_setting",
-            json!({ "key": "updater.consent", "value": "yes" }),
+            json!({ "key": "updater.auto_check_consent", "value": "yes" }),
         )
         .expect("set setting");
         assert_eq!(
             invoke(
                 &webview,
                 "get_app_setting",
-                json!({ "key": "updater.consent" })
+                json!({ "key": "updater.auto_check_consent" })
             )
             .expect("get setting"),
+            "yes"
+        );
+
+        // The actual command boundary cannot read/write another feature's settings.
+        for key in [
+            "ai_prompt.assist",
+            "research.auto_fetch_details",
+            "provider.openai_key",
+        ] {
+            let error = invoke(
+                &webview,
+                "set_app_setting",
+                json!({"key": key, "value": "synthetic"}),
+            )
+            .expect_err("closed key schema");
+            assert_eq!(error["code"], "validation/invalid_input");
+            assert!(invoke(&webview, "get_app_setting", json!({"key": key})).is_err());
+        }
+        let error = invoke(
+            &webview,
+            "set_app_setting",
+            json!({"key": "updater.auto_check_consent", "value": "true"}),
+        )
+        .expect_err("explicit consent only");
+        assert_eq!(error["code"], "validation/invalid_input");
+        assert_eq!(
+            invoke(
+                &webview,
+                "get_app_setting",
+                json!({"key": "updater.auto_check_consent"})
+            )
+            .unwrap(),
             "yes"
         );
 

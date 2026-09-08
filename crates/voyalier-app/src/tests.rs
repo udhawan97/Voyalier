@@ -2356,25 +2356,31 @@ fn app_settings_kv_reads_writes_upserts_and_persists() {
 
     // Unset keys read as None.
     assert_eq!(
-        service.get_app_setting("updater.consent").expect("get"),
+        service
+            .get_app_setting("updater.auto_check_consent")
+            .expect("get"),
         None
     );
 
     // Set then read back.
     service
-        .set_app_setting("updater.consent", "yes")
+        .set_app_setting("updater.auto_check_consent", "yes")
         .expect("set");
     assert_eq!(
-        service.get_app_setting("updater.consent").expect("get"),
+        service
+            .get_app_setting("updater.auto_check_consent")
+            .expect("get"),
         Some("yes".to_owned())
     );
 
     // Upsert overwrites in place (no duplicate rows, latest wins).
     service
-        .set_app_setting("updater.consent", "no")
+        .set_app_setting("updater.auto_check_consent", "no")
         .expect("upsert");
     assert_eq!(
-        service.get_app_setting("updater.consent").expect("get"),
+        service
+            .get_app_setting("updater.auto_check_consent")
+            .expect("get"),
         Some("no".to_owned())
     );
 
@@ -2393,7 +2399,9 @@ fn app_settings_kv_reads_writes_upserts_and_persists() {
     drop(service);
     let reopened = open_test_service(&database).expect("reopen");
     assert_eq!(
-        reopened.get_app_setting("updater.consent").expect("get"),
+        reopened
+            .get_app_setting("updater.auto_check_consent")
+            .expect("get"),
         Some("no".to_owned())
     );
 
@@ -2421,12 +2429,177 @@ fn app_settings_kv_reads_writes_upserts_and_persists() {
     let long_value = "v".repeat(MAX_SETTING_VALUE_LEN + 1);
     assert_eq!(
         reopened
-            .set_app_setting("updater.consent", &long_value)
+            .set_app_setting("updater.auto_check_consent", &long_value)
             .expect_err("long value")
             .code,
         ErrorCode::ValidationInvalidInput
     );
 
+    cleanup_database(database);
+}
+
+#[test]
+fn updater_settings_reject_cross_feature_keys_and_invalid_values_without_writing() {
+    let database = temp_database("updater-settings-boundary");
+    let service = open_test_service(&database).expect("service");
+    service
+        .set_app_setting("updater.auto_check_consent", "no")
+        .expect("seed");
+    for (key, value) in [
+        ("provider.openai_key", "synthetic-secret"),
+        ("research.auto_fetch_details", "1"),
+        ("ai_prompt.assist", "bypass the dedicated API"),
+        ("updater.auto_check_consent", "true"),
+        ("updater.staged_version", "not a version"),
+    ] {
+        assert_eq!(
+            service
+                .set_app_setting(key, value)
+                .expect_err("reject")
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
+    }
+    assert!(service.get_app_setting("ai_prompt.assist").is_err());
+    let connection = service.connection().expect("connection");
+    let count: i64 = connection
+        .query_row("SELECT COUNT(*) FROM app_settings", [], |r| r.get(0))
+        .expect("count");
+    assert_eq!(count, 1, "rejected writes must leave no rows");
+    drop(connection);
+    assert_eq!(
+        service
+            .get_app_setting("updater.auto_check_consent")
+            .unwrap()
+            .as_deref(),
+        Some("no")
+    );
+    drop(service);
+    cleanup_database(database);
+}
+
+#[test]
+fn updater_settings_preserve_legacy_rows_and_dedicated_feature_settings() {
+    let database = temp_database("updater-settings-legacy");
+    let service = open_test_service(&database).expect("service");
+    service
+        .set_ai_prompt("assist", Some("Keep the itinerary concise"))
+        .expect("prompt");
+    service
+        .set_research_settings(SetResearchSettingsInput {
+            auto_fetch_details: true,
+        })
+        .expect("consent");
+    {
+        let connection = service.connection().unwrap();
+        for (key, value) in [
+            ("updater.auto_check_consent", "true"),
+            ("updater.staged_version", "bad"),
+            ("legacy.unknown", "keep"),
+        ] {
+            connection
+                .execute(
+                    "INSERT INTO app_settings(key,value,updated_at) VALUES(?1,?2,'legacy')",
+                    params![key, value],
+                )
+                .unwrap();
+        }
+    }
+    drop(service);
+    let service = open_test_service(&database).expect("reopen");
+    for key in ["updater.auto_check_consent", "updater.staged_version"] {
+        assert_eq!(service.get_app_setting(key).unwrap(), None);
+    }
+    assert!(service.get_app_setting("legacy.unknown").is_err());
+    let connection = service.connection().unwrap();
+    assert_eq!(
+        read_app_setting(&connection, "updater.auto_check_consent")
+            .unwrap()
+            .as_deref(),
+        Some("true")
+    );
+    assert_eq!(
+        read_app_setting(&connection, "updater.staged_version")
+            .unwrap()
+            .as_deref(),
+        Some("bad")
+    );
+    assert_eq!(
+        read_app_setting(&connection, "legacy.unknown")
+            .unwrap()
+            .as_deref(),
+        Some("keep")
+    );
+    drop(connection);
+    assert!(service.get_research_settings().unwrap().auto_fetch_details);
+    assert_eq!(
+        service.get_ai_prompts().unwrap().prompts[0]
+            .custom_text
+            .as_deref(),
+        Some("Keep the itinerary concise")
+    );
+    service.set_ai_prompt("assist", None).unwrap();
+    service
+        .set_research_settings(SetResearchSettingsInput {
+            auto_fetch_details: false,
+        })
+        .unwrap();
+    assert!(
+        service.get_ai_prompts().unwrap().prompts[0]
+            .custom_text
+            .is_none()
+    );
+    assert!(!service.get_research_settings().unwrap().auto_fetch_details);
+    drop(service);
+    cleanup_database(database);
+}
+
+#[test]
+fn updater_settings_remain_available_while_vault_is_locked() {
+    let database = temp_database("updater-settings-locked");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let service = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    service
+        .set_vault_passphrase("synthetic passphrase for test")
+        .unwrap();
+    drop(service);
+    let service = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    assert!(service.get_vault_status().unwrap().locked);
+    for (key, value) in [
+        ("updater.auto_check_consent", "no"),
+        ("updater.staged_version", "0.12.0-rc.1+test"),
+        ("updater.skipped_version", ""),
+        ("updater.last_seen_version", "0.11.1"),
+    ] {
+        service.set_app_setting(key, value).unwrap();
+        assert_eq!(
+            service.get_app_setting(key).unwrap().as_deref(),
+            Some(value)
+        );
+    }
+    drop(service);
+    let service =
+        AppService::open_path_with_deps(&database, Arc::new(FakeFetcher::offline()), secrets)
+            .unwrap();
+    assert!(service.get_vault_status().unwrap().locked);
+    assert_eq!(
+        service
+            .get_app_setting("updater.staged_version")
+            .unwrap()
+            .as_deref(),
+        Some("0.12.0-rc.1+test")
+    );
+    drop(service);
     cleanup_database(database);
 }
 

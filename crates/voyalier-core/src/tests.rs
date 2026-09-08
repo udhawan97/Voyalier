@@ -1,3 +1,4 @@
+use crate::validate_updater_setting_value;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
@@ -1888,4 +1889,23 @@ fn a_surface_leg_names_itself_by_service_then_route() {
             mode: crate::TransportMode::Rail
         }
     );
+}
+
+#[test]
+fn updater_settings_match_shared_golden() {
+    let cases: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../packages/contracts/parity/updater-settings.json"
+    ))
+    .expect("golden");
+    let cases = cases.as_array().expect("cases");
+    assert_eq!(cases.len(), 40);
+    for case in cases {
+        let key = case["key"].as_str().unwrap();
+        let value = case["value"].as_str().unwrap();
+        assert_eq!(
+            validate_updater_setting_value(key, value).is_ok(),
+            case["valid"].as_bool().unwrap(),
+            "{case}"
+        );
+    }
 }

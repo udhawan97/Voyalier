@@ -66,7 +66,7 @@ export interface UpdaterGateway {
   ): Promise<InstallOutcome>;
   /** Restart to finish a staged update. Never resolves on success. */
   relaunch(): Promise<void>;
-  /** Durable KV: one-time consent + skipped/staged/last-seen versions. */
+  /** Closed plaintext schema: UPDATER_KEYS only; consent yes/no, versions SemVer or empty. */
   getSetting(key: string): Promise<string | null>;
   setSetting(key: string, value: string): Promise<void>;
   /** Snapshot the database before installing (a pre-update safety net). */

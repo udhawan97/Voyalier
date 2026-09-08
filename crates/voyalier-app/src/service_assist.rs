@@ -86,7 +86,7 @@ impl AppService {
                         "text",
                     ));
                 }
-                self.set_app_setting(ai_prompt_key(kind), trimmed)?;
+                self.write_app_setting(ai_prompt_key(kind), trimmed)?;
             }
             None => {
                 let connection = self.connection()?;
