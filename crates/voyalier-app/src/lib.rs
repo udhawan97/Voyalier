@@ -67,6 +67,7 @@ use voyalier_core::{
     VaultStatus, derive_key as vault_derive_key, open as vault_open, open_backup,
     seal as vault_seal, seal_backup,
 };
+use voyalier_core::{validate_updater_setting_key, validate_updater_setting_value};
 
 const DATABASE_FILE: &str = "voyalier.sqlite3";
 const MAX_OFFLINE_MAP_RANGE: u32 = 4 * 1024 * 1024;

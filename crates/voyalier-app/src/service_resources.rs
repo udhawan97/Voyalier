@@ -32,7 +32,7 @@ impl AppService {
         input: SetResearchSettingsInput,
     ) -> Result<ResearchSettings, AppError> {
         if input.auto_fetch_details {
-            self.set_app_setting(AUTO_FETCH_SETTING, "1")?;
+            self.write_app_setting(AUTO_FETCH_SETTING, "1")?;
         } else {
             self.connection()?
                 .execute(

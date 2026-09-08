@@ -151,26 +151,26 @@ impl AppService {
         })
     }
 
-    /// Read a durable app-level setting from the KV store, or `None` if unset.
-    /// Values are opaque strings; callers own any JSON encoding. Used for the
-    /// updater's one-time auto-check consent and skipped/staged/last-seen
-    /// versions — never trip content or secrets.
+    /// Read only updater metadata (ADR-0022), including while the vault is locked.
+    /// Invalid legacy values behave as unset; this read never rewrites a row.
     pub fn get_app_setting(&self, key: &str) -> Result<Option<String>, AppError> {
-        let key = validate_setting_key(key)?;
+        let key = validate_updater_setting_key(key)?;
         let connection = self.connection()?;
-        connection
-            .query_row(
-                "SELECT value FROM app_settings WHERE key = ?1",
-                params![key],
-                |row| row.get::<_, String>(0),
-            )
-            .optional()
-            .map_err(storage_error)
+        Ok(read_app_setting(&connection, key)?
+            .filter(|value| validate_updater_setting_value(key, value).is_ok()))
     }
 
+    /// Write only validated updater metadata, never arbitrary plaintext content.
+    pub fn set_app_setting(&self, key: &str, value: &str) -> Result<(), AppError> {
+        let key = validate_updater_setting_key(key)?;
+        validate_updater_setting_value(key, value)?;
+        self.write_app_setting(key, value)
+    }
+
+    /// Internal persistence for dedicated feature APIs. Never expose over IPC.
     /// Write a durable app-level setting to the KV store (upsert). The value is
     /// stored verbatim and its `updated_at` refreshed on every write.
-    pub fn set_app_setting(&self, key: &str, value: &str) -> Result<(), AppError> {
+    pub(super) fn write_app_setting(&self, key: &str, value: &str) -> Result<(), AppError> {
         let key = validate_setting_key(key)?;
         let value = validate_setting_value(value)?;
         let connection = self.connection()?;

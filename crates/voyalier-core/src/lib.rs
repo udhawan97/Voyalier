@@ -44,6 +44,7 @@ mod suggest;
 mod tipping;
 mod today;
 mod types;
+mod updater_settings;
 mod vault;
 mod visa;
 mod visa_stats;
@@ -219,3 +220,5 @@ pub use weather::{
 mod schema_validation;
 #[cfg(test)]
 mod tests;
+
+pub use updater_settings::{validate_updater_setting_key, validate_updater_setting_value};
