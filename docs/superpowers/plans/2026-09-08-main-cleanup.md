@@ -23,3 +23,15 @@ main workflow. Preserve existing uncommitted work and runtime artifacts.
 No product rules, transports, storage, or contracts change; no new ADR is needed.
 Attestation action input/permission compatibility is inspected statically; actual
 signed release execution remains outside this cleanup.
+
+## Integration decisions
+
+The five selected source commits are replayed separately with `-x` provenance.
+The CodeQL overlap retains checkout 7.0.1 and CodeQL 4.37.9. No product source,
+version, storage, or contract changes were needed.
+
+Protection currently requires linear history and five status checks, with no
+pull-request review rule or additional ruleset. PR #86 runs the checks. Prefer a
+normal fast-forward promotion of its verified tip to retain the tested commits;
+if protection rejects it, use the normal PR merge path without bypassing checks.
+Only prune after fresh remote verification and repeat the preserved-file hashes.
