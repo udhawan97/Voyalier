@@ -46,6 +46,16 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Fixed
 
+- **The documentation toolchain now uses patched YAML and SVG processing dependencies.**
+  Existing dependency pins move to js-yaml 4.3.2 and svgo 4.1.0 to clear the
+  production audit. This updates build tooling without adding a product feature.
+
+- **Desktop journey checks now exercise confirmation changes through the command boundary.**
+  Shared request fixtures verify trip creation, replacement and restoration of
+  confirmations, and traveler-authored plan edits, including stale-review
+  rejection and preserved history. This strengthens the source test gate without
+  changing product behavior or certifying an installed package.
+
 - **Updater settings can no longer read or overwrite another feature's preferences.**
   The desktop commands now accept only update consent and skipped, staged, or
   last-seen versions, with validation before storage. Invalid older values read
