@@ -5,10 +5,12 @@ packages:
 allowBuilds:
   esbuild: true
 overrides:
-  svgo: 4.0.2
-  # GHSA-5p4m-2wfm-xmqj: js-yaml before 4.3.1 can spend quadratic CPU while
-  # resolving an untrusted !!omap. The docs toolchain is the only consumer.
-  js-yaml: 4.3.1
+  # GHSA-w27v-7q3p-w38r / GHSA-4vpr-x523-8j87: complete SVG script removal
+  # for namespaced links and embedded HTML in the docs toolchain.
+  svgo: 4.1.0
+  # GHSA-2883-xcg3-v3hh: bound empty merge-source work as well as !!omap work.
+  # The docs toolchain is the only production consumer.
+  js-yaml: 4.3.2
   # GHSA-28wg-ghj8-5hjv and GHSA-2v37-7h3g-55p8: nanoid before 3.3.18 can
   # loop indefinitely for invalid generator sizes. Reached through PostCSS.
   nanoid: 3.3.18
