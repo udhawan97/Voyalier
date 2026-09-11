@@ -31,3 +31,12 @@ dependency audit and credential scan. Refresh Graphify and verify a scoped query
 Complete the product skill's two four-role council rounds, resolve blockers,
 commit and push the phase branch, and integrate through the normal protected-main
 path when available. Preserve unrelated worktrees and do not publish a release.
+
+## Gate-driven dependency amendment
+
+The production audit found three existing docs-toolchain advisories in the pinned
+js-yaml 4.3.1 and svgo 4.0.2 overrides. Update those existing pins to js-yaml 4.3.2
+and svgo 4.1.0, regenerate the lockfile, inspect the dependency diff, and rerun
+the web/docs gate and audit. References: GHSA-2883-xcg3-v3hh,
+GHSA-w27v-7q3p-w38r, and GHSA-4vpr-x523-8j87. This is a dependency gate repair,
+not a new library or framework.
