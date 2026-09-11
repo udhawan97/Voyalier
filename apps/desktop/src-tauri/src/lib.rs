@@ -2668,6 +2668,212 @@ mod tests {
     }
 
     #[test]
+    fn shared_wire_journey_preserves_amendments_restore_and_plan_edits() {
+        // ADR-0023: the web gateway pins these exact envelopes using typed calls.
+        // Only generated IDs are substituted; serde sees every other wire key
+        // and value verbatim, including optional edit and compare-and-swap fields.
+        let wire: Value = serde_json::from_str(include_str!(
+            "../../../../packages/contracts/fixtures/desktop-journey-wire.json"
+        ))
+        .expect("shared journey fixture");
+        assert_eq!(wire.as_object().unwrap().len(), 8);
+        let database = temp_database("shared-wire-journey");
+        let app = test_app(&database);
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .expect("webview");
+        let mut ids = std::collections::BTreeMap::<&str, Value>::new();
+        let request = |step: &str, ids: &std::collections::BTreeMap<&str, Value>| {
+            let mut args = wire[step]["args"].clone();
+            for value in args["input"].as_object_mut().unwrap().values_mut() {
+                if let Some(id) = value.as_str().and_then(|symbol| ids.get(symbol)) {
+                    *value = id.clone();
+                }
+            }
+            args
+        };
+        let call = |step: &str, ids: &std::collections::BTreeMap<&str, Value>| {
+            invoke_with_body(
+                &webview,
+                wire[step]["command"].as_str().unwrap(),
+                request(step, ids),
+            )
+            .unwrap_or_else(|error| panic!("{step}: {error}"))
+        };
+        let trip = call("createTrip", &ids);
+        for (key, value) in wire["createTrip"]["args"]["input"].as_object().unwrap() {
+            assert_eq!(&trip[key], value, "trip field {key}");
+        }
+        ids.insert("trip_wire", trip["id"].clone());
+        let detail = || invoke(&webview, "get_trip", json!({"tripId": trip["id"]})).unwrap();
+
+        let original = call("importOriginal", &ids);
+        assert_eq!(original["candidates"].as_array().unwrap().len(), 1);
+        assert_eq!(original["document"]["kind"], "html");
+        assert_eq!(original["document"]["label"], "Original synthetic flight");
+        assert!(original["document"]["contentHash"].as_str().is_some());
+        let candidate = &original["candidates"][0];
+        assert_eq!(candidate["factType"], "flight_segment");
+        assert!(!candidate["fieldSpans"].as_array().unwrap().is_empty());
+        ids.insert("candidate_original", candidate["id"].clone());
+        let approved = call("confirmOriginal", &ids);
+        let fact = &approved["confirmedFact"];
+        assert_eq!(approved["candidate"]["status"], "confirmed");
+        assert_eq!(fact["candidateId"], candidate["id"]);
+        assert_eq!(fact["sourceRemoved"], false);
+        assert_eq!(fact["payload"]["departureLocal"], "2027-05-01T22:30");
+        ids.insert("fact_current", fact["id"].clone());
+        let initial_detail = detail();
+
+        let amendment = call("importAmendment", &ids);
+        assert_eq!(amendment["candidates"].as_array().unwrap().len(), 1);
+        assert_eq!(amendment["candidates"][0]["amendsFactId"], fact["id"]);
+        ids.insert(
+            "candidate_amendment",
+            amendment["candidates"][0]["id"].clone(),
+        );
+        let before_replace = detail();
+        // Wrong revision and wrong current ID must each fail independently.
+        for (key, value) in [
+            ("expectedAmendmentRevision", json!(99)),
+            ("expectedAmendmentFactId", json!("fact_stale")),
+        ] {
+            let mut stale = request("replace", &ids);
+            stale["input"][key] = value;
+            let error = invoke_with_body(&webview, "confirm_candidate", stale).unwrap_err();
+            assert_eq!(error["code"], "validation/invalid_input");
+            assert_eq!(detail(), before_replace, "stale replacement changed trip");
+        }
+        let replaced = call("replace", &ids);
+        assert_eq!(replaced["confirmedFact"]["id"], fact["id"]);
+        assert_eq!(
+            replaced["confirmedFact"]["payload"],
+            wire["replace"]["args"]["input"]["editedPayload"]
+        );
+        let changed = detail();
+        assert_eq!(changed["confirmedFacts"].as_array().unwrap().len(), 1);
+        assert_eq!(changed["factVersions"].as_array().unwrap().len(), 2);
+        assert_eq!(changed["confirmedFacts"][0], replaced["confirmedFact"]);
+        let history = changed["factVersions"].as_array().unwrap();
+        let historical = history
+            .iter()
+            .find(|version| version["active"] == false)
+            .unwrap();
+        assert_eq!(historical["revision"], 0);
+        assert_eq!(historical["reason"], "initial");
+        assert_eq!(historical["payload"], fact["payload"]);
+        assert_eq!(historical["candidateId"], candidate["id"]);
+        let current = history
+            .iter()
+            .find(|version| version["active"] == true)
+            .unwrap();
+        assert_eq!(current["revision"], 1);
+        assert_eq!(current["reason"], "amendment");
+        assert_eq!(current["candidateId"], amendment["candidates"][0]["id"]);
+        assert_eq!(current["lineageRootId"], historical["lineageRootId"]);
+        ids.insert("fact_historical", historical["id"].clone());
+        for (key, value) in [
+            ("expectedCurrentRevision", json!(99)),
+            ("expectedCurrentFactId", json!("fact_stale")),
+        ] {
+            let mut stale = request("restore", &ids);
+            stale["input"][key] = value;
+            let error = invoke_with_body(&webview, "restore_fact_version", stale).unwrap_err();
+            assert_eq!(error["code"], "validation/invalid_input");
+            assert_eq!(detail(), changed, "stale restore changed trip");
+        }
+        let restored = call("restore", &ids);
+        assert_eq!(restored["id"], fact["id"]);
+        assert_eq!(restored["payload"], fact["payload"]);
+        assert_eq!(restored["candidateId"], candidate["id"]);
+        let restored_detail = detail();
+        assert_eq!(restored_detail["confirmedFacts"][0], restored);
+        let versions = restored_detail["factVersions"].as_array().unwrap();
+        assert_eq!(versions.len(), 3);
+        assert!(
+            versions.contains(historical),
+            "prior history must remain byte-identical"
+        );
+        let archived_amendment = versions
+            .iter()
+            .find(|version| version["revision"] == 1)
+            .unwrap();
+        let mut expected_amendment = current.clone();
+        // Archiving creates a new snapshot ID and deactivates that snapshot;
+        // all approved fields, evidence, timestamps and lineage are preserved.
+        expected_amendment["id"] = archived_amendment["id"].clone();
+        expected_amendment["active"] = json!(false);
+        assert_eq!(archived_amendment, &expected_amendment);
+        let active = versions
+            .iter()
+            .find(|version| version["active"] == true)
+            .unwrap();
+        assert_eq!(active["revision"], 2);
+        assert_eq!(active["reason"], "restore");
+        assert_eq!(active["lineageRootId"], historical["lineageRootId"]);
+        assert_eq!(
+            initial_detail["calendarSnapshot"]["events"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
+        assert_eq!(
+            restored_detail["calendarSnapshot"]["events"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
+        for (before, after) in initial_detail["calendarSnapshot"]["events"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .zip(
+                restored_detail["calendarSnapshot"]["events"]
+                    .as_array()
+                    .unwrap(),
+            )
+        {
+            assert_eq!(before["uid"], after["uid"]);
+            assert_eq!(after["sequence"], 2);
+        }
+
+        let plan = call("createPlan", &ids);
+        ids.insert("item_wire", plan["id"].clone());
+        let updated = call("updatePlan", &ids);
+        assert_eq!(updated["id"], plan["id"]);
+        for (step, actual) in [("createPlan", &plan), ("updatePlan", &updated)] {
+            for (key, value) in wire[step]["args"]["input"].as_object().unwrap() {
+                if key != "tripId" && key != "tripItemId" {
+                    assert_eq!(&actual[key], value, "{step} field {key}");
+                }
+            }
+            assert_eq!(actual["tripId"], trip["id"]);
+        }
+        let final_detail = detail();
+        assert_eq!(final_detail["tripItems"].as_array().unwrap().len(), 1);
+        assert_eq!(final_detail["tripItems"][0], updated);
+        let day = final_detail["journeyBoard"]["days"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|day| day["date"] == "2027-05-03")
+            .unwrap();
+        assert_eq!(day["entries"].as_array().unwrap().len(), 1);
+        assert_eq!(day["entries"][0]["target"]["source"], "trip_item");
+        assert_eq!(day["entries"][0]["target"]["recordId"], updated["id"]);
+        // The edit remains traveler-authored; it never becomes confirmation evidence.
+        assert_eq!(
+            final_detail["confirmedFacts"],
+            restored_detail["confirmedFacts"]
+        );
+        drop(webview);
+        drop(app);
+        cleanup_database(database);
+    }
+
+    #[test]
     fn every_tauri_command_requires_the_input_arg_key() {
         let database = temp_database("input-key");
         let app = test_app(&database);
@@ -2785,17 +2991,10 @@ mod tests {
 
     // In-memory secret store so tests never touch (or mutate) the real OS
     // keychain — the vault now reads/writes its data key there on every open.
-    struct NoNetFetcher;
-    impl voyalier_app::AdviceFetcher for NoNetFetcher {
-        fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
-            Ok(String::new())
-        }
-    }
-
     fn test_app(database: &PathBuf) -> tauri::App<MockRuntime> {
         let service = AppService::open_path_with_deps(
             database,
-            std::sync::Arc::new(NoNetFetcher),
+            std::sync::Arc::new(voyalier_app::FakeFetcher::offline()),
             std::sync::Arc::new(voyalier_app::MemorySecretStore::default()),
         )
         .expect("service");

@@ -146,6 +146,11 @@ another crate with `include_str!` is not obviously better than the drift it prev
 
 Recording it here so the next review does not rediscover it as if it were new.
 
+ADR-0023 adds a bounded check for the trip/import/amendment/restore/plan journey:
+typed web gateway calls and real Tauri command dispatch share hand-maintained
+wire fixtures. It verifies those selected fields and their persisted effects,
+without promising exhaustive shared-type parity or installed-webview acceptance.
+
 **A generated manifest.** `packages/contracts/parity/routes.json` stays hand-maintained, as
 AGENTS.md requires. Generating the payload lists from the gateway source would make the
 TypeScript assertion tautological — the failure mode ADR-0011 already warns the transport

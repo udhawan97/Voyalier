@@ -1,0 +1,104 @@
+{
+  "createTrip": {
+    "command": "create_trip",
+    "args": {
+      "input": {
+        "title": "Wire journey — 京都",
+        "origin": "San Francisco",
+        "destination": "Tokyo",
+        "startDate": "2027-05-01",
+        "endDate": "2027-05-08"
+      }
+    }
+  },
+  "importOriginal": {
+    "command": "import_document",
+    "args": {
+      "input": {
+        "tripId": "trip_wire",
+        "kind": "html",
+        "label": "Original synthetic flight",
+        "content": "<script type=\"application/ld+json\">{\"@context\": \"https://schema.org\", \"@type\": \"FlightReservation\", \"reservationNumber\": \"WIRE42\", \"underName\": {\"@type\": \"Person\", \"name\": \"Alex Example\"}, \"reservationFor\": {\"@type\": \"Flight\", \"flightNumber\": \"412\", \"airline\": {\"@type\": \"Airline\", \"name\": \"Nimbus Air\", \"iataCode\": \"NB\"}, \"departureAirport\": {\"@type\": \"Airport\", \"iataCode\": \"SFO\"}, \"arrivalAirport\": {\"@type\": \"Airport\", \"iataCode\": \"NRT\"}, \"departureTime\": \"2027-05-01T22:30\", \"arrivalTime\": \"2027-05-02T04:55\"}}</script>"
+      }
+    }
+  },
+  "confirmOriginal": {
+    "command": "confirm_candidate",
+    "args": {
+      "input": {
+        "candidateId": "candidate_original"
+      }
+    }
+  },
+  "importAmendment": {
+    "command": "import_document",
+    "args": {
+      "input": {
+        "tripId": "trip_wire",
+        "kind": "html",
+        "label": "Changed synthetic flight",
+        "content": "<script type=\"application/ld+json\">{\"@context\": \"https://schema.org\", \"@type\": \"FlightReservation\", \"reservationNumber\": \"WIRE42\", \"underName\": {\"@type\": \"Person\", \"name\": \"Alex Example\"}, \"reservationFor\": {\"@type\": \"Flight\", \"flightNumber\": \"412\", \"airline\": {\"@type\": \"Airline\", \"name\": \"Nimbus Air\", \"iataCode\": \"NB\"}, \"departureAirport\": {\"@type\": \"Airport\", \"iataCode\": \"SFO\"}, \"arrivalAirport\": {\"@type\": \"Airport\", \"iataCode\": \"NRT\"}, \"departureTime\": \"2027-05-01T23:30\", \"arrivalTime\": \"2027-05-02T05:55\"}}</script>"
+      }
+    }
+  },
+  "replace": {
+    "command": "confirm_candidate",
+    "args": {
+      "input": {
+        "candidateId": "candidate_amendment",
+        "editedPayload": {
+          "airlineName": "Nimbus Air",
+          "airlineIata": "NB",
+          "flightNumber": "412",
+          "departureAirportIata": "SFO",
+          "arrivalAirportIata": "NRT",
+          "departureLocal": "2027-05-01T23:45",
+          "arrivalLocal": "2027-05-02T06:10",
+          "confirmationCode": "WIRE42",
+          "passengerName": "Alex Example"
+        },
+        "amendmentAction": "replace",
+        "expectedAmendmentFactId": "fact_current",
+        "expectedAmendmentRevision": 0
+      }
+    }
+  },
+  "restore": {
+    "command": "restore_fact_version",
+    "args": {
+      "input": {
+        "factId": "fact_historical",
+        "expectedCurrentFactId": "fact_current",
+        "expectedCurrentRevision": 1
+      }
+    }
+  },
+  "createPlan": {
+    "command": "create_trip_item",
+    "args": {
+      "input": {
+        "tripId": "trip_wire",
+        "kind": "activity",
+        "title": "Museum — 東京",
+        "location": "Ueno",
+        "startAt": "2027-05-03T10:15",
+        "endAt": "2027-05-03T12:00",
+        "notes": "Traveler-authored plan"
+      }
+    }
+  },
+  "updatePlan": {
+    "command": "update_trip_item",
+    "args": {
+      "input": {
+        "tripItemId": "item_wire",
+        "kind": "activity",
+        "title": "Museum afternoon — 東京",
+        "location": "Ueno Park",
+        "startAt": "2027-05-03T13:15",
+        "endAt": "2027-05-03T15:00",
+        "notes": "Bring the sketchbook"
+      }
+    }
+  }
+}

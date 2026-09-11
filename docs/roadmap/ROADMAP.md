@@ -279,4 +279,16 @@ Contract surface proposed in ADR-0003; sequenced A (sourced readiness) → D
 
 ## Later
 
+### Desktop journey verification (source runtime)
+
+- ✓ Shared wire fixtures now connect typed Tauri gateway calls to the desktop
+  command dispatcher for trip creation, confirmation import/replacement/restore,
+  and authored-plan editing. The gate checks optional fields, stale-review
+  refusal without mutation, history/evidence, and calendar lineage using
+  disposable local data and an offline fetcher (ADR-0023).
+- Installed-webview serialization and remaining shared-input types stay separate
+  follow-up coverage; this source-runtime gate does not certify a packaged app.
+
+### Deferred product capabilities
+
 Licensed live inventory, encrypted sync, group collaboration, monitoring, silent/automatic email ingestion (inbox scanning, as opposed to the shipped explicit paste-or-.eml import), and mobile experiences.
