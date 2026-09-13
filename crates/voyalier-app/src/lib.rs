@@ -600,6 +600,20 @@ impl SecretStore for MemorySecretStore {
     }
 }
 
+/// Select the process-default secret store without letting the crate's unit
+/// test harness reach the developer's real OS keychain.
+fn default_secret_store() -> Arc<dyn SecretStore> {
+    #[cfg(test)]
+    {
+        Arc::new(MemorySecretStore::default())
+    }
+
+    #[cfg(not(test))]
+    {
+        Arc::new(KeyringSecretStore)
+    }
+}
+
 /// What a [`FakeFetcher`] route answers with.
 #[derive(Clone, Debug)]
 pub enum Reply {
@@ -1329,12 +1343,14 @@ impl AppService {
         Self::open_path_with_fetcher(path, Arc::new(UreqFetcher))
     }
 
-    /// Test/embedding constructor with an injected fetcher and the real keychain.
+    /// Constructor with an injected fetcher and the process-default secret
+    /// store. Production builds use the OS keychain; the crate's unit-test
+    /// build uses the in-memory fake so a test cannot block on a system prompt.
     pub fn open_path_with_fetcher(
         path: impl AsRef<Path>,
         fetcher: Arc<dyn AdviceFetcher>,
     ) -> Result<Self, AppError> {
-        Self::open_path_with_deps(path, fetcher, Arc::new(KeyringSecretStore))
+        Self::open_path_with_deps(path, fetcher, default_secret_store())
     }
 
     /// Test/embedding constructor with both the fetcher and the secret store
