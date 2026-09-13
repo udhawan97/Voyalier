@@ -53,8 +53,11 @@ all pass. Required migrations and removal of a foreign machine's passphrase wrap
 staged candidate, not after it is live. Its sealed rows must reopen under the staged key intent.
 
 Only after that validation does Voyalier write the generation marker. Candidate and marker writes
-use a temporary file, file synchronization, atomic rename in the data directory, and directory
-synchronization. A crash before the marker is durable leaves inert generation debris, not an
+use a temporary file, file synchronization, and an atomic rename in the data directory. Unix then
+synchronizes the parent directory so the renamed entry is durable. Windows keeps the flushed file
+and atomic rename boundary but does not call `FlushFileBuffers` on a read-only directory handle:
+Win32 requires writable file handles for that operation and does not define directory handles as a
+supported input. A crash before the marker is durable leaves inert generation debris, not an
 activation instruction.
 
 ### 3. Activation retains the old pair until the new pair reopens
