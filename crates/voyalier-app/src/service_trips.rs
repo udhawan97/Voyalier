@@ -260,6 +260,31 @@ impl AppService {
             )
             .map_err(storage_error)?;
         invalidate_after_trip_edit(&transaction, trip_id, &current, &input)?;
+        if current.origin != input.origin
+            || current.destination != input.destination
+            || current.start_date != input.start_date
+            || current.end_date != input.end_date
+        {
+            if let Some(mut profile) = self.records(&transaction).concierge_profile(trip_id)? {
+                crate::service_concierge::invalidate_task_progress(
+                    &mut profile,
+                    &[
+                        "compare-flights",
+                        "compare-stays",
+                        "review-entry",
+                        "plan-local",
+                    ],
+                    true,
+                );
+                crate::service_concierge::invalidate_task_progress_by_prefix(
+                    &mut profile,
+                    &["compare-stay-", "plan-transfer-"],
+                );
+                profile.updated_at = Some(updated_at.clone());
+                self.records(&transaction)
+                    .upsert_concierge_profile(&profile, &new_id("concierge"))?;
+            }
+        }
         transaction.commit().map_err(storage_error)?;
         self.records(&connection).trip(trip_id)
     }

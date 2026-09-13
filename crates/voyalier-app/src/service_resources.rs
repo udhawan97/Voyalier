@@ -151,6 +151,16 @@ impl AppService {
         // Re-validate the stored address before it reaches the fetcher. It was
         // checked on the way in, but this is the call that leaves the machine.
         let url = validate_resource_url(&url)?;
+        if voyalier_core::provider_acquisition_for_url(&url)
+            == Some(voyalier_core::ProviderAcquisition::LinkOnly)
+        {
+            return Err(AppError::with_detail(
+                ErrorCode::ValidationInvalidInput,
+                "this provider is link-only; open it directly because its pages are not cached, searched, sent to AI, or exported by Voyalier",
+                "field",
+                "url",
+            ));
+        }
         network_policy::validate_resource_destination(&url).map_err(|detail| {
             AppError::with_detail(ErrorCode::ValidationInvalidInput, detail, "field", "url")
         })?;

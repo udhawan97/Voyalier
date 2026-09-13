@@ -18,49 +18,52 @@ use voyalier_core::{
     ASSIST_DRAFT_LODGING_DATES, ASSIST_SYSTEM_PROMPT, AddManualFactInput, AddPackingItemInput,
     AdvisoryEntry, AdvisoryPanel, AdvisorySource, AiPrompt, AiPromptKind, AiPromptSettings,
     AirQualityDay, AmendmentAction, AmendmentMatch, AppError, AssistActivityEntry,
-    AssistDraftResult, AssistReply, AssistRequestPreview, AstroDay, AttributedPackPlace,
-    CandidateFact, CandidateStatus, ChatContext, ChatMessage, ChatRole, ClimateNormals,
-    ClockChange, ConfirmCandidateInput, ConfirmedFact, CreateResourceInput, CreateTripInput,
-    CreateTripItemInput, DRAFT_LODGING_DATES_SYSTEM_PROMPT, DestinationFactsSnapshot,
-    DisruptionContext, DocumentContent, DocumentKind, DocumentParse, DocumentSummary,
-    DownloadedPack, ErrorCode, ExtractionMethod, FCDO_COUNTRIES, FIELD_SUGGESTION_LIMIT,
-    FactPayload, FactRevisionReason, FactType, FcdoCountry, FieldSuggestion, GeocodedPlace,
-    HealthNotice, HealthResponse, ImportDocumentInput, ImportResult, IntelligenceMode,
-    InterestProfile, KeyValidation, LocalAiStatus, LocalModelPullResult, LodgingDateProposal,
-    MAX_AI_PROMPT_LEN, MAX_CHAT_CONTEXT_RECORDS, MAX_CHAT_EXCERPT_CHARS, MAX_NOTES_CHARS,
-    MAX_OFFLINE_MAP_BYTES, OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OfflineMapArchive, OfflineMapChunk,
-    OfflineMapDescriptor, PROVIDERS, PackContent, PackInfo, PackSuggestion, PackingItem,
-    PersonaWeights, PlaceSummary, ProviderConfig, ProviderId, PublicHolidaysSnapshot,
-    Recommendation, RedactionPolicy, ResearchSettings, Resource, ResourceSnapshot,
-    RestoreFactVersionInput, SEARCH_SUGGESTION_LIMIT, SavePlaceInput, SavedPlace, SearchHit,
-    SearchHitSource, SearchableDocument, SearchableResource, SetInterestProfileInput,
-    SetResearchSettingsInput, SetVisaItemProgressInput, SetVisaNationalityInput, SourceDocument,
-    SourceState, SourceStatus, SuggestionSource, TodayItemTargetSource, TodayView, Trip,
-    TripAssessment, TripBrief, TripDetail, TripItem, TripNotes, TripStatus, TripSummary,
-    UpdatePackingItemInput, UpdateResourceInput, UpdateSavedPlaceInput, UpdateTripInput,
-    UpdateTripItemInput, VisaPrep, VisaSelfReport, WarningCode, WeatherAlert, WeatherSnapshot,
-    WorkspaceSearchHit, WorkspaceSearchRecord, WorkspaceSearchSource, advisory_country,
-    air_quality, apply_fact_history_revisions, assess_trip, build_assist_preview,
-    build_assist_request, build_calendar_snapshot, build_chat_prompt, build_disruption_plan,
-    build_draft_preview, build_journey_board_with_identities, build_key_validation_request,
-    build_packing_list, build_pull_body, build_today_view, build_trip_brief, ca_gac_advisory,
-    calendar_removal_details, cdc_health_notices, changed_payload_fields, classify_amendment,
-    climate_normals, compute_astro_day, country_facts, de_aa_advisory, derived_link_title,
-    detect_planned_item_conflicts, ecb_rates, entry_from_fcdo, estimate_flight_emissions,
-    estimate_tokens, extract_readable_page, fact_identity, fact_search_text, forecast, geocode,
-    high_stakes_topics, holidays_within, interpret_key_validation, interpret_pull_response,
-    matching_airports, missions_in, nearest_airports, new_id, now_rfc3339, nws_alerts,
-    offline_map_download_url, pack_catalog, pack_download_url, parse_assist_reply, parse_import,
-    parse_lodging_dates_reply, parse_pack_content, place_summary, provider_info, public_holidays,
-    rank_field_suggestions, recommend_attributed_places, removed_calendar_roles,
-    resource_url_identity, saved_place_identity, school_holidays, school_holidays_covered,
-    school_holidays_within, search_cities, search_trip_corpus, search_workspace_corpus,
-    sky_events_within, suggest_packs, suggest_search_terms, time_difference, tipping_guidance,
-    travel_advice, us_state_advisory, validate_api_key, validate_chat_message,
-    validate_country_slug, validate_create_resource, validate_create_trip,
-    validate_create_trip_item, validate_fact_payload, validate_model_name, validate_pack_id,
-    validate_packing_label, validate_planning_notes, validate_provider_id, validate_resource_url,
-    validate_search_query, validate_update_resource, validate_update_trip, world_heritage_near,
+    AssistDraftResult, AssistReply, AssistRequestPreview, AstroDay, AttachmentContent,
+    AttachmentSummary, AttributedPackPlace, CandidateFact, CandidateStatus, ChatContext,
+    ChatMessage, ChatRole, ClimateNormals, ClockChange, ConciergeProfile, ConciergeTaskState,
+    ConciergeWorkspace, ConfirmCandidateInput, ConfirmedFact, ConvertTripIntentInput,
+    CreateResourceInput, CreateTripInput, CreateTripItemInput, DRAFT_LODGING_DATES_SYSTEM_PROMPT,
+    DestinationFactsSnapshot, DisruptionContext, DocumentContent, DocumentKind, DocumentParse,
+    DocumentSummary, DownloadedPack, ErrorCode, ExtractionMethod, FCDO_COUNTRIES,
+    FIELD_SUGGESTION_LIMIT, FactPayload, FactRevisionReason, FactType, FcdoCountry,
+    FieldSuggestion, GeocodedPlace, HealthNotice, HealthResponse, ImportAttachmentInput,
+    ImportDocumentInput, ImportResult, IntelligenceMode, InterestProfile, KeyValidation,
+    LocalAiStatus, LocalModelPullResult, LodgingDateProposal, MAX_AI_PROMPT_LEN,
+    MAX_CHAT_CONTEXT_RECORDS, MAX_CHAT_EXCERPT_CHARS, MAX_NOTES_CHARS, MAX_OFFLINE_MAP_BYTES,
+    OLLAMA_PULL_URL, OLLAMA_TAGS_URL, OfflineMapArchive, OfflineMapChunk, OfflineMapDescriptor,
+    PROVIDERS, PackContent, PackInfo, PackSuggestion, PackingItem, PersonaWeights, PlaceSummary,
+    ProviderConfig, ProviderId, PublicHolidaysSnapshot, Recommendation, RedactionPolicy,
+    ResearchSettings, Resource, ResourceSnapshot, RestoreFactVersionInput, SEARCH_SUGGESTION_LIMIT,
+    SavePlaceInput, SaveTripIntentDraftInput, SavedPlace, SearchHit, SearchHitSource,
+    SearchableDocument, SearchableResource, SetInterestProfileInput, SetResearchSettingsInput,
+    SetVisaItemProgressInput, SetVisaNationalityInput, SourceDocument, SourceState, SourceStatus,
+    SuggestionSource, TaskProgress, TaskProgressEvent, TodayItemTargetSource, TodayView, Trip,
+    TripAssessment, TripBrief, TripDetail, TripIntentDraft, TripItem, TripNotes, TripStatus,
+    TripSummary, UpdatePackingItemInput, UpdateResourceInput, UpdateSavedPlaceInput,
+    UpdateTripInput, UpdateTripItemInput, VisaPrep, VisaSelfReport, WarningCode, WeatherAlert,
+    WeatherSnapshot, WorkspaceSearchHit, WorkspaceSearchRecord, WorkspaceSearchSource,
+    advisory_country, air_quality, apply_fact_history_revisions, assess_trip, build_assist_preview,
+    build_assist_request, build_calendar_snapshot, build_chat_prompt, build_concierge_workspace,
+    build_disruption_plan, build_draft_preview, build_journey_board_with_identities,
+    build_key_validation_request, build_packing_list, build_pull_body, build_today_view,
+    build_trip_brief, ca_gac_advisory, calendar_removal_details, cdc_health_notices,
+    changed_payload_fields, classify_amendment, climate_normals, compute_astro_day, country_facts,
+    de_aa_advisory, derived_link_title, detect_planned_item_conflicts, ecb_rates, entry_from_fcdo,
+    estimate_flight_emissions, estimate_tokens, extract_readable_page, fact_identity,
+    fact_search_text, forecast, geocode, high_stakes_topics, holidays_within,
+    interpret_key_validation, interpret_pull_response, matching_airports, missions_in,
+    nearest_airports, new_id, now_rfc3339, nws_alerts, offline_map_download_url, pack_catalog,
+    pack_download_url, parse_assist_reply, parse_import, parse_lodging_dates_reply,
+    parse_pack_content, place_summary, provider_info, public_holidays, rank_field_suggestions,
+    recommend_attributed_places, removed_calendar_roles, resource_url_identity,
+    saved_place_identity, school_holidays, school_holidays_covered, school_holidays_within,
+    search_cities, search_trip_corpus, search_workspace_corpus, sky_events_within, suggest_packs,
+    suggest_search_terms, time_difference, tipping_guidance, travel_advice, us_state_advisory,
+    validate_api_key, validate_chat_message, validate_country_slug, validate_create_resource,
+    validate_create_trip, validate_create_trip_item, validate_fact_payload, validate_model_name,
+    validate_pack_id, validate_packing_label, validate_planning_notes, validate_provider_id,
+    validate_resource_url, validate_search_query, validate_update_resource, validate_update_trip,
+    world_heritage_near,
 };
 use voyalier_core::{
     BACKUP_FORMAT_VERSION, BackupManifest, VAULT_KEY_LEN, VAULT_NONCE_LEN, VAULT_SALT_LEN,
@@ -81,9 +84,12 @@ mod network_policy;
 mod records;
 mod sealed;
 mod service_assist;
+mod service_attachments;
 mod service_backup;
 mod service_chat;
+mod service_concierge;
 mod service_documents;
+mod service_intents;
 mod service_packs;
 mod service_planning;
 mod service_providers;
@@ -2591,6 +2597,21 @@ const MIGRATIONS: &[Migration] = &[
         name: "vault_storage_format",
         run: migrate_vault_storage_format,
     },
+    Migration {
+        to: 23,
+        name: "concierge_profiles",
+        run: migrate_concierge_profiles,
+    },
+    Migration {
+        to: 24,
+        name: "binary_attachments",
+        run: migrate_binary_attachments,
+    },
+    Migration {
+        to: 25,
+        name: "trip_intent_drafts",
+        run: migrate_trip_intent_drafts,
+    },
 ];
 
 /// The version a fully migrated database carries. Stamped into a backup's
@@ -2643,6 +2664,59 @@ fn migrate_vault_storage_format(connection: &Connection) -> Result<(), AppError>
             );
             INSERT OR IGNORE INTO vault_storage_format (id, format_version, updated_at)
             VALUES (1, 0, '1970-01-01T00:00:00Z');",
+        )
+        .map_err(storage_error)?;
+    Ok(())
+}
+
+fn migrate_concierge_profiles(connection: &Connection) -> Result<(), AppError> {
+    connection
+        .execute_batch(
+            "CREATE TABLE IF NOT EXISTS concierge_profiles (
+                id TEXT PRIMARY KEY,
+                trip_id TEXT NOT NULL UNIQUE REFERENCES trips(id) ON DELETE CASCADE,
+                payload TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );",
+        )
+        .map_err(storage_error)?;
+    Ok(())
+}
+
+fn migrate_binary_attachments(connection: &Connection) -> Result<(), AppError> {
+    connection
+        .execute_batch(
+            "CREATE TABLE IF NOT EXISTS binary_attachments (
+                id TEXT PRIMARY KEY,
+                trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                label TEXT NOT NULL,
+                mime_type TEXT NOT NULL,
+                byte_count INTEGER NOT NULL CHECK(byte_count > 0),
+                content_hash TEXT NOT NULL,
+                imported_at TEXT NOT NULL,
+                raw_content TEXT NOT NULL,
+                UNIQUE (trip_id, content_hash)
+            );",
+        )
+        .map_err(storage_error)?;
+    Ok(())
+}
+
+fn migrate_trip_intent_drafts(connection: &Connection) -> Result<(), AppError> {
+    connection
+        .execute_batch(
+            "CREATE TABLE IF NOT EXISTS trip_intent_drafts (
+                id TEXT PRIMARY KEY,
+                title TEXT,
+                origin TEXT NOT NULL,
+                destination TEXT NOT NULL,
+                start_date TEXT,
+                end_date TEXT,
+                party_size INTEGER NOT NULL CHECK(party_size BETWEEN 1 AND 20),
+                selected_area TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );",
         )
         .map_err(storage_error)?;
     Ok(())

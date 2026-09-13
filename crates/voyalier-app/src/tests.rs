@@ -10,7 +10,7 @@ use super::*;
 use voyalier_core::KeyValidationStatus;
 use voyalier_core::{
     CalendarRole, CandidateStatus, DocumentKind, FactPayload, FactType, HighStakesTopic,
-    RecheckOutcome, RecheckSource, ResourceKind,
+    RecheckOutcome, RecheckSource, ResidenceStatus, ResourceKind, TravelerProfile,
 };
 
 #[test]
@@ -161,6 +161,609 @@ fn persists_trips_across_restarts() {
     let reopened = open_test_service(&database).expect("reopen");
     let detail = reopened.get_trip(&trip.id).expect("read trip");
     assert_eq!(detail.trip.destination, "Kyoto");
+    cleanup_database(database);
+}
+
+#[test]
+fn undated_montreal_intent_persists_without_inheriting_dates_or_querying_inventory() {
+    let database = temp_database("montreal-undated-intent");
+    let service = open_test_service(&database).expect("service");
+    let draft = service
+        .save_trip_intent(SaveTripIntentDraftInput {
+            draft_id: None,
+            title: Some("Montréal idea".to_owned()),
+            origin: "Chicago".to_owned(),
+            destination: "Montréal".to_owned(),
+            start_date: None,
+            end_date: None,
+            party_size: 4,
+            selected_area: None,
+        })
+        .expect("save undated intent");
+    assert_eq!(draft.start_date, None);
+    assert_eq!(draft.end_date, None);
+    assert!(service.list_trips().expect("trips").is_empty());
+    drop(service);
+
+    let reopened = open_test_service(&database).expect("reopen");
+    let persisted = reopened.list_trip_intents().expect("intents");
+    assert_eq!(persisted.len(), 1);
+    assert_eq!(persisted[0].destination, "Montréal");
+    assert_eq!(persisted[0].start_date, None);
+    let trip = reopened
+        .convert_trip_intent(ConvertTripIntentInput {
+            draft_id: draft.id,
+            start_date: "2027-05-01".to_owned(),
+            end_date: "2027-05-08".to_owned(),
+        })
+        .expect("convert after dates are known");
+    assert_eq!(trip.start_date, "2027-05-01");
+    assert!(reopened.list_trip_intents().expect("intents").is_empty());
+    let workspace = reopened
+        .get_concierge_workspace(&trip.id)
+        .expect("converted concierge workspace");
+    assert_eq!(workspace.profile.preferences.party_size, 4);
+    assert_eq!(workspace.profile.preferences.selected_area, None);
+    cleanup_database(database);
+}
+
+#[test]
+fn concierge_profile_persists_and_projects_the_mixed_hawaii_party() {
+    let database = temp_database("concierge-hawaii");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let service = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .expect("service");
+    let trip = service
+        .create_trip(CreateTripInput {
+            title: Some("Family Hawaiʻi".to_owned()),
+            origin: "Chicago".to_owned(),
+            destination: "Hawaii".to_owned(),
+            start_date: "2026-11-30".to_owned(),
+            end_date: "2026-12-14".to_owned(),
+        })
+        .expect("trip");
+    let mut profile = ConciergeProfile::empty(&trip.id);
+    profile.preferences.party_size = 4;
+    profile.preferences.travel_mode = voyalier_core::TravelMode::Air;
+    profile.preferences.has_foreign_connection = Some(false);
+    profile.travelers = vec![
+        TravelerProfile {
+            id: "h1b".to_owned(),
+            display_name: "Traveler 1".to_owned(),
+            passport_country_iso2: Some("IN".to_owned()),
+            residence_country_iso2: Some("US".to_owned()),
+            residence_status: ResidenceStatus::TemporaryWorker,
+            return_country_iso2: Some("US".to_owned()),
+            existing_destination_document: voyalier_core::ExistingDocumentStatus::Unknown,
+        },
+        TravelerProfile {
+            id: "green_card".to_owned(),
+            display_name: "Traveler 2".to_owned(),
+            passport_country_iso2: Some("IN".to_owned()),
+            residence_country_iso2: Some("US".to_owned()),
+            residence_status: ResidenceStatus::PermanentResident,
+            return_country_iso2: Some("US".to_owned()),
+            existing_destination_document: voyalier_core::ExistingDocumentStatus::Unknown,
+        },
+        TravelerProfile {
+            id: "us_one".to_owned(),
+            display_name: "Traveler 3".to_owned(),
+            passport_country_iso2: Some("US".to_owned()),
+            residence_country_iso2: Some("US".to_owned()),
+            residence_status: ResidenceStatus::National,
+            return_country_iso2: Some("US".to_owned()),
+            existing_destination_document: voyalier_core::ExistingDocumentStatus::Unknown,
+        },
+        TravelerProfile {
+            id: "us_two".to_owned(),
+            display_name: "Traveler 4".to_owned(),
+            passport_country_iso2: Some("US".to_owned()),
+            residence_country_iso2: Some("US".to_owned()),
+            residence_status: ResidenceStatus::National,
+            return_country_iso2: Some("US".to_owned()),
+            existing_destination_document: voyalier_core::ExistingDocumentStatus::Unknown,
+        },
+    ];
+    let workspace = service
+        .set_concierge_profile(profile)
+        .expect("save concierge");
+    assert!(workspace.tasks.iter().any(|task| task.id == "choose-area"));
+    assert_eq!(workspace.preparation_steps.len(), 8);
+    assert!(
+        workspace
+            .preparation_steps
+            .iter()
+            .all(|step| !step.title.to_lowercase().contains("visa"))
+    );
+    assert!(
+        workspace
+            .provider_actions
+            .iter()
+            .any(|action| action.provider == "Airbnb"
+                && action.remaining_fields.contains(&"dates".to_owned()))
+    );
+    let mut selected = workspace.profile;
+    selected.preferences.selected_area = Some("Oʻahu".to_owned());
+    let narrowed = service
+        .set_concierge_profile(selected)
+        .expect("choose island");
+    assert!(narrowed.tasks.iter().all(|task| task.id != "choose-area"));
+    assert!(
+        narrowed
+            .provider_actions
+            .iter()
+            .any(|action| action.url.contains("chicago-to-honolulu"))
+    );
+    let mut split = narrowed.profile;
+    split.preferences.area_stays = vec![
+        voyalier_core::AreaStay {
+            id: "oahu_base".to_owned(),
+            area: "Oʻahu".to_owned(),
+            check_in: Some("2026-11-30".to_owned()),
+            check_out: Some("2026-12-07".to_owned()),
+        },
+        voyalier_core::AreaStay {
+            id: "maui_base".to_owned(),
+            area: "Maui".to_owned(),
+            check_in: Some("2026-12-08".to_owned()),
+            check_out: Some("2026-12-14".to_owned()),
+        },
+    ];
+    let split_workspace = service
+        .set_concierge_profile(split)
+        .expect("save split stay");
+    assert!(split_workspace.tasks.iter().any(|task| {
+        task.id == "plan-transfer-oahu_base-maui_base" && task.reason.contains("gap")
+    }));
+    drop(service);
+
+    let reopened =
+        AppService::open_path_with_deps(&database, Arc::new(FakeFetcher::offline()), secrets)
+            .expect("reopen");
+    let restored = reopened
+        .get_concierge_workspace(&trip.id)
+        .expect("restored concierge");
+    assert_eq!(restored.profile.travelers.len(), 4);
+    cleanup_database(database);
+}
+
+#[test]
+fn concierge_projects_distinct_montreal_entry_and_return_steps() {
+    let database = temp_database("concierge-montreal");
+    let service = open_test_service(&database).expect("service");
+    let trip = service
+        .create_trip(CreateTripInput {
+            title: Some("Montréal".to_owned()),
+            origin: "Chicago".to_owned(),
+            destination: "Montréal".to_owned(),
+            start_date: "2027-05-01".to_owned(),
+            end_date: "2027-05-08".to_owned(),
+        })
+        .expect("trip");
+    let mut profile = ConciergeProfile::empty(&trip.id);
+    profile.preferences.party_size = 2;
+    profile.travelers = vec![
+        TravelerProfile {
+            id: "worker".to_owned(),
+            display_name: "Worker".to_owned(),
+            passport_country_iso2: Some("IN".to_owned()),
+            residence_country_iso2: Some("US".to_owned()),
+            residence_status: ResidenceStatus::TemporaryWorker,
+            return_country_iso2: Some("US".to_owned()),
+            existing_destination_document: voyalier_core::ExistingDocumentStatus::Unknown,
+        },
+        TravelerProfile {
+            id: "resident".to_owned(),
+            display_name: "Resident".to_owned(),
+            passport_country_iso2: Some("IN".to_owned()),
+            residence_country_iso2: Some("US".to_owned()),
+            residence_status: ResidenceStatus::PermanentResident,
+            return_country_iso2: Some("US".to_owned()),
+            existing_destination_document: voyalier_core::ExistingDocumentStatus::Unknown,
+        },
+    ];
+    let workspace = service
+        .set_concierge_profile(profile)
+        .expect("save concierge");
+    assert_eq!(workspace.preparation_steps.len(), 14);
+    assert!(workspace.preparation_steps.iter().any(|step| {
+        step.traveler_id == "resident" && step.title.contains("permanent-resident")
+    }));
+    assert!(
+        workspace.preparation_steps.iter().any(|step| {
+            step.traveler_id == "worker" && step.title.contains("entry-requirements")
+        })
+    );
+    let mut linked = workspace.profile.clone();
+    linked.wallet_links.push(voyalier_core::WalletLink {
+        id: "wallet_biometrics_letter".to_owned(),
+        label: "Biometrics letter".to_owned(),
+        category: "entry".to_owned(),
+        traveler_ids: vec!["worker".to_owned()],
+        preparation_requirement_ids: vec!["worker-biometrics-letter".to_owned()],
+        source_document_id: None,
+        source_attachment_id: None,
+        expires_on: None,
+        note: String::new(),
+    });
+    let linked_workspace = service
+        .set_concierge_profile(linked)
+        .expect("link one requirement");
+    let biometrics = linked_workspace
+        .preparation_steps
+        .iter()
+        .flat_map(|step| &step.document_requirements)
+        .find(|requirement| requirement.id == "worker-biometrics-letter")
+        .expect("biometrics requirement");
+    assert_eq!(
+        biometrics.linked_wallet_link_ids,
+        vec!["wallet_biometrics_letter"]
+    );
+    assert!(
+        linked_workspace
+            .preparation_steps
+            .iter()
+            .flat_map(|step| &step.document_requirements)
+            .filter(|requirement| requirement.id != "worker-biometrics-letter")
+            .all(|requirement| requirement.linked_wallet_link_ids.is_empty())
+    );
+    assert_eq!(
+        workspace
+            .provider_actions
+            .iter()
+            .find(|action| action.provider == "Airbnb")
+            .expect("Airbnb")
+            .url,
+        "https://www.airbnb.com/montreal-canada/stays"
+    );
+    let mut completed = workspace.profile;
+    completed.task_progress = vec![TaskProgress {
+        task_id: "review-entry".to_owned(),
+        state: ConciergeTaskState::DoneByTraveler,
+        note: String::new(),
+        context_revision: Some(trip.updated_at.clone()),
+        history: vec![],
+    }];
+    service
+        .set_concierge_profile(completed)
+        .expect("mark entry reviewed");
+    service
+        .update_trip(
+            &trip.id,
+            UpdateTripInput {
+                title: None,
+                origin: None,
+                destination: None,
+                start_date: None,
+                end_date: Some("2027-05-09".to_owned()),
+            },
+        )
+        .expect("change trip dates");
+    let mut updated_workspace = service
+        .get_concierge_workspace(&trip.id)
+        .expect("updated workspace");
+    assert_eq!(
+        updated_workspace
+            .tasks
+            .iter()
+            .find(|task| task.id == "review-entry")
+            .expect("review task")
+            .state,
+        ConciergeTaskState::NeedsRecheck
+    );
+    let invalidated = updated_workspace
+        .profile
+        .task_progress
+        .iter()
+        .find(|progress| progress.task_id == "review-entry")
+        .expect("persisted invalidation");
+    assert_eq!(invalidated.history.len(), 2);
+    assert_eq!(
+        invalidated.history.last().expect("latest history").state,
+        ConciergeTaskState::DoneByTraveler
+    );
+    assert_eq!(
+        invalidated.history.last().expect("latest history").reason,
+        "context invalidated"
+    );
+    updated_workspace
+        .profile
+        .costs
+        .push(voyalier_core::CostItem {
+            id: "unrelated_cost".to_owned(),
+            label: "Museum".to_owned(),
+            category: "activity".to_owned(),
+            amount_minor: Some(2500),
+            currency: "CAD".to_owned(),
+            state: voyalier_core::CostState::Estimate,
+            tax_status: voyalier_core::CostTaxStatus::Unknown,
+            due_date: None,
+        });
+    let after_unrelated_save = service
+        .set_concierge_profile(updated_workspace.profile)
+        .expect("save unrelated cost");
+    assert_eq!(
+        after_unrelated_save
+            .tasks
+            .iter()
+            .find(|task| task.id == "review-entry")
+            .expect("review task")
+            .state,
+        ConciergeTaskState::NeedsRecheck
+    );
+    let current_revision = service
+        .get_trip(&trip.id)
+        .expect("trip revision")
+        .trip
+        .updated_at;
+    let mut reviewed = after_unrelated_save.profile;
+    let entry = reviewed
+        .task_progress
+        .iter_mut()
+        .find(|progress| progress.task_id == "review-entry")
+        .expect("entry progress");
+    entry.state = ConciergeTaskState::DoneByTraveler;
+    entry.context_revision = Some(current_revision);
+    let reviewed = service
+        .set_concierge_profile(reviewed)
+        .expect("explicitly re-review");
+    assert_eq!(
+        reviewed
+            .tasks
+            .iter()
+            .find(|task| task.id == "review-entry")
+            .expect("review task")
+            .state,
+        ConciergeTaskState::DoneByTraveler
+    );
+    cleanup_database(database);
+}
+
+#[test]
+fn binary_wallet_attachments_are_bounded_encrypted_and_trip_scoped() {
+    let database = temp_database("concierge-attachments");
+    let service = open_test_service(&database).expect("service");
+    let first = service.create_trip(valid_trip_input()).expect("first trip");
+    let second = service
+        .create_trip(CreateTripInput {
+            title: Some("Second trip".to_owned()),
+            origin: "Chicago".to_owned(),
+            destination: "Montréal".to_owned(),
+            start_date: "2027-06-01".to_owned(),
+            end_date: "2027-06-08".to_owned(),
+        })
+        .expect("second trip");
+    let attachment = service
+        .import_attachment(ImportAttachmentInput {
+            trip_id: first.id.clone(),
+            label: "Instruction letter.pdf".to_owned(),
+            mime_type: "application/pdf".to_owned(),
+            content_base64: "JVBERi0xLjQ=".to_owned(),
+        })
+        .expect("import attachment");
+    assert_eq!(service.list_attachments(&first.id).expect("list").len(), 1);
+    let (stored_label, stored): (String, String) = service
+        .connection()
+        .expect("connection")
+        .query_row(
+            "SELECT label, raw_content FROM binary_attachments WHERE id=?1",
+            params![attachment.id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("stored body");
+    assert!(stored_label.starts_with(VAULT_PREFIX));
+    assert!(!stored_label.contains("Instruction letter.pdf"));
+    assert!(stored.starts_with(VAULT_PREFIX));
+    assert!(!stored.contains("JVBERi0xLjQ="));
+
+    let mut profile = ConciergeProfile::empty(&second.id);
+    profile.wallet_links.push(voyalier_core::WalletLink {
+        id: "wallet_cross_trip".to_owned(),
+        label: "Wrong trip".to_owned(),
+        category: "entry".to_owned(),
+        traveler_ids: vec![],
+        preparation_requirement_ids: vec![],
+        source_document_id: None,
+        source_attachment_id: Some(attachment.id.clone()),
+        expires_on: None,
+        note: String::new(),
+    });
+    let error = service
+        .set_concierge_profile(profile)
+        .expect_err("cross-trip link rejected");
+    assert_eq!(error.code, ErrorCode::ValidationInvalidInput);
+
+    let bad_type = service
+        .import_attachment(ImportAttachmentInput {
+            trip_id: first.id.clone(),
+            label: "not really an image.png".to_owned(),
+            mime_type: "image/png".to_owned(),
+            content_base64: "JVBERi0xLjQ=".to_owned(),
+        })
+        .expect_err("signature mismatch rejected");
+    assert_eq!(bad_type.code, ErrorCode::ValidationInvalidInput);
+
+    let mut first_profile = ConciergeProfile::empty(&first.id);
+    first_profile.wallet_links.push(voyalier_core::WalletLink {
+        id: "wallet_attachment".to_owned(),
+        label: "Entry letter".to_owned(),
+        category: "entry".to_owned(),
+        traveler_ids: vec![],
+        preparation_requirement_ids: vec![],
+        source_document_id: None,
+        source_attachment_id: Some(attachment.id.clone()),
+        expires_on: None,
+        note: "Keep the metadata after removing the file".to_owned(),
+    });
+    service
+        .set_concierge_profile(first_profile)
+        .expect("link attachment");
+
+    service
+        .delete_attachment(&attachment.id)
+        .expect("delete attachment");
+    assert!(
+        service
+            .list_attachments(&first.id)
+            .expect("empty")
+            .is_empty()
+    );
+    let retained = service
+        .get_concierge_workspace(&first.id)
+        .expect("profile after delete")
+        .profile
+        .wallet_links
+        .into_iter()
+        .find(|link| link.id == "wallet_attachment")
+        .expect("authored wallet metadata retained");
+    assert_eq!(retained.source_attachment_id, None);
+    assert_eq!(retained.note, "Keep the metadata after removing the file");
+    cleanup_database(database);
+}
+
+#[test]
+fn binary_wallet_refuses_import_when_secure_custody_is_unavailable() {
+    let database = temp_database("concierge-attachment-inactive-vault");
+    let service = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        Arc::new(MemorySecretStore::unavailable()),
+    )
+    .expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    let error = service
+        .import_attachment(ImportAttachmentInput {
+            trip_id: trip.id,
+            label: "Private identity.pdf".to_owned(),
+            mime_type: "application/pdf".to_owned(),
+            content_base64: "JVBERi0xLjQ=".to_owned(),
+        })
+        .expect_err("plaintext fallback must be refused");
+    assert_eq!(error.code, ErrorCode::VaultUnreadable);
+    let stored: i64 = Connection::open(&database)
+        .expect("reader")
+        .query_row("SELECT COUNT(*) FROM binary_attachments", [], |row| {
+            row.get(0)
+        })
+        .expect("count");
+    assert_eq!(stored, 0);
+    cleanup_database(database);
+}
+
+#[test]
+fn binary_wallet_preserves_backup_capacity_across_the_workspace() {
+    let database = temp_database("concierge-attachment-workspace-cap");
+    let service = open_test_service(&database).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    let existing = AttachmentSummary {
+        id: "attachment_capacity_fixture".to_owned(),
+        trip_id: trip.id.clone(),
+        label: "Existing encrypted custody.pdf".to_owned(),
+        mime_type: "application/pdf".to_owned(),
+        byte_count: voyalier_core::MAX_ATTACHMENT_WORKSPACE_BYTES as u32,
+        content_hash: "capacity-fixture-hash".to_owned(),
+        imported_at: "2026-09-12T00:00:00Z".to_owned(),
+    };
+    let connection = service.connection().expect("connection");
+    service
+        .records(&connection)
+        .insert_attachment(&existing, "JVBERi0xLjQ=")
+        .expect("seed capacity metadata without a giant fixture");
+    drop(connection);
+
+    let error = service
+        .import_attachment(ImportAttachmentInput {
+            trip_id: trip.id,
+            label: "One more page.pdf".to_owned(),
+            mime_type: "application/pdf".to_owned(),
+            content_base64: "JVBERi0xLjU=".to_owned(),
+        })
+        .expect_err("workspace custody beyond the backup-safe cap");
+    assert_eq!(error.code, ErrorCode::DocumentTooLarge);
+    assert!(error.message.contains("500 MiB"));
+    let connection = service.connection().expect("connection after rejection");
+    let stored: i64 = connection
+        .query_row("SELECT COUNT(*) FROM binary_attachments", [], |row| {
+            row.get(0)
+        })
+        .expect("count");
+    assert_eq!(stored, 1, "the rejected file must not be partially stored");
+    cleanup_database(database);
+}
+
+#[test]
+fn binary_wallet_preview_requires_an_unlocked_vault() {
+    let database = temp_database("concierge-attachment-lock");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let service = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    let attachment = service
+        .import_attachment(ImportAttachmentInput {
+            trip_id: trip.id,
+            label: "Entry letter.pdf".to_owned(),
+            mime_type: "application/pdf".to_owned(),
+            content_base64: "JVBERi0xLjQ=".to_owned(),
+        })
+        .expect("attachment");
+    service
+        .set_vault_passphrase("correct horse battery")
+        .expect("protect vault");
+
+    let reopened =
+        AppService::open_path_with_deps(&database, Arc::new(FakeFetcher::offline()), secrets)
+            .expect("reopen");
+    assert_eq!(
+        reopened
+            .get_attachment(&attachment.id)
+            .expect_err("locked preview")
+            .code,
+        ErrorCode::VaultLocked
+    );
+    reopened
+        .unlock_vault("correct horse battery")
+        .expect("unlock");
+    assert_eq!(
+        reopened
+            .get_attachment(&attachment.id)
+            .expect("preview after unlock")
+            .content_base64,
+        "JVBERi0xLjQ="
+    );
+    cleanup_database(database);
+}
+
+#[test]
+fn concierge_money_rejects_values_that_are_not_exact_on_the_wire() {
+    let database = temp_database("concierge-money-bounds");
+    let service = open_test_service(&database).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    let mut profile = ConciergeProfile::empty(&trip.id);
+    profile.costs.push(voyalier_core::CostItem {
+        id: "cost_too_large".to_owned(),
+        label: "Impossible total".to_owned(),
+        category: "stay".to_owned(),
+        amount_minor: Some(voyalier_core::MAX_EXACT_MINOR_AMOUNT + 1),
+        currency: "USD".to_owned(),
+        state: voyalier_core::CostState::Estimate,
+        tax_status: voyalier_core::CostTaxStatus::Unknown,
+        due_date: None,
+    });
+    assert_eq!(
+        service
+            .set_concierge_profile(profile)
+            .expect_err("inexact JSON number rejected")
+            .code,
+        ErrorCode::ValidationInvalidInput
+    );
     cleanup_database(database);
 }
 
@@ -1458,7 +2061,6 @@ fn fetch_advisories_reports_a_government_that_does_not_publish_and_a_total_failu
     });
     let service = open_test_service_with_fetcher(&database, fetcher).expect("service");
     let trip = service.create_trip(valid_trip_input()).expect("trip");
-
     let panel = service.fetch_advisories(&trip.id, "usa").expect("panel");
     assert_eq!(
         panel.entries.len(),
@@ -6120,6 +6722,39 @@ fn fetching_page_details_is_refused_before_consent_and_reaches_no_site() {
 }
 
 #[test]
+fn concierge_provider_pages_remain_link_only_even_when_generic_fetch_is_enabled() {
+    let database = temp_database("provider-policy-link-only");
+    let service = open_test_service_with_fetcher(&database, Arc::new(FakeFetcher::offline()))
+        .expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    service
+        .set_research_settings(SetResearchSettingsInput {
+            auto_fetch_details: true,
+        })
+        .expect("enable generic fetch");
+    for (index, url) in [
+        "https://www.airbnb.com/hawaii-united-states/stays",
+        "https://www.expedia.com/Montreal-Hotels.d178288.Travel-Guide-Hotels",
+        "https://www.yelp.com/search?find_desc=food",
+        "https://www.reddit.com/search/?q=Montreal",
+        "https://www.alltrails.com/hawaii/oahu/state-parks",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let resource = service
+            .create_resource(link_input(&trip.id, url, &format!("provider {index}")))
+            .expect("save link");
+        let error = service
+            .fetch_resource_details(&resource.id)
+            .expect_err("policy must refuse acquisition before the offline fetcher runs");
+        assert_eq!(error.code, ErrorCode::ValidationInvalidInput);
+        assert!(error.message.contains("link-only"));
+    }
+    cleanup_database(database);
+}
+
+#[test]
 fn resource_destination_policy_blocks_local_and_ambiguous_hosts_before_fetch() {
     for (index, url) in [
         "http://127.0.0.1:8080/admin",
@@ -6450,6 +7085,17 @@ fn sealed_columns_round_trip_through_the_vault() {
     ));
     let service = open_test_service_with_fetcher(&database, fetcher).expect("service");
     let trip = service.create_trip(valid_trip_input()).expect("trip");
+    service
+        .set_concierge_profile(ConciergeProfile::empty(&trip.id))
+        .expect("concierge profile");
+    let attachment = service
+        .import_attachment(ImportAttachmentInput {
+            trip_id: trip.id.clone(),
+            label: "Passport scan.pdf".to_owned(),
+            mime_type: "application/pdf".to_owned(),
+            content_base64: "JVBERi0xLjQ=".to_owned(),
+        })
+        .expect("attachment");
 
     // Populate every sealed column: a document, its candidates, a confirmed
     // fact, and notes.
@@ -6613,6 +7259,10 @@ fn sealed_columns_round_trip_through_the_vault() {
         visa.items[0].note.as_deref(),
         Some("HDFC statements requested 12 Jul")
     );
+    let opened_attachment = service
+        .get_attachment(&attachment.id)
+        .expect("opened attachment");
+    assert_eq!(opened_attachment.content_base64, "JVBERi0xLjQ=");
 
     drop(service);
     cleanup_database(database);
