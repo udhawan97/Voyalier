@@ -14,6 +14,20 @@ use voyalier_core::{
 };
 
 #[test]
+fn unit_test_default_secret_store_never_reaches_the_os_keychain() {
+    let secrets = default_secret_store();
+    assert!(
+        !secrets.is_persistent(),
+        "the unit-test default must stay in memory"
+    );
+
+    let database = temp_database("default-secret-store");
+    let service = AppService::open_path(&database).expect("service");
+    drop(service);
+    cleanup_database(database);
+}
+
+#[test]
 fn offline_fetcher_allows_only_a_declared_consent_route() {
     let fetcher = FakeFetcher::offline().route("allowed.json", "declared body");
     assert_eq!(
