@@ -4929,6 +4929,7 @@ fn a_non_default_directory_adopts_the_legacy_key_rather_than_minting_a_new_one()
     // since before the account was namespaced.
     let legacy = BASE64.encode([7u8; 32]);
     secrets.set("vault.data_key", &legacy).expect("seed legacy");
+    Connection::open(&database).expect("pre-existing legacy database");
 
     let service = AppService::open_path_with_deps(
         &database,
@@ -4958,6 +4959,37 @@ fn a_non_default_directory_adopts_the_legacy_key_rather_than_minting_a_new_one()
         "adoption copies; moving it would be the same bug pointing the other way"
     );
 
+    cleanup_database(database);
+}
+
+#[test]
+fn a_new_non_default_workspace_does_not_read_an_unrelated_legacy_key() {
+    let database = temp_database("vault-new-namespaced");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let legacy = BASE64.encode([7u8; 32]);
+    secrets
+        .set(VAULT_KEY_ACCOUNT, &legacy)
+        .expect("seed legacy");
+
+    let service = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .expect("new workspace");
+    assert!(service.get_vault_status().expect("status").active);
+
+    let namespaced = vault_key_account(&database);
+    let generated = secrets
+        .get(&namespaced)
+        .expect("namespaced account")
+        .expect("generated key");
+    assert_ne!(generated, legacy, "a new workspace must mint its own key");
+    assert_eq!(
+        secrets.get(VAULT_KEY_ACCOUNT).expect("legacy"),
+        Some(legacy),
+        "the unrelated legacy key must remain untouched"
+    );
     cleanup_database(database);
 }
 

@@ -874,7 +874,11 @@ fn canonical_key_path(database_path: &Path) -> PathBuf {
 /// change exists to prevent, pointing the other way. So on first use the legacy
 /// value is **copied** across. Copied, not moved: the default install is still
 /// using it.
-fn resolve_vault_key_account(secrets: &dyn SecretStore, database_path: &Path) -> String {
+fn resolve_vault_key_account(
+    secrets: &dyn SecretStore,
+    database_path: &Path,
+    adopt_legacy: bool,
+) -> String {
     let account = vault_key_account(database_path);
     if account == VAULT_KEY_ACCOUNT {
         return account;
@@ -890,7 +894,12 @@ fn resolve_vault_key_account(secrets: &dyn SecretStore, database_path: &Path) ->
     if secrets.has(&account) {
         return account;
     }
-    if let Ok(Some(legacy)) = secrets.get(VAULT_KEY_ACCOUNT) {
+    // A brand-new custom workspace cannot contain rows encrypted under the
+    // legacy key. Do not read that unrelated account: on macOS a replacement
+    // build may otherwise trigger a keychain authorization prompt before the
+    // first window exists. Existing databases still take the adoption path so
+    // no pre-namespacing data becomes unreadable.
+    if adopt_legacy && let Ok(Some(legacy)) = secrets.get(VAULT_KEY_ACCOUNT) {
         // A failure here is not fatal: the caller falls through to generating a
         // fresh key, which is the correct outcome for a directory that has no
         // sealed rows yet.
@@ -1336,6 +1345,7 @@ impl AppService {
         secrets: Arc<dyn SecretStore>,
     ) -> Result<Self, AppError> {
         let path = path.as_ref();
+        let database_existed = path.exists();
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(storage_error)?;
         }
@@ -1354,7 +1364,8 @@ impl AppService {
         }
         // Namespaced by the database's own path, so a second data directory
         // cannot delete the key this one's sealed columns depend on (ADR-0017).
-        let vault_account = resolve_vault_key_account(secrets.as_ref(), path);
+        let vault_account =
+            resolve_vault_key_account(secrets.as_ref(), path, database_existed || restored);
         let vault = Vault::load_or_init(secrets.as_ref(), &connection, &vault_account)?;
         // Encrypt any pre-existing plaintext payloads now the vault is available.
         migrate_encrypt_sensitive_columns(&connection, &vault, path)?;
