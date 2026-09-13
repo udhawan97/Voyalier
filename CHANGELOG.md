@@ -92,6 +92,12 @@ decisions with the services and authorities that own them.
 
 ### Fixed
 
+- **A new custom data directory no longer reads an unrelated legacy vault key
+  before its first window opens.** Existing custom databases still adopt the
+  legacy key so previously encrypted rows remain readable; a path with no
+  database now creates its own namespaced key without prompting for access to a
+  different workspace.
+
 - **The documentation toolchain now uses patched YAML and SVG processing dependencies.**
   Existing dependency pins move to js-yaml 4.3.2 and svgo 4.1.0 to clear the
   production audit. This updates build tooling without adding a product feature.
