@@ -10,6 +10,45 @@ import { UpdatesPanel } from "./UpdatesPanel";
 import { VaultPanel } from "./VaultPanel";
 import { DataSources } from "./DataSources";
 import { LocaleSettings } from "./LocaleSettings";
+import { GuideIndex } from "./GuideIndex";
+
+type MotionPreference = "system" | "reduced" | "full";
+
+function MotionSettings() {
+  const [motion, setMotion] = useState<MotionPreference>(() => {
+    const stored = globalThis.localStorage?.getItem("voyalier.motion");
+    return stored === "reduced" || stored === "full" ? stored : "system";
+  });
+  useEffect(() => {
+    globalThis.localStorage?.setItem("voyalier.motion", motion);
+    if (motion === "system") {
+      document.documentElement.removeAttribute("data-voy-motion");
+    } else {
+      document.documentElement.dataset.voyMotion = motion;
+    }
+  }, [motion]);
+  return (
+    <fieldset className="voy-segmented" aria-describedby="motion-hint">
+      <legend>Motion</legend>
+      <p className="voy-settings__hint" id="motion-hint">
+        Reduced disables the atlas route reveal and depth transitions. System
+        follows macOS or browser accessibility settings.
+      </p>
+      {(["system", "reduced", "full"] as const).map((value) => (
+        <label key={value}>
+          <input
+            type="radio"
+            name="motion-preference"
+            value={value}
+            checked={motion === value}
+            onChange={() => setMotion(value)}
+          />
+          <span>{value[0].toUpperCase() + value.slice(1)}</span>
+        </label>
+      ))}
+    </fieldset>
+  );
+}
 
 /**
  * Every workspace-wide surface in one place.
@@ -45,9 +84,12 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
         </SectionTitle>
         <p className="voy-settings__hint">{t("settings.appearance.hint")}</p>
         <ThemeToggle />
+        <MotionSettings />
       </section>
 
       <LocaleSettings />
+
+      <GuideIndex />
 
       <OnDeviceAi />
 
@@ -65,3 +107,4 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
     </div>
   );
 }
+import { useEffect, useState } from "react";

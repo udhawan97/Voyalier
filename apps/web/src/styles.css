@@ -1,3 +1,6 @@
+/* Hallmark · macrostructure: Narrative Workflow · tone: tactile travel atlas · anchor hue: indigo */
+/* Hallmark · pre-emit critique: P5 H5 E5 S5 R4 V5 · contrast: pass (40–41) · nav: retained product shell · footer: n/a · slop: pass (42–45) · honest: pass (46) · chrome: pass (47) · tokens: pass (48) · responsive: pass (49) · icons: pass (30) · mobile: pass (34, 49, 50–57) */
+
 /* ===== Base ============================================================== */
 
 * {
@@ -9,6 +12,7 @@ html {
   color: var(--voy-ink);
   font-family: var(--voy-font-ui);
   -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
 }
 
 body {
@@ -18,6 +22,7 @@ body {
   background:
     radial-gradient(circle at 92% -4%, var(--voy-tint-moss), transparent 26rem),
     var(--voy-paper);
+  overflow-x: clip;
 }
 
 button,
@@ -287,12 +292,23 @@ h3 {
   border-radius: 999px;
   font-weight: var(--voy-w-medium);
   font-size: 0.94rem;
+  white-space: nowrap;
   cursor: pointer;
   transition:
     background var(--voy-motion-fast) var(--voy-ease),
     border-color var(--voy-motion-fast) var(--voy-ease),
     transform var(--voy-motion-fast) var(--voy-ease),
     opacity var(--voy-motion-fast) var(--voy-ease);
+}
+
+.voy-btn:has(input:focus-visible) {
+  outline: 2px solid var(--voy-focus);
+  outline-offset: 2px;
+}
+
+.voy-btn:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .voy-btn:active {
@@ -437,6 +453,16 @@ h3 {
   outline: 2px solid var(--voy-focus);
   outline-offset: 1px;
   border-color: transparent;
+}
+
+.voy-input:active:not(:disabled) {
+  border-color: var(--voy-ink-muted);
+}
+
+.voy-input:disabled {
+  background: var(--voy-paper-sunken);
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .voy-textarea {
@@ -896,6 +922,691 @@ h3 {
 
 .voy-detail__blueprint {
   margin-top: 2.6rem;
+}
+
+/* ===== Concierge cockpit ============================================== */
+
+.voy-concierge {
+  position: relative;
+  isolation: isolate;
+  margin-block: 1.25rem 3rem;
+  scroll-margin-top: 4rem;
+  border-radius: var(--voy-radius-lg);
+  background: var(--voy-paper-raised);
+  box-shadow: var(--voy-shadow-md);
+  overflow: clip;
+}
+
+.voy-concierge__scene {
+  background:
+    radial-gradient(
+      circle at 82% 8%,
+      color-mix(in srgb, var(--voy-vermilion) 34%, transparent),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 14% 90%,
+      color-mix(in srgb, var(--voy-moss) 20%, transparent),
+      transparent 38%
+    ),
+    var(--voy-ink);
+}
+
+.voy-concierge__atlas {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(4rem, 1fr) minmax(0, auto);
+  align-items: center;
+  gap: 1rem;
+  min-height: 5.5rem;
+  padding: 1.25rem clamp(1rem, 3vw, 2rem) 0;
+  color: var(--voy-on-accent);
+  font-size: var(--voy-text-sm);
+  font-weight: var(--voy-w-medium);
+}
+
+.voy-concierge__atlas[data-depth="relief"] {
+  transform: perspective(46rem) rotateX(4deg) rotateZ(-1deg);
+  box-shadow: 0 1.2rem 2.6rem rgb(18 24 49 / 18%);
+}
+
+.voy-concierge__depth {
+  position: absolute;
+  inset-block-end: 0.8rem;
+  inset-inline-end: 0.8rem;
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border: 1px solid var(--voy-line);
+  border-radius: 999px;
+  background: var(--voy-paper-raised);
+}
+
+.voy-concierge__depth button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem;
+  color: var(--voy-ink-muted);
+  background: transparent;
+}
+
+.voy-concierge__depth button[aria-pressed="true"] {
+  color: var(--voy-ink);
+  background: var(--voy-paper);
+  box-shadow: 0 0.15rem 0.5rem rgb(18 24 49 / 12%);
+}
+
+:root[data-voy-motion="reduced"] .voy-concierge__atlas[data-depth="relief"] {
+  transform: none;
+}
+
+.voy-concierge__origin,
+.voy-concierge__destination {
+  min-width: 0;
+  max-width: 24ch;
+  overflow-wrap: anywhere;
+}
+
+.voy-concierge__destination {
+  text-align: end;
+}
+
+.voy-concierge__route {
+  position: relative;
+  display: block;
+  height: 1px;
+  background: color-mix(in srgb, var(--voy-on-accent) 32%, transparent);
+  transform-origin: left center;
+  animation: voy-route-arrive 680ms var(--voy-ease) both;
+}
+
+@keyframes voy-route-arrive {
+  from {
+    opacity: 0.35;
+    transform: scaleX(0.12);
+  }
+
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+.voy-concierge__route::before,
+.voy-concierge__route::after {
+  position: absolute;
+  top: 50%;
+  width: 0.62rem;
+  height: 0.62rem;
+  border: 2px solid var(--voy-on-accent);
+  border-radius: 50%;
+  background: var(--voy-ink);
+  content: "";
+  transform: translateY(-50%);
+}
+
+.voy-concierge__route::before {
+  inset-inline-start: 0;
+}
+
+.voy-concierge__route::after {
+  inset-inline-end: 0;
+  border-color: var(--voy-vermilion);
+  box-shadow: 0 0 0 0.35rem
+    color-mix(in srgb, var(--voy-vermilion) 20%, transparent);
+}
+
+.voy-concierge__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 2rem;
+  min-height: 12.5rem;
+  padding: 1rem clamp(1rem, 3vw, 2rem) 2rem;
+  color: var(--voy-on-accent);
+}
+
+.voy-concierge__header .voy-eyebrow {
+  color: color-mix(in srgb, var(--voy-on-accent) 64%, transparent);
+}
+
+.voy-concierge__header h2 {
+  max-width: 18ch;
+  font-family: var(--voy-font-display);
+  font-size: clamp(2rem, 4vw, 3.6rem);
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+
+.voy-concierge__header p:last-child {
+  max-width: 62ch;
+  margin-block: 1rem 0;
+  color: color-mix(in srgb, var(--voy-on-accent) 76%, transparent);
+  line-height: 1.55;
+}
+
+.voy-concierge__progress {
+  --voy-progress: 0%;
+  display: grid;
+  place-items: center;
+  width: 8.5rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, var(--voy-ink) 60%, transparent 61%),
+    conic-gradient(
+      var(--voy-vermilion) var(--voy-progress),
+      color-mix(in srgb, var(--voy-on-accent) 18%, transparent) 0
+    );
+  text-align: center;
+}
+
+.voy-concierge__progress strong {
+  align-self: end;
+  font-family: var(--voy-font-display);
+  font-size: 1.65rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.voy-concierge__progress span {
+  align-self: start;
+  max-width: 9ch;
+  color: color-mix(in srgb, var(--voy-on-accent) 70%, transparent);
+  font-size: 0.74rem;
+  line-height: 1.2;
+}
+
+.voy-concierge__nav {
+  position: sticky;
+  top: 4rem;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem clamp(1rem, 3vw, 2rem);
+  overflow-x: auto;
+  border-bottom: 1px solid var(--voy-line);
+  background: color-mix(in srgb, var(--voy-paper-raised) 94%, transparent);
+  backdrop-filter: blur(12px);
+  scrollbar-width: thin;
+}
+
+.voy-concierge__nav a {
+  min-height: 2.75rem;
+  padding: 0.75rem;
+  border-radius: 999px;
+  color: var(--voy-ink-muted);
+  font-size: 0.86rem;
+  font-weight: var(--voy-w-medium);
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    color var(--voy-motion-fast) var(--voy-ease),
+    background-color var(--voy-motion-fast) var(--voy-ease);
+}
+
+.voy-concierge__nav a:hover,
+.voy-concierge__nav a:focus-visible {
+  color: var(--voy-ink);
+  background: var(--voy-paper-sunken);
+}
+
+.voy-concierge__nav a:active {
+  background: var(--voy-paper);
+}
+
+.voy-concierge > section,
+.voy-concierge__overview {
+  scroll-margin-top: 5rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border-bottom: 1px solid var(--voy-line);
+}
+
+.voy-concierge > section:last-child {
+  border-bottom: 0;
+}
+
+.voy-concierge__overview {
+  display: grid;
+  gap: 2rem;
+}
+
+.voy-concierge__overview h3,
+.voy-concierge__section-head h3,
+.voy-concierge__daykit h3 {
+  font-family: var(--voy-font-display);
+  font-size: var(--voy-text-xl);
+}
+
+.voy-concierge__tasks,
+.voy-concierge__people-list,
+.voy-concierge__steps,
+.voy-concierge__wallet-list,
+.voy-concierge__daykit ul {
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.voy-concierge__tasks {
+  display: grid;
+}
+
+.voy-concierge__tasks li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(9rem, auto);
+  align-items: center;
+  gap: 1rem;
+  padding-block: 1rem;
+  border-top: 1px solid var(--voy-line);
+}
+
+.voy-concierge__task-number {
+  color: var(--voy-indigo);
+  font-family: var(--voy-font-display);
+  font-size: 1.3rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.voy-concierge__task-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+}
+
+.voy-concierge__task-copy span,
+.voy-concierge__task-copy small,
+.voy-concierge__emptycopy,
+.voy-concierge__notice {
+  color: var(--voy-ink-muted);
+  line-height: 1.5;
+}
+
+.voy-concierge__task-copy small {
+  font-size: 0.76rem;
+  text-transform: capitalize;
+}
+
+.voy-concierge__daykit {
+  align-self: start;
+  padding: 1.25rem;
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-sunken);
+}
+
+.voy-concierge__daykit li {
+  padding-block: 0.5rem;
+  border-bottom: 1px solid var(--voy-line);
+  font-variant-numeric: tabular-nums;
+}
+
+.voy-concierge__daykit > p:last-child {
+  margin-block: 1rem 0;
+  color: var(--voy-ink-muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.voy-concierge__section-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block-end: 1.25rem;
+}
+
+.voy-concierge__counter {
+  color: var(--voy-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.voy-concierge__fields,
+.voy-concierge__inline-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr));
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.voy-concierge__inline-form {
+  margin-block-start: 1.25rem;
+  padding: 1rem;
+  border-radius: var(--voy-radius-md);
+  background: var(--voy-paper-sunken);
+}
+
+.voy-concierge__inline-form > .voy-field__hint {
+  align-self: center;
+  grid-column: 1 / -1;
+}
+
+.voy-field--check,
+.voy-concierge__traveler-checks label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.voy-concierge__traveler-checks {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.voy-concierge__traveler-checks label {
+  margin-block-start: 0.25rem;
+}
+
+.voy-concierge__wallet-actions,
+.voy-concierge__attachment-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.voy-concierge__file-preview {
+  display: block;
+  width: 100%;
+  min-height: min(65vh, 44rem);
+  max-height: 70vh;
+  border: 1px solid var(--voy-border);
+  border-radius: var(--voy-radius-md);
+  object-fit: contain;
+  background: var(--voy-surface);
+}
+
+.voy-concierge__split-plan {
+  margin-top: var(--voy-space-5);
+  padding: var(--voy-space-5);
+  border: 1px solid var(--voy-border);
+  border-radius: var(--voy-radius-lg);
+  background: var(--voy-surface-soft);
+}
+
+.voy-concierge__split-plan > ol {
+  display: grid;
+  gap: var(--voy-space-3);
+  margin: var(--voy-space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.voy-concierge__split-stay {
+  display: grid;
+  grid-template-columns:
+    minmax(8rem, 1fr) repeat(2, minmax(9rem, 0.8fr))
+    auto auto;
+  align-items: end;
+  gap: var(--voy-space-3);
+}
+
+@media (max-width: 880px) {
+  .voy-concierge__split-stay {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+}
+
+.voy-concierge__attachments {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.voy-concierge__storage {
+  margin: 0 0 0.5rem;
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+}
+
+.voy-concierge__attachments li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--voy-line);
+}
+
+.voy-concierge__attachments li > span:first-child {
+  display: grid;
+  min-width: 0;
+}
+
+.voy-concierge__attachments small {
+  color: var(--voy-ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.voy-concierge__people-list,
+.voy-concierge__wallet-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.voy-concierge__people-list li,
+.voy-concierge__wallet-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 4rem;
+  padding: 0.75rem;
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-sm);
+}
+
+.voy-concierge__people-list li > span:nth-child(2),
+.voy-concierge__wallet-list li > span {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.voy-concierge__people-list small,
+.voy-concierge__wallet-list small {
+  color: var(--voy-ink-muted);
+}
+
+.voy-concierge__avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  background: var(--voy-ink);
+  color: var(--voy-on-accent);
+  font-family: var(--voy-font-display);
+}
+
+.voy-concierge__providers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
+  gap: 0;
+  border-block: 1px solid var(--voy-line);
+}
+
+.voy-concierge__provider {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 1.25rem;
+  border-bottom: 1px solid var(--voy-line);
+}
+
+.voy-concierge__provider > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.voy-concierge__provider-name {
+  color: var(--voy-indigo);
+  font-size: 0.78rem;
+  font-weight: var(--voy-w-strong);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.voy-concierge__provider h4,
+.voy-concierge__steps h4 {
+  margin-block: 1rem 0.5rem;
+  font-size: var(--voy-text-md);
+}
+
+.voy-concierge__provider p,
+.voy-concierge__steps p {
+  margin-block: 0 0.75rem;
+  color: var(--voy-ink-muted);
+  line-height: 1.5;
+}
+
+.voy-concierge__provider dl {
+  display: grid;
+  gap: 0.5rem;
+  margin-block: 0.25rem 1rem;
+}
+
+.voy-concierge__provider dl div {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.voy-concierge__provider dt {
+  color: var(--voy-ink-muted);
+  font-size: 0.78rem;
+}
+
+.voy-concierge__provider dd {
+  margin: 0;
+  font-size: 0.84rem;
+}
+
+.voy-concierge__brief {
+  margin-block-start: auto !important;
+  padding: 0.75rem;
+  border-block-start: 1px solid var(--voy-indigo);
+  background: var(--voy-paper-sunken);
+  color: var(--voy-ink) !important;
+  font-size: 0.82rem;
+}
+
+.voy-concierge__provider-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.voy-concierge__provider-actions a {
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.voy-concierge__steps {
+  counter-reset: concierge-step;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
+}
+
+.voy-concierge__steps li {
+  position: relative;
+  padding: 1.25rem 1.25rem 1.25rem 3.25rem;
+  border-block-start: 1px solid var(--voy-line);
+  counter-increment: concierge-step;
+}
+
+.voy-concierge__steps li::before {
+  position: absolute;
+  inset-block-start: 1.25rem;
+  inset-inline-start: 0.35rem;
+  color: var(--voy-vermilion);
+  content: counter(concierge-step, decimal-leading-zero);
+  font-family: var(--voy-font-display);
+  font-size: 1.35rem;
+}
+
+.voy-concierge__step-person {
+  color: var(--voy-indigo);
+  font-size: 0.78rem;
+  font-weight: var(--voy-w-medium);
+}
+
+.voy-concierge__totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr));
+  gap: 0.75rem;
+}
+
+.voy-concierge__totals article {
+  display: grid;
+  gap: 0.25rem;
+  padding: 1rem;
+  border-block-start: 1px solid var(--voy-moss);
+  background: var(--voy-paper-sunken);
+  font-variant-numeric: tabular-nums;
+}
+
+.voy-concierge__totals article span {
+  color: var(--voy-ink-muted);
+  font-size: 0.86rem;
+}
+
+@media (min-width: 60rem) {
+  .voy-concierge__overview {
+    grid-template-columns: minmax(0, 1.7fr) minmax(15rem, 0.7fr);
+  }
+
+  .voy-concierge__provider:nth-child(odd) {
+    border-inline-end: 1px solid var(--voy-line);
+  }
+}
+
+@media (max-width: 48rem) {
+  .voy-concierge__header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .voy-concierge__progress {
+    width: 7rem;
+  }
+
+  .voy-concierge__tasks li {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .voy-concierge__tasks label {
+    grid-column: 2;
+  }
+
+  .voy-concierge__section-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voy-concierge *,
+  .voy-concierge *::before,
+  .voy-concierge *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+:root[data-voy-motion="reduced"] *,
+:root[data-voy-motion="reduced"] *::before,
+:root[data-voy-motion="reduced"] *::after {
+  scroll-behavior: auto !important;
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
 }
 
 .voy-detail__blueprint-title {
@@ -4893,6 +5604,7 @@ h3 {
 .voy-dialog__foot {
   display: flex;
   flex: none;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.6rem;
   padding: 1rem 1.6rem 1.4rem;
@@ -5296,6 +6008,49 @@ body::before {
   font-size: var(--voy-text-base);
 }
 
+.voy-guide-index {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+}
+
+.voy-guide-index > article {
+  display: grid;
+  gap: 0.25rem;
+  min-height: 9rem;
+  padding: 1rem;
+  color: var(--voy-ink);
+  text-decoration: none;
+  border: 1px solid var(--voy-line);
+  border-radius: var(--voy-radius-sm);
+  background: var(--voy-paper-raised);
+  box-shadow: var(--voy-shadow-xs);
+}
+
+.voy-guide-index span {
+  color: var(--voy-muted);
+  line-height: 1.55;
+}
+
+.voy-guide-index article > a {
+  align-self: end;
+  justify-self: start;
+  color: var(--voy-indigo);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.voy-guide-index article > a:active {
+  color: var(--voy-ink);
+}
+
+.voy-guide-index__credit {
+  margin: 1rem 0 0;
+  color: var(--voy-ink-muted);
+  font-size: var(--voy-text-sm);
+  line-height: 1.6;
+}
+
 .voy-topbar__gear {
   display: inline-flex;
   align-items: center;
@@ -5656,6 +6411,20 @@ body::before {
   font: inherit;
   text-decoration: underline;
   cursor: pointer;
+}
+
+.voy-linkbtn:hover {
+  color: var(--voy-vermilion);
+}
+
+.voy-linkbtn:active {
+  color: var(--voy-ink);
+}
+
+.voy-linkbtn:disabled {
+  color: var(--voy-ink-muted);
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 /* Native disclosures animate their height where the engine supports it

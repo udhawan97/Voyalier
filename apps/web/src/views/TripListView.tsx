@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import type { TripSummary } from "@voyalier/contracts";
+import type { TripIntentDraft, TripSummary } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
 import {
@@ -118,6 +118,73 @@ function TripCard({
   );
 }
 
+function TripIdeaCard({
+  draft,
+  busy,
+  onConvert,
+  onDelete,
+}: {
+  draft: TripIntentDraft;
+  busy: boolean;
+  onConvert: (
+    draft: TripIntentDraft,
+    startDate: string,
+    endDate: string,
+  ) => void;
+  onDelete: (draft: TripIntentDraft) => void;
+}) {
+  const [startDate, setStartDate] = useState(draft.startDate ?? "");
+  const [endDate, setEndDate] = useState(draft.endDate ?? "");
+  return (
+    <article className="voy-tripcard voy-tripcard--intent">
+      <div className="voy-tripcard__head">
+        <h2 className="voy-tripcard__title">
+          {draft.title ?? `${draft.origin} → ${draft.destination}`}
+        </h2>
+        <span className="voy-badge">Dates undecided</span>
+      </div>
+      <p className="voy-tripcard__route">
+        {tripRoute(draft.origin, draft.destination)} · {draft.partySize}{" "}
+        traveler(s)
+      </p>
+      <div className="voy-form__row">
+        <label className="voy-field">
+          <span className="voy-field__label">Start</span>
+          <input
+            className="voy-input"
+            type="date"
+            value={startDate}
+            onChange={(event) => setStartDate(event.target.value)}
+          />
+        </label>
+        <label className="voy-field">
+          <span className="voy-field__label">End</span>
+          <input
+            className="voy-input"
+            type="date"
+            value={endDate}
+            onChange={(event) => setEndDate(event.target.value)}
+          />
+        </label>
+      </div>
+      <p>No inventory or availability search runs while this is an idea.</p>
+      <div className="voy-tripcard__actions">
+        <Button
+          variant="primary"
+          busy={busy}
+          disabled={!startDate || !endDate || startDate > endDate}
+          onClick={() => onConvert(draft, startDate, endDate)}
+        >
+          Build dated trip
+        </Button>
+        <Button variant="ghost" disabled={busy} onClick={() => onDelete(draft)}>
+          Delete idea
+        </Button>
+      </div>
+    </article>
+  );
+}
+
 export function TripListView({
   onOpenTrip,
 }: {
@@ -126,9 +193,14 @@ export function TripListView({
   const gateway = useGateway();
   const announce = useAnnounce();
   const revalidate = useRevalidate();
+  const tripsVersion = useScopeKey(tripsScope);
   const { status, data, error, reload } = useAsyncData(
     () => gateway.listTrips(),
-    useScopeKey(tripsScope),
+    tripsVersion,
+  );
+  const intentData = useAsyncData(
+    () => gateway.listTripIntents(),
+    `${tripsVersion}:intents`,
   );
   const [showCreate, setShowCreate] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TripSummary | null>(null);
@@ -186,6 +258,18 @@ export function TripListView({
       revalidate(tripsScope);
     },
   );
+  const convertIntentAction = useAsyncAction(
+    (draft: TripIntentDraft, startDate: string, endDate: string) =>
+      gateway.convertTripIntent({ draftId: draft.id, startDate, endDate }),
+    (trip) => {
+      revalidate(tripsScope);
+      onOpenTrip(trip.id);
+    },
+  );
+  const deleteIntentAction = useAsyncAction(
+    (draft: TripIntentDraft) => gateway.deleteTripIntent(draft.id),
+    () => revalidate(tripsScope),
+  );
 
   // Both are per-card, so a row needs to know which trip is busy. run() never
   // rejects, so the id always gets cleared.
@@ -204,12 +288,17 @@ export function TripListView({
   // These three used to only announce their failures, so a sighted user watched
   // the button stop spinning and saw nothing.
   const actionError =
-    sampleAction.error ?? archiveAction.error ?? unarchiveAction.error;
+    sampleAction.error ??
+    archiveAction.error ??
+    unarchiveAction.error ??
+    convertIntentAction.error ??
+    deleteIntentAction.error;
 
   const trips = data ?? [];
   // Archived trips are hidden by default so they don't clutter the workspace.
   const activeTrips = trips.filter((trip) => trip.status !== "archived");
   const archivedTrips = trips.filter((trip) => trip.status === "archived");
+  const intents = intentData.data ?? [];
 
   return (
     <section className="voy-triplist" aria-labelledby="triplist-heading">
@@ -288,7 +377,10 @@ export function TripListView({
         </Banner>
       ) : null}
 
-      {status !== "loading" && data && trips.length === 0 ? (
+      {status !== "loading" &&
+      data &&
+      trips.length === 0 &&
+      intents.length === 0 ? (
         <Empty
           title={t("triplist.empty.title")}
           action={
@@ -322,6 +414,29 @@ export function TripListView({
         >
           {t("triplist.empty.body")}
         </Empty>
+      ) : null}
+
+      {intents.length > 0 ? (
+        <section
+          className="voy-triplist__ideas"
+          aria-labelledby="trip-ideas-title"
+        >
+          <p className="voy-eyebrow">Saved without invented dates</p>
+          <h2 id="trip-ideas-title">Trip ideas</h2>
+          <div className="voy-triplist__grid">
+            {intents.map((draft) => (
+              <TripIdeaCard
+                key={draft.id}
+                draft={draft}
+                busy={convertIntentAction.busy || deleteIntentAction.busy}
+                onConvert={(item, startDate, endDate) =>
+                  void convertIntentAction.run(item, startDate, endDate)
+                }
+                onDelete={(item) => void deleteIntentAction.run(item)}
+              />
+            ))}
+          </div>
+        </section>
       ) : null}
 
       {justArchived ? (
@@ -397,6 +512,11 @@ export function TripListView({
             }
             setShowCreate(false);
             announce(t("triplist.announce.created", { title: trip.title }));
+            revalidate(tripsScope);
+          }}
+          onDraftSaved={(draft) => {
+            setShowCreate(false);
+            announce(`Saved ${draft.destination} as a trip idea.`);
             revalidate(tripsScope);
           }}
         />

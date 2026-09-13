@@ -9,6 +9,10 @@ import { applyThemeChoice, readThemeChoice } from "./app/theme";
 
 // Apply the saved theme before first paint to avoid a flash of the wrong palette.
 applyThemeChoice(readThemeChoice());
+const savedMotion = globalThis.localStorage?.getItem("voyalier.motion");
+if (savedMotion === "reduced" || savedMotion === "full") {
+  document.documentElement.dataset.voyMotion = savedMotion;
+}
 
 const root = document.getElementById("root");
 

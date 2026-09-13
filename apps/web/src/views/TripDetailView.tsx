@@ -99,6 +99,7 @@ import { DestinationFacts } from "./DestinationFacts";
 import { PublicHolidays } from "./PublicHolidays";
 import { AboutPlace } from "./AboutPlace";
 import { WeatherOutlook } from "./WeatherOutlook";
+import { ConciergeCockpit } from "./ConciergeCockpit";
 
 type Values = Record<string, string | undefined>;
 
@@ -1617,6 +1618,8 @@ export function TripDetailView({
         ) : null}
 
         <TripSectionNav skipHash={Boolean(searchTarget)} />
+
+        <ConciergeCockpit trip={trip} onImport={() => setShowImport(true)} />
 
         <TodayPanel
           tripId={tripId}
