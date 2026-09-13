@@ -11,6 +11,7 @@ import {
   clearWebViewDevToolsPorts,
   isRetryableWindowsDriverStartError,
   mirrorWebViewDevToolsPort,
+  waitForWindowsProcessQuiescence,
   validateWindowsAcceptanceReport,
   validateWindowsPickerPhaseTrace,
   validateWindowsPickerPreflightReport,
@@ -385,6 +386,26 @@ test("retries only failures from starting a Windows WebDriver session", () => {
   );
 });
 
+test("waits for every installed Windows process to exit", async () => {
+  const observed = [[{ ProcessId: 1200 }], []];
+  let receivedDescription;
+  let receivedTimeout;
+  const result = await waitForWindowsProcessQuiescence({
+    listProcesses: () => observed.shift(),
+    waitFor: async (check, description, timeout) => {
+      receivedDescription = description;
+      receivedTimeout = timeout;
+      assert.equal(await check(), false);
+      assert.equal(await check(), true);
+      return "quiescent";
+    },
+  });
+
+  assert.equal(result, "quiescent");
+  assert.equal(receivedDescription, "all installed Voyalier processes to stop");
+  assert.equal(receivedTimeout, 60_000);
+});
+
 test("keeps product setup, updater backup, and portable restore on the installed UI", async () => {
   const source = await readFile(
     new URL("./windows-installed-updater-acceptance.mjs", import.meta.url),
@@ -392,6 +413,16 @@ test("keeps product setup, updater backup, and portable restore on the installed
   );
   assert.match(source, /const DRIVER_START_ATTEMPTS = 2/);
   assert.match(source, /await stopDriver\(partialDriver\)\.catch/);
+  assert.match(source, /async function stopInstalledProcesses\(application\)/);
+  assert.match(
+    source,
+    /\["\/PID", String\(process\.ProcessId\), "\/T", "\/F"\]/,
+  );
+  assert.equal(
+    source.match(/await stopInstalledProcesses\(application\)/g)?.length,
+    4,
+    "every installed-process stop boundary must wait for quiescence",
+  );
   for (const forbiddenCommand of [
     "create_trip",
     "save_place",

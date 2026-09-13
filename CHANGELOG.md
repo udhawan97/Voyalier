@@ -6,7 +6,7 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
-## [0.12.0] - 2026-09-12 — Everything between here and there
+## [0.12.0] - 2026-09-13 — Everything between here and there
 
 Voyalier now turns a trip into an ordered concierge workspace: one traveler
 setup, explicit next actions, qualified provider handoffs, per-person official
@@ -91,6 +91,13 @@ decisions with the services and authorities that own them.
   mount unrelated deferred work.
 
 ### Fixed
+
+- **Windows recovery now waits for the installed app to release its workspace.**
+  The acceptance harness stops the installed process tree and observes zero
+  matching processes before uninstall, reinstall or a WebDriver retry. This
+  prevents a just-closed process from holding the staged SQLite generation
+  while the recovered app activates it; failure to become quiescent remains a
+  bounded release-gate error.
 
 - **Windows installed-release proof now recovers from one transient Edge
   startup crash.** A partially created WebDriver session is shut down before a
