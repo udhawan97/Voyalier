@@ -92,6 +92,12 @@ decisions with the services and authorities that own them.
 
 ### Fixed
 
+- **Windows installed-release proof now recovers from one transient Edge
+  startup crash.** A partially created WebDriver session is shut down before a
+  bounded retry, each attempt is recorded in sanitized evidence, and the job
+  has a two-hour outer limit. Product assertions are never retried, and two
+  failed startup attempts still fail the release gate.
+
 - **Windows can now stage an authenticated portable restore for the next
   launch.** The cross-platform atomic writer previously tried to flush a
   read-only directory handle after its rename, which Windows rejects even

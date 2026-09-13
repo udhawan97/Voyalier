@@ -29,6 +29,13 @@ if (!SEMVER.test(configuredCandidateVersion)) {
  */
 export const WINDOWS_ACCEPTANCE_CANDIDATE_VERSION = configuredCandidateVersion;
 
+export function isRetryableWindowsDriverStartError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /WebDriver POST \/session (?:failed|did not respond)|timed out waiting for (?:tauri-driver|the packaged Tauri bridge)|tauri-driver did not return a session id/i.test(
+    message,
+  );
+}
+
 export const WINDOWS_PICKER_PHASE_MARKERS = Object.freeze([
   ["export:command-entered", "voyalier-picker-phase-export-01-command-entered"],
   ["export:container-ready", "voyalier-picker-phase-export-02-container-ready"],
@@ -606,6 +613,27 @@ export function validateWindowsAcceptanceReport(report) {
     throw new Error(
       "a packaged session could have reused a stale WebView debug port",
     );
+  }
+  if (
+    report.driver.sessions.some(
+      ({ attempts, retryCount }) =>
+        !Number.isInteger(retryCount) ||
+        retryCount < 0 ||
+        retryCount > 1 ||
+        !Array.isArray(attempts) ||
+        attempts.length !== retryCount + 1 ||
+        attempts.at(-1)?.outcome !== "success" ||
+        attempts.slice(0, -1).some(({ outcome }) => outcome !== "failed") ||
+        attempts.some(
+          ({ attempt, outcome, error }, index) =>
+            attempt !== index + 1 ||
+            !["failed", "success"].includes(outcome) ||
+            (outcome === "failed" && !error) ||
+            (outcome === "success" && error !== undefined),
+        ),
+    )
+  ) {
+    throw new Error("the packaged WebDriver retry evidence is incomplete");
   }
   if (report.data?.tripCountBefore !== 1 || report.data?.tripCountAfter !== 1) {
     throw new Error("traveler-owned data did not survive the updater swap");
