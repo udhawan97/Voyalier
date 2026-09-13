@@ -418,13 +418,25 @@ test("keeps product setup, updater backup, and portable restore on the installed
     "const portableRestoreDialog = await driveNativeFileDialog",
     restoreUi,
   );
+  const restoreAdvance = source.indexOf(
+    'await waitForText(driver, "Restaurar esta copia"',
+    restorePicker,
+  );
+  const restoreConfirmation = source.indexOf(
+    'await clickText(driver, "Restaurar esta copia"',
+    restoreAdvance,
+  );
   assert.ok(
     restoreStage !== -1 &&
       restoreUi !== -1 &&
       restorePicker !== -1 &&
+      restoreAdvance !== -1 &&
+      restoreConfirmation !== -1 &&
       restoreStage < restoreUi &&
-      restoreUi < restorePicker,
-    "the restore diagnostic stage must precede the restore UI and picker",
+      restoreUi < restorePicker &&
+      restorePicker < restoreAdvance &&
+      restoreAdvance < restoreConfirmation,
+    "the restore diagnostic stage, picker, inspected state, and confirmation must stay ordered",
   );
   assert.match(source, /VOYALIER_WINDOWS_ACCEPTANCE_BACKUP_PATH/);
   assert.match(source, /IFileDialog\.SetFolder\+SetFileName via rfd 0\.16\.0/);
