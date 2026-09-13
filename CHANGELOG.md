@@ -6,7 +6,53 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-09-12 — Everything between here and there
+
+Voyalier now turns a trip into an ordered concierge workspace: one traveler
+setup, explicit next actions, qualified provider handoffs, per-person official
+entry and return sources, an encrypted document wallet, and exact-currency cost
+tracking. It still leaves purchases, live provider facts, and government
+decisions with the services and authorities that own them.
+
 ### Added
+
+- **The trip workspace now opens with a route-led concierge cockpit.** Travelers
+  can record their group, island or neighborhood, room needs, pace, driving
+  preference and budget once; work through traveler-reported next actions; and
+  carry a dated search brief to Google Flights, Airbnb, Expedia, Yelp, Reddit,
+  AllTrails and destination-specific official sources. Every handoff states
+  which fields are carried and which still require entry. Voyalier does not
+  scrape restricted listings, rank a universal “best,” or present live prices,
+  ratings or availability.
+- **The wallet now stores common travel files as encrypted trip evidence.** PDF,
+  JPEG and PNG files are validated by content signature, bounded to 20 MiB each
+  and 100 per trip, with 500 MiB of raw attachments across the workspace so the
+  encrypted SQLite representation stays comfortably inside the portable-backup
+  container. Files are deduplicated, sealed through the existing vault, and can
+  be linked to named travelers and individual preparation requirements before
+  an explicit preview, save or delete. Listing exposes metadata only; preview
+  requests are invalidated when closed, replaced or unmounted, and use a
+  short-lived object URL in a sandboxed frame or inert image element. OCR,
+  annotation, redaction and broader file formats remain later work.
+- **Entry preparation now separates arrival from return for every traveler.** A
+  domestic Hawaiʻi journey gets U.S. identification and Hawaiʻi arrival steps
+  rather than a visa claim. A Montréal journey keeps Canadian entry apart from
+  the return-to-U.S. route, with official links selected from broad traveler
+  status and a checked-on date. The app never determines eligibility or says a
+  traveler is cleared.
+- **Money stays truthful across currencies and commitment states.** Estimates,
+  committed amounts and refunds roll up independently per ISO currency without
+  hidden exchange-rate conversion. Unknown amounts and taxes stay explicit,
+  wire values are bounded to exact JavaScript integers, and every task remains
+  traveler-controlled.
+- **Multi-island stays now keep their bases and transfer work separate.** A
+  traveler can add several Hawaiʻi bases with their own date windows; Voyalier
+  creates a stay task for each base and a transfer task that calls out a gap,
+  overlap or same-day handoff before booking.
+- **Settings and the public guide now explain the complete concierge loop.** The
+  guide covers setup, provider handoff, evidence return, entry review, wallet,
+  money and travel day, and credits the open-source travel products studied for
+  itinerary, offline and route patterns without copying their code or assets.
 
 - **Repeat confirmations can now be reviewed as explicit amendments.** Exact
   unchanged reservations are left out of the review queue; a conservative
@@ -45,6 +91,12 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
   mount unrelated deferred work.
 
 ### Fixed
+
+- **A new custom data directory no longer reads an unrelated legacy vault key
+  before its first window opens.** Existing custom databases still adopt the
+  legacy key so previously encrypted rows remain readable; a path with no
+  database now creates its own namespaced key without prompting for access to a
+  different workspace.
 
 - **The documentation toolchain now uses patched YAML and SVG processing dependencies.**
   Existing dependency pins move to js-yaml 4.3.2 and svgo 4.1.0 to clear the

@@ -61,6 +61,25 @@ impl ToSql for Sealed {
 }
 
 impl Vault {
+    /// Binary identity/travel files are accepted only when the vault has a
+    /// recoverable data key. Other legacy records may still use the historical
+    /// plaintext fallback, but accepting a file without durable encryption
+    /// would make the wallet's custody promise false.
+    pub(crate) fn require_active_for_attachments(&self) -> Result<(), AppError> {
+        let state = self.snapshot();
+        if state.key.is_some() {
+            return Ok(());
+        }
+        Err(if state.protected {
+            vault_locked_error()
+        } else {
+            AppError::new(
+                ErrorCode::VaultUnreadable,
+                "secure document storage is unavailable; configure a working keychain or passphrase before importing files",
+            )
+        })
+    }
+
     /// Seal a plaintext field. Inactive → plaintext passthrough; locked → error.
     ///
     /// This is the only way to make a `Sealed`, but it is **not** what stops a

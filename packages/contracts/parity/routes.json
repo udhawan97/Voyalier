@@ -34,6 +34,52 @@
       }
     },
     {
+      "method": "saveTripIntent",
+      "verb": "POST",
+      "path": "/api/v1/trip-intents",
+      "command": "save_trip_intent",
+      "payload": {
+        "command": "input",
+        "body": "input",
+        "query": []
+      }
+    },
+    {
+      "method": "listTripIntents",
+      "verb": "GET",
+      "path": "/api/v1/trip-intents",
+      "command": "list_trip_intents",
+      "payload": {
+        "command": [],
+        "body": null,
+        "query": []
+      }
+    },
+    {
+      "method": "deleteTripIntent",
+      "verb": "DELETE",
+      "path": "/api/v1/trip-intents/{draftId}",
+      "command": "delete_trip_intent",
+      "payload": {
+        "command": [
+          "draftId"
+        ],
+        "body": null,
+        "query": []
+      }
+    },
+    {
+      "method": "convertTripIntent",
+      "verb": "POST",
+      "path": "/api/v1/trip-intents/{draftId}/convert",
+      "command": "convert_trip_intent",
+      "payload": {
+        "command": "input",
+        "body": "input",
+        "query": []
+      }
+    },
+    {
       "method": "getTrip",
       "verb": "GET",
       "path": "/api/v1/trips/{tripId}",
@@ -43,6 +89,30 @@
           "tripId"
         ],
         "body": null,
+        "query": []
+      }
+    },
+    {
+      "method": "getConciergeWorkspace",
+      "verb": "GET",
+      "path": "/api/v1/trips/{tripId}/concierge",
+      "command": "get_concierge_workspace",
+      "payload": {
+        "command": [
+          "tripId"
+        ],
+        "body": null,
+        "query": []
+      }
+    },
+    {
+      "method": "setConciergeProfile",
+      "verb": "PUT",
+      "path": "/api/v1/trips/{tripId}/concierge",
+      "command": "set_concierge_profile",
+      "payload": {
+        "command": "input",
+        "body": "input",
         "query": []
       }
     },
@@ -1047,6 +1117,56 @@
       }
     },
     {
+      "method": "importAttachment",
+      "verb": "POST",
+      "path": "/api/v1/trips/{tripId}/attachments",
+      "command": "import_attachment",
+      "payload": {
+        "command": "input",
+        "body": "input",
+        "query": []
+      }
+    },
+    {
+      "method": "listAttachments",
+      "verb": "GET",
+      "path": "/api/v1/trips/{tripId}/attachments",
+      "command": "list_attachments",
+      "payload": {
+        "command": [
+          "tripId"
+        ],
+        "body": null,
+        "query": []
+      }
+    },
+    {
+      "method": "getAttachment",
+      "verb": "GET",
+      "path": "/api/v1/attachments/{attachmentId}",
+      "command": "get_attachment",
+      "payload": {
+        "command": [
+          "attachmentId"
+        ],
+        "body": null,
+        "query": []
+      }
+    },
+    {
+      "method": "deleteAttachment",
+      "verb": "DELETE",
+      "path": "/api/v1/attachments/{attachmentId}",
+      "command": "delete_attachment",
+      "payload": {
+        "command": [
+          "attachmentId"
+        ],
+        "body": null,
+        "query": []
+      }
+    },
+    {
       "method": "listCandidates",
       "verb": "GET",
       "path": "/api/v1/trips/{tripId}/candidates",
@@ -1138,7 +1258,7 @@
     "updater_relaunch"
   ],
   "counts": {
-    "shared": 84,
+    "shared": 94,
     "desktopOnly": 13
   }
 }

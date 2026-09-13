@@ -16,6 +16,7 @@ import {
  * - `"trips"` — the trip list
  * - `` `trip:${id}` `` — one trip's detail and its pending candidates
  * - `` `documents:${id}` `` — one trip's imported documents
+ * - `` `concierge:${id}` `` — one trip's concierge projection
  * - `` `visa:${id}` `` — one trip's visa preparation
  * - `` `resources:${id}` `` — one trip's kept research
  * - `` `chat:${id}` `` — one trip's conversation
@@ -30,6 +31,8 @@ export const tripsScope: Scope = "trips";
 export const tripScope = (tripId: string): Scope => `trip:${tripId}`;
 /** One trip's imported documents. */
 export const documentsScope = (tripId: string): Scope => `documents:${tripId}`;
+/** One trip's local concierge profile, wallet, costs and deterministic projection. */
+export const conciergeScope = (tripId: string): Scope => `concierge:${tripId}`;
 /** One trip's visa preparation. */
 export const visaScope = (tripId: string): Scope => `visa:${tripId}`;
 /**
@@ -63,6 +66,7 @@ function isGlobalRetrySafe(scope: Scope): boolean {
     scope === adviceCountriesScope ||
     scope.startsWith("trip:") ||
     scope.startsWith("documents:") ||
+    scope.startsWith("concierge:") ||
     scope.startsWith("visa:") ||
     scope.startsWith("resources:") ||
     scope.startsWith("notes:")

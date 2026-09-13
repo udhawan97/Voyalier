@@ -1,5 +1,10 @@
 import { useRef, useState, type RefObject } from "react";
-import type { AppError, CreateTripInput, Trip } from "@voyalier/contracts";
+import type {
+  AppError,
+  CreateTripInput,
+  Trip,
+  TripIntentDraft,
+} from "@voyalier/contracts";
 import { MAX_LOCATION_LEN, countChars } from "@voyalier/contracts";
 
 import { useGateway } from "../app/context";
@@ -16,15 +21,18 @@ interface FieldErrors {
   origin?: string;
   destination?: string;
   dates?: string;
+  partySize?: string;
 }
 
 export function CreateTripDialog({
   onClose,
   onCreated,
+  onDraftSaved,
   returnFocusRef,
 }: {
   onClose: () => void;
   onCreated: (trip: Trip) => void;
+  onDraftSaved: (draft: TripIntentDraft) => void;
   returnFocusRef: RefObject<HTMLElement | null>;
 }) {
   const gateway = useGateway();
@@ -33,6 +41,7 @@ export function CreateTripDialog({
   const [destination, setDestination] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [partySize, setPartySize] = useState(1);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<AppError | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -44,7 +53,7 @@ export function CreateTripDialog({
   // the doc block above MAX_LOCATION_LEN names this exact failure: `.length`
   // counts UTF-16 units, so a name carrying astral characters counted double
   // and this form refused input the engine accepts.
-  function validate(): FieldErrors {
+  function validate(requireDates = true): FieldErrors {
     const next: FieldErrors = {};
     const trimmedOrigin = origin.trim();
     const trimmedDestination = destination.trim();
@@ -55,8 +64,13 @@ export function CreateTripDialog({
       next.destination = t("createTrip.destination.required");
     else if (countChars(trimmedDestination) > MAX_LOCATION_LEN)
       next.destination = t("createTrip.tooLong");
-    if (!startDate || !endDate) next.dates = t("createTrip.dates.required");
+    if (requireDates && (!startDate || !endDate))
+      next.dates = t("createTrip.dates.required");
+    else if (Boolean(startDate) !== Boolean(endDate))
+      next.dates = "Set both dates or leave both undecided.";
     else if (startDate > endDate) next.dates = t("createTrip.dates.order");
+    if (!Number.isInteger(partySize) || partySize < 1 || partySize > 20)
+      next.partySize = "Enter between 1 and 20 travelers.";
     return next;
   }
 
@@ -92,7 +106,8 @@ export function CreateTripDialog({
     const first =
       (found.origin && "trip-origin") ||
       (found.destination && "trip-destination") ||
-      (found.dates && "trip-start");
+      (found.dates && "trip-start") ||
+      (found.partySize && "trip-party-size");
     if (!first) return;
     document.getElementById(first)?.focus();
   }
@@ -117,10 +132,21 @@ export function CreateTripDialog({
     const trimmedTitle = title.trim();
     if (trimmedTitle) input.title = trimmedTitle;
 
+    let createdTrip: Trip | null = null;
     try {
-      const trip = await gateway.createTrip(input);
-      onCreated(trip);
+      createdTrip = await gateway.createTrip(input);
+      const workspace = await gateway.getConciergeWorkspace(createdTrip.id);
+      await gateway.setConciergeProfile({
+        ...workspace.profile,
+        preferences: { ...workspace.profile.preferences, partySize },
+      });
+      onCreated(createdTrip);
     } catch (caught) {
+      if (createdTrip) {
+        // Keep a failed follow-up profile write from leaving an unexpected trip
+        // behind. The server owns cascade cleanup for the new draft trip.
+        await gateway.deleteTrip(createdTrip.id).catch(() => undefined);
+      }
       const appError = caught as AppError;
       const mapped = tripFieldError(appError);
       if (mapped) {
@@ -138,6 +164,31 @@ export function CreateTripDialog({
     }
   }
 
+  async function saveDraft() {
+    setFormError(null);
+    const found = validate(false);
+    setErrors(found);
+    if (Object.keys(found).length > 0) {
+      focusFirstInvalid(found);
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const draft = await gateway.saveTripIntent({
+        origin: origin.trim(),
+        destination: destination.trim(),
+        ...(title.trim() ? { title: title.trim() } : {}),
+        ...(startDate ? { startDate } : {}),
+        ...(endDate ? { endDate } : {}),
+        partySize,
+      });
+      onDraftSaved(draft);
+    } catch (caught) {
+      setFormError(caught as AppError);
+      setSubmitting(false);
+    }
+  }
+
   return (
     <Dialog
       title={t("createTrip.title")}
@@ -149,6 +200,9 @@ export function CreateTripDialog({
         <>
           <Button variant="ghost" onClick={onClose}>
             {t("action.cancel")}
+          </Button>
+          <Button variant="secondary" busy={submitting} onClick={saveDraft}>
+            Save trip idea
           </Button>
           <Button
             variant="primary"
@@ -246,6 +300,29 @@ export function CreateTripDialog({
             </p>
           ) : null}
         </div>
+        <TextField
+          id="trip-party-size"
+          label="Travelers"
+          type="number"
+          min={1}
+          max={20}
+          value={partySize}
+          onChange={(event) => setPartySize(Number(event.target.value))}
+          required
+          aria-invalid={errors.partySize ? true : undefined}
+          aria-describedby={
+            errors.partySize ? "trip-party-size-error" : undefined
+          }
+        />
+        {errors.partySize ? (
+          <p
+            className="voy-field__error"
+            id="trip-party-size-error"
+            role="alert"
+          >
+            {errors.partySize}
+          </p>
+        ) : null}
         {/* This one keeps its maxLength, unlike origin and destination above.
             `validate_create_trip` does not bound the title at all — it only
             trims it — so the attribute is the whole limit here, and removing it

@@ -17,6 +17,7 @@ mod calendar;
 mod chat;
 mod climate;
 mod co2;
+mod concierge;
 mod contingency;
 mod email;
 mod facts;
@@ -108,6 +109,7 @@ pub use climate::{
     parse_climate_normals,
 };
 pub use co2::{FACTOR_YEAR, FlightEmissions, estimate_flight_emissions};
+pub use concierge::*;
 pub use contingency::{
     DisruptionContext, DisruptionPlan, ExposedLeg, FallbackPointer, Handoff, HandoffBand,
     HandoffKind, build_disruption_plan,

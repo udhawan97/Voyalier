@@ -318,6 +318,12 @@ fn parity_limits_match_the_contract() {
     let expected = [
         ("maxLocationLen", crate::types::MAX_LOCATION_LEN),
         ("maxDocumentChars", crate::types::MAX_DOCUMENT_CHARS),
+        ("maxAttachmentBytes", crate::MAX_ATTACHMENT_BYTES),
+        ("maxAttachmentsPerTrip", crate::MAX_ATTACHMENTS_PER_TRIP),
+        (
+            "maxAttachmentWorkspaceBytes",
+            crate::MAX_ATTACHMENT_WORKSPACE_BYTES,
+        ),
         ("maxNotesChars", crate::types::MAX_NOTES_CHARS),
         ("maxQueryLen", crate::search::MAX_QUERY_LEN),
         ("maxAiPromptLen", crate::MAX_AI_PROMPT_LEN),

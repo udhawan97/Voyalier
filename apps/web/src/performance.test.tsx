@@ -95,7 +95,10 @@ describe("trip open budget", () => {
 
     // App-level calls happen once for the whole session, not per trip open.
     const perTrip = calls.filter(
-      (call) => !["listTrips", "getVaultStatus", "health"].includes(call),
+      (call) =>
+        !["listTrips", "listTripIntents", "getVaultStatus", "health"].includes(
+          call,
+        ),
     );
     expect(
       perTrip.length,

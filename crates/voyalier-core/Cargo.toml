@@ -19,5 +19,6 @@ semver.workspace = true
 thiserror.workspace = true
 unicode-normalization.workspace = true
 uuid.workspace = true
+url.workspace = true
 
 [dev-dependencies]

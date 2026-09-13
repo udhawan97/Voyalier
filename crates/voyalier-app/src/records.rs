@@ -28,10 +28,11 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 use voyalier_core::{
-    AppError, CandidateFact, CandidateStatus, ChatMessage, ConfirmedFact, ConfirmedFactVersion,
-    DocumentContent, ErrorCode, InterestProfile, ItineraryIdentity, PackingItem, PersonaWeights,
-    Resource, ResourceSnapshot, SavedPlace, SourceDocument, TodayItemTargetSource, Trip, TripItem,
-    TripItemKind, TripNotes, TripSummary, VisaPrepItem, saved_place_identity,
+    AppError, AttachmentContent, AttachmentSummary, CandidateFact, CandidateStatus, ChatMessage,
+    ConciergeProfile, ConfirmedFact, ConfirmedFactVersion, DocumentContent, ErrorCode,
+    InterestProfile, ItineraryIdentity, PackingItem, PersonaWeights, Resource, ResourceSnapshot,
+    SavedPlace, SourceDocument, TodayItemTargetSource, Trip, TripItem, TripItemKind, TripNotes,
+    TripSummary, VisaPrepItem, saved_place_identity,
 };
 
 use crate::{DocumentText, Vault, sealed::Sealed, storage_error};
@@ -74,6 +75,11 @@ pub(crate) const SEALED_COLUMNS: &[(&str, &str)] = &[
     // A chat message is free-form: the traveler can type anything into it,
     // including the code the prompt itself is built to withhold.
     ("chat_messages", "text"),
+    // Party context, immigration-status categories, costs and wallet links are
+    // traveler-authored and can reveal sensitive travel circumstances.
+    ("concierge_profiles", "payload"),
+    ("binary_attachments", "label"),
+    ("binary_attachments", "raw_content"),
 ];
 
 const TRIP_COLUMNS: &str =
@@ -85,6 +91,8 @@ const CONFIRMED_COLUMNS: &str = "id, trip_id, fact_type, payload, method, candid
 /// A document's metadata. `raw_content` is deliberately not here: it is sealed,
 /// and only `document_content` returns it.
 const DOCUMENT_COLUMNS: &str = "id, trip_id, kind, label, content_hash, char_count, imported_at";
+const ATTACHMENT_COLUMNS: &str =
+    "id, trip_id, label, mime_type, byte_count, content_hash, imported_at";
 
 /// Reads and writes for the sealed records, over a bound connection and vault.
 ///
@@ -98,6 +106,169 @@ pub(crate) struct Records<'a> {
 impl<'a> Records<'a> {
     pub(crate) fn new(connection: &'a Connection, vault: &'a Vault) -> Self {
         Self { connection, vault }
+    }
+
+    // ---- concierge profile ---------------------------------------------
+
+    pub(crate) fn concierge_profile(
+        &self,
+        trip_id: &str,
+    ) -> Result<Option<ConciergeProfile>, AppError> {
+        let stored: Option<Sealed> = self
+            .connection
+            .query_row(
+                "SELECT payload FROM concierge_profiles WHERE trip_id=?1",
+                params![trip_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(storage_error)?;
+        stored
+            .map(|payload| {
+                let json = self.vault.open(&payload)?;
+                serde_json::from_str(&json).map_err(storage_error)
+            })
+            .transpose()
+    }
+
+    pub(crate) fn upsert_concierge_profile(
+        &self,
+        profile: &ConciergeProfile,
+        id: &str,
+    ) -> Result<(), AppError> {
+        let payload = self.vault.seal(&to_sql_json(profile)?)?;
+        self.connection
+            .execute(
+                "INSERT INTO concierge_profiles (id, trip_id, payload, updated_at)
+                 VALUES (?1, ?2, ?3, ?4)
+                 ON CONFLICT(trip_id) DO UPDATE SET payload=?3, updated_at=?4",
+                params![id, profile.trip_id, payload, profile.updated_at],
+            )
+            .map_err(storage_error)?;
+        Ok(())
+    }
+
+    // ---- binary attachments --------------------------------------------
+
+    pub(crate) fn insert_attachment(
+        &self,
+        attachment: &AttachmentSummary,
+        content_base64: &str,
+    ) -> Result<(), AppError> {
+        self.connection
+            .execute(
+                &format!(
+                    "INSERT INTO binary_attachments ({ATTACHMENT_COLUMNS}, raw_content)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
+                ),
+                params![
+                    attachment.id,
+                    attachment.trip_id,
+                    self.vault.seal(&attachment.label)?,
+                    attachment.mime_type,
+                    attachment.byte_count,
+                    attachment.content_hash,
+                    attachment.imported_at,
+                    self.vault.seal(content_base64)?
+                ],
+            )
+            .map_err(storage_error)?;
+        Ok(())
+    }
+
+    pub(crate) fn attachments(&self, trip_id: &str) -> Result<Vec<AttachmentSummary>, AppError> {
+        let mut statement = self
+            .connection
+            .prepare(&format!(
+                "SELECT {ATTACHMENT_COLUMNS} FROM binary_attachments
+                 WHERE trip_id=?1 ORDER BY imported_at DESC, id DESC"
+            ))
+            .map_err(storage_error)?;
+        let rows = statement
+            .query_map(params![trip_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Sealed>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, u32>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, String>(6)?,
+                ))
+            })
+            .map_err(storage_error)?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(storage_error)?
+            .into_iter()
+            .map(
+                |(id, trip_id, label, mime_type, byte_count, content_hash, imported_at)| {
+                    Ok(AttachmentSummary {
+                        id,
+                        trip_id,
+                        label: self.vault.open(&label)?,
+                        mime_type,
+                        byte_count,
+                        content_hash,
+                        imported_at,
+                    })
+                },
+            )
+            .collect()
+    }
+
+    pub(crate) fn attachment_content(
+        &self,
+        attachment_id: &str,
+    ) -> Result<AttachmentContent, AppError> {
+        let (id, trip_id, label, mime_type, byte_count, content_hash, imported_at, raw): (
+            String,
+            String,
+            Sealed,
+            String,
+            u32,
+            String,
+            String,
+            Sealed,
+        ) = self
+            .connection
+            .query_row(
+                &format!(
+                    "SELECT {ATTACHMENT_COLUMNS}, raw_content FROM binary_attachments WHERE id=?1"
+                ),
+                params![attachment_id],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                        row.get(5)?,
+                        row.get(6)?,
+                        row.get(7)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(storage_error)?
+            .ok_or_else(|| {
+                AppError::new(
+                    ErrorCode::DocumentNotFound,
+                    "that attachment no longer exists",
+                )
+            })?;
+        Ok(AttachmentContent {
+            attachment: AttachmentSummary {
+                id,
+                trip_id,
+                label: self.vault.open(&label)?,
+                mime_type,
+                byte_count,
+                content_hash,
+                imported_at,
+            },
+            content_base64: self.vault.open(&raw)?,
+        })
     }
 
     pub(crate) fn itinerary_identities(

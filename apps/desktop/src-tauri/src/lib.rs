@@ -6,19 +6,21 @@ use tauri_plugin_dialog::DialogExt;
 use voyalier_app::{AppService, BackupInfo, RestorePreview};
 use voyalier_core::{
     AddManualFactInput, AddPackingItemInput, AdvisoryPanel, AiPromptSettings, AppError,
-    AssistActivityEntry, AssistDraftResult, AssistReply, AssistRequestPreview, CandidateFact,
-    CandidateStatus, ChatMessage, ConfirmCandidateInput, ConfirmedFact, CreateResourceInput,
-    CreateTripInput, CreateTripItemInput, DestinationFactsSnapshot, DocumentContent,
-    DocumentSummary, DownloadedPack, ErrorCode, FcdoCountry, FieldSuggestion, HealthResponse,
-    ImportDocumentInput, ImportResult, InterestProfile, KeyValidation, LocalAiStatus,
-    LocalModelPullResult, MAX_BACKUP_CONTAINER_BYTES, OfflineMapArchive, OfflineMapChunk, PackInfo,
-    PackSuggestion, PackingItem, PersonaWeights, PlaceSummary, ProviderConfig,
-    PublicHolidaysSnapshot, RecheckReport, Recommendation, ResearchSettings, Resource,
-    RestoreFactVersionInput, SavePlaceInput, SavedPlace, SearchHit, SetInterestProfileInput,
-    SetResearchSettingsInput, SetVisaItemProgressInput, SetVisaNationalityInput, TodayView, Trip,
-    TripBrief, TripDetail, TripItem, TripNotes, TripSummary, UpdatePackingItemInput,
-    UpdateResourceInput, UpdateSavedPlaceInput, UpdateTripInput, UpdateTripItemInput, VaultStatus,
-    VisaPrep, WeatherSnapshot, WorkspaceSearchHit,
+    AssistActivityEntry, AssistDraftResult, AssistReply, AssistRequestPreview, AttachmentContent,
+    AttachmentSummary, CandidateFact, CandidateStatus, ChatMessage, ConciergeProfile,
+    ConciergeWorkspace, ConfirmCandidateInput, ConfirmedFact, ConvertTripIntentInput,
+    CreateResourceInput, CreateTripInput, CreateTripItemInput, DestinationFactsSnapshot,
+    DocumentContent, DocumentSummary, DownloadedPack, ErrorCode, FcdoCountry, FieldSuggestion,
+    HealthResponse, ImportAttachmentInput, ImportDocumentInput, ImportResult, InterestProfile,
+    KeyValidation, LocalAiStatus, LocalModelPullResult, MAX_BACKUP_CONTAINER_BYTES,
+    OfflineMapArchive, OfflineMapChunk, PackInfo, PackSuggestion, PackingItem, PersonaWeights,
+    PlaceSummary, ProviderConfig, PublicHolidaysSnapshot, RecheckReport, Recommendation,
+    ResearchSettings, Resource, RestoreFactVersionInput, SavePlaceInput, SaveTripIntentDraftInput,
+    SavedPlace, SearchHit, SetInterestProfileInput, SetResearchSettingsInput,
+    SetVisaItemProgressInput, SetVisaNationalityInput, TodayView, Trip, TripBrief, TripDetail,
+    TripIntentDraft, TripItem, TripNotes, TripSummary, UpdatePackingItemInput, UpdateResourceInput,
+    UpdateSavedPlaceInput, UpdateTripInput, UpdateTripItemInput, VaultStatus, VisaPrep,
+    WeatherSnapshot, WorkspaceSearchHit,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -29,6 +31,12 @@ struct EmptyInput {}
 #[serde(rename_all = "camelCase")]
 struct TripIdInput {
     trip_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DraftIdInput {
+    draft_id: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -55,6 +63,12 @@ struct CandidateIdInput {
 #[serde(rename_all = "camelCase")]
 struct DocumentIdInput {
     document_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AttachmentIdInput {
+    attachment_id: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -118,8 +132,54 @@ fn list_trips(
 }
 
 #[tauri::command]
+fn save_trip_intent(
+    input: SaveTripIntentDraftInput,
+    service: State<'_, AppService>,
+) -> Result<TripIntentDraft, AppError> {
+    service.save_trip_intent(input)
+}
+
+#[tauri::command]
+fn list_trip_intents(
+    input: EmptyInput,
+    service: State<'_, AppService>,
+) -> Result<Vec<TripIntentDraft>, AppError> {
+    let _ = input;
+    service.list_trip_intents()
+}
+
+#[tauri::command]
+fn delete_trip_intent(input: DraftIdInput, service: State<'_, AppService>) -> Result<(), AppError> {
+    service.delete_trip_intent(&input.draft_id)
+}
+
+#[tauri::command]
+fn convert_trip_intent(
+    input: ConvertTripIntentInput,
+    service: State<'_, AppService>,
+) -> Result<Trip, AppError> {
+    service.convert_trip_intent(input)
+}
+
+#[tauri::command]
 fn get_trip(input: TripIdInput, service: State<'_, AppService>) -> Result<TripDetail, AppError> {
     service.get_trip(&input.trip_id)
+}
+
+#[tauri::command]
+fn get_concierge_workspace(
+    input: TripIdInput,
+    service: State<'_, AppService>,
+) -> Result<ConciergeWorkspace, AppError> {
+    service.get_concierge_workspace(&input.trip_id)
+}
+
+#[tauri::command]
+fn set_concierge_profile(
+    input: ConciergeProfile,
+    service: State<'_, AppService>,
+) -> Result<ConciergeWorkspace, AppError> {
+    service.set_concierge_profile(input)
 }
 
 #[tauri::command]
@@ -817,6 +877,38 @@ fn get_document(
 #[tauri::command]
 fn delete_document(input: DocumentIdInput, service: State<'_, AppService>) -> Result<(), AppError> {
     service.delete_document(&input.document_id)
+}
+
+#[tauri::command]
+fn import_attachment(
+    input: ImportAttachmentInput,
+    service: State<'_, AppService>,
+) -> Result<AttachmentSummary, AppError> {
+    service.import_attachment(input)
+}
+
+#[tauri::command]
+fn list_attachments(
+    input: TripIdInput,
+    service: State<'_, AppService>,
+) -> Result<Vec<AttachmentSummary>, AppError> {
+    service.list_attachments(&input.trip_id)
+}
+
+#[tauri::command]
+fn get_attachment(
+    input: AttachmentIdInput,
+    service: State<'_, AppService>,
+) -> Result<AttachmentContent, AppError> {
+    service.get_attachment(&input.attachment_id)
+}
+
+#[tauri::command]
+fn delete_attachment(
+    input: AttachmentIdInput,
+    service: State<'_, AppService>,
+) -> Result<(), AppError> {
+    service.delete_attachment(&input.attachment_id)
 }
 
 #[tauri::command]
@@ -1787,7 +1879,13 @@ fn builder<R: tauri::Runtime>(
             health,
             create_trip,
             list_trips,
+            save_trip_intent,
+            list_trip_intents,
+            delete_trip_intent,
+            convert_trip_intent,
             get_trip,
+            get_concierge_workspace,
+            set_concierge_profile,
             update_trip,
             archive_trip,
             unarchive_trip,
@@ -1862,6 +1960,10 @@ fn builder<R: tauri::Runtime>(
             list_documents,
             get_document,
             delete_document,
+            import_attachment,
+            list_attachments,
+            get_attachment,
+            delete_attachment,
             list_candidates,
             confirm_candidate,
             reject_candidate,
@@ -2449,6 +2551,41 @@ mod tests {
                 .expect("content")
                 .contains("HOLD9")
         );
+        let attachment = invoke(
+            &webview,
+            "import_attachment",
+            json!({
+                "tripId": trip_id,
+                "label": "Entry letter.pdf",
+                "mimeType": "application/pdf",
+                "contentBase64": "JVBERi0xLjQ="
+            }),
+        )
+        .expect("import attachment");
+        let attachment_id = attachment["id"].as_str().expect("attachment id").to_owned();
+        assert_eq!(
+            invoke(&webview, "list_attachments", json!({ "tripId": trip_id }))
+                .expect("list attachments")
+                .as_array()
+                .expect("attachments")
+                .len(),
+            1
+        );
+        assert_eq!(
+            invoke(
+                &webview,
+                "get_attachment",
+                json!({ "attachmentId": attachment_id }),
+            )
+            .expect("get attachment")["contentBase64"],
+            "JVBERi0xLjQ="
+        );
+        invoke(
+            &webview,
+            "delete_attachment",
+            json!({ "attachmentId": attachment_id }),
+        )
+        .expect("delete attachment");
 
         let confirmed = invoke(
             &webview,
@@ -2930,6 +3067,10 @@ mod tests {
             "fetch_place_summary",
             "delete_trip",
             "import_document",
+            "import_attachment",
+            "list_attachments",
+            "get_attachment",
+            "delete_attachment",
             "list_candidates",
             "confirm_candidate",
             "reject_candidate",
@@ -3294,12 +3435,12 @@ mod tests {
         }
 
         // Mechanically checked against a struct in this file, rather than
-        // classified as a passthrough: 58 that hand-build an argument object,
-        // plus the 9 that send an empty envelope against `EmptyInput`. Bump it
+        // classified as a passthrough: 63 that hand-build an argument object,
+        // plus the 10 that send an empty envelope against `EmptyInput`. Bump it
         // when a row changes kind.
         assert_eq!(
-            checked_locally, 67,
-            "expected 67 commands with desktop-declared input structs, found {checked_locally}"
+            checked_locally, 73,
+            "expected 73 commands with desktop-declared input structs, found {checked_locally}"
         );
     }
 

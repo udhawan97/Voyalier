@@ -12,11 +12,16 @@ import type {
   AssistDraftResult,
   AssistReply,
   AssistRequestPreview,
+  AttachmentContent,
+  AttachmentSummary,
   CandidateFact,
   CandidateStatus,
   ChatMessage,
+  ConciergeProfile,
+  ConciergeWorkspace,
   ConfirmCandidateInput,
   ConfirmedFact,
+  ConvertTripIntentInput,
   CreateResourceInput,
   CreateTripInput,
   CreateTripItemInput,
@@ -29,6 +34,7 @@ import type {
   FieldSuggestion,
   HealthResponse,
   ImportDocumentInput,
+  ImportAttachmentInput,
   ImportResult,
   InterestProfile,
   KeyValidation,
@@ -50,6 +56,7 @@ import type {
   Resource,
   SavedPlace,
   SavePlaceInput,
+  SaveTripIntentDraftInput,
   SearchHit,
   SetInterestProfileInput,
   SetProviderKeyInput,
@@ -62,6 +69,7 @@ import type {
   Trip,
   TripBrief,
   TripDetail,
+  TripIntentDraft,
   TripItem,
   TripNotes,
   TripSummary,
@@ -147,8 +155,26 @@ export function createTauriGateway(
 
     listTrips: () => call<TripSummary[]>(command("listTrips"), {}),
 
+    saveTripIntent: (input: SaveTripIntentDraftInput) =>
+      call<TripIntentDraft>(command("saveTripIntent"), input),
+
+    listTripIntents: () =>
+      call<TripIntentDraft[]>(command("listTripIntents"), {}),
+
+    deleteTripIntent: (draftId: string) =>
+      call<void>(command("deleteTripIntent"), { draftId }),
+
+    convertTripIntent: (input: ConvertTripIntentInput) =>
+      call<Trip>(command("convertTripIntent"), input),
+
     getTrip: (tripId: string) =>
       call<TripDetail>(command("getTrip"), { tripId }),
+
+    getConciergeWorkspace: (tripId: string) =>
+      call<ConciergeWorkspace>(command("getConciergeWorkspace"), { tripId }),
+
+    setConciergeProfile: (input: ConciergeProfile) =>
+      call<ConciergeWorkspace>(command("setConciergeProfile"), input),
 
     updateTrip: (tripId: string, input: UpdateTripInput) =>
       call<Trip>(command("updateTrip"), { tripId, patch: input }),
@@ -370,6 +396,18 @@ export function createTauriGateway(
 
     importDocument: (input: ImportDocumentInput) =>
       call<ImportResult>(command("importDocument"), input),
+
+    importAttachment: (input: ImportAttachmentInput) =>
+      call<AttachmentSummary>(command("importAttachment"), input),
+
+    listAttachments: (tripId: string) =>
+      call<AttachmentSummary[]>(command("listAttachments"), { tripId }),
+
+    getAttachment: (attachmentId: string) =>
+      call<AttachmentContent>(command("getAttachment"), { attachmentId }),
+
+    deleteAttachment: (attachmentId: string) =>
+      call<void>(command("deleteAttachment"), { attachmentId }),
 
     getTripNotes: (tripId: string) =>
       call<TripNotes>(command("getTripNotes"), { tripId }),

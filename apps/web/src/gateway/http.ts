@@ -12,11 +12,16 @@ import type {
   AssistDraftResult,
   AssistReply,
   AssistRequestPreview,
+  AttachmentContent,
+  AttachmentSummary,
   CandidateFact,
   CandidateStatus,
   ChatMessage,
+  ConciergeProfile,
+  ConciergeWorkspace,
   ConfirmCandidateInput,
   ConfirmedFact,
+  ConvertTripIntentInput,
   CreateResourceInput,
   CreateTripInput,
   CreateTripItemInput,
@@ -29,6 +34,7 @@ import type {
   FieldSuggestion,
   HealthResponse,
   ImportDocumentInput,
+  ImportAttachmentInput,
   ImportResult,
   InterestProfile,
   KeyValidation,
@@ -50,6 +56,7 @@ import type {
   Resource,
   SavedPlace,
   SavePlaceInput,
+  SaveTripIntentDraftInput,
   SearchHit,
   SetInterestProfileInput,
   SetProviderKeyInput,
@@ -62,6 +69,7 @@ import type {
   Trip,
   TripBrief,
   TripDetail,
+  TripIntentDraft,
   TripItem,
   TripNotes,
   TripSummary,
@@ -194,8 +202,34 @@ export function createHttpGateway(
 
     listTrips: () => request<TripSummary[]>(...route("listTrips")),
 
+    saveTripIntent: (input: SaveTripIntentDraftInput) =>
+      request<TripIntentDraft>(...route("saveTripIntent"), input),
+
+    listTripIntents: () =>
+      request<TripIntentDraft[]>(...route("listTripIntents")),
+
+    deleteTripIntent: (draftId: string) =>
+      request<void>(...route("deleteTripIntent", { draftId })),
+
+    convertTripIntent: (input: ConvertTripIntentInput) =>
+      request<Trip>(
+        ...route("convertTripIntent", { draftId: input.draftId }),
+        input,
+      ),
+
     getTrip: (tripId: string) =>
       request<TripDetail>(...route("getTrip", { tripId })),
+
+    getConciergeWorkspace: (tripId: string) =>
+      request<ConciergeWorkspace>(
+        ...route("getConciergeWorkspace", { tripId }),
+      ),
+
+    setConciergeProfile: (input: ConciergeProfile) =>
+      request<ConciergeWorkspace>(
+        ...route("setConciergeProfile", { tripId: input.tripId }),
+        input,
+      ),
 
     updateTrip: (tripId: string, input: UpdateTripInput) =>
       request<Trip>(...route("updateTrip", { tripId }), input),
@@ -488,6 +522,21 @@ export function createHttpGateway(
         ...route("importDocument", { tripId: input.tripId }),
         input,
       ),
+
+    importAttachment: (input: ImportAttachmentInput) =>
+      request<AttachmentSummary>(
+        ...route("importAttachment", { tripId: input.tripId }),
+        input,
+      ),
+
+    listAttachments: (tripId: string) =>
+      request<AttachmentSummary[]>(...route("listAttachments", { tripId })),
+
+    getAttachment: (attachmentId: string) =>
+      request<AttachmentContent>(...route("getAttachment", { attachmentId })),
+
+    deleteAttachment: (attachmentId: string) =>
+      request<void>(...route("deleteAttachment", { attachmentId })),
 
     getTripNotes: (tripId: string) =>
       request<TripNotes>(...route("getTripNotes", { tripId })),

@@ -159,6 +159,11 @@ mod tests {
             // reading they gathered or the thread they had about it.
             "trip_resources",
             "chat_messages",
+            // Concierge preferences, checklist state, wallet links, and uploaded
+            // files are traveler-owned. They survive an itinerary edit; the
+            // concierge projection marks destination-sensitive work for review.
+            "concierge_profiles",
+            "binary_attachments",
         ]
         .into_iter()
         .collect();

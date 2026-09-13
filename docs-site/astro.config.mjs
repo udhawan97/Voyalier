@@ -33,6 +33,10 @@ export default defineConfig({
           label: "Guides",
           items: [
             {
+              label: "The concierge cockpit",
+              link: "/guides/concierge-cockpit/",
+            },
+            {
               label: "Trips and the Blueprint",
               link: "/guides/trips-and-blueprint/",
             },

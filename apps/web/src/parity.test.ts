@@ -25,6 +25,9 @@ import type {
 } from "@voyalier/contracts";
 import {
   MAX_AI_PROMPT_LEN,
+  MAX_ATTACHMENT_BYTES,
+  MAX_ATTACHMENTS_PER_TRIP,
+  MAX_ATTACHMENT_WORKSPACE_BYTES,
   MAX_CHAT_MESSAGE_CHARS,
   MAX_RESOURCE_NOTE_CHARS,
   MAX_RESOURCE_TITLE_CHARS,
@@ -70,6 +73,9 @@ describe("parity: validation limits", () => {
     expect({
       maxLocationLen: MAX_LOCATION_LEN,
       maxDocumentChars: MAX_DOCUMENT_CHARS,
+      maxAttachmentBytes: MAX_ATTACHMENT_BYTES,
+      maxAttachmentsPerTrip: MAX_ATTACHMENTS_PER_TRIP,
+      maxAttachmentWorkspaceBytes: MAX_ATTACHMENT_WORKSPACE_BYTES,
       maxNotesChars: MAX_NOTES_CHARS,
       maxQueryLen: MAX_QUERY_LEN,
       maxAiPromptLen: MAX_AI_PROMPT_LEN,
@@ -80,6 +86,9 @@ describe("parity: validation limits", () => {
     }).toEqual({
       maxLocationLen: limits.maxLocationLen,
       maxDocumentChars: limits.maxDocumentChars,
+      maxAttachmentBytes: limits.maxAttachmentBytes,
+      maxAttachmentsPerTrip: limits.maxAttachmentsPerTrip,
+      maxAttachmentWorkspaceBytes: limits.maxAttachmentWorkspaceBytes,
       maxNotesChars: limits.maxNotesChars,
       maxQueryLen: limits.maxQueryLen,
       maxAiPromptLen: limits.maxAiPromptLen,

@@ -1,5 +1,17 @@
 [
   {
+    "date": "2026-09-12",
+    "scope": "app",
+    "macrostructure": "Narrative Workflow",
+    "theme": "custom",
+    "theme_axes": "warm-paper-and-atmospheric-dark / roman-serif / indigo-vermilion",
+    "vibe": "tactile atlas, calm concierge, exact",
+    "enrichment": "E5 CSS route atlas",
+    "nav": "retained product shell plus offset in-page cockpit rail",
+    "slop_test": "pass (58 gates; responsive and contrast verified in WebKit and Chromium)",
+    "brief": "Voyalier route-led concierge cockpit and encrypted document wallet"
+  },
+  {
     "date": "2026-07-20",
     "macrostructure": "Feature Stack",
     "theme": "custom",

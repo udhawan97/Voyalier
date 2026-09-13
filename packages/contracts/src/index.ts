@@ -674,6 +674,11 @@ export const MAX_NOTES_CHARS = 100_000;
 export const MAX_LOCATION_LEN = 120;
 /** The most an imported document may hold. */
 export const MAX_DOCUMENT_CHARS = 1_000_000;
+/** Largest encrypted binary attachment accepted, before base64 encoding. */
+export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+export const MAX_ATTACHMENTS_PER_TRIP = 100;
+/** Raw binary custody accepted across one workspace so backups stay portable. */
+export const MAX_ATTACHMENT_WORKSPACE_BYTES = 500 * 1024 * 1024;
 /** The longest in-trip search query accepted. */
 /** Traveler notes on one visa document. Counted with {@link countChars}. */
 export const MAX_VISA_NOTE_CHARS = 2_000;
@@ -1967,11 +1972,259 @@ export interface VisaStatsPanel {
   source: VisaStatsSource;
   snapshot?: VisaStatsSnapshot;
 }
+
+export type ResidenceStatus =
+  | "unknown"
+  | "citizen"
+  | "national"
+  | "permanent_resident"
+  | "temporary_worker"
+  | "student"
+  | "visitor"
+  | "other";
+export type TripPace = "unset" | "slow" | "balanced" | "full";
+export type CarPreference = "unset" | "avoid" | "open" | "prefer";
+export type TravelMode = "unknown" | "air" | "land" | "sea" | "mixed";
+export type TripPurpose =
+  "unknown" | "tourism" | "business" | "visit" | "study" | "other";
+export type ExistingDocumentStatus = "unknown" | "yes" | "no";
+export type ConciergeTaskState =
+  | "not_started"
+  | "in_progress"
+  | "waiting"
+  | "done_by_traveler"
+  | "not_applicable"
+  | "needs_recheck";
+export type AuthorityClass = "traveler" | "provider" | "official" | "evidence";
+export type CostState = "estimate" | "committed" | "refund";
+export type CostTaxStatus = "unknown" | "included" | "extra";
+export type ProviderVerification =
+  "documented_template" | "observed_destination_link" | "link_only";
+export type ProviderAcquisition = "link_only" | "public_page" | "licensed_api";
+export type HandoffState = "considering" | "saved" | "user_reported_booked";
+export type PreparationDocumentStatus =
+  "portal_required" | "authority_conditional" | "traveler_added";
+export interface TravelerProfile {
+  id: string;
+  displayName: string;
+  passportCountryIso2?: string;
+  residenceCountryIso2?: string;
+  residenceStatus: ResidenceStatus;
+  returnCountryIso2?: string;
+  existingDestinationDocument?: ExistingDocumentStatus;
+}
+export interface ConciergePreferences {
+  selectedArea?: string;
+  areaStays?: AreaStay[];
+  partySize: number;
+  adults?: number;
+  children?: number;
+  bedrooms?: number;
+  beds?: number;
+  rooms?: number;
+  kitchenRequired?: boolean;
+  laundryRequired?: boolean;
+  airConditioningRequired?: boolean;
+  accessibilityRequired?: boolean;
+  flexibleCancellationPreferred?: boolean;
+  pace: TripPace;
+  carPreference: CarPreference;
+  travelMode?: TravelMode;
+  hasForeignConnection?: boolean;
+  purpose?: TripPurpose;
+  baseCurrency: string;
+  budgetMinMinor?: number;
+  budgetMaxMinor?: number;
+  budgetIsPerPerson: boolean;
+}
+export interface AreaStay {
+  id: string;
+  area: string;
+  checkIn?: string;
+  checkOut?: string;
+}
+export interface TaskProgress {
+  taskId: string;
+  state: ConciergeTaskState;
+  note: string;
+  contextRevision?: string;
+  history?: TaskProgressEvent[];
+}
+export interface TaskProgressEvent {
+  state: ConciergeTaskState;
+  note: string;
+  contextRevision?: string;
+  recordedAt: string;
+  reason: string;
+}
+export interface CostItem {
+  id: string;
+  label: string;
+  category: string;
+  amountMinor?: number;
+  currency: string;
+  state: CostState;
+  taxStatus?: CostTaxStatus;
+  dueDate?: string;
+}
+export interface WalletLink {
+  id: string;
+  label: string;
+  category: string;
+  travelerIds: string[];
+  preparationRequirementIds?: string[];
+  sourceDocumentId?: string;
+  sourceAttachmentId?: string;
+  expiresOn?: string;
+  note: string;
+}
+export interface ProviderHandoff {
+  id: string;
+  providerActionId: string;
+  provider: string;
+  url: string;
+  searchBrief: string;
+  openedAt: string;
+  state: HandoffState;
+}
+export interface AttachmentSummary {
+  id: string;
+  tripId: string;
+  label: string;
+  mimeType: string;
+  byteCount: number;
+  contentHash: string;
+  importedAt: string;
+}
+export interface AttachmentContent {
+  attachment: AttachmentSummary;
+  contentBase64: string;
+}
+export interface ImportAttachmentInput {
+  tripId: string;
+  label: string;
+  mimeType: string;
+  contentBase64: string;
+}
+export interface ConciergeProfile {
+  tripId: string;
+  preferences: ConciergePreferences;
+  travelers: TravelerProfile[];
+  taskProgress: TaskProgress[];
+  costs: CostItem[];
+  walletLinks: WalletLink[];
+  providerHandoffs: ProviderHandoff[];
+  updatedAt?: string;
+}
+export interface ConciergeTask {
+  id: string;
+  title: string;
+  reason: string;
+  state: ConciergeTaskState;
+  authority: AuthorityClass;
+  section: string;
+}
+export interface ProviderAction {
+  id: string;
+  provider: string;
+  category: string;
+  label: string;
+  reason: string;
+  url: string;
+  canonicalDomain: string;
+  verification: ProviderVerification;
+  transferredFields: string[];
+  remainingFields: string[];
+  evidenceUrl: string;
+  searchBrief: string;
+  acquisition: ProviderAcquisition;
+  cachedInVoyalier: boolean;
+  allowedForAi: boolean;
+  allowedForExport: boolean;
+}
+export interface PreparationDocumentRequirement {
+  id: string;
+  label: string;
+  status: PreparationDocumentStatus;
+  linkedWalletLinkIds: string[];
+}
+export interface PreparationStep {
+  id: string;
+  travelerId: string;
+  title: string;
+  applicability: string;
+  nextAction: string;
+  authorityUrl: string;
+  authorityName: string;
+  sourceCheckedOn: string;
+  section: string;
+  order: number;
+  prerequisiteIds: string[];
+  documentRequirements: PreparationDocumentRequirement[];
+  state: ConciergeTaskState;
+}
+export interface AreaGuide {
+  id: string;
+  name: string;
+  fit: string;
+  tradeoff: string;
+  sourceUrl: string;
+  sourceName: string;
+}
+export interface CurrencyTotal {
+  currency: string;
+  estimatesMinor: number;
+  committedMinor: number;
+  refundsMinor: number;
+}
+export interface ConciergeWorkspace {
+  profile: ConciergeProfile;
+  attachments: AttachmentSummary[];
+  tasks: ConciergeTask[];
+  providerActions: ProviderAction[];
+  preparationSteps: PreparationStep[];
+  areaGuides: AreaGuide[];
+  totals: CurrencyTotal[];
+}
+export interface TripIntentDraft {
+  id: string;
+  title?: string;
+  origin: string;
+  destination: string;
+  startDate?: string;
+  endDate?: string;
+  partySize: number;
+  selectedArea?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface SaveTripIntentDraftInput {
+  draftId?: string;
+  title?: string;
+  origin: string;
+  destination: string;
+  startDate?: string;
+  endDate?: string;
+  partySize: number;
+  selectedArea?: string;
+}
+export interface ConvertTripIntentInput {
+  draftId: string;
+  startDate: string;
+  endDate: string;
+}
+
 export interface AppGateway {
   health(): Promise<HealthResponse>;
   createTrip(input: CreateTripInput): Promise<Trip>;
   listTrips(): Promise<TripSummary[]>;
+  saveTripIntent(input: SaveTripIntentDraftInput): Promise<TripIntentDraft>;
+  listTripIntents(): Promise<TripIntentDraft[]>;
+  deleteTripIntent(draftId: string): Promise<void>;
+  convertTripIntent(input: ConvertTripIntentInput): Promise<Trip>;
   getTrip(tripId: string): Promise<TripDetail>;
+  getConciergeWorkspace(tripId: string): Promise<ConciergeWorkspace>;
+  setConciergeProfile(input: ConciergeProfile): Promise<ConciergeWorkspace>;
   updateTrip(tripId: string, input: UpdateTripInput): Promise<Trip>;
   archiveTrip(tripId: string): Promise<Trip>;
   /** Bring an archived trip back into the workspace (restores it to draft). */
@@ -2102,6 +2355,11 @@ export interface AppGateway {
   suggestSearchTerms(tripId: string, query: string): Promise<string[]>;
   deleteTrip(tripId: string): Promise<void>;
   importDocument(input: ImportDocumentInput): Promise<ImportResult>;
+  /** Encrypt a PDF, image, or other binary travel file without parsing it. */
+  importAttachment(input: ImportAttachmentInput): Promise<AttachmentSummary>;
+  listAttachments(tripId: string): Promise<AttachmentSummary[]>;
+  getAttachment(attachmentId: string): Promise<AttachmentContent>;
+  deleteAttachment(attachmentId: string): Promise<void>;
   /** A trip's notes. Never written yet is an empty body, not an error. */
   getTripNotes(tripId: string): Promise<TripNotes>;
   /** Replace a trip's notes; an empty body clears them. */

@@ -1,0 +1,12 @@
+---
+title: Track trip money in exact currencies
+description: Separate estimates, committed amounts, and refunds without inventing a converted total.
+---
+
+Enter the amount in its source currency and choose Estimate, Committed, or
+Refund. Voyalier follows that currency’s minor-unit precision: JPY has no
+decimal places, USD has two, and KWD has three. Extra precision and values too
+large for exact local storage are refused.
+
+Totals stay separated by currency. Unknown tax, fees, exchange rates, and
+per-person versus party meaning remain visible instead of being guessed.
