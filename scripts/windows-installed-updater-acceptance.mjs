@@ -1509,8 +1509,12 @@ async function main() {
         "windows-portable-restore-dialog.json",
       ),
     });
-    // The field is the stable readiness signal. Product copy is localized and
-    // can evolve without changing the restore contract this gate exercises.
+    // The native dialog closes before the asynchronous inspection render is
+    // guaranteed to finish. Wait for the action to advance before refilling
+    // the passphrase that the inspected state deliberately clears.
+    await waitForText(driver, "Restaurar esta copia", {
+      root: ".voy-backup__form",
+    });
     await fillByLabel(
       driver,
       "Frase de contraseña de copia",
