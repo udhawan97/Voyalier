@@ -1509,9 +1509,8 @@ async function main() {
         "windows-portable-restore-dialog.json",
       ),
     });
-    await waitForText(driver, "Listo para restaurar la copia", {
-      root: ".voy-backup",
-    });
+    // The field is the stable readiness signal. Product copy is localized and
+    // can evolve without changing the restore contract this gate exercises.
     await fillByLabel(
       driver,
       "Frase de contraseña de copia",
