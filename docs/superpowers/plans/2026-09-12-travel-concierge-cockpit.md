@@ -6,7 +6,10 @@ Evolve Voyalier into a **personal travel concierge with a document wallet and a 
 
 The product name in source and brand assets is **Voyalier**. Keep it; “Walletier” is useful as a description of the desired concierge role, not a rename instruction.
 
-**Status: researched proposal; implementation has not started.** Baseline is `d43a863ed39013129f402e95efef42f7b467a273` (`0.11.1`), reviewed September 12, 2026. This plan does not authorize purchasing travel, submitting visa applications, subscribing to providers, changing production data, publishing packs, merging or releasing. When implementation is requested, commit the approved plan before code, per AGENTS.md, then work in bounded phases.
+**Status: implementation and v0.12.0 release work authorized September 12, 2026.** Baseline is `d43a863ed39013129f402e95efef42f7b467a273` (`0.11.1`). The plan was committed before code. It does not authorize purchasing travel, submitting visa applications, subscribing to providers, changing production data, or scraping sources without compatible rights.
+
+The implemented and deliberately deferred portions of this roadmap are tracked
+in the [v0.12.0 verification ledger](../../release/v0.12.0-verification.md).
 
 Read these companion artifacts before implementation:
 
@@ -276,7 +279,7 @@ Group by person, trip, category and linked task. Display title, document type, l
 
 Prefer encrypted SQLite BLOB storage initially to preserve the single-file workspace and existing backup boundary. Add attachment data and metadata through `Records` and the single encryption declaration, extending its typed binary path if necessary. This is a proposed design requiring a bounded feasibility check, not permission to bypass `Records` or add an ad-hoc file vault. No silent plaintext fallback for new identity-file custody; if secure storage is unavailable, explain and refuse that import while preserving other app use.
 
-Provisional limits: 20 MB per file, 100 attachments per trip and a visible 500 MB soft workspace warning. Validate by measuring import/view/backup of realistic synthetic files; adjust in the ADR before implementation. Enforce byte limits before base64 expansion or full IPC allocation. Shared HTTP/Tauri transfer must have equivalent caps and cancellation. If large-file behavior makes BLOB storage untenable, stop that slice and document an encrypted-file alternative with atomicity/backup/recovery semantics before adopting it.
+Final limits: 20 MiB per file, 100 attachments per trip and 500 MiB of raw attachments across the workspace. The workspace limit is authoritative rather than a soft warning because base64 transport plus sealed-storage expansion otherwise lets permitted attachments exceed the 2 GiB portable-backup container. The UI preflights the known trip subtotal and the app service enforces the workspace total. Shared HTTP/Tauri transfer has equivalent per-file caps; the HTTP route bounds the encoded request and Tauri relies on UI preflight plus authoritative service validation. A later native streamed-file contract remains appropriate if measured use shows this bound is insufficient.
 
 Validate MIME signature as well as extension, bound PDF page/image dimensions and parsing work, and disallow executable/HTML/script-bearing attachment execution. A PDF viewer must disable active content, remote resource loads and automatic external links. Originals stay unchanged; OCR, thumbnails and redacted derivatives carry parent/hash links and are encrypted too. Use explicit open/export actions with a clear destination; never leave decrypted temporary files unmanaged after lock/close/crash. Revoke object URLs and purge decoded viewer state on lock.
 

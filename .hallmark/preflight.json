@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "scannedAt": "2026-08-02",
-  "framework": "Astro 7.1.1 with Starlight 0.41.3",
+  "scannedAt": "2026-09-12",
+  "framework": "React 19 with Vite 7 inside Tauri 2; Astro 7 with Starlight 0.41 docs",
   "fonts": ["Shippori Mincho", "Zen Kaku Gothic New"],
   "palette": "Quiet Transit: app charcoal, warm ivory, structural indigo, waypoint vermilion",
   "spacing": "4-point custom-property scale",
-  "motion": "CSS-only; one initial reveal plus control feedback",
-  "macrostructure": "Workbench marketing, Long Document docs, Index-first downloads",
+  "motion": "CSS-only route, elevation, and state feedback with reduced-motion fallbacks",
+  "macrostructure": "Narrative Workflow cockpit inside the existing application shell",
   "preserve": [
     "self-hosted fonts",
     "existing folded-route logos",

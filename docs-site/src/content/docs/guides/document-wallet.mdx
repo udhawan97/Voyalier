@@ -1,0 +1,17 @@
+---
+title: Keep original files in the document wallet
+description: Import bounded PDF and image originals, link them to people and tasks, and export only on an explicit click.
+---
+
+The wallet accepts PDF, JPEG, and PNG files up to 20 MiB each, 100 files per
+trip, and 500 MiB of raw attachments across the workspace. The workspace cap
+reserves room for the expanded encrypted representation inside Voyalier's
+portable-backup format. It verifies the file signature and requires an active,
+recoverable vault key before accepting the import. Both the filename and file
+bytes are encrypted at rest.
+
+Wallet metadata can survive removal of the original file so notes and history
+remain understandable. Export decrypts one selected file into the browser
+download flow. Preview decrypts only after an explicit click and invalidates a
+pending request if you close, replace, or leave it. Voyalier does not run
+embedded PDF content or silently place a plaintext copy in a temporary folder.

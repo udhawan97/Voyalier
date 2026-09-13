@@ -58,19 +58,20 @@ matching installer and keeps the GitHub Releases page as a fallback.
   <img src="docs-site/public/assets/screenshots/voyalier-trip-workspace.jpg" alt="Current-source Voyalier workspace for a fictional Kyoto trip on day two, with a source-linked Today schedule" width="1100">
 </p>
 
-## What changed in 0.11.1
+## What changed in 0.12.0
 
-- Every Today row and next anchor can return to the confirmed fact or
-  traveler-authored plan that produced it. If that record has disappeared,
-  Voyalier opens Plan and says the exact target is unavailable; record ids never
-  enter URL history.
-- **If something slips** can open the records behind a handoff, an exposed
-  connection, or an operator pointer. It still performs no live-status lookup,
-  predicts no delay, and makes no claim that an alternative service exists.
-- The shipped TypeScript mock now matches the Rust core across Today, city-pack
-  suggestions, field suggestions, lexical scoring, and redacted briefs. Shared
-  parity cases stay test-only, and the web gate rejects any fixture marker that
-  leaks into a production bundle.
+- Every trip now has a concierge cockpit that turns group, destination, dates,
+  room needs and preferences into ordered next actions.
+- Qualified links carry a readable search brief to Google Flights, Airbnb,
+  Expedia, Yelp, Reddit, AllTrails and official destination sources, then say
+  which details still need to be entered on the provider.
+- Per-person entry and return preparation stays tied to dated official sources.
+  Hawaiʻi remains a domestic U.S. route when every segment does; Montréal keeps
+  Canadian entry separate from the return-to-U.S. check.
+- The local wallet can now encrypt bounded PDF, JPEG and PNG travel files and
+  link them to travelers alongside reviewed confirmations.
+- Costs remain separated by currency and by estimate, commitment or refund;
+  Voyalier never invents an exchange rate, live price, rating or availability.
 
 Read the [full changelog](CHANGELOG.md) for tradeoffs and intentionally unchanged
 authority boundaries.
@@ -109,7 +110,9 @@ The useful parts work without a paid model or provider key.
 | Area                    | Current source behavior                                                                                                                                                |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Trips**               | Create, edit, archive, restore, and delete trips; remember the active trip and section; build a deterministic Blueprint.                                               |
+| **Concierge cockpit**   | Turn route, dates, traveler context and preferences into ordered next actions, qualified external handoffs, per-person preparation and exact-currency totals.          |
 | **Confirmations**       | Import text, HTML, `.eml`, or local files; preserve parser runs, excerpts, field spans, and warnings.                                                                  |
+| **Document wallet**     | Encrypt PDF, JPEG and PNG travel files locally, keep metadata separate from file content, and link items to the travelers who need them.                               |
 | **Review**              | Filter locally by warning, fact type, or extraction method, then confirm, edit and confirm, dismiss, or undo one candidate at a time; nothing is promoted silently.    |
 | **Itinerary**           | Order confirmed transport and stays; report literal overlaps, lodging gaps, recorded handoff gaps, and stacked commitments without inventing predictions.              |
 | **Readiness**           | Explain logistics gaps, open the local context that can address each finding, and link to official entry/health sources without making authority claims.               |
