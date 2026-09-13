@@ -26,6 +26,7 @@ import {
   clearWebViewDevToolsPorts,
   isRetryableWindowsDriverStartError,
   mirrorWebViewDevToolsPort,
+  waitForWindowsProcessQuiescence,
   validateWindowsAcceptanceReport,
   validateWindowsPickerPhaseTrace,
   validateWindowsPickerPreflightReport,
@@ -368,7 +369,7 @@ async function startDriver(application, suffix) {
         error instanceof Error ? error.message : String(error),
       );
       await stopDriver(partialDriver).catch(() => {});
-      stopInstalledProcesses(application);
+      await stopInstalledProcesses(application);
       const retryable = isRetryableWindowsDriverStartError(error);
       if (attempt === DRIVER_START_ATTEMPTS || !retryable) throw error;
       diagnostic.retryCount = attempt;
@@ -791,14 +792,18 @@ function installedProcesses(application) {
   return Array.isArray(value) ? value : [value];
 }
 
-function stopInstalledProcesses(application) {
-  const target = psQuote(path.resolve(application));
-  powershell(
-    `$target = [IO.Path]::GetFullPath(${target}); ` +
-      `Get-CimInstance Win32_Process | Where-Object { ` +
-      `$_.ExecutablePath -and [IO.Path]::GetFullPath($_.ExecutablePath) -eq $target ` +
-      `} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`,
-  );
+async function stopInstalledProcesses(application) {
+  for (const process of installedProcesses(application)) {
+    spawnSync("taskkill.exe", ["/PID", String(process.ProcessId), "/T", "/F"], {
+      stdio: "ignore",
+      timeout: 30_000,
+      windowsHide: true,
+    });
+  }
+  await waitForWindowsProcessQuiescence({
+    listProcesses: () => installedProcesses(application),
+    waitFor,
+  });
 }
 
 function appListeners(application) {
@@ -840,7 +845,7 @@ async function installApplication(installer) {
 }
 
 async function uninstallApplication(application) {
-  stopInstalledProcesses(application);
+  await stopInstalledProcesses(application);
   const uninstaller = path.join(path.dirname(application), "uninstall.exe");
   await stat(uninstaller);
   run(uninstaller, ["/S"], { timeout: 5 * 60 * 1000 });
@@ -1381,7 +1386,7 @@ async function main() {
 
     await stopDriver(driver);
     driver = undefined;
-    stopInstalledProcesses(application);
+    await stopInstalledProcesses(application);
     report.stage = "updated-driver-session";
     driver = await startDriver(application, "updated");
     report.stage = "updated-product-journey";
@@ -1775,7 +1780,7 @@ async function main() {
     throw new Error(report.error);
   } finally {
     await stopDriver(driver).catch(() => {});
-    if (application) stopInstalledProcesses(application);
+    if (application) await stopInstalledProcesses(application);
     await closeServer(server).catch(() => {});
     await rm(KEY_PATH, { force: true });
     await rm(`${KEY_PATH}.pub`, { force: true });

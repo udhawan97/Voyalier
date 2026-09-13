@@ -36,6 +36,28 @@ export function isRetryableWindowsDriverStartError(error) {
   );
 }
 
+export async function waitForWindowsProcessQuiescence({
+  listProcesses,
+  waitFor,
+  description = "all installed Voyalier processes to stop",
+  timeout = 60_000,
+}) {
+  if (typeof listProcesses !== "function" || typeof waitFor !== "function") {
+    throw new TypeError("process inspection and waiting must be functions");
+  }
+  return waitFor(
+    () => {
+      const processes = listProcesses();
+      if (!Array.isArray(processes)) {
+        throw new TypeError("process inspection must return an array");
+      }
+      return processes.length === 0;
+    },
+    description,
+    timeout,
+  );
+}
+
 export const WINDOWS_PICKER_PHASE_MARKERS = Object.freeze([
   ["export:command-entered", "voyalier-picker-phase-export-01-command-entered"],
   ["export:container-ready", "voyalier-picker-phase-export-02-container-ready"],
