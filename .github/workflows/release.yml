@@ -140,6 +140,7 @@ jobs:
       github.event_name == 'workflow_dispatch' &&
       inputs.windows_acceptance
     runs-on: windows-latest
+    timeout-minutes: 120
     permissions:
       contents: read
     steps:

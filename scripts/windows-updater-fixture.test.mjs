@@ -9,6 +9,7 @@ import {
   buildWindowsDriverCapabilities,
   buildWindowsUpdaterManifest,
   clearWebViewDevToolsPorts,
+  isRetryableWindowsDriverStartError,
   mirrorWebViewDevToolsPort,
   validateWindowsAcceptanceReport,
   validateWindowsPickerPhaseTrace,
@@ -366,11 +367,31 @@ test("clears stale WebView2 ports before mirroring the new session", async () =>
   }
 });
 
+test("retries only failures from starting a Windows WebDriver session", () => {
+  for (const error of [
+    'WebDriver POST /session failed: {"value":{"error":"session not created"}}',
+    "WebDriver POST /session did not respond within 180000ms",
+    "timed out waiting for tauri-driver",
+    "timed out waiting for the packaged Tauri bridge",
+    "tauri-driver did not return a session id",
+  ]) {
+    assert.equal(isRetryableWindowsDriverStartError(new Error(error)), true);
+  }
+  assert.equal(
+    isRetryableWindowsDriverStartError(
+      new Error("the downloaded Kyoto pack had no places"),
+    ),
+    false,
+  );
+});
+
 test("keeps product setup, updater backup, and portable restore on the installed UI", async () => {
   const source = await readFile(
     new URL("./windows-installed-updater-acceptance.mjs", import.meta.url),
     "utf8",
   );
+  assert.match(source, /const DRIVER_START_ATTEMPTS = 2/);
+  assert.match(source, /await stopDriver\(partialDriver\)\.catch/);
   for (const forbiddenCommand of [
     "create_trip",
     "save_place",
@@ -1313,18 +1334,24 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
           profile: "voyalier-acceptance-journey",
           preservedExistingProfile: false,
           stalePortFilesCleared: true,
+          retryCount: 0,
+          attempts: [{ attempt: 1, outcome: "success" }],
         },
         {
           session: "updated",
           profile: "voyalier-acceptance-journey",
           preservedExistingProfile: true,
           stalePortFilesCleared: true,
+          retryCount: 0,
+          attempts: [{ attempt: 1, outcome: "success" }],
         },
         {
           session: "recovery",
           profile: "voyalier-acceptance-journey",
           preservedExistingProfile: true,
           stalePortFilesCleared: true,
+          retryCount: 0,
+          attempts: [{ attempt: 1, outcome: "success" }],
         },
       ],
     },
@@ -1563,6 +1590,25 @@ test("pins installed, data-preservation, backup, and loopback evidence", () => {
         },
       }),
     /stale WebView debug port/,
+  );
+  assert.throws(
+    () =>
+      validateWindowsAcceptanceReport({
+        ...report,
+        driver: {
+          ...report.driver,
+          sessions: report.driver.sessions.map((session, index) =>
+            index === 0
+              ? {
+                  ...session,
+                  retryCount: 1,
+                  attempts: [{ attempt: 1, outcome: "failed" }],
+                }
+              : session,
+          ),
+        },
+      }),
+    /retry evidence is incomplete/,
   );
   assert.throws(
     () =>

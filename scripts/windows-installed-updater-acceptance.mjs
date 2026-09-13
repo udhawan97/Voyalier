@@ -24,6 +24,7 @@ import {
   buildWindowsDriverCapabilities,
   buildWindowsUpdaterManifest,
   clearWebViewDevToolsPorts,
+  isRetryableWindowsDriverStartError,
   mirrorWebViewDevToolsPort,
   validateWindowsAcceptanceReport,
   validateWindowsPickerPhaseTrace,
@@ -73,6 +74,7 @@ const PNPM_CLI = process.env.PNPM_HOME
   : null;
 const DRIVER_DIAGNOSTICS = [];
 const DRIVER_SESSIONS = ["base", "updated", "recovery"];
+const DRIVER_START_ATTEMPTS = 2;
 const SCREENSHOT_NAMES = new Set([
   "01-base-installed-product-journey.png",
   "02-base-production-updater-ready.png",
@@ -268,35 +270,6 @@ async function startDriver(application, suffix) {
       "the shared driver profile disappeared between installed sessions",
     );
   }
-  // Keep localStorage and the rest of the shared profile, but never let the
-  // next EdgeDriver session consume a mirrored port from the prior process.
-  await clearWebViewDevToolsPorts(userDataFolder);
-  const log = createWriteStream(logPath, { flags: "a" });
-  await once(log, "open");
-  const processHandle = spawn(driverBinary, [], {
-    cwd: ROOT,
-    env: {
-      ...process.env,
-      VOYALIER_DATA_DIR: DATA_ROOT,
-      VOYALIER_WINDOWS_WEBDRIVER_PROFILE: DRIVER_PROFILE,
-      VOYALIER_WINDOWS_ACCEPTANCE_BACKUP_PATH: PORTABLE_BACKUP_PATH,
-    },
-    stdio: ["ignore", log, log],
-    windowsHide: true,
-  });
-  processHandle.on("error", (error) =>
-    log.write(`driver error: ${error.message}\n`),
-  );
-  await waitFor(
-    async () => {
-      const response = await fetch(`${DRIVER_URL}/status`, {
-        signal: AbortSignal.timeout(1500),
-      });
-      return response.ok;
-    },
-    "tauri-driver",
-    60_000,
-  );
   const diagnostic = {
     session: suffix,
     isolatedUserDataFolder: true,
@@ -306,54 +279,116 @@ async function startDriver(application, suffix) {
     nestedPortObserved: false,
     rootPortMirrored: false,
     copyErrorCode: null,
+    retryCount: 0,
+    attempts: [],
   };
   DRIVER_DIAGNOSTICS.push(diagnostic);
-  const mirrorAbort = new AbortController();
-  // WebView2 writes this file below EBWebView while EdgeDriver watches the
-  // configured data-directory root. Mirror it while POST /session is blocked.
-  // https://github.com/MicrosoftEdge/EdgeWebDriver/issues/109
-  const mirrorPromise = mirrorWebViewDevToolsPort({
-    userDataFolder,
-    signal: mirrorAbort.signal,
-  });
-  let value;
-  try {
-    value = await fetchDriver(
-      "/session",
-      {
-        method: "POST",
-        body: JSON.stringify(
-          buildWindowsDriverCapabilities({ application, userDataFolder }),
-        ),
+
+  for (let attempt = 1; attempt <= DRIVER_START_ATTEMPTS; attempt += 1) {
+    // Keep localStorage and the rest of the shared profile, but never let the
+    // next EdgeDriver attempt consume a mirrored port from a prior process.
+    await clearWebViewDevToolsPorts(userDataFolder);
+    const attemptDiagnostic = { attempt, outcome: "starting" };
+    diagnostic.attempts.push(attemptDiagnostic);
+    const log = createWriteStream(logPath, { flags: "a" });
+    await once(log, "open");
+    const processHandle = spawn(driverBinary, [], {
+      cwd: ROOT,
+      env: {
+        ...process.env,
+        VOYALIER_DATA_DIR: DATA_ROOT,
+        VOYALIER_WINDOWS_WEBDRIVER_PROFILE: DRIVER_PROFILE,
+        VOYALIER_WINDOWS_ACCEPTANCE_BACKUP_PATH: PORTABLE_BACKUP_PATH,
       },
-      180_000,
+      stdio: ["ignore", log, log],
+      windowsHide: true,
+    });
+    processHandle.on("error", (error) =>
+      log.write(`driver error: ${error.message}\n`),
     );
-  } finally {
-    mirrorAbort.abort();
-    Object.assign(diagnostic, await mirrorPromise);
+    const partialDriver = { processHandle, sessionId: undefined, log };
+
+    try {
+      await waitFor(
+        async () => {
+          const response = await fetch(`${DRIVER_URL}/status`, {
+            signal: AbortSignal.timeout(1500),
+          });
+          return response.ok;
+        },
+        "tauri-driver",
+        60_000,
+      );
+      const mirrorAbort = new AbortController();
+      // WebView2 writes this file below EBWebView while EdgeDriver watches the
+      // configured data-directory root. Mirror it while POST /session is blocked.
+      // https://github.com/MicrosoftEdge/EdgeWebDriver/issues/109
+      const mirrorPromise = mirrorWebViewDevToolsPort({
+        userDataFolder,
+        signal: mirrorAbort.signal,
+      });
+      let value;
+      try {
+        value = await fetchDriver(
+          "/session",
+          {
+            method: "POST",
+            body: JSON.stringify(
+              buildWindowsDriverCapabilities({ application, userDataFolder }),
+            ),
+          },
+          180_000,
+        );
+      } finally {
+        mirrorAbort.abort();
+        Object.assign(diagnostic, await mirrorPromise);
+      }
+      partialDriver.sessionId = value.sessionId;
+      assert.ok(
+        partialDriver.sessionId,
+        "tauri-driver did not return a session id",
+      );
+      await waitFor(
+        async () =>
+          fetchDriver(`/session/${partialDriver.sessionId}/execute/sync`, {
+            method: "POST",
+            body: JSON.stringify({
+              script: "return Boolean(window.__TAURI__?.core?.invoke)",
+              args: [],
+            }),
+          }),
+        "the packaged Tauri bridge",
+      );
+      attemptDiagnostic.outcome = "success";
+      diagnostic.retryCount = attempt - 1;
+      return partialDriver;
+    } catch (error) {
+      attemptDiagnostic.outcome = "failed";
+      attemptDiagnostic.error = sanitizeWindowsEvidenceText(
+        error instanceof Error ? error.message : String(error),
+      );
+      await stopDriver(partialDriver).catch(() => {});
+      stopInstalledProcesses(application);
+      const retryable = isRetryableWindowsDriverStartError(error);
+      if (attempt === DRIVER_START_ATTEMPTS || !retryable) throw error;
+      diagnostic.retryCount = attempt;
+      process.stderr.write(
+        `WebDriver ${suffix} startup attempt ${attempt} failed; retrying after cleanup.\n`,
+      );
+    }
   }
-  const sessionId = value.sessionId;
-  assert.ok(sessionId, "tauri-driver did not return a session id");
-  await waitFor(
-    async () =>
-      fetchDriver(`/session/${sessionId}/execute/sync`, {
-        method: "POST",
-        body: JSON.stringify({
-          script: "return Boolean(window.__TAURI__?.core?.invoke)",
-          args: [],
-        }),
-      }),
-    "the packaged Tauri bridge",
-  );
-  return { processHandle, sessionId, log };
+
+  throw new Error("unreachable Windows WebDriver startup state");
 }
 
 async function stopDriver(driver) {
   if (!driver) return;
-  try {
-    await fetchDriver(`/session/${driver.sessionId}`, { method: "DELETE" });
-  } catch {
-    // The updater intentionally destroys the old WebDriver session.
+  if (driver.sessionId) {
+    try {
+      await fetchDriver(`/session/${driver.sessionId}`, { method: "DELETE" });
+    } catch {
+      // The updater intentionally destroys the old WebDriver session.
+    }
   }
   if (!driver.processHandle.killed) {
     spawnSync(
@@ -361,11 +396,16 @@ async function stopDriver(driver) {
       ["/PID", String(driver.processHandle.pid), "/T", "/F"],
       {
         stdio: "ignore",
+        timeout: 30_000,
         windowsHide: true,
       },
     );
   }
-  driver.log.end();
+  if (!driver.log.writableEnded) {
+    const finished = once(driver.log, "finish").catch(() => {});
+    driver.log.end();
+    await finished;
+  }
   await waitFor(
     async () => {
       try {

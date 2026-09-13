@@ -2,12 +2,13 @@
 
 ## Problem
 
-The v0.12.0 Windows installed-app dry run reached the first packaged-app
-WebDriver session after both installers built, then Microsoft Edge returned a
-transient `session not created` crash. The failed `startDriver` call had already
-spawned `tauri-driver`, but the handle had not yet been returned to the caller,
-so the outer cleanup could not stop it. The orphaned child kept the workflow
-step alive after the failure.
+The v0.12.0 Windows installed-app dry run completed the base journey, production
+updater swap, preserved-data checks, portable backup export and restore staging.
+When the reinstalled candidate opened for the final recovery proof, Microsoft
+Edge returned a transient `session not created` crash. The failed `startDriver`
+call had already spawned `tauri-driver`, but the handle had not yet been returned
+to the caller, so the outer cleanup could not stop it. The orphaned child kept
+the workflow step alive after the failure.
 
 ## Scope
 
