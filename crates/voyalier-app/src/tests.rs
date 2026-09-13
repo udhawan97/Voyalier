@@ -3671,6 +3671,24 @@ fn restore_inspection_is_read_only_and_unstage_removes_only_its_generation() {
 }
 
 #[test]
+#[cfg(target_os = "windows")]
+fn atomic_restore_artifacts_do_not_require_a_directory_flush_on_windows() {
+    let database = temp_database("restore-atomic-write-windows");
+    let directory = database.parent().expect("database parent");
+    fs::create_dir_all(directory).expect("create data directory");
+    let artifact = directory.join("pending-restore-test.json");
+
+    atomic_write_file(&artifact, br#"{"phase":"staged"}"#)
+        .expect("write a durable restore artifact");
+    assert_eq!(
+        fs::read(&artifact).expect("read restore artifact"),
+        br#"{"phase":"staged"}"#
+    );
+
+    cleanup_database(database);
+}
+
+#[test]
 fn activated_restore_validation_failure_rolls_back_the_database_and_key_pair() {
     let source_database = temp_database("restore-rollback-source");
     let source_secrets = Arc::new(MemorySecretStore::default());

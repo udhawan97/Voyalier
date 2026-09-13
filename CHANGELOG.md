@@ -92,6 +92,14 @@ decisions with the services and authorities that own them.
 
 ### Fixed
 
+- **Windows can now stage an authenticated portable restore for the next
+  launch.** The cross-platform atomic writer previously tried to flush a
+  read-only directory handle after its rename, which Windows rejects even
+  though the candidate file was already durable. Unix keeps its parent
+  directory synchronization; Windows keeps the flushed-file and atomic-rename
+  boundary, then lets the existing generation recovery protocol verify and
+  activate the candidate at startup.
+
 - **A new custom data directory no longer reads an unrelated legacy vault key
   before its first window opens.** Existing custom databases still adopt the
   legacy key so previously encrypted rows remain readable; a path with no

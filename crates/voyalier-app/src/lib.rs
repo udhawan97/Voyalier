@@ -1621,10 +1621,27 @@ fn atomic_write_file(path: &Path, bytes: &[u8]) -> Result<(), AppError> {
     result
 }
 
+#[cfg(unix)]
 fn sync_directory(directory: &Path) -> Result<(), AppError> {
     fs::File::open(directory)
         .and_then(|file| file.sync_all())
         .map_err(storage_error)
+}
+
+#[cfg(not(unix))]
+fn sync_directory(directory: &Path) -> Result<(), AppError> {
+    // Windows' FlushFileBuffers contract requires a writable file handle and
+    // does not list directory handles among its supported inputs. The file was
+    // already flushed before its atomic rename, so validate the parent exists
+    // without turning an unsupported directory flush into a restore failure.
+    let metadata = fs::metadata(directory).map_err(storage_error)?;
+    if !metadata.is_dir() {
+        return Err(AppError::new(
+            ErrorCode::StorageFailure,
+            "restore artifact parent is not a directory",
+        ));
+    }
+    Ok(())
 }
 
 fn write_restore_marker(path: &Path, marker: &PendingRestore) -> Result<(), AppError> {
