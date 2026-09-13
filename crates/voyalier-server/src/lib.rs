@@ -3,7 +3,7 @@ use std::{net::SocketAddr, sync::Arc};
 use axum::{
     Json, Router,
     body::Body,
-    extract::{Path, Query, State},
+    extract::{DefaultBodyLimit, Path, Query, State},
     http::{HeaderValue, Method, Request, StatusCode, header},
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -13,11 +13,13 @@ use serde::{Deserialize, Serialize};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use voyalier_app::AppService;
 use voyalier_core::{
-    AddManualFactInput, AddPackingItemInput, AppError, CandidateFact, CandidateStatus,
-    ConfirmCandidateInput, ConfirmedFact, CreateResourceInput, CreateTripInput,
-    CreateTripItemInput, ErrorCode, HealthResponse, ImportDocumentInput, PersonaWeights,
-    RestoreFactVersionInput, SavePlaceInput, SetInterestProfileInput, SetResearchSettingsInput,
-    SetVisaItemProgressInput, SetVisaNationalityInput, UpdatePackingItemInput, UpdateResourceInput,
+    AddManualFactInput, AddPackingItemInput, AppError, AttachmentContent, AttachmentSummary,
+    CandidateFact, CandidateStatus, ConciergeProfile, ConciergeWorkspace, ConfirmCandidateInput,
+    ConfirmedFact, ConvertTripIntentInput, CreateResourceInput, CreateTripInput,
+    CreateTripItemInput, ErrorCode, HealthResponse, ImportAttachmentInput, ImportDocumentInput,
+    PersonaWeights, RestoreFactVersionInput, SavePlaceInput, SaveTripIntentDraftInput,
+    SetInterestProfileInput, SetResearchSettingsInput, SetVisaItemProgressInput,
+    SetVisaNationalityInput, TripIntentDraft, UpdatePackingItemInput, UpdateResourceInput,
     UpdateSavedPlaceInput, UpdateTripInput, UpdateTripItemInput,
 };
 
@@ -165,8 +167,24 @@ pub fn app(service: AppService, address: SocketAddr, bearer: impl Into<Arc<str>>
         .route("/api/health", get(health))
         .route("/api/v1/trips", post(create_trip).get(list_trips))
         .route(
+            "/api/v1/trip-intents",
+            post(save_trip_intent).get(list_trip_intents),
+        )
+        .route(
+            "/api/v1/trip-intents/{draft_id}",
+            delete(delete_trip_intent),
+        )
+        .route(
+            "/api/v1/trip-intents/{draft_id}/convert",
+            post(convert_trip_intent),
+        )
+        .route(
             "/api/v1/trips/{trip_id}",
             get(get_trip).patch(update_trip).delete(delete_trip),
+        )
+        .route(
+            "/api/v1/trips/{trip_id}/concierge",
+            get(get_concierge_workspace).put(set_concierge_profile),
         )
         .route("/api/v1/trips/{trip_id}/archive", post(archive_trip))
         .route("/api/v1/trips/{trip_id}/unarchive", post(unarchive_trip))
@@ -327,6 +345,16 @@ pub fn app(service: AppService, address: SocketAddr, bearer: impl Into<Arc<str>>
             "/api/v1/documents/{document_id}",
             get(get_document).delete(delete_document),
         )
+        .route(
+            "/api/v1/trips/{trip_id}/attachments",
+            post(import_attachment)
+                .get(list_attachments)
+                .layer(DefaultBodyLimit::max(30 * 1024 * 1024)),
+        )
+        .route(
+            "/api/v1/attachments/{attachment_id}",
+            get(get_attachment).delete(delete_attachment),
+        )
         .route("/api/v1/trips/{trip_id}/candidates", get(list_candidates))
         .route(
             "/api/v1/candidates/{candidate_id}/confirm",
@@ -369,11 +397,72 @@ async fn list_trips(State(service): State<AppService>) -> Result<impl IntoRespon
     Ok(Json(service.list_trips()?))
 }
 
+async fn save_trip_intent(
+    State(service): State<AppService>,
+    Json(input): Json<SaveTripIntentDraftInput>,
+) -> Result<impl IntoResponse, ApiError> {
+    Ok((StatusCode::CREATED, Json(service.save_trip_intent(input)?)))
+}
+
+async fn list_trip_intents(
+    State(service): State<AppService>,
+) -> Result<Json<Vec<TripIntentDraft>>, ApiError> {
+    Ok(Json(service.list_trip_intents()?))
+}
+
+async fn delete_trip_intent(
+    State(service): State<AppService>,
+    Path(draft_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    service.delete_trip_intent(&draft_id)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn convert_trip_intent(
+    State(service): State<AppService>,
+    Path(draft_id): Path<String>,
+    Json(input): Json<ConvertTripIntentInput>,
+) -> Result<Json<voyalier_core::Trip>, ApiError> {
+    if draft_id != input.draft_id {
+        return Err(AppError::with_detail(
+            ErrorCode::ValidationInvalidInput,
+            "path draft id does not match request body",
+            "field",
+            "draftId",
+        )
+        .into());
+    }
+    Ok(Json(service.convert_trip_intent(input)?))
+}
+
 async fn get_trip(
     State(service): State<AppService>,
     Path(trip_id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     Ok(Json(service.get_trip(&trip_id)?))
+}
+
+async fn get_concierge_workspace(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+) -> Result<Json<ConciergeWorkspace>, ApiError> {
+    Ok(Json(service.get_concierge_workspace(&trip_id)?))
+}
+
+async fn set_concierge_profile(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+    Json(input): Json<ConciergeProfile>,
+) -> Result<Json<ConciergeWorkspace>, ApiError> {
+    if input.trip_id != trip_id {
+        return Err(ApiError(AppError::with_detail(
+            ErrorCode::ValidationInvalidInput,
+            "the concierge profile does not belong to this route",
+            "field",
+            "tripId",
+        )));
+    }
+    Ok(Json(service.set_concierge_profile(input)?))
 }
 
 async fn update_trip(
@@ -952,6 +1041,37 @@ async fn delete_document(
     Ok(StatusCode::NO_CONTENT)
 }
 
+async fn import_attachment(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+    Json(input): Json<ImportAttachmentInput>,
+) -> Result<impl IntoResponse, ApiError> {
+    ensure_path_trip_matches(&trip_id, &input.trip_id)?;
+    Ok((StatusCode::CREATED, Json(service.import_attachment(input)?)))
+}
+
+async fn list_attachments(
+    State(service): State<AppService>,
+    Path(trip_id): Path<String>,
+) -> Result<Json<Vec<AttachmentSummary>>, ApiError> {
+    Ok(Json(service.list_attachments(&trip_id)?))
+}
+
+async fn get_attachment(
+    State(service): State<AppService>,
+    Path(attachment_id): Path<String>,
+) -> Result<Json<AttachmentContent>, ApiError> {
+    Ok(Json(service.get_attachment(&attachment_id)?))
+}
+
+async fn delete_attachment(
+    State(service): State<AppService>,
+    Path(attachment_id): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    service.delete_attachment(&attachment_id)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 async fn list_candidates(
     State(service): State<AppService>,
     Path(trip_id): Path<String>,
@@ -1279,6 +1399,54 @@ mod tests {
                 .as_str()
                 .expect("content")
                 .contains("HOLD9")
+        );
+
+        let attachment = request(
+            router.clone(),
+            Method::POST,
+            &format!("/api/v1/trips/{trip_id}/attachments"),
+            Some(json!({
+                "tripId": trip_id,
+                "label": "Entry letter.pdf",
+                "mimeType": "application/pdf",
+                "contentBase64": "JVBERi0xLjQ="
+            })),
+        )
+        .await;
+        assert_eq!(attachment.status, StatusCode::CREATED);
+        let attachment_id = attachment.json["id"]
+            .as_str()
+            .expect("attachment id")
+            .to_owned();
+        let attachment_list = request(
+            router.clone(),
+            Method::GET,
+            &format!("/api/v1/trips/{trip_id}/attachments"),
+            None,
+        )
+        .await;
+        assert_eq!(
+            attachment_list.json.as_array().expect("attachments").len(),
+            1
+        );
+        let attachment_body = request(
+            router.clone(),
+            Method::GET,
+            &format!("/api/v1/attachments/{attachment_id}"),
+            None,
+        )
+        .await;
+        assert_eq!(attachment_body.json["contentBase64"], "JVBERi0xLjQ=");
+        assert_eq!(
+            request(
+                router.clone(),
+                Method::DELETE,
+                &format!("/api/v1/attachments/{attachment_id}"),
+                None,
+            )
+            .await
+            .status,
+            StatusCode::NO_CONTENT
         );
 
         let removed = request(
@@ -2486,8 +2654,10 @@ mod tests {
     /// `routeParity.test.ts` uses, so both sides probe identical URLs.
     fn resolve_path(path: &str) -> String {
         path.replace("{tripId}", "trip_1")
+            .replace("{draftId}", "intent_1")
             .replace("{packId}", "pack_1")
             .replace("{documentId}", "doc_1")
+            .replace("{attachmentId}", "attachment_1")
             // A curated visa document id, not an imported source document id.
             .replace("{visaDocumentId}", "ca.trv.funds.statements")
             .replace("{factId}", "fact_1")

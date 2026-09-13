@@ -8,6 +8,9 @@ import visaStatsSources from "../parity/visa-stats-sources.json";
 
 import {
   MAX_AI_PROMPT_LEN,
+  MAX_ATTACHMENT_BYTES,
+  MAX_ATTACHMENTS_PER_TRIP,
+  MAX_ATTACHMENT_WORKSPACE_BYTES,
   MAX_LOCATION_LEN,
   MAX_NOTES_CHARS,
   MAX_CHAT_MESSAGE_CHARS,
@@ -32,6 +35,8 @@ import type {
   AssistDraftKind,
   AssistReply,
   AssistRequestPreview,
+  AttachmentContent,
+  AttachmentSummary,
   AstroDay,
   CandidateFact,
   CandidateStatus,
@@ -41,9 +46,13 @@ import type {
   CalendarSnapshot,
   ChatGrounding,
   ChatMessage,
+  ConciergeProfile,
+  ConciergeTask,
+  ConciergeWorkspace,
   ConfirmCandidateInput,
   ConfirmedFact,
   ConfirmedFactVersion,
+  ConvertTripIntentInput,
   CountryFacts,
   CreateResourceInput,
   CreateTripInput,
@@ -76,6 +85,7 @@ import type {
   SurfaceJourneyPayload,
   TransportMode,
   ImportDocumentInput,
+  ImportAttachmentInput,
   ImportResult,
   InterestProfile,
   ItineraryConflict,
@@ -93,6 +103,8 @@ import type {
   PackSuggestion,
   PersonaWeights,
   PlaceSummary,
+  PreparationDocumentRequirement,
+  PreparationStep,
   ProviderConfig,
   ProviderId,
   PublicHoliday,
@@ -108,6 +120,7 @@ import type {
   Resource,
   SavedPlace,
   SavePlaceInput,
+  SaveTripIntentDraftInput,
   SearchHit,
   SetInterestProfileInput,
   SetProviderKeyInput,
@@ -123,6 +136,7 @@ import type {
   Trip,
   TripBrief,
   TripDetail,
+  TripIntentDraft,
   TripItem,
   TripNotes,
   TripPhase,
@@ -144,9 +158,760 @@ import type {
   WorkspaceSearchHit,
 } from "./index";
 
+function emptyConciergeProfile(tripId: string): ConciergeProfile {
+  return {
+    tripId,
+    preferences: {
+      partySize: 1,
+      pace: "unset",
+      carPreference: "unset",
+      baseCurrency: "USD",
+      budgetIsPerPerson: false,
+    },
+    travelers: [],
+    taskProgress: [],
+    costs: [],
+    walletLinks: [],
+    providerHandoffs: [],
+  };
+}
+
+function mockConciergeWorkspace(
+  trip: Trip,
+  profile: ConciergeProfile,
+  tripAttachments: AttachmentSummary[],
+  tripFacts: ConfirmedFact[],
+  authoredItems: TripItem[],
+): ConciergeWorkspace {
+  const linkOnlyPolicy = {
+    acquisition: "link_only" as const,
+    cachedInVoyalier: false,
+    allowedForAi: false,
+    allowedForExport: false,
+  };
+  const progress = new Map(
+    profile.taskProgress.map((item) => [item.taskId, item]),
+  );
+  const task = (
+    id: string,
+    title: string,
+    reason: string,
+    authority: ConciergeTask["authority"],
+    section: string,
+  ): ConciergeTask => ({
+    id,
+    title,
+    reason,
+    authority,
+    section,
+    state: (() => {
+      const saved = progress.get(id);
+      if (!saved) return "not_started";
+      if (
+        (saved.state === "done_by_traveler" ||
+          saved.state === "not_applicable") &&
+        saved.contextRevision !== trip.updatedAt
+      ) {
+        return "needs_recheck";
+      }
+      return saved.state;
+    })(),
+  });
+  const destination = trip.destination.toLocaleLowerCase();
+  const origin = trip.origin.toLocaleLowerCase();
+  const area = profile.preferences.selectedArea ?? trip.destination;
+  const normalizedArea = area.toLocaleLowerCase();
+  const stayUrl = destination.includes("montr")
+    ? "https://www.airbnb.com/montreal-canada/stays"
+    : normalizedArea.includes("oʻahu") || normalizedArea.includes("oahu")
+      ? "https://www.airbnb.com/oahu-hi/stays"
+      : destination.includes("hawai")
+        ? "https://www.airbnb.com/hawaii-united-states/stays"
+        : "https://www.airbnb.com/";
+  const isOahu =
+    normalizedArea.includes("oʻahu") ||
+    normalizedArea.includes("oahu") ||
+    normalizedArea.includes("honolulu");
+  const flightUrl =
+    origin.includes("chicago") && destination.includes("montr")
+      ? "https://www.google.com/travel/flights/flights-from-chicago-to-montreal.html"
+      : origin.includes("chicago") && destination.includes("hawai") && isOahu
+        ? "https://www.google.com/travel/flights/flights-from-chicago-to-honolulu.html"
+        : "https://www.google.com/travel/flights";
+  const expediaUrl = destination.includes("montr")
+    ? "https://www.expedia.com/Montreal-Hotels.d178288.Travel-Guide-Hotels"
+    : destination.includes("hawai") && isOahu
+      ? "https://www.expedia.com/Honolulu-Hotels.d1488.Travel-Guide-Hotels"
+      : "https://www.expedia.com/";
+  const allTrailsUrl = destination.includes("montr")
+    ? "https://www.alltrails.com/trail/canada/quebec/visite-a-pied-panoramique-de-montreal"
+    : destination.includes("hawai") && isOahu
+      ? "https://www.alltrails.com/hawaii/oahu/state-parks"
+      : "https://www.alltrails.com/";
+  const brief = `${trip.origin} to ${area} · ${trip.startDate} to ${trip.endDate} · ${profile.preferences.partySize} traveler${profile.preferences.partySize === 1 ? "" : "s"}${profile.preferences.bedrooms ? ` · ${profile.preferences.bedrooms} bedroom${profile.preferences.bedrooms === 1 ? "" : "s"}` : ""}`;
+  const tasks = [
+    ...(destination.includes("hawai") && !profile.preferences.selectedArea
+      ? [
+          task(
+            "choose-area",
+            "Choose where to stay",
+            "Select an island or neighborhood before comparing stays.",
+            "traveler",
+            "people",
+          ),
+        ]
+      : []),
+    ...(profile.travelers.length < profile.preferences.partySize
+      ? [
+          task(
+            "complete-party",
+            "Complete traveler context",
+            "Entry and room guidance stays conditional until each traveler has a profile.",
+            "traveler",
+            "people",
+          ),
+        ]
+      : []),
+    ...(!tripFacts.some((fact) => fact.factType === "flight_segment")
+      ? [
+          task(
+            "compare-flights",
+            "Compare flight routes",
+            "Check live schedules and baggage rules on the provider.",
+            "provider",
+            "book",
+          ),
+        ]
+      : []),
+    ...(!tripFacts.some((fact) => fact.factType === "lodging_stay")
+      ? [
+          task(
+            "compare-stays",
+            "Compare places to stay",
+            "Carry the trip brief to providers, then import the chosen confirmation.",
+            "provider",
+            "book",
+          ),
+        ]
+      : []),
+    ...(profile.travelers.length
+      ? [
+          task(
+            "review-entry",
+            "Review each traveler's official route",
+            "Citizenship, document, residence and transit details can change the official pathway.",
+            "official",
+            "entry",
+          ),
+        ]
+      : []),
+    ...(profile.walletLinks.length === 0
+      ? [
+          task(
+            "collect-documents",
+            "Collect travel documents",
+            "Link imported confirmations and authority letters to the people who need them.",
+            "evidence",
+            "wallet",
+          ),
+        ]
+      : []),
+    ...(authoredItems.length === 0
+      ? [
+          task(
+            "plan-local",
+            "Plan local transportation",
+            "Record transfers, car decisions and time between confirmed segments.",
+            "traveler",
+            "plan",
+          ),
+        ]
+      : []),
+    task(
+      "review-money",
+      "Review the money plan",
+      "Keep estimates, commitments and refunds in their original currencies.",
+      "traveler",
+      "money",
+    ),
+  ];
+  for (const stay of profile.preferences.areaStays ?? []) {
+    tasks.push(
+      task(
+        `compare-stay-${stay.id}`,
+        `Compare stays in ${stay.area}`,
+        stay.checkIn && stay.checkOut
+          ? `This base covers ${stay.checkIn} to ${stay.checkOut}; keep its confirmation separate.`
+          : "This base still needs both dates before comparison.",
+        "provider",
+        "book",
+      ),
+    );
+  }
+  for (
+    let index = 1;
+    index < (profile.preferences.areaStays?.length ?? 0);
+    index += 1
+  ) {
+    const from = profile.preferences.areaStays![index - 1];
+    const to = profile.preferences.areaStays![index];
+    const timing =
+      from.checkOut && to.checkIn
+        ? to.checkIn < from.checkOut
+          ? "The base dates overlap; review the intended handoff before booking."
+          : to.checkIn > from.checkOut
+            ? "There is a gap between bases; add lodging or confirm the overnight transfer."
+            : "The bases meet on the same local date."
+        : "Set both base date windows before treating this transfer as timed.";
+    tasks.push(
+      task(
+        `plan-transfer-${from.id}-${to.id}`,
+        `Plan the transfer from ${from.area} to ${to.area}`,
+        timing,
+        "traveler",
+        "plan",
+      ),
+    );
+  }
+  const priority: Record<ConciergeTask["state"], number> = {
+    needs_recheck: 0,
+    in_progress: 1,
+    waiting: 2,
+    not_started: 3,
+    done_by_traveler: 4,
+    not_applicable: 5,
+  };
+  tasks.sort((left, right) => priority[left.state] - priority[right.state]);
+  const preparationState = (id: string): ConciergeTask["state"] => {
+    const saved = progress.get(id);
+    if (!saved) return "not_started";
+    if (
+      (saved.state === "done_by_traveler" ||
+        saved.state === "not_applicable") &&
+      saved.contextRevision !== trip.updatedAt
+    ) {
+      return "needs_recheck";
+    }
+    return saved.state;
+  };
+  const preparationStep = (
+    traveler: ConciergeProfile["travelers"][number],
+    suffix: string,
+    fields: Omit<
+      PreparationStep,
+      "id" | "travelerId" | "sourceCheckedOn" | "state" | "documentRequirements"
+    > & {
+      documents?: Array<
+        Omit<PreparationDocumentRequirement, "id" | "linkedWalletLinkIds">
+      >;
+    },
+  ): PreparationStep => {
+    const id = `${traveler.id}-${suffix}`;
+    const { documents = [], ...stepFields } = fields;
+    return {
+      id,
+      travelerId: traveler.id,
+      sourceCheckedOn: "2026-09-12",
+      state: preparationState(id),
+      ...stepFields,
+      documentRequirements: documents.map((document, index) => {
+        const requirementId = `${id}-document-${index + 1}`;
+        return {
+          id: requirementId,
+          ...document,
+          linkedWalletLinkIds: profile.walletLinks
+            .filter((link) =>
+              link.preparationRequirementIds?.includes(requirementId),
+            )
+            .map((link) => link.id),
+        };
+      }),
+    };
+  };
+  const totals = [
+    ...new Set(
+      profile.costs
+        .filter((item) => item.amountMinor !== undefined)
+        .map((item) => item.currency),
+    ),
+  ]
+    .sort()
+    .map((currency) => ({
+      currency,
+      estimatesMinor: profile.costs
+        .filter(
+          (item) => item.currency === currency && item.state === "estimate",
+        )
+        .reduce((sum, item) => sum + (item.amountMinor ?? 0), 0),
+      committedMinor: profile.costs
+        .filter(
+          (item) => item.currency === currency && item.state === "committed",
+        )
+        .reduce((sum, item) => sum + (item.amountMinor ?? 0), 0),
+      refundsMinor: profile.costs
+        .filter((item) => item.currency === currency && item.state === "refund")
+        .reduce((sum, item) => sum + (item.amountMinor ?? 0), 0),
+    }));
+  return {
+    profile: clone(profile),
+    attachments: clone(tripAttachments),
+    tasks,
+    providerActions: [
+      {
+        id: "flights-google",
+        provider: "Google Flights",
+        category: "flights",
+        label: "Compare flight routes",
+        reason: "Confirm dates, airports, party, cabin and baggage on Google.",
+        url: flightUrl,
+        canonicalDomain: "www.google.com",
+        verification: flightUrl.endsWith("/flights")
+          ? "link_only"
+          : "observed_destination_link",
+        transferredFields: flightUrl.endsWith("/flights")
+          ? []
+          : ["origin and destination route"],
+        remainingFields: ["origin", "destination", "dates", "party"],
+        evidenceUrl: flightUrl,
+        searchBrief: brief,
+        ...linkOnlyPolicy,
+      },
+      {
+        id: "stays-airbnb",
+        provider: "Airbnb",
+        category: "stays",
+        label: "Explore whole-home stays",
+        reason:
+          "Enter dates, guests, bedrooms and accessibility filters on Airbnb.",
+        url: stayUrl,
+        canonicalDomain: "www.airbnb.com",
+        verification:
+          stayUrl === "https://www.airbnb.com/"
+            ? "link_only"
+            : "observed_destination_link",
+        transferredFields:
+          stayUrl === "https://www.airbnb.com/" ? [] : ["destination"],
+        remainingFields: ["destination", "dates", "guests", "bedrooms"],
+        evidenceUrl: stayUrl,
+        searchBrief: brief,
+        ...linkOnlyPolicy,
+      },
+      {
+        id: "stays-expedia",
+        provider: "Expedia",
+        category: "stays",
+        label: "Compare hotels and packages",
+        reason:
+          "Compare serviced stays and packages; enter all live trip details on Expedia.",
+        url: expediaUrl,
+        canonicalDomain: "www.expedia.com",
+        verification: expediaUrl.endsWith("/")
+          ? "link_only"
+          : "observed_destination_link",
+        transferredFields: expediaUrl.endsWith("/") ? [] : ["destination"],
+        remainingFields: ["dates", "travelers", "rooms", "filters"],
+        evidenceUrl: expediaUrl,
+        searchBrief: brief,
+        ...linkOnlyPolicy,
+      },
+      {
+        id: "food-yelp",
+        provider: "Yelp",
+        category: "food",
+        label: "Explore local food",
+        reason:
+          "Use community reviews for discovery, then confirm menus, hours and bookings with the restaurant.",
+        url: "https://www.yelp.com/",
+        canonicalDomain: "www.yelp.com",
+        verification: "link_only",
+        transferredFields: [],
+        remainingFields: ["destination", "cuisine", "date", "party"],
+        evidenceUrl: "https://www.yelp.com/",
+        searchBrief: brief,
+        ...linkOnlyPolicy,
+      },
+      {
+        id: "community-reddit",
+        provider: "Reddit",
+        category: "community",
+        label: "Read recent local discussions",
+        reason:
+          "Treat community suggestions as anecdotes and recheck practical claims at their primary source.",
+        url: "https://www.reddit.com/search/",
+        canonicalDomain: "www.reddit.com",
+        verification: "link_only",
+        transferredFields: [],
+        remainingFields: ["destination", "topic", "recency"],
+        evidenceUrl: "https://www.reddit.com/search/",
+        searchBrief: brief,
+        ...linkOnlyPolicy,
+      },
+      {
+        id: "outdoors-alltrails",
+        provider: "AllTrails",
+        category: "outdoors",
+        label: "Explore hikes and walks",
+        reason:
+          "Use community routes for discovery and official park pages for closures, permits and access.",
+        url: allTrailsUrl,
+        canonicalDomain: "www.alltrails.com",
+        verification: allTrailsUrl.endsWith("/")
+          ? "link_only"
+          : "observed_destination_link",
+        transferredFields: allTrailsUrl.endsWith("/") ? [] : ["destination"],
+        remainingFields: ["difficulty", "distance", "date", "current access"],
+        evidenceUrl: allTrailsUrl,
+        searchBrief: brief,
+        ...linkOnlyPolicy,
+      },
+      ...(destination.includes("hawai")
+        ? [
+            {
+              id: "destination-gohawaii",
+              provider: "Go Hawaiʻi",
+              category: "official",
+              label: "Compare the Hawaiian Islands",
+              reason:
+                "Choose an island from the state tourism authority before narrowing airports, stays and transport.",
+              url: "https://www.gohawaii.com/islands",
+              canonicalDomain: "www.gohawaii.com",
+              verification: "observed_destination_link" as const,
+              transferredFields: [],
+              remainingFields: ["island", "area", "transport needs"],
+              evidenceUrl: "https://www.gohawaii.com/islands",
+              searchBrief: brief,
+              ...linkOnlyPolicy,
+            },
+          ]
+        : []),
+      ...(destination.includes("montr")
+        ? [
+            {
+              id: "destination-montreal",
+              provider: "Tourisme Montréal",
+              category: "official",
+              label: "Compare Montréal neighborhoods",
+              reason:
+                "Use official destination context, then verify each operator directly.",
+              url: "https://www.mtl.org/en/city/about-montreal/neighbourhoods/plateau-and-mile-end",
+              canonicalDomain: "www.mtl.org",
+              verification: "observed_destination_link" as const,
+              transferredFields: ["destination"],
+              remainingFields: ["area", "dates", "opening hours"],
+              evidenceUrl:
+                "https://www.mtl.org/en/city/about-montreal/neighbourhoods/plateau-and-mile-end",
+              searchBrief: brief,
+              ...linkOnlyPolicy,
+            },
+          ]
+        : []),
+    ],
+    preparationSteps: profile.travelers.flatMap((traveler) => {
+      if (destination.includes("hawai")) {
+        const hasForeignConnection = profile.preferences.hasForeignConnection;
+        return [
+          preparationStep(traveler, "hawaii-route", {
+            title:
+              hasForeignConnection === false
+                ? "Confirm domestic ID and flight route"
+                : hasForeignConnection === true
+                  ? "Review the international connection and U.S. return"
+                  : "Confirm whether every segment stays in the U.S.",
+            applicability:
+              hasForeignConnection === false
+                ? "This is a domestic U.S. route only while every booked segment remains inside the United States."
+                : hasForeignConnection === true
+                  ? "A foreign connection makes this an international route even though Hawaiʻi is in the United States."
+                  : "Voyalier does not yet know whether the itinerary has a foreign connection, so domestic-only guidance is not established.",
+            nextAction:
+              hasForeignConnection === false
+                ? "Check the accepted-ID list and every booked segment before travel."
+                : "Confirm every connection and use the official international-traveler route before relying on domestic guidance.",
+            authorityUrl:
+              hasForeignConnection === false
+                ? "https://www.tsa.gov/travel/security-screening/identification"
+                : "https://www.cbp.gov/travel/international-visitors",
+            authorityName:
+              hasForeignConnection === false
+                ? "U.S. Transportation Security Administration"
+                : "U.S. Customs and Border Protection",
+            section: "transit",
+            order: 10,
+            prerequisiteIds: [],
+            documents: [
+              {
+                label: "Accepted travel identification",
+                status: "traveler_added",
+              },
+            ],
+          }),
+          preparationStep(traveler, "hawaii-ag", {
+            title: "Prepare Hawaiʻi arrival declarations",
+            applicability:
+              "Agricultural inspection and declaration rules apply to arrivals in Hawaiʻi; the official portal controls the current process.",
+            nextAction:
+              "Review the Hawaiʻi arrival portal close to departure and follow current carrier instructions.",
+            authorityUrl: "https://akamaiarrival.hawaii.gov/",
+            authorityName: "State of Hawaiʻi",
+            section: "entry",
+            order: 20,
+            prerequisiteIds: [`${traveler.id}-hawaii-route`],
+          }),
+        ];
+      }
+      if (destination.includes("montr") || destination.includes("canada")) {
+        const returningToUs = traveler.returnCountryIso2
+          ? traveler.returnCountryIso2 === "US"
+          : traveler.residenceCountryIso2 === "US";
+        const official = "Immigration, Refugees and Citizenship Canada";
+        const entryId = `${traveler.id}-canada-entry`;
+        const applicationId = `${traveler.id}-canada-application`;
+        const decisionId = `${traveler.id}-canada-decision`;
+        return [
+          preparationStep(traveler, "canada-entry", {
+            title:
+              traveler.residenceStatus === "permanent_resident" &&
+              traveler.residenceCountryIso2 === "US"
+                ? "Review the U.S. permanent-resident route"
+                : traveler.residenceStatus === "citizen" &&
+                    traveler.passportCountryIso2 === "US"
+                  ? "Review the U.S.-citizen document route"
+                  : "Use Canada’s official entry-requirements tool",
+            applicability:
+              profile.preferences.travelMode === "land"
+                ? "Land-mode guidance can differ across official summaries. Confirm the exact document route in the official checker."
+                : profile.preferences.travelMode == null ||
+                    profile.preferences.travelMode === "unknown"
+                  ? "Travel mode is unknown. Select air, land, sea or mixed before treating any document route as applicable."
+                  : "Passport, residence, purpose, travel mode and existing Canadian documents can change the route.",
+            nextAction:
+              "Answer the official checker with this traveler’s real documents and route before buying non-refundable travel. Save the result in the wallet.",
+            authorityUrl:
+              "https://www.canada.ca/en/immigration-refugees-citizenship/services/visit-canada/entry-requirements-country.html",
+            authorityName: official,
+            section: "entry",
+            order: 10,
+            prerequisiteIds: [],
+            documents: [
+              {
+                label: "Official checker result or saved checklist",
+                status: "traveler_added",
+              },
+            ],
+          }),
+          preparationStep(traveler, "canada-application", {
+            title: "Submit an application only if the checker requires one",
+            applicability:
+              "This step stays conditional until the official checker identifies the required document and portal.",
+            nextAction:
+              "Follow the account checklist, upload only the requested documents, and keep the submission receipt.",
+            authorityUrl:
+              "https://www.canada.ca/en/immigration-refugees-citizenship/services/application/account.html",
+            authorityName: official,
+            section: "entry",
+            order: 20,
+            prerequisiteIds: [entryId],
+            documents: [
+              {
+                label: "Application checklist and receipt",
+                status: "authority_conditional",
+              },
+            ],
+          }),
+          preparationStep(traveler, "canada-biometrics-letter", {
+            title: "Wait for a biometrics instruction letter if requested",
+            applicability:
+              "Biometrics are not assumed. The authority’s instruction letter controls whether, where and by when this traveler must attend.",
+            nextAction:
+              "If a letter arrives, add it to the wallet and use its deadline for the appointment task.",
+            authorityUrl:
+              "https://www.canada.ca/en/immigration-refugees-citizenship/services/biometrics.html",
+            authorityName: official,
+            section: "entry",
+            order: 30,
+            prerequisiteIds: [applicationId],
+            documents: [
+              {
+                label: "Biometrics instruction letter",
+                status: "authority_conditional",
+              },
+            ],
+          }),
+          preparationStep(traveler, "canada-biometrics", {
+            title: "Attend an authorized biometrics location if instructed",
+            applicability:
+              "Use only a location and deadline accepted by the authority’s letter. A consulate visit is not a universal step.",
+            nextAction:
+              "Book through the official path named in the letter and keep the appointment receipt.",
+            authorityUrl:
+              "https://www.canada.ca/en/immigration-refugees-citizenship/services/biometrics/where-to-give.html",
+            authorityName: official,
+            section: "entry",
+            order: 40,
+            prerequisiteIds: [`${traveler.id}-canada-biometrics-letter`],
+            documents: [
+              {
+                label: "Biometrics appointment receipt",
+                status: "authority_conditional",
+              },
+            ],
+          }),
+          preparationStep(traveler, "canada-decision", {
+            title: "Wait for the decision and any additional request",
+            applicability:
+              "A submission or biometrics appointment does not mean approval.",
+            nextAction:
+              "Check the official account; add decision or request letters to the wallet without marking travel ready.",
+            authorityUrl:
+              "https://www.canada.ca/en/immigration-refugees-citizenship/services/application/check-status.html",
+            authorityName: official,
+            section: "entry",
+            order: 50,
+            prerequisiteIds: [applicationId],
+            documents: [
+              {
+                label: "Decision or additional-request letter",
+                status: "authority_conditional",
+              },
+            ],
+          }),
+          preparationStep(traveler, "canada-passport-return", {
+            title: "Track passport submission and return only if requested",
+            applicability:
+              "An approval letter and the physical travel document are separate. This step applies only when the authority requests the passport.",
+            nextAction:
+              "Keep the request, courier receipt and returned document status separate.",
+            authorityUrl:
+              "https://www.canada.ca/en/immigration-refugees-citizenship/services/application/account.html",
+            authorityName: official,
+            section: "entry",
+            order: 60,
+            prerequisiteIds: [decisionId],
+            documents: [
+              {
+                label: "Passport request and return receipt",
+                status: "authority_conditional",
+              },
+            ],
+          }),
+          preparationStep(traveler, "return-route", {
+            title: returningToUs
+              ? traveler.residenceStatus === "permanent_resident"
+                ? "Review the return-to-U.S. permanent-resident documents"
+                : traveler.residenceStatus === "temporary_worker"
+                  ? "Review the return-to-U.S. temporary-worker documents"
+                  : "Review the return-to-U.S. documents"
+              : "Confirm onward or return-country documents",
+            applicability: returningToUs
+              ? "Canadian entry and return to the United States are separate decisions."
+              : "No U.S. return is assumed for this traveler. The next country’s authority controls the onward route.",
+            nextAction: returningToUs
+              ? "Use the relevant official U.S. route and confirm carrier requirements."
+              : "Record the actual return or onward country, then use that authority’s official checker.",
+            authorityUrl: returningToUs
+              ? traveler.residenceStatus === "temporary_worker"
+                ? "https://travel.state.gov/content/travel/en/us-visas/visa-information-resources/visa-expiration-date/auto-revalidate.html"
+                : "https://www.cbp.gov/travel/international-visitors"
+              : "https://www.iatatravelcentre.com/",
+            authorityName: returningToUs
+              ? traveler.residenceStatus === "temporary_worker"
+                ? "U.S. Department of State"
+                : "U.S. Customs and Border Protection"
+              : "IATA Travel Centre",
+            section: "return",
+            order: 70,
+            prerequisiteIds: [
+              decisionId,
+              `${traveler.id}-canada-passport-return`,
+            ],
+            documents: [
+              {
+                label: "Return or onward travel documents",
+                status: "traveler_added",
+              },
+            ],
+          }),
+        ];
+      }
+      return [];
+    }),
+    areaGuides: destination.includes("hawai")
+      ? [
+          {
+            id: "oahu",
+            name: "Oʻahu",
+            fit: "City energy, beaches and the broadest transit options",
+            tradeoff: "Busier centers and longer cross-island travel",
+            sourceUrl: "https://www.gohawaii.com/islands/oahu",
+            sourceName: "Hawaiʻi Tourism Authority",
+          },
+          {
+            id: "maui",
+            name: "Maui",
+            fit: "Beaches, road trips and varied resort bases",
+            tradeoff: "A car may be useful and drive times shape the day",
+            sourceUrl: "https://www.gohawaii.com/islands/maui",
+            sourceName: "Hawaiʻi Tourism Authority",
+          },
+          {
+            id: "hawaii-island",
+            name: "Hawaiʻi Island",
+            fit: "Volcanic landscapes and large-scale nature",
+            tradeoff: "Long distances make one-base plans demanding",
+            sourceUrl: "https://www.gohawaii.com/islands/hawaii-big-island",
+            sourceName: "Hawaiʻi Tourism Authority",
+          },
+          {
+            id: "kauai",
+            name: "Kauaʻi",
+            fit: "Quieter pace, coast and hiking",
+            tradeoff: "Weather and access can change outdoor plans",
+            sourceUrl: "https://www.gohawaii.com/islands/kauai",
+            sourceName: "Hawaiʻi Tourism Authority",
+          },
+        ]
+      : destination.includes("montr")
+        ? [
+            {
+              id: "old-montreal",
+              name: "Old Montréal",
+              fit: "Historic streets and central sightseeing",
+              tradeoff: "Popular core with tourist-oriented pricing",
+              sourceUrl: "https://www.mtl.org/en/experience/musts-old-montreal",
+              sourceName: "Tourisme Montréal",
+            },
+            {
+              id: "plateau-mile-end",
+              name: "Plateau and Mile End",
+              fit: "Food, cafés and neighborhood walks",
+              tradeoff: "Farther from some Old Montréal sights",
+              sourceUrl:
+                "https://www.mtl.org/en/explore/neighbourhoods/plateau-mont-royal-mile-end",
+              sourceName: "Tourisme Montréal",
+            },
+            {
+              id: "downtown",
+              name: "Downtown",
+              fit: "Metro access and a practical central base",
+              tradeoff: "Less residential character than surrounding districts",
+              sourceUrl:
+                "https://www.mtl.org/en/explore/neighbourhoods/downtown",
+              sourceName: "Tourisme Montréal",
+            },
+          ]
+        : [],
+    totals,
+  };
+}
+
 interface StoredDocument {
   document: SourceDocument;
   content: string;
+}
+
+interface StoredAttachment {
+  attachment: AttachmentSummary;
+  contentBase64: string;
 }
 
 const FIXTURE_TIME = "2026-07-10T12:00:00Z";
@@ -3067,9 +3832,12 @@ export function createMockGateway(options?: {
     ]),
   );
   const notes = new Map<string, TripNotes>();
+  const conciergeProfiles = new Map<string, ConciergeProfile>();
+  const tripIntents = new Map<string, TripIntentDraft>();
   const documents = new Map<string, StoredDocument>(
     fixtureDocuments.map((stored) => [stored.document.id, clone(stored)]),
   );
+  const attachments = new Map<string, StoredAttachment>();
   const advisoryPanels = new Map<string, AdvisoryPanel>();
   const visaStatsKept = new Map<string, VisaStatsSnapshot>();
   const weatherSnapshots = new Map<string, WeatherSnapshot>();
@@ -3351,6 +4119,89 @@ export function createMockGateway(options?: {
         })),
       ),
 
+    saveTripIntent: (input: SaveTripIntentDraftInput) =>
+      execute("saveTripIntent", () => {
+        const origin = validateLocation(input.origin, "origin");
+        const destination = validateLocation(input.destination, "destination");
+        if (
+          (input.startDate && !input.endDate) ||
+          (!input.startDate && input.endDate)
+        ) {
+          throw appError(
+            "validation/invalid_input",
+            "Set both dates or leave both undecided",
+          );
+        }
+        if (input.startDate && input.endDate)
+          validateDates(input.startDate, input.endDate);
+        if (input.partySize < 1 || input.partySize > 20) {
+          throw appError(
+            "validation/invalid_input",
+            "Party size must be between 1 and 20",
+          );
+        }
+        const existing = input.draftId
+          ? tripIntents.get(input.draftId)
+          : undefined;
+        if (input.draftId && !existing) {
+          throw appError("trip/not_found", "Trip idea not found");
+        }
+        const now = timestamp();
+        const draft: TripIntentDraft = {
+          id: input.draftId ?? nextId("intent"),
+          ...(input.title?.trim() ? { title: input.title.trim() } : {}),
+          origin,
+          destination,
+          ...(input.startDate ? { startDate: input.startDate } : {}),
+          ...(input.endDate ? { endDate: input.endDate } : {}),
+          partySize: input.partySize,
+          ...(input.selectedArea?.trim()
+            ? { selectedArea: input.selectedArea.trim() }
+            : {}),
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        };
+        tripIntents.set(draft.id, draft);
+        return clone(draft);
+      }),
+
+    listTripIntents: () =>
+      execute("listTripIntents", () => [...tripIntents.values()].map(clone)),
+
+    deleteTripIntent: (draftId: string) =>
+      execute("deleteTripIntent", () => {
+        if (!tripIntents.delete(draftId)) {
+          throw appError("trip/not_found", "Trip idea not found");
+        }
+      }),
+
+    convertTripIntent: (input: ConvertTripIntentInput) =>
+      execute("convertTripIntent", () => {
+        const draft = tripIntents.get(input.draftId);
+        if (!draft) throw appError("trip/not_found", "Trip idea not found");
+        validateDates(input.startDate, input.endDate);
+        const now = timestamp();
+        const trip: Trip = {
+          id: nextId("trip"),
+          title: draft.title ?? `${draft.origin} → ${draft.destination}`,
+          origin: draft.origin,
+          destination: draft.destination,
+          startDate: input.startDate,
+          endDate: input.endDate,
+          status: "draft",
+          createdAt: now,
+          updatedAt: now,
+        };
+        trips.set(trip.id, trip);
+        const profile = emptyConciergeProfile(trip.id);
+        profile.preferences.partySize = draft.partySize;
+        profile.preferences.selectedArea = draft.selectedArea;
+        profile.updatedAt = now;
+        conciergeProfiles.set(trip.id, profile);
+        tripIntents.delete(draft.id);
+        return clone(trip);
+      }),
+
     getTrip: (tripId: string) =>
       execute("getTrip", () => {
         const trip = requireTrip(tripId);
@@ -3524,6 +4375,48 @@ export function createMockGateway(options?: {
             ),
           },
         } satisfies TripDetail;
+      }),
+
+    getConciergeWorkspace: (tripId: string) =>
+      execute("getConciergeWorkspace", () => {
+        const trip = requireTrip(tripId);
+        return mockConciergeWorkspace(
+          trip,
+          conciergeProfiles.get(tripId) ?? emptyConciergeProfile(tripId),
+          [...attachments.values()]
+            .map((stored) => stored.attachment)
+            .filter((attachment) => attachment.tripId === tripId),
+          [...facts.values()].filter((fact) => fact.tripId === tripId),
+          [...tripItems.values()].filter((item) => item.tripId === tripId),
+        );
+      }),
+
+    setConciergeProfile: (input: ConciergeProfile) =>
+      execute("setConciergeProfile", () => {
+        const trip = requireTrip(input.tripId);
+        if (
+          input.preferences.partySize < 1 ||
+          input.preferences.partySize > 20 ||
+          input.travelers.length > input.preferences.partySize
+        ) {
+          throw appError(
+            "validation/invalid_input",
+            "The concierge party context is invalid",
+          );
+        }
+        const saved = { ...clone(input), updatedAt: timestamp() };
+        conciergeProfiles.set(input.tripId, saved);
+        return mockConciergeWorkspace(
+          trip,
+          saved,
+          [...attachments.values()]
+            .map((stored) => stored.attachment)
+            .filter((attachment) => attachment.tripId === input.tripId),
+          [...facts.values()].filter((fact) => fact.tripId === input.tripId),
+          [...tripItems.values()].filter(
+            (item) => item.tripId === input.tripId,
+          ),
+        );
       }),
 
     updateTrip: (tripId: string, input: UpdateTripInput) =>
@@ -5315,6 +6208,9 @@ export function createMockGateway(options?: {
         for (const [id, stored] of documents) {
           if (stored.document.tripId === tripId) documents.delete(id);
         }
+        for (const [id, stored] of attachments) {
+          if (stored.attachment.tripId === tripId) attachments.delete(id);
+        }
         advisoryPanels.delete(tripId);
         weatherSnapshots.delete(tripId);
         destinationFactsSnapshots.delete(tripId);
@@ -5384,6 +6280,145 @@ export function createMockGateway(options?: {
           candidates: [],
           duplicatesIgnored: 0,
         } satisfies ImportResult;
+      }),
+
+    importAttachment: (input: ImportAttachmentInput) =>
+      execute("importAttachment", async () => {
+        requireTrip(input.tripId);
+        if (!input.label.trim()) {
+          throw appError(
+            "validation/invalid_input",
+            "Attachment label is required",
+          );
+        }
+        let binary: string;
+        try {
+          binary = atob(input.contentBase64);
+        } catch {
+          throw appError(
+            "validation/invalid_input",
+            "Attachment content is not valid base64",
+          );
+        }
+        const byteCount = binary.length;
+        if (byteCount === 0) {
+          throw appError("document/empty", "Attachment is empty");
+        }
+        if (byteCount > MAX_ATTACHMENT_BYTES) {
+          throw appError(
+            "document/too_large",
+            "Attachment exceeds the 20 MiB limit",
+          );
+        }
+        const signatureMatches =
+          (input.mimeType === "application/pdf" &&
+            binary.startsWith("%PDF-")) ||
+          (input.mimeType === "image/jpeg" &&
+            binary.charCodeAt(0) === 0xff &&
+            binary.charCodeAt(1) === 0xd8 &&
+            binary.charCodeAt(2) === 0xff) ||
+          (input.mimeType === "image/png" &&
+            binary.startsWith("\x89PNG\r\n\x1a\n"));
+        if (!signatureMatches) {
+          throw appError(
+            "validation/invalid_input",
+            "Only PDF, JPEG and PNG attachments are supported",
+          );
+        }
+        if (
+          [...attachments.values()].filter(
+            (stored) => stored.attachment.tripId === input.tripId,
+          ).length >= MAX_ATTACHMENTS_PER_TRIP
+        ) {
+          throw appError(
+            "validation/invalid_input",
+            "A trip can hold up to 100 binary attachments",
+          );
+        }
+        const contentHash = await sha256(input.contentBase64);
+        const duplicate = [...attachments.values()].find(
+          (stored) =>
+            stored.attachment.tripId === input.tripId &&
+            stored.attachment.contentHash === contentHash,
+        );
+        if (duplicate) {
+          throw appError(
+            "document/duplicate",
+            "Attachment was already imported",
+            { existingDocumentId: duplicate.attachment.id },
+          );
+        }
+        const workspaceBytes = [...attachments.values()].reduce(
+          (total, stored) => total + stored.attachment.byteCount,
+          0,
+        );
+        if (workspaceBytes + byteCount > MAX_ATTACHMENT_WORKSPACE_BYTES) {
+          throw appError(
+            "document/too_large",
+            "The encrypted wallet can hold up to 500 MiB across this workspace so a portable backup remains available",
+          );
+        }
+        const attachment: AttachmentSummary = {
+          id: nextId("attachment"),
+          tripId: input.tripId,
+          label: input.label.trim(),
+          mimeType: input.mimeType,
+          byteCount,
+          contentHash,
+          importedAt: timestamp(),
+        };
+        attachments.set(attachment.id, {
+          attachment,
+          contentBase64: input.contentBase64,
+        });
+        return clone(attachment);
+      }),
+
+    listAttachments: (tripId: string) =>
+      execute("listAttachments", () => {
+        requireTrip(tripId);
+        return [...attachments.values()]
+          .filter((stored) => stored.attachment.tripId === tripId)
+          .sort((a, b) =>
+            a.attachment.importedAt < b.attachment.importedAt ? 1 : -1,
+          )
+          .map((stored) => clone(stored.attachment));
+      }),
+
+    getAttachment: (attachmentId: string) =>
+      execute("getAttachment", () => {
+        const stored = attachments.get(attachmentId);
+        if (!stored) {
+          throw appError(
+            "document/not_found",
+            "That attachment no longer exists",
+          );
+        }
+        return clone(stored) satisfies AttachmentContent;
+      }),
+
+    deleteAttachment: (attachmentId: string) =>
+      execute("deleteAttachment", () => {
+        const stored = attachments.get(attachmentId);
+        if (!stored) {
+          throw appError(
+            "document/not_found",
+            "That attachment no longer exists",
+          );
+        }
+        const profile = conciergeProfiles.get(stored.attachment.tripId);
+        if (profile) {
+          conciergeProfiles.set(profile.tripId, {
+            ...profile,
+            walletLinks: profile.walletLinks.map((link) =>
+              link.sourceAttachmentId === attachmentId
+                ? { ...link, sourceAttachmentId: undefined }
+                : link,
+            ),
+            updatedAt: timestamp(),
+          });
+        }
+        attachments.delete(attachmentId);
       }),
 
     getTripNotes: (tripId: string) =>
