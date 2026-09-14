@@ -340,9 +340,11 @@ function mockConciergeWorkspace(
       task(
         `compare-stay-${stay.id}`,
         `Compare stays in ${stay.area}`,
-        stay.checkIn && stay.checkOut
-          ? `This base covers ${stay.checkIn} to ${stay.checkOut}; keep its confirmation separate.`
-          : "This base still needs both dates before comparison.",
+        `This base covers ${
+          stay.checkIn && stay.checkOut
+            ? `${stay.checkIn} to ${stay.checkOut}`
+            : "dates still needed"
+        }; keep its confirmation separate.`,
         "provider",
         "book",
       ),
@@ -402,7 +404,9 @@ function mockConciergeWorkspace(
       "id" | "travelerId" | "sourceCheckedOn" | "state" | "documentRequirements"
     > & {
       documents?: Array<
-        Omit<PreparationDocumentRequirement, "id" | "linkedWalletLinkIds">
+        Omit<PreparationDocumentRequirement, "id" | "linkedWalletLinkIds"> & {
+          suffix: string;
+        }
       >;
     },
   ): PreparationStep => {
@@ -414,18 +418,23 @@ function mockConciergeWorkspace(
       sourceCheckedOn: "2026-09-12",
       state: preparationState(id),
       ...stepFields,
-      documentRequirements: documents.map((document, index) => {
-        const requirementId = `${id}-document-${index + 1}`;
-        return {
-          id: requirementId,
-          ...document,
-          linkedWalletLinkIds: profile.walletLinks
-            .filter((link) =>
-              link.preparationRequirementIds?.includes(requirementId),
-            )
-            .map((link) => link.id),
-        };
-      }),
+      // Requirement ids mirror core: `${travelerId}-${docSuffix}`, not a
+      // positional `${stepId}-document-N`, so wallet links resolve to the same
+      // requirement in both implementations (dev-review DR-78bcf464-003).
+      documentRequirements: documents.map(
+        ({ suffix: documentSuffix, ...document }) => {
+          const requirementId = `${traveler.id}-${documentSuffix}`;
+          return {
+            id: requirementId,
+            ...document,
+            linkedWalletLinkIds: profile.walletLinks
+              .filter((link) =>
+                link.preparationRequirementIds?.includes(requirementId),
+              )
+              .map((link) => link.id),
+          };
+        },
+      ),
     };
   };
   const totals = [
@@ -640,6 +649,7 @@ function mockConciergeWorkspace(
             prerequisiteIds: [],
             documents: [
               {
+                suffix: "travel-id",
                 label: "Accepted travel identification",
                 status: "traveler_added",
               },
@@ -694,6 +704,7 @@ function mockConciergeWorkspace(
             prerequisiteIds: [],
             documents: [
               {
+                suffix: "checker-result",
                 label: "Official checker result or saved checklist",
                 status: "traveler_added",
               },
@@ -713,6 +724,7 @@ function mockConciergeWorkspace(
             prerequisiteIds: [entryId],
             documents: [
               {
+                suffix: "submission",
                 label: "Application checklist and receipt",
                 status: "authority_conditional",
               },
@@ -732,6 +744,7 @@ function mockConciergeWorkspace(
             prerequisiteIds: [applicationId],
             documents: [
               {
+                suffix: "biometrics-letter",
                 label: "Biometrics instruction letter",
                 status: "authority_conditional",
               },
@@ -751,6 +764,7 @@ function mockConciergeWorkspace(
             prerequisiteIds: [`${traveler.id}-canada-biometrics-letter`],
             documents: [
               {
+                suffix: "biometrics-receipt",
                 label: "Biometrics appointment receipt",
                 status: "authority_conditional",
               },
@@ -770,6 +784,7 @@ function mockConciergeWorkspace(
             prerequisiteIds: [applicationId],
             documents: [
               {
+                suffix: "decision-letter",
                 label: "Decision or additional-request letter",
                 status: "authority_conditional",
               },
@@ -789,6 +804,7 @@ function mockConciergeWorkspace(
             prerequisiteIds: [decisionId],
             documents: [
               {
+                suffix: "passport-request",
                 label: "Passport request and return receipt",
                 status: "authority_conditional",
               },
@@ -826,6 +842,7 @@ function mockConciergeWorkspace(
             ],
             documents: [
               {
+                suffix: "return-document",
                 label: "Return or onward travel documents",
                 status: "traveler_added",
               },
