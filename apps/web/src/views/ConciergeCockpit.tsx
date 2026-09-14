@@ -98,7 +98,7 @@ function SetupPanel({
       preferences: { ...preferences, ...patch },
     });
   return (
-    <section className="voy-concierge__setup" id="concierge-people">
+    <section className="voy-concierge__setup" id="concierge-setup">
       <div className="voy-concierge__section-head">
         <div>
           <p className="voy-eyebrow">Ask once, use everywhere</p>
@@ -477,7 +477,11 @@ function PeoplePanel({
     });
   }
   return (
-    <section className="voy-concierge__people" aria-labelledby="people-title">
+    <section
+      className="voy-concierge__people"
+      id="concierge-people"
+      aria-labelledby="people-title"
+    >
       <div className="voy-concierge__section-head">
         <div>
           <p className="voy-eyebrow">Private local profiles</p>
@@ -663,6 +667,18 @@ function ProviderPanel({
     setBusyId(action.id);
     setError(null);
     try {
+      // Reuse an existing handoff for this provider action instead of appending a
+      // duplicate every time "Prepare" is clicked.
+      const existing = (workspace.profile.providerHandoffs ?? []).find(
+        (handoff) => handoff.providerActionId === action.id,
+      );
+      if (existing) {
+        setReadyUrl(action.url);
+        announce(
+          `${action.provider} handoff is ready. The provider link is ready.`,
+        );
+        return;
+      }
       const next = {
         ...workspace.profile,
         providerHandoffs: [
@@ -1757,7 +1773,11 @@ function CockpitEditor({
       task.state === "done_by_traveler" || task.state === "not_applicable",
   );
   return (
-    <section className="voy-concierge" aria-labelledby="concierge-title">
+    <section
+      className="voy-concierge"
+      lang="en"
+      aria-labelledby="concierge-title"
+    >
       <div className="voy-concierge__scene">
         <div
           className="voy-concierge__atlas"
@@ -2117,7 +2137,12 @@ export function ConciergeCockpit({
   );
   if (workspace.status === "loading" && !workspace.data) {
     return (
-      <section className="voy-concierge" aria-busy="true" role="status">
+      <section
+        className="voy-concierge"
+        lang="en"
+        aria-busy="true"
+        role="status"
+      >
         <span className="voy-sr-only">Loading the concierge cockpit</span>
         <Skeleton height="18rem" />
       </section>
@@ -2125,18 +2150,20 @@ export function ConciergeCockpit({
   }
   if (workspace.error && !workspace.data) {
     return (
-      <Banner
-        tone="error"
-        role="alert"
-        title={describeError(workspace.error).title}
-        action={
-          <Button variant="secondary" onClick={workspace.reload}>
-            Retry
-          </Button>
-        }
-      >
-        {describeError(workspace.error).body}
-      </Banner>
+      <div lang="en">
+        <Banner
+          tone="error"
+          role="alert"
+          title={describeError(workspace.error).title}
+          action={
+            <Button variant="secondary" onClick={workspace.reload}>
+              Retry
+            </Button>
+          }
+        >
+          {describeError(workspace.error).body}
+        </Banner>
+      </div>
     );
   }
   if (!workspace.data) return null;

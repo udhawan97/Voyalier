@@ -48,6 +48,7 @@ export function GuideIndex() {
   return (
     <section
       className="voy-settings__section"
+      lang="en"
       aria-labelledby="guide-index-title"
     >
       <SectionTitle id="guide-index-title" icon={<CompassIcon />}>
