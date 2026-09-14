@@ -31,6 +31,21 @@ impl AppService {
                 "mimeType",
             ));
         }
+        // Bound the encoded payload before allocating the decoded buffer. The HTTP
+        // route caps the request body, but a Tauri caller that bypasses the UI's
+        // preflight would otherwise decode an arbitrarily large base64 string into
+        // memory before the decoded-size check below could reject it (ADR-0024's
+        // acknowledged limit). The ceiling is the largest base64 a 20 MiB file can
+        // produce, so no valid attachment is turned away.
+        let max_encoded = voyalier_core::MAX_ATTACHMENT_BYTES
+            .div_ceil(3)
+            .saturating_mul(4);
+        if input.content_base64.len() > max_encoded {
+            return Err(AppError::new(
+                ErrorCode::DocumentTooLarge,
+                "attachment exceeds the 20 MiB limit",
+            ));
+        }
         let bytes = BASE64
             .decode(input.content_base64.as_bytes())
             .map_err(|_| {

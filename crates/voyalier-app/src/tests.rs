@@ -538,6 +538,31 @@ fn concierge_projects_distinct_montreal_entry_and_return_steps() {
 }
 
 #[test]
+fn oversized_base64_attachment_is_rejected_before_decoding() {
+    // DR-78bcf464-004: a caller that bypasses the UI preflight must not be able to
+    // make the service allocate a huge decoded buffer; the encoded length is bounded
+    // before `BASE64.decode` runs.
+    let database = temp_database("attachment-oversized");
+    let service = open_test_service(&database).expect("service");
+    let trip = service.create_trip(valid_trip_input()).expect("trip");
+    let max_encoded = voyalier_core::MAX_ATTACHMENT_BYTES.div_ceil(3) * 4;
+    // `*` is not a base64 character: without the pre-decode length guard this
+    // input would fail the decoder with ValidationInvalidInput. Getting
+    // DocumentTooLarge instead proves the length is rejected before
+    // `BASE64.decode` ever runs.
+    let oversized = "*".repeat(max_encoded + 4);
+    let error = service
+        .import_attachment(ImportAttachmentInput {
+            trip_id: trip.id.clone(),
+            label: "too big.pdf".to_owned(),
+            mime_type: "application/pdf".to_owned(),
+            content_base64: oversized,
+        })
+        .expect_err("oversized payload rejected");
+    assert_eq!(error.code, ErrorCode::DocumentTooLarge);
+}
+
+#[test]
 fn binary_wallet_attachments_are_bounded_encrypted_and_trip_scoped() {
     let database = temp_database("concierge-attachments");
     let service = open_test_service(&database).expect("service");
