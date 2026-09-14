@@ -2052,9 +2052,33 @@ fn apply_windows_automation_config(
     window.data_directory = Some(config.data_directory.clone().into());
 }
 
+/// Turn a launch-time storage-open failure into a diagnostic the traveler or
+/// support can act on, rather than an opaque panic backtrace / crash report.
+///
+/// This is the minimally-verifiable half of dev-review DR-78bcf464-002: it stops
+/// the silent crash and emits actionable text. The full in-window recovery dialog
+/// (retry / open data folder / re-run restore) is still owed and must be built and
+/// verified on the packaged desktop app before the v0.12.0 desktop release.
+fn startup_failure_message(error: &AppError) -> String {
+    format!(
+        "Voyalier could not open your local storage ({:?}): {}\n\nYour data has not been changed. \
+         Confirm your keychain or passphrase is available, or check whether a restore is still in \
+         progress, then reopen Voyalier.",
+        error.code, error.message
+    )
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let service = AppService::open_default().expect("Voyalier storage must initialize");
+    let service = match AppService::open_default() {
+        Ok(service) => service,
+        Err(error) => {
+            // A GUI user does not see stderr, but a clean, described exit is still
+            // strictly better than a panic abort; the visible dialog is DR-...-002.
+            eprintln!("{}", startup_failure_message(&error));
+            std::process::exit(1);
+        }
+    };
     let context = tauri::generate_context!();
     #[cfg(target_os = "windows")]
     let (context, dialog_automation) = {
@@ -2106,6 +2130,19 @@ mod tests {
             .expect_err("one byte over the boundary");
         assert_eq!(error.code, ErrorCode::ValidationInvalidInput);
         assert!(error.message.contains("safety limit"));
+    }
+
+    #[test]
+    fn startup_failure_message_is_actionable_and_reassuring() {
+        let message = startup_failure_message(&AppError::new(
+            ErrorCode::VaultUnreadable,
+            "secure document storage is unavailable",
+        ));
+        // Names the failure class, does not lose the underlying message, and
+        // reassures the traveler their data is intact — none of which a panic did.
+        assert!(message.contains("VaultUnreadable"));
+        assert!(message.contains("secure document storage is unavailable"));
+        assert!(message.contains("has not been changed"));
     }
 
     #[test]
