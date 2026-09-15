@@ -31,7 +31,7 @@ Pull requests should explain:
 
 ## Commit style
 
-Use short, imperative commit subjects. Conventional Commit prefixes are welcome but not required.
+Follow the layer-scoped commit format in [AGENTS.md](AGENTS.md): `Scope: imperative summary`, where the scope names the affected layer such as `Core:`, `App:`, `Contract:`, `Web:`, `Desktop:`, `Docs:`, or `Test:`. Combine scopes only when a focused change genuinely crosses layers.
 
 ## Data and AI contributions
 
