@@ -103,8 +103,8 @@ decisions with the services and authorities that own them.
 - **A failed storage open now produces a visible native desktop error.** If the
   local database, keychain or an in-progress restore leaves storage unopenable
   at launch, the app describes the problem before exiting cleanly instead of
-  failing without a visible explanation. The dialog does not change or recover
-  data; retry and guided recovery controls remain future work.
+  failing without a visible explanation. The dialog offers no retry or recovery
+  controls; those remain future work.
 - **The concierge cockpit and guides no longer render English under a Spanish
   page language.** Their roots now declare English so a screen reader announces
   them correctly; full Spanish translation of the cockpit remains future work.

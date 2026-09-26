@@ -45,6 +45,55 @@ describe("concierge cockpit", () => {
       0,
     );
     expect(within(region).getAllByText(/2 bedrooms/).length).toBeGreaterThan(0);
+    fireEvent.click(
+      within(region).getByRole("button", { name: "Prepare Airbnb" }),
+    );
+    await waitFor(async () =>
+      expect(
+        (await gateway.getConciergeWorkspace(trip.id)).profile.providerHandoffs,
+      ).toHaveLength(1),
+    );
+  });
+
+  it("keeps mock concierge derivation aligned with core identifiers and wording", async () => {
+    const gateway = createMockGateway();
+    const trip = await gateway.createTrip({
+      title: "Derived concierge parity",
+      origin: "Chicago",
+      destination: "Hawaii",
+      startDate: "2026-11-30",
+      endDate: "2026-12-14",
+    });
+    const workspace = await gateway.getConciergeWorkspace(trip.id);
+    await gateway.setConciergeProfile({
+      ...workspace.profile,
+      preferences: {
+        ...workspace.profile.preferences,
+        areaStays: [{ id: "undated-base", area: "Oʻahu" }],
+      },
+      travelers: [
+        {
+          id: "traveler-one",
+          displayName: "Traveler 1",
+          passportCountryIso2: "US",
+          residenceCountryIso2: "US",
+          residenceStatus: "citizen",
+        },
+      ],
+    });
+
+    const derived = await gateway.getConciergeWorkspace(trip.id);
+    expect(
+      derived.tasks.find((task) => task.id === "compare-stay-undated-base")
+        ?.reason,
+    ).toBe(
+      "This base covers dates still needed; keep its confirmation separate.",
+    );
+    expect(
+      derived.preparationSteps.flatMap((step) =>
+        step.documentRequirements.map((requirement) => requirement.id),
+      ),
+    ).toContain("traveler-one-travel-id");
   });
 
   it("keeps provider results and traveler completion explicitly qualified", async () => {

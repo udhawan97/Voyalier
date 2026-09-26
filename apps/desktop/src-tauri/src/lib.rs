@@ -2055,13 +2055,12 @@ fn apply_windows_automation_config(
 /// Turn a launch-time storage-open failure into a diagnostic the traveler or
 /// support can act on, rather than an opaque panic backtrace / crash report.
 ///
-/// This is the minimally-verifiable half of dev-review DR-78bcf464-002: it stops
-/// the silent crash and emits actionable text. The full in-window recovery dialog
-/// (retry / open data folder / re-run restore) is still owed and must be built and
-/// verified on the packaged desktop app before the v0.12.0 desktop release.
+/// This is the bounded v0.12.0 mitigation for dev-review DR-78bcf464-002: it
+/// replaces the silent crash with an actionable native pre-window dialog.
+/// Guided retry, open-data-folder and restore recovery remain future work.
 fn startup_failure_message(error: &AppError) -> String {
     format!(
-        "Voyalier could not open your local storage ({:?}): {}\n\nYour data has not been changed. \
+        "Voyalier could not finish opening your local storage ({:?}): {}\n\nVoyalier stopped. \
          Confirm your keychain or passphrase is available, or check whether a restore is still in \
          progress, then reopen Voyalier.",
         error.code, error.message
@@ -2151,16 +2150,17 @@ mod tests {
     }
 
     #[test]
-    fn startup_failure_message_is_actionable_and_reassuring() {
+    fn startup_failure_message_is_actionable_without_claiming_rollback() {
         let message = startup_failure_message(&AppError::new(
             ErrorCode::VaultUnreadable,
             "secure document storage is unavailable",
         ));
-        // Names the failure class, does not lose the underlying message, and
-        // reassures the traveler their data is intact — none of which a panic did.
+        // Names the failure class and preserves the actionable cause without
+        // claiming that an earlier migration or restore step made no changes.
         assert!(message.contains("VaultUnreadable"));
         assert!(message.contains("secure document storage is unavailable"));
-        assert!(message.contains("has not been changed"));
+        assert!(message.contains("Voyalier stopped"));
+        assert!(!message.contains("has not been changed"));
     }
 
     #[test]
