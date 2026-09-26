@@ -4,6 +4,49 @@ import { createMockGateway } from "@voyalier/contracts";
 
 import { renderApp } from "./test/helpers";
 
+const pdfPreviewMock = vi.hoisted(() => ({
+  destroy: vi.fn(async () => undefined),
+  fail: false,
+}));
+
+vi.mock("pdfjs-dist", () => ({
+  GlobalWorkerOptions: { workerSrc: "" },
+  getDocument: () => ({
+    promise: pdfPreviewMock.fail
+      ? Promise.reject(new Error("synthetic PDF parse failure"))
+      : Promise.resolve({
+          numPages: 2,
+          getPage: async () => ({
+            getViewport: ({ scale }: { scale: number }) => ({
+              width: 320 * scale,
+              height: 480 * scale,
+            }),
+            render: () => ({
+              promise: Promise.resolve(),
+              cancel: () => undefined,
+            }),
+          }),
+        }),
+    destroy: pdfPreviewMock.destroy,
+  }),
+}));
+
+const originalCanvasContext = HTMLCanvasElement.prototype.getContext;
+
+beforeAll(() => {
+  Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
+    configurable: true,
+    value: () => ({}),
+  });
+});
+
+afterAll(() => {
+  Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
+    configurable: true,
+    value: originalCanvasContext,
+  });
+});
+
 describe("concierge cockpit", () => {
   it("carries a setup brief to explicit provider handoffs", async () => {
     const gateway = createMockGateway();
@@ -261,9 +304,10 @@ describe("concierge cockpit", () => {
     }
   });
 
-  it("uses an in-memory data URL for PDF preview compatibility", async () => {
+  it("renders PDF bytes in memory with paging and releases the renderer", async () => {
     const createObjectURL = vi.spyOn(URL, "createObjectURL");
     try {
+      pdfPreviewMock.destroy.mockClear();
       const gateway = createMockGateway();
       await gateway.importAttachment({
         tripId: "trip_kyoto",
@@ -280,10 +324,42 @@ describe("concierge cockpit", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Preview" }));
       expect(
         await screen.findByTitle("Preview of entry-letter.pdf"),
-      ).toHaveAttribute("src", "data:application/pdf;base64,JVBERi0xLjQ=");
+      ).toBeInstanceOf(HTMLCanvasElement);
+      expect(await screen.findByText("Page 1 of 2")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+      expect(await screen.findByText("Page 2 of 2")).toBeInTheDocument();
       expect(createObjectURL).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "Close preview" }));
+      await waitFor(() =>
+        expect(pdfPreviewMock.destroy).toHaveBeenCalledOnce(),
+      );
     } finally {
       createObjectURL.mockRestore();
+    }
+  });
+
+  it("offers a safe fallback when a PDF cannot be rendered", async () => {
+    pdfPreviewMock.fail = true;
+    try {
+      const gateway = createMockGateway();
+      await gateway.importAttachment({
+        tripId: "trip_kyoto",
+        label: "broken-entry-letter.pdf",
+        mimeType: "application/pdf",
+        contentBase64: "JVBERi0xLjQ=",
+      });
+      renderApp(gateway);
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Open Kyoto autumn journey",
+        }),
+      );
+      fireEvent.click(await screen.findByRole("button", { name: "Preview" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Save a copy to open it in another app",
+      );
+    } finally {
+      pdfPreviewMock.fail = false;
     }
   });
 
