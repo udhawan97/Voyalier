@@ -591,7 +591,7 @@ pub fn parse_cdc_notices(xml: &str) -> Result<Vec<HealthNotice>, AppError> {
     loop {
         match reader.read_event().map_err(|_| unreadable_source())? {
             Event::Start(start) => {
-                let name = String::from_utf8_lossy(start.name().as_ref()).into_owned();
+                let name = start.name().as_ref().to_owned();
                 match name.as_str() {
                     "channel" => saw_channel = true,
                     "item" => {
@@ -606,7 +606,7 @@ pub fn parse_cdc_notices(xml: &str) -> Result<Vec<HealthNotice>, AppError> {
                 field = name;
             }
             Event::Text(text) if in_item => {
-                let value = text.xml10_content().map_err(|_| unreadable_source())?;
+                let value = text.xml10_content();
                 append_field(
                     &field,
                     &value,
@@ -620,14 +620,14 @@ pub fn parse_cdc_notices(xml: &str) -> Result<Vec<HealthNotice>, AppError> {
                 // Entity references are their own events, so each is resolved
                 // and appended where it stood. Dropping this arm would silently
                 // delete every "&amp;" and "&#8217;" from a notice.
-                let raw = entity.decode().map_err(|_| unreadable_source())?;
+                let raw = entity.as_ref();
                 let value = match entity.resolve_char_ref() {
                     Ok(Some(character)) => character.to_string(),
                     // Not a numeric reference: resolve the XML-predefined names,
                     // and otherwise keep the reference verbatim. A feed using an
                     // HTML entity we do not know should read a little oddly, not
                     // lose the notice or fail the whole fetch.
-                    _ => resolve_predefined_entity(&raw)
+                    _ => resolve_predefined_entity(raw)
                         .map(str::to_owned)
                         .unwrap_or_else(|| format!("&{raw};")),
                 };
@@ -642,7 +642,7 @@ pub fn parse_cdc_notices(xml: &str) -> Result<Vec<HealthNotice>, AppError> {
             }
             Event::CData(data) => {
                 if in_item {
-                    let value = String::from_utf8_lossy(data.as_ref()).into_owned();
+                    let value = data.as_ref().to_owned();
                     append_field(
                         &field,
                         &value,
@@ -654,7 +654,7 @@ pub fn parse_cdc_notices(xml: &str) -> Result<Vec<HealthNotice>, AppError> {
                 }
             }
             Event::End(end) => {
-                if String::from_utf8_lossy(end.name().as_ref()) == "item" {
+                if end.name().as_ref() == "item" {
                     in_item = false;
                     if notices.len() < MAX_HEALTH_NOTICES {
                         notices.push(HealthNotice {

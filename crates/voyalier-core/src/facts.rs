@@ -190,7 +190,7 @@ pub fn parse_ecb_rates(xml: &str) -> Result<(String, Vec<CurrencyRate>), AppErro
         let event = reader.read_event().map_err(|_| unreadable_source())?;
         match event {
             Event::Empty(element) | Event::Start(element) => {
-                if element.name().as_ref() != b"Cube" {
+                if element.name().as_ref() != "Cube" {
                     continue;
                 }
                 let mut currency: Option<String> = None;
@@ -203,9 +203,9 @@ pub fn parse_ecb_rates(xml: &str) -> Result<(String, Vec<CurrencyRate>), AppErro
                         .normalized_value(quick_xml::XmlVersion::Explicit1_0)
                         .map_err(|_| unreadable_source())?;
                     match attribute.key.as_ref() {
-                        b"time" => date = Some(value.into_owned()),
-                        b"currency" => currency = Some(value.into_owned()),
-                        b"rate" => rate = value.parse().ok(),
+                        "time" => date = Some(value.into_owned()),
+                        "currency" => currency = Some(value.into_owned()),
+                        "rate" => rate = value.parse().ok(),
                         _ => {}
                     }
                 }
