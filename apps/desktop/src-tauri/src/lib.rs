@@ -2068,14 +2068,32 @@ fn startup_failure_message(error: &AppError) -> String {
     )
 }
 
+fn report_startup_failure(error: &AppError) {
+    let message = startup_failure_message(error);
+    eprintln!("{message}");
+
+    #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+    {
+        // AppService opens before the Tauri builder exists, so the plugin API is
+        // unavailable on this path. `rfd` is already the native dialog backend
+        // used by tauri-plugin-dialog; using it directly keeps the failure visible
+        // without constructing a partially initialized application or touching
+        // the traveler's workspace again.
+        rfd::MessageDialog::new()
+            .set_title("Voyalier could not start")
+            .set_description(&message)
+            .set_level(rfd::MessageLevel::Error)
+            .set_buttons(rfd::MessageButtons::Ok)
+            .show();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let service = match AppService::open_default() {
         Ok(service) => service,
         Err(error) => {
-            // A GUI user does not see stderr, but a clean, described exit is still
-            // strictly better than a panic abort; the visible dialog is DR-...-002.
-            eprintln!("{}", startup_failure_message(&error));
+            report_startup_failure(&error);
             std::process::exit(1);
         }
     };
