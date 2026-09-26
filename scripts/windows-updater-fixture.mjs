@@ -58,6 +58,43 @@ export async function waitForWindowsProcessQuiescence({
   );
 }
 
+export function filterWindowsProductProcesses(processes, application) {
+  if (!Array.isArray(processes)) {
+    throw new TypeError("process inspection must return an array");
+  }
+  const target = path.win32.normalize(application).toLowerCase();
+  const executableName = path.win32.basename(target);
+  return processes.filter((process) => {
+    const processPath = process.ExecutablePath
+      ? path.win32.normalize(String(process.ExecutablePath)).toLowerCase()
+      : "";
+    const processName = String(process.Name ?? "").toLowerCase();
+    return processPath === target || processName === executableName;
+  });
+}
+
+export async function waitForWindowsWorkspaceQuiescence({
+  listBlockedFiles,
+  waitFor,
+  description = "the staged restore workspace handles to close",
+  timeout = 60_000,
+}) {
+  if (typeof listBlockedFiles !== "function" || typeof waitFor !== "function") {
+    throw new TypeError("workspace inspection and waiting must be functions");
+  }
+  return waitFor(
+    () => {
+      const blockedFiles = listBlockedFiles();
+      if (!Array.isArray(blockedFiles)) {
+        throw new TypeError("workspace inspection must return an array");
+      }
+      return blockedFiles.length === 0;
+    },
+    description,
+    timeout,
+  );
+}
+
 export const WINDOWS_PICKER_PHASE_MARKERS = Object.freeze([
   ["export:command-entered", "voyalier-picker-phase-export-01-command-entered"],
   ["export:container-ready", "voyalier-picker-phase-export-02-container-ready"],

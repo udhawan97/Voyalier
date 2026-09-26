@@ -24,9 +24,11 @@ import {
   buildWindowsDriverCapabilities,
   buildWindowsUpdaterManifest,
   clearWebViewDevToolsPorts,
+  filterWindowsProductProcesses,
   isRetryableWindowsDriverStartError,
   mirrorWebViewDevToolsPort,
   waitForWindowsProcessQuiescence,
+  waitForWindowsWorkspaceQuiescence,
   validateWindowsAcceptanceReport,
   validateWindowsPickerPhaseTrace,
   validateWindowsPickerPreflightReport,
@@ -780,12 +782,30 @@ async function screenshot(
 }
 
 function installedProcesses(application) {
-  const target = psQuote(path.resolve(application));
   const value = powershell(
-    `$target = [IO.Path]::GetFullPath(${target}); ` +
-      `@((Get-CimInstance Win32_Process | Where-Object { ` +
-      `$_.ExecutablePath -and [IO.Path]::GetFullPath($_.ExecutablePath) -eq $target ` +
-      `} | Select-Object ProcessId, ExecutablePath, CreationDate)) | ConvertTo-Json -Compress`,
+    `@(Get-CimInstance Win32_Process | ` +
+      `Select-Object ProcessId, Name, ExecutablePath, CreationDate) | ` +
+      `ConvertTo-Json -Compress`,
+    { json: true },
+  );
+  if (!value) return [];
+  return filterWindowsProductProcesses(
+    Array.isArray(value) ? value : [value],
+    path.resolve(application),
+  );
+}
+
+function blockedWorkspaceFiles() {
+  const dataRoot = psQuote(path.resolve(DATA_ROOT));
+  const value = powershell(
+    `$root = [IO.Path]::GetFullPath(${dataRoot}); ` +
+      `$blocked = @(); ` +
+      `Get-ChildItem -LiteralPath $root -File | ForEach-Object { ` +
+      `$file = $_; try { ` +
+      `$stream = [IO.File]::Open($file.FullName, [IO.FileMode]::Open, ` +
+      `[IO.FileAccess]::ReadWrite, [IO.FileShare]::None); $stream.Dispose() ` +
+      `} catch { $blocked += $file.Name } }; ` +
+      `@($blocked) | ConvertTo-Json -Compress`,
     { json: true },
   );
   if (!value) return [];
@@ -802,6 +822,13 @@ async function stopInstalledProcesses(application) {
   }
   await waitForWindowsProcessQuiescence({
     listProcesses: () => installedProcesses(application),
+    waitFor,
+  });
+}
+
+async function waitForRestoreWorkspaceHandles() {
+  await waitForWindowsWorkspaceQuiescence({
+    listBlockedFiles: blockedWorkspaceFiles,
     waitFor,
   });
 }
@@ -1577,6 +1604,7 @@ async function main() {
     await stopDriver(driver);
     driver = undefined;
     await uninstallApplication(application);
+    await waitForRestoreWorkspaceHandles();
     await stat(path.join(DATA_ROOT, "voyalier.sqlite3"));
     application = await installApplication(candidateInstaller);
     report.stage = "recovery-driver-session";

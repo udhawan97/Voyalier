@@ -9,9 +9,11 @@ import {
   buildWindowsDriverCapabilities,
   buildWindowsUpdaterManifest,
   clearWebViewDevToolsPorts,
+  filterWindowsProductProcesses,
   isRetryableWindowsDriverStartError,
   mirrorWebViewDevToolsPort,
   waitForWindowsProcessQuiescence,
+  waitForWindowsWorkspaceQuiescence,
   validateWindowsAcceptanceReport,
   validateWindowsPickerPhaseTrace,
   validateWindowsPickerPreflightReport,
@@ -406,6 +408,60 @@ test("waits for every installed Windows process to exit", async () => {
   assert.equal(receivedTimeout, 60_000);
 });
 
+test("matches installed and transient Windows product processes", () => {
+  const application =
+    "C:\\Users\\runneradmin\\AppData\\Local\\Voyalier\\Voyalier.exe";
+  const processes = [
+    {
+      ProcessId: 1200,
+      Name: "Voyalier.exe",
+      ExecutablePath: application,
+    },
+    {
+      ProcessId: 1201,
+      Name: "VOYALIER.EXE",
+      ExecutablePath:
+        "C:\\Users\\runneradmin\\AppData\\Local\\Temp\\Voyalier.exe",
+    },
+    {
+      ProcessId: 1202,
+      Name: "uninstall.exe",
+      ExecutablePath:
+        "C:\\Users\\runneradmin\\AppData\\Local\\Voyalier\\uninstall.exe",
+    },
+  ];
+
+  assert.deepEqual(
+    filterWindowsProductProcesses(processes, application).map(
+      ({ ProcessId }) => ProcessId,
+    ),
+    [1200, 1201],
+  );
+});
+
+test("waits until no staged restore file has an exclusive-handle blocker", async () => {
+  const observed = [["voyalier.sqlite3"], []];
+  let receivedDescription;
+  let receivedTimeout;
+  const result = await waitForWindowsWorkspaceQuiescence({
+    listBlockedFiles: () => observed.shift(),
+    waitFor: async (check, description, timeout) => {
+      receivedDescription = description;
+      receivedTimeout = timeout;
+      assert.equal(await check(), false);
+      assert.equal(await check(), true);
+      return "quiescent";
+    },
+  });
+
+  assert.equal(result, "quiescent");
+  assert.equal(
+    receivedDescription,
+    "the staged restore workspace handles to close",
+  );
+  assert.equal(receivedTimeout, 60_000);
+});
+
 test("keeps product setup, updater backup, and portable restore on the installed UI", async () => {
   const source = await readFile(
     new URL("./windows-installed-updater-acceptance.mjs", import.meta.url),
@@ -414,6 +470,8 @@ test("keeps product setup, updater backup, and portable restore on the installed
   assert.match(source, /const DRIVER_START_ATTEMPTS = 2/);
   assert.match(source, /await stopDriver\(partialDriver\)\.catch/);
   assert.match(source, /async function stopInstalledProcesses\(application\)/);
+  assert.match(source, /async function waitForRestoreWorkspaceHandles\(\)/);
+  assert.match(source, /\[IO\.FileShare\]::None/);
   assert.match(
     source,
     /\["\/PID", String\(process\.ProcessId\), "\/T", "\/F"\]/,
