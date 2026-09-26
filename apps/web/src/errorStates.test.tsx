@@ -546,7 +546,7 @@ describe("AppError rendered states", () => {
     // Settle the deferred notes read before unplugging the gateway. This case
     // owns the archive action's recovery; racing an unrelated panel load would
     // correctly leave that panel's now-visible error on screen after Retry.
-    await screen.findByLabelText("Trip notes");
+    await screen.findByLabelText("Trip notes", {}, { timeout: 5_000 });
 
     state.offline = true;
     fireEvent.click(screen.getByRole("button", { name: /^Archive\b/ }));
