@@ -214,7 +214,7 @@ describe("concierge cockpit", () => {
     expect(await gateway.listAttachments("trip_kyoto")).toHaveLength(1);
   });
 
-  it("previews an encrypted file in memory and releases the object URL", async () => {
+  it("previews an encrypted image in memory and releases the object URL", async () => {
     const createObjectURL = vi.fn(() => "blob:voyalier-preview");
     const revokeObjectURL = vi.fn();
     const originalCreate = URL.createObjectURL;
@@ -231,9 +231,9 @@ describe("concierge cockpit", () => {
       const gateway = createMockGateway();
       await gateway.importAttachment({
         tripId: "trip_kyoto",
-        label: "entry-letter.pdf",
-        mimeType: "application/pdf",
-        contentBase64: "JVBERi0xLjQ=",
+        label: "entry-letter.png",
+        mimeType: "image/png",
+        contentBase64: "iVBORw0KGgo=",
       });
       renderApp(gateway);
       fireEvent.click(
@@ -243,7 +243,7 @@ describe("concierge cockpit", () => {
       );
       fireEvent.click(await screen.findByRole("button", { name: "Preview" }));
       expect(
-        await screen.findByTitle("Preview of entry-letter.pdf"),
+        await screen.findByAltText("Preview of entry-letter.png"),
       ).toHaveAttribute("src", "blob:voyalier-preview");
       fireEvent.click(screen.getByRole("button", { name: "Close preview" }));
       await waitFor(() =>
@@ -261,6 +261,32 @@ describe("concierge cockpit", () => {
     }
   });
 
+  it("uses an in-memory data URL for PDF preview compatibility", async () => {
+    const createObjectURL = vi.spyOn(URL, "createObjectURL");
+    try {
+      const gateway = createMockGateway();
+      await gateway.importAttachment({
+        tripId: "trip_kyoto",
+        label: "entry-letter.pdf",
+        mimeType: "application/pdf",
+        contentBase64: "JVBERi0xLjQ=",
+      });
+      renderApp(gateway);
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Open Kyoto autumn journey",
+        }),
+      );
+      fireEvent.click(await screen.findByRole("button", { name: "Preview" }));
+      expect(
+        await screen.findByTitle("Preview of entry-letter.pdf"),
+      ).toHaveAttribute("src", "data:application/pdf;base64,JVBERi0xLjQ=");
+      expect(createObjectURL).not.toHaveBeenCalled();
+    } finally {
+      createObjectURL.mockRestore();
+    }
+  });
+
   it("does not materialize a decrypted preview after the cockpit unmounts", async () => {
     const createObjectURL = vi.fn(() => "blob:late-preview");
     const originalCreate = URL.createObjectURL;
@@ -272,9 +298,9 @@ describe("concierge cockpit", () => {
       const base = createMockGateway();
       const attachment = await base.importAttachment({
         tripId: "trip_kyoto",
-        label: "entry-letter.pdf",
-        mimeType: "application/pdf",
-        contentBase64: "JVBERi0xLjQ=",
+        label: "entry-letter.png",
+        mimeType: "image/png",
+        contentBase64: "iVBORw0KGgo=",
       });
       let resolvePreview!: (content: AttachmentContent) => void;
       const pending = new Promise<AttachmentContent>((resolve) => {
@@ -293,7 +319,7 @@ describe("concierge cockpit", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Preview" }));
       await waitFor(() => expect(gateway.getAttachment).toHaveBeenCalledOnce());
       view.unmount();
-      resolvePreview({ attachment, contentBase64: "JVBERi0xLjQ=" });
+      resolvePreview({ attachment, contentBase64: "iVBORw0KGgo=" });
       await Promise.resolve();
       await Promise.resolve();
       expect(createObjectURL).not.toHaveBeenCalled();
@@ -322,9 +348,9 @@ describe("concierge cockpit", () => {
       const base = createMockGateway();
       const attachment = await base.importAttachment({
         tripId: "trip_kyoto",
-        label: "entry-letter.pdf",
-        mimeType: "application/pdf",
-        contentBase64: "JVBERi0xLjQ=",
+        label: "entry-letter.png",
+        mimeType: "image/png",
+        contentBase64: "iVBORw0KGgo=",
       });
       let resolveFirst!: (content: AttachmentContent) => void;
       let resolveSecond!: (content: AttachmentContent) => void;
@@ -355,11 +381,11 @@ describe("concierge cockpit", () => {
       await waitFor(() =>
         expect(gateway.getAttachment).toHaveBeenCalledTimes(2),
       );
-      resolveSecond({ attachment, contentBase64: "JVBERi0xLjQ=" });
+      resolveSecond({ attachment, contentBase64: "iVBORw0KGgo=" });
       expect(
-        await screen.findByTitle("Preview of entry-letter.pdf"),
+        await screen.findByAltText("Preview of entry-letter.png"),
       ).toHaveAttribute("src", "blob:newest-preview");
-      resolveFirst({ attachment, contentBase64: "JVBERi0xLjQ=" });
+      resolveFirst({ attachment, contentBase64: "iVBORw0KGgo=" });
       await Promise.resolve();
       await Promise.resolve();
       expect(createObjectURL).toHaveBeenCalledOnce();

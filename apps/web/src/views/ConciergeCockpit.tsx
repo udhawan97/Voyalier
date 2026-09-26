@@ -972,6 +972,7 @@ function WalletPanel({
   const [preview, setPreview] = useState<{
     attachment: AttachmentSummary;
     url: string;
+    objectUrl: boolean;
   } | null>(null);
   const mounted = useRef(true);
   const previewRequest = useRef(0);
@@ -984,7 +985,7 @@ function WalletPanel({
   );
   useEffect(
     () => () => {
-      if (preview) URL.revokeObjectURL(preview.url);
+      if (preview?.objectUrl) URL.revokeObjectURL(preview.url);
     },
     [preview],
   );
@@ -1107,18 +1108,24 @@ function WalletPanel({
     try {
       const content = await gateway.getAttachment(attachment.id);
       if (!mounted.current || request !== previewRequest.current) return;
-      const binary = atob(content.contentBase64);
-      const bytes = Uint8Array.from(binary, (character) =>
-        character.charCodeAt(0),
-      );
-      const url = URL.createObjectURL(
-        new Blob([bytes], { type: attachment.mimeType }),
-      );
+      const objectUrl = attachment.mimeType !== "application/pdf";
+      const url = objectUrl
+        ? URL.createObjectURL(
+            new Blob(
+              [
+                Uint8Array.from(atob(content.contentBase64), (character) =>
+                  character.charCodeAt(0),
+                ),
+              ],
+              { type: attachment.mimeType },
+            ),
+          )
+        : `data:application/pdf;base64,${content.contentBase64}`;
       if (!mounted.current || request !== previewRequest.current) {
-        URL.revokeObjectURL(url);
+        if (objectUrl) URL.revokeObjectURL(url);
         return;
       }
-      setPreview({ attachment, url });
+      setPreview({ attachment, url, objectUrl });
     } catch (caught) {
       if (mounted.current && request === previewRequest.current) {
         setFileError(describeError(caught as AppError).body);
