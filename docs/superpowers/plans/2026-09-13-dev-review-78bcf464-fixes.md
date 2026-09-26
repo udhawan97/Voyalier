@@ -32,12 +32,12 @@ plus DR-010 as an ADR (user chose "keep fallback, record ADR") and DR-005 as the
 
 6. **Desktop — DR-001 (P1)** add `blob:` to `img-src` and add `frame-src 'self' blob:` in
    `tauri.conf.json` CSP so attachment previews (blob: object URLs) render on the packaged webview.
-   Iframe stays `sandbox=""`. **Owes packaged-app runtime verification before the v0.12.0 desktop
-   release.**
+   Iframe stays `sandbox=""`. **Packaged-app runtime verification remains a v0.12.0 release gate.**
 
-7. **Desktop — DR-002 (P1, partial)** replace the `open_default().expect(...)` startup panic with a
-   graceful path: structured diagnostic + clean exit instead of an opaque crash. Full in-window
-   recovery dialog remains owed and must be verified on the packaged app. Status: Partially resolved.
+7. **Desktop — DR-002 (P1)** replace the `open_default().expect(...)` startup panic with a graceful
+   path that writes a structured diagnostic, shows a native error dialog before the service is
+   available, and exits cleanly. Guided in-window recovery remains future work; the native failure
+   path must be verified on the packaged app. Status: Resolved for the selected mitigation.
 
 8. **Docs — DR-010** ADR-0025 recording the decision to keep the ADR-0007 plaintext fallback for
    structured PII (concierge profile + visa nationality), consistent across both, rather than
@@ -50,6 +50,5 @@ plus DR-010 as an ADR (user chose "keep fallback, record ADR") and DR-005 as the
 
 ## Gate
 
-`make check` (web + rust + desktop), then a fresh peer review of the diff, then the council-review
-two-round gate on the final tree + report, then merge per user authority. DR-001/DR-002 acceptance
-on the packaged desktop app is explicitly owed and recorded as a follow-up.
+`make check` (web + rust + desktop), packaged-app acceptance for DR-001/DR-002, then a fresh peer
+review of the diff and the council-review two-round gate on the final tree + report before merge.
