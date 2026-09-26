@@ -1320,6 +1320,50 @@ h3 {
   background: var(--voy-surface);
 }
 
+.voy-concierge__file-preview--pdf {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: var(--voy-space-3);
+  padding: var(--voy-space-3);
+  overflow: auto;
+}
+
+.voy-concierge__pdf-canvas {
+  display: block;
+  flex: none;
+  max-width: 100%;
+  height: auto;
+  border-radius: calc(var(--voy-radius-sm) / 2);
+  background: #ffffff;
+  box-shadow: var(--voy-shadow-sm);
+}
+
+.voy-concierge__pdf-status,
+.voy-concierge__pdf-error {
+  margin: auto 0;
+  color: var(--voy-ink-muted);
+  line-height: 1.5;
+  text-align: center;
+}
+
+.voy-concierge__pdf-status {
+  opacity: var(--voy-pdf-visible);
+}
+
+.voy-concierge__pdf-pages {
+  position: sticky;
+  inset-block-end: 0;
+  display: flex;
+  justify-content: center;
+  gap: var(--voy-space-2);
+  width: 100%;
+  padding-block-start: var(--voy-space-2);
+  background: color-mix(in srgb, var(--voy-surface) 90%, transparent);
+  backdrop-filter: blur(8px);
+}
+
 .voy-concierge__split-plan {
   margin-top: var(--voy-space-5);
   padding: var(--voy-space-5);

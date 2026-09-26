@@ -16,6 +16,7 @@
     "@voyalier/contracts": "workspace:*",
     "@voyalier/ui": "workspace:*",
     "maplibre-gl": "^6.6.0",
+    "pdfjs-dist": "6.3.289",
     "pmtiles": "^4.5.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

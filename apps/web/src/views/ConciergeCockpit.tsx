@@ -43,6 +43,7 @@ import { useAsyncAction, useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 import { Dialog } from "../components/Dialog";
+import { PdfPreview } from "../components/PdfPreview";
 import { Skeleton } from "../components/primitives";
 
 const TASK_LABELS: Record<ConciergeTaskState, string> = {
@@ -969,11 +970,19 @@ function WalletPanel({
   const [note, setNote] = useState("");
   const [fileBusy, setFileBusy] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [preview, setPreview] = useState<{
-    attachment: AttachmentSummary;
-    url: string;
-    objectUrl: boolean;
-  } | null>(null);
+  const [preview, setPreview] = useState<
+    | {
+        attachment: AttachmentSummary;
+        kind: "image";
+        url: string;
+      }
+    | {
+        attachment: AttachmentSummary;
+        kind: "pdf";
+        contentBase64: string;
+      }
+    | null
+  >(null);
   const mounted = useRef(true);
   const previewRequest = useRef(0);
   useEffect(
@@ -985,7 +994,7 @@ function WalletPanel({
   );
   useEffect(
     () => () => {
-      if (preview?.objectUrl) URL.revokeObjectURL(preview.url);
+      if (preview?.kind === "image") URL.revokeObjectURL(preview.url);
     },
     [preview],
   );
@@ -1108,24 +1117,29 @@ function WalletPanel({
     try {
       const content = await gateway.getAttachment(attachment.id);
       if (!mounted.current || request !== previewRequest.current) return;
-      const objectUrl = attachment.mimeType !== "application/pdf";
-      const url = objectUrl
-        ? URL.createObjectURL(
-            new Blob(
-              [
-                Uint8Array.from(atob(content.contentBase64), (character) =>
-                  character.charCodeAt(0),
-                ),
-              ],
-              { type: attachment.mimeType },
-            ),
-          )
-        : `data:application/pdf;base64,${content.contentBase64}`;
-      if (!mounted.current || request !== previewRequest.current) {
-        if (objectUrl) URL.revokeObjectURL(url);
+      if (attachment.mimeType === "application/pdf") {
+        setPreview({
+          attachment,
+          kind: "pdf",
+          contentBase64: content.contentBase64,
+        });
         return;
       }
-      setPreview({ attachment, url, objectUrl });
+      const url = URL.createObjectURL(
+        new Blob(
+          [
+            Uint8Array.from(atob(content.contentBase64), (character) =>
+              character.charCodeAt(0),
+            ),
+          ],
+          { type: attachment.mimeType },
+        ),
+      );
+      if (!mounted.current || request !== previewRequest.current) {
+        URL.revokeObjectURL(url);
+        return;
+      }
+      setPreview({ attachment, kind: "image", url });
     } catch (caught) {
       if (mounted.current && request === previewRequest.current) {
         setFileError(describeError(caught as AppError).body);
@@ -1424,12 +1438,10 @@ function WalletPanel({
             </Button>
           }
         >
-          {preview.attachment.mimeType === "application/pdf" ? (
-            <iframe
-              className="voy-concierge__file-preview"
-              title={`Preview of ${preview.attachment.label}`}
-              sandbox=""
-              src={preview.url}
+          {preview.kind === "pdf" ? (
+            <PdfPreview
+              contentBase64={preview.contentBase64}
+              label={preview.attachment.label}
             />
           ) : (
             <img
