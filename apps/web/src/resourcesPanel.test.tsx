@@ -214,7 +214,7 @@ describe("saved reading", () => {
     expect(alert).toHaveTextContent(/40 characters/i);
     expect(tags).toHaveAttribute("aria-invalid", "true");
     expect(tags.getAttribute("aria-describedby")).toContain(alert.id);
-    expect(tags).toHaveFocus();
+    await waitFor(() => expect(tags).toHaveFocus());
     expect(
       within(region).queryByText("Check the highlighted fields"),
     ).toBeNull();
