@@ -5322,6 +5322,7 @@ dependencies = [
 name = "voyalier-desktop"
 version = "0.12.0"
 dependencies = [
+ "rfd",
  "serde",
  "serde_json",
  "tauri",
