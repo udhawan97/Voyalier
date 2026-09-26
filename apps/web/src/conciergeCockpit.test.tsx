@@ -1,34 +1,49 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type { AttachmentContent } from "@voyalier/contracts";
 import { createMockGateway } from "@voyalier/contracts";
 
 import { renderApp } from "./test/helpers";
+import { PdfPreview } from "./components/PdfPreview";
 
 const pdfPreviewMock = vi.hoisted(() => ({
   destroy: vi.fn(async () => undefined),
   fail: false,
+  height: 480,
+  starts: 0,
+  width: 320,
+  options: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("pdfjs-dist", () => ({
   GlobalWorkerOptions: { workerSrc: "" },
-  getDocument: () => ({
-    promise: pdfPreviewMock.fail
-      ? Promise.reject(new Error("synthetic PDF parse failure"))
-      : Promise.resolve({
-          numPages: 2,
-          getPage: async () => ({
-            getViewport: ({ scale }: { scale: number }) => ({
-              width: 320 * scale,
-              height: 480 * scale,
-            }),
-            render: () => ({
-              promise: Promise.resolve(),
-              cancel: () => undefined,
+  getDocument: (options: Record<string, unknown>) => {
+    pdfPreviewMock.starts += 1;
+    pdfPreviewMock.options.push(options);
+    return {
+      promise: pdfPreviewMock.fail
+        ? Promise.reject(new Error("synthetic PDF parse failure"))
+        : Promise.resolve({
+            numPages: 2,
+            getPage: async () => ({
+              getViewport: ({ scale }: { scale: number }) => ({
+                width: pdfPreviewMock.width * scale,
+                height: pdfPreviewMock.height * scale,
+              }),
+              render: () => ({
+                promise: Promise.resolve(),
+                cancel: () => undefined,
+              }),
             }),
           }),
-        }),
-    destroy: pdfPreviewMock.destroy,
-  }),
+      destroy: pdfPreviewMock.destroy,
+    };
+  },
 }));
 
 const originalCanvasContext = HTMLCanvasElement.prototype.getContext;
@@ -326,6 +341,11 @@ describe("concierge cockpit", () => {
         await screen.findByTitle("Preview of entry-letter.pdf"),
       ).toBeInstanceOf(HTMLCanvasElement);
       expect(await screen.findByText("Page 1 of 2")).toBeInTheDocument();
+      expect(pdfPreviewMock.options.at(-1)).toMatchObject({
+        maxImageSize: 8_000_000,
+        canvasMaxAreaInBytes: 32_000_000,
+        useWorkerFetch: false,
+      });
       fireEvent.click(screen.getByRole("button", { name: "Next page" }));
       expect(await screen.findByText("Page 2 of 2")).toBeInTheDocument();
       expect(createObjectURL).not.toHaveBeenCalled();
@@ -335,6 +355,60 @@ describe("concierge cockpit", () => {
       );
     } finally {
       createObjectURL.mockRestore();
+    }
+  });
+
+  it("does not start PDF decoding when closed during the lazy renderer import", async () => {
+    let resolveRenderer!: (renderer: typeof import("pdfjs-dist")) => void;
+    const renderer = new Promise<typeof import("pdfjs-dist")>((resolve) => {
+      resolveRenderer = resolve;
+    });
+    const startsBefore = pdfPreviewMock.starts;
+    const view = render(
+      <PdfPreview
+        contentBase64="JVBERi0xLjQ="
+        label="entry-letter.pdf"
+        loadRenderer={() => renderer}
+      />,
+    );
+    view.unmount();
+    resolveRenderer(await import("pdfjs-dist"));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(pdfPreviewMock.starts).toBe(startsBefore);
+  });
+
+  it("bounds an extreme PDF page before allocating its canvas", async () => {
+    pdfPreviewMock.width = 1;
+    pdfPreviewMock.height = 1_000_000_000_000;
+    try {
+      const gateway = createMockGateway();
+      await gateway.importAttachment({
+        tripId: "trip_kyoto",
+        label: "tall-entry-letter.pdf",
+        mimeType: "application/pdf",
+        contentBase64: "JVBERi0xLjQ=",
+      });
+      renderApp(gateway);
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Open Kyoto autumn journey",
+        }),
+      );
+      fireEvent.click(await screen.findByRole("button", { name: "Preview" }));
+      const canvas = await screen.findByTitle(
+        "Preview of tall-entry-letter.pdf",
+      );
+      await screen.findByText("Page 1 of 2");
+      expect(canvas).toHaveAttribute("width", "1");
+      expect(Number(canvas.getAttribute("height"))).toBeLessThanOrEqual(4_096);
+      expect(
+        Number(canvas.getAttribute("width")) *
+          Number(canvas.getAttribute("height")),
+      ).toBeLessThanOrEqual(8_000_000);
+    } finally {
+      pdfPreviewMock.width = 320;
+      pdfPreviewMock.height = 480;
     }
   });
 
