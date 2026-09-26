@@ -55,10 +55,12 @@ staged candidate, not after it is live. Its sealed rows must reopen under the st
 Only after that validation does Voyalier write the generation marker. Candidate and marker writes
 use a temporary file, file synchronization, and an atomic rename in the data directory. Unix then
 synchronizes the parent directory so the renamed entry is durable. Windows keeps the flushed file
-and atomic rename boundary but does not call `FlushFileBuffers` on a read-only directory handle:
-Win32 requires writable file handles for that operation and does not define directory handles as a
-supported input. A crash before the marker is durable leaves inert generation debris, not an
-activation instruction.
+and atomic rename boundary with `MoveFileExW`, using
+`MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH` because Rust's ordinary Windows rename does
+not replace the marker that an earlier phase already wrote. It does not call `FlushFileBuffers` on
+a read-only directory handle: Win32 requires writable file handles for that operation and does not
+define directory handles as a supported input. A crash before the marker is durable leaves inert
+generation debris, not an activation instruction.
 
 ### 3. Activation retains the old pair until the new pair reopens
 

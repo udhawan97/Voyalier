@@ -20,3 +20,6 @@ sha2.workspace = true
 ureq = "=3.4.2"
 url.workspace = true
 voyalier-core = { path = "../voyalier-core" }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.60.2", features = ["Win32_Storage_FileSystem"] }
