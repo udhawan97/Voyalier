@@ -3728,6 +3728,23 @@ fn atomic_restore_artifacts_do_not_require_a_directory_flush_on_windows() {
 }
 
 #[test]
+fn atomic_restore_artifacts_replace_an_existing_marker() {
+    let database = temp_database("restore-atomic-replace");
+    let directory = database.parent().expect("database parent");
+    fs::create_dir_all(directory).expect("create data directory");
+    let marker = directory.join("pending-restore-test.json");
+
+    atomic_write_file(&marker, br#"{"phase":"staged"}"#).expect("write initial marker");
+    atomic_write_file(&marker, br#"{"phase":"prepared"}"#).expect("replace marker");
+
+    assert_eq!(
+        fs::read(&marker).expect("read replaced marker"),
+        br#"{"phase":"prepared"}"#
+    );
+    cleanup_database(database);
+}
+
+#[test]
 fn activated_restore_validation_failure_rolls_back_the_database_and_key_pair() {
     let source_database = temp_database("restore-rollback-source");
     let source_secrets = Arc::new(MemorySecretStore::default());

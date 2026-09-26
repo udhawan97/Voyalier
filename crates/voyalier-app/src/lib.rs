@@ -1628,13 +1628,52 @@ fn atomic_write_file(path: &Path, bytes: &[u8]) -> Result<(), AppError> {
         let mut file = fs::File::create(&temporary).map_err(storage_error)?;
         file.write_all(bytes).map_err(storage_error)?;
         file.sync_all().map_err(storage_error)?;
-        fs::rename(&temporary, path).map_err(storage_error)?;
+        replace_file(&temporary, path).map_err(storage_error)?;
         sync_directory(parent)
     })();
     if result.is_err() {
         let _ = fs::remove_file(&temporary);
     }
     result
+}
+
+#[cfg(not(windows))]
+fn replace_file(source: &Path, destination: &Path) -> std::io::Result<()> {
+    fs::rename(source, destination)
+}
+
+#[cfg(windows)]
+fn replace_file(source: &Path, destination: &Path) -> std::io::Result<()> {
+    use std::iter;
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::{
+        MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
+    };
+
+    let source: Vec<u16> = source
+        .as_os_str()
+        .encode_wide()
+        .chain(iter::once(0))
+        .collect();
+    let destination: Vec<u16> = destination
+        .as_os_str()
+        .encode_wide()
+        .chain(iter::once(0))
+        .collect();
+    // SAFETY: both buffers are live, NUL-terminated UTF-16 paths. The flags
+    // preserve atomic replacement while asking Windows to flush the move.
+    if unsafe {
+        MoveFileExW(
+            source.as_ptr(),
+            destination.as_ptr(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    } == 0
+    {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
 }
 
 #[cfg(unix)]
