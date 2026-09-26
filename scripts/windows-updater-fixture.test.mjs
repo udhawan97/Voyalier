@@ -10,6 +10,7 @@ import {
   buildWindowsUpdaterManifest,
   clearWebViewDevToolsPorts,
   filterWindowsProductProcesses,
+  inspectWindowsRestoreFailure,
   isRetryableWindowsDriverStartError,
   mirrorWebViewDevToolsPort,
   waitForWindowsProcessQuiescence,
@@ -460,6 +461,52 @@ test("waits until no staged restore file has an exclusive-handle blocker", async
     "the staged restore workspace handles to close",
   );
   assert.equal(receivedTimeout, 60_000);
+});
+
+test("reports restore failure state without exposing marker metadata", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "voyalier-restore-state-"));
+  try {
+    await writeFile(path.join(root, "voyalier.sqlite3"), "live");
+    await writeFile(path.join(root, "voyalier.sqlite3-wal"), "wal");
+    await writeFile(
+      path.join(root, "pending-restore-generation.sqlite3"),
+      "candidate",
+    );
+    await writeFile(
+      path.join(root, "rollback-restore-generation.sqlite3"),
+      "rollback",
+    );
+    await writeFile(
+      path.join(root, ".pending-restore.json.write.tmp"),
+      "partial",
+    );
+    await writeFile(
+      path.join(root, "pending-restore.json"),
+      JSON.stringify({
+        phase: "prepared",
+        generation: "private-generation",
+        candidateFile: "pending-restore-generation.sqlite3",
+        rollbackFile: "rollback-restore-generation.sqlite3",
+        candidateSha256: "a".repeat(64),
+      }),
+    );
+
+    const snapshot = await inspectWindowsRestoreFailure(root);
+    assert.deepEqual(snapshot, {
+      marker: "file",
+      phase: "prepared",
+      database: "file",
+      databaseWal: "file",
+      databaseShm: "missing",
+      candidate: "file",
+      rollback: "file",
+      markerTemporaryCount: 1,
+    });
+    assert.doesNotMatch(JSON.stringify(snapshot), /private-generation|sha256/i);
+    assertNoAbsoluteWindowsPaths(snapshot);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("keeps product setup, updater backup, and portable restore on the installed UI", async () => {

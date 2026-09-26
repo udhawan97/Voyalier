@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { copyFile, rm } from "node:fs/promises";
+import { copyFile, lstat, readFile, readdir, rm } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -28,6 +28,90 @@ if (!SEMVER.test(configuredCandidateVersion)) {
  * lagging the synchronized product-version files.
  */
 export const WINDOWS_ACCEPTANCE_CANDIDATE_VERSION = configuredCandidateVersion;
+
+const RESTORE_PHASES = new Set([
+  "staged",
+  "prepared",
+  "activated",
+  "committed",
+]);
+
+async function artifactKind(file) {
+  try {
+    const metadata = await lstat(file);
+    if (metadata.isSymbolicLink()) return "symlink";
+    if (metadata.isFile()) return "file";
+    if (metadata.isDirectory()) return "directory";
+    return "other";
+  } catch (error) {
+    if (error?.code === "ENOENT") return "missing";
+    return "unreadable";
+  }
+}
+
+function safeRestoreArtifactName(value, prefix) {
+  return (
+    typeof value === "string" &&
+    path.basename(value) === value &&
+    value.startsWith(prefix) &&
+    value.endsWith(".sqlite3")
+  );
+}
+
+/**
+ * Capture only durable restore state after an installed-app startup failure.
+ * Names, paths, hashes, generation identifiers, keys, and contents stay out of
+ * the uploaded artifact; the phase and file kinds are enough to locate the
+ * failed transition.
+ */
+export async function inspectWindowsRestoreFailure(dataRoot) {
+  const markerPath = path.join(dataRoot, "pending-restore.json");
+  const snapshot = {
+    marker: await artifactKind(markerPath),
+    phase: null,
+    database: await artifactKind(path.join(dataRoot, "voyalier.sqlite3")),
+    databaseWal: await artifactKind(
+      path.join(dataRoot, "voyalier.sqlite3-wal"),
+    ),
+    databaseShm: await artifactKind(
+      path.join(dataRoot, "voyalier.sqlite3-shm"),
+    ),
+    candidate: "unknown",
+    rollback: "unknown",
+    markerTemporaryCount: 0,
+  };
+
+  try {
+    const entries = await readdir(dataRoot);
+    snapshot.markerTemporaryCount = entries.filter(
+      (name) =>
+        name.startsWith(".pending-restore.json.") && name.endsWith(".tmp"),
+    ).length;
+  } catch {
+    // The top-level artifact kinds already describe an unavailable workspace.
+  }
+
+  if (snapshot.marker !== "file") return snapshot;
+  try {
+    const marker = JSON.parse(await readFile(markerPath, "utf8"));
+    snapshot.phase = RESTORE_PHASES.has(marker.phase)
+      ? marker.phase
+      : "invalid";
+    if (safeRestoreArtifactName(marker.candidateFile, "pending-restore-")) {
+      snapshot.candidate = await artifactKind(
+        path.join(dataRoot, marker.candidateFile),
+      );
+    }
+    if (safeRestoreArtifactName(marker.rollbackFile, "rollback-restore-")) {
+      snapshot.rollback = await artifactKind(
+        path.join(dataRoot, marker.rollbackFile),
+      );
+    }
+  } catch {
+    snapshot.phase = "unreadable";
+  }
+  return snapshot;
+}
 
 export function isRetryableWindowsDriverStartError(error) {
   const message = error instanceof Error ? error.message : String(error);
