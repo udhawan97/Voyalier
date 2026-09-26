@@ -1915,7 +1915,13 @@ fn snapshot_pre_restore(
     let temporary = backups_dir.join(format!(".pre-restore-{generation}.sqlite3.tmp"));
     let _ = fs::remove_file(&temporary);
     fs::copy(source, &temporary).map_err(storage_error)?;
-    fs::File::open(&temporary)
+    // `File::open` creates a read-only handle. Unix permits fsync on it, but
+    // Windows' FlushFileBuffers rejects it with ERROR_ACCESS_DENIED. Reopen the
+    // complete copy for writing without create/truncate so the durability gate
+    // is portable and cannot alter the snapshot bytes.
+    fs::OpenOptions::new()
+        .write(true)
+        .open(&temporary)
         .and_then(|file| file.sync_all())
         .map_err(storage_error)?;
     if let Some(expected) = expected_sha256

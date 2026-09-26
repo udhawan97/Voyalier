@@ -3771,6 +3771,27 @@ fn restore_step_errors_name_the_safe_operation_and_preserve_contract_details() {
 }
 
 #[test]
+fn pre_restore_snapshot_flush_preserves_the_complete_copy() {
+    let database = temp_database("restore-snapshot-flush");
+    let directory = database.parent().expect("database parent");
+    fs::create_dir_all(directory).expect("create data directory");
+    fs::write(&database, b"durable rollback bytes").expect("write rollback source");
+    let expected = sha256_file(&database).expect("source hash");
+
+    snapshot_pre_restore(&database, directory, "flush-test", Some(&expected))
+        .expect("snapshot and flush through a write-capable handle");
+
+    let snapshot = directory
+        .join("backups")
+        .join("pre-restore-flush-test.sqlite3");
+    assert_eq!(
+        fs::read(snapshot).expect("read durable snapshot"),
+        b"durable rollback bytes"
+    );
+    cleanup_database(database);
+}
+
+#[test]
 fn activated_restore_validation_failure_rolls_back_the_database_and_key_pair() {
     let source_database = temp_database("restore-rollback-source");
     let source_secrets = Arc::new(MemorySecretStore::default());
