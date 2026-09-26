@@ -31,9 +31,10 @@ decisions with the services and authorities that own them.
   container. Files are deduplicated, sealed through the existing vault, and can
   be linked to named travelers and individual preparation requirements before
   an explicit preview, save or delete. Listing exposes metadata only; preview
-  requests are invalidated when closed, replaced or unmounted, and use a
-  short-lived object URL in a sandboxed frame or inert image element. OCR,
-  annotation, redaction and broader file formats remain later work.
+  requests are invalidated when closed, replaced or unmounted. Images use a
+  short-lived object URL and inert decoder; PDFs paint from the selected
+  in-memory bytes to an app-owned canvas. OCR, annotation, redaction and broader
+  file formats remain later work.
 - **Entry preparation now separates arrival from return for every traveler.** A
   domestic Hawaiʻi journey gets U.S. identification and Hawaiʻi arrival steps
   rather than a visa claim. A Montréal journey keeps Canadian entry apart from

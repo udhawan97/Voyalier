@@ -2,13 +2,16 @@
 
 Status: accepted, 2026-09-12
 
+Amended 2026-09-25: PDF preview rendering is app-owned rather than delegated
+to the installed WebView's document plug-in.
+
 Extends ADR-0005, ADR-0006, ADR-0012 and ADR-0018.
 
 ## Decision
 
 Add one versioned concierge profile per trip. It stores traveler-supplied party context, area and stay preferences, traveler profiles, task progress, money entries and links from wallet labels to imported sources. The app layer seals the complete profile as one authenticated value in SQLite. Core validates it and derives next actions, per-person preparation steps, exact same-currency totals and provider handoffs on read.
 
-Add encrypted attachment custody for PDF, JPEG and PNG files. Each file is limited to 20 MiB, each trip to 100 attachments, and raw attachments are limited to 500 MiB across the workspace. The workspace limit leaves headroom under the 2 GiB portable-backup container after the base64 transport and sealed-storage expansion. The app validates the declared MIME type against the file signature before writing. The original base64 payload is sealed through `Records`; listing returns metadata only, opening returns one decrypted file on explicit request, and deletion is explicit. The web UI creates short-lived object URLs for an explicit save or preview action. PDF previews use a sandboxed frame and image previews use the browser's inert image decoder; closing, replacing, or leaving a pending preview invalidates its request and revokes any materialized object URL. Attachments never receive script or same-origin privileges.
+Add encrypted attachment custody for PDF, JPEG and PNG files. Each file is limited to 20 MiB, each trip to 100 attachments, and raw attachments are limited to 500 MiB across the workspace. The workspace limit leaves headroom under the 2 GiB portable-backup container after the base64 transport and sealed-storage expansion. The app validates the declared MIME type against the file signature before writing. The original base64 payload is sealed through `Records`; listing returns metadata only, opening returns one decrypted file on explicit request, and deletion is explicit. The web UI creates short-lived object URLs for an explicit save action and for image previews. PDF previews decode the selected in-memory bytes through the lazy, bundled PDF.js worker and paint one bounded-resolution page at a time to an app-owned canvas; the renderer is offline and worker fetches are disabled. Image previews continue to use the browser's inert image decoder. Closing, replacing, or leaving a pending preview invalidates its request, destroys the active PDF load/render task, and revokes any materialized image object URL. Attachments never receive script or same-origin privileges.
 
 The shared gateway exposes one read and one whole-profile update. Both HTTP and Tauri call the same `AppService` methods and the hand-maintained route manifest declares their payloads. Whole-profile updates are bounded and validated; they are not an untyped command bus.
 
@@ -27,4 +30,4 @@ The per-person preparation projection is an execution guide, not a determination
 
 ## Limits
 
-This decision does not add autonomous booking, account inspection, background scraping, visa submission, fee payment, appointment booking, OCR, thumbnail generation, annotation, or selected-file redaction. Preview uses the installed webview's PDF/image support and has no custom renderer or persistence. The browser and Tauri JSON transports still allocate base64 before the app service validates decoded size; the HTTP route caps the encoded request at 30 MiB, while Tauri relies on the UI's preflight limit plus the service's authoritative decoded limit. Moving large attachments through a native streamed file handle needs a later contract and migration if measured use shows this bound is insufficient.
+This decision does not add autonomous booking, account inspection, background scraping, visa submission, fee payment, appointment booking, OCR, thumbnail generation, annotation, or selected-file redaction. Preview has no persistence: images use the installed WebView's decoder and PDFs use the bundled PDF.js canvas renderer. The browser and Tauri JSON transports still allocate base64 before the app service validates decoded size; the HTTP route caps the encoded request at 30 MiB, while Tauri relies on the UI's preflight limit plus the service's authoritative decoded limit. Moving large attachments through a native streamed file handle needs a later contract and migration if measured use shows this bound is insufficient.
