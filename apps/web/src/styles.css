@@ -938,6 +938,9 @@ h3 {
 }
 
 .voy-concierge__scene {
+  /* This atlas is intentionally an ink field in both themes. `--voy-ink`
+     reverses to light copy in dark mode and would wash out the white labels. */
+  --voy-concierge-map-ink: #1a1917;
   background:
     radial-gradient(
       circle at 82% 8%,
@@ -949,7 +952,7 @@ h3 {
       color-mix(in srgb, var(--voy-moss) 20%, transparent),
       transparent 38%
     ),
-    var(--voy-ink);
+    var(--voy-concierge-map-ink);
 }
 
 .voy-concierge__atlas {
@@ -1040,7 +1043,7 @@ h3 {
   height: 0.62rem;
   border: 2px solid var(--voy-on-accent);
   border-radius: 50%;
-  background: var(--voy-ink);
+  background: var(--voy-concierge-map-ink);
   content: "";
   transform: translateY(-50%);
 }
@@ -1093,7 +1096,7 @@ h3 {
   aspect-ratio: 1;
   border-radius: 50%;
   background:
-    radial-gradient(circle, var(--voy-ink) 60%, transparent 61%),
+    radial-gradient(circle, var(--voy-concierge-map-ink) 60%, transparent 61%),
     conic-gradient(
       var(--voy-vermilion) var(--voy-progress),
       color-mix(in srgb, var(--voy-on-accent) 18%, transparent) 0
