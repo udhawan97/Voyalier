@@ -3745,6 +3745,32 @@ fn atomic_restore_artifacts_replace_an_existing_marker() {
 }
 
 #[test]
+fn restore_step_errors_name_the_safe_operation_and_preserve_contract_details() {
+    let error = AppError::with_detail(
+        ErrorCode::StorageFailure,
+        "Access is denied. (os error 5)",
+        "kind",
+        "io",
+    );
+
+    let contextual = restore_step_error("reopening the activated database", error);
+
+    assert_eq!(contextual.code, ErrorCode::StorageFailure);
+    assert_eq!(
+        contextual.message,
+        "restore failed while reopening the activated database: Access is denied. (os error 5)"
+    );
+    assert_eq!(
+        contextual
+            .details
+            .as_ref()
+            .and_then(|details| details.get("kind"))
+            .map(String::as_str),
+        Some("io")
+    );
+}
+
+#[test]
 fn activated_restore_validation_failure_rolls_back_the_database_and_key_pair() {
     let source_database = temp_database("restore-rollback-source");
     let source_secrets = Arc::new(MemorySecretStore::default());
