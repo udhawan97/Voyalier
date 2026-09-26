@@ -93,13 +93,16 @@ decisions with the services and authorities that own them.
 ### Fixed
 
 - **Encrypted wallet previews now open on the desktop app.** The packaged
-  desktop build's content-security policy allowed the preview's temporary
-  in-memory image and PDF sources only for workers, so a saved passport or
-  booking file rendered as a blank frame on the real app while every automated
-  test — which does not enforce that policy — still passed. The policy now
-  permits those in-memory sources for images and framed previews; the preview
-  frame stays fully sandboxed and attachments still receive no script or
-  same-origin access.
+  desktop WebView rendered PDFs placed in a sandboxed frame as blank, even
+  though browser-level tests passed. PDF pages now paint from the selected
+  in-memory bytes onto an app-owned canvas with bounded resolution, paging and
+  an explicit failure state; images retain their short-lived object URLs. The
+  renderer is lazy and offline, and decrypted attachment bytes still are not
+  persisted by the preview.
+- **The concierge atlas remains readable in dark mode.** Its signature hero
+  had reused the theme's foreground token as a background, producing a pale
+  field behind white copy. The atlas now keeps its own deep ink surface in both
+  themes while preserving the route composition and reduced-motion behavior.
 - **A failed storage open now produces a visible native desktop error.** If the
   local database, keychain or an in-progress restore leaves storage unopenable
   at launch, the app describes the problem before exiting cleanly instead of
