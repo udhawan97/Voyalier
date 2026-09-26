@@ -25,6 +25,7 @@ import {
   buildWindowsUpdaterManifest,
   clearWebViewDevToolsPorts,
   filterWindowsProductProcesses,
+  inspectWindowsRestoreFailure,
   isRetryableWindowsDriverStartError,
   mirrorWebViewDevToolsPort,
   waitForWindowsProcessQuiescence,
@@ -1796,6 +1797,10 @@ async function main() {
       ).length,
       listeners: application ? appListeners(application) : [],
     };
+    if (report.stage === "recovery-driver-session") {
+      report.restoreFailureState =
+        await inspectWindowsRestoreFailure(DATA_ROOT);
+    }
     try {
       report.pickerPhases = await collectWindowsPickerPhases();
     } catch (phaseError) {
