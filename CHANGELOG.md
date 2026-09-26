@@ -6,42 +6,7 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
-### Fixed
-
-- **Encrypted wallet previews now open on the desktop app.** The packaged
-  desktop build's content-security policy allowed the preview's temporary
-  in-memory image and PDF sources only for workers, so a saved passport or
-  booking file rendered as a blank frame on the real app while every automated
-  test — which does not enforce that policy — still passed. The policy now
-  permits those in-memory sources for images and framed previews; the preview
-  frame stays fully sandboxed and attachments still receive no script or
-  same-origin access. Rendering on the packaged desktop app must still be
-  verified on a built desktop app; the repository checks cannot exercise it.
-- **A failed storage open no longer crashes the desktop app without a word.** If
-  the local database, keychain or an in-progress restore leaves storage
-  unopenable at launch, the app now exits cleanly with a described diagnostic
-  instead of an opaque crash — the diagnostic goes to the app's logs, so a
-  full in-window recovery dialog (retry, open the data folder, re-run a
-  restore) is still to come and will be verified on a built desktop app.
-  Your data is not changed.
-- **The concierge cockpit and guides no longer render English under a Spanish
-  page language.** Their roots now declare English so a screen reader announces
-  them correctly; full Spanish translation of the cockpit remains future work.
-- **The cockpit "People" link now scrolls to the traveler list**, not the trip
-  setup panel, and preparing a provider handoff twice no longer creates a
-  duplicate row.
-- **A Tauri caller that skips the interface can no longer make the app decode an
-  oversized attachment before the size limit rejects it** — the encoded payload
-  is now bounded before decoding, matching the HTTP route's existing cap.
-
-### Changed
-
-- The offline development mock's derived preparation-document identifiers and
-  compare-stay wording were corrected to match the core rules exactly (they had
-  drifted to a different id scheme). A shared cross-language golden that would
-  fail on any future divergence is a tracked follow-up, not yet in place.
-
-## [0.12.0] - 2026-09-13 — Everything between here and there
+## [0.12.0] - 2026-09-25 — Everything between here and there
 
 Voyalier now turns a trip into an ordered concierge workspace: one traveler
 setup, explicit next actions, qualified provider handoffs, per-person official
@@ -126,6 +91,36 @@ decisions with the services and authorities that own them.
   mount unrelated deferred work.
 
 ### Fixed
+
+- **Encrypted wallet previews now open on the desktop app.** The packaged
+  desktop build's content-security policy allowed the preview's temporary
+  in-memory image and PDF sources only for workers, so a saved passport or
+  booking file rendered as a blank frame on the real app while every automated
+  test — which does not enforce that policy — still passed. The policy now
+  permits those in-memory sources for images and framed previews; the preview
+  frame stays fully sandboxed and attachments still receive no script or
+  same-origin access.
+- **A failed storage open now produces a visible native desktop error.** If the
+  local database, keychain or an in-progress restore leaves storage unopenable
+  at launch, the app describes the problem before exiting cleanly instead of
+  failing without a visible explanation. The dialog does not change or recover
+  data; retry and guided recovery controls remain future work.
+- **The concierge cockpit and guides no longer render English under a Spanish
+  page language.** Their roots now declare English so a screen reader announces
+  them correctly; full Spanish translation of the cockpit remains future work.
+- **The cockpit "People" link now scrolls to the traveler list**, not the trip
+  setup panel, and preparing a provider handoff twice no longer creates a
+  duplicate row.
+- **A Tauri caller that skips the interface can no longer make the app decode an
+  oversized attachment before the size limit rejects it** — the encoded payload
+  is now bounded before decoding, matching the HTTP route's existing cap.
+- **The offline development mock now follows the core concierge rules.** Its
+  preparation-document identifiers and compare-stay wording had drifted to a
+  different scheme. A shared cross-language golden that would fail on future
+  divergence remains a tracked follow-up.
+- **Rust transport dependencies now include the current compatible security
+  patches.** The lockfile moves off the affected `rustls` and `event-listener`
+  releases without changing Voyalier's network boundary or adding a provider.
 
 - **Windows recovery now waits for the installed app to release its workspace.**
   The acceptance harness stops the installed process tree and observes zero
