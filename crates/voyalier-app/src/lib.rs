@@ -2159,12 +2159,20 @@ fn apply_pending_restore(
     }
 
     marker.phase = RestorePhase::Activated;
-    write_restore_marker(&marker_path, &marker)?;
+    write_restore_marker(&marker_path, &marker)
+        .map_err(|error| restore_step_error("recording the activated phase", error))?;
     let activated = (|| {
-        let connection = Connection::open(database_path).map_err(storage_error)?;
+        let connection = Connection::open(database_path)
+            .map_err(storage_error)
+            .map_err(|error| restore_step_error("reopening the activated database", error))?;
         restore_fault("reopen");
-        validate_sqlite_integrity(&connection)?;
-        if user_version(&connection)? != marker.schema_version {
+        validate_sqlite_integrity(&connection).map_err(|error| {
+            restore_step_error("validating the activated database integrity", error)
+        })?;
+        if user_version(&connection)
+            .map_err(|error| restore_step_error("reading the activated schema version", error))?
+            != marker.schema_version
+        {
             return Err(AppError::new(
                 ErrorCode::StorageFailure,
                 "the activated restore has an unexpected schema version",
@@ -2173,12 +2181,19 @@ fn apply_pending_restore(
         let vault = Vault::new(VaultState {
             key: pending_key.as_deref().and_then(decode_key),
             protected: false,
-            escaped_plaintext: vault_storage_format_is_current(&connection)?,
+            escaped_plaintext: vault_storage_format_is_current(&connection)
+                .map_err(|error| restore_step_error("reading the activated vault format", error))?,
         });
         validate_sealed_rows(&connection, &vault)
+            .map_err(|error| restore_step_error("validating the activated vault rows", error))
     })();
     if let Err(error) = activated {
-        rollback_restore(secrets, database_path, &marker)?;
+        rollback_restore(secrets, database_path, &marker).map_err(|rollback_error| {
+            restore_step_error(
+                "rolling back after activated-database validation failed",
+                rollback_error,
+            )
+        })?;
         return Err(error);
     }
 
@@ -2189,10 +2204,13 @@ fn apply_pending_restore(
             dir,
             &marker.generation,
             marker.old_database_sha256.as_deref(),
-        )?;
+        )
+        .map_err(|error| restore_step_error("snapshotting the pre-restore workspace", error))?;
     }
-    write_restore_marker(&marker_path, &marker)?;
-    finish_restore_cleanup(secrets, database_path, &marker_path, &marker)?;
+    write_restore_marker(&marker_path, &marker)
+        .map_err(|error| restore_step_error("recording the committed phase", error))?;
+    finish_restore_cleanup(secrets, database_path, &marker_path, &marker)
+        .map_err(|error| restore_step_error("cleaning up the committed restore", error))?;
     Ok(true)
 }
 
@@ -4726,6 +4744,11 @@ fn from_json_error(error: serde_json::Error) -> rusqlite::Error {
 
 fn storage_error(error: impl std::error::Error) -> AppError {
     AppError::new(ErrorCode::StorageFailure, error.to_string())
+}
+
+fn restore_step_error(step: &'static str, mut error: AppError) -> AppError {
+    error.message = format!("restore failed while {step}: {}", error.message);
+    error
 }
 
 fn record_trip_id(
