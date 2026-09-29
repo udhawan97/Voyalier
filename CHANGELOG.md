@@ -6,6 +6,11 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+### Fixed
+
+- **The locked Rust dependency set no longer contains the tracked vulnerable `rustls` 0.23.41.** The current lockfile resolves 0.23.45, the patched threshold recorded in issue #104, and the hosted Security hygiene, CI, and CodeQL checks are green; no trip behavior or trust boundary changed.
+- **Web tests again support the repository’s documented Node 24 floor.** `jsdom` was restored from the Node-24-restrictive 30.x line to 29.1.1, preserving the `>=24` toolchain contract without narrowing runtime support.
+
 ## [0.12.0] - 2026-09-25 — Everything between here and there
 
 Voyalier now turns a trip into an ordered concierge workspace: one traveler
