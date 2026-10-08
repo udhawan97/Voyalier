@@ -182,6 +182,26 @@ handles process death; no sentinel deletion and no silent MSRV increase.
 
 ## Documentation and final gates: 011
 
+### Experiment decisions, 2026-10-08
+
+Research 013 is now a selected Fix candidate. Four contained public-interface
+tests at the plan-only source compared OpenAI FakeFetcher requests after a
+second service changed confirmed facts, model, or custom instruction. Every
+changed case dispatched content different from the approved preview; the
+unchanged control matched. This proves request construction mismatch, not an
+actual external disclosure. Implement the approval commitment described above
+under ADR-0029, including safe refusal for unguarded legacy calls.
+
+Research 014 is now a selected Fix candidate. In the isolated pre-lock recovery
+candidate, a second process activated restore while the first held a service,
+pinned reader, and committed WAL state. The retained pre-restore snapshot then
+failed an ordinary SQLite read with DatabaseCorrupt. Preserve the exact fixture
+and candidate identity privately; implement the minimum lifetime workspace
+guard under ADR-0030. Normal same-process independent connections remain
+supported, but replacement with live sibling services must refuse. Guard
+maintenance recovery too. Prefer existing cached OS bindings, preserve MSRV,
+and document any direct dependency needed for portable OS locking.
+
 Synchronize architecture/security topology, ADR index, backup recovery and
 partial Spanish coverage claims with verified source. Managed source-browser
 launch uses an assigned loopback port, anonymous-pipe bootstrap and direct
