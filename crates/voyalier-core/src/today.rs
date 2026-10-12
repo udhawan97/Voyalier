@@ -8,7 +8,7 @@ use jiff::civil::Date;
 use serde::{Deserialize, Serialize};
 
 use crate::planning::{TripItem, TripItemKind};
-use crate::types::{ConfirmedFact, FactPayload, FactType, Trip};
+use crate::types::{AppError, ConfirmedFact, ErrorCode, FactPayload, FactType, Trip};
 
 /// Where the trip sits relative to `today`. `state` is the discriminant; the
 /// day counts are present only for the relevant state.
@@ -120,6 +120,34 @@ pub struct TodayView {
     /// The single next upcoming anchor (a departure or check-in) after today.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next: Option<TodayItem>,
+}
+
+impl TodayView {
+    /// Build against an explicit calendar date without guessing an event zone.
+    pub fn for_reference_date(
+        trip: &Trip,
+        facts: &[ConfirmedFact],
+        items: &[TripItem],
+        reference_date: &str,
+    ) -> Result<Self, AppError> {
+        let bytes = reference_date.as_bytes();
+        let shape_valid = bytes.len() == 10
+            && bytes[4] == b'-'
+            && bytes[7] == b'-'
+            && bytes
+                .iter()
+                .enumerate()
+                .all(|(index, byte)| matches!(index, 4 | 7) || byte.is_ascii_digit());
+        if !shape_valid || reference_date.parse::<Date>().is_err() {
+            return Err(AppError::with_detail(
+                ErrorCode::ValidationInvalidInput,
+                "referenceDate must be a real calendar date in YYYY-MM-DD format",
+                "field",
+                "referenceDate",
+            ));
+        }
+        Ok(build_today_view(trip, facts, items, reference_date))
+    }
 }
 
 /// Total whole days from `a` to `b` (non-negative when `a <= b`), or 0 if the
@@ -461,6 +489,32 @@ fn kind_order(kind: TodayItemKind) -> u8 {
 mod tests {
     use super::*;
     use crate::types::{ExtractionMethod, TripStatus};
+
+    #[test]
+    fn explicit_reference_date_is_strict_and_preserves_calendar_projection() {
+        for date in [
+            "2026-02-29",
+            "2026-04-31",
+            "2026-1-01",
+            "2026-01-1",
+            " 2026-01-01",
+            "2026-01-01T00:00:00Z",
+            "",
+            "2026-00-10",
+        ] {
+            let error = TodayView::for_reference_date(&trip(), &[], &[], date).unwrap_err();
+            assert_eq!(error.code, ErrorCode::ValidationInvalidInput, "{date}");
+            assert_eq!(
+                error.details.unwrap().get("field").unwrap(),
+                "referenceDate"
+            );
+        }
+        for date in ["2024-02-29", "2026-11-02", "2026-11-03", "2026-11-13"] {
+            let view = TodayView::for_reference_date(&trip(), &[], &[], date).unwrap();
+            assert_eq!(view.reference_date, date);
+            assert_eq!(view, build_today_view(&trip(), &[], &[], date));
+        }
+    }
 
     fn trip() -> Trip {
         Trip {
