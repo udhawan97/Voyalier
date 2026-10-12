@@ -119,6 +119,36 @@ is a test hook inside the module, not a new filesystem or keychain trait seam.
 **Install the key after renaming and rely on the next launch.** Rejected: a crash can leave the new
 database live under the old key with no durable rollback instruction.
 
+## Amendment — durable terminal intent (2026-10-08)
+
+Cancellation and rollback are explicit terminal phases, written with local protocol
+version 3 before removing keys or moving files. Version 2 forward markers remain
+readable. Older binaries reject version 3 before mutation. Terminal dispatch runs
+before candidate-key validation: cancellation may already have deleted that key.
+
+Cancellation removes only the named generation and resumes idempotently. Rollback
+accepts the verified old database either at its rollback path or already at the live
+path, reinstalls and verifies old key intent before retiring generation credentials,
+and retains failed-candidate evidence. Unexpected hashes refuse recovery without
+deleting evidence. The old protected vault wrap is preserved. Startup distinguishes
+forward activation from terminal recovery so restored-old state never runs the
+forward-only wrap removal step. Private fault checkpoints exercise each boundary.
+
+ADR-0026 extends successful cleanup: retained safety copies keep their own
+credential references before rollback credentials are retired. Recovery includes
+pre-existing matching copies, not only the newest pre-restore generation.
+
+## Amendment — native export replacement (2026-10-11)
+
+After native overwrite confirmation, app IO writes a unique owner-private sibling
+file, preserves regular-file permissions, synchronizes complete bytes, atomically
+replaces the destination and synchronizes its parent where supported. File links
+and directories are refused. Automation retains create-new refusal; picker
+cancellation writes no destination. Pre-promotion failure preserves exact old
+bytes; a post-promotion parent-sync error reports durability uncertainty while
+leaving a complete new container. Existing portable format and authentication
+remain unchanged.
+
 **Copy only the main database as the safety snapshot.** Rejected: committed state can still live in
 the WAL, so the copy can be older than the workspace the traveler approved replacing.
 
