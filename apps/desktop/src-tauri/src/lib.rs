@@ -96,6 +96,16 @@ struct PreviewAssistInput {
 struct RunAssistInput {
     trip_id: String,
     provider: String,
+    #[serde(default)]
+    approval_token: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TodayInput {
+    trip_id: String,
+    #[serde(default)]
+    reference_date: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -209,8 +219,8 @@ fn get_trip_brief(
 }
 
 #[tauri::command]
-fn get_today(input: TripIdInput, service: State<'_, AppService>) -> Result<TodayView, AppError> {
-    service.get_today(&input.trip_id)
+fn get_today(input: TodayInput, service: State<'_, AppService>) -> Result<TodayView, AppError> {
+    service.get_today(&input.trip_id, input.reference_date.as_deref())
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -288,7 +298,11 @@ fn run_assist(
     input: RunAssistInput,
     service: State<'_, AppService>,
 ) -> Result<AssistReply, AppError> {
-    service.run_assist(&input.trip_id, &input.provider)
+    service.run_assist(
+        &input.trip_id,
+        &input.provider,
+        input.approval_token.as_deref(),
+    )
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -1526,17 +1540,16 @@ async fn export_backup<R: tauri::Runtime>(
             .map_err(|detail| AppError::new(ErrorCode::StorageFailure, detail))?;
     }
     dialog_automation.record_phase(WindowsAcceptancePickerPhase::ExportReturnedPathValid)?;
-    let write_result = if preset.is_some() {
-        write_new_backup_file(&path, &bytes)
+    if preset.is_some() {
+        write_new_backup_file(&path, &bytes).map_err(|error| {
+            AppError::new(
+                ErrorCode::StorageFailure,
+                format!("the backup could not be written: {error}"),
+            )
+        })?;
     } else {
-        std::fs::write(&path, &bytes)
-    };
-    write_result.map_err(|error| {
-        AppError::new(
-            ErrorCode::StorageFailure,
-            format!("the backup could not be written: {error}"),
-        )
-    })?;
+        voyalier_app::persist_backup_export(&path, &bytes)?;
+    }
     dialog_automation.record_phase(WindowsAcceptancePickerPhase::ExportWriteComplete)?;
     Ok(Some(path.to_string_lossy().into_owned()))
 }
@@ -2089,6 +2102,15 @@ fn report_startup_failure(error: &AppError) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if std::env::args().nth(1).as_deref() == Some("backup-recover") {
+        if let Err(error) = voyalier_app::run_local_backup_recovery_cli(
+            &std::env::args().skip(2).collect::<Vec<_>>(),
+        ) {
+            report_startup_failure(&error);
+            std::process::exit(1);
+        }
+        return;
+    }
     let service = match AppService::open_default() {
         Ok(service) => service,
         Err(error) => {
@@ -2123,6 +2145,34 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn native_export_replacement_persists_an_authenticated_container() {
+        let directory = std::env::temp_dir().join(voyalier_core::new_id("desktop-export"));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("synthetic.vbk");
+        std::fs::write(&path, b"old synthetic backup").unwrap();
+        let manifest = voyalier_core::BackupManifest {
+            format_version: voyalier_core::BACKUP_FORMAT_VERSION,
+            schema_version: 1,
+            app_version: "synthetic".to_owned(),
+            created_at: "2026-10-11T00:00:00Z".to_owned(),
+        };
+        let bytes = voyalier_core::seal_backup(
+            "synthetic backup phrase",
+            &manifest,
+            None,
+            b"synthetic desktop payload",
+            &[0; voyalier_core::VAULT_SALT_LEN],
+            &[0; voyalier_core::VAULT_NONCE_LEN],
+        )
+        .unwrap();
+        voyalier_app::persist_backup_export(&path, &bytes).unwrap();
+        let opened =
+            voyalier_core::open_backup("synthetic backup phrase", &std::fs::read(&path).unwrap())
+                .unwrap();
+        assert_eq!(opened.snapshot, b"synthetic desktop payload");
+        std::fs::remove_dir_all(directory).unwrap();
+    }
     use std::{fs, io::Cursor, path::PathBuf};
 
     use serde_json::{Value, json};
@@ -2856,6 +2906,152 @@ mod tests {
             "archived"
         );
         invoke(&webview, "delete_trip", json!({ "tripId": trip_id })).expect("delete trip");
+        cleanup_database(database);
+    }
+
+    #[test]
+    fn shared_profile_date_assist_wire_reaches_the_real_service() {
+        let wire: Value = serde_json::from_str(include_str!(
+            "../../../../packages/contracts/fixtures/profile-date-assist-wire.json"
+        ))
+        .unwrap();
+        assert_eq!(wire.as_object().unwrap().len(), 3);
+        let database = temp_database("profile-date-assist-wire");
+        let fetcher = std::sync::Arc::new(voyalier_app::FakeFetcher::offline().route(
+            "http://localhost:11434/api/chat",
+            r#"{"message":{"content":"Synthetic IPC response"}}"#,
+        ));
+        let service = AppService::open_path_with_deps(
+            &database,
+            fetcher.clone(),
+            std::sync::Arc::new(voyalier_app::MemorySecretStore::default()),
+        )
+        .unwrap();
+        let app = builder(mock_builder(), service, WindowsDialogAutomation::inactive())
+            .build(mock_context(noop_assets()))
+            .unwrap();
+        let webview = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let trip = invoke(&webview, "create_trip", json!({"title":"Synthetic IPC journey","origin":"Paris","destination":"Kyoto","startDate":"2027-01-01","endDate":"2027-01-08"})).unwrap();
+        let trip_id = trip["id"].clone();
+        let empty = invoke(
+            &webview,
+            "get_concierge_workspace",
+            json!({"tripId":trip_id}),
+        )
+        .unwrap();
+        let baseline = invoke(&webview, "set_concierge_profile", empty["profile"].clone()).unwrap();
+        let mut profile = wire["setConciergeProfile"]["args"].clone();
+        profile["input"]["tripId"] = trip_id.clone();
+        profile["input"]["revision"] = baseline["profile"]["revision"].clone();
+        let saved = invoke_with_body(
+            &webview,
+            wire["setConciergeProfile"]["command"].as_str().unwrap(),
+            profile.clone(),
+        )
+        .unwrap();
+        assert_eq!(saved["profile"]["preferences"]["pace"], "slow");
+        assert_ne!(
+            saved["profile"]["revision"],
+            baseline["profile"]["revision"]
+        );
+        let stale =
+            invoke_with_body(&webview, "set_concierge_profile", profile.clone()).unwrap_err();
+        assert_eq!(stale["details"]["reason"], "profile_changed");
+        profile["input"].as_object_mut().unwrap().remove("revision");
+        assert_eq!(
+            invoke_with_body(&webview, "set_concierge_profile", profile).unwrap_err()["details"]["reason"],
+            "profile_revision_required"
+        );
+        assert_eq!(
+            invoke(
+                &webview,
+                "get_concierge_workspace",
+                json!({"tripId":trip_id})
+            )
+            .unwrap()["profile"],
+            saved["profile"]
+        );
+        let mut date = wire["getToday"]["args"].clone();
+        date["input"]["tripId"] = trip_id.clone();
+        let today = invoke_with_body(
+            &webview,
+            wire["getToday"]["command"].as_str().unwrap(),
+            date,
+        )
+        .unwrap();
+        assert_eq!(
+            today["referenceDate"],
+            wire["getToday"]["args"]["input"]["referenceDate"]
+        );
+        assert!(invoke(&webview, "get_today", json!({"tripId":trip_id})).is_ok());
+        assert_eq!(
+            invoke(
+                &webview,
+                "get_today",
+                json!({"tripId":trip_id,"referenceDate":"2026-02-29"})
+            )
+            .unwrap_err()["details"]["field"],
+            "referenceDate"
+        );
+        assert_eq!(
+            invoke(
+                &webview,
+                "run_assist",
+                json!({"tripId":trip_id,"provider":"ollama"})
+            )
+            .unwrap_err()["details"]["reason"],
+            "assist_approval_required"
+        );
+        let preview = invoke(
+            &webview,
+            "preview_assist",
+            json!({"tripId":trip_id,"provider":"ollama"}),
+        )
+        .unwrap();
+        let mut run = wire["runAssist"]["args"].clone();
+        run["input"]["tripId"] = trip_id.clone();
+        run["input"]["approvalToken"] = preview["approvalToken"].clone();
+        invoke(
+            &webview,
+            "set_provider_model",
+            json!({"provider":"ollama","model":"synthetic-after-preview"}),
+        )
+        .unwrap();
+        assert_eq!(
+            invoke_with_body(&webview, "run_assist", run.clone()).unwrap_err()["details"]["reason"],
+            "assist_preview_changed"
+        );
+        assert!(fetcher.posted().is_empty());
+        assert!(
+            invoke(&webview, "list_assist_activity", json!({"tripId":trip_id}))
+                .unwrap()
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+        let renewed = invoke(
+            &webview,
+            "preview_assist",
+            json!({"tripId":trip_id,"provider":"ollama"}),
+        )
+        .unwrap();
+        run["input"]["approvalToken"] = renewed["approvalToken"].clone();
+        let reply = invoke_with_body(
+            &webview,
+            wire["runAssist"]["command"].as_str().unwrap(),
+            run,
+        )
+        .unwrap();
+        assert_eq!(reply["text"], "Synthetic IPC response");
+        assert_eq!(fetcher.posted().len(), 1);
+        let body: Value = serde_json::from_str(&fetcher.posted()[0]).unwrap();
+        assert_eq!(body["messages"][0]["content"], renewed["systemPrompt"]);
+        assert_eq!(body["messages"][1]["content"], renewed["userContent"]);
+        assert_eq!(body["model"], reply["model"]);
+        drop(webview);
+        drop(app);
         cleanup_database(database);
     }
 

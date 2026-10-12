@@ -90,3 +90,19 @@ jobs:
           sudo apt-get install -y libdbus-1-dev pkg-config
       - run: pnpm exec playwright install --with-deps chromium webkit
       - run: ./scripts/check.sh integration
+
+  windows-source:
+    name: Windows recovery and desktop source
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Verify portable recovery
+        shell: bash
+        run: ./scripts/check.sh rust
+      - name: Verify native desktop source
+        shell: bash
+        run: ./scripts/check.sh desktop
