@@ -1234,6 +1234,7 @@ struct WindowsDialogAutomation {
 }
 
 impl WindowsDialogAutomation {
+    #[cfg(any(not(target_os = "windows"), test))]
     fn inactive() -> Self {
         Self { preset: Ok(None) }
     }
