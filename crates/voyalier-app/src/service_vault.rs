@@ -18,6 +18,8 @@ impl AppService {
     /// keychain — so subsequent app opens require the passphrase. Requires an
     /// active, unprotected vault. The vault stays unlocked for this session.
     pub fn set_vault_passphrase(&self, passphrase: &str) -> Result<VaultStatus, AppError> {
+        let _operation = self._workspace_lock.operation()?;
+        require_direct_restore_path(&self.database_path)?;
         validate_passphrase(passphrase)?;
         let state = self.vault.snapshot();
         if state.protected {
@@ -38,6 +40,16 @@ impl AppService {
         let mut nonce = [0u8; VAULT_NONCE_LEN];
         getrandom::fill(&mut nonce).map_err(|_| nonce_error())?;
         let wrapped = vault_seal(&kek, &nonce, &data_key)?;
+        let wrap = VaultWrap {
+            salt: salt.to_vec(),
+            wrapped_key: wrapped.clone(),
+        };
+        backup_recovery::begin_protection(
+            &self.database_path,
+            self.secrets.as_ref(),
+            &data_key,
+            &wrap,
+        )?;
         self.connection()?
             .execute(
                 "INSERT OR REPLACE INTO vault_meta (id, salt, wrapped_key, updated_at)
@@ -45,14 +57,17 @@ impl AppService {
                 params![BASE64.encode(salt), BASE64.encode(wrapped), now_rfc3339()],
             )
             .map_err(storage_error)?;
-        // The passphrase now guards the key; the keychain no longer holds it. If
-        // that removal fails, roll back the passphrase record — otherwise the raw
-        // key would linger in the keychain and defeat the passphrase, while disk
-        // claims the vault is protected.
-        if let Err(error) = self.secrets.delete(&self.vault_account) {
-            let _ = self
-                .connection()?
-                .execute("DELETE FROM vault_meta WHERE id = 1", []);
+        restore_fault("protection_wrap");
+        if let Err(error) = backup_recovery::resume(
+            &self.database_path,
+            &*self.connection()?,
+            self.secrets.as_ref(),
+        ) {
+            self.vault.set_state(VaultState {
+                key: None,
+                protected: true,
+                escaped_plaintext: state.escaped_plaintext,
+            });
             return Err(error);
         }
         self.vault.set_state(VaultState {
@@ -66,6 +81,12 @@ impl AppService {
     /// Unlock a passphrase-protected vault for this session by unwrapping the
     /// data key. A no-op if already unlocked; an error if no passphrase is set.
     pub fn unlock_vault(&self, passphrase: &str) -> Result<VaultStatus, AppError> {
+        let _operation = self._workspace_lock.operation()?;
+        backup_recovery::resume(
+            &self.database_path,
+            &*self.connection()?,
+            self.secrets.as_ref(),
+        )?;
         if self.vault.snapshot().key.is_some() {
             return Ok(self.vault.status());
         }
@@ -80,7 +101,25 @@ impl AppService {
         // the vault was opened locked (migration is skipped for a locked vault).
         {
             let connection = self.connection()?;
-            migrate_encrypt_sensitive_columns(&connection, &self.vault, &self.database_path)?;
+            if let Err(error) = migrate_encrypt_sensitive_columns(
+                &connection,
+                &self.vault,
+                &self.database_path,
+                self.secrets.as_ref(),
+            ) {
+                self.vault.set_state(VaultState {
+                    key: None,
+                    protected: true,
+                    escaped_plaintext,
+                });
+                return Err(error);
+            }
+            backup_recovery::adopt(
+                &self.database_path,
+                self.secrets.as_ref(),
+                Some(data_key),
+                read_vault_wrap(&connection)?.as_ref(),
+            )?;
         }
         Ok(self.vault.status())
     }
@@ -88,13 +127,59 @@ impl AppService {
     /// Turn the optional passphrase off after verifying it: restore the raw data
     /// key to the keychain and drop the wrap, returning to transparent unlock.
     pub fn remove_vault_passphrase(&self, passphrase: &str) -> Result<VaultStatus, AppError> {
+        let _operation = self._workspace_lock.operation()?;
+        require_direct_restore_path(&self.database_path)?;
+        backup_recovery::resume(
+            &self.database_path,
+            &*self.connection()?,
+            self.secrets.as_ref(),
+        )?;
         let data_key = self.unwrap_data_key(passphrase)?;
-        self.secrets
-            .set(&self.vault_account, &BASE64.encode(data_key))?;
-        self.connection()?
-            .execute("DELETE FROM vault_meta WHERE id = 1", [])
-            .map_err(storage_error)?;
         let escaped_plaintext = self.vault.snapshot().escaped_plaintext;
+        let previous_key = self.secrets.get(&self.vault_account)?;
+        // Direct removal is an activation too. Keep the passphrase wrap and
+        // raw-key intent untouched until every fallback cell is safely sealed.
+        self.vault.set_state(VaultState {
+            key: Some(data_key),
+            protected: true,
+            escaped_plaintext,
+        });
+        let removed = (|| {
+            let connection = self.connection()?;
+            migrate_encrypt_sensitive_columns(
+                &connection,
+                &self.vault,
+                &self.database_path,
+                self.secrets.as_ref(),
+            )?;
+            backup_recovery::adopt(
+                &self.database_path,
+                self.secrets.as_ref(),
+                Some(data_key),
+                read_vault_wrap(&connection)?.as_ref(),
+            )?;
+            self.secrets
+                .set(&self.vault_account, &BASE64.encode(data_key))?;
+            if let Err(error) = connection.execute("DELETE FROM vault_meta WHERE id = 1", []) {
+                // Keychain and SQLite cannot commit together. Compensate a
+                // rejected DELETE; if compensation also fails, report that
+                // failure and leave the wrap/evidence for startup cleanup.
+                match previous_key.as_deref() {
+                    Some(key) => self.secrets.set(&self.vault_account, key)?,
+                    None => self.secrets.delete(&self.vault_account)?,
+                }
+                return Err(storage_error(error));
+            }
+            Ok(())
+        })();
+        if let Err(error) = removed {
+            self.vault.set_state(VaultState {
+                key: None,
+                protected: true,
+                escaped_plaintext,
+            });
+            return Err(error);
+        }
         self.vault.set_state(VaultState {
             key: Some(data_key),
             protected: false,

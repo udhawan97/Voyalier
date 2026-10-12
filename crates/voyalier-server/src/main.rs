@@ -35,8 +35,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(command) = argument.as_deref() {
         return match command {
             "vault-prune" => run_vault_prune(env::args().any(|arg| arg == "--apply")),
+            "backup-recover" => {
+                voyalier_app::run_local_backup_recovery_cli(&env::args().skip(2).collect::<Vec<_>>())?;
+                Ok(())
+            }
             other => Err(format!(
-                "unknown command {other:?}; the only one is `vault-prune [--apply]`"
+                "unknown command {other:?}; use `vault-prune [--apply]` or `backup-recover <basename> [--apply]`"
             )
             .into()),
         };

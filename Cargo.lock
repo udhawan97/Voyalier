@@ -5311,6 +5311,7 @@ dependencies = [
  "getrandom 0.4.3",
  "jiff",
  "keyring",
+ "libc",
  "rusqlite",
  "serde",
  "serde_json",

@@ -212,7 +212,38 @@ impl AppService {
     ///   `candidate_id`; the flag is what keeps that from reading as "manual".
     pub fn delete_document(&self, document_id: &str) -> Result<(), AppError> {
         let mut connection = self.connection()?;
-        let transaction = connection.transaction().map_err(storage_error)?;
+        let transaction = connection
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(storage_error)?;
+        let trip_id: String = transaction
+            .query_row(
+                "SELECT trip_id FROM source_documents WHERE id = ?1",
+                params![document_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(storage_error)?
+            .ok_or_else(|| {
+                AppError::new(
+                    ErrorCode::DocumentNotFound,
+                    "that document no longer exists",
+                )
+            })?;
+        if let Some(mut profile) = self.records(&transaction).concierge_profile(&trip_id)? {
+            let mut changed = false;
+            for link in &mut profile.wallet_links {
+                if link.source_document_id.as_deref() == Some(document_id) {
+                    link.source_document_id = None;
+                    changed = true;
+                }
+            }
+            if changed {
+                profile.updated_at = Some(now_rfc3339());
+                let profile = profile.validate()?;
+                self.records(&transaction)
+                    .upsert_concierge_profile(&profile, &new_id("concierge"))?;
+            }
+        }
         // Flag surviving facts BEFORE the delete: once the candidate rows are
         // gone the join that identifies them is gone too.
         transaction
@@ -474,5 +505,210 @@ impl AppService {
         )?;
         transaction.commit().map_err(storage_error)?;
         Ok(restored)
+    }
+}
+
+#[cfg(test)]
+mod wallet_source_tests {
+    use super::*;
+
+    fn setup(name: &str) -> (PathBuf, AppService, String, String) {
+        let database = crate::tests::temp_database(name);
+        let service = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            Arc::new(MemorySecretStore::default()),
+        )
+        .unwrap();
+        let trip = service
+            .create_trip(CreateTripInput {
+                title: Some("Synthetic source lifetime".into()),
+                origin: "Chicago".into(),
+                destination: "Lisbon".into(),
+                start_date: "2026-10-10".into(),
+                end_date: "2026-10-20".into(),
+            })
+            .unwrap();
+        let imported = service
+            .import_document(ImportDocumentInput {
+                trip_id: trip.id.clone(),
+                kind: DocumentKind::Html,
+                label: Some("Synthetic confirmed source".into()),
+                content: include_str!(
+                    "../../voyalier-core/fixtures/parser/jsonld-graph/input.html"
+                )
+                .to_owned(),
+            })
+            .unwrap();
+        let (_, fact) = service
+            .confirm_candidate(ConfirmCandidateInput {
+                candidate_id: imported.candidates[0].id.clone(),
+                edited_payload: None,
+                amendment_action: None,
+                expected_amendment_fact_id: None,
+                expected_amendment_revision: None,
+            })
+            .unwrap();
+        // Preserve a real record snapshot so source deletion is exercised over
+        // both current evidence and retained revision custody.
+        service
+            .records(&service.connection().unwrap())
+            .snapshot_confirmed_fact(&fact.id, &new_id("fact_version"))
+            .unwrap();
+        let mut profile = ConciergeProfile::empty(&trip.id);
+        profile.travelers.push(voyalier_core::TravelerProfile {
+            id: "person_1".into(),
+            display_name: "Synthetic person".into(),
+            passport_country_iso2: None,
+            residence_country_iso2: None,
+            residence_status: voyalier_core::ResidenceStatus::Unknown,
+            return_country_iso2: None,
+            existing_destination_document: voyalier_core::ExistingDocumentStatus::Unknown,
+        });
+        profile.wallet_links.push(voyalier_core::WalletLink {
+            id: "source_wallet".into(),
+            label: "Keep authored label".into(),
+            category: "confirmation".into(),
+            traveler_ids: vec!["person_1".into()],
+            preparation_requirement_ids: vec!["review-entry".into()],
+            source_document_id: Some(imported.document.id.clone()),
+            source_attachment_id: None,
+            expires_on: None,
+            note: "Keep authored note".into(),
+        });
+        service.set_concierge_profile(profile).unwrap();
+        (database, service, trip.id, imported.document.id)
+    }
+
+    #[test]
+    fn deleting_a_source_preserves_wallet_metadata_people_facts_and_history() {
+        let (database, service, trip_id, source_id) = setup("wallet-source-delete");
+        let before = service.get_concierge_workspace(&trip_id).unwrap().profile;
+        let other = service
+            .create_trip(CreateTripInput {
+                title: None,
+                origin: "Paris".into(),
+                destination: "Kyoto".into(),
+                start_date: "2027-01-01".into(),
+                end_date: "2027-01-08".into(),
+            })
+            .unwrap();
+        let other_before = service
+            .set_concierge_profile(ConciergeProfile::empty(&other.id))
+            .unwrap()
+            .profile;
+        service.delete_document(&source_id).unwrap();
+        let after = service.get_concierge_workspace(&trip_id).unwrap().profile;
+        let mut expected_link = before.wallet_links[0].clone();
+        expected_link.source_document_id = None;
+        assert_eq!(after.wallet_links, vec![expected_link]);
+        assert_eq!(after.travelers, before.travelers);
+        assert_ne!(after.revision, before.revision);
+        assert_eq!(
+            service.get_concierge_workspace(&other.id).unwrap().profile,
+            other_before
+        );
+        let detail = service.get_trip(&trip_id).unwrap();
+        assert_eq!(detail.confirmed_facts.len(), 1);
+        assert!(detail.confirmed_facts[0].source_removed);
+        assert_eq!(detail.confirmed_facts[0].candidate_id, None);
+        let history: i64 = service.connection().unwrap().query_row("SELECT COUNT(*) FROM confirmed_fact_versions WHERE trip_id=?1 AND source_removed=1", params![trip_id], |row| row.get(0)).unwrap();
+        assert_eq!(history, 1);
+        assert_eq!(
+            service
+                .set_concierge_profile(before)
+                .unwrap_err()
+                .details
+                .unwrap()["reason"],
+            "profile_changed"
+        );
+        let mut retry = after;
+        retry.preferences.pace = voyalier_core::TripPace::Slow;
+        assert_eq!(
+            service
+                .set_concierge_profile(retry)
+                .unwrap()
+                .profile
+                .wallet_links[0]
+                .note,
+            "Keep authored note"
+        );
+        drop(service);
+        crate::tests::cleanup_database(database);
+    }
+
+    #[test]
+    fn locked_or_failed_source_deletion_rolls_back_profile_facts_and_source() {
+        for failure in ["locked", "profile", "source"] {
+            let (database, mut service, trip_id, source_id) =
+                setup(&format!("wallet-delete-{failure}"));
+            let profile_before: String = service
+                .connection()
+                .unwrap()
+                .query_row(
+                    "SELECT payload FROM concierge_profiles WHERE trip_id=?1",
+                    params![trip_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            if failure == "locked" {
+                service
+                    .set_vault_passphrase("synthetic correct horse battery")
+                    .unwrap();
+                let secrets = service.secrets.clone();
+                drop(service);
+                service = AppService::open_path_with_deps(
+                    &database,
+                    Arc::new(FakeFetcher::offline()),
+                    secrets,
+                )
+                .unwrap();
+                assert!(service.get_vault_status().unwrap().locked);
+            } else if failure == "profile" {
+                service.connection().unwrap().execute_batch("CREATE TRIGGER refuse_profile BEFORE UPDATE ON concierge_profiles BEGIN SELECT RAISE(ABORT, 'synthetic profile failure'); END;").unwrap();
+            } else {
+                service.connection().unwrap().execute_batch("CREATE TRIGGER refuse_source BEFORE DELETE ON source_documents BEGIN SELECT RAISE(ABORT, 'synthetic deletion failure'); END;").unwrap();
+            }
+            assert!(service.delete_document(&source_id).is_err());
+            let connection = service.connection().unwrap();
+            let after: String = connection
+                .query_row(
+                    "SELECT payload FROM concierge_profiles WHERE trip_id=?1",
+                    params![trip_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(profile_before, after);
+            assert_eq!(
+                connection
+                    .query_row(
+                        "SELECT COUNT(*) FROM source_documents WHERE id=?1",
+                        params![source_id],
+                        |row| row.get::<_, i64>(0)
+                    )
+                    .unwrap(),
+                1
+            );
+            assert_eq!(connection.query_row("SELECT COUNT(*) FROM confirmed_facts WHERE trip_id=?1 AND source_removed=0 AND candidate_id IS NOT NULL", params![trip_id], |row| row.get::<_, i64>(0)).unwrap(), 1);
+            assert_eq!(connection.query_row("SELECT COUNT(*) FROM confirmed_fact_versions WHERE trip_id=?1 AND source_removed=0 AND candidate_id IS NOT NULL", params![trip_id], |row| row.get::<_, i64>(0)).unwrap(), 1);
+            drop(connection);
+            if failure == "locked" {
+                service
+                    .unlock_vault("synthetic correct horse battery")
+                    .unwrap();
+            }
+            assert_eq!(
+                service
+                    .get_concierge_workspace(&trip_id)
+                    .unwrap()
+                    .profile
+                    .wallet_links[0]
+                    .source_document_id
+                    .as_deref(),
+                Some(source_id.as_str())
+            );
+            drop(service);
+            crate::tests::cleanup_database(database);
+        }
     }
 }

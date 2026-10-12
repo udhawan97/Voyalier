@@ -1,6 +1,7 @@
 //! Local concierge state and its deterministic read projection.
 
 use super::*;
+
 impl AppService {
     pub fn get_concierge_workspace(&self, trip_id: &str) -> Result<ConciergeWorkspace, AppError> {
         let detail = self.get_trip(trip_id)?;
@@ -17,11 +18,28 @@ impl AppService {
         &self,
         mut profile: ConciergeProfile,
     ) -> Result<ConciergeWorkspace, AppError> {
-        let connection = self.connection()?;
-        self.records(&connection).trip(&profile.trip_id)?;
+        let mut connection = self.connection()?;
+        let transaction = connection
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(storage_error)?;
+        self.records(&transaction).trip(&profile.trip_id)?;
         let previous = self
-            .records(&connection)
+            .records(&transaction)
             .concierge_profile(&profile.trip_id)?;
+        let revision_matches = match &previous {
+            Some(current) => profile.revision.is_some() && profile.revision == current.revision,
+            None => profile.revision.is_none(),
+        };
+        if !revision_matches {
+            return Err(AppError {
+                code: ErrorCode::ValidationInvalidInput,
+                message: "The saved profile changed. Reload it and review your draft before saving again.".to_owned(),
+                details: Some(std::collections::BTreeMap::from([
+                    ("field".to_owned(), "revision".to_owned()),
+                    ("reason".to_owned(), if profile.revision.is_none() { "profile_revision_required" } else { "profile_changed" }.to_owned()),
+                ])),
+            });
+        }
         if let Some(previous) = &previous {
             record_progress_history(previous, &mut profile);
             if previous.travelers != profile.travelers {
@@ -96,7 +114,7 @@ impl AppService {
             .iter()
             .filter_map(|link| link.source_document_id.as_deref())
         {
-            let count: i64 = connection
+            let count: i64 = transaction
                 .query_row(
                     "SELECT COUNT(*) FROM source_documents WHERE id=?1 AND trip_id=?2",
                     params![document_id, profile.trip_id],
@@ -117,7 +135,7 @@ impl AppService {
             .iter()
             .filter_map(|link| link.source_attachment_id.as_deref())
         {
-            let count: i64 = connection
+            let count: i64 = transaction
                 .query_row(
                     "SELECT COUNT(*) FROM binary_attachments WHERE id=?1 AND trip_id=?2",
                     params![attachment_id, profile.trip_id],
@@ -133,10 +151,28 @@ impl AppService {
                 ));
             }
         }
-        self.records(&connection)
+        self.records(&transaction)
             .upsert_concierge_profile(&profile, &new_id("concierge"))?;
+        // Acknowledge this accepted row, including the revision minted by
+        // Records. A later writer cannot replace it between commit and reply.
+        let acknowledged = self
+            .records(&transaction)
+            .concierge_profile(&profile.trip_id)?
+            .ok_or_else(|| {
+                AppError::new(
+                    ErrorCode::InternalUnexpected,
+                    "the accepted profile is unavailable",
+                )
+            })?;
+        let attachments = self.records(&transaction).attachments(&profile.trip_id)?;
+        transaction.commit().map_err(storage_error)?;
         drop(connection);
-        self.get_concierge_workspace(&profile.trip_id)
+        let detail = self.get_trip(&profile.trip_id)?;
+        Ok(build_concierge_workspace(
+            &detail,
+            acknowledged,
+            attachments,
+        ))
     }
 }
 
@@ -250,5 +286,221 @@ fn record_progress_history(previous: &ConciergeProfile, next: &mut ConciergeProf
         if current.history.len() > 50 {
             current.history.remove(0);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn trip(service: &AppService) -> Trip {
+        service
+            .create_trip(CreateTripInput {
+                title: Some("Synthetic profile".into()),
+                origin: "Paris".into(),
+                destination: "Kyoto".into(),
+                start_date: "2027-01-01".into(),
+                end_date: "2027-01-08".into(),
+            })
+            .unwrap()
+    }
+
+    #[test]
+    fn stale_and_omitted_profiles_preserve_accepted_state_then_explicit_retry_succeeds() {
+        let database = crate::tests::temp_database("profile-cas");
+        let service = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            Arc::new(MemorySecretStore::default()),
+        )
+        .unwrap();
+        let trip = trip(&service);
+        let mut first = service.get_concierge_workspace(&trip.id).unwrap().profile;
+        let initial = first.clone();
+        first.preferences.selected_area = Some("Gion".into());
+        let accepted = service.set_concierge_profile(first).unwrap().profile;
+        assert!(accepted.revision.is_some());
+        assert_eq!(
+            service
+                .set_concierge_profile(initial)
+                .unwrap_err()
+                .details
+                .unwrap()["reason"],
+            "profile_revision_required"
+        );
+        let mut newer = accepted.clone();
+        newer.preferences.pace = voyalier_core::TripPace::Slow;
+        let saved = service.set_concierge_profile(newer).unwrap().profile;
+        let payload_before: String = service
+            .connection()
+            .unwrap()
+            .query_row(
+                "SELECT payload FROM concierge_profiles WHERE trip_id=?1",
+                params![trip.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            service
+                .set_concierge_profile(accepted)
+                .unwrap_err()
+                .details
+                .unwrap()["reason"],
+            "profile_changed"
+        );
+        assert_eq!(
+            service.get_concierge_workspace(&trip.id).unwrap().profile,
+            saved
+        );
+        let payload_after: String = service
+            .connection()
+            .unwrap()
+            .query_row(
+                "SELECT payload FROM concierge_profiles WHERE trip_id=?1",
+                params![trip.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            payload_before, payload_after,
+            "rejection changes no timestamp, history or sealed bytes"
+        );
+        let mut retry = service.get_concierge_workspace(&trip.id).unwrap().profile;
+        retry.preferences.car_preference = voyalier_core::CarPreference::Avoid;
+        let latest = service.set_concierge_profile(retry).unwrap().profile;
+        assert_eq!(latest.preferences.selected_area.as_deref(), Some("Gion"));
+        assert_eq!(latest.preferences.pace, voyalier_core::TripPace::Slow);
+        assert_ne!(latest.revision, saved.revision);
+        assert_eq!(
+            latest.revision,
+            service
+                .records(&service.connection().unwrap())
+                .concierge_profile(&trip.id)
+                .unwrap()
+                .unwrap()
+                .revision
+        );
+        drop(service);
+        crate::tests::cleanup_database(database);
+    }
+
+    #[test]
+    fn legacy_profile_reads_have_stable_revision_without_rewriting_payload() {
+        let database = crate::tests::temp_database("profile-legacy-cas");
+        let service = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            Arc::new(MemorySecretStore::default()),
+        )
+        .unwrap();
+        let trip = trip(&service);
+        let legacy = ConciergeProfile::empty(&trip.id);
+        let json = serde_json::to_string(&legacy).unwrap();
+        service
+            .connection()
+            .unwrap()
+            .execute(
+                "INSERT INTO concierge_profiles(id,trip_id,payload,updated_at) VALUES(?1,?2,?3,?4)",
+                params!["legacy_profile", trip.id, json, "2026-01-01T00:00:00Z"],
+            )
+            .unwrap();
+        let a = service.get_concierge_workspace(&trip.id).unwrap().profile;
+        let b = service.get_concierge_workspace(&trip.id).unwrap().profile;
+        assert_eq!(a.revision, b.revision);
+        assert!(
+            a.revision
+                .as_deref()
+                .unwrap()
+                .starts_with("legacy_profile_v1_")
+        );
+        assert_eq!(
+            service
+                .set_concierge_profile(legacy)
+                .unwrap_err()
+                .details
+                .unwrap()["reason"],
+            "profile_revision_required"
+        );
+        let unchanged: String = service
+            .connection()
+            .unwrap()
+            .query_row(
+                "SELECT payload FROM concierge_profiles WHERE trip_id=?1",
+                params![trip.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(unchanged, json);
+        let saved = service.set_concierge_profile(a).unwrap().profile;
+        assert!(
+            saved
+                .revision
+                .as_deref()
+                .unwrap()
+                .starts_with("concierge_revision_")
+        );
+        assert_ne!(saved.revision, b.revision);
+        drop(service);
+        crate::tests::cleanup_database(database);
+    }
+
+    #[test]
+    fn independent_connections_accept_only_one_write_for_the_same_revision() {
+        let database = crate::tests::temp_database("profile-cas-concurrent");
+        let secrets = Arc::new(MemorySecretStore::default());
+        let service = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .unwrap();
+        let trip = trip(&service);
+        let baseline = service
+            .set_concierge_profile(ConciergeProfile::empty(&trip.id))
+            .unwrap()
+            .profile;
+        let first = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .unwrap();
+        let second =
+            AppService::open_path_with_deps(&database, Arc::new(FakeFetcher::offline()), secrets)
+                .unwrap();
+        let mut area = baseline.clone();
+        area.preferences.selected_area = Some("Gion".into());
+        let mut pace = baseline;
+        pace.preferences.pace = voyalier_core::TripPace::Slow;
+        let barrier = Arc::new(std::sync::Barrier::new(2));
+        let a_barrier = barrier.clone();
+        let a = std::thread::spawn(move || {
+            a_barrier.wait();
+            first.set_concierge_profile(area)
+        });
+        let b = std::thread::spawn(move || {
+            barrier.wait();
+            second.set_concierge_profile(pace)
+        });
+        let results = [a.join().unwrap(), b.join().unwrap()];
+        assert_eq!(results.iter().filter(|result| result.is_ok()).count(), 1);
+        let rejected = results
+            .iter()
+            .find_map(|result| result.as_ref().err())
+            .unwrap();
+        assert_eq!(
+            rejected.details.as_ref().unwrap()["reason"],
+            "profile_changed"
+        );
+        let saved = results
+            .iter()
+            .find_map(|result| result.as_ref().ok())
+            .unwrap();
+        assert_eq!(
+            service.get_concierge_workspace(&trip.id).unwrap().profile,
+            saved.profile
+        );
+        drop(service);
+        crate::tests::cleanup_database(database);
     }
 }

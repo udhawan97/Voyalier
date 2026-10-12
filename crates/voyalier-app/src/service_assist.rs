@@ -7,6 +7,34 @@
 
 use super::*;
 
+fn assist_approval_token(
+    trip_id: &str,
+    id: ProviderId,
+    request: &voyalier_core::AssistRequest,
+) -> Result<String, AppError> {
+    let identity = serde_json::to_vec(&(
+        "voyalier-assist-approval-v1",
+        trip_id,
+        id.as_str(),
+        request.url,
+        request.model.as_str(),
+        request.body.as_str(),
+    ))
+    .map_err(storage_error)?;
+    Ok(format!("assist_approval_v1_{}", sha256_hex(&identity)))
+}
+
+fn assist_approval_error(reason: &str, message: &str) -> AppError {
+    AppError {
+        code: ErrorCode::ValidationInvalidInput,
+        message: message.to_owned(),
+        details: Some(std::collections::BTreeMap::from([
+            ("field".to_owned(), "approvalToken".to_owned()),
+            ("reason".to_owned(), reason.to_owned()),
+        ])),
+    }
+}
+
 impl AppService {
     /// Build a deterministic, redacted preview of the request Voyalier would
     /// send to `provider` for this trip — the consent step before any assist
@@ -18,10 +46,21 @@ impl AppService {
         provider: &str,
     ) -> Result<AssistRequestPreview, AppError> {
         let id = validate_provider_id(provider)?;
-        let connection = self.connection()?;
-        let trip = self.records(&connection).trip(trip_id)?;
-        let confirmed_facts = self.records(&connection).confirmed_facts(trip_id)?;
-        let model = connection
+        self.prepare_assist(trip_id, id).map(|(preview, _)| preview)
+    }
+
+    /// Read one consistent input set and prepare exact credential-free bytes.
+    /// Both preview and run use this; dispatch never rebuilds the body.
+    fn prepare_assist(
+        &self,
+        trip_id: &str,
+        id: ProviderId,
+    ) -> Result<(AssistRequestPreview, voyalier_core::AssistRequest), AppError> {
+        let mut connection = self.connection()?;
+        let transaction = connection.transaction().map_err(storage_error)?;
+        let trip = self.records(&transaction).trip(trip_id)?;
+        let confirmed_facts = self.records(&transaction).confirmed_facts(trip_id)?;
+        let model = transaction
             .query_row(
                 "SELECT model FROM provider_settings WHERE provider = ?1",
                 params![id.as_str()],
@@ -29,6 +68,9 @@ impl AppService {
             )
             .optional()
             .map_err(storage_error)?;
+        let instruction = effective_ai_prompt(&transaction, AiPromptKind::Assist)?;
+        transaction.commit().map_err(storage_error)?;
+        drop(connection);
         let mut preview = build_assist_preview(
             &trip,
             &confirmed_facts,
@@ -36,13 +78,18 @@ impl AppService {
             model.as_deref(),
             &now_rfc3339(),
         );
-        // Apply the user's custom assist instruction, if they set one. Run reuses
-        // this preview, so the sent request matches exactly what is shown.
-        apply_prompt_override(
-            &mut preview,
-            effective_ai_prompt(&connection, AiPromptKind::Assist)?,
-        );
-        Ok(preview)
+        // Include the effective instruction in both displayed content and the
+        // prepared-body commitment. No stored provider key is read here.
+        apply_prompt_override(&mut preview, instruction);
+        let request = build_assist_request(
+            id,
+            preview.model.as_deref(),
+            &preview.system_prompt,
+            &preview.user_content,
+            Some(""),
+        )?;
+        preview.approval_token = Some(assist_approval_token(trip_id, id, &request)?);
+        Ok((preview, request))
     }
 
     /// The editable AI instructions with their defaults and any user overrides.
@@ -101,18 +148,44 @@ impl AppService {
         self.get_ai_prompts()
     }
 
-    /// Run assist for a trip: build the same redacted request the preview shows
-    /// and send it to the chosen provider. The explicit call is the consent. For
+    /// Run assist only when current prepared bytes match the displayed preview's
+    /// commitment. A changed or missing commitment sends nothing. For
     /// Ollama nothing leaves the device; for a cloud provider the redacted
     /// request goes to that provider using the key stored in the OS keychain —
     /// which is placed only in the outgoing auth header and is never logged,
     /// returned, or stored anywhere else. Every successful call is logged
     /// (metadata only).
-    pub fn run_assist(&self, trip_id: &str, provider: &str) -> Result<AssistReply, AppError> {
+    pub fn run_assist(
+        &self,
+        trip_id: &str,
+        provider: &str,
+        approval_token: Option<&str>,
+    ) -> Result<AssistReply, AppError> {
         let id = validate_provider_id(provider)?;
-        // Reuse the preview: identical redaction, grounding, and system prompt.
-        let preview = self.preview_assist(trip_id, provider)?;
-        let (model, text) = self.dispatch_assist(id, &preview)?;
+        // ASCII identifiers make byte/character limits equivalent. Bound and
+        // reject malformed legacy input before reading/building trip content.
+        let approved = approval_token
+            .filter(|token| {
+                !token.is_empty()
+                    && token
+                        .bytes()
+                        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+                    && token.len() <= 128
+            })
+            .ok_or_else(|| {
+                assist_approval_error(
+                    "assist_approval_required",
+                    "Preview this request before sending it.",
+                )
+            })?;
+        let (preview, request) = self.prepare_assist(trip_id, id)?;
+        if preview.approval_token.as_deref() != Some(approved) {
+            return Err(assist_approval_error(
+                "assist_preview_changed",
+                "The request changed. Refresh the preview and review it before sending.",
+            ));
+        }
+        let (model, text) = self.dispatch_assist(id, request)?;
         let generated_at = now_rfc3339();
         // Log that a call happened — metadata only, never the prompt or reply.
         let connection = self.connection()?;
@@ -212,9 +285,8 @@ impl AppService {
             let connection = self.connection()?;
             effective_ai_prompt(&connection, AiPromptKind::DraftLodgingDates)?
         };
-        // Reuse the preview, exactly as run_assist does: the consent step and
-        // the bytes actually sent are then the same object, not two builds that
-        // happen to agree.
+        // This separate on-device draft rebuilds its current document inputs.
+        // It is not the immutable itinerary-assist approval path (ADR-0029).
         let preview = build_draft_preview(&trip, &doc_pairs, model.as_deref(), &system_prompt);
         // On-device only: Ollama is keyless, so nothing leaves this machine.
         let request = build_assist_request(
@@ -294,20 +366,15 @@ impl AppService {
     fn dispatch_assist(
         &self,
         id: ProviderId,
-        preview: &AssistRequestPreview,
+        prepared: voyalier_core::AssistRequest,
     ) -> Result<(String, String), AppError> {
         let key = if provider_info(id).key_required {
             Some(self.require_provider_key(id)?)
         } else {
             None
         };
-        let request = build_assist_request(
-            id,
-            preview.model.as_deref(),
-            &preview.system_prompt,
-            &preview.user_content,
-            key.as_deref(),
-        )?;
+        // Preserve the exact URL/model/body committed before key retrieval.
+        let request = prepared.with_key(id, key.as_deref())?;
         let header_refs: Vec<(&str, &str)> = request
             .headers
             .iter()
@@ -373,5 +440,154 @@ impl AppService {
             });
         }
         Ok(entries)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use voyalier_core::{FactPayload, FactType};
+
+    #[test]
+    fn approval_rejects_changed_cloud_content_before_dispatch_and_renewed_preview_succeeds() {
+        for change in ["fact", "model", "instruction"] {
+            let database = crate::tests::temp_database(&format!("assist-approval-{change}"));
+            let fetcher = Arc::new(FakeFetcher::offline().route(
+                "https://api.openai.com/v1/chat/completions",
+                r#"{"choices":[{"message":{"content":"Synthetic response"}}]}"#,
+            ));
+            let secrets = Arc::new(MemorySecretStore::default());
+            let first =
+                AppService::open_path_with_deps(&database, fetcher.clone(), secrets.clone())
+                    .unwrap();
+            let trip = first
+                .create_trip(CreateTripInput {
+                    title: Some("Synthetic assist".into()),
+                    origin: "Paris".into(),
+                    destination: "Kyoto".into(),
+                    start_date: "2027-01-01".into(),
+                    end_date: "2027-01-08".into(),
+                })
+                .unwrap();
+            first
+                .add_manual_fact(AddManualFactInput {
+                    trip_id: trip.id.clone(),
+                    fact_type: FactType::FlightSegment,
+                    payload: FactPayload {
+                        flight_number: Some("SYN101".into()),
+                        confirmation_code: Some("SYNTHETIC-PNR-WITHHOLD".into()),
+                        passenger_name: Some("Synthetic Private Passenger".into()),
+                        ..FactPayload::default()
+                    },
+                })
+                .unwrap();
+            first
+                .set_provider_key("openai", "synthetic-only-no-real-authority")
+                .unwrap();
+            first
+                .set_provider_model("openai", "synthetic-model-before")
+                .unwrap();
+            let preview = first.preview_assist(&trip.id, "openai").unwrap();
+            let token = preview.approval_token.as_deref().unwrap();
+            assert_eq!(
+                first
+                    .preview_assist(&trip.id, "openai")
+                    .unwrap()
+                    .approval_token,
+                preview.approval_token
+            );
+            assert!(fetcher.calls().is_empty());
+            assert_eq!(
+                first
+                    .run_assist(&trip.id, "openai", None)
+                    .unwrap_err()
+                    .details
+                    .unwrap()["reason"],
+                "assist_approval_required"
+            );
+            assert_eq!(
+                first
+                    .run_assist(&trip.id, "ollama", Some(token))
+                    .unwrap_err()
+                    .details
+                    .unwrap()["reason"],
+                "assist_preview_changed"
+            );
+            let second =
+                AppService::open_path_with_deps(&database, fetcher.clone(), secrets).unwrap();
+            match change {
+                "fact" => {
+                    second
+                        .add_manual_fact(AddManualFactInput {
+                            trip_id: trip.id.clone(),
+                            fact_type: FactType::FlightSegment,
+                            payload: FactPayload {
+                                flight_number: Some("SYN202".into()),
+                                ..FactPayload::default()
+                            },
+                        })
+                        .unwrap();
+                }
+                "model" => {
+                    second
+                        .set_provider_model("openai", "synthetic-model-after")
+                        .unwrap();
+                }
+                "instruction" => {
+                    second
+                        .set_ai_prompt("assist", Some("Synthetic changed instruction"))
+                        .unwrap();
+                }
+                _ => unreachable!(),
+            }
+            assert_eq!(
+                first
+                    .run_assist(&trip.id, "openai", Some(token))
+                    .unwrap_err()
+                    .details
+                    .unwrap()["reason"],
+                "assist_preview_changed"
+            );
+            assert!(fetcher.posted().is_empty());
+            assert!(first.list_assist_activity(&trip.id).unwrap().is_empty());
+            let renewed = first.preview_assist(&trip.id, "openai").unwrap();
+            assert_ne!(renewed.approval_token, preview.approval_token);
+            let reply = first
+                .run_assist(&trip.id, "openai", renewed.approval_token.as_deref())
+                .unwrap();
+            let posted = fetcher.posted();
+            assert_eq!(posted.len(), 1);
+            let sent: serde_json::Value = serde_json::from_str(&posted[0]).unwrap();
+            assert_eq!(sent["messages"][0]["content"], renewed.system_prompt);
+            assert_eq!(sent["messages"][1]["content"], renewed.user_content);
+            assert_eq!(sent["model"], reply.model);
+            for private in [
+                "SYNTHETIC-PNR-WITHHOLD",
+                "Synthetic Private Passenger",
+                "synthetic-only-no-real-authority",
+            ] {
+                assert!(!posted[0].contains(private));
+            }
+            if change == "fact" {
+                assert!(posted[0].contains("SYN202"));
+            }
+            if change == "model" {
+                assert_eq!(reply.model, "synthetic-model-after");
+            }
+            if change == "instruction" {
+                assert_eq!(
+                    sent["messages"][0]["content"],
+                    "Synthetic changed instruction"
+                );
+            }
+            assert_eq!(first.list_assist_activity(&trip.id).unwrap().len(), 1);
+            assert_eq!(
+                fetcher.calls(),
+                vec!["https://api.openai.com/v1/chat/completions".to_owned()]
+            );
+            drop(second);
+            drop(first);
+            crate::tests::cleanup_database(database);
+        }
     }
 }

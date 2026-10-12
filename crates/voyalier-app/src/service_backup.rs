@@ -33,15 +33,22 @@ impl AppService {
     }
 
     /// Snapshot the SQLite database to `<data-dir>/backups/` before a risky
-    /// operation (a pre-update safety net). The write lock is held across a
-    /// TRUNCATE WAL checkpoint and the file copy, so the copy is a consistent
-    /// point-in-time snapshot of just the main `.sqlite3` file — no `-wal`/`-shm`
-    /// strays. Keeps only the most recent `MAX_BACKUPS`.
+    /// operation (a pre-update safety net). SQLite VACUUM INTO owns a consistent
+    /// read view even while sibling connections write; the published copy does
+    /// not depend on `-wal`/`-shm` files. Keeps the most recent `MAX_BACKUPS`,
+    /// refusing rotation that would discard unavailable recovery evidence.
     ///
     /// Privacy note: backups preserve rows even after a trip is deleted, so the
     /// backups directory is part of "where data lives" and is excluded from any
     /// export/share (documented in privacy.mdx).
     pub fn backup_database(&self, label: &str) -> Result<BackupInfo, AppError> {
+        let _operation = self._workspace_lock.operation()?;
+        require_direct_restore_path(&self.database_path)?;
+        backup_recovery::resume(
+            &self.database_path,
+            &*self.connection()?,
+            self.secrets.as_ref(),
+        )?;
         let label = validate_backup_label(label)?;
         let backups_dir = self
             .database_path
@@ -69,13 +76,21 @@ impl AppService {
 
         {
             let connection = self.connection()?;
-            connection
-                .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
-                .map_err(storage_error)?;
-            fs::copy(&self.database_path, &dest).map_err(storage_error)?;
+            backup_recovery::adopt(
+                &self.database_path,
+                self.secrets.as_ref(),
+                self.vault.active_data_key(),
+                read_vault_wrap(&connection)?.as_ref(),
+            )?;
+            consistent_sqlite_snapshot(&connection, &dest)?;
         }
-
-        prune_backups(&backups_dir, MAX_BACKUPS)?;
+        backup_recovery::retain_known(
+            &self.database_path,
+            &dest,
+            self.secrets.as_ref(),
+            self.vault.active_data_key(),
+        )?;
+        backup_recovery::prune(&self.database_path, self.secrets.as_ref(), MAX_BACKUPS)?;
 
         Ok(BackupInfo {
             path: dest.to_string_lossy().into_owned(),
@@ -92,6 +107,12 @@ impl AppService {
     /// passphrase — without it the snapshot would be undecryptable elsewhere.
     /// Returns the bytes; writing them to a chosen path is the caller's job.
     pub fn export_backup(&self, passphrase: &str) -> Result<Vec<u8>, AppError> {
+        let _operation = self._workspace_lock.operation()?;
+        backup_recovery::resume(
+            &self.database_path,
+            &*self.connection()?,
+            self.secrets.as_ref(),
+        )?;
         validate_passphrase(passphrase)?;
         // A locked vault holds its key wrapped and unreachable, so the backup
         // could not carry one and every sealed row would restore as garbage.
@@ -106,10 +127,22 @@ impl AppService {
         // `-wal`/`-shm` strays are needed (same technique as `backup_database`).
         let snapshot = {
             let connection = self.connection()?;
-            connection
-                .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
-                .map_err(storage_error)?;
-            fs::read(&self.database_path).map_err(storage_error)?
+            let path = self
+                .database_path
+                .with_file_name(format!(".export-snapshot-{}.tmp", new_id("copy")));
+            let result = (|| {
+                consistent_sqlite_snapshot(&connection, &path)?;
+                let metadata = fs::metadata(&path).map_err(storage_error)?;
+                if metadata.len() > voyalier_core::MAX_BACKUP_CONTAINER_BYTES as u64 {
+                    return Err(AppError::new(
+                        ErrorCode::StorageFailure,
+                        "the workspace exceeds the portable backup size bound",
+                    ));
+                }
+                fs::read(&path).map_err(storage_error)
+            })();
+            let _ = fs::remove_file(path);
+            result?
         };
 
         let manifest = BackupManifest {
@@ -144,6 +177,13 @@ impl AppService {
         passphrase: &str,
         container: &[u8],
     ) -> Result<RestorePreview, AppError> {
+        let _operation = self._workspace_lock.operation()?;
+        require_direct_restore_path(&self.database_path)?;
+        backup_recovery::resume(
+            &self.database_path,
+            &*self.connection()?,
+            self.secrets.as_ref(),
+        )?;
         let dir = self
             .database_path
             .parent()
@@ -170,68 +210,13 @@ impl AppService {
                 "this backup was made by a newer version of Voyalier — update the app, then restore",
             ));
         }
-        let generation = new_id("restore");
-        let candidate_file = format!("pending-restore-{generation}.sqlite3");
-        let rollback_file = format!("rollback-restore-{generation}.sqlite3");
-        let candidate_path = dir.join(&candidate_file);
-        let pending_account = vault_pending_key_account(&self.database_path, &generation);
-        // A source workspace may have been running without a keychain. Give
-        // that plaintext snapshot a durable destination key while it is still
-        // only a candidate, so activation never opens current-format plaintext
-        // under a freshly generated key without actually sealing it.
-        let candidate_key = match opened.data_key {
-            Some(key) => key,
-            None => {
-                let mut key = [0u8; VAULT_KEY_LEN];
-                getrandom::fill(&mut key).map_err(|_| nonce_error())?;
-                key
-            }
-        };
-        let encoded_key = BASE64.encode(candidate_key);
-
-        let staged = (|| {
-            atomic_write_file(&candidate_path, &opened.snapshot)?;
-            restore_fault("copy");
-            let (schema_version, candidate_sha256) = prepare_restore_candidate(
-                &candidate_path,
-                opened.manifest.schema_version,
-                Some(candidate_key),
-            )?;
-            self.secrets.set(&pending_account, &encoded_key)?;
-            restore_fault("key_set_stage");
-
-            let preview = RestorePreview {
-                created_at: opened.manifest.created_at.clone(),
-                app_version: opened.manifest.app_version.clone(),
-                schema_version,
-            };
-            let marker = PendingRestore {
-                protocol_version: 2,
-                generation: generation.clone(),
-                phase: RestorePhase::Staged,
-                candidate_file: candidate_file.clone(),
-                rollback_file: rollback_file.clone(),
-                candidate_sha256,
-                created_at: preview.created_at.clone(),
-                app_version: preview.app_version.clone(),
-                schema_version,
-                backup_format_version: opened.manifest.format_version,
-                key_present: true,
-                key_sha256: Some(secret_digest(&encoded_key)),
-                old_database_sha256: None,
-                old_key_present: None,
-                old_key_sha256: None,
-            };
-            write_restore_marker(&marker_path, &marker)?;
-            restore_fault("marker");
-            Ok(preview)
-        })();
-
-        if staged.is_err() {
-            let _ = fs::remove_file(&candidate_path);
-            let _ = self.secrets.delete(&pending_account);
-        }
-        staged
+        stage_restore_source(
+            &self.database_path,
+            self.secrets.as_ref(),
+            RestoreSource::Bytes(&opened.snapshot),
+            &opened.manifest,
+            opened.data_key,
+        )
     }
 
     /// Whether a staged restore is waiting for the next launch, so the UI can
@@ -249,6 +234,7 @@ impl AppService {
     /// not cancellable here — they must complete or roll back under the
     /// generation protocol before their safety copy can be discarded.
     pub fn unstage_restore(&self) -> Result<bool, AppError> {
+        let _operation = self._workspace_lock.operation()?;
         let Some(dir) = self.database_path.parent() else {
             return Ok(false);
         };
@@ -258,30 +244,16 @@ impl AppService {
         }
         let marker = read_restore_marker(&marker_path)?;
         validate_restore_marker(&marker)?;
-        if marker.phase != RestorePhase::Staged {
+        if !matches!(
+            marker.phase,
+            RestorePhase::Staged | RestorePhase::Cancelling
+        ) {
             return Err(AppError::new(
                 ErrorCode::ValidationInvalidInput,
                 "this restore is already being recovered and cannot be cancelled",
             ));
         }
-        let pending_account = vault_pending_key_account(&self.database_path, &marker.generation);
-        let rollback_account = vault_rollback_key_account(&self.database_path, &marker.generation);
-        // Remove credentials first. If either keychain operation fails, the
-        // marker remains and the next launch can retry without losing the
-        // association between the generation and its key.
-        self.secrets.delete(&pending_account)?;
-        self.secrets.delete(&rollback_account)?;
-        for file in [&marker.candidate_file, &marker.rollback_file] {
-            let path = dir.join(file);
-            match fs::remove_file(&path) {
-                Ok(()) => {}
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                Err(error) => return Err(storage_error(error)),
-            }
-            remove_sqlite_sidecars(&path);
-        }
-        fs::remove_file(&marker_path).map_err(storage_error)?;
-        sync_directory(dir)?;
+        cancel_restore(self.secrets.as_ref(), &self.database_path, &marker)?;
         Ok(true)
     }
 
@@ -291,6 +263,8 @@ impl AppService {
     /// affordance — backups outlive deleted trips, so the user needs a way to
     /// erase them.
     pub fn clear_backups(&self) -> Result<usize, AppError> {
+        let _operation = self._workspace_lock.operation()?;
+        require_direct_restore_path(&self.database_path)?;
         let backups_dir = self
             .database_path
             .parent()
@@ -304,18 +278,13 @@ impl AppService {
         if !backups_dir.exists() {
             return Ok(0);
         }
-        let mut removed = 0;
-        for entry in fs::read_dir(&backups_dir).map_err(storage_error)? {
-            let entry = entry.map_err(storage_error)?;
-            let name = entry.file_name();
-            let name = name.to_string_lossy();
-            if has_backup_snapshot_prefix(&name)
-                && fs::remove_file(entry.path()).is_ok()
-                && name.ends_with(".sqlite3")
-            {
-                removed += 1;
-            }
-        }
-        Ok(removed)
+        let connection = self.connection()?;
+        backup_recovery::adopt(
+            &self.database_path,
+            self.secrets.as_ref(),
+            self.vault.active_data_key(),
+            read_vault_wrap(&connection)?.as_ref(),
+        )?;
+        backup_recovery::prune(&self.database_path, self.secrets.as_ref(), 0)
     }
 }
