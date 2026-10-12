@@ -13,15 +13,29 @@ silently become traveler-approved truth**.
 The UI depends on the versioned `AppGateway` contract, not on a transport. At
 startup it selects exactly one implementation:
 
-| Runtime                      | Transport                               | Boundary                     | Security posture                                          |
-| ---------------------------- | --------------------------------------- | ---------------------------- | --------------------------------------------------------- |
-| Browser development          | same-origin JSON through the Vite proxy | Axum on `127.0.0.1:8787`     | loopback bind, Vite-only CORS, Host and Origin validation |
-| Tauri desktop                | typed `invoke` commands                 | direct IPC into `AppService` | no Axum dependency and no TCP listener in release builds  |
-| Component and contract tests | in-memory mock gateway                  | frozen TypeScript contract   | deterministic fixtures; no storage, keychain, or network  |
+| Runtime                      | Transport                                 | Boundary                           | Security posture                                                   |
+| ---------------------------- | ----------------------------------------- | ---------------------------------- | ------------------------------------------------------------------ |
+| Browser from source          | direct JSON from managed Chromium to Axum | kernel-selected `127.0.0.1:0` bind | per-launch bearer, loopback bind, CORS, Host and Origin validation |
+| Tauri desktop                | typed `invoke` commands                   | direct IPC into `AppService`       | no Axum dependency and no TCP listener in release builds           |
+| Component and contract tests | in-memory mock gateway                    | frozen TypeScript contract         | deterministic fixtures; no storage, keychain, or network           |
 
-Both production paths use camelCase wire types and the same serialized
+Both live paths use camelCase wire types and the same serialized
 `AppError` shape. A capability is not complete until its contract, Rust service,
 Axum route, Tauri command, gateway implementation, mock, and tests agree.
+
+`make dev` supports compatible macOS and Linux hosts. The launcher passes the
+credential and assigned API address through separate anonymous pipes, then
+injects an origin-scoped, in-memory bootstrap into its disposable Chromium
+session. The HTTP gateway consumes and removes that bootstrap. The credential
+does not enter arguments, environment values, files, URLs, logs, cookies, or
+browser storage. Vite serves the UI without an `/api` proxy; a manually opened
+browser has no authenticated API session. Windows source launch is unsupported;
+the packaged desktop path uses direct IPC. See [ADR-0002](ADR-0002-desktop-transport.md).
+
+This document describes source architecture. Source tests and browser development
+do not establish which changes are in a downloaded installer or verify its
+installed webview, packaging, or OS publisher identity. Those require checks
+against the exact release artifact.
 
 ## Layer ownership
 
@@ -34,6 +48,10 @@ Axum route, Tauri command, gateway implementation, mock, and tests agree.
 - Owns interaction and accessibility, not travel-rule authority.
 - Owns the words. The core reports findings and counts; `app/i18n` turns those
   into sentences, and pluralizes them through `Intl.PluralRules`.
+- Provides English and Spanish catalogs for catalog-backed views. Coverage is
+  partial: the concierge cockpit uses English copy and marks that region
+  `lang="en"`; some trip-idea controls also retain English. Matching catalog keys
+  do not prove complete screen translation. Full localization remains deferred.
 - Reads and writes through `app/useAsync`: `useAsyncData` for a load,
   `useAsyncAction` for a mutation. Errors normalize once, so a view never casts
   a caught value it did not check.
@@ -41,6 +59,11 @@ Axum route, Tauri command, gateway implementation, mock, and tests agree.
   mutation revalidates the scopes it changed, and only views reading those
   re-fetch.
 - Makes the consent-gated map-tile request only after **Show map** is selected.
+- Sends an explicit device-local calendar date for Today. Visible midnight,
+  resume, focus, and clock/zone changes refresh that local projection; retained
+  previous-day rows stay hidden while the current date loads or fails. Floating
+  event dates remain as authored, without destination-zone inference
+  ([ADR-0028](ADR-0028-today-uses-the-device-calendar-date.md)).
 
 ### `apps/desktop/src-tauri` — native shell
 
@@ -62,6 +85,9 @@ Axum route, Tauri command, gateway implementation, mock, and tests agree.
 - Seals raw source content and sensitive confirmed-fact payloads at rest when a
   recoverable data key is available. An optional passphrase wraps that key;
   legacy plaintext and sealed records can coexist during migration.
+- Binds local safety snapshots to surviving matching credentials. Snapshot
+  recovery authenticates the selected copy and never invents a replacement key
+  for encrypted historical rows ([ADR-0026](ADR-0026-local-snapshot-credential-lifetime.md)).
 
 ### `crates/voyalier-core` — deterministic domain
 
@@ -196,14 +222,33 @@ states:
   shipped install migrates.
 - **Locked:** a passphrase wraps the data key and has not been entered for this
   process. Reads and writes that need sealed content fail closed.
-- **Inactive:** no recoverable key store exists, such as a keychain-less CI
-  environment. The app remains testable and does not encrypt with an ephemeral
-  key that would make data unrecoverable.
+- **Inactive:** unavailable secret storage can leave the vault without a key or
+  passphrase. Legacy sensitive fields retain the existing plaintext fallback;
+  PDF/image imports require a recoverable active key. Existing sealed data still
+  needs its matching key or protected wrap and may be unreadable when those are
+  unavailable.
 
 Database migrations are fixture-backed: a legacy-shaped database is migrated in a
-test and checked for ordering and row survival. Key changes, backup, deletion,
-and legacy-record handling still need the same treatment before the signed public
-beta.
+test and checked for ordering and row survival. Active transitions seal fallback
+columns through the shared record declaration, including unlock and direct
+passphrase removal. A failed transition retains protected recovery evidence.
+Local safety copies keep exact historical SQLite bytes: adding a passphrase
+protects retained data keys but cannot retroactively encrypt plaintext already
+in an old file. Automatic retention refuses to discard an unavailable historical
+copy; explicit Clear backups removes owned copies after validating their recorded
+hashes. Portable encrypted exports remain the movable backup format.
+
+An OS file lock owns cross-process workspace custody before recovery, migration,
+or credential changes. Same-process service connections share custody while
+SQLite owns their transaction concurrency. Pending restore activation requires
+sibling handles to close, and a busy WAL checkpoint refuses replacement
+([ADR-0030](ADR-0030-workspace-process-custody.md)). A staged cancellation remains
+retryable after interruption; an activated generation must complete or roll back
+before its safety evidence can be discarded.
+
+Source fixtures exercise recovery and transition failures with synthetic secrets
+and disposable workspaces. They do not establish real-keychain, OS-protected
+installer, or installed-webview acceptance.
 
 ## Network inventory
 
@@ -246,9 +291,11 @@ aggregation, background scraping, or silent document upload.
 
 ## Current limitations
 
-- Browser development still uses a fixed `127.0.0.1:8787` port. A random port
-  plus per-launch token remains defense-in-depth work if browser mode becomes a
-  distributed product surface.
+- Browser source mode requires the managed Chromium launch on a compatible Unix
+  host. Arbitrary browser tabs do not receive its per-launch credential, and
+  this development route is separate from the packaged desktop app.
+- English/Spanish screen coverage is partial. The English concierge language
+  annotation helps assistive technology; it does not translate that surface.
 - In-app updates ship signature verification (minisign), per-platform checksums,
   and SLSA build provenance; the packaged app is not yet OS code-signed (Apple
   notarization / Windows Authenticode), so the first manual install uses the
@@ -275,6 +322,20 @@ Related decisions, in order:
 - [ADR-0012](ADR-0012-the-route-manifest-declares-its-payloads.md) — the manifest declares its payloads
 - [ADR-0013](ADR-0013-city-pack-selection-preserves-source-confidence.md) — pack selection preserves source confidence
 - [ADR-0015](ADR-0015-the-workspace-answers-the-back-button.md) — the workspace answers the Back button
+- [ADR-0016](ADR-0016-the-itinerary-is-multi-modal-and-its-fragility-is-advisory.md) — multi-modal itinerary and advisory fragility
 - [ADR-0017](ADR-0017-the-vault-key-belongs-to-its-database.md) — the vault key belongs to its database
+- [ADR-0018](ADR-0018-a-decryption-failure-is-not-a-storage-failure.md) — decryption failures preserve their recovery boundary
+- [ADR-0019](ADR-0019-trip-creation-has-one-validation-path.md) — one trip-creation validation path
+- [ADR-0020](ADR-0020-itinerary-projections-have-local-lineage.md) — projections retain local lineage
+- [ADR-0021](ADR-0021-restore-generations-are-recoverable.md) — recoverable restore generations
+- [ADR-0022](ADR-0022-updater-settings-have-a-closed-schema.md) — closed updater settings
+- [ADR-0023](ADR-0023-journey-requests-share-wire-fixtures.md) — shared journey wire fixtures
+- [ADR-0024](ADR-0024-concierge-state-and-provider-handoffs.md) — concierge state and qualified handoffs
+- [ADR-0025](ADR-0025-structured-pii-keeps-the-plaintext-fallback.md) — structured PII and the legacy plaintext boundary
+- [ADR-0026](ADR-0026-local-snapshot-credential-lifetime.md) — local snapshot credentials outlive their snapshots
+- [ADR-0027](ADR-0027-concierge-saves-require-current-revisions.md) — concierge saves require current revisions
+- [ADR-0028](ADR-0028-today-uses-the-device-calendar-date.md) — Today uses the device calendar date
+- [ADR-0029](ADR-0029-assist-dispatch-is-bound-to-preview.md) — assist dispatch is bound to preview
+- [ADR-0030](ADR-0030-workspace-process-custody.md) — workspace process custody precedes recovery
 
 Plus [map architecture](MAPS.md).

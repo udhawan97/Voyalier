@@ -19,15 +19,28 @@ The React app depends on the versioned `AppGateway` contract. It selects a
 transport from the runtime instead of making product views aware of HTTP or
 native IPC.
 
-| Runtime             | Path                                                        | Important boundary                                            |
-| ------------------- | ----------------------------------------------------------- | ------------------------------------------------------------- |
-| Browser development | React → same-origin Vite proxy → Axum on `127.0.0.1:8787`   | Vite-only CORS plus Host and Origin validation                |
-| Tauri desktop       | React → typed `invoke` → thin native command → `AppService` | direct IPC; the release app starts no TCP listener            |
-| Tests               | React → in-memory mock gateway                              | deterministic fixtures with no network, keychain, or database |
+| Runtime             | Path                                                                     | Important boundary                                            |
+| ------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| Browser from source | Managed Chromium → direct JSON → Axum on a kernel-selected loopback port | Per-launch bearer, CORS, Host and Origin validation           |
+| Tauri desktop       | React → typed `invoke` → thin native command → `AppService`              | direct IPC; the release app starts no TCP listener            |
+| Tests               | React → in-memory mock gateway                                           | deterministic fixtures with no network, keychain, or database |
 
 Both live paths serialize the same camelCase types and the same `AppError`
 shape. New features land across the TypeScript contract, Rust wire type,
 application service, both transports, mock, and tests as one compatible change.
+
+On compatible macOS and Linux hosts, `make dev` opens a disposable managed
+Chromium session. Separate anonymous pipes carry the launch credential and
+assigned API address; an origin-scoped in-memory bootstrap gives that session
+access before the UI runs. The credential stays out of command arguments,
+environment values, files, URLs, logs, cookies, and browser storage. Vite serves
+the UI without an `/api` proxy. An arbitrary browser tab receives no API
+credential. Windows users use the packaged desktop route, whose release app
+starts no TCP listener.
+
+These are source architecture claims. Verifying a downloaded installer requires
+the exact release artifact and installed application; source or development
+browser checks do not establish installed-webview behavior.
 
 ## Ownership by layer
 
@@ -167,8 +180,20 @@ aggregation, background scraping, or silent document upload.
 
 ## Current limits
 
-- Browser development uses a fixed loopback port; a per-launch token and random
-  port remain defense-in-depth work if browser mode becomes distributable.
+- Unavailable secret storage retains the legacy plaintext fallback for sensitive
+  records; PDF/image imports require an active recoverable key. Sealed records
+  still need their matching key or protected wrap. Local safety copies preserve
+  historical bytes, so adding a passphrase cannot retroactively encrypt any
+  plaintext already in an old copy. Automatic retention preserves unavailable
+  historical copies; explicit Clear backups removes owned copies after checking
+  their recorded hashes. Portable encrypted exports provide the movable backup
+  format.
+- The browser source route requires managed Chromium on a compatible Unix host;
+  manually opened browsers do not inherit its API credential.
+- English and Spanish catalogs cover catalog-backed views, while the concierge
+  cockpit and some trip-idea controls remain English. The concierge region has
+  an English language annotation for assistive technology. Full localization
+  remains deferred.
 - OS-signed and notarized installers still depend on paid platform certificates.
   The separate minisign-verified updater, checksums, and build provenance have
   shipped, and releases carry packaged macOS and Windows assets — but until those

@@ -53,13 +53,23 @@ At the top of an active trip, an offline **Today** summary shows where the trip
 stands right now: its phase (upcoming, active, or completed, with day counts),
 today's departures, arrivals, check-ins, and clearly separate traveler-authored
 plans, plus the next anchor coming up. It is computed from local records against
-the current date — no network, no model.
+the device's local calendar date — no network, no model. It refreshes across
+local midnight and when the visible app resumes or receives focus. Clock and
+time-zone changes are checked while visible; unchanged dates do not trigger a
+new projection request. The previous day's rows stay hidden during refresh or
+failure, with retry available after a failure. A floating event date remains
+exactly as entered; this does not infer the destination's current calendar date.
 
 Each row and the next anchor offers **Show in Plan**. A confirmed departure,
 arrival, or stay opens its exact fact; a traveler-authored activity or transfer
 opens its exact plan row. The target stays in entry-scoped memory rather than the
 URL. If the record was removed before the action completes, Voyalier opens Plan
 and says the exact item is no longer available.
+
+Rows with source identity carry **Confirmed evidence** or **Your plan**, including
+the next anchor. A plan label records the traveler's intention; it does not
+establish a reservation. Older responses without source identity remain readable
+without a guessed evidence label.
 
 ![The current-source Voyalier fictional Kyoto workspace on day two, with a populated Today schedule and Show in Plan actions.](/Voyalier/assets/screenshots/voyalier-trip-workspace.jpg)
 
