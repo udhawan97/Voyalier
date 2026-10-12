@@ -1,0 +1,42 @@
+{
+  "setConciergeProfile": {
+    "command": "set_concierge_profile",
+    "args": {
+      "input": {
+        "tripId": "trip_fixture",
+        "revision": "concierge_revision_fixture",
+        "preferences": {
+          "partySize": 1,
+          "pace": "slow",
+          "carPreference": "unset",
+          "baseCurrency": "USD",
+          "budgetIsPerPerson": false
+        },
+        "travelers": [],
+        "taskProgress": [],
+        "costs": [],
+        "walletLinks": [],
+        "providerHandoffs": []
+      }
+    }
+  },
+  "getToday": {
+    "command": "get_today",
+    "args": {
+      "input": {
+        "tripId": "trip_fixture",
+        "referenceDate": "2026-10-07"
+      }
+    }
+  },
+  "runAssist": {
+    "command": "run_assist",
+    "args": {
+      "input": {
+        "tripId": "trip_fixture",
+        "provider": "ollama",
+        "approvalToken": "approval_fixture"
+      }
+    }
+  }
+}

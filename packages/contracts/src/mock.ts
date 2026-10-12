@@ -3867,6 +3867,9 @@ export function createMockGateway(options?: {
   const providerModels = new Map<ProviderId, string>();
   // User overrides for AI instructions; absent means "use the default".
   const aiPromptOverrides = new Map<AiPromptKind, string>();
+  // Opaque identities for deterministic preview contents; no credential values.
+  // This is only mock bookkeeping, not a production approval cache.
+  const assistApprovals = new Map<string, string>();
 
   function effectiveAiPrompt(kind: AiPromptKind): string {
     return aiPromptOverrides.get(kind) ?? mockAiPromptDefault(kind);
@@ -3975,6 +3978,77 @@ export function createMockGateway(options?: {
     const id = `${prefix}_mock_${String(sequence).padStart(4, "0")}`;
     sequence += 1;
     return id;
+  }
+
+  function writeConciergeProfile(profile: ConciergeProfile): ConciergeProfile {
+    const saved = { ...clone(profile), revision: nextId("concierge_revision") };
+    conciergeProfiles.set(profile.tripId, saved);
+    return saved;
+  }
+
+  function assistDefaultModel(provider: ProviderId): string {
+    return provider === "openai"
+      ? "gpt-4o-mini"
+      : provider === "anthropic"
+        ? "claude-3-5-haiku-latest"
+        : "llama3.2";
+  }
+
+  function buildAssistPreview(
+    tripId: string,
+    provider: ProviderId,
+  ): AssistRequestPreview {
+    const trip = requireTrip(tripId);
+    const info = MOCK_PROVIDERS.find((entry) => entry.id === provider);
+    if (!info)
+      throw appError("validation/invalid_input", "unknown provider", {
+        field: "provider",
+      });
+    const tripFacts = [...facts.values()].filter(
+      (fact) => fact.tripId === tripId,
+    );
+    const brief = mockBuildShareBrief(trip, tripFacts, [], FIXTURE_TIME);
+    const model = providerModels.get(provider);
+    const groundedIn: string[] = [];
+    if (brief.flights.length > 0)
+      groundedIn.push(
+        `${brief.flights.length} confirmed ${brief.flights.length === 1 ? "flight" : "flights"}`,
+      );
+    if (brief.stays.length > 0)
+      groundedIn.push(
+        `${brief.stays.length} confirmed ${brief.stays.length === 1 ? "stay" : "stays"}`,
+      );
+    const userContent = formatAssistItinerary(brief);
+    const systemPrompt = effectiveAiPrompt("assist");
+    return {
+      provider,
+      providerLabel: info.label,
+      ...(model ? { model } : {}),
+      endpoint: assistEndpoint(provider),
+      leavesDevice: provider !== "ollama",
+      systemPrompt,
+      userContent,
+      withheld: [...brief.redactedFields, "Imported document text"],
+      groundedIn,
+      estimatedTokens:
+        Math.floor((countChars(systemPrompt) + countChars(userContent)) / 4) +
+        1,
+    };
+  }
+
+  function assistIdentity(
+    tripId: string,
+    preview: AssistRequestPreview,
+  ): string {
+    return JSON.stringify([
+      "assist-v1",
+      tripId,
+      preview.provider,
+      preview.endpoint,
+      preview.model ?? assistDefaultModel(preview.provider),
+      preview.systemPrompt,
+      preview.userContent,
+    ]);
   }
 
   function readVisaPrep(tripId: string): VisaPrep {
@@ -4214,7 +4288,7 @@ export function createMockGateway(options?: {
         profile.preferences.partySize = draft.partySize;
         profile.preferences.selectedArea = draft.selectedArea;
         profile.updatedAt = now;
-        conciergeProfiles.set(trip.id, profile);
+        writeConciergeProfile(profile);
         tripIntents.delete(draft.id);
         return clone(trip);
       }),
@@ -4411,6 +4485,33 @@ export function createMockGateway(options?: {
     setConciergeProfile: (input: ConciergeProfile) =>
       execute("setConciergeProfile", () => {
         const trip = requireTrip(input.tripId);
+        const current = conciergeProfiles.get(input.tripId);
+        if (
+          current
+            ? !input.revision || input.revision !== current.revision
+            : input.revision !== undefined
+        ) {
+          throw appError(
+            "validation/invalid_input",
+            "The saved profile changed. Reload it and review your draft before saving again.",
+            {
+              field: "revision",
+              reason: input.revision
+                ? "profile_changed"
+                : "profile_revision_required",
+            },
+          );
+        }
+        if (
+          input.revision !== undefined &&
+          !/^[A-Za-z0-9_-]{1,128}$/.test(input.revision)
+        ) {
+          throw appError(
+            "validation/invalid_input",
+            "invalid profile revision",
+            { field: "revision" },
+          );
+        }
         if (
           input.preferences.partySize < 1 ||
           input.preferences.partySize > 20 ||
@@ -4421,8 +4522,34 @@ export function createMockGateway(options?: {
             "The concierge party context is invalid",
           );
         }
-        const saved = { ...clone(input), updatedAt: timestamp() };
-        conciergeProfiles.set(input.tripId, saved);
+        for (const link of input.walletLinks) {
+          if (
+            link.sourceDocumentId &&
+            documents.get(link.sourceDocumentId)?.document.tripId !==
+              input.tripId
+          ) {
+            throw appError(
+              "validation/invalid_input",
+              "wallet links can only reference documents imported into this trip",
+              { field: "walletLink.sourceDocumentId" },
+            );
+          }
+          if (
+            link.sourceAttachmentId &&
+            attachments.get(link.sourceAttachmentId)?.attachment.tripId !==
+              input.tripId
+          ) {
+            throw appError(
+              "validation/invalid_input",
+              "wallet links can only reference attachments imported into this trip",
+              { field: "walletLink.sourceAttachmentId" },
+            );
+          }
+        }
+        const saved = writeConciergeProfile({
+          ...clone(input),
+          updatedAt: timestamp(),
+        });
         return mockConciergeWorkspace(
           trip,
           saved,
@@ -4460,6 +4587,16 @@ export function createMockGateway(options?: {
           updatedAt: timestamp(),
         };
         trips.set(tripId, updated);
+        if (
+          origin !== existing.origin ||
+          destination !== existing.destination ||
+          startDate !== existing.startDate ||
+          endDate !== existing.endDate
+        ) {
+          const profile = conciergeProfiles.get(tripId);
+          if (profile)
+            writeConciergeProfile({ ...profile, updatedAt: updated.updatedAt });
+        }
         if (
           destination !== existing.destination ||
           startDate !== existing.startDate ||
@@ -4957,8 +5094,15 @@ export function createMockGateway(options?: {
         return mockBuildShareBrief(trip, tripFacts, manualItems, timestamp());
       }),
 
-    getToday: (tripId: string) =>
+    getToday: (tripId: string, referenceDate?: string) =>
       execute("getToday", () => {
+        if (referenceDate !== undefined && !isValidDate(referenceDate)) {
+          throw appError(
+            "validation/invalid_input",
+            "referenceDate must be a real calendar date in YYYY-MM-DD format",
+            { field: "referenceDate" },
+          );
+        }
         const trip = requireTrip(tripId);
         const tripFacts = [...facts.values()].filter(
           (fact) => fact.tripId === tripId,
@@ -4971,7 +5115,7 @@ export function createMockGateway(options?: {
           trip,
           tripFacts,
           manualItems,
-          FIXTURE_TIME.slice(0, 10),
+          referenceDate ?? FIXTURE_TIME.slice(0, 10),
         );
       }),
 
@@ -5149,48 +5293,15 @@ export function createMockGateway(options?: {
 
     previewAssist: (tripId: string, provider: ProviderId) =>
       execute("previewAssist", () => {
-        const trip = requireTrip(tripId);
-        const info = MOCK_PROVIDERS.find((entry) => entry.id === provider);
-        if (!info) {
-          throw appError("validation/invalid_input", "unknown provider", {
-            field: "provider",
-          });
-        }
-        const tripFacts = [...facts.values()].filter(
-          (fact) => fact.tripId === tripId,
-        );
-        const brief = mockBuildShareBrief(trip, tripFacts, [], timestamp());
-        const model = providerModels.get(provider);
-        const groundedIn: string[] = [];
-        if (brief.flights.length > 0) {
-          groundedIn.push(
-            `${brief.flights.length} confirmed ${brief.flights.length === 1 ? "flight" : "flights"}`,
-          );
-        }
-        if (brief.stays.length > 0) {
-          groundedIn.push(
-            `${brief.stays.length} confirmed ${brief.stays.length === 1 ? "stay" : "stays"}`,
-          );
-        }
-        const userContent = formatAssistItinerary(brief);
-        const preview: AssistRequestPreview = {
-          provider,
-          providerLabel: info.label,
-          endpoint: assistEndpoint(provider),
-          leavesDevice: provider !== "ollama",
-          systemPrompt: ASSIST_SYSTEM_PROMPT,
-          userContent,
-          withheld: [...brief.redactedFields, "Imported document text"],
-          groundedIn,
-          estimatedTokens:
-            Math.floor(
-              ([...ASSIST_SYSTEM_PROMPT].length + [...userContent].length) / 4,
-            ) + 1,
-        };
-        return model ? { ...preview, model } : preview;
+        const preview = buildAssistPreview(tripId, provider);
+        const identity = assistIdentity(tripId, preview);
+        const approvalToken =
+          assistApprovals.get(identity) ?? nextId("approval");
+        assistApprovals.set(identity, approvalToken);
+        return { ...preview, approvalToken };
       }),
 
-    runAssist: (tripId: string, provider: ProviderId) =>
+    runAssist: (tripId: string, provider: ProviderId, approvalToken: string) =>
       execute("runAssist", () => {
         const trip = requireTrip(tripId);
         const info = MOCK_PROVIDERS.find((entry) => entry.id === provider);
@@ -5198,6 +5309,27 @@ export function createMockGateway(options?: {
           throw appError("validation/invalid_input", "unknown provider", {
             field: "provider",
           });
+        }
+        if (
+          !approvalToken ||
+          countChars(approvalToken) > 128 ||
+          !/^[A-Za-z0-9_-]+$/.test(approvalToken)
+        ) {
+          throw appError(
+            "validation/invalid_input",
+            "Preview this request before sending it.",
+            { field: "approvalToken", reason: "assist_approval_required" },
+          );
+        }
+        const preview = buildAssistPreview(tripId, provider);
+        if (
+          assistApprovals.get(assistIdentity(tripId, preview)) !== approvalToken
+        ) {
+          throw appError(
+            "validation/invalid_input",
+            "The request changed. Refresh the preview and review it before sending.",
+            { field: "approvalToken", reason: "assist_preview_changed" },
+          );
         }
         // Cloud providers need a stored key first (mirrors the real gateway).
         if (info.keyRequired && !providerKeys.has(provider)) {
@@ -5208,13 +5340,7 @@ export function createMockGateway(options?: {
           );
         }
         // Deterministic canned reply — the mock runs no model.
-        const fallback =
-          provider === "openai"
-            ? "gpt-4o-mini"
-            : provider === "anthropic"
-              ? "claude-3-5-haiku-latest"
-              : "llama3.2";
-        const model = providerModels.get(provider) ?? fallback;
+        const model = preview.model ?? assistDefaultModel(provider);
         assistActivity.push({
           id: nextId("act"),
           tripId,
@@ -6424,8 +6550,12 @@ export function createMockGateway(options?: {
           );
         }
         const profile = conciergeProfiles.get(stored.attachment.tripId);
-        if (profile) {
-          conciergeProfiles.set(profile.tripId, {
+        if (
+          profile?.walletLinks.some(
+            (link) => link.sourceAttachmentId === attachmentId,
+          )
+        ) {
+          writeConciergeProfile({
             ...profile,
             walletLinks: profile.walletLinks.map((link) =>
               link.sourceAttachmentId === attachmentId
@@ -6509,6 +6639,22 @@ export function createMockGateway(options?: {
             "document/not_found",
             "That document no longer exists",
           );
+        }
+        const profile = conciergeProfiles.get(stored.document.tripId);
+        if (
+          profile?.walletLinks.some(
+            (link) => link.sourceDocumentId === documentId,
+          )
+        ) {
+          writeConciergeProfile({
+            ...profile,
+            walletLinks: profile.walletLinks.map((link) =>
+              link.sourceDocumentId === documentId
+                ? { ...link, sourceDocumentId: undefined }
+                : link,
+            ),
+            updatedAt: timestamp(),
+          });
         }
         // Same cascade the Rust core applies: pending candidates go with the
         // body they came from; confirmed facts stay but lose their evidence.

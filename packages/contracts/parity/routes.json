@@ -176,10 +176,13 @@
       "command": "get_today",
       "payload": {
         "command": [
-          "tripId"
+          "tripId",
+          "referenceDate"
         ],
         "body": null,
-        "query": []
+        "query": [
+          "referenceDate"
+        ]
       }
     },
     {
@@ -366,10 +369,12 @@
       "payload": {
         "command": [
           "tripId",
-          "provider"
+          "provider",
+          "approvalToken"
         ],
         "body": [
-          "provider"
+          "provider",
+          "approvalToken"
         ],
         "query": []
       }
