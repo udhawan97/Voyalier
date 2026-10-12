@@ -9,7 +9,14 @@ import { renderApp } from "./test/helpers";
  * fixed "today" places the Kyoto trip in the future.
  */
 describe("Today panel", () => {
-  afterEach(() => setLocalePreference("en"));
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 6, 10, 12));
+  });
+  afterEach(() => {
+    setLocalePreference("en");
+    vi.useRealTimers();
+  });
 
   it("shows the trip phase and the next upcoming anchor", async () => {
     renderApp(createMockGateway());
@@ -30,6 +37,8 @@ describe("Today panel", () => {
     // The next anchor is the outbound flight departure.
     expect(within(today).getByText("Next")).toBeInTheDocument();
     expect(within(today).getByText(/Depart —.*FP18/)).toBeInTheDocument();
+    expect(within(today).getByText("Confirmed evidence")).toBeInTheDocument();
+    expect(within(today).queryByText("Your plan")).not.toBeInTheDocument();
 
     fireEvent.click(
       within(today).getByRole("button", {
@@ -62,6 +71,7 @@ describe("Today panel", () => {
     );
 
     const today = await screen.findByRole("region", { name: "Today" });
+    expect(within(today).getByText("Your plan")).toBeInTheDocument();
     fireEvent.click(
       within(today).getByRole("button", {
         name: "Show in Plan: Choose tea bowls · 10:00 AM",
@@ -80,8 +90,8 @@ describe("Today panel", () => {
     const base = createMockGateway();
     const gateway = {
       ...base,
-      getToday: async (tripId: string) => {
-        const view = await base.getToday(tripId);
+      getToday: async (tripId: string, referenceDate?: string) => {
+        const view = await base.getToday(tripId, referenceDate);
         const withoutTarget = (item: (typeof view.today)[number]) => {
           const olderItem = { ...item };
           delete olderItem.target;
@@ -104,14 +114,71 @@ describe("Today panel", () => {
     expect(
       within(today).queryByRole("button", { name: /Show in Plan/ }),
     ).not.toBeInTheDocument();
+    expect(
+      within(today).queryByText("Confirmed evidence"),
+    ).not.toBeInTheDocument();
   });
+
+  it.each(["en", "es"] as const)(
+    "labels same-title evidence and plans independently in %s",
+    async (locale) => {
+      setLocalePreference(locale);
+      const base = createMockGateway();
+      const gateway = {
+        ...base,
+        getToday: async (tripId: string, referenceDate?: string) => {
+          const view = await base.getToday(tripId, referenceDate);
+          return {
+            ...view,
+            next: undefined,
+            today: [
+              {
+                kind: "activity" as const,
+                title: "Shared title",
+                date: view.referenceDate,
+                target: { source: "confirmed_fact" as const, recordId: "fact" },
+              },
+              {
+                kind: "activity" as const,
+                title: "Shared title",
+                date: view.referenceDate,
+                target: { source: "trip_item" as const, recordId: "plan" },
+              },
+            ],
+          };
+        },
+      };
+      renderApp(gateway);
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name:
+            locale === "en"
+              ? "Open Kyoto autumn journey"
+              : "Abrir Kyoto autumn journey",
+        }),
+      );
+      const today = await screen.findByRole("region", {
+        name: locale === "en" ? "Today" : "Hoy",
+      });
+      const rows = within(today).getAllByRole("listitem");
+      expect(
+        within(rows[0]).getByText(
+          locale === "en" ? "Confirmed evidence" : "Evidencia confirmada",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        within(rows[1]).getByText(locale === "en" ? "Your plan" : "Tu plan"),
+      ).toBeInTheDocument();
+      expect(within(today).getAllByText("Shared title")).toHaveLength(2);
+    },
+  );
 
   it("falls back to the owning section when a projected record disappeared", async () => {
     const base = createMockGateway();
     const gateway = {
       ...base,
-      getToday: async (tripId: string) => {
-        const view = await base.getToday(tripId);
+      getToday: async (tripId: string, referenceDate?: string) => {
+        const view = await base.getToday(tripId, referenceDate);
         return view.next
           ? {
               ...view,
@@ -160,6 +227,7 @@ describe("Today panel", () => {
 
     const today = await screen.findByRole("region", { name: "Hoy" });
     expect(within(today).getByText(/Salida —.*FP18/)).toBeInTheDocument();
+    expect(within(today).getByText("Evidencia confirmada")).toBeInTheDocument();
     expect(within(today).queryByText(/Depart —/)).not.toBeInTheDocument();
     expect(
       within(today).getByRole("button", {

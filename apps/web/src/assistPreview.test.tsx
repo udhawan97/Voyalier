@@ -1,4 +1,10 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { createMockGateway } from "@voyalier/contracts";
 
 import { setLocalePreference } from "./app/locale";
@@ -153,5 +159,171 @@ describe("AI request preview", () => {
       within(region).getByText("Texto de documentos importados"),
     ).toBeInTheDocument();
     expect(within(region).queryByText("Confirmation codes")).toBeNull();
+  });
+
+  it("retains a changed preview and requires refresh, review and a separate run click", async () => {
+    const base = createMockGateway();
+    const runAssist = vi.fn(base.runAssist);
+    renderApp({ ...base, runAssist });
+    const region = await openTrip();
+    fireEvent.click(
+      within(region).getByRole("button", { name: "Preview request" }),
+    );
+    const run = await within(region).findByRole("button", {
+      name: "Run on-device assist",
+    });
+    await base.setAiPrompt(
+      "assist",
+      "Synthetic changed instruction for renewed review",
+    );
+    fireEvent.click(run);
+    expect(
+      await within(region).findByText(/The request changed.*Nothing was sent/),
+    ).toBeInTheDocument();
+    expect(
+      within(region).getByText(/You are a careful travel-planning assistant/),
+    ).toBeInTheDocument();
+    expect(run).toBeDisabled();
+    expect(await base.listAssistActivity("trip_kyoto")).toEqual([]);
+    fireEvent.click(
+      within(region).getByRole("button", { name: "Refresh preview" }),
+    );
+    expect(
+      await within(region).findByText(
+        "Synthetic changed instruction for renewed review",
+      ),
+    ).toBeInTheDocument();
+    expect(runAssist).toHaveBeenCalledTimes(1);
+    fireEvent.click(
+      within(region).getByRole("button", { name: "Run on-device assist" }),
+    );
+    await waitFor(async () =>
+      expect(await base.listAssistActivity("trip_kyoto")).toHaveLength(1),
+    );
+    expect(runAssist).toHaveBeenCalledTimes(2);
+  });
+
+  it("invalidates displayed consent when the provider changes", async () => {
+    const base = createMockGateway();
+    const runAssist = vi.fn(base.runAssist);
+    renderApp({ ...base, runAssist });
+    const region = await openTrip();
+    fireEvent.click(
+      within(region).getByRole("button", { name: "Preview request" }),
+    );
+    await within(region).findByRole("button", { name: "Run on-device assist" });
+    fireEvent.change(within(region).getByLabelText("Provider to preview"), {
+      target: { value: "openai" },
+    });
+    expect(
+      within(region).queryByRole("button", { name: "Run on-device assist" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(region).queryByRole("button", { name: "Send to OpenAI" }),
+    ).not.toBeInTheDocument();
+    expect(runAssist).not.toHaveBeenCalled();
+  });
+
+  it("prevents sends during refresh and synchronously owns repeated send clicks", async () => {
+    const base = createMockGateway();
+    let delay = false;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const runAssist = vi.fn(base.runAssist);
+    renderApp({
+      ...base,
+      runAssist,
+      previewAssist: async (tripId, provider) => {
+        const preview = await base.previewAssist(tripId, provider);
+        if (delay) await gate;
+        return preview;
+      },
+    });
+    const region = await openTrip();
+    fireEvent.click(
+      within(region).getByRole("button", { name: "Preview request" }),
+    );
+    const run = await within(region).findByRole("button", {
+      name: "Run on-device assist",
+    });
+    delay = true;
+    fireEvent.click(
+      within(region).getByRole("button", { name: "Preview request" }),
+    );
+    expect(run).toBeDisabled();
+    expect(within(region).getByLabelText("Provider to preview")).toBeDisabled();
+    fireEvent.click(run);
+    expect(runAssist).not.toHaveBeenCalled();
+    await act(async () => {
+      release();
+      await gate;
+    });
+    await waitFor(() => expect(run).toBeEnabled());
+    act(() => {
+      run.click();
+      run.click();
+    });
+    expect(runAssist).toHaveBeenCalledTimes(1);
+    await waitFor(async () =>
+      expect(await base.listAssistActivity("trip_kyoto")).toHaveLength(1),
+    );
+  });
+
+  it("does not install a delayed departed-trip preview in the newly opened trip", async () => {
+    const base = createMockGateway();
+    await base.createTrip({
+      title: "Other consent trip",
+      origin: "Paris",
+      destination: "Tokyo",
+      startDate: "2027-01-01",
+      endDate: "2027-01-07",
+    });
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    renderApp({
+      ...base,
+      previewAssist: async (tripId, provider) => {
+        const preview = await base.previewAssist(tripId, provider);
+        if (tripId === "trip_kyoto") await gate;
+        return preview;
+      },
+    });
+    const oldRegion = await openTrip();
+    fireEvent.click(
+      within(oldRegion).getByRole("button", { name: "Preview request" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Voyalier — all trips" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Other consent trip" }),
+    );
+    await screen.findByRole("heading", {
+      name: "Other consent trip",
+      level: 1,
+    });
+    const region = await screen.findByRole("region", {
+      name: "Preview an AI request",
+    });
+    await act(async () => {
+      release();
+      await gate;
+    });
+    expect(
+      within(region).queryByRole("button", { name: "Run on-device assist" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      within(region).getByRole("button", { name: "Preview request" }),
+    );
+    expect(
+      await within(region).findByText(/Trip: Other consent trip/),
+    ).toBeInTheDocument();
+    expect(
+      within(region).queryByText(/Trip: Kyoto autumn journey/),
+    ).not.toBeInTheDocument();
   });
 });

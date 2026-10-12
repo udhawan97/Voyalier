@@ -243,8 +243,14 @@ export function createHttpGateway(
     getTripBrief: (tripId: string) =>
       request<TripBrief>(...route("getTripBrief", { tripId })),
 
-    getToday: (tripId: string) =>
-      request<TodayView>(...route("getToday", { tripId })),
+    getToday: (tripId: string, referenceDate?: string) =>
+      request<TodayView>(
+        ...route(
+          "getToday",
+          { tripId },
+          referenceDate === undefined ? {} : { referenceDate },
+        ),
+      ),
 
     getVaultStatus: () => request<VaultStatus>(...route("getVaultStatus")),
 
@@ -292,9 +298,10 @@ export function createHttpGateway(
         ...route("previewAssist", { tripId }, { provider: provider }),
       ),
 
-    runAssist: (tripId: string, provider: ProviderId) =>
+    runAssist: (tripId: string, provider: ProviderId, approvalToken: string) =>
       request<AssistReply>(...route("runAssist", { tripId }), {
         provider,
+        approvalToken,
       }),
 
     previewAssistDraft: (tripId: string, kind: AssistDraftKind) =>

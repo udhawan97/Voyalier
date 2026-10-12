@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type {
   AppError,
   AssistActivityEntry,
@@ -14,6 +14,7 @@ import { groundingLabel, withheldFieldLabel } from "../app/localizedContract";
 import { SectionTitle } from "../components/primitives";
 import { SparklesIcon } from "../components/icons";
 import { Button } from "../components/Button";
+import { toAppError } from "../gateway";
 
 /** Static labels for the picker; the authoritative label comes back on the preview. */
 const PROVIDER_OPTIONS: { id: ProviderId; labelKey: MessageKey }[] = [
@@ -36,6 +37,22 @@ export function AssistPreview({
   tripId: string;
   onOpenSettings?: () => void;
 }) {
+  return (
+    <TripAssistPreview
+      key={tripId}
+      tripId={tripId}
+      onOpenSettings={onOpenSettings}
+    />
+  );
+}
+
+function TripAssistPreview({
+  tripId,
+  onOpenSettings,
+}: {
+  tripId: string;
+  onOpenSettings?: () => void;
+}) {
   const gateway = useGateway();
   const announce = useAnnounce();
   const selectId = useId();
@@ -47,23 +64,42 @@ export function AssistPreview({
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
   const [activity, setActivity] = useState<AssistActivityEntry[]>([]);
+  const [previewChanged, setPreviewChanged] = useState(false);
+  const mounted = useRef(true);
+  const operation = useRef<"preview" | "run" | null>(null);
+  const activityRequest = useRef(0);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      activityRequest.current += 1;
+    };
+  }, []);
 
   async function refreshActivity() {
+    const request = ++activityRequest.current;
     try {
-      setActivity(await gateway.listAssistActivity(tripId));
+      const entries = await gateway.listAssistActivity(tripId);
+      if (mounted.current && request === activityRequest.current)
+        setActivity(entries);
     } catch {
       // The log is a transparency aid; a read failure must not block assist.
     }
   }
 
   async function load() {
+    if (operation.current) return;
+    operation.current = "preview";
     setError(null);
     setReply(null); // a new preview supersedes any earlier reply
     setRunError(null);
     setLoading(true);
     try {
       const result = await gateway.previewAssist(tripId, provider);
+      if (!mounted.current) return;
       setPreview(result);
+      setPreviewChanged(!result.approvalToken);
+      if (!result.approvalToken) setRunError(t("assist.previewChanged"));
       // Surface past runs now that the user is engaging with assist.
       void refreshActivity();
       announce(
@@ -74,32 +110,44 @@ export function AssistPreview({
           : t("assist.announce.previewLocal"),
       );
     } catch (caught) {
+      if (!mounted.current) return;
       setPreview(null);
       setError(describeError(caught as AppError).title);
     } finally {
-      setLoading(false);
+      operation.current = null;
+      if (mounted.current) setLoading(false);
     }
   }
 
   async function run() {
-    if (!preview) return;
+    if (!preview?.approvalToken || previewChanged || operation.current) return;
+    operation.current = "run";
     setRunError(null);
     setRunning(true);
     try {
-      const result = await gateway.runAssist(tripId, preview.provider);
+      const result = await gateway.runAssist(
+        tripId,
+        preview.provider,
+        preview.approvalToken,
+      );
+      if (!mounted.current) return;
       setReply(result);
       void refreshActivity();
       announce(t("assist.announce.finished", { model: result.model }));
     } catch (caught) {
-      setReply(null);
-      const appError = caught as AppError;
-      setRunError(
-        appError.code === "assist/unreachable"
-          ? describeError(appError).body
-          : describeError(appError).body,
-      );
+      if (!mounted.current) return;
+      const appError = toAppError(caught, "internal/unexpected");
+      if (
+        appError.details?.reason === "assist_preview_changed" ||
+        appError.details?.reason === "assist_approval_required"
+      ) {
+        setPreviewChanged(true);
+        setRunError(t("assist.previewChanged"));
+        announce(t("assist.previewChanged"));
+      } else setRunError(describeError(appError).body);
     } finally {
-      setRunning(false);
+      operation.current = null;
+      if (mounted.current) setRunning(false);
     }
   }
 
@@ -119,7 +167,16 @@ export function AssistPreview({
           id={selectId}
           className="voy-assist__select"
           value={provider}
-          onChange={(event) => setProvider(event.target.value as ProviderId)}
+          disabled={loading || running}
+          onChange={(event) => {
+            if (operation.current) return;
+            setProvider(event.target.value as ProviderId);
+            setPreview(null);
+            setReply(null);
+            setError(null);
+            setRunError(null);
+            setPreviewChanged(false);
+          }}
         >
           {PROVIDER_OPTIONS.map((option) => (
             <option key={option.id} value={option.id}>
@@ -127,8 +184,13 @@ export function AssistPreview({
             </option>
           ))}
         </select>
-        <Button variant="secondary" onClick={load} busy={loading}>
-          {t("assist.preview")}
+        <Button
+          variant="secondary"
+          onClick={load}
+          busy={loading}
+          disabled={running}
+        >
+          {t(previewChanged ? "assist.refreshPreview" : "assist.preview")}
         </Button>
       </div>
 
@@ -202,7 +264,12 @@ export function AssistPreview({
           ) : null}
 
           <div className="voy-assist__run">
-            <Button variant="primary" onClick={run} busy={running}>
+            <Button
+              variant="primary"
+              onClick={run}
+              busy={running}
+              disabled={loading || previewChanged || !preview.approvalToken}
+            >
               {preview.leavesDevice
                 ? t("assist.send", { provider: preview.providerLabel })
                 : t("assist.runLocal")}

@@ -17,7 +17,7 @@ export default defineConfig({
     },
     {
       name: "webkit",
-      testMatch: /browser-regressions\.spec\.ts/,
+      testMatch: /(?:browser-regressions|dev-review)\.spec\.ts/,
       use: { ...devices["Desktop Safari"] },
     },
   ],

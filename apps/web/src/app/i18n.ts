@@ -306,6 +306,7 @@ const en = {
     "This stay is unusually long, so the board shows only its first 400 nights. Check the confirmed dates before relying on this view.",
   "today.error":
     "Today couldn't load right now. The rest of your trip is fine.",
+  "today.loading": "Updating today’s schedule…",
 
   "localai.title": "On-device AI",
   "localai.badge.available": "Available",
@@ -1067,6 +1068,9 @@ const en = {
   "assist.provider.anthropic": "Anthropic",
   "assist.selectLabel": "Provider to preview",
   "assist.preview": "Preview request",
+  "assist.refreshPreview": "Refresh preview",
+  "assist.previewChanged":
+    "The request changed. Refresh the preview, review it, then choose Send or Run again. Nothing was sent.",
   "assist.announce.previewCloud":
     "Preview ready. This request would leave your device to {provider}.",
   "assist.announce.previewLocal":
@@ -2071,6 +2075,7 @@ const es: Record<MessageKey, string> = {
     "Esta estancia es inusualmente larga, por lo que el itinerario muestra solo las primeras 400 noches. Comprueba las fechas confirmadas antes de usar esta vista.",
   "today.error":
     "No se pudo cargar la agenda de hoy. El resto del viaje está bien.",
+  "today.loading": "Actualizando la agenda de hoy…",
   "localai.title": "IA en el dispositivo",
   "localai.badge.available": "Disponible",
   "localai.badge.notDetected": "No detectado",
@@ -2813,6 +2818,9 @@ const es: Record<MessageKey, string> = {
   "assist.provider.anthropic": "Anthropic",
   "assist.selectLabel": "Proveedor para vista previa",
   "assist.preview": "Vista previa de la solicitud",
+  "assist.refreshPreview": "Actualizar vista previa",
+  "assist.previewChanged":
+    "La solicitud cambió. Actualiza la vista previa, revísala y vuelve a elegir Enviar o Ejecutar. No se envió nada.",
   "assist.announce.previewCloud":
     "Vista previa lista. Esta solicitud saldría de tu dispositivo hacia {provider}.",
   "assist.announce.previewLocal":
