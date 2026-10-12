@@ -1,10 +1,9 @@
+use std::{env, net::SocketAddr, path::PathBuf, sync::Arc};
+
+#[cfg(unix)]
 use std::{
-    env,
     fs::{File, OpenOptions},
     io::{Read, Write},
-    net::SocketAddr,
-    path::PathBuf,
-    sync::Arc,
 };
 
 use tracing::info;
@@ -148,11 +147,14 @@ fn publish_source_address(
         Ok(())
     }
     #[cfg(not(unix))]
-    Err(std::io::Error::new(
-        std::io::ErrorKind::Unsupported,
-        "the managed source-browser launcher requires anonymous pipes",
-    )
-    .into())
+    {
+        let _ = address;
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "the managed source-browser launcher requires anonymous pipes",
+        )
+        .into())
+    }
 }
 
 /// Remove the keychain accounts of workspaces whose database no longer exists.
