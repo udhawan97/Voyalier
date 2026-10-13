@@ -27,12 +27,23 @@ stage_rust() {
 
 stage_desktop() {
   cargo clippy --locked "${DESKTOP_CRATES[@]}" --all-targets -- -D warnings
+  prepare_windows_desktop_tests debug
   cargo test --locked "${DESKTOP_CRATES[@]}"
   # `debug_assertions` is false here while Tauri still identifies this as an
   # unpackaged source build. Keep that distinction in the shared local/CI gate
   # so an optimized `cargo build --release` cannot silently gain updater IO.
+  prepare_windows_desktop_tests release
   cargo test --locked --release "${DESKTOP_CRATES[@]}" \
     tests::updater_commands_report_disabled_in_source_builds -- --exact
+}
+
+prepare_windows_desktop_tests() {
+  case "$(uname -s)" in
+  MINGW* | MSYS* | CYGWIN*)
+    pwsh -NoProfile -NonInteractive -File scripts/windows-test-activation.ps1 \
+      -BuildProfile "$1" -Package "${DESKTOP_CRATES[1]}"
+    ;;
+  esac
 }
 
 stage_integration() {
