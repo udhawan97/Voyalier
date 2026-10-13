@@ -8,3 +8,11 @@ Complete the already selected dev-review remediation and the user's instruction 
 4. Merge only when all required source checks pass, then align the clean primary checkout with remote main. Preserve unrelated worktrees. No release or installed-app acceptance is inferred.
 
 Stop if a proposed dependency is incompatible, the audit still fails, or the platform correction changes runtime behavior. Record concrete evidence and retain the existing branch instead of bypassing a gate.
+
+## Selected Windows IPC fixture correction — 2026-10-13
+
+The user selected DR-ea305767-015 after the full Windows desktop harness started and six IPC tests rejected the fixture origin. The shared fixture still supplies `tauri://localhost`, while Windows uses the local protocol workaround URL.
+
+1. Change only the shared test `InvokeRequest` URL to the actual mock webview URL. Preserve production ACLs, capabilities, command envelopes, assertions, test filters, working directory, native runner arguments and exit status.
+2. Independently review the one-line correction and replay local desktop/wire checks, all 18 Windows debug tests, and the optimized source-updater check. Treat any remaining failure as evidence; do not disable checks or infer installed-app acceptance.
+3. Refresh the source graph, private report, ledger and final council gate. Merge PR126 only after the full source gates pass, then align the clean primary main with the protected remote merge. Existing merge/push authority persists; user worktrees and installed data remain preserved.
