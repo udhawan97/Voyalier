@@ -1,11 +1,5 @@
-param(
-    [Parameter(Mandatory = $true)]
-    [ValidateSet('debug', 'release')]
-    [string]$BuildProfile,
-    [Parameter(Mandatory = $true)]
-    [ValidatePattern('^[A-Za-z0-9_-]+$')]
-    [string]$Package
-)
+# No script parameters: Cargo's harness flags remain argument data, including --exact.
+$activationArguments = @($args)
 
 $ErrorActionPreference = 'Stop'
 $entrypointNotFound = -1073741511 # 0xc0000139
@@ -34,6 +28,20 @@ function Invoke-Captured {
             Output = $stdout.GetAwaiter().GetResult()
             Error = $stderr.GetAwaiter().GetResult()
         }
+    }
+    finally { $process.Dispose() }
+}
+
+function Invoke-Streaming {
+    param([string]$Executable, [string[]]$Arguments)
+    $start = [System.Diagnostics.ProcessStartInfo]::new()
+    $start.FileName = $Executable
+    $start.UseShellExecute = $false
+    foreach ($argument in $Arguments) { $start.ArgumentList.Add($argument) }
+    $process = [System.Diagnostics.Process]::Start($start)
+    try {
+        $process.WaitForExit()
+        return $process.ExitCode
     }
     finally { $process.Dispose() }
 }
@@ -72,36 +80,41 @@ function Add-ControlsDependency {
     }
 }
 
-Write-Host "[test-activation] profile=$BuildProfile source-sha256=$((Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash)"
-$cargo = (Get-Command cargo -ErrorAction Stop).Source
-$arguments = @('test', '--locked', '-p', $Package, '--no-run', '--message-format=json')
-if ($BuildProfile -eq 'release') { $arguments += '--release' }
-$compiled = Invoke-Captured $cargo $arguments 0
-if ($compiled.Error) { Write-Host $compiled.Error }
-if ($compiled.ExitCode -ne 0) {
-    Write-Host $compiled.Output
-    throw "Cargo test compilation failed with exit code $($compiled.ExitCode)"
+if ($activationArguments.Count -lt 2) { throw 'Expected cargo arguments or an exact Cargo test executable' }
+if ($activationArguments[0] -eq 'cargo') {
+    $rustc = Invoke-Captured (Get-Command rustc -ErrorAction Stop).Source @('-vV')
+    if ($rustc.ExitCode -ne 0 -or $rustc.Output -notmatch '(?m)^host: ([A-Za-z0-9_-]+-windows-msvc)\r?$') {
+        throw 'The Windows source test gate requires its native MSVC toolchain'
+    }
+    $testTarget = if ($env:CARGO_BUILD_TARGET) { $env:CARGO_BUILD_TARGET } else { $Matches[1] }
+    if ($testTarget -notmatch '^[A-Za-z0-9_-]+-windows-msvc$') { throw 'Unsupported Windows test target' }
+    $metadata = Invoke-Captured (Get-Command cargo -ErrorAction Stop).Source @('metadata', '--locked', '--offline', '--no-deps', '--format-version', '1') 0
+    if ($metadata.ExitCode -ne 0) { throw "Cargo target metadata failed: $($metadata.Error)" }
+    $targetRoot = ($metadata.Output | ConvertFrom-Json -ErrorAction Stop).target_directory
+    if (-not $targetRoot -or -not [System.IO.Path]::IsPathFullyQualified($targetRoot)) {
+        throw 'Cargo metadata must supply an absolute test target directory'
+    }
+    $runner = @((Get-Command pwsh -ErrorAction Stop).Source, '-NoProfile', '-NonInteractive', '-File', $PSCommandPath, 'test', $targetRoot)
+    $runnerSetting = "target.$testTarget.runner=$($runner | ConvertTo-Json -Compress)"
+    $cargoArguments = @('test', '--locked', '--config', $runnerSetting) + @($activationArguments | Select-Object -Skip 1)
+    exit (Invoke-Streaming (Get-Command cargo -ErrorAction Stop).Source $cargoArguments)
 }
-$target = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { 'target' }
+if ($activationArguments[0] -ne 'test') { throw 'Unsupported activation mode' }
+if ($activationArguments.Count -lt 3 -or -not [System.IO.Path]::IsPathFullyQualified($activationArguments[1])) {
+    throw "The runner requires Cargo metadata's absolute target directory and exact test executable"
+}
+$executable = [System.IO.Path]::GetFullPath($activationArguments[2])
+$harnessArguments = @($activationArguments | Select-Object -Skip 3)
+$target = $activationArguments[1]
 $target = [System.IO.Path]::GetFullPath($target).TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
-$executables = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-foreach ($line in $compiled.Output -split "`n") {
-    if (-not $line.Trim()) { continue }
-    $artifact = $line | ConvertFrom-Json -ErrorAction Stop
-    if ($artifact.reason -eq 'compiler-message' -and $artifact.message.rendered) {
-        Write-Host $artifact.message.rendered
-    }
-    if ($artifact.reason -ne 'compiler-artifact' -or -not $artifact.profile.test -or -not $artifact.executable) { continue }
-    $executable = [System.IO.Path]::GetFullPath($artifact.executable)
-    if (-not $executable.StartsWith($target, [System.StringComparison]::OrdinalIgnoreCase) -or
-        [System.IO.Path]::GetExtension($executable) -ne '.exe') {
-        throw 'Cargo returned a test executable outside its target directory'
-    }
-    [void]$executables.Add($executable)
+if (-not $executable.StartsWith($target, [System.StringComparison]::OrdinalIgnoreCase) -or
+    [System.IO.Path]::GetFileName($executable) -notmatch '^voyalier_desktop(_lib)?-[0-9a-f]{16}\.exe$' -or
+    [System.IO.Path]::GetDirectoryName($executable) -notmatch '[\\/](debug|release)[\\/]deps$') {
+    throw 'The runner accepts only exact hashed desktop test artifacts under Cargo target deps'
 }
-if ($executables.Count -eq 0) { throw 'Cargo returned no test executables' }
+Write-Host "[test-activation] source-sha256=$((Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash) harness-args=$($harnessArguments | ConvertTo-Json -Compress)"
 
-foreach ($executable in $executables) {
+foreach ($executable in @($executable)) {
     if ([System.IO.File]::GetAttributes($executable) -band [System.IO.FileAttributes]::ReparsePoint) {
         throw 'The exact Cargo test artifact must not be a reparse point'
     }
@@ -183,3 +196,4 @@ foreach ($executable in $executables) {
         }
     }
 }
+exit (Invoke-Streaming $executable $harnessArguments)
