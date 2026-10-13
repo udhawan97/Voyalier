@@ -42,7 +42,7 @@ function Read-Manifest {
     param([string]$Tool, [string]$Executable, [string]$OutputPath)
     $result = Invoke-Captured $Tool @('-nologo', "-inputresource:$Executable;#1", "-out:$OutputPath")
     if ($result.ExitCode -ne 0) {
-        if (($result.Output + $result.Error) -notmatch 'resource (type|name) cannot be found') {
+        if (($result.Output + $result.Error) -notmatch 'resource (type|name) cannot be found|image file did not contain a resource section') {
             throw "Manifest extraction failed: $($result.Output) $($result.Error)"
         }
         return $null
