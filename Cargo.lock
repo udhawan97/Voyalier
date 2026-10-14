@@ -5319,7 +5319,7 @@ dependencies = [
  "ureq",
  "url",
  "voyalier-core",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
