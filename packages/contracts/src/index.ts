@@ -1031,6 +1031,8 @@ export interface KeyValidation {
  * could never reach a provider. Nothing here is transmitted.
  */
 export interface AssistRequestPreview {
+  /** Application-issued commitment; absent in legacy and local-draft previews. */
+  approvalToken?: string;
   provider: ProviderId;
   providerLabel: string;
   /** The model that would be used, if one is chosen. */
@@ -2108,6 +2110,8 @@ export interface ImportAttachmentInput {
 }
 export interface ConciergeProfile {
   tripId: string;
+  /** Server-owned precondition; absent only before the first profile save. */
+  revision?: string;
   preferences: ConciergePreferences;
   travelers: TravelerProfile[];
   taskProgress: TaskProgress[];
@@ -2230,7 +2234,7 @@ export interface AppGateway {
   /** Bring an archived trip back into the workspace (restores it to draft). */
   unarchiveTrip(tripId: string): Promise<Trip>;
   getTripBrief(tripId: string): Promise<TripBrief>;
-  getToday(tripId: string): Promise<TodayView>;
+  getToday(tripId: string, referenceDate?: string): Promise<TodayView>;
   getVaultStatus(): Promise<VaultStatus>;
   setVaultPassphrase(passphrase: string): Promise<VaultStatus>;
   unlockVault(passphrase: string): Promise<VaultStatus>;
@@ -2246,7 +2250,11 @@ export interface AppGateway {
     tripId: string,
     provider: ProviderId,
   ): Promise<AssistRequestPreview>;
-  runAssist(tripId: string, provider: ProviderId): Promise<AssistReply>;
+  runAssist(
+    tripId: string,
+    provider: ProviderId,
+    approvalToken: string,
+  ): Promise<AssistReply>;
   previewAssistDraft(
     tripId: string,
     kind: AssistDraftKind,

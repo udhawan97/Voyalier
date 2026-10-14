@@ -59,6 +59,10 @@ pub(crate) fn endpoint_for(id: ProviderId) -> &'static str {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssistRequestPreview {
+    /// Application-issued commitment to the exact prepared assist request.
+    /// Pure builders and legacy previews do not issue consent commitments.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approval_token: Option<String>,
     pub provider: ProviderId,
     pub provider_label: String,
     /// The model that would be used, if the user has chosen one.
@@ -129,6 +133,7 @@ pub fn build_assist_preview(
 
     let info = provider_info(provider);
     AssistRequestPreview {
+        approval_token: None,
         provider,
         provider_label: info.label.to_owned(),
         model: model.map(str::to_owned),
@@ -181,6 +186,34 @@ pub struct AssistRequest {
     pub model: String,
     pub body: String,
     pub headers: Vec<(String, String)>,
+}
+
+impl AssistRequest {
+    /// Attach credentials after approval without rebuilding the prepared body.
+    pub fn with_key(mut self, id: ProviderId, key: Option<&str>) -> Result<Self, AppError> {
+        if self.url != endpoint_for(id) {
+            return Err(AppError::with_detail(
+                ErrorCode::ValidationInvalidInput,
+                "the prepared request belongs to a different provider",
+                "field",
+                "provider",
+            ));
+        }
+        if provider_info(id).key_required && key.is_none() {
+            return Err(AppError::with_detail(
+                ErrorCode::ValidationInvalidInput,
+                "this provider needs an API key",
+                "field",
+                "provider",
+            ));
+        }
+        self.headers = if provider_info(id).key_required {
+            provider_auth_headers(id, key.unwrap_or_default())
+        } else {
+            Vec::new()
+        };
+        Ok(self)
+    }
 }
 
 /// Build the assist request for `id`: endpoint, model default, body shape, and
@@ -495,6 +528,56 @@ pub fn parse_anthropic_reply(body: &str) -> Result<String, AppError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn authorizing_a_prepared_request_changes_only_credentials() {
+        for id in [
+            ProviderId::OpenAi,
+            ProviderId::Anthropic,
+            ProviderId::Ollama,
+        ] {
+            let prepared =
+                build_assist_request(id, None, "system", "redacted itinerary", Some("")).unwrap();
+            let sent = prepared
+                .clone()
+                .with_key(id, Some("synthetic-only-key"))
+                .unwrap();
+            assert_eq!(sent.url, prepared.url);
+            assert_eq!(sent.model, prepared.model);
+            assert_eq!(sent.body.as_bytes(), prepared.body.as_bytes());
+            assert!(!sent.body.contains("synthetic-only-key"));
+            if provider_info(id).key_required {
+                assert!(
+                    sent.headers
+                        .iter()
+                        .any(|(_, value)| value.contains("synthetic-only-key"))
+                );
+                assert!(prepared.clone().with_key(id, None).is_err());
+            } else {
+                assert!(sent.headers.is_empty());
+                assert!(
+                    prepared
+                        .clone()
+                        .with_key(id, None)
+                        .unwrap()
+                        .headers
+                        .is_empty()
+                );
+            }
+            let other = if id == ProviderId::OpenAi {
+                ProviderId::Ollama
+            } else {
+                ProviderId::OpenAi
+            };
+            assert_eq!(
+                prepared
+                    .with_key(other, Some("synthetic-only-key"))
+                    .unwrap_err()
+                    .code,
+                ErrorCode::ValidationInvalidInput
+            );
+        }
+    }
     use crate::types::{ExtractionMethod, FactType, TripStatus};
 
     fn trip() -> Trip {

@@ -343,14 +343,25 @@ impl AppService {
 
     /// The Today view for a trip against the current date: where the trip
     /// stands, what happens today, and what's next. Deterministic and offline.
-    pub fn get_today(&self, trip_id: &str) -> Result<TodayView, AppError> {
+    pub fn get_today(
+        &self,
+        trip_id: &str,
+        reference_date: Option<&str>,
+    ) -> Result<TodayView, AppError> {
         let connection = self.connection()?;
         let trip = self.records(&connection).trip(trip_id)?;
         let facts = self.records(&connection).confirmed_facts(trip_id)?;
         let trip_items = self.records(&connection).trip_items(trip_id)?;
         let now = now_rfc3339();
         let today = now.get(..10).unwrap_or(now.as_str());
-        Ok(build_today_view(&trip, &facts, &trip_items, today))
+        match reference_date {
+            Some(reference_date) => {
+                TodayView::for_reference_date(&trip, &facts, &trip_items, reference_date)
+            }
+            // Preserve the UTC reference date for legacy callers; the current
+            // UI always supplies its device-local calendar date (ADR-0028).
+            None => Ok(build_today_view(&trip, &facts, &trip_items, today)),
+        }
     }
 
     /// A trip's notes. Absent notes are an empty body, not an error — "nothing
@@ -387,5 +398,54 @@ impl AppService {
             body: body.to_owned(),
             updated_at: Some(updated_at),
         })
+    }
+}
+
+#[cfg(test)]
+mod today_date_tests {
+    use super::*;
+
+    #[test]
+    fn supplied_calendar_date_is_exact_and_omitted_date_remains_utc() {
+        let database = crate::tests::temp_database("today-explicit-date");
+        let service = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            Arc::new(MemorySecretStore::default()),
+        )
+        .unwrap();
+        let trip = service
+            .create_trip(CreateTripInput {
+                title: None,
+                origin: "Paris".into(),
+                destination: "Kyoto".into(),
+                start_date: "2026-10-07".into(),
+                end_date: "2026-10-08".into(),
+            })
+            .unwrap();
+        let view = service.get_today(&trip.id, Some("2026-10-07")).unwrap();
+        assert_eq!(view.reference_date, "2026-10-07");
+        assert_eq!(view.phase.day, Some(1));
+        assert_eq!(
+            service
+                .get_today(&trip.id, Some("2026-10-08"))
+                .unwrap()
+                .phase
+                .day,
+            Some(2)
+        );
+        assert_eq!(
+            service.get_today(&trip.id, None).unwrap().reference_date,
+            &now_rfc3339()[..10]
+        );
+        assert_eq!(
+            service
+                .get_today(&trip.id, Some("2026-02-29"))
+                .unwrap_err()
+                .code,
+            ErrorCode::ValidationInvalidInput
+        );
+        drop(service);
+        crate::tests::cleanup_database(database);
     }
 }

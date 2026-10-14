@@ -117,6 +117,9 @@ impl Vault {
     /// being something to remember not to do.
     pub(crate) fn open(&self, stored: &Sealed) -> Result<String, AppError> {
         let state = self.snapshot();
+        if state.protected && state.key.is_none() {
+            return Err(vault_locked_error());
+        }
         if state.escaped_plaintext {
             if let Some(encoded) = stored.0.strip_prefix(PLAINTEXT_PREFIX) {
                 let bytes = BASE64.decode(encoded).map_err(|_| {
@@ -160,6 +163,21 @@ impl Vault {
                 "decrypted data was not valid text",
             )
         })
+    }
+
+    /// Migration-only conversion for cells whose prefix interpretation is known.
+    /// Authenticate ciphertext without rewriting it; decode fallback plaintext
+    /// through the same reader before sealing. Construction stays beside Sealed.
+    pub(crate) fn encrypt_current_plaintext(
+        &self,
+        stored: &str,
+    ) -> Result<Option<Sealed>, AppError> {
+        let plaintext = self.open(&Sealed(stored.to_owned()))?;
+        if stored.starts_with(VAULT_PREFIX) {
+            Ok(None)
+        } else {
+            self.seal(&plaintext).map(Some)
+        }
     }
 
     /// Authenticate a legacy `v1:` value during the storage-format cutover.

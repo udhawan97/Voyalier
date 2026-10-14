@@ -6,6 +6,68 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ## [Unreleased]
 
+### Fixed
+
+- **Local safety copies retain the credentials needed to recover them.**
+  Pre-update, pre-restore and pre-format copies keep matching key or passphrase
+  bindings until their last local reference is removed. Recovery checks the
+  selected copy and preserves ambiguous or unavailable evidence; it cannot
+  recreate a lost historical key. Adding today's passphrase protects retained
+  keys but does not rewrite plaintext already present in an old safety file.
+  Automatic retention refuses to discard unavailable historical copies; explicit
+  Clear backups still removes owned copies after checking their recorded hashes.
+- **Vault transitions seal eligible fallback records before changing protection.**
+  Unlock and passphrase removal use the same sealing path, including concierge
+  notes and imported source text. Failed transitions keep protected recovery
+  evidence. Unavailable secret storage still retains the existing plaintext
+  fallback; this does not promise encryption on a keychain-less device.
+- **Concierge forms retain drafts until the device acknowledges a save.** People,
+  wallet and money entries remain available after rejection, and a delayed
+  successful save preserves newer edits. Provider handoffs share the profile
+  save owner; unsaved setup changes require explicit reconciliation. Older
+  workspace reads cannot replace an acknowledged profile. Purchases still
+  happen with the provider, and a saved handoff does not prove a booking.
+- **Concurrent concierge updates preserve the latest saved profile.** A save
+  based on an older profile is refused for explicit review and retry, protecting
+  people, preparation progress and notes. Removing a source detaches its wallet
+  reference while retaining authored labels and notes; it does not erase those
+  authored records or automatically merge preparation decisions.
+- **Today identifies evidence and traveler-authored plans separately.** Source
+  labels appear on schedule rows and the next anchor in English and Spanish.
+  Older responses without source identity remain readable without an inferred
+  label; the projection does not establish availability or predict disruption.
+- **Today follows the device's local calendar date.** Midnight and visible
+  resume refresh the offline projection; a previous day's rows are hidden during
+  refresh or failure rather than presented as current. Authored event dates stay
+  unchanged. Voyalier does not infer a destination time zone or convert floating
+  confirmations into instants.
+- **Wallet source failures remain visible and retryable.** Loading and failed
+  source lists no longer imply that a source was removed or that the trip has
+  no imported documents. Cached labels remain qualified, and a file imported
+  before a link-save rejection remains available for a deliberate link retry.
+- **Restore cancellation and rollback preserve recoverable state.** Interrupted
+  staged cancellation can finish safely on retry or restart. Activated recovery
+  completes or rolls back before its safety evidence is discarded. Another
+  process cannot replace a workspace still in use, and a busy checkpoint refuses
+  replacement; manually removing a live custody file remains unsupported.
+- **Local copies and confirmed exports avoid losing the previous file to an
+  incomplete write.** Safety snapshots publish only complete copies, and a
+  cancelled native export leaves the destination unchanged. Native exports
+  finish a temporary copy before replacement; if the final disk confirmation
+  fails after replacement, the app reports uncertain durability of complete
+  new bytes. Historical copies can still contain deleted trip data until cleared.
+- **AI itinerary assistance is bound to the request shown for approval.** Changes
+  to facts, model or instructions require a refreshed preview and another
+  explicit send; a changed request is refused before provider contact. Existing
+  preview and reply content remain available after rejection. This guard covers
+  itinerary assistance; local chat and the separate local lodging draft retain
+  their existing boundaries.
+- **Documentation now describes the protected browser source launcher and
+  partial Spanish coverage.** Managed Chromium receives an in-memory credential
+  for a fresh loopback port; desktop releases use direct IPC. Source checks are
+  separate from installer acceptance, and complete screen localization remains
+  deferred.
+
 ## [0.12.0] - 2026-09-25 — Everything between here and there
 
 Voyalier now turns a trip into an ordered concierge workspace: one traveler

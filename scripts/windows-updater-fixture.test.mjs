@@ -781,9 +781,15 @@ test("keeps product setup, updater backup, and portable restore on the installed
     "export diagnostics must bracket the native dialog call",
   );
   assert.ok(
-    exportSource.indexOf("write_new_backup_file") <
-      exportSource.indexOf("std::fs::write"),
-    "the active acceptance preset must use atomic create while ordinary launches keep their existing write",
+    exportSource.includes("write_new_backup_file") &&
+      exportSource.includes("persist_backup_export") &&
+      exportSource.indexOf("write_new_backup_file") <
+        exportSource.indexOf("persist_backup_export"),
+    "the acceptance preset must preserve create-new writes and ordinary exports must delegate to atomic app persistence",
+  );
+  assert.ok(
+    !exportSource.includes("std::fs::write"),
+    "ordinary exports must not truncate a destination before a complete backup is ready",
   );
   assert.ok(
     restoreSource.indexOf("validate_chosen_path") !== -1 &&

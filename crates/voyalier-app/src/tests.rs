@@ -14,6 +14,943 @@ use voyalier_core::{
 };
 
 #[test]
+#[ignore = "subprocess helper, invoked by recovery_overlap_probe"]
+fn recovery_overlap_child() {
+    use std::io::{BufRead as _, Write as _};
+    let database = PathBuf::from(std::env::var("VOYALIER_OVERLAP_DATABASE").expect("fixture"));
+    let secrets = Arc::new(MemorySecretStore::default());
+    secrets
+        .set(
+            &vault_key_account(&database),
+            &BASE64.encode([1u8; VAULT_KEY_LEN]),
+        )
+        .unwrap();
+    let marker = read_restore_marker(&database.with_file_name(PENDING_RESTORE_MARKER)).unwrap();
+    secrets
+        .set(
+            &vault_pending_key_account(&database, &marker.generation),
+            &BASE64.encode([2u8; VAULT_KEY_LEN]),
+        )
+        .unwrap();
+    println!("OVERLAP_READY");
+    std::io::stdout().flush().unwrap();
+    let mut barrier = String::new();
+    std::io::stdin().lock().read_line(&mut barrier).unwrap();
+    let error =
+        AppService::open_path_with_deps(&database, Arc::new(FakeFetcher::offline()), secrets)
+            .err()
+            .expect("second process must refuse custody");
+    assert_eq!(error.code, ErrorCode::StorageFailure);
+    assert!(error.message.contains("already open"));
+    println!("OVERLAP_REFUSED");
+}
+
+#[test]
+fn recovery_overlap_probe() {
+    use std::io::{BufRead as _, Write as _};
+    use std::process::{Command, Stdio};
+    let source_database = temp_database("overlap-source");
+    let source_secrets = Arc::new(MemorySecretStore::default());
+    source_secrets
+        .set(
+            &vault_key_account(&source_database),
+            &BASE64.encode([2u8; VAULT_KEY_LEN]),
+        )
+        .unwrap();
+    let source = AppService::open_path_with_deps(
+        &source_database,
+        Arc::new(FakeFetcher::offline()),
+        source_secrets,
+    )
+    .unwrap();
+    source.create_trip(valid_trip_input()).unwrap();
+    let backup = source.export_backup("correct horse battery").unwrap();
+    drop(source);
+    let database = temp_database("overlap-target");
+    let secrets = Arc::new(MemorySecretStore::default());
+    secrets
+        .set(
+            &vault_key_account(&database),
+            &BASE64.encode([1u8; VAULT_KEY_LEN]),
+        )
+        .unwrap();
+    let service = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    let trip = service.create_trip(valid_trip_input()).unwrap();
+    service
+        .stage_restore("correct horse battery", &backup)
+        .unwrap();
+    let reader = Connection::open(&database).unwrap();
+    reader
+        .execute_batch("BEGIN; SELECT COUNT(*) FROM trips;")
+        .unwrap();
+    service
+        .set_trip_notes(&trip.id, "committed after pinned reader")
+        .unwrap();
+    let marker_path = database.with_file_name(PENDING_RESTORE_MARKER);
+    let marker_bytes = fs::read(&marker_path).unwrap();
+    let marker = read_restore_marker(&marker_path).unwrap();
+    let candidate = database.with_file_name(&marker.candidate_file);
+    let mut child = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "tests::recovery_overlap_child",
+            "--ignored",
+            "--nocapture",
+        ])
+        .env("VOYALIER_OVERLAP_DATABASE", &database)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut output = std::io::BufReader::new(child.stdout.take().unwrap());
+    let mut line = String::new();
+    loop {
+        line.clear();
+        assert!(output.read_line(&mut line).unwrap() > 0);
+        if line.contains("OVERLAP_READY") {
+            break;
+        }
+    }
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(b"activate\n")
+        .unwrap();
+    let mut refused = false;
+    loop {
+        line.clear();
+        if output.read_line(&mut line).unwrap() == 0 {
+            break;
+        }
+        refused |= line.contains("OVERLAP_REFUSED");
+    }
+    assert!(child.wait().unwrap().success());
+    assert!(
+        refused,
+        "restore must not run under original live service and reader"
+    );
+    assert_eq!(fs::read(&marker_path).unwrap(), marker_bytes);
+    assert_eq!(sha256_file(&candidate).unwrap(), marker.candidate_sha256);
+    assert_eq!(
+        service.get_trip_notes(&trip.id).unwrap().body,
+        "committed after pinned reader"
+    );
+    drop(reader);
+    drop(service);
+    let recovered =
+        AppService::open_path_with_deps(&database, Arc::new(FakeFetcher::offline()), secrets)
+            .unwrap();
+    assert_eq!(recovered.list_trips().unwrap().len(), 1);
+    let marker_files: Vec<_> = fs::read_dir(database.parent().unwrap().join("backups"))
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter(|e| e.file_name().to_string_lossy().starts_with("pre-restore-"))
+        .collect();
+    assert_eq!(marker_files.len(), 1);
+    let safety = Connection::open(marker_files[0].path()).unwrap();
+    validate_sqlite_integrity(&safety).unwrap();
+    let stored: sealed::Sealed = safety
+        .query_row(
+            "SELECT body FROM trip_notes WHERE trip_id = ?1",
+            params![trip.id],
+            |r| r.get(0),
+        )
+        .unwrap();
+    let old_vault = Vault::new(VaultState {
+        key: Some([1u8; VAULT_KEY_LEN]),
+        protected: false,
+        escaped_plaintext: true,
+    });
+    assert_eq!(
+        old_vault.open(&stored).unwrap(),
+        "committed after pinned reader"
+    );
+    println!(
+        "OVERLAP_REFUSED: unchanged staged state; after owner exit restore retains committed WAL note"
+    );
+    drop(safety);
+    drop(recovered);
+    cleanup_database(database);
+    cleanup_database(source_database);
+}
+
+#[test]
+fn workspace_lock_shares_normal_connections_but_refuses_live_restore_siblings() {
+    let database = temp_database("lock-siblings");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let service = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    let sibling = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    let clone = service.clone();
+    let trip = service.create_trip(valid_trip_input()).unwrap();
+    assert!(sibling.get_trip(&trip.id).is_ok());
+    let backup = service.export_backup("correct horse battery").unwrap();
+    service
+        .stage_restore("correct horse battery", &backup)
+        .unwrap();
+    drop(service);
+    drop(sibling);
+    let error = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .err()
+    .unwrap();
+    assert!(error.message.contains("already open"));
+    assert!(clone.get_trip(&trip.id).is_ok());
+    drop(clone);
+    let reopened =
+        AppService::open_path_with_deps(&database, Arc::new(FakeFetcher::offline()), secrets)
+            .unwrap();
+    assert!(reopened.get_trip(&trip.id).is_ok());
+    drop(reopened);
+    cleanup_database(database);
+}
+
+#[test]
+fn busy_checkpoint_preserves_committed_wal_until_its_reader_finishes() {
+    let database = temp_database("busy-checkpoint");
+    let service = open_test_service(&database).unwrap();
+    let trip = service.create_trip(valid_trip_input()).unwrap();
+    let reader = Connection::open(&database).unwrap();
+    reader
+        .execute_batch("BEGIN; SELECT COUNT(*) FROM trips;")
+        .unwrap();
+    service
+        .set_trip_notes(&trip.id, "committed WAL note")
+        .unwrap();
+    let connection = service.connection().unwrap();
+    connection.busy_timeout(std::time::Duration::ZERO).unwrap();
+    assert!(checkpoint_sqlite(&connection).is_err());
+    drop(reader);
+    checkpoint_sqlite(&connection).unwrap();
+    drop(connection);
+    assert_eq!(
+        service.get_trip_notes(&trip.id).unwrap().body,
+        "committed WAL note"
+    );
+    drop(service);
+    cleanup_database(database);
+}
+
+#[test]
+fn current_format_plaintext_is_sealed_on_activation_without_changing_values() {
+    let database = temp_database("vault-activate-current");
+    let inactive = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        Arc::new(MemorySecretStore::unavailable()),
+    )
+    .unwrap();
+    let mut notes = Vec::new();
+    for body in ["ordinary note", "v1:traveler text", "p1:literal text"] {
+        let trip = inactive.create_trip(valid_trip_input()).unwrap();
+        inactive.set_trip_notes(&trip.id, body).unwrap();
+        notes.push((trip.id, body));
+    }
+    drop(inactive);
+    let secrets = Arc::new(MemorySecretStore::default());
+    let active = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    for (id, body) in &notes {
+        assert_eq!(active.get_trip_notes(id).unwrap().body, *body);
+        let stored: String = active
+            .connection()
+            .unwrap()
+            .query_row(
+                "SELECT body FROM trip_notes WHERE trip_id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(stored.starts_with(VAULT_PREFIX));
+    }
+    let before: String = active
+        .connection()
+        .unwrap()
+        .query_row(
+            "SELECT body FROM trip_notes WHERE trip_id = ?1",
+            params![notes[0].0],
+            |row| row.get(0),
+        )
+        .unwrap();
+    drop(active);
+    let reopened =
+        AppService::open_path_with_deps(&database, Arc::new(FakeFetcher::offline()), secrets)
+            .unwrap();
+    let after: String = reopened
+        .connection()
+        .unwrap()
+        .query_row(
+            "SELECT body FROM trip_notes WHERE trip_id = ?1",
+            params![notes[0].0],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        before, after,
+        "authenticated ciphertext must not be rewritten"
+    );
+    assert!(
+        !database
+            .parent()
+            .unwrap()
+            .join("backups/pre-vault-format-v1.sqlite3")
+            .exists(),
+        "current-format activation must not add plaintext backups"
+    );
+    drop(reopened);
+    cleanup_database(database);
+}
+
+#[test]
+fn current_format_activation_rejects_corruption_and_rolls_back_all_plaintext() {
+    let database = temp_database("vault-current-atomic");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let service = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    let first = service.create_trip(valid_trip_input()).unwrap();
+    let second = service.create_trip(valid_trip_input()).unwrap();
+    service.set_trip_notes(&first.id, "first").unwrap();
+    service.set_trip_notes(&second.id, "second").unwrap();
+    let connection = service.connection().unwrap();
+    connection
+        .execute(
+            "UPDATE trip_notes SET body = 'fallback' WHERE trip_id = ?1",
+            params![first.id],
+        )
+        .unwrap();
+    connection
+        .execute(
+            "UPDATE trip_notes SET body = 'v1:corrupt' WHERE trip_id = ?1",
+            params![second.id],
+        )
+        .unwrap();
+    drop(connection);
+    drop(service);
+    assert_eq!(
+        AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone()
+        )
+        .err()
+        .unwrap()
+        .code,
+        ErrorCode::VaultUnreadable
+    );
+    let connection = Connection::open(&database).unwrap();
+    assert_eq!(
+        connection
+            .query_row(
+                "SELECT body FROM trip_notes WHERE trip_id = ?1",
+                params![first.id],
+                |r| r.get::<_, String>(0)
+            )
+            .unwrap(),
+        "fallback"
+    );
+    connection
+        .execute(
+            "UPDATE trip_notes SET body = 'second' WHERE trip_id = ?1",
+            params![second.id],
+        )
+        .unwrap();
+    connection.execute_batch("CREATE TRIGGER refuse_activation BEFORE UPDATE OF body ON trip_notes WHEN OLD.body = 'second' BEGIN SELECT RAISE(ABORT, 'injected write failure'); END;").unwrap();
+    assert!(
+        AppService::open_path_with_deps(&database, Arc::new(FakeFetcher::offline()), secrets)
+            .is_err()
+    );
+    assert_eq!(
+        connection
+            .query_row(
+                "SELECT body FROM trip_notes WHERE trip_id = ?1",
+                params![first.id],
+                |r| r.get::<_, String>(0)
+            )
+            .unwrap(),
+        "fallback"
+    );
+    drop(connection);
+    cleanup_database(database);
+}
+
+#[test]
+fn protected_current_plaintext_is_unreadable_until_successful_unlock_activation() {
+    let database = temp_database("vault-locked-plaintext");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let service = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    let trip = service.create_trip(valid_trip_input()).unwrap();
+    service.set_trip_notes(&trip.id, "note").unwrap();
+    service
+        .set_vault_passphrase("correct horse battery")
+        .unwrap();
+    service
+        .connection()
+        .unwrap()
+        .execute(
+            "UPDATE trip_notes SET body = ?1 WHERE trip_id = ?2",
+            params![sealed::escaped_plaintext("v1:protected fallback"), trip.id],
+        )
+        .unwrap();
+    drop(service);
+    let locked =
+        AppService::open_path_with_deps(&database, Arc::new(FakeFetcher::offline()), secrets)
+            .unwrap();
+    assert_eq!(
+        locked.get_trip_notes(&trip.id).unwrap_err().code,
+        ErrorCode::VaultLocked
+    );
+    locked.connection().unwrap().execute_batch("CREATE TRIGGER refuse_activation BEFORE UPDATE OF body ON trip_notes BEGIN SELECT RAISE(ABORT, 'injected write failure'); END;").unwrap();
+    assert!(locked.unlock_vault("correct horse battery").is_err());
+    assert_eq!(
+        locked.get_trip_notes(&trip.id).unwrap_err().code,
+        ErrorCode::VaultLocked
+    );
+    locked
+        .connection()
+        .unwrap()
+        .execute_batch("DROP TRIGGER refuse_activation;")
+        .unwrap();
+    locked.unlock_vault("correct horse battery").unwrap();
+    assert_eq!(
+        locked.get_trip_notes(&trip.id).unwrap().body,
+        "v1:protected fallback"
+    );
+    let stored: String = locked
+        .connection()
+        .unwrap()
+        .query_row(
+            "SELECT body FROM trip_notes WHERE trip_id = ?1",
+            params![trip.id],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert!(stored.starts_with(VAULT_PREFIX));
+    drop(locked);
+    cleanup_database(database);
+}
+
+#[test]
+fn keyless_current_format_restore_seals_plaintext_before_staging() {
+    let source_database = temp_database("keyless-current-source");
+    let source = AppService::open_path_with_deps(
+        &source_database,
+        Arc::new(FakeFetcher::offline()),
+        Arc::new(MemorySecretStore::unavailable()),
+    )
+    .unwrap();
+    let trip = source.create_trip(valid_trip_input()).unwrap();
+    source
+        .set_trip_notes(&trip.id, "p1:literal keyless note")
+        .unwrap();
+    let container = source.export_backup("correct horse battery").unwrap();
+    assert!(
+        open_backup("correct horse battery", &container)
+            .unwrap()
+            .data_key
+            .is_none()
+    );
+    let database = temp_database("keyless-current-target");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let target = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    target
+        .stage_restore("correct horse battery", &container)
+        .unwrap();
+    let marker = read_restore_marker(&database.with_file_name(PENDING_RESTORE_MARKER)).unwrap();
+    let candidate = Connection::open(database.with_file_name(&marker.candidate_file)).unwrap();
+    let stored: String = candidate
+        .query_row(
+            "SELECT body FROM trip_notes WHERE trip_id = ?1",
+            params![trip.id],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert!(stored.starts_with(VAULT_PREFIX));
+    drop(candidate);
+    drop(target);
+    let reopened =
+        AppService::open_path_with_deps(&database, Arc::new(FakeFetcher::offline()), secrets)
+            .unwrap();
+    assert_eq!(
+        reopened.get_trip_notes(&trip.id).unwrap().body,
+        "p1:literal keyless note"
+    );
+    drop(reopened);
+    drop(source);
+    cleanup_database(database);
+    cleanup_database(source_database);
+}
+
+#[test]
+fn direct_passphrase_removal_seals_current_fallback_before_unprotected_activation() {
+    let database = temp_database("remove-passphrase-activation");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let service = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    let trip = service.create_trip(valid_trip_input()).unwrap();
+    service.set_trip_notes(&trip.id, "initial").unwrap();
+    service
+        .set_vault_passphrase("correct horse battery")
+        .unwrap();
+    service
+        .connection()
+        .unwrap()
+        .execute(
+            "UPDATE trip_notes SET body = ?1 WHERE trip_id = ?2",
+            params![sealed::escaped_plaintext("v1:protected fallback"), trip.id],
+        )
+        .unwrap();
+    drop(service);
+    let locked = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    assert!(locked.get_vault_status().unwrap().locked);
+    let status = locked
+        .remove_vault_passphrase("correct horse battery")
+        .unwrap();
+    assert!(status.active && !status.protected && !status.locked);
+    assert!(secrets.has(&vault_key_account(&database)));
+    assert!(
+        read_vault_wrap(&locked.connection().unwrap())
+            .unwrap()
+            .is_none()
+    );
+    let stored: String = locked
+        .connection()
+        .unwrap()
+        .query_row(
+            "SELECT body FROM trip_notes WHERE trip_id = ?1",
+            params![trip.id],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert!(stored.starts_with(VAULT_PREFIX));
+    assert_eq!(
+        locked.get_trip_notes(&trip.id).unwrap().body,
+        "v1:protected fallback"
+    );
+    drop(locked);
+    cleanup_database(database);
+}
+
+#[test]
+fn rejected_passphrase_removal_preserves_protected_key_intent_and_locked_reads() {
+    for failure in ["conversion", "wrap_delete", "keychain"] {
+        let database = temp_database(&format!("remove-passphrase-{failure}"));
+        let secrets = Arc::new(MemorySecretStore::default());
+        let service = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .unwrap();
+        let trip = service.create_trip(valid_trip_input()).unwrap();
+        service.set_trip_notes(&trip.id, "initial").unwrap();
+        service
+            .set_vault_passphrase("correct horse battery")
+            .unwrap();
+        service
+            .connection()
+            .unwrap()
+            .execute(
+                "UPDATE trip_notes SET body = 'fallback' WHERE trip_id = ?1",
+                params![trip.id],
+            )
+            .unwrap();
+        let wrap_before: (String, String) = service
+            .connection()
+            .unwrap()
+            .query_row(
+                "SELECT salt, wrapped_key FROM vault_meta WHERE id = 1",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        drop(service);
+        let injected_secrets: Arc<dyn SecretStore> = if failure == "keychain" {
+            Arc::new(MemorySecretStore::unavailable())
+        } else {
+            secrets.clone()
+        };
+        let locked = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            injected_secrets,
+        )
+        .unwrap();
+        if failure == "conversion" {
+            locked.connection().unwrap().execute_batch("CREATE TRIGGER refuse_conversion BEFORE UPDATE OF body ON trip_notes BEGIN SELECT RAISE(ABORT, 'injected conversion failure'); END;").unwrap();
+        } else if failure == "wrap_delete" {
+            locked.connection().unwrap().execute_batch("CREATE TRIGGER refuse_wrap_delete BEFORE DELETE ON vault_meta BEGIN SELECT RAISE(ABORT, 'injected wrap failure'); END;").unwrap();
+        }
+        assert!(
+            locked
+                .remove_vault_passphrase("correct horse battery")
+                .is_err()
+        );
+        let status = locked.get_vault_status().unwrap();
+        assert!(status.protected && status.locked);
+        assert!(!secrets.has(&vault_key_account(&database)));
+        let wrap_after: (String, String) = locked
+            .connection()
+            .unwrap()
+            .query_row(
+                "SELECT salt, wrapped_key FROM vault_meta WHERE id = 1",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(wrap_before, wrap_after);
+        assert_eq!(
+            locked.get_trip_notes(&trip.id).unwrap_err().code,
+            ErrorCode::VaultLocked
+        );
+        if failure == "conversion" {
+            let stored: String = locked
+                .connection()
+                .unwrap()
+                .query_row(
+                    "SELECT body FROM trip_notes WHERE trip_id = ?1",
+                    params![trip.id],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(stored, "fallback");
+        }
+        drop(locked);
+        cleanup_database(database);
+    }
+}
+
+#[test]
+#[cfg(unix)]
+fn restore_refuses_file_symlinks_before_staging_or_recovering_a_generation() {
+    let database = temp_database("restore-file-alias");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let original = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    let trip = original.create_trip(valid_trip_input()).unwrap();
+    original
+        .set_trip_notes(&trip.id, "original custody")
+        .unwrap();
+    let backup = original.export_backup("correct horse battery").unwrap();
+    let alias = database.with_file_name("alias.sqlite3");
+    std::os::unix::fs::symlink(&database, &alias).unwrap();
+    secrets
+        .set(
+            &vault_key_account(&alias),
+            &secrets.get(&vault_key_account(&database)).unwrap().unwrap(),
+        )
+        .unwrap();
+    let alias_service =
+        AppService::open_path_with_deps(&alias, Arc::new(FakeFetcher::offline()), secrets.clone())
+            .unwrap();
+    let live_hash = sha256_file(&database).unwrap();
+    let secret_count = secrets.entries.lock().unwrap().len();
+    assert!(
+        alias_service
+            .stage_restore("correct horse battery", &backup)
+            .unwrap_err()
+            .message
+            .contains("file symlink")
+    );
+    assert_eq!(secrets.entries.lock().unwrap().len(), secret_count);
+    assert!(!alias_service.has_pending_restore());
+    assert_eq!(sha256_file(&database).unwrap(), live_hash);
+    assert!(
+        fs::symlink_metadata(&alias)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+
+    // Simulate a version-2 generation staged by an older client through the
+    // alias. A modern open must refuse it before either key or file changes.
+    original
+        .stage_restore("correct horse battery", &backup)
+        .unwrap();
+    let marker_path = database.with_file_name(PENDING_RESTORE_MARKER);
+    let marker_before = fs::read(&marker_path).unwrap();
+    let marker = read_restore_marker(&marker_path).unwrap();
+    let candidate = database.with_file_name(&marker.candidate_file);
+    let candidate_hash = sha256_file(&candidate).unwrap();
+    let secret_count = secrets.entries.lock().unwrap().len();
+    drop(alias_service);
+    drop(original);
+    // Closing the last live connection may checkpoint WAL. The refused open
+    // must preserve the pair as it exists after that legitimate close.
+    let live_hash = sha256_file(&database).unwrap();
+    let error =
+        AppService::open_path_with_deps(&alias, Arc::new(FakeFetcher::offline()), secrets.clone())
+            .err()
+            .unwrap();
+    assert!(error.message.contains("file symlink"));
+    assert_eq!(fs::read(&marker_path).unwrap(), marker_before);
+    assert_eq!(sha256_file(&candidate).unwrap(), candidate_hash);
+    assert_eq!(sha256_file(&database).unwrap(), live_hash);
+    assert_eq!(secrets.entries.lock().unwrap().len(), secret_count);
+    assert!(
+        fs::symlink_metadata(&alias)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    let reopened =
+        AppService::open_path_with_deps(&database, Arc::new(FakeFetcher::offline()), secrets)
+            .unwrap();
+    assert_eq!(
+        reopened.get_trip_notes(&trip.id).unwrap().body,
+        "original custody"
+    );
+    assert!(
+        workspace_lock::WorkspaceLock::acquire(&alias).is_ok(),
+        "unchanged alias shares the original live identity"
+    );
+    drop(reopened);
+    cleanup_database(database);
+}
+
+fn terminal_restore_source() -> (PathBuf, Vec<u8>) {
+    let database = temp_database("terminal-source");
+    let source = open_test_service(&database).unwrap();
+    let trip = source.create_trip(valid_trip_input()).unwrap();
+    source.set_trip_notes(&trip.id, "new note").unwrap();
+    let container = source.export_backup("correct horse battery").unwrap();
+    drop(source);
+    (database, container)
+}
+
+fn terminal_restore_target(
+    kind: &str,
+    database: &Path,
+    secrets: Arc<MemorySecretStore>,
+) -> (AppService, String) {
+    let target = AppService::open_path_with_deps(
+        database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    let trip = target.create_trip(valid_trip_input()).unwrap();
+    if kind == "keyless" {
+        secrets.delete(&target.vault_account).unwrap();
+        target.vault.set_state(VaultState {
+            key: None,
+            protected: false,
+            escaped_plaintext: true,
+        });
+    }
+    target
+        .set_trip_notes(&trip.id, "v1:old exact note")
+        .unwrap();
+    if kind == "protected" {
+        target
+            .set_vault_passphrase("original protected phrase")
+            .unwrap();
+    }
+    (target, trip.id)
+}
+
+fn assert_terminal_old(
+    database: &Path,
+    secrets: Arc<MemorySecretStore>,
+    kind: &str,
+    trip_id: &str,
+) {
+    let reopened =
+        AppService::open_path_with_deps(database, Arc::new(FakeFetcher::offline()), secrets)
+            .unwrap();
+    if kind == "protected" {
+        assert!(reopened.get_vault_status().unwrap().protected);
+        assert_eq!(
+            reopened.get_trip_notes(trip_id).unwrap_err().code,
+            ErrorCode::VaultLocked
+        );
+        reopened.unlock_vault("original protected phrase").unwrap();
+    }
+    assert_eq!(
+        reopened.get_trip_notes(trip_id).unwrap().body,
+        "v1:old exact note"
+    );
+    assert!(!reopened.has_pending_restore());
+}
+
+#[test]
+fn cancellation_fault_boundaries_reopen_readable_old_workspace() {
+    let (source_database, container) = terminal_restore_source();
+    for kind in ["keychain", "protected", "keyless"] {
+        for point in [
+            "cancel_marker",
+            "cancel_pending_delete",
+            "cancel_rollback_delete",
+            "cancel_candidate_delete",
+            "cancel_rollback_file_delete",
+            "cancel_marker_delete",
+        ] {
+            let database = temp_database(&format!("cancel-{kind}-{point}"));
+            let secrets = Arc::new(MemorySecretStore::default());
+            let (target, trip_id) = terminal_restore_target(kind, &database, secrets.clone());
+            target
+                .stage_restore("correct horse battery", &container)
+                .unwrap();
+            let marker =
+                read_restore_marker(&database.with_file_name(PENDING_RESTORE_MARKER)).unwrap();
+            set_restore_fault(point);
+            assert!(
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| target.unstage_restore()))
+                    .is_err(),
+                "{kind}/{point}"
+            );
+            drop(target);
+            assert_terminal_old(&database, secrets.clone(), kind, &trip_id);
+            assert!(!secrets.has(&vault_pending_key_account(&database, &marker.generation)));
+            assert!(!secrets.has(&vault_rollback_key_account(&database, &marker.generation)));
+            assert!(!database.with_file_name(&marker.candidate_file).exists());
+            cleanup_database(database);
+        }
+    }
+    cleanup_database(source_database);
+}
+
+#[test]
+fn rollback_fault_boundaries_reopen_readable_old_workspace() {
+    let (source_database, container) = terminal_restore_source();
+    for kind in ["keychain", "protected", "keyless"] {
+        for point in [
+            "rollback_marker",
+            "rollback_failed_rename",
+            "rollback_old_rename",
+            "rollback_key_restore",
+            "rollback_pending_delete",
+            "rollback_key_delete",
+            "rollback_marker_delete",
+        ] {
+            let database = temp_database(&format!("rollback-{kind}-{point}"));
+            let secrets = Arc::new(MemorySecretStore::default());
+            let (target, trip_id) = terminal_restore_target(kind, &database, secrets.clone());
+            target
+                .stage_restore("correct horse battery", &container)
+                .unwrap();
+            drop(target);
+            set_restore_fault("rename_candidate");
+            assert!(
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    AppService::open_path_with_deps(
+                        &database,
+                        Arc::new(FakeFetcher::offline()),
+                        secrets.clone(),
+                    )
+                }))
+                .is_err()
+            );
+            let marker =
+                read_restore_marker(&database.with_file_name(PENDING_RESTORE_MARKER)).unwrap();
+            set_restore_fault(point);
+            assert!(
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| rollback_restore(
+                    secrets.as_ref(),
+                    &database,
+                    &marker
+                )))
+                .is_err(),
+                "{kind}/{point}"
+            );
+            assert_terminal_old(&database, secrets.clone(), kind, &trip_id);
+            let failed =
+                database.with_file_name(format!("failed-restore-{}.sqlite3", marker.generation));
+            assert_eq!(sha256_file(&failed).unwrap(), marker.candidate_sha256);
+            assert!(!secrets.has(&vault_pending_key_account(&database, &marker.generation)));
+            assert!(!secrets.has(&vault_rollback_key_account(&database, &marker.generation)));
+            cleanup_database(database);
+        }
+    }
+    cleanup_database(source_database);
+}
+
+#[test]
+fn rollback_refuses_ambiguous_old_hash_and_unavailable_credentials_without_cleanup() {
+    let (source_database, container) = terminal_restore_source();
+    let database = temp_database("rollback-ambiguous");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let (target, _) = terminal_restore_target("keychain", &database, secrets.clone());
+    target
+        .stage_restore("correct horse battery", &container)
+        .unwrap();
+    drop(target);
+    set_restore_fault("rename_candidate");
+    assert!(
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            AppService::open_path_with_deps(
+                &database,
+                Arc::new(FakeFetcher::offline()),
+                secrets.clone(),
+            )
+        }))
+        .is_err()
+    );
+    let marker_path = database.with_file_name(PENDING_RESTORE_MARKER);
+    let marker = read_restore_marker(&marker_path).unwrap();
+    let marker_bytes = fs::read(&marker_path).unwrap();
+    assert!(rollback_restore(&MemorySecretStore::unavailable(), &database, &marker).is_err());
+    assert_eq!(fs::read(&marker_path).unwrap(), marker_bytes);
+    let mut ambiguous = marker.clone();
+    ambiguous.old_database_sha256 = Some("wrong hash".to_owned());
+    assert!(rollback_restore(secrets.as_ref(), &database, &ambiguous).is_err());
+    assert_eq!(sha256_file(&database).unwrap(), marker.candidate_sha256);
+    assert!(database.with_file_name(&marker.rollback_file).exists());
+    assert!(secrets.has(&vault_rollback_key_account(&database, &marker.generation)));
+    rollback_restore(secrets.as_ref(), &database, &marker).unwrap();
+    cleanup_database(database);
+    cleanup_database(source_database);
+}
+
+#[test]
 fn unit_test_default_secret_store_never_reaches_the_os_keychain() {
     let secrets = default_secret_store();
     assert!(
@@ -434,7 +1371,10 @@ fn concierge_projects_distinct_montreal_entry_and_return_steps() {
             .url,
         "https://www.airbnb.com/montreal-canada/stays"
     );
-    let mut completed = workspace.profile;
+    let mut completed = service
+        .get_concierge_workspace(&trip.id)
+        .expect("latest profile after wallet link save")
+        .profile;
     completed.task_progress = vec![TaskProgress {
         task_id: "review-entry".to_owned(),
         state: ConciergeTaskState::DoneByTraveler,
@@ -3745,6 +4685,86 @@ fn atomic_restore_artifacts_replace_an_existing_marker() {
 }
 
 #[test]
+fn native_export_failures_preserve_valid_old_bytes_until_atomic_promotion() {
+    let database = temp_database("native-export-replace");
+    let service = open_test_service(&database).unwrap();
+    let trip = service.create_trip(valid_trip_input()).unwrap();
+    service
+        .set_trip_notes(&trip.id, "old exported note")
+        .unwrap();
+    let old = service.export_backup("correct horse battery").unwrap();
+    service
+        .set_trip_notes(&trip.id, "new exported note")
+        .unwrap();
+    let new = service.export_backup("correct horse battery").unwrap();
+    let path = database.with_file_name("synthetic.vbk");
+    for point in [
+        "export_partial_write",
+        "export_temp_sync",
+        "export_promotion",
+    ] {
+        fs::write(&path, &old).unwrap();
+        set_restore_fault(point);
+        assert!(persist_backup_export(&path, &new).is_err());
+        assert_eq!(fs::read(&path).unwrap(), old, "{point}");
+        assert!(open_backup("correct horse battery", &fs::read(&path).unwrap()).is_ok());
+        assert!(
+            !fs::read_dir(database.parent().unwrap())
+                .unwrap()
+                .filter_map(Result::ok)
+                .any(|e| e
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".voyalier-backup-"))
+        );
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o640)).unwrap();
+        persist_backup_export(&path, &new).unwrap();
+        assert_eq!(fs::metadata(&path).unwrap().mode() & 0o777, 0o640);
+    }
+    persist_backup_export(&path, &new).unwrap();
+    assert_eq!(fs::read(&path).unwrap(), new);
+    assert!(open_backup("correct horse battery", &fs::read(&path).unwrap()).is_ok());
+    fs::write(&path, &old).unwrap();
+    set_restore_fault("export_parent_sync");
+    let error = persist_backup_export(&path, &new).unwrap_err();
+    assert_eq!(error.code, ErrorCode::StorageFailure);
+    assert!(error.message.contains("complete backup replaced the file"));
+    assert!(error.message.contains("durability could not be confirmed"));
+    assert!(error.message.contains("verify that the saved backup opens"));
+    assert_eq!(
+        fs::read(&path).unwrap(),
+        new,
+        "post-promotion failure leaves a complete new container"
+    );
+    assert!(open_backup("correct horse battery", &fs::read(&path).unwrap()).is_ok());
+    drop(service);
+    cleanup_database(database);
+}
+
+#[test]
+#[cfg(unix)]
+fn native_export_refuses_file_links_without_touching_the_target() {
+    let database = temp_database("native-export-alias");
+    let target = database.with_file_name("original.vbk");
+    let link = database.with_file_name("link.vbk");
+    fs::write(&target, b"original synthetic bytes").unwrap();
+    std::os::unix::fs::symlink(&target, &link).unwrap();
+    assert!(persist_backup_export(&link, b"replacement synthetic bytes").is_err());
+    assert_eq!(fs::read(&target).unwrap(), b"original synthetic bytes");
+    assert!(
+        fs::symlink_metadata(&link)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    cleanup_database(database);
+}
+
+#[test]
 fn restore_step_errors_name_the_safe_operation_and_preserve_contract_details() {
     let error = AppError::with_detail(
         ErrorCode::StorageFailure,
@@ -4671,21 +5691,16 @@ fn a_sealed_row_under_a_replaced_key_reports_a_vault_failure_not_a_storage_one()
         .set(&vault_key_account(&database), &BASE64.encode([9u8; 32]))
         .expect("replace the key");
 
-    let reopened = AppService::open_path_with_deps(
+    let error = AppService::open_path_with_deps(
         &database,
         Arc::new(FakeFetcher::offline()),
         secrets.clone(),
     )
-    .expect("reopen");
+    .err()
+    .expect("activation authenticates existing ciphertext before opening");
+    assert_eq!(error.code, ErrorCode::VaultUnreadable);
     assert_eq!(
-        reopened
-            .get_trip_notes(&trip.id)
-            .expect_err("a row sealed under another key must not open")
-            .code,
-        ErrorCode::VaultUnreadable
-    );
-    assert_eq!(
-        reopened
+        service
             .list_trips()
             .expect("unsealed reads still work")
             .len(),
@@ -5248,13 +6263,13 @@ fn get_today_builds_a_view_for_the_current_date() {
     let service = open_test_service(&database).expect("service");
     let trip = service.create_trip(valid_trip_input()).expect("trip");
 
-    let view = service.get_today(&trip.id).expect("today");
+    let view = service.get_today(&trip.id, None).expect("today");
     // Reference date is a YYYY-MM-DD (clock-independent structural check).
     assert_eq!(view.reference_date.len(), 10);
     assert_eq!(view.reference_date.matches('-').count(), 2);
 
     assert_eq!(
-        service.get_today("nope").expect_err("missing").code,
+        service.get_today("nope", None).expect_err("missing").code,
         ErrorCode::TripNotFound
     );
     cleanup_database(database);
@@ -5355,7 +6370,17 @@ fn run_assist_posts_a_redacted_request_to_ollama_and_returns_the_reply() {
         })
         .expect("manual flight");
 
-    let reply = service.run_assist(&trip.id, "ollama").expect("reply");
+    let reply = service
+        .run_assist(
+            &trip.id,
+            "ollama",
+            service
+                .preview_assist(&trip.id, "ollama")
+                .expect("approved preview")
+                .approval_token
+                .as_deref(),
+        )
+        .expect("reply");
     assert_eq!(reply.text, "Your Kyoto plans look ready.");
     assert_eq!(reply.model, "llama3.2");
     assert!(!reply.generated_at.is_empty());
@@ -5432,7 +6457,15 @@ fn run_assist_sends_cloud_requests_with_the_key_only_in_the_auth_header() {
     // Without a stored key, a cloud run is refused before any request.
     assert_eq!(
         service
-            .run_assist(&trip.id, "openai")
+            .run_assist(
+                &trip.id,
+                "openai",
+                service
+                    .preview_assist(&trip.id, "openai")
+                    .expect("approved preview")
+                    .approval_token
+                    .as_deref()
+            )
             .expect_err("no key")
             .code,
         ErrorCode::ValidationInvalidInput
@@ -5442,7 +6475,17 @@ fn run_assist_sends_cloud_requests_with_the_key_only_in_the_auth_header() {
     service
         .set_provider_key("openai", "sk-openai-live")
         .expect("set key");
-    let reply = service.run_assist(&trip.id, "openai").expect("reply");
+    let reply = service
+        .run_assist(
+            &trip.id,
+            "openai",
+            service
+                .preview_assist(&trip.id, "openai")
+                .expect("approved preview")
+                .approval_token
+                .as_deref(),
+        )
+        .expect("reply");
     assert_eq!(reply.text, "OpenAI reply.");
     assert_eq!(reply.provider, ProviderId::OpenAi);
     let (url, body, headers) = stub.last.lock().expect("lock").clone();
@@ -5459,7 +6502,17 @@ fn run_assist_sends_cloud_requests_with_the_key_only_in_the_auth_header() {
     service
         .set_provider_key("anthropic", "sk-anthropic-live")
         .expect("set key");
-    let reply = service.run_assist(&trip.id, "anthropic").expect("reply");
+    let reply = service
+        .run_assist(
+            &trip.id,
+            "anthropic",
+            service
+                .preview_assist(&trip.id, "anthropic")
+                .expect("approved preview")
+                .approval_token
+                .as_deref(),
+        )
+        .expect("reply");
     assert_eq!(reply.text, "Anthropic reply.");
     let (_, body, headers) = stub.last.lock().expect("lock").clone();
     assert!(!body.contains("sk-anthropic-live"));
@@ -5502,7 +6555,15 @@ fn run_assist_surfaces_provider_error_bodies() {
     service.set_provider_key("openai", "sk-bad").expect("key");
 
     let error = service
-        .run_assist(&trip.id, "openai")
+        .run_assist(
+            &trip.id,
+            "openai",
+            service
+                .preview_assist(&trip.id, "openai")
+                .expect("approved preview")
+                .approval_token
+                .as_deref(),
+        )
         .expect_err("provider error");
     assert_eq!(error.code, ErrorCode::AssistFailed);
     assert!(
@@ -5786,7 +6847,7 @@ fn open_test_service_with_fetcher(
     AppService::open_path_with_deps(database, fetcher, Arc::new(MemorySecretStore::default()))
 }
 
-fn temp_database(name: &str) -> PathBuf {
+pub(super) fn temp_database(name: &str) -> PathBuf {
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .expect("clock")
@@ -5796,7 +6857,7 @@ fn temp_database(name: &str) -> PathBuf {
     dir.join("voyalier.sqlite3")
 }
 
-fn cleanup_database(database: PathBuf) {
+pub(super) fn cleanup_database(database: PathBuf) {
     if let Some(parent) = database.parent() {
         let _ = fs::remove_dir_all(parent);
     }

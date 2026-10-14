@@ -28,7 +28,14 @@ names, destinations, and dates are not readable in the file either.
 The backup also carries your workspace's encryption key, re-wrapped under your
 backup passphrase. That is what lets the file open on a **different** computer:
 without it the restored data would be undecryptable, because the original key
-lives in the first machine's keychain and never leaves it.
+lives in the first machine's keychain. The backup carries it only inside the
+encrypted container.
+
+When replacing an existing backup, Voyalier writes and synchronizes a complete
+temporary file before replacing the destination. A failure before replacement
+preserves the previous file. If replacement succeeds but its durability cannot
+be confirmed, the error says so: verify the saved backup before deleting another
+copy. Cancelling the file picker leaves the destination untouched.
 
 :::caution[There is no recovery if you lose the backup passphrase]
 Voyalier never stores it and cannot reset it. A `.vbk` file without its
@@ -60,10 +67,33 @@ It happens in three explicit steps, on purpose:
 3. You quit and reopen Voyalier. The swap happens at startup, before the database
    is opened, which is why the restart is needed.
 
-Just before the swap, Voyalier snapshots your current data into its `backups`
-folder as a `pre-restore-…` file, so a restore you did not mean is recoverable.
-Those snapshots are pruned to the most recent few and are erased by **Clear
-backups**, alongside the pre-update ones.
+The restore keeps a safety copy of your previous workspace in its `backups`
+folder as a `pre-restore-…` file. Voyalier retains matching credentials separately
+so replacing the live key does not strand an otherwise readable copy. Recovery
+still depends on a surviving matching credential or the copy's original vault
+passphrase; it cannot recreate a lost key.
+
+Interrupted cancellation and rollback resume at startup. An unfinished operation
+is not evidence that the replacement completed. Keep the workspace and recovery
+files intact if startup reports a recovery error.
+
+### Local safety copies
+
+Pre-update, pre-restore and pre-format copies are local safety nets, rather than
+portable encrypted backups. Voyalier normally keeps the most recent five. If
+rotation would discard a copy whose recovery credential is unavailable, it
+refuses and preserves that evidence. **Clear backups** explicitly removes owned,
+validated copies and retires their credentials after the last reference is gone.
+
+Setting a vault passphrase protects retained matching data keys as well as the
+live key. An older protected copy continues to require its original passphrase,
+even after you change or remove today's passphrase. Historical file bytes stay
+unchanged: plaintext already in an old safety copy is not retroactively encrypted.
+Use a `.vbk` export for a complete, portable encrypted backup.
+
+The maintenance recovery command diagnoses an exact local safety copy before
+explicitly staging it. See [Troubleshooting](/Voyalier/troubleshooting/#recovering-a-local-safety-copy)
+for the source-run instructions.
 
 ### After a restore
 

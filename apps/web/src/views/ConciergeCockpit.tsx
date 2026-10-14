@@ -25,6 +25,7 @@ import {
 } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
+import { toAppError } from "../gateway";
 import { describeError } from "../app/format";
 import {
   conciergeScope,
@@ -39,7 +40,7 @@ import {
   minorAmountInput,
   parseMinorAmount,
 } from "../app/money";
-import { useAsyncAction, useAsyncData } from "../app/useAsync";
+import { useAsyncAction, useAsyncData, type AsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
 import { Dialog } from "../components/Dialog";
@@ -65,6 +66,28 @@ const STATUS_LABELS: Record<ResidenceStatus, string> = {
   visitor: "Visitor",
   other: "Other",
 };
+
+type SaveResult =
+  { ok: true; workspace: ConciergeWorkspace } | { ok: false; error: AppError };
+type SaveProfile = (profile: ConciergeProfile) => Promise<SaveResult>;
+
+function useFormGeneration() {
+  const generation = useRef(0);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  return {
+    generation,
+    mounted,
+    onChangeCapture: () => {
+      generation.current += 1;
+    },
+  };
+}
 
 function localId(prefix: string): string {
   const suffix = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}`;
@@ -445,9 +468,10 @@ function PeoplePanel({
   busy,
 }: {
   profile: ConciergeProfile;
-  onSave: (profile: ConciergeProfile) => void;
+  onSave: SaveProfile;
   busy: boolean;
 }) {
+  const form = useFormGeneration();
   const [draft, setDraft] = useState({
     displayName: "",
     passport: "",
@@ -456,7 +480,7 @@ function PeoplePanel({
     returnCountry: "US",
     existingDocument: "unknown" as const,
   });
-  function add(event: FormEvent) {
+  async function add(event: FormEvent) {
     event.preventDefault();
     const traveler: TravelerProfile = {
       id: localId("traveler"),
@@ -467,7 +491,17 @@ function PeoplePanel({
       returnCountryIso2: draft.returnCountry || undefined,
       existingDestinationDocument: draft.existingDocument,
     };
-    onSave({ ...profile, travelers: [...profile.travelers, traveler] });
+    const submitted = form.generation.current;
+    const result = await onSave({
+      ...profile,
+      travelers: [...profile.travelers, traveler],
+    });
+    if (
+      !result.ok ||
+      !form.mounted.current ||
+      submitted !== form.generation.current
+    )
+      return;
     setDraft({
       displayName: "",
       passport: "",
@@ -537,7 +571,11 @@ function PeoplePanel({
         </p>
       )}
       {profile.travelers.length < profile.preferences.partySize ? (
-        <form className="voy-concierge__inline-form" onSubmit={add}>
+        <form
+          className="voy-concierge__inline-form"
+          onSubmit={add}
+          onChangeCapture={form.onChangeCapture}
+        >
           <label className="voy-field">
             <span className="voy-field__label">Name in this trip</span>
             <input
@@ -649,15 +687,25 @@ function PeoplePanel({
 
 function ProviderPanel({
   workspace,
-  onSaved,
+  onSave,
+  busy,
+  draftPending,
   onImport,
 }: {
   workspace: ConciergeWorkspace;
-  onSaved: (workspace: ConciergeWorkspace) => void;
+  onSave: SaveProfile;
+  busy: boolean;
+  draftPending: boolean;
   onImport: () => void;
 }) {
-  const gateway = useGateway();
   const announce = useAnnounce();
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const [copied, setCopied] = useState<string | null>(null);
   const [readyUrl, setReadyUrl] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -695,14 +743,18 @@ function ProviderPanel({
           },
         ],
       };
-      const saved = await gateway.setConciergeProfile(next);
-      onSaved(saved);
+      const result = await onSave(next);
+      if (!mounted.current) return;
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
       setReadyUrl(action.url);
       announce(`${action.provider} handoff saved. The provider link is ready.`);
     } catch (caught) {
-      setError(caught as AppError);
+      if (mounted.current) setError(caught as AppError);
     } finally {
-      setBusyId(null);
+      if (mounted.current) setBusyId(null);
     }
   }
   async function setHandoffState(
@@ -710,24 +762,29 @@ function ProviderPanel({
     state: "saved" | "user_reported_booked",
   ) {
     setBusyId(handoffId);
+    setError(null);
     try {
-      const saved = await gateway.setConciergeProfile({
+      const result = await onSave({
         ...workspace.profile,
         providerHandoffs: (workspace.profile.providerHandoffs ?? []).map(
           (handoff) =>
             handoff.id === handoffId ? { ...handoff, state } : handoff,
         ),
       });
-      onSaved(saved);
+      if (!mounted.current) return;
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
       announce(
         state === "saved"
           ? "Candidate saved for comparison."
           : "Traveler-reported booking saved; import the confirmation for review.",
       );
     } catch (caught) {
-      setError(caught as AppError);
+      if (mounted.current) setError(caught as AppError);
     } finally {
-      setBusyId(null);
+      if (mounted.current) setBusyId(null);
     }
   }
   return (
@@ -742,6 +799,11 @@ function ProviderPanel({
         Prices, availability, ratings and account details stay on each provider.
         Voyalier carries the brief and tells you what still needs entry.
       </p>
+      {draftPending ? (
+        <p role="status">
+          Save or discard your setup changes before updating provider handoffs.
+        </p>
+      ) : null}
       {error ? (
         <Banner tone="error" role="alert" title={describeError(error).title}>
           {describeError(error).body}
@@ -784,6 +846,7 @@ function ProviderPanel({
               <Button
                 variant="primary"
                 busy={busyId === action.id}
+                disabled={busy || draftPending}
                 onClick={() => void saveHandoff(action)}
               >
                 Prepare {action.provider}
@@ -821,6 +884,7 @@ function ProviderPanel({
                   <Button
                     variant="secondary"
                     busy={busyId === handoff.id}
+                    disabled={busy || draftPending}
                     onClick={() => void setHandoffState(handoff.id, "saved")}
                   >
                     Save candidate
@@ -828,6 +892,7 @@ function ProviderPanel({
                   <Button
                     variant="secondary"
                     busy={busyId === handoff.id}
+                    disabled={busy || draftPending}
                     onClick={() =>
                       void setHandoffState(handoff.id, "user_reported_booked")
                     }
@@ -941,6 +1006,7 @@ function WalletPanel({
   tripId,
   profile,
   documents,
+  documentsState,
   attachments,
   preparationSteps,
   onSave,
@@ -951,13 +1017,15 @@ function WalletPanel({
   tripId: string;
   profile: ConciergeProfile;
   documents: DocumentSummary[];
+  documentsState: AsyncData<DocumentSummary[]>;
   attachments: AttachmentSummary[];
   preparationSteps: ConciergeWorkspace["preparationSteps"];
-  onSave: (profile: ConciergeProfile) => void;
+  onSave: SaveProfile;
   onImport: () => void;
   onAttachmentsChanged: () => void;
   busy: boolean;
 }) {
+  const form = useFormGeneration();
   const gateway = useGateway();
   const revalidate = useRevalidate();
   const announce = useAnnounce();
@@ -985,13 +1053,13 @@ function WalletPanel({
   >(null);
   const mounted = useRef(true);
   const previewRequest = useRef(0);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
       mounted.current = false;
       previewRequest.current += 1;
-    },
-    [],
-  );
+    };
+  }, []);
   useEffect(
     () => () => {
       if (preview?.kind === "image") URL.revokeObjectURL(preview.url);
@@ -1006,9 +1074,10 @@ function WalletPanel({
     (total, item) => total + item.byteCount,
     0,
   );
-  function add(event: FormEvent) {
+  async function add(event: FormEvent) {
     event.preventDefault();
-    onSave({
+    const submitted = form.generation.current;
+    const result = await onSave({
       ...profile,
       walletLinks: [
         ...profile.walletLinks,
@@ -1029,6 +1098,12 @@ function WalletPanel({
         },
       ],
     });
+    if (
+      !result.ok ||
+      !form.mounted.current ||
+      submitted !== form.generation.current
+    )
+      return;
     setLabel("");
     setSourceId("");
     setTravelerIds([]);
@@ -1067,7 +1142,7 @@ function WalletPanel({
         mimeType: file.type || "application/octet-stream",
         contentBase64: btoa(binary),
       });
-      onSave({
+      const result = await onSave({
         ...profile,
         walletLinks: [
           ...profile.walletLinks,
@@ -1084,11 +1159,19 @@ function WalletPanel({
       });
       onAttachmentsChanged();
       revalidate(conciergeScope(tripId), documentsScope(tripId));
-      announce(`${file.name} encrypted and added to this trip.`);
+      if (!result.ok) {
+        if (mounted.current)
+          setFileError(
+            `The file was imported, but its wallet link was not saved. ${describeError(result.error).body} Add a wallet link using the imported file below.`,
+          );
+        return;
+      }
+      if (mounted.current)
+        announce(`${file.name} encrypted and added to this trip.`);
     } catch (caught) {
-      setFileError(describeError(caught as AppError).body);
+      if (mounted.current) setFileError(describeError(caught as AppError).body);
     } finally {
-      setFileBusy(false);
+      if (mounted.current) setFileBusy(false);
     }
   }
   async function downloadFile(attachment: AttachmentSummary) {
@@ -1180,7 +1263,7 @@ function WalletPanel({
               className="voy-sr-only"
               type="file"
               accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"
-              disabled={fileBusy}
+              disabled={fileBusy || busy}
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 if (file) void importFile(file);
@@ -1191,7 +1274,7 @@ function WalletPanel({
         </div>
       </div>
       {fileError ? (
-        <Banner tone="error" role="alert" title="File could not be stored">
+        <Banner tone="error" role="alert" title="Wallet file needs attention">
           {fileError}
         </Banner>
       ) : null}
@@ -1249,7 +1332,7 @@ function WalletPanel({
                 <small>
                   {link.category}
                   {link.sourceDocumentId
-                    ? ` · ${docs.get(link.sourceDocumentId)?.label ?? "Source removed"}`
+                    ? ` · ${docs.get(link.sourceDocumentId)?.label ?? (documentsState.status === "success" ? "Source removed" : "Source unavailable")}`
                     : link.sourceAttachmentId
                       ? ` · ${files.get(link.sourceAttachmentId)?.label ?? "File removed"}`
                       : " · No imported source linked"}
@@ -1299,7 +1382,33 @@ function WalletPanel({
           already stored in this trip.
         </p>
       )}
-      <form className="voy-concierge__inline-form" onSubmit={add}>
+      {documentsState.status !== "success" ? (
+        <Banner
+          tone={documentsState.error ? "error" : "info"}
+          role={documentsState.error ? "alert" : "status"}
+          title={
+            documentsState.error
+              ? "Imported sources could not be refreshed"
+              : "Loading imported sources"
+          }
+          action={
+            documentsState.error ? (
+              <Button variant="secondary" onClick={documentsState.reload}>
+                Retry sources
+              </Button>
+            ) : undefined
+          }
+        >
+          {documentsState.data
+            ? "Showing previously loaded sources. Their current availability is unverified."
+            : "Source availability is unverified until the list loads."}
+        </Banner>
+      ) : null}
+      <form
+        className="voy-concierge__inline-form"
+        onSubmit={add}
+        onChangeCapture={form.onChangeCapture}
+      >
         <label className="voy-field">
           <span className="voy-field__label">Wallet label</span>
           <input
@@ -1462,9 +1571,10 @@ function MoneyPanel({
   busy,
 }: {
   workspace: ConciergeWorkspace;
-  onSave: (profile: ConciergeProfile) => void;
+  onSave: SaveProfile;
   busy: boolean;
 }) {
+  const form = useFormGeneration();
   const [label, setLabel] = useState("");
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState(
@@ -1473,7 +1583,7 @@ function MoneyPanel({
   const [state, setState] = useState<CostState>("estimate");
   const [taxStatus, setTaxStatus] = useState<CostTaxStatus>("unknown");
   const [amountError, setAmountError] = useState<string | null>(null);
-  function add(event: FormEvent) {
+  async function add(event: FormEvent) {
     event.preventDefault();
     let amountMinor: number | undefined;
     if (amount.trim()) {
@@ -1485,7 +1595,8 @@ function MoneyPanel({
         return;
       }
     }
-    onSave({
+    const submitted = form.generation.current;
+    const result = await onSave({
       ...workspace.profile,
       costs: [
         ...workspace.profile.costs,
@@ -1500,6 +1611,12 @@ function MoneyPanel({
         },
       ],
     });
+    if (
+      !result.ok ||
+      !form.mounted.current ||
+      submitted !== form.generation.current
+    )
+      return;
     setLabel("");
     setAmount("");
   }
@@ -1569,7 +1686,11 @@ function MoneyPanel({
           ))}
         </ul>
       ) : null}
-      <form className="voy-concierge__inline-form" onSubmit={add}>
+      <form
+        className="voy-concierge__inline-form"
+        onSubmit={add}
+        onChangeCapture={form.onChangeCapture}
+      >
         <label className="voy-field">
           <span className="voy-field__label">Item</span>
           <input
@@ -1715,40 +1836,103 @@ function AreaStayRow({
 function CockpitEditor({
   trip,
   initial,
+  initialEpoch,
+  saveEpochRef,
   documents,
-  attachments,
+  documentsState,
   onImport,
   onAttachmentsChanged,
 }: {
   trip: Trip;
   initial: ConciergeWorkspace;
+  initialEpoch: number;
+  saveEpochRef: { current: number };
   documents: DocumentSummary[];
-  attachments: AttachmentSummary[];
+  documentsState: AsyncData<DocumentSummary[]>;
   onImport: () => void;
   onAttachmentsChanged: () => void;
 }) {
   const gateway = useGateway();
   const announce = useAnnounce();
-  const [optimisticWorkspace, setOptimisticWorkspace] = useState<{
-    base: ConciergeWorkspace;
-    value: ConciergeWorkspace;
-  }>();
-  // A trip-scope refresh can change confirmed facts or authored plans without
-  // changing the concierge profile timestamp. Use every fresh projection as
-  // soon as it arrives, while retaining an unsaved profile draft. A successful
-  // concierge write is shown optimistically only until the parent supplies a
-  // newer projection object.
-  const workspace =
-    optimisticWorkspace?.base === initial ? optimisticWorkspace.value : initial;
+  const [acceptedEpoch, setAcceptedEpoch] = useState(initialEpoch);
+  const [acceptedSnapshot, setAcceptedSnapshot] = useState({
+    source: initial,
+    value: initial,
+  });
+  // Only a projection requested after the most recent write may replace the
+  // acknowledged workspace. Adjust from props before rendering its children.
+  if (initial !== acceptedSnapshot.source && initialEpoch === acceptedEpoch) {
+    setAcceptedSnapshot({ source: initial, value: initial });
+  }
+  const workspace = acceptedSnapshot.value;
+  const attachments = workspace.attachments;
   const [profile, setProfile] = useState(initial.profile);
+  const [acceptedProfile, setAcceptedProfile] = useState(initial.profile);
+  const accepted = useRef(initial.profile);
+  const draft = useRef(profile);
+  const saving = useRef(false);
+  const draftGeneration = useRef(0);
+  const [refreshPending, setRefreshPending] = useState(false);
+  function editProfile(next: ConciergeProfile) {
+    draftGeneration.current += 1;
+    draft.current = next;
+    setProfile(next);
+  }
+  useEffect(() => {
+    // A request started before a write cannot replace that write's acknowledged
+    // profile, even if its response arrives later. The revision remains opaque.
+    if (initialEpoch !== saveEpochRef.current) return;
+    if (JSON.stringify(initial.profile) === JSON.stringify(accepted.current))
+      return;
+    if (draft.current === accepted.current) {
+      draft.current = initial.profile;
+      setProfile(initial.profile);
+    } else {
+      setRefreshPending(true);
+    }
+    accepted.current = initial.profile;
+    setAcceptedProfile(initial.profile);
+  }, [initial, initialEpoch, saveEpochRef]);
   const [atlasDepth, setAtlasDepth] = useState<"flat" | "relief">("relief");
   const saveAction = useAsyncAction(
-    (next: ConciergeProfile) => gateway.setConciergeProfile(next),
-    (saved) => {
-      setOptimisticWorkspace({ base: initial, value: saved });
-      setProfile(saved.profile);
+    async (
+      next: ConciergeProfile,
+      finish: (result: SaveResult) => void,
+      _generation: number,
+    ) => {
+      void _generation;
+      try {
+        const saved = await gateway.setConciergeProfile(next);
+        finish({ ok: true, workspace: saved });
+        return saved;
+      } catch (caught) {
+        const error = toAppError(caught, "internal/unexpected");
+        finish({ ok: false, error });
+        throw error;
+      } finally {
+        // Settlement and ownership do not depend on the editor still being
+        // mounted; uploads can finish their scope invalidation after navigation.
+        saving.current = false;
+        // Also fence reads started while the write was pending: they may have
+        // captured the preceding persisted profile before the write completed.
+        saveEpochRef.current += 1;
+      }
+    },
+    (saved, _next, _finish, generation) => {
+      setAcceptedEpoch(saveEpochRef.current);
+      setAcceptedSnapshot({ source: initial, value: saved });
+      accepted.current = saved.profile;
+      setAcceptedProfile(saved.profile);
+      if (generation === draftGeneration.current) {
+        draft.current = saved.profile;
+        setProfile(saved.profile);
+        setRefreshPending(false);
+      } else {
+        setRefreshPending(true);
+      }
       announce("Concierge plan saved on this device.");
     },
+    () => setAcceptedEpoch(saveEpochRef.current),
   );
   const progress = workspace.tasks.filter(
     (task) =>
@@ -1757,8 +1941,21 @@ function CockpitEditor({
   const complete = workspace.tasks.length
     ? Math.round((progress / workspace.tasks.length) * 100)
     : 0;
-  function save(next = profile) {
-    void saveAction.run(next);
+  function save(next = draft.current): Promise<SaveResult> {
+    if (saving.current)
+      return Promise.resolve({
+        ok: false,
+        error: {
+          code: "validation/invalid_input",
+          message: "A profile save is already in progress.",
+        },
+      });
+    saving.current = true;
+    saveEpochRef.current += 1;
+    setAcceptedEpoch(saveEpochRef.current);
+    return new Promise((finish) => {
+      void saveAction.run(next, finish, draftGeneration.current);
+    });
   }
   function setTask(taskId: string, state: ConciergeTaskState) {
     const previous = profile.taskProgress.find(
@@ -1780,7 +1977,7 @@ function CockpitEditor({
         },
       ],
     };
-    setProfile(next);
+    editProfile(next);
     save(next);
   }
   const activeTasks = workspace.tasks.filter(
@@ -1855,8 +2052,17 @@ function CockpitEditor({
           tone="error"
           role="alert"
           title={describeError(saveAction.error).title}
+          action={
+            <Button variant="secondary" onClick={onAttachmentsChanged}>
+              Reload saved profile
+            </Button>
+          }
         >
           {describeError(saveAction.error).body}
+          <p>
+            Your draft is retained. Reload to review the saved profile before
+            retrying a changed profile.
+          </p>
         </Banner>
       ) : null}
 
@@ -1956,7 +2162,9 @@ function CockpitEditor({
           <h3>Open in two steps</h3>
           <ul>
             <li>
-              {documents.length + attachments.length} imported document(s)
+              {documentsState.status === "success"
+                ? `${documents.length + attachments.length} imported document(s)`
+                : "Imported document count unavailable"}
             </li>
             <li>{profile.walletLinks.length} wallet link(s)</li>
             <li>{profile.travelers.length} traveler profile(s)</li>
@@ -1971,10 +2179,29 @@ function CockpitEditor({
 
       <SetupPanel
         profile={profile}
-        onChange={setProfile}
+        onChange={editProfile}
         onSave={() => save()}
         busy={saveAction.busy}
       />
+      {profile !== acceptedProfile ? (
+        <p className="voy-concierge__notice" role="status">
+          {refreshPending
+            ? "A saved profile changed while your draft was open. Your draft is retained; review the saved version before continuing."
+            : "Your setup changes are not saved yet."}
+          <Button
+            variant="secondary"
+            disabled={saveAction.busy}
+            onClick={() => {
+              draftGeneration.current += 1;
+              draft.current = accepted.current;
+              setProfile(accepted.current);
+              setRefreshPending(false);
+            }}
+          >
+            Discard setup draft and use saved profile
+          </Button>
+        </p>
+      ) : null}
       <PeoplePanel profile={profile} onSave={save} busy={saveAction.busy} />
       {workspace.areaGuides.length ? (
         <section className="voy-concierge__areas" aria-labelledby="areas-title">
@@ -2003,7 +2230,7 @@ function CockpitEditor({
                           selectedArea: area.name,
                         },
                       };
-                      setProfile(next);
+                      editProfile(next);
                       save(next);
                     }}
                   >
@@ -2028,7 +2255,7 @@ function CockpitEditor({
                           ],
                         },
                       };
-                      setProfile(next);
+                      editProfile(next);
                       save(next);
                     }}
                   >
@@ -2068,7 +2295,7 @@ function CockpitEditor({
                           ),
                         },
                       };
-                      setProfile(next);
+                      editProfile(next);
                       save(next);
                     }}
                     onRemove={() => {
@@ -2081,7 +2308,7 @@ function CockpitEditor({
                           ).filter((item) => item.id !== stay.id),
                         },
                       };
-                      setProfile(next);
+                      editProfile(next);
                       save(next);
                     }}
                   />
@@ -2092,11 +2319,10 @@ function CockpitEditor({
         </section>
       ) : null}
       <ProviderPanel
-        workspace={{ ...workspace, profile }}
-        onSaved={(saved) => {
-          setOptimisticWorkspace({ base: initial, value: saved });
-          setProfile(saved.profile);
-        }}
+        workspace={{ ...workspace, profile: acceptedProfile }}
+        onSave={save}
+        busy={saveAction.busy}
+        draftPending={profile !== acceptedProfile}
         onImport={onImport}
       />
       <PreparationPanel
@@ -2119,6 +2345,7 @@ function CockpitEditor({
         tripId={trip.id}
         profile={profile}
         documents={documents}
+        documentsState={documentsState}
         attachments={attachments}
         preparationSteps={workspace.preparationSteps}
         onSave={save}
@@ -2143,18 +2370,21 @@ export function ConciergeCockpit({
   onImport: () => void;
 }) {
   const gateway = useGateway();
+  const saveEpochRef = useRef(0);
   const conciergeVersion = useScopeKey(conciergeScope(trip.id));
   const tripVersion = useScopeKey(tripScope(trip.id));
   const documentsVersion = useScopeKey(documentsScope(trip.id));
-  const workspace = useAsyncData(
-    () => gateway.getConciergeWorkspace(trip.id),
-    `${conciergeVersion}:${tripVersion}:${trip.updatedAt}`,
-  );
+  const workspace = useAsyncData(async () => {
+    const epoch = saveEpochRef.current;
+    const value = await gateway.getConciergeWorkspace(trip.id);
+    return { epoch, value };
+  }, `${conciergeVersion}:${tripVersion}:${trip.updatedAt}`);
+  const workspaceData = workspace.data?.value;
   const documents = useAsyncData(
     () => gateway.listDocuments(trip.id),
     documentsVersion,
   );
-  if (workspace.status === "loading" && !workspace.data) {
+  if (workspace.status === "loading" && !workspaceData) {
     return (
       <section
         className="voy-concierge"
@@ -2167,7 +2397,7 @@ export function ConciergeCockpit({
       </section>
     );
   }
-  if (workspace.error && !workspace.data) {
+  if (workspace.error && !workspaceData) {
     return (
       <div lang="en">
         <Banner
@@ -2185,16 +2415,36 @@ export function ConciergeCockpit({
       </div>
     );
   }
-  if (!workspace.data) return null;
+  if (!workspaceData) return null;
   return (
-    <CockpitEditor
-      key={`${trip.updatedAt}:${workspace.data.profile.updatedAt ?? "new"}`}
-      trip={trip}
-      initial={workspace.data}
-      documents={documents.data ?? []}
-      attachments={workspace.data.attachments}
-      onImport={onImport}
-      onAttachmentsChanged={workspace.reload}
-    />
+    <>
+      {workspace.error ? (
+        <div lang="en">
+          <Banner
+            role="alert"
+            title="Saved concierge workspace could not be refreshed"
+            action={
+              <Button variant="secondary" onClick={workspace.reload}>
+                Retry workspace
+              </Button>
+            }
+          >
+            Showing the previously loaded workspace. File availability and saved
+            profile may have changed.
+          </Banner>
+        </div>
+      ) : null}
+      <CockpitEditor
+        key={trip.id}
+        trip={trip}
+        initial={workspaceData}
+        initialEpoch={workspace.data!.epoch}
+        saveEpochRef={saveEpochRef}
+        documents={documents.data ?? []}
+        documentsState={documents}
+        onImport={onImport}
+        onAttachmentsChanged={workspace.reload}
+      />
+    </>
   );
 }

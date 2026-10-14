@@ -32,10 +32,10 @@ use voyalier_core::{
     ConciergeProfile, ConfirmedFact, ConfirmedFactVersion, DocumentContent, ErrorCode,
     InterestProfile, ItineraryIdentity, PackingItem, PersonaWeights, Resource, ResourceSnapshot,
     SavedPlace, SourceDocument, TodayItemTargetSource, Trip, TripItem, TripItemKind, TripNotes,
-    TripSummary, VisaPrepItem, saved_place_identity,
+    TripSummary, VisaPrepItem, new_id, saved_place_identity,
 };
 
-use crate::{DocumentText, Vault, sealed::Sealed, storage_error};
+use crate::{DocumentText, Vault, sealed::Sealed, sha256_hex, storage_error};
 
 /// The sensitive text columns the vault seals: the parsed confirmed-fact payload
 /// AND the original imported document text it was extracted from — both carry
@@ -126,7 +126,16 @@ impl<'a> Records<'a> {
         stored
             .map(|payload| {
                 let json = self.vault.open(&payload)?;
-                serde_json::from_str(&json).map_err(storage_error)
+                let mut profile: ConciergeProfile =
+                    serde_json::from_str(&json).map_err(storage_error)?;
+                if profile.revision.is_none() {
+                    // A read-only compatibility identity for an existing legacy
+                    // row. The exact stored plaintext, not a normalized copy,
+                    // remains stable until its next accepted persistence.
+                    profile.revision =
+                        Some(format!("legacy_profile_v1_{}", sha256_hex(json.as_bytes())));
+                }
+                Ok(profile)
             })
             .transpose()
     }
@@ -136,7 +145,9 @@ impl<'a> Records<'a> {
         profile: &ConciergeProfile,
         id: &str,
     ) -> Result<(), AppError> {
-        let payload = self.vault.seal(&to_sql_json(profile)?)?;
+        let mut persisted = profile.clone();
+        persisted.revision = Some(new_id("concierge_revision"));
+        let payload = self.vault.seal(&to_sql_json(&persisted)?)?;
         self.connection
             .execute(
                 "INSERT INTO concierge_profiles (id, trip_id, payload, updated_at)

@@ -12,9 +12,11 @@ symptom → likely cause → what to do.
 
 - Confirm Node.js 24+, pnpm 11+, and the stable Rust toolchain are installed.
 - Run `make bootstrap` once, then `make dev`.
-- The web UI needs port `5173` and the local API needs `8787`. If another
-  process holds one, stop it (or set `VOYALIER_DATA_DIR` and adjust the port) and
-  retry.
+- The supported `make dev` launcher opens a managed Chromium session on macOS
+  or Linux. Vite serves the interface on port `5173`; the API uses a
+  kernel-selected loopback port and a private, per-launch bootstrap. If Vite's
+  port is occupied, stop the conflicting process and restart the launcher.
+  A manually opened browser does not receive an authenticated API session.
 - Run `make check` to surface build, lint, and type errors.
 
 ## Voyalier won't open on first launch
@@ -103,8 +105,10 @@ use.
 - A successful retry returns the topbar to **Ready** and reloads the affected
   local view. Validation or storage errors stay attached to their own action and
   do not masquerade as an outage.
-- When running from source, confirm the Axum API still answers on
-  `127.0.0.1:8787`; `make dev` starts both it and the web UI.
+- When running from source on macOS or Linux, restart `make dev` and use the
+  managed browser it opens. The launcher owns Vite, the API's assigned loopback
+  address and the in-memory authentication bootstrap; manually opening a URL
+  does not restore that session. Windows uses the packaged desktop app.
 
 ## A city pack won't download
 
@@ -163,19 +167,49 @@ workspace can set a passphrase or restore a backup without affecting the first.
 other workspace's encrypted fields unreadable. If you ran two workspaces on an
 earlier version and one of them stopped opening its saved trips, that is why.
 
-- **Back up:** copy that `voyalier.sqlite3` file somewhere safe while the app is
-  closed. Sensitive fields inside it are already encrypted at rest.
+- **Back up:** prefer a portable `.vbk` export from the desktop app. A SQLite
+  copy made while the app is closed depends on its matching key or original
+  vault passphrase and can contain ordinary trip details or historical plaintext.
 - **Reset:** delete the file to start with an empty workspace. This is
   irreversible.
 - **Pre-update backups:** Voyalier keeps its most recent database backups in a
   `backups/` subfolder of that same directory (named `pre-update-*.sqlite3`).
   Each is a complete snapshot, so a trip you delete still exists in older backups
-  until they rotate out — delete the files if you want them gone. Backups are
-  never included in an exported or shared brief.
+  until they rotate out. Use **Clear backups** to remove owned, validated copies
+  and retire their matching recovery credentials. Automatic rotation refuses to
+  discard a copy whose recovery credential is unavailable. Backups are never
+  included in an exported or shared brief.
 
 Your provider API keys and the vault key live separately in the OS keychain
 (service `com.voyalier.keys`), not in that file. Removing a provider key is done
 from the **AI providers** panel.
+
+### Recovering a local safety copy
+
+Close Voyalier and stop any source-run server using the same data directory.
+Another live process holds workspace custody; recovery refuses while it is open.
+Do not delete the `.voyalier.sqlite3.workspace-lock` file to bypass this check:
+the operating system releases custody when the process exits.
+
+From a source checkout, select the exact basename already present in the data
+directory's `backups` folder. For example, replace the sample filename below with
+your actual copy:
+
+```sh
+cargo run --locked -p voyalier-server -- backup-recover pre-update-before-update-20261012T120000Z.sqlite3
+cargo run --locked -p voyalier-server -- backup-recover pre-update-before-update-20261012T120000Z.sqlite3 --apply
+```
+
+The first command diagnoses without staging anything. `--apply` validates and
+stages the selected copy through the normal restore process; reopen Voyalier to
+activate it. Use the same `VOYALIER_DATA_DIR` as the workspace if you configured
+one. This is a maintenance command, not a file-picker restore.
+
+A protected copy asks for its **original** vault passphrase in a non-echo
+terminal. Never put it in arguments or environment variables. A missing matching
+key cannot be recreated: preserve the copy, index and credentials, and try a
+portable `.vbk` backup if one is available. An unavailable-credential diagnosis
+does not mean the copy has been safely restored.
 
 ### Clearing up after workspaces you no longer use
 
@@ -188,8 +222,8 @@ voyalier-server vault-prune            # lists what it would remove
 voyalier-server vault-prune --apply    # removes it
 ```
 
-It only removes accounts whose database no longer exists, and never the default
-installation's. It also cannot see workspaces you last opened before 0.10.4 —
+It only removes accounts whose database no longer exists and has no retained
+local recovery state, and never the default installation's. It also cannot see workspaces you last opened before 0.10.4 —
 the keychain cannot be listed, so Voyalier only knows about the ones it has
 recorded since. Anything older has to be removed by hand in Keychain Access,
 under the service `com.voyalier.keys`.

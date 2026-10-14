@@ -130,6 +130,7 @@ pub fn build_draft_preview(
         ]
     };
     AssistRequestPreview {
+        approval_token: None,
         provider: ProviderId::Ollama,
         provider_label: provider_info(ProviderId::Ollama).label.to_owned(),
         model: model.map(str::to_owned),

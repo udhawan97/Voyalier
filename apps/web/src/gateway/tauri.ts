@@ -188,8 +188,11 @@ export function createTauriGateway(
     getTripBrief: (tripId: string) =>
       call<TripBrief>(command("getTripBrief"), { tripId }),
 
-    getToday: (tripId: string) =>
-      call<TodayView>(command("getToday"), { tripId }),
+    getToday: (tripId: string, referenceDate?: string) =>
+      call<TodayView>(command("getToday"), {
+        tripId,
+        ...(referenceDate === undefined ? {} : { referenceDate }),
+      }),
 
     getVaultStatus: () => call<VaultStatus>(command("getVaultStatus"), {}),
 
@@ -227,8 +230,12 @@ export function createTauriGateway(
         provider,
       }),
 
-    runAssist: (tripId: string, provider: ProviderId) =>
-      call<AssistReply>(command("runAssist"), { tripId, provider }),
+    runAssist: (tripId: string, provider: ProviderId, approvalToken: string) =>
+      call<AssistReply>(command("runAssist"), {
+        tripId,
+        provider,
+        approvalToken,
+      }),
 
     previewAssistDraft: (tripId: string, kind: AssistDraftKind) =>
       call<AssistRequestPreview>(command("previewAssistDraft"), {

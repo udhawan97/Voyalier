@@ -21,5 +21,8 @@ ureq = "=3.4.2"
 url.workspace = true
 voyalier-core = { path = "../voyalier-core" }
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.60.2", features = ["Win32_Storage_FileSystem"] }
+windows-sys = { version = "0.60.2", features = ["Win32_Storage_FileSystem", "Win32_System_IO", "Win32_System_Console"] }

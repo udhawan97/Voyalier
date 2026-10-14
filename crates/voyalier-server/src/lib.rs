@@ -54,8 +54,18 @@ struct FieldSuggestionsQuery {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct RunAssistBody {
     provider: String,
+    #[serde(default)]
+    approval_token: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TodayQuery {
+    #[serde(default)]
+    reference_date: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -497,8 +507,11 @@ async fn get_trip_brief(
 async fn get_today(
     State(service): State<AppService>,
     Path(trip_id): Path<String>,
+    Query(query): Query<TodayQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
-    Ok(Json(service.get_today(&trip_id)?))
+    Ok(Json(
+        service.get_today(&trip_id, query.reference_date.as_deref())?,
+    ))
 }
 
 async fn get_vault_status(
@@ -766,7 +779,11 @@ async fn run_assist(
     Path(trip_id): Path<String>,
     Json(body): Json<RunAssistBody>,
 ) -> Result<impl IntoResponse, ApiError> {
-    Ok(Json(service.run_assist(&trip_id, &body.provider)?))
+    Ok(Json(service.run_assist(
+        &trip_id,
+        &body.provider,
+        body.approval_token.as_deref(),
+    )?))
 }
 
 async fn preview_assist_draft(
@@ -1292,6 +1309,132 @@ mod tests {
 
     const TEST_BIND: &str = "127.0.0.1:8787";
     const TEST_BEARER: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+    #[tokio::test]
+    async fn profile_date_and_assist_wire_fields_reach_the_real_service() {
+        let database = temp_database("profile-date-assist-wire");
+        let fetcher = std::sync::Arc::new(voyalier_app::FakeFetcher::offline().route(
+            "http://localhost:11434/api/chat",
+            r#"{"message":{"content":"Synthetic response"}}"#,
+        ));
+        let service = AppService::open_path_with_deps(
+            &database,
+            fetcher.clone(),
+            std::sync::Arc::new(voyalier_app::MemorySecretStore::default()),
+        )
+        .unwrap();
+        let trip = service
+            .create_trip(voyalier_core::CreateTripInput {
+                title: Some("Synthetic wire journey".into()),
+                origin: "Paris".into(),
+                destination: "Kyoto".into(),
+                start_date: "2027-01-01".into(),
+                end_date: "2027-01-08".into(),
+            })
+            .unwrap();
+        let baseline = service
+            .set_concierge_profile(voyalier_core::ConciergeProfile::empty(&trip.id))
+            .unwrap()
+            .profile;
+        let router = app(service.clone(), DEFAULT_BIND.parse().unwrap());
+        let wire: Value = serde_json::from_str(include_str!(
+            "../../../packages/contracts/fixtures/profile-date-assist-wire.json"
+        ))
+        .unwrap();
+        let mut profile = wire["setConciergeProfile"]["args"]["input"].clone();
+        profile["tripId"] = json!(trip.id);
+        profile["revision"] = json!(baseline.revision);
+        let path = format!("/api/v1/trips/{}/concierge", trip.id);
+        let saved = request(router.clone(), Method::PUT, &path, Some(profile.clone())).await;
+        assert_eq!(saved.status, StatusCode::OK);
+        assert_eq!(saved.json["profile"]["preferences"]["pace"], "slow");
+        assert_ne!(saved.json["profile"]["revision"], profile["revision"]);
+        let stale = request(router.clone(), Method::PUT, &path, Some(profile.clone())).await;
+        assert_eq!(stale.status, StatusCode::BAD_REQUEST);
+        assert_eq!(stale.json["details"]["reason"], "profile_changed");
+        profile.as_object_mut().unwrap().remove("revision");
+        let omitted = request(router.clone(), Method::PUT, &path, Some(profile)).await;
+        assert_eq!(omitted.status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            omitted.json["details"]["reason"],
+            "profile_revision_required"
+        );
+        assert_eq!(
+            serde_json::to_value(service.get_concierge_workspace(&trip.id).unwrap().profile)
+                .unwrap(),
+            saved.json["profile"]
+        );
+
+        let reference = wire["getToday"]["args"]["input"]["referenceDate"]
+            .as_str()
+            .unwrap();
+        let today_path = format!("/api/v1/trips/{}/today", trip.id);
+        let today = request(
+            router.clone(),
+            Method::GET,
+            &format!("{today_path}?referenceDate={reference}"),
+            None,
+        )
+        .await;
+        assert_eq!(today.status, StatusCode::OK);
+        assert_eq!(today.json["referenceDate"], reference);
+        assert_eq!(
+            request(router.clone(), Method::GET, &today_path, None)
+                .await
+                .status,
+            StatusCode::OK
+        );
+        let invalid = request(
+            router.clone(),
+            Method::GET,
+            &format!("{today_path}?referenceDate=2026-02-29"),
+            None,
+        )
+        .await;
+        assert_eq!(invalid.status, StatusCode::BAD_REQUEST);
+        assert_eq!(invalid.json["details"]["field"], "referenceDate");
+
+        let assist_path = format!("/api/v1/trips/{}/assist", trip.id);
+        let preview_path = format!("/api/v1/trips/{}/assist-preview?provider=ollama", trip.id);
+        let missing = request(
+            router.clone(),
+            Method::POST,
+            &assist_path,
+            Some(json!({"provider":"ollama"})),
+        )
+        .await;
+        assert_eq!(
+            missing.json["details"]["reason"],
+            "assist_approval_required"
+        );
+        let preview = request(router.clone(), Method::GET, &preview_path, None).await;
+        service
+            .set_provider_model("ollama", "synthetic-changed-model")
+            .unwrap();
+        let stale = request(
+            router.clone(),
+            Method::POST,
+            &assist_path,
+            Some(json!({"provider":"ollama","approvalToken":preview.json["approvalToken"]})),
+        )
+        .await;
+        assert_eq!(stale.status, StatusCode::BAD_REQUEST);
+        assert_eq!(stale.json["details"]["reason"], "assist_preview_changed");
+        assert!(fetcher.posted().is_empty());
+        assert!(service.list_assist_activity(&trip.id).unwrap().is_empty());
+        let renewed = request(router.clone(), Method::GET, &preview_path, None).await;
+        let mut run = wire["runAssist"]["args"]["input"].clone();
+        run.as_object_mut().unwrap().remove("tripId");
+        run["approvalToken"] = renewed.json["approvalToken"].clone();
+        let sent = request(router.clone(), Method::POST, &assist_path, Some(run)).await;
+        assert_eq!(sent.status, StatusCode::OK);
+        assert_eq!(sent.json["text"], "Synthetic response");
+        assert_eq!(fetcher.posted().len(), 1);
+        assert_eq!(service.list_assist_activity(&trip.id).unwrap().len(), 1);
+        drop(router);
+        drop(service);
+        cleanup_database(database);
+    }
 
     fn app(service: AppService, address: SocketAddr) -> Router {
         let address = if address.port() == 0 {
@@ -2043,17 +2186,10 @@ mod tests {
         // A fetcher that panics on any network use, plus an in-memory secret
         // store, so this test can never make a real cloud call or read a real
         // keychain — even if a key happened to be stored on this machine.
-        struct NoNetwork;
-        impl voyalier_app::AdviceFetcher for NoNetwork {
-            fn fetch_text(&self, _url: &str) -> Result<String, AppError> {
-                panic!("no network in this test");
-            }
-        }
-
         let database = temp_database("assist-preview");
         let service = AppService::open_path_with_deps(
             &database,
-            std::sync::Arc::new(NoNetwork),
+            std::sync::Arc::new(voyalier_app::FakeFetcher::offline()),
             std::sync::Arc::new(voyalier_app::MemorySecretStore::default()),
         )
         .expect("service");
@@ -2086,15 +2222,16 @@ mod tests {
 
         // Cloud assist with no key stored is refused with a 400 before any
         // request — nothing leaves the device (the fetcher would panic if it
-        // did). The happy path is covered at the app layer with a stub fetcher.
+        // did). The happy path is covered through the shipped fake fetcher.
         let cloud = request(
             router.clone(),
             Method::POST,
             &format!("/api/v1/trips/{trip_id}/assist"),
-            Some(json!({ "provider": "openai" })),
+            Some(json!({ "provider": "openai", "approvalToken": ok.json["approvalToken"] })),
         )
         .await;
         assert_eq!(cloud.status, StatusCode::BAD_REQUEST);
+        assert_eq!(cloud.json["details"]["field"], "provider");
 
         // The activity log route is reachable and starts empty (the cloud
         // attempt was refused before any call, so nothing is logged).
@@ -2835,7 +2972,7 @@ mod tests {
     /// The keys http.ts writes by hand must be the keys the handler reads by
     /// name, and nothing compared them.
     ///
-    /// 14 of the 81 calls hand-build a request body and 8 build a query string,
+    /// 14 calls hand-build a request body and 9 build a query string,
     /// against 16 body structs and 6 query structs declared here. Renaming a
     /// field on either side alone compiled clean and passed every guard: the
     /// route tests compare verb and path, and `gateway.live.test.ts` drives ten
@@ -2917,8 +3054,8 @@ mod tests {
         // changes kind.
         assert_eq!(
             (bodies, queries),
-            (14, 8),
-            "expected 14 bodies and 8 query strings"
+            (14, 9),
+            "expected 14 bodies and 9 query strings"
         );
     }
 

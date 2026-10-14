@@ -326,6 +326,9 @@ pub struct ProviderHandoff {
 #[serde(rename_all = "camelCase")]
 pub struct ConciergeProfile {
     pub trip_id: String,
+    /// Server-owned whole-profile precondition. Absent only before first save.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revision: Option<String>,
     pub preferences: ConciergePreferences,
     #[serde(default)]
     pub travelers: Vec<TravelerProfile>,
@@ -430,6 +433,7 @@ impl ConciergeProfile {
     pub fn empty(trip_id: &str) -> Self {
         Self {
             trip_id: trip_id.to_owned(),
+            revision: None,
             preferences: ConciergePreferences::default(),
             travelers: Vec::new(),
             task_progress: Vec::new(),
@@ -442,6 +446,18 @@ impl ConciergeProfile {
 
     pub fn validate(mut self) -> Result<Self, AppError> {
         validate_short("tripId", &self.trip_id)?;
+        if let Some(revision) = &self.revision {
+            // Revisions are ASCII identifiers; after that check bytes and
+            // Unicode-character counts are identical.
+            if revision.is_empty()
+                || !revision
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+                || revision.len() > 128
+            {
+                return invalid("revision", "invalid profile revision");
+            }
+        }
         if self.preferences.party_size == 0 || self.preferences.party_size as usize > MAX_TRAVELERS
         {
             return invalid("partySize", "party size must be between 1 and 20");
@@ -1979,6 +1995,39 @@ pub fn provider_acquisition_for_url(value: &str) -> Option<ProviderAcquisition> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn profile_revision_round_trips_and_legacy_absence_remains_readable() {
+        let mut profile = ConciergeProfile::empty("trip_revision");
+        let legacy = serde_json::to_string(&profile).unwrap();
+        assert!(!legacy.contains("\"revision\""));
+        assert_eq!(
+            serde_json::from_str::<ConciergeProfile>(&legacy)
+                .unwrap()
+                .revision,
+            None
+        );
+        profile.revision = Some("concierge_revision-123".into());
+        let profile = profile.validate().unwrap();
+        assert_eq!(
+            serde_json::from_str::<ConciergeProfile>(&serde_json::to_string(&profile).unwrap())
+                .unwrap(),
+            profile
+        );
+        for token in [
+            String::new(),
+            "x".repeat(129),
+            "revision with whitespace".into(),
+            "révision".into(),
+        ] {
+            let mut invalid_profile = profile.clone();
+            invalid_profile.revision = Some(token);
+            assert_eq!(
+                invalid_profile.validate().unwrap_err().code,
+                ErrorCode::ValidationInvalidInput
+            );
+        }
+    }
 
     #[test]
     fn mixed_hawaii_party_gets_domestic_steps_not_visa_claims() {

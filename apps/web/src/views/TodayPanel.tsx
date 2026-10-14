@@ -2,11 +2,12 @@ import type { TodayItem, TodayView, TripPhase } from "@voyalier/contracts";
 
 import { useGateway } from "../app/context";
 import { useAsyncData } from "../app/useAsync";
+import { useDeviceDate } from "../app/useDeviceDate";
 import { formatDate, formatTimeLocal } from "../app/format";
 import { t } from "../app/i18n";
 import { tripScope, useScopeKey } from "../app/revalidate";
 import { Button } from "../components/Button";
-import { SectionTitle } from "../components/primitives";
+import { SectionTitle, Skeleton } from "../components/primitives";
 import { CalendarIcon, RetryIcon } from "../components/icons";
 
 function phaseHeadline(phase: TripPhase): string {
@@ -86,10 +87,23 @@ function TodayTargetAction({
   );
 }
 
+function TodaySource({ item }: { item: TodayItem }) {
+  if (!item.target) return null;
+  return (
+    <span className="voy-badge">
+      {t(
+        item.target.source === "confirmed_fact"
+          ? "journey.source.confirmed"
+          : "journey.source.plan",
+      )}
+    </span>
+  );
+}
+
 /**
  * The Today view: where the trip stands right now, what's on for today, and the
  * next thing coming up. Deterministic and offline — computed from confirmed
- * facts against the current date. Loads with the trip; no network.
+ * facts and traveler-authored plans against the device calendar date. No network.
  */
 export function TodayPanel({
   tripId,
@@ -99,13 +113,17 @@ export function TodayPanel({
   onFocusTarget: (target: TodayTarget) => void;
 }) {
   const gateway = useGateway();
+  const deviceDate = useDeviceDate();
   const tripVersion = useScopeKey(tripScope(tripId));
   const today = useAsyncData<TodayView>(
-    () => gateway.getToday(tripId),
-    `today:${tripId}:${tripVersion}`,
+    () => gateway.getToday(tripId, deviceDate),
+    `today:${tripId}:${tripVersion}:${deviceDate}`,
   );
 
-  if (today.status === "error") {
+  if (
+    today.status === "error" ||
+    (today.status === "success" && today.data?.referenceDate !== deviceDate)
+  ) {
     // A best-effort summary — but surface a quiet, retryable line rather than
     // silently removing a headline panel when it can't load.
     return (
@@ -125,9 +143,22 @@ export function TodayPanel({
       </section>
     );
   }
-  if (!today.data) {
-    // No data for this trip yet (e.g. no confirmed facts) — render nothing.
-    return null;
+  if (!today.data || today.data.referenceDate !== deviceDate) {
+    // Retained rows for yesterday must not appear under today's heading while
+    // the current device date's projection is loading.
+    return (
+      <section
+        className="voy-today"
+        aria-labelledby="today-title"
+        aria-busy="true"
+        role="status"
+      >
+        <SectionTitle id="today-title" icon={<CalendarIcon />}>
+          {t("today.title")}
+        </SectionTitle>
+        <Skeleton height="3rem" />
+      </section>
+    );
   }
 
   const view = today.data;
@@ -151,6 +182,7 @@ export function TodayPanel({
             <li key={`${item.kind}:${index}`} className="voy-today__item">
               <span className="voy-today__item-row">
                 <span className="voy-today__item-title">{itemLine(item)}</span>
+                <TodaySource item={item} />
                 <TodayTargetAction item={item} onFocusTarget={onFocusTarget} />
               </span>
               {item.detail ? (
@@ -171,7 +203,8 @@ export function TodayPanel({
         <p className="voy-today__next">
           <span className="voy-today__next-copy">
             <span className="voy-today__next-label">{t("today.next")}</span>
-            {itemLine(view.next)} · {formatDate(view.next.date)}
+            {itemLine(view.next)} · {formatDate(view.next.date)}{" "}
+            <TodaySource item={view.next} />
           </span>
           <TodayTargetAction item={view.next} onFocusTarget={onFocusTarget} />
         </p>

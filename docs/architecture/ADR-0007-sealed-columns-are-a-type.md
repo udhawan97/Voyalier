@@ -136,3 +136,23 @@ cell and format state unchanged, and fails closed with the explicit vault-unread
 defined by ADR-0018. It never silently turns an authentication failure into plaintext. New
 `v1:`-prefixed plaintext round-trips through the escaped representation without reopening that
 ambiguity.
+
+## Amendment — format interpretation is not encryption completion (2026-10-08)
+
+The current storage-format flag identifies escaped plaintext; it does not prove that
+every cell is encrypted. A workspace saved with an unavailable keychain may already
+use that format while retaining plaintext. Every activation (reopen, unlock, or
+candidate preparation) authenticates existing ciphertext and transactionally seals
+remaining current-format plaintext, decoding `p1:` exactly once. NULL and valid
+ciphertext remain unchanged. The migration-only conversion lives beside `Sealed`;
+normal read/write custody stays in `Records`.
+
+The historical ambiguity check and its backup remain unchanged. Current-format
+activation does not create a new plaintext backup on every open. A protected locked
+vault refuses all sealed-column reads before interpreting any plaintext branch.
+Corrupt/wrong-key envelopes stop conversion before any cell is rewritten. ADR-0025's
+structured metadata fallback and attachment refusal remain unchanged.
+Direct passphrase removal is also an activation: conversion precedes raw-key
+installation or wrap removal. Conversion failure retains the wrap and key intent
+and locks the session. A rejected wrap deletion attempts to restore prior raw-key
+intent; failure of that compensation remains an explicit cross-store limitation.

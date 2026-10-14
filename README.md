@@ -107,25 +107,30 @@ The useful parts work without a paid model or provider key.
 <details>
 <summary><strong>See the complete capability map</strong></summary>
 
-| Area                    | Current source behavior                                                                                                                                                |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Trips**               | Create, edit, archive, restore, and delete trips; remember the active trip and section; build a deterministic Blueprint.                                               |
-| **Concierge cockpit**   | Turn route, dates, traveler context and preferences into ordered next actions, qualified external handoffs, per-person preparation and exact-currency totals.          |
-| **Confirmations**       | Import text, HTML, `.eml`, or local files; preserve parser runs, excerpts, field spans, and warnings.                                                                  |
-| **Document wallet**     | Encrypt PDF, JPEG and PNG travel files locally, keep metadata separate from file content, and link items to the travelers who need them.                               |
-| **Review**              | Filter locally by warning, fact type, or extraction method, then confirm, edit and confirm, dismiss, or undo one candidate at a time; nothing is promoted silently.    |
-| **Itinerary**           | Order confirmed transport and stays; report literal overlaps, lodging gaps, recorded handoff gaps, and stacked commitments without inventing predictions.              |
-| **Readiness**           | Explain logistics gaps, open the local context that can address each finding, and link to official entry/health sources without making authority claims.               |
-| **Visa preparation**    | Keep passport-specific preparation, dated official sources, a universal guide, traveler ticks, and sealed notes clearly separated from a visa decision.                |
-| **Live context**        | Fetch official advice, destination weather, page snapshots, packs, maps, or a manual trip re-check only after an explicit action. There is no background monitoring.   |
-| **Offline discovery**   | Rank licensed city-pack places with visible scores and reasons; save places with provenance and map the saved shortlist separately from suggestions.                   |
-| **Traveler plans**      | Keep packing items, activities, rail legs, and transfers separate from imported facts; track accepted packing progress and include safe plans in Today and exports.    |
-| **Search and research** | Search local source documents, confirmed facts, notes, saved places, plans, and saved reading with trip/source provenance; nested detours return to their exact entry. |
-| **AI assist**           | Guide local Ollama setup; validate BYOK cloud keys; preview the exact redacted payload; keep cloud help optional; keep trip chat on-device only.                       |
-| **Vault and sharing**   | Seal sensitive columns at rest; optionally passphrase-wrap the key; print, save, or copy an allowlisted brief whose model excludes names and confirmation codes.       |
-| **Language and access** | Complete English and Spanish catalogs, keyboard flows, focus containment and return, reduced motion, contrast checks, 320 px reflow, and automated axe gates.          |
+| Area                    | Current source behavior                                                                                                                                                           |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Trips**               | Create, edit, archive, restore, and delete trips; remember the active trip and section; build a deterministic Blueprint.                                                          |
+| **Concierge cockpit**   | Turn route, dates, traveler context and preferences into ordered next actions, qualified external handoffs, per-person preparation and exact-currency totals.                     |
+| **Confirmations**       | Import text, HTML, `.eml`, or local files; preserve parser runs, excerpts, field spans, and warnings.                                                                             |
+| **Document wallet**     | Encrypt PDF, JPEG and PNG travel files locally, keep metadata separate from file content, and link items to the travelers who need them.                                          |
+| **Review**              | Filter locally by warning, fact type, or extraction method, then confirm, edit and confirm, dismiss, or undo one candidate at a time; nothing is promoted silently.               |
+| **Itinerary**           | Order confirmed transport and stays; report literal overlaps, lodging gaps, recorded handoff gaps, and stacked commitments without inventing predictions.                         |
+| **Readiness**           | Explain logistics gaps, open the local context that can address each finding, and link to official entry/health sources without making authority claims.                          |
+| **Visa preparation**    | Keep passport-specific preparation, dated official sources, a universal guide, traveler ticks, and sealed notes clearly separated from a visa decision.                           |
+| **Live context**        | Fetch official advice, destination weather, page snapshots, packs, maps, or a manual trip re-check only after an explicit action. There is no background monitoring.              |
+| **Offline discovery**   | Rank licensed city-pack places with visible scores and reasons; save places with provenance and map the saved shortlist separately from suggestions.                              |
+| **Traveler plans**      | Keep packing items, activities, rail legs, and transfers separate from imported facts; track accepted packing progress and include safe plans in Today and exports.               |
+| **Search and research** | Search local source documents, confirmed facts, notes, saved places, plans, and saved reading with trip/source provenance; nested detours return to their exact entry.            |
+| **AI assist**           | Guide local Ollama setup; validate BYOK cloud keys; preview the exact redacted payload; keep cloud help optional; keep trip chat on-device only.                                  |
+| **Vault and sharing**   | Seal sensitive columns at rest; optionally passphrase-wrap the key; print, save, or copy an allowlisted brief whose model excludes names and confirmation codes.                  |
+| **Language and access** | English and Spanish for catalog-backed views; English concierge and some trip-idea controls remain. Keyboard flows, focus return, reduced motion, reflow and automated axe gates. |
 
 </details>
+
+Spanish coverage is partial. The concierge cockpit marks its English region
+`lang="en"` for assistive technology; this is a language annotation, not a
+translation. Full screen localization remains deferred. Current-source features
+and checks also remain separate from acceptance of the exact published installer.
 
 ## See the work
 
