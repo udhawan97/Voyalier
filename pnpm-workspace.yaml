@@ -18,6 +18,9 @@ overrides:
   # disclose arbitrary .map files via sourceMappingURL auto-loading. Reached
   # only transitively through docs-site > starlight > astro > vite.
   postcss: ">=8.5.23"
+  # GHSA-rj75-hqrm-r3gf: the docs-only nested-rule processor must admit
+  # patched selector-parser 7.1.6 without changing the Expressive Code release.
+  postcss-nested: 7.0.2
 minimumReleaseAgeExclude:
   - nanoid@3.3.18
   - prettier@3.9.5
