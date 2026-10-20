@@ -1,5 +1,15 @@
 # Roadmap
 
+## Next scheduled updates
+
+Use the [October 2026 scheduled phase queue](../superpowers/plans/2026-10-20-scheduled-update-phases.md)
+and its [run record](../superpowers/plans/2026-10-20-scheduled-update-run-record.md)
+for the next implementation packets. It starts by reconciling the active
+security/native-verification work, then covers nested wire fixtures, Spanish
+concierge flows, a local date-review agenda, provider-return continuity and
+measured release qualification. Each packet requires plan and implementation
+council review. The historical phases below describe earlier delivery.
+
 ## Phase 0 — feasibility gates
 
 - Validate name/domain/trademark availability.
