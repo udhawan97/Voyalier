@@ -4,7 +4,8 @@ Canonical queue: [Scheduled update phases](2026-10-20-scheduled-update-phases.md
 
 ## Current state
 
-October 20, 2026: security reconciliation complete; planning integration in progress.
+Security reconciliation completed on October 20, 2026. The planning queue is
+delivered through PR 132; read its current GitHub state for integration status.
 [PR 131](https://github.com/udhawan97/Voyalier/pull/131) merged as
 `6da5e8330aaa143f0276f2fe8bb96e43231209e6` after all required checks passed on
 `a66e5a9c964c095b383725a5c272ddd3098e30ba`. Its security fixes are now included in
@@ -102,6 +103,10 @@ after checkpointing. The planning branch is
   zero vulnerabilities in both. Rust retains four unmaintained warnings, one
   unsoundness warning for `glib` 0.18.5 and one yanked `chacha20` 0.10.1 warning.
   No advisory ignore or feature suppression was added.
+- The previously untested desktop compiler declaration was checked on macOS
+  Apple Silicon with `cargo +1.90.0 check --locked -p voyalier-desktop --all-targets`.
+  It passed. This is minimum-compiler type checking for that host, not Windows
+  minimum-compiler or installed-package acceptance.
 - The immutable upstream updater pin remains the approved security repair under
   ADR-0031. Replacing it with a patched registry release is a separate reviewed
   dependency update; do not silently broaden this integration into other open
