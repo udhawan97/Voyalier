@@ -18,3 +18,9 @@ Resolve GHSA-rj75-hqrm-r3gf in the documentation dependency tree with the smalle
 ## Stop conditions
 
 Preserve source, old app and evidence if a required check fails. Do not delete traveler data, weaken assertions, replace production security with test shortcuts, or infer unsupported installed behavior. Fix reproducible failures within the requested scope and rerun affected checks.
+
+## Approved security follow-up
+
+The exact-head security workflow found four RustSec advisories in rustls 0.23.45 and three in updater-owned zip 4.6.1. The user explicitly approved rustls 0.23.46 and tauri-plugin-updater 2.14 (which admits zip 9), plus full macOS/Windows reverification. Update the existing compatible manifest ranges through Cargo.lock only, inspect required transitive changes and MSRV compatibility, and keep the repository Rust contract unless a further decision is needed. Do not suppress advisories or disable updater/security features. Rerun the complete source/security gates, rebuild/reinstall the exact desktop candidate, repeat the bounded fictional native workflow, refresh Graphify, obtain final council acceptance, then merge only after protected checks pass.
+
+Native verification qualification: the sandbox denies default WebKit cache writes and OS-keychain access; it does not provide a separate WebKit datastore identity. The earlier normal-profile process exposure and unaudited startup writes are retained in private evidence. Backup export/inspection passed, but restore staging failed under isolation and full native restore is not accepted.
