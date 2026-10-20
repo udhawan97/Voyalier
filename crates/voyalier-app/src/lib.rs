@@ -914,10 +914,10 @@ fn resolve_vault_key_account(
     // Registered on every open, not only the first: a registry lost or written
     // before this existed then repairs itself the next time the workspace is
     // used, rather than staying invisible to prune forever.
-    if secrets.is_persistent() {
-        if let Ok(registry) = vault_account_registry_path() {
-            register_vault_account(&registry, database_path, &account);
-        }
+    if secrets.is_persistent()
+        && let Ok(registry) = vault_account_registry_path()
+    {
+        register_vault_account(&registry, database_path, &account);
     }
     if secrets.has(&account) {
         return account;
@@ -1300,10 +1300,10 @@ fn encrypt_current_sensitive_columns(
                 })
                 .map_err(storage_error)?;
             for (id, value) in collect_rows(rows)? {
-                if let Some(value) = value {
-                    if let Some(stored) = vault.encrypt_current_plaintext(&value)? {
-                        converted.push((*table, *column, id, stored));
-                    }
+                if let Some(value) = value
+                    && let Some(stored) = vault.encrypt_current_plaintext(&value)?
+                {
+                    converted.push((*table, *column, id, stored));
                 }
             }
         }
@@ -2309,13 +2309,13 @@ fn snapshot_pre_restore(
     generation: &str,
     expected_sha256: Option<&str>,
 ) -> Result<(), AppError> {
-    if let Some(expected) = expected_sha256 {
-        if sha256_file(source)? != expected {
-            return Err(AppError::new(
-                ErrorCode::StorageFailure,
-                "the rollback workspace changed during restore",
-            ));
-        }
+    if let Some(expected) = expected_sha256
+        && sha256_file(source)? != expected
+    {
+        return Err(AppError::new(
+            ErrorCode::StorageFailure,
+            "the rollback workspace changed during restore",
+        ));
     }
     let backups_dir = directory.join("backups");
     fs::create_dir_all(&backups_dir).map_err(storage_error)?;
@@ -2671,13 +2671,13 @@ fn apply_pending_restore(
         }
     }
 
-    if let Some(expected) = marker.old_database_sha256.as_deref() {
-        if !rollback_path.exists() || sha256_file(&rollback_path)? != expected {
-            return Err(AppError::new(
-                ErrorCode::StorageFailure,
-                "the rollback database does not match its generation",
-            ));
-        }
+    if let Some(expected) = marker.old_database_sha256.as_deref()
+        && (!rollback_path.exists() || sha256_file(&rollback_path)? != expected)
+    {
+        return Err(AppError::new(
+            ErrorCode::StorageFailure,
+            "the rollback database does not match its generation",
+        ));
     }
 
     if rollback_path.exists() {

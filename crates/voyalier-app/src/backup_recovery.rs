@@ -124,14 +124,13 @@ fn validate(index: &Index, database: &Path) -> Result<(), AppError> {
         {
             return Err(failure("the local recovery snapshot binding is invalid"));
         }
-        if let SnapshotCredential::Retained { account } = &snapshot.credential {
-            if !index
+        if let SnapshotCredential::Retained { account } = &snapshot.credential
+            && !index
                 .credentials
                 .iter()
                 .any(|c| &c.account == account && !c.deleting)
-            {
-                return Err(failure("a local recovery credential reference is invalid"));
-            }
+        {
+            return Err(failure("a local recovery credential reference is invalid"));
         }
     }
     let mut accounts = std::collections::HashSet::new();
@@ -765,15 +764,13 @@ pub(super) fn recover(
             requires_passphrase = true;
             if let Some(passphrase) = passphrase {
                 for sibling in snapshots(database)? {
-                    if let Ok(other) = readonly(&sibling) {
-                        if let Some(wrap) = snapshot_wrap(&other)? {
-                            if let Ok(candidate) = unwrap(&wrap, passphrase) {
-                                if authenticate(&connection, Some(candidate)).is_ok() {
-                                    key = Some(candidate);
-                                    break;
-                                }
-                            }
-                        }
+                    if let Ok(other) = readonly(&sibling)
+                        && let Some(wrap) = snapshot_wrap(&other)?
+                        && let Ok(candidate) = unwrap(&wrap, passphrase)
+                        && authenticate(&connection, Some(candidate)).is_ok()
+                    {
+                        key = Some(candidate);
+                        break;
                     }
                 }
             }

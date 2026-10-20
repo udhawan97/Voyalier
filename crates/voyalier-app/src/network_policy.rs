@@ -62,13 +62,13 @@ pub(crate) fn validate_resource_destination(raw: &str) -> Result<(), &'static st
     {
         return Err("ambiguous numeric destinations are not allowed");
     }
-    if let Ok(address) = host_for_ip.parse::<IpAddr>() {
-        if !is_public_address(&SocketAddr::new(
+    if let Ok(address) = host_for_ip.parse::<IpAddr>()
+        && !is_public_address(&SocketAddr::new(
             address,
             url.port_or_known_default().unwrap_or(80),
-        )) {
-            return Err("private or local destinations are not allowed");
-        }
+        ))
+    {
+        return Err("private or local destinations are not allowed");
     }
     Ok(())
 }
