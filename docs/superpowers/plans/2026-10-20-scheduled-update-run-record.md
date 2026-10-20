@@ -4,11 +4,13 @@ Canonical queue: [Scheduled update phases](2026-10-20-scheduled-update-phases.md
 
 ## Current state
 
-October 20, 2026: planning only. Baseline main is
-`042ed9b23ee3c3a709c534010726f9c9329abea6`. PR 131 owns the current advisory/native
-follow-up. Its recorded head was `a66e5a9c964c095b383725a5c272ddd3098e30ba`;
-recheck it before acting. No new packet is claimed and no product implementation
-or new native acceptance is asserted by this record.
+October 20, 2026: security reconciliation complete; planning integration in progress.
+[PR 131](https://github.com/udhawan97/Voyalier/pull/131) merged as
+`6da5e8330aaa143f0276f2fe8bb96e43231209e6` after all required checks passed on
+`a66e5a9c964c095b383725a5c272ddd3098e30ba`. Its security fixes are now included in
+[PR 132](https://github.com/udhawan97/Voyalier/pull/132). Recheck the planning PR's
+current head and all required checks before merging. No future product packet
+has been implemented, and no additional native acceptance is asserted here.
 
 The existing native plan records restore staging failure under isolation,
 blocked OS-keychain access and no separate WebKit datastore identity. These
@@ -17,11 +19,11 @@ required native cases prevent 0B acceptance even when evidence collection ends.
 
 | Packet | State                           | Next action                                                             |
 | ------ | ------------------------------- | ----------------------------------------------------------------------- |
-| 0A     | Ready for reconciliation        | Check PR 131, exact current head, owner and remaining gates             |
-| 0B     | Existing work owned elsewhere   | Read the existing native plan and obtain current evidence               |
-| 1A     | Pending 0A                      | Populate the shared profile fixture without duplicating revision checks |
+| 0A     | Accepted                        | Reconcile new security findings if they arise; do not repeat PR 131     |
+| 0B     | Verification blocked            | Complete isolated native restore and the remaining platform evidence    |
+| 1A     | Ready                           | Populate the shared profile fixture without duplicating revision checks |
 | 1B     | Pending 1A                      | Extend wallet/money nested transport coverage                           |
-| 2A     | Pending 0A                      | Inventory interface strings for the named EN/ES form journey            |
+| 2A     | Ready                           | Inventory interface strings for the named EN/ES form journey            |
 | 2B     | Pending 2A                      | Write the required ADR for localized guidance identifiers before code   |
 | 3A     | Pending 1A, 1B, 2A              | Specify a deterministic agenda from existing authored dates             |
 | 3B     | Pending 3A                      | Add exact-record offline review actions                                 |
@@ -82,3 +84,35 @@ No valid council blocker remains. This is approval of the phase plans. Each
 future packet still needs its current-tree detailed design and implementation
 or final-evidence gates. No product, native, release or deployment acceptance is
 conferred by this planning council.
+
+## Security reconciliation on October 20 2026
+
+Run: `2026-10-20-pr131-132-integration`. The 0A claim is recorded atomically in
+Git's shared `voyalier-scheduled-claims/0A` directory during this run and released
+after checkpointing. The planning branch is
+`stay-calm-its-codex/scheduled-update-phases`; its original plan commit is
+`e0aa60de2098d1fbf8f5f51bdaec07971c56463a`. The phase-plan digest above is unchanged.
+
+- PR 131's merged tree matches its accepted source tree. Its local full gate,
+  hosted required checks and Windows source/recovery checks passed. Its bounded
+  installed macOS observations cover fictional trip creation/editing, synthetic
+  confirmation review, Today, restart persistence and native backup export and
+  inspection. These are existing candidate-bound observations, not new tests.
+- Repeating production JavaScript and Rust audits after incorporating main found
+  zero vulnerabilities in both. Rust retains four unmaintained warnings, one
+  unsoundness warning for `glib` 0.18.5 and one yanked `chacha20` 0.10.1 warning.
+  No advisory ignore or feature suppression was added.
+- The immutable upstream updater pin remains the approved security repair under
+  ADR-0031. Replacing it with a patched registry release is a separate reviewed
+  dependency update; do not silently broaden this integration into other open
+  dependency PRs.
+- Full native restore, real keychain/provider/updater behavior, VoiceOver and
+  PDF acceptance remain open. The earlier restore-isolation failure has no
+  captured root-cause diagnosis. No separate WebKit datastore identity was
+  established. These limits hold 0B and release qualification; they do not waive
+  PR 132's required source/security checks.
+
+Private verification evidence for this run is under
+`/Users/umang/.codex/review-reports/voyalier-pr131-132-20261020-r11gvmx5`.
+The next ready product packet is 1A; 2A is independently ready if ownership or
+another concrete blocker prevents 1A. Do not replay already-delivered work.
