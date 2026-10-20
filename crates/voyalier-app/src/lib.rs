@@ -484,12 +484,21 @@ const KEYRING_SERVICE: &str = "com.voyalier.keys";
 /// The most recommendations returned for a trip.
 const RECOMMENDATION_LIMIT: usize = 24;
 
-/// Production secret store: the OS keychain via the `keyring` crate.
+/// Production secret store: the OS keychain via explicit native stores (ADR-0032).
 struct KeyringSecretStore;
 
 impl KeyringSecretStore {
     fn entry(account: &str) -> Result<keyring::Entry, AppError> {
-        keyring::Entry::new(KEYRING_SERVICE, account).map_err(keyring_failure)
+        #[cfg(target_os = "macos")]
+        let store = apple_native_keyring_store::keychain::Store::new();
+        #[cfg(windows)]
+        let store = windows_native_keyring_store::Store::new();
+        #[cfg(all(unix, not(target_os = "macos")))]
+        let store = dbus_secret_service_keyring_store::Store::new();
+        // Construct at the entry boundary so unavailable stores can be retried.
+        let store = store.map_err(keyring_failure)?;
+        keyring::api::CredentialStoreApi::build(&*store, KEYRING_SERVICE, account, None)
+            .map_err(keyring_failure)
     }
 }
 

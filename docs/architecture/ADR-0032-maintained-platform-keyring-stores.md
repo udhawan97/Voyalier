@@ -10,7 +10,7 @@ Use the maintained keyring-core API with explicitly selected stores: apple-nativ
 
 Keep `com.voyalier.keys`, all database-derived account names, the default login keychain, Windows target naming and Linux Secret Service service/user attributes unchanged. No credential enumeration, account migration, database migration, wire-contract change or encryption-format change is introduced. Native acceptance must verify that the installed replacement opens a fictional workspace encrypted by the previous keyring backend, and must exercise staged restore and restart through the real keychain.
 
-The store packages retain the keyring project's MIT/Apache-2.0 licensing. They use OS-local credential services and add no hosted service or remote AI/network path. Offline builds require the locked registry sources to be cached, as before. The application-layer Rust minimum becomes 1.88, required by the synchronous Secret Service store; core retains the workspace's 1.85 declaration and desktop retains 1.90. Replacement cost is confined to the existing SecretStore adapter and its platform dependencies.
+The store packages retain the keyring project's MIT/Apache-2.0 licensing. They use OS-local credential services and add no hosted service or remote AI/network path. Offline builds require the locked registry sources to be cached, as before. The application and server Rust minimum becomes 1.88, required by the synchronous Secret Service store; core retains the workspace's 1.85 declaration and desktop retains 1.90. Replacement cost is confined to the existing SecretStore adapter and its platform dependencies.
 
 ## Verification
 

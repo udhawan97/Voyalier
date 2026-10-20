@@ -13,6 +13,20 @@ use voyalier_core::{
     RecheckOutcome, RecheckSource, ResidenceStatus, ResourceKind, TravelerProfile,
 };
 
+#[cfg(any(target_os = "macos", windows))]
+#[test]
+fn native_keyring_entry_preserves_existing_identity_without_accessing_credentials() {
+    // Building a specifier performs no keychain read/write on these native stores.
+    let entry = KeyringSecretStore::entry("vault.data_key.synthetic-identity").unwrap();
+    assert_eq!(
+        entry.get_specifiers(),
+        Some((
+            "com.voyalier.keys".to_owned(),
+            "vault.data_key.synthetic-identity".to_owned()
+        ))
+    );
+}
+
 #[test]
 #[ignore = "subprocess helper, invoked by recovery_overlap_probe"]
 fn recovery_overlap_child() {

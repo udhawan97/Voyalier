@@ -276,7 +276,7 @@ hosts. Its protected bootstrap uses Unix anonymous pipes; Windows users should
 use the packaged desktop app rather than `make dev`.
 
 Requirements: Bash, Make, Node.js 24+, pnpm 11+, and a current stable Rust
-toolchain (Rust 1.90+ for desktop) with `rustfmt` and `clippy`. Node.js 24 requires macOS 13.5 or newer;
+toolchain (Rust 1.88+ for the application layer, 1.90+ for desktop) with `rustfmt` and `clippy`. Node.js 24 requires macOS 13.5 or newer;
 the [setup guide](https://udhawan97.github.io/Voyalier/getting-started/) links to
 the complete Node and Rust platform lists.
 
