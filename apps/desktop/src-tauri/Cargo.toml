@@ -5,7 +5,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+rust-version = "1.90"
 
 [lib]
 name = "voyalier_desktop_lib"
@@ -27,7 +27,9 @@ voyalier-core = { path = "../../../crates/voyalier-core" }
 # headers → no hidden network path).
 [target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
 rfd = { version = "0.16", features = ["common-controls-v6"], default-features = false }
-tauri-plugin-updater = "2"
+# ADR-0031: published 2.14.0 still requires vulnerable zip4.
+# Restore a registry dependency once the upstream zip9 patch is published.
+tauri-plugin-updater = { git = "https://github.com/tauri-apps/plugins-workspace", rev = "ba98bfadc4c868c9a7e1a226c83af528e1f11b89" }
 
 # Native save/open pickers for workspace backup and restore. The webview never
 # gets the dialog capability either: these are driven from our own Rust command
