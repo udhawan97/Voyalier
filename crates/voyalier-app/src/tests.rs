@@ -4433,6 +4433,138 @@ fn production_fetcher_bounds_known_length_and_chunked_bodies_while_reading() {
 }
 
 #[test]
+fn production_provider_requests_refuse_redirects_without_forwarding_credentials() {
+    use std::io::{BufRead as _, Read as _, Write as _};
+    use std::net::TcpListener;
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    fn serve(
+        status: u16,
+        body: &'static str,
+    ) -> (String, mpsc::Sender<()>, std::thread::JoinHandle<bool>) {
+        let first = TcpListener::bind("127.0.0.1:0").unwrap();
+        let first_address = first.local_addr().unwrap();
+        let second = TcpListener::bind("127.0.0.1:0").unwrap();
+        let second_address = second.local_addr().unwrap();
+        second.set_nonblocking(true).unwrap();
+        let (stop, stopped) = mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let (mut stream, _) = first.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            {
+                let mut reader = std::io::BufReader::new(&mut stream);
+                let mut content_length = 0;
+                loop {
+                    let mut line = String::new();
+                    assert!(reader.read_line(&mut line).unwrap() > 0);
+                    if line == "\r\n" {
+                        break;
+                    }
+                    if let Some(length) = line.to_ascii_lowercase().strip_prefix("content-length:")
+                    {
+                        content_length = length.trim().parse::<usize>().unwrap();
+                    }
+                }
+                assert!(content_length < 1024);
+                reader.read_exact(&mut vec![0; content_length]).unwrap();
+            }
+            write!(stream, "HTTP/1.1 {status} Fixture\r\nLocation: http://{second_address}/unapproved\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+            drop(stream);
+            loop {
+                match second.accept() {
+                    Ok((mut stream, _)) => {
+                        // A regression must finish promptly rather than hang
+                        // waiting for a response at the unapproved destination.
+                        stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").unwrap();
+                        return true;
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
+                    Err(error) => panic!("fixture listener failed: {error}"),
+                }
+                match stopped.recv_timeout(Duration::from_millis(1)) {
+                    Ok(()) | Err(mpsc::RecvTimeoutError::Disconnected) => return false,
+                    Err(mpsc::RecvTimeoutError::Timeout) => {}
+                }
+            }
+        });
+        (format!("http://{first_address}/provider"), stop, worker)
+    }
+
+    let key = "synthetic-header-only";
+    for post in [false, true] {
+        for status in [301, 302, 307, 308] {
+            let (url, stop, worker) = serve(status, "untrusted redirect body");
+            let result = if post {
+                UreqFetcher
+                    .post_json_bounded(&url, "{}", &[("x-api-key", key)], 1024)
+                    .map(|_| ())
+            } else {
+                UreqFetcher
+                    .get_status(&url, &[("x-api-key", key)])
+                    .map(|_| ())
+            };
+            stop.send(()).ok();
+            assert!(
+                !worker.join().unwrap(),
+                "a redirect destination received a request"
+            );
+            let error = result.expect_err("provider redirect must be refused");
+            assert_eq!(error.code, ErrorCode::AssistFailed);
+            assert!(!error.message.contains(key));
+            assert!(!error.message.contains("unapproved"));
+            assert!(!error.message.contains("untrusted redirect body"));
+        }
+    }
+
+    // Normal HTTP outcomes and provider bodies still reach their existing
+    // interpreter, and POST reply limits remain enforced while reading.
+    for status in [200, 401] {
+        let (url, stop, worker) = serve(status, "{}");
+        assert_eq!(
+            UreqFetcher.get_status(&url, &[("x-api-key", key)]).unwrap(),
+            status
+        );
+        stop.send(()).ok();
+        assert!(!worker.join().unwrap());
+    }
+    let reply = r#"{"content":[{"type":"text","text":"fictional reply"}]}"#;
+    let (url, stop, worker) = serve(200, reply);
+    let body = UreqFetcher
+        .post_json_bounded(&url, "{}", &[("x-api-key", key)], 1024)
+        .unwrap();
+    stop.send(()).ok();
+    assert!(!worker.join().unwrap());
+    assert_eq!(
+        parse_assist_reply(ProviderId::Anthropic, &body).unwrap(),
+        "fictional reply"
+    );
+    let rejected = r#"{"error":{"message":"fictional rejection"}}"#;
+    let (url, stop, worker) = serve(401, rejected);
+    let body = UreqFetcher
+        .post_json_bounded(&url, "{}", &[("x-api-key", key)], 1024)
+        .unwrap();
+    stop.send(()).ok();
+    assert!(!worker.join().unwrap());
+    assert!(
+        parse_assist_reply(ProviderId::Anthropic, &body)
+            .unwrap_err()
+            .message
+            .contains("fictional rejection")
+    );
+    let (url, stop, worker) = serve(200, reply);
+    let error = UreqFetcher
+        .post_json_bounded(&url, "{}", &[("x-api-key", key)], reply.len() - 1)
+        .unwrap_err();
+    stop.send(()).ok();
+    assert!(!worker.join().unwrap());
+    assert_eq!(error.code, ErrorCode::AssistFailed);
+    assert!(error.message.contains("safety limit"));
+}
+
+#[test]
 fn restores_a_backup_onto_another_machine_at_the_next_launch() {
     // Workspace A — the machine being backed up.
     let database_a = temp_database("restore-source");
@@ -4484,7 +4616,7 @@ fn restores_a_backup_onto_another_machine_at_the_next_launch() {
     );
     let marker_path = database_b.with_file_name(PENDING_RESTORE_MARKER);
     let marker = read_restore_marker(&marker_path).expect("generation marker");
-    assert_eq!(marker.protocol_version, 2);
+    assert_eq!(marker.protocol_version, 4);
     assert_eq!(marker.phase, RestorePhase::Staged);
     let candidate = database_b.with_file_name(&marker.candidate_file);
     assert_eq!(
@@ -4920,14 +5052,20 @@ fn restore_fault_matrix_converges_to_one_readable_generation() {
         .expect("backup");
     drop(source);
 
-    // Crashes before the marker is durable leave the old generation live.
-    for point in ["copy", "key_set_stage"] {
+    // An incomplete stage never authorizes activation, even after its key
+    // exists. Its durable intent retires the exact account on restart.
+    for point in [
+        "copy",
+        "candidate_prepared",
+        "staging_intent",
+        "key_set_stage",
+    ] {
         let target_database = temp_database(&format!("restore-fault-{point}"));
         let secrets = Arc::new(MemorySecretStore::default());
         let target = AppService::open_path_with_deps(
             &target_database,
             Arc::new(FakeFetcher::offline()),
-            secrets,
+            secrets.clone(),
         )
         .expect("target");
         let old_trip = target.create_trip(valid_trip_input()).expect("old trip");
@@ -4943,8 +5081,20 @@ fn restore_fault_matrix_converges_to_one_readable_generation() {
             target.get_trip(&old_trip.id).is_ok(),
             "{point} must leave the old live database untouched"
         );
-        assert!(!target.has_pending_restore());
+        assert_eq!(
+            target.has_pending_restore(),
+            matches!(point, "staging_intent" | "key_set_stage")
+        );
         drop(target);
+        let recovered = AppService::open_path_with_deps(
+            &target_database,
+            Arc::new(FakeFetcher::offline()),
+            secrets,
+        )
+        .expect("incomplete stage keeps old generation");
+        assert!(recovered.get_trip(&old_trip.id).is_ok());
+        assert!(!recovered.has_pending_restore());
+        drop(recovered);
         cleanup_database(target_database);
     }
 
@@ -5020,6 +5170,311 @@ fn restore_fault_matrix_converges_to_one_readable_generation() {
         cleanup_database(target_database);
     }
 
+    cleanup_database(source_database);
+}
+
+#[test]
+fn interrupted_self_restore_cannot_leave_a_raw_key_outside_later_protection() {
+    for point in [
+        "copy",
+        "candidate_prepared",
+        "staging_intent",
+        "key_set_stage",
+    ] {
+        let database = temp_database(&format!("restore-custody-{point}"));
+        let secrets = Arc::new(MemorySecretStore::default());
+        secrets
+            .set("unrelated.fixture", "preserve this value")
+            .unwrap();
+        let app = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .unwrap();
+        let trip = app.create_trip(valid_trip_input()).unwrap();
+        app.set_trip_notes(&trip.id, "fictional traveler note")
+            .unwrap();
+        let content = BASE64.encode(b"%PDF-1.4 synthetic custody fixture");
+        let attachment = app
+            .import_attachment(ImportAttachmentInput {
+                trip_id: trip.id.clone(),
+                label: "Fictional travel file".to_owned(),
+                mime_type: "application/pdf".to_owned(),
+                content_base64: content.clone(),
+            })
+            .unwrap();
+        let raw_key = BASE64.encode(app.vault.active_data_key().unwrap());
+        let container = app.export_backup("synthetic backup phrase").unwrap();
+        set_restore_fault(point);
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let _ = app.stage_restore("synthetic backup phrase", &container);
+            }))
+            .is_err()
+        );
+        drop(app);
+
+        let app = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .unwrap();
+        assert!(!app.has_pending_restore());
+        app.set_vault_passphrase("synthetic protected phrase")
+            .unwrap();
+        assert!(
+            !secrets
+                .entries
+                .lock()
+                .unwrap()
+                .values()
+                .any(|value| value == &raw_key),
+            "protection must retire every owned raw copy of the live key"
+        );
+        assert!(secrets.has("unrelated.fixture"));
+        drop(app);
+
+        let app =
+            AppService::open_path_with_deps(&database, Arc::new(FakeFetcher::offline()), secrets)
+                .unwrap();
+        assert!(app.get_vault_status().unwrap().locked);
+        app.unlock_vault("synthetic protected phrase").unwrap();
+        assert_eq!(
+            app.get_trip_notes(&trip.id).unwrap().body,
+            "fictional traveler note"
+        );
+        assert_eq!(
+            app.get_attachment(&attachment.id).unwrap().content_base64,
+            content
+        );
+        drop(app);
+        cleanup_database(database);
+    }
+}
+
+#[test]
+fn incomplete_staging_can_be_cancelled_before_restart_and_blocks_protection() {
+    for point in ["staging_intent", "key_set_stage"] {
+        let database = temp_database(&format!("restore-cancel-incomplete-{point}"));
+        let secrets = Arc::new(MemorySecretStore::default());
+        let app = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .unwrap();
+        let container = app.export_backup("synthetic backup phrase").unwrap();
+        app.stage_restore("synthetic backup phrase", &container)
+            .unwrap();
+        let marker_path = database.with_file_name(PENDING_RESTORE_MARKER);
+        let mut marker = read_restore_marker(&marker_path).unwrap();
+        // Reconstruct either incomplete stage without poisoning the live
+        // session's operation mutex, so explicit cancellation can be exercised.
+        marker.phase = RestorePhase::Staging;
+        write_restore_marker(&marker_path, &marker).unwrap();
+        if point == "staging_intent" {
+            secrets
+                .delete(&vault_pending_key_account(&database, &marker.generation))
+                .unwrap();
+        }
+        assert_eq!(marker.phase, RestorePhase::Staging);
+        assert!(
+            app.set_vault_passphrase("synthetic protected phrase")
+                .is_err()
+        );
+        assert!(!app.get_vault_status().unwrap().protected);
+        assert!(app.unstage_restore().unwrap());
+        assert!(!secrets.has(&vault_pending_key_account(&database, &marker.generation)));
+        assert!(!app.has_pending_restore());
+        app.set_vault_passphrase("synthetic protected phrase")
+            .unwrap();
+        drop(app);
+        cleanup_database(database);
+    }
+}
+
+#[test]
+fn older_ready_restore_markers_still_activate_without_losing_their_key_pair() {
+    for protocol_version in [2, 3] {
+        let database = temp_database(&format!("restore-legacy-protocol-{protocol_version}"));
+        let secrets = Arc::new(MemorySecretStore::default());
+        let app = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .unwrap();
+        let trip = app.create_trip(valid_trip_input()).unwrap();
+        app.set_trip_notes(&trip.id, "fictional legacy marker note")
+            .unwrap();
+        let container = app.export_backup("synthetic backup phrase").unwrap();
+        app.stage_restore("synthetic backup phrase", &container)
+            .unwrap();
+        let marker_path = database.with_file_name(PENDING_RESTORE_MARKER);
+        let mut marker = read_restore_marker(&marker_path).unwrap();
+        marker.protocol_version = protocol_version;
+        write_restore_marker(&marker_path, &marker).unwrap();
+        app.set_trip_notes(&trip.id, "changed after export")
+            .unwrap();
+        drop(app);
+        let app =
+            AppService::open_path_with_deps(&database, Arc::new(FakeFetcher::offline()), secrets)
+                .unwrap();
+        assert_eq!(
+            app.get_trip_notes(&trip.id).unwrap().body,
+            "fictional legacy marker note"
+        );
+        assert!(!marker_path.exists());
+        drop(app);
+        cleanup_database(database);
+    }
+}
+
+#[test]
+fn a_ready_restore_with_a_missing_key_preserves_its_owned_evidence() {
+    let database = temp_database("restore-ready-missing-key");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let app = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    let trip = app.create_trip(valid_trip_input()).unwrap();
+    let container = app.export_backup("synthetic backup phrase").unwrap();
+    app.stage_restore("synthetic backup phrase", &container)
+        .unwrap();
+    let marker_path = database.with_file_name(PENDING_RESTORE_MARKER);
+    let marker = read_restore_marker(&marker_path).unwrap();
+    let candidate = database.with_file_name(&marker.candidate_file);
+    secrets
+        .delete(&vault_pending_key_account(&database, &marker.generation))
+        .unwrap();
+    drop(app);
+    assert!(
+        AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .is_err()
+    );
+    assert!(marker_path.exists());
+    assert_eq!(sha256_file(&candidate).unwrap(), marker.candidate_sha256);
+    cancel_restore(secrets.as_ref(), &database, &marker).unwrap();
+    let app = AppService::open_path_with_deps(&database, Arc::new(FakeFetcher::offline()), secrets)
+        .unwrap();
+    assert!(app.get_trip(&trip.id).is_ok());
+    drop(app);
+    cleanup_database(database);
+}
+
+#[test]
+fn committed_restore_retries_each_credential_deletion_without_losing_safety_copy() {
+    let source_database = temp_database("restore-delete-source");
+    let source = open_test_service(&source_database).unwrap();
+    let source_trip = source.create_trip(valid_trip_input()).unwrap();
+    source
+        .set_trip_notes(&source_trip.id, "new fictional generation")
+        .unwrap();
+    let container = source.export_backup("synthetic backup phrase").unwrap();
+    drop(source);
+    for fail_pending in [true, false] {
+        let database = temp_database(if fail_pending {
+            "restore-delete-pending"
+        } else {
+            "restore-delete-rollback"
+        });
+        let secrets = Arc::new(MemorySecretStore::default());
+        let app = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .unwrap();
+        let old_trip = app.create_trip(valid_trip_input()).unwrap();
+        app.set_trip_notes(&old_trip.id, "old fictional generation")
+            .unwrap();
+        let old_key = app.vault.active_data_key();
+        app.stage_restore("synthetic backup phrase", &container)
+            .unwrap();
+        let marker_path = database.with_file_name(PENDING_RESTORE_MARKER);
+        let marker = read_restore_marker(&marker_path).unwrap();
+        let pending = vault_pending_key_account(&database, &marker.generation);
+        let rollback = vault_rollback_key_account(&database, &marker.generation);
+        secrets.fail_next_delete(if fail_pending { &pending } else { &rollback });
+        drop(app);
+        let error = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .err()
+        .expect("cleanup deletion must fail closed");
+        assert_eq!(error.code, ErrorCode::StorageFailure);
+        assert_eq!(
+            read_restore_marker(&marker_path).unwrap().phase,
+            RestorePhase::Committed
+        );
+        assert!(secrets.has(if fail_pending { &pending } else { &rollback }));
+
+        let app = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .unwrap();
+        assert_eq!(
+            app.get_trip_notes(&source_trip.id).unwrap().body,
+            "new fictional generation"
+        );
+        assert!(!marker_path.exists());
+        assert!(!secrets.has(&pending));
+        assert!(!secrets.has(&rollback));
+        let recovered = backup_recovery::recover(
+            &database,
+            secrets.as_ref(),
+            &format!("pre-restore-{}.sqlite3", marker.generation),
+            None,
+            false,
+        )
+        .expect("indexed safety credential survives the cleanup retry");
+        assert!(!recovered.staged);
+        assert!(
+            recovered
+                .disposition
+                .starts_with("validated local snapshot")
+        );
+        let safety = database
+            .parent()
+            .unwrap()
+            .join("backups")
+            .join(format!("pre-restore-{}.sqlite3", marker.generation));
+        let connection =
+            Connection::open_with_flags(safety, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+                .unwrap();
+        let vault = Vault::new(VaultState {
+            key: old_key,
+            protected: false,
+            escaped_plaintext: true,
+        });
+        assert_eq!(
+            Records::new(&connection, &vault)
+                .trip_notes(&old_trip.id)
+                .unwrap()
+                .body,
+            "old fictional generation"
+        );
+        drop(connection);
+        app.set_vault_passphrase("synthetic protected phrase")
+            .unwrap();
+        assert!(!secrets.has(&pending));
+        assert!(!secrets.has(&rollback));
+        drop(app);
+        cleanup_database(database);
+    }
     cleanup_database(source_database);
 }
 
@@ -6127,6 +6582,255 @@ fn a_new_non_default_workspace_does_not_read_an_unrelated_legacy_key() {
         "the unrelated legacy key must remain untouched"
     );
     cleanup_database(database);
+}
+
+#[test]
+fn dev_review_independent_services_preserve_installed_vault_protection() {
+    let database = temp_database("vault-durable-protection");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let first = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    let sibling = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    let trip = first.create_trip(valid_trip_input()).unwrap();
+    first
+        .set_trip_notes(&trip.id, "fictional protected note")
+        .unwrap();
+    let clone = first.clone();
+    clone
+        .set_vault_passphrase("original synthetic phrase")
+        .unwrap();
+    assert!(first.get_vault_status().unwrap().protected);
+    let wrap = first
+        .connection()
+        .unwrap()
+        .query_row(
+            "SELECT salt, wrapped_key FROM vault_meta WHERE id=1",
+            [],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        )
+        .unwrap();
+    let index_path = database.with_file_name("backup-recovery.json");
+    let index = fs::read(&index_path).unwrap();
+    let keys = secrets.entries.lock().unwrap().clone();
+    for service in [&first, &sibling, &clone] {
+        assert_eq!(
+            service
+                .set_vault_passphrase("replacement synthetic phrase")
+                .unwrap_err()
+                .code,
+            ErrorCode::ValidationInvalidInput,
+        );
+    }
+    let current = first
+        .connection()
+        .unwrap()
+        .query_row(
+            "SELECT salt, wrapped_key FROM vault_meta WHERE id=1",
+            [],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        )
+        .unwrap();
+    assert!(current == wrap, "rejected setters preserve the stored wrap");
+    assert!(fs::read(&index_path).unwrap() == index);
+    assert!(*secrets.entries.lock().unwrap() == keys);
+    drop(clone);
+    drop(sibling);
+    drop(first);
+    let reopened = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    assert!(reopened.get_vault_status().unwrap().locked);
+    assert_eq!(
+        reopened
+            .unlock_vault("replacement synthetic phrase")
+            .unwrap_err()
+            .code,
+        ErrorCode::VaultPassphraseIncorrect
+    );
+    reopened.unlock_vault("original synthetic phrase").unwrap();
+    assert_eq!(
+        reopened.get_trip_notes(&trip.id).unwrap().body,
+        "fictional protected note"
+    );
+    reopened
+        .remove_vault_passphrase("original synthetic phrase")
+        .unwrap();
+    reopened
+        .set_vault_passphrase("deliberate new synthetic phrase")
+        .unwrap();
+    drop(reopened);
+    let reopened =
+        AppService::open_path_with_deps(&database, Arc::new(FakeFetcher::offline()), secrets)
+            .unwrap();
+    assert_eq!(
+        reopened
+            .unlock_vault("original synthetic phrase")
+            .unwrap_err()
+            .code,
+        ErrorCode::VaultPassphraseIncorrect
+    );
+    reopened
+        .unlock_vault("deliberate new synthetic phrase")
+        .unwrap();
+    assert_eq!(
+        reopened.get_trip_notes(&trip.id).unwrap().body,
+        "fictional protected note"
+    );
+    drop(reopened);
+    cleanup_database(database);
+}
+
+#[test]
+fn dev_review_selective_read_failure_preserves_namespaced_key() {
+    let database = temp_database("vault-selective-read");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let account = vault_key_account(&database);
+    let original = BASE64.encode([1u8; VAULT_KEY_LEN]);
+    let legacy = BASE64.encode([2u8; VAULT_KEY_LEN]);
+    secrets.set(&account, &original).unwrap();
+    let app = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    let trip = app.create_trip(valid_trip_input()).unwrap();
+    app.set_trip_notes(&trip.id, "fictional namespaced note")
+        .unwrap();
+    drop(app);
+    secrets.set(VAULT_KEY_ACCOUNT, &legacy).unwrap();
+    secrets.fail_next_get(&account);
+    let opened = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    assert!(
+        secrets.get(&account).unwrap().as_deref() == Some(original.as_str()),
+        "a selective read refusal must not permit legacy replacement"
+    );
+    assert!(secrets.get(VAULT_KEY_ACCOUNT).unwrap().as_deref() == Some(legacy.as_str()));
+    assert_eq!(
+        opened.get_trip_notes(&trip.id).unwrap().body,
+        "fictional namespaced note"
+    );
+    drop(opened);
+    cleanup_database(database);
+}
+
+#[test]
+fn dev_review_future_schema_refuses_before_data_credentials_or_recovery_change() {
+    for pending in [false, true] {
+        let database = temp_database(if pending {
+            "future-schema-pending"
+        } else {
+            "future-schema"
+        });
+        let secrets = Arc::new(MemorySecretStore::default());
+        let app = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .unwrap();
+        let trip = app.create_trip(valid_trip_input()).unwrap();
+        app.set_trip_notes(&trip.id, "fictional pre-upgrade note")
+            .unwrap();
+        if pending {
+            let container = app.export_backup("synthetic backup phrase").unwrap();
+            app.stage_restore("synthetic backup phrase", &container)
+                .unwrap();
+        }
+        drop(app);
+        let connection = Connection::open(&database).unwrap();
+        connection
+            .pragma_update(None, "user_version", target_schema_version() + 1)
+            .unwrap();
+        drop(connection);
+        let before = sha256_file(&database).unwrap();
+        let keys = secrets.entries.lock().unwrap().clone();
+        let marker_path = database.with_file_name(PENDING_RESTORE_MARKER);
+        let marker = fs::read(&marker_path).ok();
+        let candidate = marker.as_ref().map(|_| {
+            let marker = read_restore_marker(&marker_path).unwrap();
+            let path = database.with_file_name(marker.candidate_file);
+            let hash = sha256_file(&path).unwrap();
+            (path, hash)
+        });
+        let error = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .err()
+        .expect("future workspace must refuse startup");
+        assert_eq!(error.code, ErrorCode::ValidationInvalidInput);
+        assert!(error.message.contains("newer version"));
+        assert!(error.message.contains("update the app"));
+        assert_eq!(sha256_file(&database).unwrap(), before);
+        assert!(*secrets.entries.lock().unwrap() == keys);
+        assert_eq!(fs::read(&marker_path).ok(), marker);
+        if let Some((path, hash)) = candidate {
+            assert_eq!(sha256_file(&path).unwrap(), hash);
+        }
+        let connection = Connection::open(&database).unwrap();
+        assert_eq!(
+            user_version(&connection).unwrap(),
+            target_schema_version() + 1,
+        );
+        // This synthetic database has today's schema. Restoring its fixture
+        // version verifies that ordinary startup and staged recovery still work.
+        connection
+            .pragma_update(None, "user_version", target_schema_version())
+            .unwrap();
+        drop(connection);
+        let app =
+            AppService::open_path_with_deps(&database, Arc::new(FakeFetcher::offline()), secrets)
+                .unwrap();
+        assert_eq!(
+            app.get_trip_notes(&trip.id).unwrap().body,
+            "fictional pre-upgrade note"
+        );
+        drop(app);
+        cleanup_database(database);
+    }
+}
+
+#[test]
+fn dev_review_future_schema_init_refuses_before_creating_tables() {
+    let connection = Connection::open_in_memory().unwrap();
+    connection
+        .pragma_update(None, "user_version", target_schema_version() + 1)
+        .unwrap();
+    assert_eq!(
+        init_connection(&connection).unwrap_err().code,
+        ErrorCode::ValidationInvalidInput
+    );
+    let tables: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_schema WHERE type='table'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(tables, 0);
+    assert_eq!(
+        user_version(&connection).unwrap(),
+        target_schema_version() + 1
+    );
 }
 
 #[test]

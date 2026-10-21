@@ -38,7 +38,6 @@ import {
   tripScope,
   useRevalidate,
   useScopeKey,
-  visaScope,
 } from "../app/revalidate";
 import { useAsyncAction, useAsyncData } from "../app/useAsync";
 import { Banner } from "../components/Banner";
@@ -1184,17 +1183,6 @@ export function TripDetailView({
   const refreshAfterImport = useCallback(() => {
     revalidate(tripScope(tripId), documentsScope(tripId));
   }, [revalidate, tripId]);
-  /**
-   * Everything a trip edit changes.
-   *
-   * The destination decides the visa answer, and that panel reads its own
-   * scope: correcting Tokyo to Toronto updated the heading and left the cockpit
-   * saying the route had no guide while the engine already held an eight-step
-   * one. Same shape as `refreshAfterImport` — name the scopes, do not hope.
-   */
-  const refreshAfterEdit = useCallback(() => {
-    revalidate(tripScope(tripId), visaScope(tripId));
-  }, [revalidate, tripId]);
   const searchTargetConsumed = useRef(false);
   const pendingReviewTriggerRef = useRef<HTMLElement | null>(null);
   const reviewReturnFocusRef = useRef<HTMLElement | null>(null);
@@ -2069,8 +2057,6 @@ export function TripDetailView({
             onUpdated={() => {
               setShowEdit(false);
               announce(t("detail.announce.updated"));
-              reload();
-              refreshAfterEdit();
             }}
           />
         ) : null}

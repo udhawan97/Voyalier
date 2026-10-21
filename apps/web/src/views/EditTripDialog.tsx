@@ -1,10 +1,16 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AppError, Trip, UpdateTripInput } from "@voyalier/contracts";
 import { MAX_LOCATION_LEN, countChars } from "@voyalier/contracts";
 
 import { useGateway } from "../app/context";
 import { describeError, tripFieldError } from "../app/format";
 import { t } from "../app/i18n";
+import {
+  tripsScope,
+  tripScope,
+  visaScope,
+  useRevalidate,
+} from "../app/revalidate";
 import { usePlaceSuggestions } from "../app/usePlaceSuggestions";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
@@ -32,6 +38,18 @@ export function EditTripDialog({
   onUpdated: (trip: Trip) => void;
 }) {
   const gateway = useGateway();
+  const revalidate = useRevalidate();
+  const active = useRef(true);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
+  function close() {
+    active.current = false;
+    onClose();
+  }
   const [title, setTitle] = useState(trip.title);
   const [origin, setOrigin] = useState(trip.origin);
   const [destination, setDestination] = useState(trip.destination);
@@ -77,8 +95,10 @@ export function EditTripDialog({
     };
     try {
       const updated = await gateway.updateTrip(trip.id, patch);
-      onUpdated(updated);
+      revalidate(tripsScope, tripScope(trip.id), visaScope(trip.id));
+      if (active.current) onUpdated(updated);
     } catch (caught) {
+      if (!active.current) return;
       const appError = caught as AppError;
       const mapped = tripFieldError(appError);
       if (mapped) {
@@ -97,12 +117,12 @@ export function EditTripDialog({
   return (
     <Dialog
       title={t("editTrip.title")}
-      onClose={onClose}
+      onClose={close}
       initialFocusRef={originRef}
       description={t("editTrip.description")}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>
+          <Button variant="ghost" onClick={close}>
             {t("action.cancel")}
           </Button>
           <Button

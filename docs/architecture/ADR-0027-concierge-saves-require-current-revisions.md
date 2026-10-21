@@ -27,6 +27,22 @@ preparation state is never automatically merged. Requests and acknowledgements
 must retain their originating identity so an older refresh cannot replace a
 newer acknowledged write.
 
+### Explicit setup reconciliation — 2026-10-21
+
+A retained setup draft can outlive an earlier save's acknowledgement and still
+carry its old revision. Retrying it must continue to fail the same CAS check.
+An explicit review compares its setup preferences with the acknowledged saved
+profile. Keeping the reviewed choices builds an unsaved profile from that exact
+saved profile and the reviewed draft preferences only. People, wallet, money,
+provider handoffs and preparation progress come wholly from the saved profile;
+preparation state is never merged from the stale draft. Saving remains a separate
+deliberate action through the unchanged setter.
+
+Changing either the acknowledged profile or draft invalidates the open review.
+A later independent write remains protected by the ordinary CAS check, including
+when it happens after review and before Save setup. The review does no network
+dispatch or persistence. This closes DR-0fa5b711-005 without a contract change.
+
 Document deletion clears only matching embedded `sourceDocumentId` references
 in the same transaction as source deletion and existing fact/history tombstones.
 Authored labels, notes, people and preparation requirements survive. Attachment

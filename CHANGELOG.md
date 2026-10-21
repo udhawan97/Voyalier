@@ -8,6 +8,25 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Fixed
 
+- **Build and preview tooling includes the Windows editor-command security patch.**
+  Vite moves to 8.3.3 with the required Rolldown updates while retaining the
+  existing frameworks. Installed-app and native Windows acceptance remain
+  separate.
+
+- **Network certificate checks use patched verification and trust roots.**
+  Compatible Rust patch releases reject distrusted certificate intermediates
+  and update the bundled trust roots. Native platform acceptance remains
+  separate, and existing informational dependency warnings are not suppressed.
+
+- **Interrupted restores and delayed saves preserve recovery records and newer drafts.**
+  Restore key cleanup remains retryable; provider key checks and AI requests
+  refuse redirects; dismissed create/edit dialogs cannot close replacement
+  drafts. Setup choices can be explicitly reviewed and reapplied before a
+  separate Save. Stale passphrase changes, fallback adoption after credential-read
+  failures, and workspaces with newer database formats are refused. Historical
+  recovery keys without ownership records remain outside automatic cleanup;
+  these changes do not establish installed-app or native keychain acceptance.
+
 - **Local safety copies retain the credentials needed to recover them.**
   Pre-update, pre-restore and pre-format copies keep matching key or passphrase
   bindings until their last local reference is removed. Recovery checks the

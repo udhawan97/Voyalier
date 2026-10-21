@@ -4,6 +4,7 @@ import {
   useState,
   type CSSProperties,
   type FormEvent,
+  type RefObject,
 } from "react";
 import type {
   AppError,
@@ -71,6 +72,93 @@ type SaveResult =
   { ok: true; workspace: ConciergeWorkspace } | { ok: false; error: AppError };
 type SaveProfile = (profile: ConciergeProfile) => Promise<SaveResult>;
 
+const SETUP_FIELDS: [keyof ConciergeProfile["preferences"], string][] = [
+  ["selectedArea", "Island or neighborhood"],
+  ["areaStays", "Multi-area stay"],
+  ["partySize", "Travelers"],
+  ["adults", "Adults"],
+  ["children", "Children"],
+  ["bedrooms", "Bedrooms"],
+  ["beds", "Beds"],
+  ["rooms", "Rooms"],
+  ["kitchenRequired", "Kitchen required"],
+  ["laundryRequired", "Laundry required"],
+  ["airConditioningRequired", "Air conditioning required"],
+  ["accessibilityRequired", "Accessibility features required"],
+  ["flexibleCancellationPreferred", "Flexible cancellation preferred"],
+  ["pace", "Pace"],
+  ["carPreference", "Driving"],
+  ["travelMode", "Travel mode"],
+  ["hasForeignConnection", "Foreign connection"],
+  ["purpose", "Trip purpose"],
+  ["baseCurrency", "Planning currency"],
+  ["budgetMinMinor", "Budget from"],
+  ["budgetMaxMinor", "Budget to"],
+  ["budgetIsPerPerson", "Budget is per person"],
+];
+
+function setupValue(
+  preferences: ConciergeProfile["preferences"],
+  field: keyof ConciergeProfile["preferences"],
+): string {
+  const value = preferences[field];
+  if (value === undefined || value === "") return "Undecided";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (Array.isArray(value))
+    return (
+      value
+        .map(
+          (stay) =>
+            `${stay.area}: ${stay.checkIn ?? "Undecided"} to ${stay.checkOut ?? "Undecided"}`,
+        )
+        .join("; ") || "No bases"
+    );
+  if (field === "budgetMinMinor" || field === "budgetMaxMinor")
+    return formatMinorAmount(Number(value), preferences.baseCurrency);
+  const labels: Partial<
+    Record<keyof ConciergeProfile["preferences"], Record<string, string>>
+  > = {
+    pace: {
+      unset: "Undecided",
+      slow: "Slow",
+      balanced: "Balanced",
+      full: "Full days",
+    },
+    carPreference: {
+      unset: "Undecided",
+      avoid: "Avoid a car",
+      open: "Open to a car",
+      prefer: "Prefer a car",
+    },
+    travelMode: {
+      unknown: "Undecided",
+      air: "Air",
+      land: "Land",
+      sea: "Sea",
+      mixed: "Mixed",
+    },
+    purpose: {
+      unknown: "Undecided",
+      tourism: "Tourism",
+      business: "Business",
+      visit: "Visit",
+      study: "Study",
+      other: "Other",
+    },
+  };
+  const text = String(value);
+  return labels[field]?.[text] ?? text;
+}
+
+function setupChanges(saved: ConciergeProfile, draft: ConciergeProfile) {
+  return SETUP_FIELDS.map(([field, label]) => ({
+    field,
+    label,
+    saved: setupValue(saved.preferences, field),
+    draft: setupValue(draft.preferences, field),
+  })).filter((change) => change.saved !== change.draft);
+}
+
 function useFormGeneration() {
   const generation = useRef(0);
   const mounted = useRef(true);
@@ -108,11 +196,13 @@ function SetupPanel({
   onChange,
   onSave,
   busy,
+  saveButtonRef,
 }: {
   profile: ConciergeProfile;
   onChange: (profile: ConciergeProfile) => void;
   onSave: () => void;
   busy: boolean;
+  saveButtonRef: RefObject<HTMLButtonElement | null>;
 }) {
   const [budgetError, setBudgetError] = useState<string | null>(null);
   const preferences = profile.preferences;
@@ -128,7 +218,12 @@ function SetupPanel({
           <p className="voy-eyebrow">Ask once, use everywhere</p>
           <h3>Trip setup</h3>
         </div>
-        <Button variant="primary" busy={busy} onClick={onSave}>
+        <Button
+          ref={saveButtonRef}
+          variant="primary"
+          busy={busy}
+          onClick={onSave}
+        >
           Save setup
         </Button>
       </div>
@@ -1873,6 +1968,13 @@ function CockpitEditor({
   const saving = useRef(false);
   const draftGeneration = useRef(0);
   const [refreshPending, setRefreshPending] = useState(false);
+  const [setupReview, setSetupReview] = useState<{
+    saved: ConciergeProfile;
+    draft: ConciergeProfile;
+    generation: number;
+  } | null>(null);
+  const setupSaveRef = useRef<HTMLButtonElement>(null);
+  const setupReviewReturnRef = useRef<HTMLElement | null>(null);
   function editProfile(next: ConciergeProfile) {
     draftGeneration.current += 1;
     draft.current = next;
@@ -1988,6 +2090,10 @@ function CockpitEditor({
     (task) =>
       task.state === "done_by_traveler" || task.state === "not_applicable",
   );
+  const reviewCurrent =
+    setupReview?.saved === acceptedProfile &&
+    setupReview?.draft === profile &&
+    !saveAction.busy;
   return (
     <section
       className="voy-concierge"
@@ -2182,6 +2288,7 @@ function CockpitEditor({
         onChange={editProfile}
         onSave={() => save()}
         busy={saveAction.busy}
+        saveButtonRef={setupSaveRef}
       />
       {profile !== acceptedProfile ? (
         <p className="voy-concierge__notice" role="status">
@@ -2200,7 +2307,95 @@ function CockpitEditor({
           >
             Discard setup draft and use saved profile
           </Button>
+          {refreshPending && setupChanges(acceptedProfile, profile).length ? (
+            <Button
+              variant="secondary"
+              disabled={saveAction.busy}
+              onClick={() => {
+                setupReviewReturnRef.current = null;
+                setSetupReview({
+                  saved: accepted.current,
+                  draft: draft.current,
+                  generation: draftGeneration.current,
+                });
+              }}
+            >
+              Review setup changes
+            </Button>
+          ) : null}
         </p>
+      ) : null}
+      {setupReview ? (
+        <Dialog
+          title="Review setup changes"
+          lang="en"
+          returnFocusRef={setupReviewReturnRef}
+          onClose={() => setSetupReview(null)}
+          initialFocus="dialog"
+          description="Compare your setup choices with the saved setup. Keeping your choices does not save them."
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setSetupReview(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                disabled={!reviewCurrent}
+                onClick={() => {
+                  if (
+                    saving.current ||
+                    setupReview.saved !== accepted.current ||
+                    setupReview.draft !== draft.current ||
+                    setupReview.generation !== draftGeneration.current
+                  )
+                    return;
+                  editProfile({
+                    ...setupReview.saved,
+                    preferences: setupReview.draft.preferences,
+                  });
+                  setRefreshPending(false);
+                  setupReviewReturnRef.current = setupSaveRef.current;
+                  setSetupReview(null);
+                  announce(
+                    "Setup choices kept. Review them, then choose Save setup.",
+                  );
+                }}
+              >
+                Keep my setup choices
+              </Button>
+            </>
+          }
+        >
+          <p>
+            Your choices replace the saved setup only. Saved people, wallet,
+            money, provider handoffs and preparation progress stay as saved.
+            Choose Save setup afterward to save these choices.
+          </p>
+          {!reviewCurrent ? (
+            <Banner tone="warn" role="alert" title="Review changed">
+              The saved profile or your draft changed. Close this review and
+              review the latest setup before continuing.
+            </Banner>
+          ) : null}
+          <dl className="voy-review__diff">
+            {setupChanges(setupReview.saved, setupReview.draft).map(
+              (change) => (
+                <div key={change.field}>
+                  <dt>{change.label}</dt>
+                  <dd>
+                    <span>
+                      <strong>Saved:</strong> {change.saved}
+                    </span>
+                    <br />
+                    <span>
+                      <strong>Your choice:</strong> {change.draft}
+                    </span>
+                  </dd>
+                </div>
+              ),
+            )}
+          </dl>
+        </Dialog>
       ) : null}
       <PeoplePanel profile={profile} onSave={save} busy={saveAction.busy} />
       {workspace.areaGuides.length ? (

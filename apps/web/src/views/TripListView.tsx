@@ -512,12 +512,10 @@ export function TripListView({
             }
             setShowCreate(false);
             announce(t("triplist.announce.created", { title: trip.title }));
-            revalidate(tripsScope);
           }}
           onDraftSaved={(draft) => {
             setShowCreate(false);
             announce(`Saved ${draft.destination} as a trip idea.`);
-            revalidate(tripsScope);
           }}
         />
       ) : null}
