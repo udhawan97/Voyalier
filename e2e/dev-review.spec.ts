@@ -287,6 +287,7 @@ for (const locale of ["en", "es"]) {
       ).toBeVisible();
       await page.screenshot({
         path: info.outputPath("setup-review-desktop.png"),
+        animations: "disabled",
       });
       await page.setViewportSize({ width: 320, height: 720 });
       expect(
@@ -294,7 +295,10 @@ for (const locale of ["en", "es"]) {
           (element) => element.scrollWidth <= element.clientWidth,
         ),
       ).toBe(true);
-      await page.screenshot({ path: info.outputPath("setup-review-320.png") });
+      await page.screenshot({
+        path: info.outputPath("setup-review-320.png"),
+        animations: "disabled",
+      });
       if (info.project.name === "chromium") {
         await page.setViewportSize({ width: 640, height: 720 });
         const zoom = await page.context().newCDPSession(page);
