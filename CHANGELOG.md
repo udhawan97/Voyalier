@@ -8,6 +8,11 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Fixed
 
+- **Build and preview tooling includes the Windows editor-command security patch.**
+  Vite moves to 8.3.3 with the required Rolldown updates while retaining the
+  existing frameworks. Installed-app and native Windows acceptance remain
+  separate.
+
 - **Interrupted restores and delayed saves preserve recovery records and newer drafts.**
   Restore key cleanup remains retryable; provider key checks and AI requests
   refuse redirects; dismissed create/edit dialogs cannot close replacement
