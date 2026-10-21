@@ -58,3 +58,16 @@ wrong trip/provider, malformed and missing legacy tokens reject with zero POST
 and no activity; renewed preview succeeds. Header attachment preserves prepared
 URL/model/body and enforces provider key policy. UI preserves the shown request,
 requires deliberate refresh/review/send, and handles navigation/loading races.
+
+## Amendment — credential-bearing requests do not redirect (2026-10-21)
+
+Provider validation GET and assist POST refuse redirects in the production HTTP
+adapter before contacting a second destination. The fixed endpoint is part of
+the approved request boundary; the HTTP client's default removal of Authorization
+does not protect Anthropic's custom `x-api-key` header. A redirect returns a safe
+provider error without its destination, credentials, or response body.
+
+Verify 301/302/307/308 with two disposable loopback listeners and synthetic
+credentials for both methods. The second listener must receive no request;
+successful responses, provider error parsing, exact prepared request bytes and
+response-size limits remain unchanged. No real provider or credential is used.

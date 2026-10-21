@@ -318,6 +318,7 @@ impl AdviceFetcher for UreqFetcher {
         let config = ureq::Agent::config_builder()
             .timeout_global(Some(std::time::Duration::from_secs(120)))
             .http_status_as_error(false)
+            .max_redirects(0)
             .user_agent("Voyalier/0.1 (+https://github.com/udhawan97/Voyalier)")
             .build();
         let agent: ureq::Agent = config.into();
@@ -326,6 +327,9 @@ impl AdviceFetcher for UreqFetcher {
             request = request.header(*name, *value);
         }
         let mut response = request.send(body).map_err(assist_transport_failure)?;
+        if response.status().is_redirection() {
+            return Err(provider_redirect_error());
+        }
         if response
             .body()
             .content_length()
@@ -352,6 +356,7 @@ impl AdviceFetcher for UreqFetcher {
         let config = ureq::Agent::config_builder()
             .timeout_global(Some(std::time::Duration::from_secs(15)))
             .http_status_as_error(false)
+            .max_redirects(0)
             .user_agent("Voyalier/0.1 (+https://github.com/udhawan97/Voyalier)")
             .build();
         let agent: ureq::Agent = config.into();
@@ -360,6 +365,9 @@ impl AdviceFetcher for UreqFetcher {
             request = request.header(*name, *value);
         }
         let response = request.call().map_err(assist_transport_failure)?;
+        if response.status().is_redirection() {
+            return Err(provider_redirect_error());
+        }
         Ok(response.status().as_u16())
     }
 
@@ -413,6 +421,13 @@ fn assist_transport_failure(cause: ureq::Error) -> AppError {
     AppError::new(
         ErrorCode::AssistUnreachable,
         format!("could not reach the AI provider: {cause}"),
+    )
+}
+
+fn provider_redirect_error() -> AppError {
+    AppError::new(
+        ErrorCode::AssistFailed,
+        "the AI provider redirected its request; the redirect destination was not contacted",
     )
 }
 
@@ -526,6 +541,7 @@ impl SecretStore for KeyringSecretStore {
 pub struct MemorySecretStore {
     entries: Mutex<std::collections::HashMap<String, String>>,
     available: bool,
+    delete_failure: Mutex<Option<String>>,
 }
 
 impl Default for MemorySecretStore {
@@ -533,6 +549,7 @@ impl Default for MemorySecretStore {
         Self {
             entries: Mutex::new(std::collections::HashMap::new()),
             available: true,
+            delete_failure: Mutex::new(None),
         }
     }
 }
@@ -544,7 +561,14 @@ impl MemorySecretStore {
         Self {
             entries: Mutex::new(std::collections::HashMap::new()),
             available: false,
+            delete_failure: Mutex::new(None),
         }
+    }
+
+    /// Refuse the next deletion of this account, preserving its value for a
+    /// deterministic recovery retry without a second SecretStore stub.
+    pub fn fail_next_delete(&self, account: &str) {
+        *self.delete_failure.lock().expect("fake fault lock") = Some(account.to_owned());
     }
 
     fn ensure_available(&self) -> Result<(), AppError> {
@@ -587,6 +611,18 @@ impl SecretStore for MemorySecretStore {
 
     fn delete(&self, account: &str) -> Result<(), AppError> {
         self.ensure_available()?;
+        let mut failure = self
+            .delete_failure
+            .lock()
+            .map_err(|_| storage_error(PoisonError))?;
+        if failure.as_deref() == Some(account) {
+            failure.take();
+            return Err(AppError::new(
+                ErrorCode::StorageFailure,
+                "the in-memory keychain refused credential deletion",
+            ));
+        }
+        drop(failure);
         self.entries
             .lock()
             .map_err(|_| storage_error(PoisonError))?
@@ -1482,18 +1518,17 @@ fn stage_restore_source(
         restore_fault("copy");
         let (schema_version, candidate_sha256) =
             prepare_restore_candidate(&candidate, manifest.schema_version, Some(key))?;
+        restore_fault("candidate_prepared");
         let encoded_key = BASE64.encode(key);
-        secrets.set(&account, &encoded_key)?;
-        restore_fault("key_set_stage");
         let preview = RestorePreview {
             created_at: manifest.created_at.clone(),
             app_version: manifest.app_version.clone(),
             schema_version,
         };
-        let marker = PendingRestore {
-            protocol_version: 2,
+        let mut marker = PendingRestore {
+            protocol_version: 4,
             generation: generation.clone(),
-            phase: RestorePhase::Staged,
+            phase: RestorePhase::Staging,
             candidate_file,
             rollback_file: format!("rollback-restore-{generation}.sqlite3"),
             candidate_sha256,
@@ -1508,12 +1543,18 @@ fn stage_restore_source(
             old_key_sha256: None,
         };
         write_restore_marker(&marker_path, &marker)?;
+        restore_fault("staging_intent");
+        secrets.set(&account, &encoded_key)?;
+        restore_fault("key_set_stage");
+        marker.phase = RestorePhase::Staged;
+        write_restore_marker(&marker_path, &marker)?;
         restore_fault("marker");
         Ok(preview)
     })();
-    if staged.is_err() {
+    if staged.is_err() && matches!(marker_path.try_exists(), Ok(false)) {
+        // Once ownership is published, only the recovery protocol may retire
+        // its artifacts; the key may already exist despite a staging failure.
         let _ = fs::remove_file(&candidate);
-        let _ = secrets.delete(&account);
     }
     staged
 }
@@ -1857,6 +1898,7 @@ struct PendingRestore {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 enum RestorePhase {
+    Staging,
     Staged,
     Prepared,
     Activated,
@@ -2253,7 +2295,8 @@ fn require_direct_restore_path(database: &Path) -> Result<(), AppError> {
 fn validate_restore_marker(marker: &PendingRestore) -> Result<(), AppError> {
     let expected_candidate = format!("pending-restore-{}.sqlite3", marker.generation);
     let expected_rollback = format!("rollback-restore-{}.sqlite3", marker.generation);
-    if !matches!(marker.protocol_version, 2 | 3)
+    if !matches!(marker.protocol_version, 2..=4)
+        || (marker.protocol_version < 4 && marker.phase == RestorePhase::Staging)
         || (marker.protocol_version == 2
             && matches!(
                 marker.phase,
@@ -2404,9 +2447,9 @@ fn finish_restore_cleanup(
     }
     let pending_account = vault_pending_key_account(database_path, &marker.generation);
     let rollback_account = vault_rollback_key_account(database_path, &marker.generation);
-    let _ = secrets.delete(&pending_account);
+    secrets.delete(&pending_account)?;
     restore_fault("key_delete");
-    let _ = secrets.delete(&rollback_account);
+    secrets.delete(&rollback_account)?;
     restore_fault("cleanup");
     fs::remove_file(marker_path).map_err(storage_error)?;
     sync_directory(directory)
@@ -2603,7 +2646,7 @@ fn apply_pending_restore(
     let pending_account = vault_pending_key_account(database_path, &marker.generation);
     let rollback_account = vault_rollback_key_account(database_path, &marker.generation);
     match marker.phase {
-        RestorePhase::Cancelling => {
+        RestorePhase::Staging | RestorePhase::Cancelling => {
             cancel_restore(secrets, database_path, &marker)?;
             return Ok(RestoreOutcome::RetainedOld);
         }

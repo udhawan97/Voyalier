@@ -157,3 +157,25 @@ contracts, logs, and screenshots. A digest can bind intent without becoming secr
 
 **Delete the old generation immediately after the candidate rename.** Rejected: a valid SQLite
 file can still be unreadable under the installed key. Successful reopen is the commit boundary.
+
+## Amendment — ownership precedes generation credentials (2026-10-21)
+
+Local protocol version 4 adds a `staging` phase after candidate validation and
+before installing its pending key. This durable marker owns both generation
+accounts before either can contain a raw key. Only a subsequent `staged` marker
+authorizes activation. Older binaries reject version 4 before mutation; version
+2 and 3 markers remain recoverable under their existing rules.
+
+Startup cancels an interrupted `staging` generation, whether its pending key is
+missing or already installed, and preserves the live workspace. Cancellation
+records its existing terminal intent before retiring exact owned accounts and
+files. Staging failures retain any published marker for that recovery rather
+than deleting its artifacts independently. Unmarked candidates cannot own keys
+under this protocol and remain inert evidence.
+
+Committed cleanup propagates pending/rollback credential deletion failures and
+keeps its marker until both deletions succeed. A repeated cleanup accepts already
+absent generation accounts, preserves indexed safety-copy credentials, and
+validates the live database/key pair before removing ownership. No account
+enumeration or guessed orphan deletion is introduced. Historical unindexed keys
+from older binaries cannot be discovered retroactively through SecretStore.

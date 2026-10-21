@@ -58,3 +58,18 @@ Use synthetic MemorySecretStore keys and offline fetchers. Verify distinct-key
 notes/files, shared-key last references, all snapshot families, unavailable/corrupt
 evidence, protected/keyless recovery, passphrase-transition interruption, deletion
 retry and bounded maintenance staging. No real keychain or user workspace tests.
+
+## Amendment — outstanding restore custody (2026-10-21)
+
+ADR-0021 protocol 4 owns pending raw credentials before installation and retries
+retirement after a committed restore. Passphrase protection refuses an outstanding
+restore marker: finish or cancel that generation first, so a pending raw copy of
+the same key cannot remain outside the snapshot protection transition. Indexed
+historical credentials retain their existing lifetime and protection rules.
+
+Verify self-export interruptions before/after staging intent and key installation,
+then reopen and protect exact notes/files with no surviving raw generation copy.
+Inject each committed generation-account deletion failure using the shipped
+MemorySecretStore; retain retryable intent and prove successful restart preserves
+both live data and the readable old safety snapshot. These checks use fictional
+keys only and do not establish native keychain or physical power-loss acceptance.

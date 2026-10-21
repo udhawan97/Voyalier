@@ -573,6 +573,16 @@ pub(super) fn begin_protection(
     key: &[u8; VAULT_KEY_LEN],
     wrap: &VaultWrap,
 ) -> Result<(), AppError> {
+    if directory(database)?
+        .join(PENDING_RESTORE_MARKER)
+        .try_exists()
+        .map_err(storage_error)?
+    {
+        return Err(AppError::new(
+            ErrorCode::ValidationInvalidInput,
+            "finish or cancel the pending restore before protecting this vault",
+        ));
+    }
     adopt(database, secrets, Some(*key), None)?;
     let mut index = read_index(database)?;
     index.protection_transition = Some(ProtectionTransition {

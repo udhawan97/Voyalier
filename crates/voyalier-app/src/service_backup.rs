@@ -246,7 +246,7 @@ impl AppService {
         validate_restore_marker(&marker)?;
         if !matches!(
             marker.phase,
-            RestorePhase::Staged | RestorePhase::Cancelling
+            RestorePhase::Staging | RestorePhase::Staged | RestorePhase::Cancelling
         ) {
             return Err(AppError::new(
                 ErrorCode::ValidationInvalidInput,
