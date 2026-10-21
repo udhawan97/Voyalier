@@ -36,6 +36,7 @@ interface DialogProps {
   description?: ReactNode;
   size?: "md" | "lg";
   labelId?: string;
+  lang?: string;
 }
 
 /**
@@ -55,6 +56,7 @@ export function Dialog({
   description,
   size = "md",
   labelId,
+  lang,
 }: DialogProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -215,6 +217,7 @@ export function Dialog({
         ref={dialogRef}
         className={`voy-dialog voy-dialog--${size}`}
         role="dialog"
+        lang={lang}
         aria-modal="true"
         aria-labelledby={headingId}
         aria-describedby={descId}

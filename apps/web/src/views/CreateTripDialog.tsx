@@ -1,4 +1,4 @@
-import { useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import type {
   AppError,
   CreateTripInput,
@@ -10,6 +10,7 @@ import { MAX_LOCATION_LEN, countChars } from "@voyalier/contracts";
 import { useGateway } from "../app/context";
 import { describeError, tripFieldError } from "../app/format";
 import { t } from "../app/i18n";
+import { tripsScope, useRevalidate } from "../app/revalidate";
 import { usePlaceSuggestions } from "../app/usePlaceSuggestions";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
@@ -36,6 +37,18 @@ export function CreateTripDialog({
   returnFocusRef: RefObject<HTMLElement | null>;
 }) {
   const gateway = useGateway();
+  const revalidate = useRevalidate();
+  const active = useRef(true);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
+  function close() {
+    active.current = false;
+    onClose();
+  }
   const [title, setTitle] = useState("");
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
@@ -140,13 +153,16 @@ export function CreateTripDialog({
         ...workspace.profile,
         preferences: { ...workspace.profile.preferences, partySize },
       });
-      onCreated(createdTrip);
+      revalidate(tripsScope);
+      if (active.current) onCreated(createdTrip);
     } catch (caught) {
       if (createdTrip) {
         // Keep a failed follow-up profile write from leaving an unexpected trip
         // behind. The server owns cascade cleanup for the new draft trip.
         await gateway.deleteTrip(createdTrip.id).catch(() => undefined);
+        revalidate(tripsScope);
       }
+      if (!active.current) return;
       const appError = caught as AppError;
       const mapped = tripFieldError(appError);
       if (mapped) {
@@ -182,8 +198,10 @@ export function CreateTripDialog({
         ...(endDate ? { endDate } : {}),
         partySize,
       });
-      onDraftSaved(draft);
+      revalidate(tripsScope);
+      if (active.current) onDraftSaved(draft);
     } catch (caught) {
+      if (!active.current) return;
       setFormError(caught as AppError);
       setSubmitting(false);
     }
@@ -192,13 +210,13 @@ export function CreateTripDialog({
   return (
     <Dialog
       title={t("createTrip.title")}
-      onClose={onClose}
+      onClose={close}
       initialFocusRef={originRef}
       returnFocusRef={returnFocusRef}
       description={t("createTrip.description")}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>
+          <Button variant="ghost" onClick={close}>
             {t("action.cancel")}
           </Button>
           <Button variant="secondary" busy={submitting} onClick={saveDraft}>

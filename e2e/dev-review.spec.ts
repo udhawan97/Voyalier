@@ -156,3 +156,189 @@ test("Wallet source read failure stays unknown and retry returns to the real sou
   ).toBeVisible();
   await expect(wallet.getByText(/Source unavailable/)).toHaveCount(0);
 });
+
+async function pauseWrite(page: Page, pattern: string, method: string) {
+  let release!: () => void;
+  let received!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const started = new Promise<void>((resolve) => {
+    received = resolve;
+  });
+  let paused = false;
+  await page.route(pattern, async (route) => {
+    if (!paused && route.request().method() === method) {
+      paused = true;
+      received();
+      await gate;
+    }
+    await route.continue();
+  });
+  return { release, started };
+}
+
+test("a dismissed creation cannot close a replacement draft or steal its focus", async ({
+  page,
+}, info) => {
+  const title = `Delayed create ${info.project.name} ${info.retry}`;
+  await page.goto("/");
+  const pause = await pauseWrite(page, "**/api/v1/trips/*/concierge", "PUT");
+  try {
+    await page.getByRole("button", { name: "Create a trip" }).first().click();
+    const dialog = page.getByRole("dialog", { name: "Create a trip" });
+    await dialog.getByLabel("From").fill("Chicago");
+    await dialog.getByLabel("To").fill("Rome");
+    await dialog.getByLabel("Start date").fill("2027-06-01");
+    await dialog.getByLabel("End date").fill("2027-06-05");
+    await dialog.getByLabel("Trip name (optional)").fill(title);
+    await dialog.getByRole("button", { name: "Create trip" }).click();
+    await pause.started;
+    await dialog.press("Escape");
+    await page.getByRole("button", { name: "Create a trip" }).first().click();
+    await dialog.getByLabel("To").fill("Replacement draft");
+    pause.release();
+    await expect(
+      page.getByRole("button", { name: `Open ${title}` }),
+    ).toBeVisible();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByLabel("To")).toHaveValue("Replacement draft");
+    await expect(dialog.getByLabel("To")).toBeFocused();
+  } finally {
+    pause.release();
+  }
+});
+
+test("a dismissed edit refreshes the trip while preserving the replacement editor", async ({
+  page,
+}, info) => {
+  const title = `Delayed edit ${info.project.name} ${info.retry}`;
+  await createTrip(page, title);
+  const pause = await pauseWrite(page, "**/api/v1/trips/*", "PATCH");
+  try {
+    await page.getByRole("button", { name: "Edit", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Edit trip" });
+    await dialog.getByLabel("Trip name (optional)").fill(`${title} saved`);
+    await dialog.getByRole("button", { name: "Save changes" }).click();
+    await pause.started;
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await page.getByRole("button", { name: "Edit", exact: true }).click();
+    await dialog.getByLabel("To").fill("Replacement destination");
+    pause.release();
+    await expect(
+      page.getByRole("heading", { name: `${title} saved`, level: 1 }),
+    ).toBeVisible();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByLabel("To")).toHaveValue(
+      "Replacement destination",
+    );
+    await expect(dialog.getByLabel("To")).toBeFocused();
+  } finally {
+    pause.release();
+  }
+});
+
+for (const locale of ["en", "es"]) {
+  test(`retained setup choices can be reviewed by keyboard in ${locale} at narrow width (Chromium: 2x pixel density)`, async ({
+    page,
+  }, info) => {
+    await createTrip(
+      page,
+      `Setup review ${locale} ${info.project.name} ${info.retry}`,
+    );
+    await page.evaluate((language) => {
+      localStorage.setItem("voyalier.locale", language);
+      localStorage.setItem("voyalier-theme", "dark");
+    }, locale);
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute("lang", locale);
+    const cockpit = page.getByRole("region", {
+      name: "Everything between here and there",
+    });
+    const bedrooms = cockpit.getByRole("spinbutton", { name: "Bedrooms" });
+    const save = cockpit.getByRole("button", { name: "Save setup" });
+    const pause = await pauseWrite(page, "**/api/v1/trips/*/concierge", "PUT");
+    let saves = 0;
+    page.on("request", (request) => {
+      if (
+        request.method() === "PUT" &&
+        new URL(request.url()).pathname.endsWith("/concierge")
+      )
+        saves += 1;
+    });
+    try {
+      await bedrooms.fill("2");
+      await save.click();
+      await pause.started;
+      await bedrooms.fill("3");
+      pause.release();
+      const review = cockpit.getByRole("button", {
+        name: "Review setup changes",
+      });
+      await expect(review).toBeVisible();
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await review.focus();
+      await page.keyboard.press("Enter");
+      const dialog = page.getByRole("dialog", { name: "Review setup changes" });
+      await expect(dialog).toHaveAttribute("lang", "en");
+      await expect(dialog.getByText("Saved:", { exact: true })).toBeVisible();
+      await expect(
+        dialog.getByText("Your choice:", { exact: true }),
+      ).toBeVisible();
+      await page.screenshot({
+        path: info.outputPath("setup-review-desktop.png"),
+      });
+      await page.setViewportSize({ width: 320, height: 720 });
+      expect(
+        await dialog.evaluate(
+          (element) => element.scrollWidth <= element.clientWidth,
+        ),
+      ).toBe(true);
+      await page.screenshot({ path: info.outputPath("setup-review-320.png") });
+      if (info.project.name === "chromium") {
+        await page.setViewportSize({ width: 640, height: 720 });
+        const zoom = await page.context().newCDPSession(page);
+        try {
+          await zoom.send("Emulation.setDeviceMetricsOverride", {
+            width: 320,
+            height: 360,
+            deviceScaleFactor: 2,
+            mobile: false,
+            screenWidth: 640,
+            screenHeight: 720,
+          });
+          await expect
+            .poll(() => page.evaluate(() => window.innerWidth))
+            .toBe(320);
+          await expect
+            .poll(() => page.evaluate(() => devicePixelRatio))
+            .toBe(2);
+          expect(
+            await dialog.evaluate(
+              (element) => element.scrollWidth <= element.clientWidth,
+            ),
+          ).toBe(true);
+        } finally {
+          await zoom.send("Emulation.clearDeviceMetricsOverride");
+          await zoom.detach();
+        }
+      }
+      const keep = dialog.getByRole("button", {
+        name: "Keep my setup choices",
+      });
+      await keep.focus();
+      await page.keyboard.press("Enter");
+      await expect(dialog).toBeHidden();
+      await expect(save).toBeFocused();
+      expect(saves).toBe(1);
+      await expect(bedrooms).toHaveValue("3");
+      await save.click();
+      await expect(save).toBeEnabled();
+      expect(saves).toBe(2);
+      await page.reload();
+      await expect(bedrooms).toHaveValue("3");
+    } finally {
+      pause.release();
+    }
+  });
+}
