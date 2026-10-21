@@ -9,11 +9,14 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 ### Fixed
 
 - **Build and preview tooling includes the Windows editor-command security patch.**
-  Vite moves to 8.3.3 with the required Rolldown updates, and Rust TLS
-  certificate validation/root bundles move to their patched compatible releases,
-  while retaining the
+  Vite moves to 8.3.3 with the required Rolldown updates while retaining the
   existing frameworks. Installed-app and native Windows acceptance remain
   separate.
+
+- **Network certificate checks use patched verification and trust roots.**
+  Compatible Rust patch releases reject distrusted certificate intermediates
+  and update the bundled trust roots. Native platform acceptance remains
+  separate, and existing informational dependency warnings are not suppressed.
 
 - **Interrupted restores and delayed saves preserve recovery records and newer drafts.**
   Restore key cleanup remains retryable; provider key checks and AI requests
