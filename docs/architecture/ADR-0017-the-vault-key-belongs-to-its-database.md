@@ -173,3 +173,28 @@ there until the candidate database successfully reopens under the candidate key.
 restores the old database and old key intent together; an originally keyless workspace deletes the
 live account rather than inventing a replacement. Temporary generation accounts are cleaned only
 after commit or completed rollback and are not permanent workspace accounts in the prune registry.
+
+## Amendment — protection is a persistent precondition (2026-10-21)
+
+Independent AppService connections may retain different in-memory vault states.
+Setting a passphrase therefore checks the current SQLite wrap under shared
+workspace-operation custody before recording protection intent or touching keys.
+An existing wrap refuses the setter even if that connection still caches an
+unprotected state. The write is an insert, never replacement of an existing wrap.
+Ordinary clones still share their vault state; independent connections remain
+available for product transactions without a second vault registry.
+
+## Amendment — inaccessible is not absent (2026-10-21)
+
+Legacy adoption requires an explicit successful `get` returning no namespaced
+credential. An access error leaves that account untouched instead of interpreting
+the error as permission to copy an unrelated legacy key over it. The existing
+vault loader still owns unavailable-keychain behavior: it may open inactive,
+without inventing a transient encryption key or changing the structured plaintext
+fallback. A later successful read can recover the original sealed records.
+
+The shipped MemorySecretStore can refuse a single account read while retaining
+its value and write access. Its existence check delegates to the same read, as
+the production store does. Verify selective denial preserves the namespaced key,
+actual absence still adopts legacy data, new workspaces avoid unrelated legacy
+credentials, and whole-store unavailability keeps its existing fallback.

@@ -6585,6 +6585,255 @@ fn a_new_non_default_workspace_does_not_read_an_unrelated_legacy_key() {
 }
 
 #[test]
+fn dev_review_independent_services_preserve_installed_vault_protection() {
+    let database = temp_database("vault-durable-protection");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let first = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    let sibling = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    let trip = first.create_trip(valid_trip_input()).unwrap();
+    first
+        .set_trip_notes(&trip.id, "fictional protected note")
+        .unwrap();
+    let clone = first.clone();
+    clone
+        .set_vault_passphrase("original synthetic phrase")
+        .unwrap();
+    assert!(first.get_vault_status().unwrap().protected);
+    let wrap = first
+        .connection()
+        .unwrap()
+        .query_row(
+            "SELECT salt, wrapped_key FROM vault_meta WHERE id=1",
+            [],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        )
+        .unwrap();
+    let index_path = database.with_file_name("backup-recovery.json");
+    let index = fs::read(&index_path).unwrap();
+    let keys = secrets.entries.lock().unwrap().clone();
+    for service in [&first, &sibling, &clone] {
+        assert_eq!(
+            service
+                .set_vault_passphrase("replacement synthetic phrase")
+                .unwrap_err()
+                .code,
+            ErrorCode::ValidationInvalidInput,
+        );
+    }
+    let current = first
+        .connection()
+        .unwrap()
+        .query_row(
+            "SELECT salt, wrapped_key FROM vault_meta WHERE id=1",
+            [],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        )
+        .unwrap();
+    assert!(current == wrap, "rejected setters preserve the stored wrap");
+    assert!(fs::read(&index_path).unwrap() == index);
+    assert!(*secrets.entries.lock().unwrap() == keys);
+    drop(clone);
+    drop(sibling);
+    drop(first);
+    let reopened = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    assert!(reopened.get_vault_status().unwrap().locked);
+    assert_eq!(
+        reopened
+            .unlock_vault("replacement synthetic phrase")
+            .unwrap_err()
+            .code,
+        ErrorCode::VaultPassphraseIncorrect
+    );
+    reopened.unlock_vault("original synthetic phrase").unwrap();
+    assert_eq!(
+        reopened.get_trip_notes(&trip.id).unwrap().body,
+        "fictional protected note"
+    );
+    reopened
+        .remove_vault_passphrase("original synthetic phrase")
+        .unwrap();
+    reopened
+        .set_vault_passphrase("deliberate new synthetic phrase")
+        .unwrap();
+    drop(reopened);
+    let reopened =
+        AppService::open_path_with_deps(&database, Arc::new(FakeFetcher::offline()), secrets)
+            .unwrap();
+    assert_eq!(
+        reopened
+            .unlock_vault("original synthetic phrase")
+            .unwrap_err()
+            .code,
+        ErrorCode::VaultPassphraseIncorrect
+    );
+    reopened
+        .unlock_vault("deliberate new synthetic phrase")
+        .unwrap();
+    assert_eq!(
+        reopened.get_trip_notes(&trip.id).unwrap().body,
+        "fictional protected note"
+    );
+    drop(reopened);
+    cleanup_database(database);
+}
+
+#[test]
+fn dev_review_selective_read_failure_preserves_namespaced_key() {
+    let database = temp_database("vault-selective-read");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let account = vault_key_account(&database);
+    let original = BASE64.encode([1u8; VAULT_KEY_LEN]);
+    let legacy = BASE64.encode([2u8; VAULT_KEY_LEN]);
+    secrets.set(&account, &original).unwrap();
+    let app = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    let trip = app.create_trip(valid_trip_input()).unwrap();
+    app.set_trip_notes(&trip.id, "fictional namespaced note")
+        .unwrap();
+    drop(app);
+    secrets.set(VAULT_KEY_ACCOUNT, &legacy).unwrap();
+    secrets.fail_next_get(&account);
+    let opened = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    assert!(
+        secrets.get(&account).unwrap().as_deref() == Some(original.as_str()),
+        "a selective read refusal must not permit legacy replacement"
+    );
+    assert!(secrets.get(VAULT_KEY_ACCOUNT).unwrap().as_deref() == Some(legacy.as_str()));
+    assert_eq!(
+        opened.get_trip_notes(&trip.id).unwrap().body,
+        "fictional namespaced note"
+    );
+    drop(opened);
+    cleanup_database(database);
+}
+
+#[test]
+fn dev_review_future_schema_refuses_before_data_credentials_or_recovery_change() {
+    for pending in [false, true] {
+        let database = temp_database(if pending {
+            "future-schema-pending"
+        } else {
+            "future-schema"
+        });
+        let secrets = Arc::new(MemorySecretStore::default());
+        let app = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .unwrap();
+        let trip = app.create_trip(valid_trip_input()).unwrap();
+        app.set_trip_notes(&trip.id, "fictional pre-upgrade note")
+            .unwrap();
+        if pending {
+            let container = app.export_backup("synthetic backup phrase").unwrap();
+            app.stage_restore("synthetic backup phrase", &container)
+                .unwrap();
+        }
+        drop(app);
+        let connection = Connection::open(&database).unwrap();
+        connection
+            .pragma_update(None, "user_version", target_schema_version() + 1)
+            .unwrap();
+        drop(connection);
+        let before = sha256_file(&database).unwrap();
+        let keys = secrets.entries.lock().unwrap().clone();
+        let marker_path = database.with_file_name(PENDING_RESTORE_MARKER);
+        let marker = fs::read(&marker_path).ok();
+        let candidate = marker.as_ref().map(|_| {
+            let marker = read_restore_marker(&marker_path).unwrap();
+            let path = database.with_file_name(marker.candidate_file);
+            let hash = sha256_file(&path).unwrap();
+            (path, hash)
+        });
+        let error = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .err()
+        .expect("future workspace must refuse startup");
+        assert_eq!(error.code, ErrorCode::ValidationInvalidInput);
+        assert!(error.message.contains("newer version"));
+        assert!(error.message.contains("update the app"));
+        assert_eq!(sha256_file(&database).unwrap(), before);
+        assert!(*secrets.entries.lock().unwrap() == keys);
+        assert_eq!(fs::read(&marker_path).ok(), marker);
+        if let Some((path, hash)) = candidate {
+            assert_eq!(sha256_file(&path).unwrap(), hash);
+        }
+        let connection = Connection::open(&database).unwrap();
+        assert_eq!(
+            user_version(&connection).unwrap(),
+            target_schema_version() + 1,
+        );
+        // This synthetic database has today's schema. Restoring its fixture
+        // version verifies that ordinary startup and staged recovery still work.
+        connection
+            .pragma_update(None, "user_version", target_schema_version())
+            .unwrap();
+        drop(connection);
+        let app =
+            AppService::open_path_with_deps(&database, Arc::new(FakeFetcher::offline()), secrets)
+                .unwrap();
+        assert_eq!(
+            app.get_trip_notes(&trip.id).unwrap().body,
+            "fictional pre-upgrade note"
+        );
+        drop(app);
+        cleanup_database(database);
+    }
+}
+
+#[test]
+fn dev_review_future_schema_init_refuses_before_creating_tables() {
+    let connection = Connection::open_in_memory().unwrap();
+    connection
+        .pragma_update(None, "user_version", target_schema_version() + 1)
+        .unwrap();
+    assert_eq!(
+        init_connection(&connection).unwrap_err().code,
+        ErrorCode::ValidationInvalidInput
+    );
+    let tables: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_schema WHERE type='table'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(tables, 0);
+    assert_eq!(
+        user_version(&connection).unwrap(),
+        target_schema_version() + 1
+    );
+}
+
+#[test]
 fn optional_passphrase_locks_the_vault_and_unlock_restores_access() {
     let database = temp_database("vault-passphrase");
     let secrets = Arc::new(MemorySecretStore::default());

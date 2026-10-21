@@ -22,7 +22,7 @@ impl AppService {
         require_direct_restore_path(&self.database_path)?;
         validate_passphrase(passphrase)?;
         let state = self.vault.snapshot();
-        if state.protected {
+        if state.protected || read_vault_wrap(&*self.connection()?)?.is_some() {
             return Err(AppError::new(
                 ErrorCode::ValidationInvalidInput,
                 "a passphrase is already set; remove it before choosing a new one",
@@ -52,7 +52,7 @@ impl AppService {
         )?;
         self.connection()?
             .execute(
-                "INSERT OR REPLACE INTO vault_meta (id, salt, wrapped_key, updated_at)
+                "INSERT INTO vault_meta (id, salt, wrapped_key, updated_at)
                  VALUES (1, ?1, ?2, ?3)",
                 params![BASE64.encode(salt), BASE64.encode(wrapped), now_rfc3339()],
             )

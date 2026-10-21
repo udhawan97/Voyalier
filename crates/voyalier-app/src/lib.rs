@@ -542,6 +542,7 @@ pub struct MemorySecretStore {
     entries: Mutex<std::collections::HashMap<String, String>>,
     available: bool,
     delete_failure: Mutex<Option<String>>,
+    read_failure: Mutex<Option<String>>,
 }
 
 impl Default for MemorySecretStore {
@@ -550,6 +551,7 @@ impl Default for MemorySecretStore {
             entries: Mutex::new(std::collections::HashMap::new()),
             available: true,
             delete_failure: Mutex::new(None),
+            read_failure: Mutex::new(None),
         }
     }
 }
@@ -562,6 +564,7 @@ impl MemorySecretStore {
             entries: Mutex::new(std::collections::HashMap::new()),
             available: false,
             delete_failure: Mutex::new(None),
+            read_failure: Mutex::new(None),
         }
     }
 
@@ -569,6 +572,11 @@ impl MemorySecretStore {
     /// deterministic recovery retry without a second SecretStore stub.
     pub fn fail_next_delete(&self, account: &str) {
         *self.delete_failure.lock().expect("fake fault lock") = Some(account.to_owned());
+    }
+
+    /// Refuse one account read without changing its value or write access.
+    pub fn fail_next_get(&self, account: &str) {
+        *self.read_failure.lock().expect("fake fault lock") = Some(account.to_owned());
     }
 
     fn ensure_available(&self) -> Result<(), AppError> {
@@ -600,13 +608,7 @@ impl SecretStore for MemorySecretStore {
     }
 
     fn has(&self, account: &str) -> bool {
-        if !self.available {
-            return false;
-        }
-        self.entries
-            .lock()
-            .map(|entries| entries.contains_key(account))
-            .unwrap_or(false)
+        self.get(account).is_ok_and(|value| value.is_some())
     }
 
     fn delete(&self, account: &str) -> Result<(), AppError> {
@@ -632,6 +634,18 @@ impl SecretStore for MemorySecretStore {
 
     fn get(&self, account: &str) -> Result<Option<String>, AppError> {
         self.ensure_available()?;
+        let mut failure = self
+            .read_failure
+            .lock()
+            .map_err(|_| storage_error(PoisonError))?;
+        if failure.as_deref() == Some(account) {
+            failure.take();
+            return Err(AppError::new(
+                ErrorCode::StorageFailure,
+                "the in-memory keychain refused credential access",
+            ));
+        }
+        drop(failure);
         Ok(self
             .entries
             .lock()
@@ -946,7 +960,9 @@ fn resolve_vault_key_account(
             register_vault_account(&registry, database_path, &account);
         }
     }
-    if secrets.has(&account) {
+    // Only a confirmed absence permits adoption; an access error must never
+    // turn an existing credential into a replacement target.
+    if !matches!(secrets.get(&account), Ok(None)) {
         return account;
     }
     // A brand-new custom workspace cannot contain rows encrypted under the
@@ -1674,6 +1690,7 @@ impl AppService {
             let existing =
                 Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
                     .map_err(storage_error)?;
+            require_supported_workspace_schema(&existing)?;
             backup_recovery::resume(path, &existing, secrets.as_ref())?;
         }
         // A staged restore is applied before the database is opened, so the swap
@@ -2924,6 +2941,7 @@ fn store_offline_map(
 }
 
 fn init_connection(connection: &Connection) -> Result<(), AppError> {
+    require_supported_workspace_schema(connection)?;
     connection
         .execute_batch(
             "
@@ -3298,6 +3316,16 @@ fn user_version(connection: &Connection) -> Result<i64, AppError> {
     connection
         .query_row("PRAGMA user_version", [], |row| row.get(0))
         .map_err(storage_error)
+}
+
+fn require_supported_workspace_schema(connection: &Connection) -> Result<(), AppError> {
+    if user_version(connection)? > target_schema_version() {
+        return Err(AppError::new(
+            ErrorCode::ValidationInvalidInput,
+            "this workspace was created by a newer version of Voyalier — update the app before opening it",
+        ));
+    }
+    Ok(())
 }
 
 /// Bring the database up to [`target_schema_version`], running each pending step

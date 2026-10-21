@@ -53,3 +53,12 @@ proves rejection with unchanged generation files, then drops all service
 handles and verifies a readable restore and intact old safety note. Independent
 same-process connections remain allowed; pending recovery is refused until
 the last sibling clone is dropped. Process termination releases custody.
+
+## Amendment — serialized operations recheck durable state (2026-10-21)
+
+The shared operation mutex serializes vault transitions but does not refresh an
+independent connection's cached vault. Passphrase installation checks the current
+stored wrap while holding that mutex, before protection intent or credential
+mutation. A stale sibling must refuse an already installed passphrase; it cannot
+replace it. Verify independent services and clones, then removal and a deliberate
+new installation, while preserving restore and snapshot-protection behavior.
