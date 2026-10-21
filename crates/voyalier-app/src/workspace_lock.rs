@@ -56,10 +56,10 @@ impl WorkspaceLock {
             use windows_sys::Win32::Storage::FileSystem::FILE_FLAG_OPEN_REPARSE_POINT;
             options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
         }
-        if let Ok(metadata) = std::fs::symlink_metadata(&lock_path) {
-            if !metadata.file_type().is_file() {
-                return Err(invalid_surface_error());
-            }
+        if let Ok(metadata) = std::fs::symlink_metadata(&lock_path)
+            && !metadata.file_type().is_file()
+        {
+            return Err(invalid_surface_error());
         }
         let file = options.open(&lock_path).map_err(storage_error)?;
         lock_file(&file)?;

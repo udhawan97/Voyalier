@@ -5,14 +5,14 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+rust-version = "1.88"
 
 [dependencies]
 base64.workspace = true
 directories.workspace = true
 getrandom.workspace = true
 jiff.workspace = true
-keyring = { version = "3.6.3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
+keyring = { package = "keyring-core", version = "1" }
 rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -21,8 +21,15 @@ ureq = "=3.4.2"
 url.workspace = true
 voyalier-core = { path = "../voyalier-core" }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+apple-native-keyring-store = { version = "1", features = ["keychain"] }
+
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+dbus-secret-service-keyring-store = { version = "1", features = ["crypto-rust"] }
+
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
+windows-native-keyring-store = { version = "1", default-features = false }
 windows-sys = { version = "0.60.2", features = ["Win32_Storage_FileSystem", "Win32_System_IO", "Win32_System_Console"] }

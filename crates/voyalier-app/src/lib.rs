@@ -499,12 +499,21 @@ const KEYRING_SERVICE: &str = "com.voyalier.keys";
 /// The most recommendations returned for a trip.
 const RECOMMENDATION_LIMIT: usize = 24;
 
-/// Production secret store: the OS keychain via the `keyring` crate.
+/// Production secret store: the OS keychain via explicit native stores (ADR-0032).
 struct KeyringSecretStore;
 
 impl KeyringSecretStore {
     fn entry(account: &str) -> Result<keyring::Entry, AppError> {
-        keyring::Entry::new(KEYRING_SERVICE, account).map_err(keyring_failure)
+        #[cfg(target_os = "macos")]
+        let store = apple_native_keyring_store::keychain::Store::new();
+        #[cfg(windows)]
+        let store = windows_native_keyring_store::Store::new();
+        #[cfg(all(unix, not(target_os = "macos")))]
+        let store = dbus_secret_service_keyring_store::Store::new();
+        // Construct at the entry boundary so unavailable stores can be retried.
+        let store = store.map_err(keyring_failure)?;
+        keyring::api::CredentialStoreApi::build(&*store, KEYRING_SERVICE, account, None)
+            .map_err(keyring_failure)
     }
 }
 
@@ -955,10 +964,10 @@ fn resolve_vault_key_account(
     // Registered on every open, not only the first: a registry lost or written
     // before this existed then repairs itself the next time the workspace is
     // used, rather than staying invisible to prune forever.
-    if secrets.is_persistent() {
-        if let Ok(registry) = vault_account_registry_path() {
-            register_vault_account(&registry, database_path, &account);
-        }
+    if secrets.is_persistent()
+        && let Ok(registry) = vault_account_registry_path()
+    {
+        register_vault_account(&registry, database_path, &account);
     }
     // Only a confirmed absence permits adoption; an access error must never
     // turn an existing credential into a replacement target.
@@ -1343,10 +1352,10 @@ fn encrypt_current_sensitive_columns(
                 })
                 .map_err(storage_error)?;
             for (id, value) in collect_rows(rows)? {
-                if let Some(value) = value {
-                    if let Some(stored) = vault.encrypt_current_plaintext(&value)? {
-                        converted.push((*table, *column, id, stored));
-                    }
+                if let Some(value) = value
+                    && let Some(stored) = vault.encrypt_current_plaintext(&value)?
+                {
+                    converted.push((*table, *column, id, stored));
                 }
             }
         }
@@ -2360,13 +2369,13 @@ fn snapshot_pre_restore(
     generation: &str,
     expected_sha256: Option<&str>,
 ) -> Result<(), AppError> {
-    if let Some(expected) = expected_sha256 {
-        if sha256_file(source)? != expected {
-            return Err(AppError::new(
-                ErrorCode::StorageFailure,
-                "the rollback workspace changed during restore",
-            ));
-        }
+    if let Some(expected) = expected_sha256
+        && sha256_file(source)? != expected
+    {
+        return Err(AppError::new(
+            ErrorCode::StorageFailure,
+            "the rollback workspace changed during restore",
+        ));
     }
     let backups_dir = directory.join("backups");
     fs::create_dir_all(&backups_dir).map_err(storage_error)?;
@@ -2722,13 +2731,13 @@ fn apply_pending_restore(
         }
     }
 
-    if let Some(expected) = marker.old_database_sha256.as_deref() {
-        if !rollback_path.exists() || sha256_file(&rollback_path)? != expected {
-            return Err(AppError::new(
-                ErrorCode::StorageFailure,
-                "the rollback database does not match its generation",
-            ));
-        }
+    if let Some(expected) = marker.old_database_sha256.as_deref()
+        && (!rollback_path.exists() || sha256_file(&rollback_path)? != expected)
+    {
+        return Err(AppError::new(
+            ErrorCode::StorageFailure,
+            "the rollback database does not match its generation",
+        ));
     }
 
     if rollback_path.exists() {
