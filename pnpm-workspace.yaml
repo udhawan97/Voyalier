@@ -21,6 +21,12 @@ overrides:
   # GHSA-rj75-hqrm-r3gf: the docs-only nested-rule processor must admit
   # patched selector-parser 7.1.6 without changing the Expressive Code release.
   postcss-nested: 7.0.2
+  # GHSA-587h-7wmj-h5pm: patch the Windows editor-command path in every
+  # web and docs toolchain consumer without changing their declared ranges.
+  vite: 8.3.3
+  # Keep Vite's required Rolldown cohort at its lowest supported patch so this
+  # advisory repair does not also pull in unrelated newer bundler patches.
+  "vite@8.3.3>rolldown": 1.2.11
 minimumReleaseAgeExclude:
   - nanoid@3.3.18
   - prettier@3.9.5
