@@ -39,3 +39,17 @@ status and file hashes. No release, tag, deployment or installed-app acceptance 
 part of this change. Before promotion, abandon only the clean temporary branch if
 validation fails; after promotion, use a reviewed revert rather than rewriting
 main.
+
+## Local verification record
+
+The canonical web, Rust and desktop stages passed on the combined dependency
+tree. Integration passed after installing the Chromium and WebKit binaries
+required by the updated Playwright version: six live HTTP tests and 26 browser
+journeys. The initial browser run failed before launch because those binaries
+were absent; no assertions were weakened. Production JavaScript and Rust audits
+reported zero vulnerabilities; the six existing Cargo warnings remain visible.
+
+Graphify refreshed the code graph and resolved the new cleanup plan in a scoped
+query. Some generated/configuration files produce no graph nodes, so source and
+test evidence remain authoritative. Promotion still requires all hosted checks
+on the final candidate and fresh default-branch evidence.
