@@ -66,3 +66,18 @@ than deleting its source branch. Desktop-only updates requiring Rust 1.90
 remain within the desktop crate's declared minimum. Rerun the affected gate
 after this lockfile correction; green stable-toolchain checks alone do not
 establish minimum-compiler compatibility.
+
+## Bounded validation repair
+
+The hosted date-clock stale-completion test found Today’s loading status before
+the asynchronous loader had called getToday. Await the existing exact old-day
+request assertion before advancing the clock; retain both success/error cases
+and every stale-result assertion. Product behavior and test timeouts remain
+unchanged. Verify the focused test and the canonical web gate, then refresh
+Graphify and require all hosted checks on the final candidate.
+
+An actual Rust 1.85 check fails for the same ICU, IDNA and quick-xml packages on
+both the original main and the corrected dependency tree. Record this existing
+compiler-metadata drift; this cleanup does not claim Rust 1.85 acceptance or
+change compiler declarations. The two withheld upgrades would raise additional
+requirements and remain in PR #133 for an explicit future decision.
