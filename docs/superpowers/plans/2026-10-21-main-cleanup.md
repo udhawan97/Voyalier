@@ -7,7 +7,8 @@ then promote through protected main. Preserve every pre-existing worktree.
 
 ## Implementation order
 
-1. Apply the Rust dependency group from PR #133.
+1. Apply the compatible subset of the Rust dependency group from PR #133,
+   retaining sha2 0.11.0 and uuid 1.26.1 for the declared Rust 1.85 minimum.
 2. Apply the Windows API dependency update from PR #121, reconciling only the
    overlapping lockfile resolution with the Rust group.
 3. Apply the JavaScript dependency group from PR #134.
@@ -20,6 +21,8 @@ checks on the completed tree before promotion.
 
 ## Preserved candidates
 
+- PR #133 remains open for the withheld sha2 and uuid updates: their package
+  metadata requires Rust 1.88 and 1.89 respectively, above core/app Rust 1.85.
 - PR #135 stays draft: old-store interoperability and native restore acceptance
   remain incomplete.
 - PR #130 requires a Node support decision: jsdom 30.1.3 excludes parts of the
@@ -53,3 +56,13 @@ Graphify refreshed the code graph and resolved the new cleanup plan in a scoped
 query. Some generated/configuration files produce no graph nodes, so source and
 test evidence remain authoritative. Promotion still requires all hosted checks
 on the final candidate and fresh default-branch evidence.
+
+## Compiler compatibility correction
+
+A package metadata review found that sha2 0.11.1 and uuid 1.28.0 raise the
+compiler floor beyond the Rust 1.85 declared by their consumers. Retain the
+baseline versions, sha2 0.11.0 and uuid 1.26.1, and preserve PR #133 rather
+than deleting its source branch. Desktop-only updates requiring Rust 1.90
+remain within the desktop crate's declared minimum. Rerun the affected gate
+after this lockfile correction; green stable-toolchain checks alone do not
+establish minimum-compiler compatibility.
