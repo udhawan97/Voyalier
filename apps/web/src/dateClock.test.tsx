@@ -192,7 +192,9 @@ describe("Today device calendar date", () => {
         }),
       );
       await screen.findByRole("status", { name: "Today" });
-      expect(getToday).toHaveBeenCalledWith("trip_kyoto", "2026-10-07");
+      await waitFor(() =>
+        expect(getToday).toHaveBeenCalledWith("trip_kyoto", "2026-10-07"),
+      );
       act(() => {
         vi.setSystemTime(new Date(2026, 9, 8, 0, 1));
         window.dispatchEvent(new Event("focus"));
