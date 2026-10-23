@@ -13,10 +13,10 @@
     "@pagefind/default-ui": "^1.5.2",
     "@voyalier/brand": "workspace:*",
     "@voyalier/ui": "workspace:*",
-    "astro": "^7.4.0"
+    "astro": "^7.4.1"
   },
   "devDependencies": {
-    "@astrojs/check": "^0.9.10",
+    "@astrojs/check": "^0.9.11",
     "typescript": "^6.0.3"
   }
 }
