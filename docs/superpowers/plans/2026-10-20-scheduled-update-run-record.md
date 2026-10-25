@@ -121,3 +121,15 @@ Private verification evidence for this run is under
 `/Users/umang/.codex/review-reports/voyalier-pr131-132-20261020-r11gvmx5`.
 The next ready product packet is 1A; 2A is independently ready if ownership or
 another concrete blocker prevents 1A. Do not replay already-delivered work.
+
+## Weekly CAPO security maintenance — October 25, 2026
+
+Owner `weekly-capo-2026-10-25`; scope 0A new ctutils advisory; shared atomic claim at `.git/voyalier-scheduled-claims/0A`. Base `22373aa7dabf4a338c7d05916469d8da2da178dc`. Isolated worktree `/Users/umang/.codex/worktrees/capo-20261025/Voyalier`. Plan: [2026-10-25-ctutils-security](2026-10-25-ctutils-security.md). Reviewed plan packet digest `6d2af17496fd24d3ec3f3bbeb495cdd6328642d769a8b9d719a0e1e5fe166496`; both council rounds complete, four actual independent roles per round, no remaining plan blockers. Implementation and final-candidate review pending. Native acceptance, software publication and deployed-site verification are not claimed.
+
+### Source verification checkpoint
+
+Baseline audit: ctutils0.4.2, one vulnerability RUSTSEC-2026-0385. Targeted resolver changed only ctutils to0.4.4 and its checksum. Advisory database commit `21d909e4c8bd4e14c7aea58bf980c881a0053ab1` (updated October24); candidate audit reports zero vulnerabilities, four unmaintained warnings, one glib unsoundness warning and one yanked chacha20 warning. No ignores or supported-stack removals.
+
+`./scripts/check.sh all` passed on the repaired source: web/contracts/docs, Rust core/app/server, desktop including optimized updater-disabled assertion, live HTTP, and26 Chromium/WebKit end-to-end cases. Production JavaScript audit found no known vulnerabilities; locked metadata, credential-pattern scan and whitespace check passed. Initial docs formatting failure was fixed with repository Prettier, then the full gate reran successfully. Graphify code refresh and scoped dependency/security query succeeded with48 zero-node source warnings; generated graph is ignored and its AST/navigation evidence is not behavioral acceptance.
+
+Private evidence: `/Users/umang/Documents/Codex/2026-10-13/new-chat/work/capo-2026-10-25/voyalier-*`. Final exact SHA, hosted checks and implementation council remain pending at this checkpoint. All0B native, keychain, provider, updater, PDF, VoiceOver and Windows installer acceptance holds remain. No release tag or publication. Next action: verify the exact PR candidate, then integrate only after current protected source checks and council gates pass; verify its documentation deployment separately.
