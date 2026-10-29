@@ -8,7 +8,7 @@ import {
 import type { AppGateway } from "@voyalier/contracts";
 import { createMockGateway } from "@voyalier/contracts";
 
-import { failingGateway, renderApp } from "./test/helpers";
+import { failingGateway, openFixtureTrip, renderApp } from "./test/helpers";
 
 /**
  * Notes sit in a deferred section, so they mount a beat after the trip page and
@@ -17,13 +17,11 @@ import { failingGateway, renderApp } from "./test/helpers";
  */
 async function openNotes(gateway?: AppGateway, awaitField = true) {
   renderApp(gateway ?? createMockGateway());
-  fireEvent.click(
-    await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
-  );
-  await screen.findByRole("heading", {
-    name: "Kyoto autumn journey",
-    level: 1,
-  });
+  return openFixtureNotes(awaitField);
+}
+
+async function openFixtureNotes(awaitField = true) {
+  await openFixtureTrip();
   const region = await screen.findByRole("region", { name: "Notes" });
   if (awaitField) await within(region).findByLabelText("Trip notes");
   return region;
@@ -246,12 +244,10 @@ describe("ordered note persistence", () => {
     expect(await within(notes).findByText("Saved")).toBeVisible();
     expect((await base.getTripNotes("trip_kyoto")).body).toBe("Newest thought");
     leaveNotes();
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    const reopened = within(await openFixtureNotes()).getByLabelText(
+      "Trip notes",
     );
-    expect(await screen.findByLabelText("Trip notes")).toHaveValue(
-      "Newest thought",
-    );
+    expect(reopened).toHaveValue("Newest thought");
     expect(requests).toHaveLength(2);
   });
 
@@ -277,10 +273,10 @@ describe("ordered note persistence", () => {
     expect((await base.getTripNotes("trip_kyoto")).body).toBe("");
     expect(await within(notes).findByText("Saved")).toBeVisible();
     leaveNotes();
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    const reopened = within(await openFixtureNotes()).getByLabelText(
+      "Trip notes",
     );
-    expect(await screen.findByLabelText("Trip notes")).toHaveValue("");
+    expect(reopened).toHaveValue("");
   });
 
   it("shares the pending writer across navigation/remount without duplicating blur or losing the next edit", async () => {
@@ -291,10 +287,9 @@ describe("ordered note persistence", () => {
     fireEvent.blur(field);
     leaveNotes();
     expect(requests).toHaveLength(1);
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    const reopened = within(await openFixtureNotes()).getByLabelText(
+      "Trip notes",
     );
-    const reopened = await screen.findByLabelText("Trip notes");
     expect(reopened).toHaveValue("First draft");
     fireEvent.change(reopened, { target: { value: "Draft after returning" } });
     leaveNotes(); // flushes before the debounce, while the first save is pending
@@ -378,7 +373,9 @@ describe("ordered note persistence", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: `Open ${other.title}` }),
     );
-    const otherField = await screen.findByLabelText("Trip notes");
+    await screen.findByRole("heading", { name: other.title, level: 1 });
+    const otherNotes = await screen.findByRole("region", { name: "Notes" });
+    const otherField = await within(otherNotes).findByLabelText("Trip notes");
     expect(otherField).toHaveValue("");
     fireEvent.change(otherField, { target: { value: "Lyon draft" } });
     fireEvent.blur(otherField);
@@ -426,10 +423,9 @@ describe("ordered note persistence", () => {
     expect(await within(notes).findByRole("alert")).toBeVisible();
     leaveNotes();
     expect(requests).toHaveLength(2);
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    const reopened = within(await openFixtureNotes()).getByLabelText(
+      "Trip notes",
     );
-    const reopened = await screen.findByLabelText("Trip notes");
     expect(reopened).toHaveValue("Recoverable thought");
     fireEvent.blur(reopened);
     expect(requests).toHaveLength(2);
