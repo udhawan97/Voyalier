@@ -10375,3 +10375,1168 @@ fn a_failed_source_keeps_its_snapshot_and_never_reads_as_unchanged() {
     assert_eq!(kept.place_name, stored.place_name);
     cleanup_database(database);
 }
+
+#[test]
+fn dev_review_portable_export_refuses_unreadable_keys_and_preserves_exact_recovery() {
+    for failure in ["unavailable", "corrupt"] {
+        let database = temp_database(&format!("export-unreadable-{failure}"));
+        let secrets = Arc::new(MemorySecretStore::default());
+        let source = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .unwrap();
+        let trip = source.create_trip(valid_trip_input()).unwrap();
+        source
+            .set_trip_notes(&trip.id, "Synthetic exact note — café")
+            .unwrap();
+        let file = source
+            .import_attachment(ImportAttachmentInput {
+                trip_id: trip.id.clone(),
+                label: "Synthetic private.pdf".to_owned(),
+                mime_type: "application/pdf".to_owned(),
+                content_base64: "JVBERi0xLjQ=".to_owned(),
+            })
+            .unwrap();
+        let account = vault_key_account(&database);
+        let key = secrets.get(&account).unwrap().unwrap();
+        let sealed_note: String = source
+            .connection()
+            .unwrap()
+            .query_row(
+                "SELECT body FROM trip_notes WHERE trip_id = ?1",
+                params![trip.id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        drop(source);
+        let inaccessible = if failure == "unavailable" {
+            Arc::new(MemorySecretStore::unavailable())
+        } else {
+            let store = Arc::new(MemorySecretStore::default());
+            store.set(&account, "synthetic corrupt key").unwrap();
+            store
+        };
+        let before_key = inaccessible.get(&account).ok();
+        let inactive = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            inaccessible.clone(),
+        )
+        .unwrap();
+        let error = inactive
+            .export_backup("synthetic backup phrase")
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::VaultUnreadable);
+        assert!(error.message.contains("original vault key"));
+        assert_eq!(inaccessible.get(&account).ok(), before_key);
+        assert_eq!(
+            secrets.get(&account).unwrap().as_deref(),
+            Some(key.as_str())
+        );
+        assert_eq!(
+            inactive
+                .connection()
+                .unwrap()
+                .query_row(
+                    "SELECT body FROM trip_notes WHERE trip_id = ?1",
+                    params![trip.id],
+                    |r| r.get::<_, String>(0),
+                )
+                .unwrap(),
+            sealed_note
+        );
+        assert!(
+            !fs::read_dir(database.parent().unwrap())
+                .unwrap()
+                .any(|entry| entry
+                    .unwrap()
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".export-snapshot-"))
+        );
+        drop(inactive);
+        let recovered =
+            AppService::open_path_with_deps(&database, Arc::new(FakeFetcher::offline()), secrets)
+                .unwrap();
+        assert_eq!(
+            recovered.get_trip_notes(&trip.id).unwrap().body,
+            "Synthetic exact note — café"
+        );
+        assert_eq!(
+            recovered.get_attachment(&file.id).unwrap().content_base64,
+            "JVBERi0xLjQ="
+        );
+        assert!(recovered.export_backup("synthetic backup phrase").is_ok());
+        println!(
+            "DEV_REVIEW_EXPORT_AFTER case={failure} export=vault/unreadable original_key=unchanged exact_note_and_file=recovered"
+        );
+        drop(recovered);
+        cleanup_database(database);
+    }
+}
+
+#[test]
+fn dev_review_portable_export_authenticates_damaged_ciphertext() {
+    let database = temp_database("export-damaged-row");
+    let service = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        Arc::new(MemorySecretStore::default()),
+    )
+    .unwrap();
+    let trip = service.create_trip(valid_trip_input()).unwrap();
+    service
+        .set_trip_notes(&trip.id, "Synthetic recoverable note")
+        .unwrap();
+    // Opening with a wrong persisted key already refuses during migration.
+    // Directly substitute a cached key to test the export's own authentication.
+    let original_state = service.vault.snapshot();
+    service.vault.set_state(VaultState {
+        key: Some([91u8; VAULT_KEY_LEN]),
+        ..original_state
+    });
+    assert_eq!(
+        service
+            .export_backup("synthetic backup phrase")
+            .unwrap_err()
+            .code,
+        ErrorCode::VaultUnreadable
+    );
+    service.vault.set_state(original_state);
+    let connection = service.connection().unwrap();
+    let original: String = connection
+        .query_row(
+            "SELECT body FROM trip_notes WHERE trip_id = ?1",
+            params![trip.id],
+            |r| r.get(0),
+        )
+        .unwrap();
+    connection
+        .execute(
+            "UPDATE trip_notes SET body = 'v1:damaged' WHERE trip_id = ?1",
+            params![trip.id],
+        )
+        .unwrap();
+    drop(connection);
+    assert_eq!(
+        service
+            .export_backup("synthetic backup phrase")
+            .unwrap_err()
+            .code,
+        ErrorCode::VaultUnreadable
+    );
+    service
+        .connection()
+        .unwrap()
+        .execute(
+            "UPDATE trip_notes SET body = ?1 WHERE trip_id = ?2",
+            params![original, trip.id],
+        )
+        .unwrap();
+    assert_eq!(
+        service.get_trip_notes(&trip.id).unwrap().body,
+        "Synthetic recoverable note"
+    );
+    assert!(service.export_backup("synthetic backup phrase").is_ok());
+    drop(service);
+    cleanup_database(database);
+}
+
+#[test]
+fn dev_review_portable_export_keeps_plaintext_and_unlocked_protected_restore() {
+    for protected in [false, true] {
+        let database = temp_database(&format!("export-readable-{protected}"));
+        let secrets = if protected {
+            Arc::new(MemorySecretStore::default())
+        } else {
+            Arc::new(MemorySecretStore::unavailable())
+        };
+        let source = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            secrets.clone(),
+        )
+        .unwrap();
+        let trip = source.create_trip(valid_trip_input()).unwrap();
+        // Explicit escaped plaintext is also authenticated with the snapshot's format.
+        source
+            .set_trip_notes(&trip.id, "v1:synthetic traveler text — café")
+            .unwrap();
+        if protected {
+            source
+                .set_vault_passphrase("synthetic vault phrase")
+                .unwrap();
+        }
+        drop(source);
+        let source =
+            AppService::open_path_with_deps(&database, Arc::new(FakeFetcher::offline()), secrets)
+                .unwrap();
+        if protected {
+            assert_eq!(
+                source
+                    .export_backup("synthetic backup phrase")
+                    .unwrap_err()
+                    .code,
+                ErrorCode::VaultLocked
+            );
+            source.unlock_vault("synthetic vault phrase").unwrap();
+        }
+        let bytes = source.export_backup("synthetic backup phrase").unwrap();
+        let opened = open_backup("synthetic backup phrase", &bytes).unwrap();
+        assert_eq!(opened.data_key.is_some(), protected);
+        let target_db = temp_database(&format!("export-readable-target-{protected}"));
+        let target_secrets = Arc::new(MemorySecretStore::default());
+        let target = AppService::open_path_with_deps(
+            &target_db,
+            Arc::new(FakeFetcher::offline()),
+            target_secrets.clone(),
+        )
+        .unwrap();
+        target
+            .inspect_restore("synthetic backup phrase", &bytes)
+            .unwrap();
+        target
+            .stage_restore("synthetic backup phrase", &bytes)
+            .unwrap();
+        drop(target);
+        let restored = AppService::open_path_with_deps(
+            &target_db,
+            Arc::new(FakeFetcher::offline()),
+            target_secrets,
+        )
+        .unwrap();
+        assert_eq!(
+            restored.get_trip_notes(&trip.id).unwrap().body,
+            "v1:synthetic traveler text — café"
+        );
+        drop(restored);
+        drop(source);
+        cleanup_database(database);
+        cleanup_database(target_db);
+    }
+}
+
+fn dev_review_ollama_reply(content: &str) -> Reply {
+    Reply::Text(
+        serde_json::json!({"message": {"role": "assistant", "content": content}}).to_string(),
+    )
+}
+
+fn dev_review_import_draft_source(
+    service: &AppService,
+    trip_id: &str,
+    label: &str,
+    content: &str,
+) -> String {
+    service
+        .import_document(ImportDocumentInput {
+            trip_id: trip_id.to_owned(),
+            kind: DocumentKind::PastedText,
+            label: Some(label.to_owned()),
+            content: content.to_owned(),
+        })
+        .unwrap()
+        .document
+        .id
+}
+
+#[test]
+fn dev_review_draft_retains_each_document_identity_and_deletion_lifetime() {
+    let database = temp_database("draft-source-identity");
+    let fetcher = Arc::new(FakeFetcher::offline());
+    fetcher.set("http://localhost:11434/api/chat", Reply::Sequence(vec![
+        dev_review_ollama_reply(r#"{"stays":[]}"#),
+        dev_review_ollama_reply(r#"{"stays":[{"propertyName":"Synthetic Second Document Inn","checkinDate":"2027-04-02","checkoutDate":"2027-04-08"},{"propertyName":"Synthetic Annex","checkinDate":"2027-04-08"}]}"#),
+        dev_review_ollama_reply(r#"{"stays":[{"propertyName":"Synthetic Third Document Inn","checkinDate":"2027-04-09"}]}"#),
+    ]));
+    let service = AppService::open_path_with_deps(
+        &database,
+        fetcher.clone(),
+        Arc::new(MemorySecretStore::default()),
+    )
+    .unwrap();
+    let trip = service.create_trip(valid_trip_input()).unwrap();
+    let first = dev_review_import_draft_source(
+        &service,
+        &trip.id,
+        "Synthetic unrelated flight memo",
+        "Synthetic flight memo only. No lodging or stay dates.",
+    );
+    let second = dev_review_import_draft_source(
+        &service,
+        &trip.id,
+        "Synthetic lodging memo",
+        "Synthetic Second Document Inn and Synthetic Annex, arrive 2027-04-02, depart 2027-04-08.",
+    );
+    let third = dev_review_import_draft_source(
+        &service,
+        &trip.id,
+        "Synthetic other lodging memo",
+        "Synthetic Third Document Inn, arrive 2027-04-09.",
+    );
+    // Stable order makes the scripted model replies correspond to source order.
+    service.connection().unwrap().execute("UPDATE source_documents SET imported_at = CASE id WHEN ?1 THEN '1' WHEN ?2 THEN '2' ELSE '3' END", params![first, second]).unwrap();
+    let preview = service
+        .preview_assist_draft(&trip.id, "lodging_dates")
+        .unwrap();
+    assert!(!preview.leaves_device);
+    assert!(
+        preview
+            .grounded_in
+            .iter()
+            .any(|line| line.contains("3 separate on-device requests"))
+    );
+    let result = service.run_assist_draft(&trip.id, "lodging_dates").unwrap();
+    assert_eq!(result.candidates.len(), 3);
+    assert_eq!(
+        result
+            .candidates
+            .iter()
+            .map(|c| c.document_id.as_str())
+            .collect::<Vec<_>>(),
+        vec![second.as_str(), second.as_str(), third.as_str()]
+    );
+    let posted = fetcher.posted();
+    assert_eq!(posted.len(), 3);
+    assert!(posted[0].contains("Synthetic flight memo only"));
+    assert!(!posted[0].contains("Synthetic Second Document Inn"));
+    assert!(posted[1].contains("Synthetic Second Document Inn"));
+    assert!(!posted[1].contains("Synthetic flight memo only"));
+    assert!(!posted[1].contains("Synthetic Third Document Inn"));
+    assert!(posted[2].contains("Synthetic Third Document Inn"));
+    let sent_chars: usize = posted
+        .iter()
+        .map(|body| {
+            let request: serde_json::Value = serde_json::from_str(body).unwrap();
+            request["messages"][1]["content"]
+                .as_str()
+                .unwrap()
+                .chars()
+                .count()
+        })
+        .sum();
+    assert!(sent_chars <= 12_000);
+    for candidate in &result.candidates {
+        assert_eq!(candidate.method, ExtractionMethod::Assisted);
+        assert_eq!(candidate.status, CandidateStatus::Pending);
+        assert!(candidate.field_spans.is_empty());
+        let run_document: String = service
+            .connection()
+            .unwrap()
+            .query_row(
+                "SELECT document_id FROM parser_runs WHERE id = ?1",
+                params![candidate.parser_run_id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(run_document, candidate.document_id);
+    }
+    assert!(
+        service
+            .records(&service.connection().unwrap())
+            .confirmed_facts(&trip.id)
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        fetcher
+            .calls()
+            .iter()
+            .all(|url| url == "http://localhost:11434/api/chat")
+    );
+    service.delete_document(&first).unwrap();
+    assert_eq!(
+        service
+            .list_candidates(&trip.id, Some(CandidateStatus::Pending))
+            .unwrap()
+            .len(),
+        3
+    );
+    service.delete_document(&second).unwrap();
+    let remaining = service
+        .list_candidates(&trip.id, Some(CandidateStatus::Pending))
+        .unwrap();
+    assert_eq!(remaining.len(), 1);
+    assert_eq!(remaining[0].document_id, third);
+    service.delete_document(&third).unwrap();
+    assert!(
+        service
+            .list_candidates(&trip.id, Some(CandidateStatus::Pending))
+            .unwrap()
+            .is_empty()
+    );
+    println!(
+        "DEV_REVIEW_DRAFT_AFTER requests=3 source_identity=preserved delete_unrelated=survives delete_actual=removed pending_assisted=true confirmed=0"
+    );
+    drop(service);
+    cleanup_database(database);
+}
+
+#[test]
+fn dev_review_draft_later_invalid_reply_saves_no_partial_run() {
+    for invalid in [
+        "not JSON",
+        r#"{"documentId":"unknown","stays":[]}"#,
+        r#"{"stays":[{"documentId":"unknown","checkinDate":"2027-04-02"}]}"#,
+    ] {
+        let database = temp_database("draft-invalid-later");
+        let fetcher = Arc::new(FakeFetcher::offline());
+        fetcher.set(
+            "http://localhost:11434/api/chat",
+            Reply::Sequence(vec![
+                dev_review_ollama_reply(
+                    r#"{"stays":[{"propertyName":"Synthetic Inn","checkinDate":"2027-04-02"}]}"#,
+                ),
+                dev_review_ollama_reply(invalid),
+            ]),
+        );
+        let service = AppService::open_path_with_deps(
+            &database,
+            fetcher.clone(),
+            Arc::new(MemorySecretStore::default()),
+        )
+        .unwrap();
+        let trip = service.create_trip(valid_trip_input()).unwrap();
+        dev_review_import_draft_source(
+            &service,
+            &trip.id,
+            "Synthetic A",
+            "Synthetic A 2027-04-02.",
+        );
+        dev_review_import_draft_source(
+            &service,
+            &trip.id,
+            "Synthetic B",
+            "Synthetic B 2027-04-03.",
+        );
+        assert_eq!(
+            service
+                .run_assist_draft(&trip.id, "lodging_dates")
+                .unwrap_err()
+                .code,
+            ErrorCode::AssistFailed
+        );
+        assert_eq!(fetcher.posted().len(), 2);
+        assert!(
+            service
+                .list_candidates(&trip.id, Some(CandidateStatus::Pending))
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(service.connection().unwrap().query_row("SELECT COUNT(*) FROM parser_runs WHERE parser_id = 'assist_draft_lodging_dates'", [], |r| r.get::<_, i64>(0)).unwrap(), 0);
+        drop(service);
+        cleanup_database(database);
+    }
+}
+
+#[test]
+fn dev_review_draft_limits_work_before_dispatch_and_total_proposals_before_save() {
+    for bound in ["calls", "chars", "proposals", "empty"] {
+        let database = temp_database(&format!("draft-limit-{bound}"));
+        let fetcher = Arc::new(FakeFetcher::offline());
+        if bound == "proposals" {
+            let stays = (0..5).map(|n| serde_json::json!({"propertyName": format!("Synthetic Inn {n}"), "checkinDate":"2027-04-02"})).collect::<Vec<_>>();
+            fetcher.set(
+                "http://localhost:11434/api/chat",
+                dev_review_ollama_reply(&serde_json::json!({"stays":stays}).to_string()),
+            );
+        } else if bound == "empty" {
+            fetcher.set(
+                "http://localhost:11434/api/chat",
+                dev_review_ollama_reply(r#"{"stays":[]}"#),
+            );
+        }
+        let service = AppService::open_path_with_deps(
+            &database,
+            fetcher.clone(),
+            Arc::new(MemorySecretStore::default()),
+        )
+        .unwrap();
+        let trip = service.create_trip(valid_trip_input()).unwrap();
+        for n in 0..if bound == "calls" { 9 } else { 2 } {
+            let text = if bound == "chars" {
+                format!("Synthetic {n} {}", "é".repeat(6_000))
+            } else {
+                format!("Synthetic source {n} 2027-04-02")
+            };
+            dev_review_import_draft_source(&service, &trip.id, &format!("Synthetic {n}"), &text);
+        }
+        if bound == "empty" {
+            assert!(
+                service
+                    .run_assist_draft(&trip.id, "lodging_dates")
+                    .unwrap()
+                    .candidates
+                    .is_empty()
+            );
+            assert_eq!(fetcher.posted().len(), 2);
+        } else {
+            let error = service
+                .run_assist_draft(&trip.id, "lodging_dates")
+                .unwrap_err();
+            assert_eq!(
+                error.code,
+                if bound == "proposals" {
+                    ErrorCode::AssistFailed
+                } else {
+                    ErrorCode::ValidationInvalidInput
+                }
+            );
+            assert_eq!(
+                fetcher.posted().len(),
+                if bound == "proposals" { 2 } else { 0 }
+            );
+            if bound != "proposals" {
+                assert_eq!(
+                    service
+                        .preview_assist_draft(&trip.id, "lodging_dates")
+                        .unwrap_err()
+                        .code,
+                    ErrorCode::ValidationInvalidInput
+                );
+            }
+        }
+        assert!(
+            service
+                .list_candidates(&trip.id, Some(CandidateStatus::Pending))
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(service.connection().unwrap().query_row("SELECT COUNT(*) FROM parser_runs WHERE parser_id = 'assist_draft_lodging_dates'", [], |r| r.get::<_, i64>(0)).unwrap(), 0);
+        drop(service);
+        cleanup_database(database);
+    }
+}
+
+#[test]
+fn dev_review_draft_persistence_failure_rolls_back_all_candidates_and_parser_runs() {
+    let database = temp_database("draft-atomic");
+    let fetcher = Arc::new(FakeFetcher::offline());
+    fetcher.set(
+        "http://localhost:11434/api/chat",
+        dev_review_ollama_reply(
+            r#"{"stays":[{"propertyName":"Synthetic Inn","checkinDate":"2027-04-02"}]}"#,
+        ),
+    );
+    let service =
+        AppService::open_path_with_deps(&database, fetcher, Arc::new(MemorySecretStore::default()))
+            .unwrap();
+    let trip = service.create_trip(valid_trip_input()).unwrap();
+    let first = dev_review_import_draft_source(
+        &service,
+        &trip.id,
+        "Synthetic A",
+        "Synthetic A 2027-04-02.",
+    );
+    dev_review_import_draft_source(&service, &trip.id, "Synthetic B", "Synthetic B 2027-04-03.");
+    let connection = service.connection().unwrap();
+    connection
+        .execute(
+            "UPDATE source_documents SET imported_at = CASE id WHEN ?1 THEN '1' ELSE '2' END",
+            params![first],
+        )
+        .unwrap();
+    connection.execute_batch("CREATE TRIGGER synthetic_fail_second_draft BEFORE INSERT ON candidate_facts WHEN NEW.method = 'assisted' AND EXISTS (SELECT 1 FROM candidate_facts WHERE method = 'assisted') BEGIN SELECT RAISE(ABORT, 'synthetic second candidate failure'); END;").unwrap();
+    drop(connection);
+    assert_eq!(
+        service
+            .run_assist_draft(&trip.id, "lodging_dates")
+            .unwrap_err()
+            .code,
+        ErrorCode::StorageFailure
+    );
+    assert!(
+        service
+            .list_candidates(&trip.id, Some(CandidateStatus::Pending))
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        service
+            .connection()
+            .unwrap()
+            .query_row(
+                "SELECT COUNT(*) FROM parser_runs WHERE parser_id = 'assist_draft_lodging_dates'",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+        0
+    );
+    drop(service);
+    cleanup_database(database);
+}
+
+#[test]
+fn dev_review_fake_fetcher_sequence_exhaustion_fails_safely() {
+    let fetcher = FakeFetcher::offline();
+    fetcher.set(
+        "synthetic-sequence",
+        Reply::Sequence(vec![
+            Reply::Text("first".into()),
+            Reply::Text("second".into()),
+        ]),
+    );
+    assert_eq!(
+        fetcher
+            .fetch_text("http://localhost/synthetic-sequence")
+            .unwrap(),
+        "first"
+    );
+    assert_eq!(
+        fetcher
+            .fetch_text("http://localhost/synthetic-sequence")
+            .unwrap(),
+        "second"
+    );
+    let error = fetcher
+        .fetch_text("http://localhost/synthetic-sequence")
+        .unwrap_err();
+    assert_eq!(error.code, ErrorCode::AssistFailed);
+    assert!(error.message.contains("exhausted"));
+}
+
+#[test]
+fn dev_review_draft_source_deleted_during_dispatch_saves_nothing() {
+    let database = temp_database("draft-deleted-during-dispatch");
+    let fetcher = Arc::new(FakeFetcher::offline());
+    fetcher.set(
+        "http://localhost:11434/api/chat",
+        dev_review_ollama_reply(
+            r#"{"stays":[{"propertyName":"Synthetic Inn","checkinDate":"2027-04-02"}]}"#,
+        ),
+    );
+    let service = Arc::new(
+        AppService::open_path_with_deps(
+            &database,
+            fetcher.clone(),
+            Arc::new(MemorySecretStore::default()),
+        )
+        .unwrap(),
+    );
+    let trip = service.create_trip(valid_trip_input()).unwrap();
+    let first = dev_review_import_draft_source(
+        &service,
+        &trip.id,
+        "Synthetic A",
+        "Synthetic A 2027-04-02.",
+    );
+    dev_review_import_draft_source(&service, &trip.id, "Synthetic B", "Synthetic B 2027-04-03.");
+    // Hold the shipped fake's response after request capture, without holding
+    // the app connection. Deletion therefore completes during model work.
+    let response_guard = fetcher.routes.lock().unwrap();
+    let worker = service.clone();
+    let trip_id = trip.id.clone();
+    let handle = std::thread::spawn(move || worker.run_assist_draft(&trip_id, "lodging_dates"));
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while fetcher.posted().is_empty() && std::time::Instant::now() < deadline {
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    let started = !fetcher.posted().is_empty();
+    let deletion = if started {
+        Some(service.delete_document(&first))
+    } else {
+        None
+    };
+    drop(response_guard);
+    let result = handle.join().unwrap();
+    assert!(started, "the synthetic request must reach the shipped fake");
+    deletion.unwrap().unwrap();
+    assert_eq!(result.unwrap_err().code, ErrorCode::DocumentNotFound);
+    assert!(
+        service
+            .list_candidates(&trip.id, Some(CandidateStatus::Pending))
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        service
+            .connection()
+            .unwrap()
+            .query_row(
+                "SELECT COUNT(*) FROM parser_runs WHERE parser_id = 'assist_draft_lodging_dates'",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+        0
+    );
+    drop(service);
+    cleanup_database(database);
+}
+
+#[test]
+fn dev_review_draft_accepts_request_and_proposal_budget_boundaries() {
+    for boundary in ["calls", "chars", "proposals"] {
+        let database = temp_database(&format!("draft-boundary-{boundary}"));
+        let fetcher = Arc::new(FakeFetcher::offline());
+        let reply = if boundary == "proposals" {
+            let stays = (0..4).map(|n| serde_json::json!({"propertyName": format!("Synthetic Inn {n}"), "checkinDate":"2027-04-02"})).collect::<Vec<_>>();
+            dev_review_ollama_reply(&serde_json::json!({"stays":stays}).to_string())
+        } else {
+            dev_review_ollama_reply(r#"{"stays":[]}"#)
+        };
+        fetcher.set("http://localhost:11434/api/chat", reply);
+        let service = AppService::open_path_with_deps(
+            &database,
+            fetcher.clone(),
+            Arc::new(MemorySecretStore::default()),
+        )
+        .unwrap();
+        let trip = service.create_trip(valid_trip_input()).unwrap();
+        let calls = match boundary {
+            "calls" => 8,
+            "chars" => 1,
+            _ => 2,
+        };
+        for n in 0..calls {
+            let label = format!("Synthetic {n}");
+            let text = if boundary == "chars" {
+                let overhead = build_draft_preview(
+                    &trip,
+                    &[(label.clone(), String::new())],
+                    None,
+                    DRAFT_LODGING_DATES_SYSTEM_PROMPT,
+                )
+                .user_content
+                .chars()
+                .count();
+                "é".repeat(12_000 - overhead)
+            } else {
+                format!("Synthetic source {n} 2027-04-02")
+            };
+            dev_review_import_draft_source(&service, &trip.id, &label, &text);
+        }
+        let preview = service
+            .preview_assist_draft(&trip.id, "lodging_dates")
+            .unwrap();
+        if boundary == "chars" {
+            assert_eq!(preview.user_content.chars().count(), 12_000);
+        }
+        let result = service.run_assist_draft(&trip.id, "lodging_dates").unwrap();
+        assert_eq!(fetcher.posted().len(), calls);
+        assert_eq!(
+            result.candidates.len(),
+            if boundary == "proposals" { 8 } else { 0 }
+        );
+        drop(service);
+        cleanup_database(database);
+    }
+}
+
+fn dev_review_prune_fixture(name: &str) -> (PathBuf, PathBuf, Arc<MemorySecretStore>) {
+    let database = canonical_key_path(&temp_database(name));
+    let registry = temp_database(&format!("{name}-registry")).with_file_name("registry.json");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let service = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    service
+        .set_provider_key("openai", "synthetic retained provider credential")
+        .unwrap();
+    drop(service);
+    register_vault_account(&registry, &database, &vault_key_account(&database));
+    (database, registry, secrets)
+}
+
+#[test]
+fn dev_review_prune_keeps_real_rename_old_generation_and_recovers_notes_and_provider() {
+    let (database, registry, secrets) = dev_review_prune_fixture("prune-rename-old");
+    let app = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    let trip = app.create_trip(valid_trip_input()).unwrap();
+    app.set_trip_notes(&trip.id, "Synthetic exact recovered note — café")
+        .unwrap();
+    let backup = app.export_backup("synthetic backup phrase").unwrap();
+    app.stage_restore("synthetic backup phrase", &backup)
+        .unwrap();
+    drop(app);
+    set_restore_fault("rename_old");
+    assert!(
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = AppService::open_path_with_deps(
+                &database,
+                Arc::new(FakeFetcher::offline()),
+                secrets.clone(),
+            );
+        }))
+        .is_err()
+    );
+    assert!(!database.exists());
+    let marker_path = database.with_file_name(PENDING_RESTORE_MARKER);
+    let marker = read_restore_marker(&marker_path).unwrap();
+    let marker_bytes = fs::read(&marker_path).unwrap();
+    let registry_bytes = fs::read(&registry).unwrap();
+    let accounts = [
+        vault_key_account(&database),
+        vault_pending_key_account(&database, &marker.generation),
+        vault_rollback_key_account(&database, &marker.generation),
+        provider_key_account(&database, ProviderId::OpenAi),
+    ];
+    let before = accounts
+        .iter()
+        .map(|account| secrets.get(account).unwrap())
+        .collect::<Vec<_>>();
+    assert!(before.iter().all(Option::is_some));
+    for mode in [PruneMode::DryRun, PruneMode::Delete] {
+        let report = prune_vault_accounts(secrets.as_ref(), &registry, mode).unwrap();
+        assert!(report.removed.is_empty());
+        assert_eq!(report.kept.len(), 1);
+        assert_eq!(fs::read(&registry).unwrap(), registry_bytes);
+        assert_eq!(fs::read(&marker_path).unwrap(), marker_bytes);
+        assert_eq!(
+            accounts
+                .iter()
+                .map(|account| secrets.get(account).unwrap())
+                .collect::<Vec<_>>(),
+            before
+        );
+    }
+    let recovered = AppService::open_path_with_deps(
+        &database,
+        Arc::new(FakeFetcher::offline()),
+        secrets.clone(),
+    )
+    .unwrap();
+    assert_eq!(
+        recovered.get_trip_notes(&trip.id).unwrap().body,
+        "Synthetic exact recovered note — café"
+    );
+    assert_eq!(
+        secrets
+            .get(&provider_key_account(&database, ProviderId::OpenAi))
+            .unwrap()
+            .as_deref(),
+        Some("synthetic retained provider credential")
+    );
+    assert!(!marker_path.exists());
+    println!(
+        "DEV_REVIEW_PRUNE_AFTER rename_old=interrupted dry_run=kept apply=kept registry_and_generation_keys=preserved notes_and_provider=recovered"
+    );
+    drop(recovered);
+    cleanup_database(database);
+    cleanup_database(registry);
+}
+
+#[test]
+fn dev_review_prune_refuses_active_same_process_custody_before_missing_path_cleanup() {
+    let (database, registry, secrets) = dev_review_prune_fixture("prune-live-custody");
+    fs::remove_file(&database).unwrap();
+    let custody = workspace_lock::WorkspaceLock::acquire(&database).unwrap();
+    let registry_bytes = fs::read(&registry).unwrap();
+    for mode in [PruneMode::DryRun, PruneMode::Delete] {
+        let report = prune_vault_accounts(secrets.as_ref(), &registry, mode).unwrap();
+        assert!(report.removed.is_empty());
+        assert_eq!(report.kept.len(), 1);
+        assert!(secrets.has(&vault_key_account(&database)));
+        assert!(secrets.has(&provider_key_account(&database, ProviderId::OpenAi)));
+        assert_eq!(fs::read(&registry).unwrap(), registry_bytes);
+    }
+    drop(custody);
+    assert_eq!(
+        prune_vault_accounts(secrets.as_ref(), &registry, PruneMode::Delete)
+            .unwrap()
+            .removed
+            .len(),
+        1
+    );
+    cleanup_database(database);
+    cleanup_database(registry);
+}
+
+#[test]
+fn dev_review_prune_refuses_other_process_custody_until_owner_exits() {
+    use std::io::{BufRead as _, Write as _};
+    use std::process::{Command, Stdio};
+    let (database, registry, secrets) = dev_review_prune_fixture("prune-process-custody");
+    fs::remove_file(&database).unwrap();
+    let mut child = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "workspace_lock::tests::hold_workspace_child",
+            "--ignored",
+            "--nocapture",
+        ])
+        .env("VOYALIER_LOCK_FIXTURE", &database)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut output = std::io::BufReader::new(child.stdout.take().unwrap());
+    let mut line = String::new();
+    loop {
+        line.clear();
+        assert!(output.read_line(&mut line).unwrap() > 0);
+        if line.contains("LOCK_HELD") {
+            break;
+        }
+    }
+    let registry_bytes = fs::read(&registry).unwrap();
+    for mode in [PruneMode::DryRun, PruneMode::Delete] {
+        let report = prune_vault_accounts(secrets.as_ref(), &registry, mode).unwrap();
+        assert!(report.removed.is_empty());
+        assert_eq!(report.kept.len(), 1);
+        assert_eq!(fs::read(&registry).unwrap(), registry_bytes);
+        assert!(secrets.has(&provider_key_account(&database, ProviderId::OpenAi)));
+    }
+    child.stdin.take().unwrap().write_all(b"release\n").unwrap();
+    assert!(child.wait().unwrap().success());
+    assert_eq!(
+        prune_vault_accounts(secrets.as_ref(), &registry, PruneMode::Delete)
+            .unwrap()
+            .removed
+            .len(),
+        1
+    );
+    cleanup_database(database);
+    cleanup_database(registry);
+}
+
+#[test]
+fn dev_review_prune_missing_parent_dry_run_is_read_only_and_apply_removes_only_owned_keys() {
+    let (database, registry, secrets) = dev_review_prune_fixture("prune-removed-parent");
+    let vault_account = vault_key_account(&database);
+    let provider_account = provider_key_account(&database, ProviderId::OpenAi);
+    secrets
+        .set(VAULT_KEY_ACCOUNT, "synthetic default account")
+        .unwrap();
+    secrets
+        .set("api_key.openai.unrelated", "synthetic unrelated account")
+        .unwrap();
+    let registry_bytes = fs::read(&registry).unwrap();
+    fs::remove_dir_all(database.parent().unwrap()).unwrap();
+    let dry = prune_vault_accounts(secrets.as_ref(), &registry, PruneMode::DryRun).unwrap();
+    assert_eq!(dry.removed.len(), 1);
+    assert!(dry.kept.is_empty());
+    assert!(
+        !database.parent().unwrap().exists(),
+        "dry-run must not recreate a departed directory"
+    );
+    assert_eq!(fs::read(&registry).unwrap(), registry_bytes);
+    assert!(secrets.has(&vault_account) && secrets.has(&provider_account));
+    let applied = prune_vault_accounts(secrets.as_ref(), &registry, PruneMode::Delete).unwrap();
+    assert_eq!(applied.removed.len(), 1);
+    assert!(!database.exists());
+    assert!(
+        database
+            .with_file_name(".voyalier.sqlite3.workspace-lock")
+            .is_file()
+    );
+    assert!(!secrets.has(&vault_account) && !secrets.has(&provider_account));
+    assert!(secrets.has(VAULT_KEY_ACCOUNT) && secrets.has("api_key.openai.unrelated"));
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(
+            fs::metadata(database.parent().unwrap())
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o700
+        );
+        assert_eq!(
+            fs::metadata(database.with_file_name(".voyalier.sqlite3.workspace-lock"))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
+    }
+    assert!(
+        prune_vault_accounts(secrets.as_ref(), &registry, PruneMode::Delete)
+            .unwrap()
+            .removed
+            .is_empty()
+    );
+    cleanup_database(database);
+    cleanup_database(registry);
+}
+
+#[test]
+fn dev_review_prune_retains_ambiguous_generations_snapshots_and_metadata_errors() {
+    for evidence in [
+        "pending",
+        "generation",
+        "index",
+        "historical",
+        "missing-indexed-snapshot",
+        "metadata-error",
+        "read-error",
+    ] {
+        let (database, registry, secrets) =
+            dev_review_prune_fixture(&format!("prune-evidence-{evidence}"));
+        fs::remove_file(&database).unwrap();
+        match evidence {
+            "pending" => fs::write(
+                database.with_file_name(PENDING_RESTORE_MARKER),
+                b"synthetic invalid marker",
+            )
+            .unwrap(),
+            "generation" => fs::write(
+                database.with_file_name("rollback-restore-unknown.sqlite3"),
+                b"synthetic unbound generation",
+            )
+            .unwrap(),
+            "index" => fs::write(
+                database.with_file_name("backup-recovery.json"),
+                b"{synthetic invalid index",
+            )
+            .unwrap(),
+            "historical" => {
+                let backups = database.with_file_name("backups");
+                fs::create_dir(&backups).unwrap();
+                fs::write(
+                    backups.join("pre-update-synthetic.sqlite3"),
+                    b"synthetic historical evidence",
+                )
+                .unwrap();
+            }
+            "missing-indexed-snapshot" => {
+                let index = serde_json::json!({"version":1,"workspaceAccount":vault_key_account(&database),"snapshots":[{"file":"pre-update-synthetic.sqlite3","sha256":"0".repeat(64),"deleting":false,"credential":{"kind":"keyless"}}],"credentials":[],"protectionTransition":null});
+                fs::write(
+                    database.with_file_name("backup-recovery.json"),
+                    index.to_string(),
+                )
+                .unwrap();
+            }
+            "metadata-error" => {
+                fs::remove_dir_all(database.parent().unwrap()).unwrap();
+                fs::write(database.parent().unwrap(), b"synthetic nondirectory parent").unwrap();
+            }
+            _ => {}
+        }
+        let registry_bytes = fs::read(&registry).unwrap();
+        for mode in [PruneMode::DryRun, PruneMode::Delete] {
+            if evidence == "read-error" {
+                secrets.fail_next_get(&vault_key_account(&database));
+            }
+            let report = prune_vault_accounts(secrets.as_ref(), &registry, mode).unwrap();
+            assert!(report.removed.is_empty(), "{evidence}");
+            assert_eq!(report.kept.len(), 1, "{evidence}");
+            assert!(
+                secrets.has(&provider_key_account(&database, ProviderId::OpenAi)),
+                "{evidence}"
+            );
+            assert_eq!(fs::read(&registry).unwrap(), registry_bytes, "{evidence}");
+        }
+        if evidence == "metadata-error" {
+            fs::remove_file(database.parent().unwrap()).unwrap();
+        }
+        cleanup_database(database);
+        cleanup_database(registry);
+    }
+}
+
+#[test]
+fn dev_review_prune_preserves_corrupt_registry_and_mismatched_account_authority() {
+    let (database, registry, secrets) = dev_review_prune_fixture("prune-registry-authority");
+    fs::remove_file(&database).unwrap();
+    fs::write(&registry, b"{synthetic corrupt registry").unwrap();
+    for mode in [PruneMode::DryRun, PruneMode::Delete] {
+        assert!(prune_vault_accounts(secrets.as_ref(), &registry, mode).is_err());
+        assert_eq!(fs::read(&registry).unwrap(), b"{synthetic corrupt registry");
+        assert!(secrets.has(&provider_key_account(&database, ProviderId::OpenAi)));
+    }
+    let mismatched = VaultAccountRegistry {
+        accounts: vec![
+            VaultAccountRecord {
+                account: vault_key_account(&database),
+                database: database
+                    .with_file_name("unrelated.sqlite3")
+                    .to_string_lossy()
+                    .into_owned(),
+            },
+            VaultAccountRecord {
+                account: VAULT_KEY_ACCOUNT.to_owned(),
+                database: database.to_string_lossy().into_owned(),
+            },
+        ],
+    };
+    secrets
+        .set(VAULT_KEY_ACCOUNT, "synthetic default credential")
+        .unwrap();
+    let bytes = serde_json::to_vec_pretty(&mismatched).unwrap();
+    fs::write(&registry, &bytes).unwrap();
+    for mode in [PruneMode::DryRun, PruneMode::Delete] {
+        let report = prune_vault_accounts(secrets.as_ref(), &registry, mode).unwrap();
+        assert!(report.removed.is_empty());
+        assert_eq!(fs::read(&registry).unwrap(), bytes);
+        assert!(secrets.has(&vault_key_account(&database)));
+        assert!(secrets.has(VAULT_KEY_ACCOUNT));
+    }
+    cleanup_database(database);
+    cleanup_database(registry);
+}
+
+#[test]
+#[cfg(unix)]
+fn dev_review_prune_retains_unsafe_links_and_checks_active_registry_before_recreating_parent() {
+    use std::os::unix::fs::symlink;
+    for surface in [
+        "database",
+        "custody",
+        "index",
+        "backups",
+        "ancestor",
+        "active-deleted-parent",
+    ] {
+        let (database, registry, secrets) =
+            dev_review_prune_fixture(&format!("prune-link-{surface}"));
+        let provider_account = provider_key_account(&database, ProviderId::OpenAi);
+        fs::remove_file(&database).unwrap();
+        let mut custody = None;
+        match surface {
+            "database" => symlink(database.with_file_name("missing-target"), &database).unwrap(),
+            "custody" => {
+                let lock = database.with_file_name(".voyalier.sqlite3.workspace-lock");
+                fs::remove_file(&lock).unwrap();
+                symlink(database.with_file_name("missing-target"), &lock).unwrap();
+            }
+            "index" => symlink(
+                database.with_file_name("missing-target"),
+                database.with_file_name("backup-recovery.json"),
+            )
+            .unwrap(),
+            "backups" => symlink(
+                database.with_file_name("missing-target"),
+                database.with_file_name("backups"),
+            )
+            .unwrap(),
+            "ancestor" => {
+                fs::remove_dir_all(database.parent().unwrap()).unwrap();
+                symlink(registry.parent().unwrap(), database.parent().unwrap()).unwrap();
+            }
+            _ => {
+                custody = Some(workspace_lock::WorkspaceLock::acquire(&database).unwrap());
+                fs::remove_dir_all(database.parent().unwrap()).unwrap();
+            }
+        }
+        let registry_bytes = fs::read(&registry).unwrap();
+        for mode in [PruneMode::DryRun, PruneMode::Delete] {
+            let report = prune_vault_accounts(secrets.as_ref(), &registry, mode).unwrap();
+            assert!(report.removed.is_empty(), "{surface}");
+            assert!(secrets.has(&provider_account), "{surface}");
+            assert_eq!(fs::read(&registry).unwrap(), registry_bytes, "{surface}");
+            if surface == "active-deleted-parent" {
+                assert!(!database.parent().unwrap().exists());
+            }
+        }
+        drop(custody);
+        if surface == "ancestor" {
+            fs::remove_file(database.parent().unwrap()).unwrap();
+        }
+        cleanup_database(database);
+        cleanup_database(registry);
+    }
+}

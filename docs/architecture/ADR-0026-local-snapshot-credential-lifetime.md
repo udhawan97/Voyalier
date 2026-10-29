@@ -73,3 +73,19 @@ Inject each committed generation-account deletion failure using the shipped
 MemorySecretStore; retain retryable intent and prove successful restart preserves
 both live data and the readable old safety snapshot. These checks use fictional
 keys only and do not establish native keychain or physical power-loss acceptance.
+
+## Amendment — portable export proves snapshot readability (2026-10-29)
+
+A portable export authenticates every declared sealed column in its completed
+SQLite snapshot with the exact data key it will carry before returning a
+container. A cached inactive or unlocked vault status alone does not prove that
+pair readable. Missing, wrong or corrupt keys and damaged ciphertext refuse the
+export with recovery guidance; source rows and credentials remain untouched.
+Legitimate plaintext/keyless snapshots and unlocked protected snapshots retain
+the existing format and restore behavior. Validation reads the isolated snapshot,
+so sibling writes cannot enter the export after its readability check.
+
+Verify unavailable and corrupt synthetic credentials refuse export, then restore
+the original credential and recover exact notes and attachment bytes. Exercise
+wrong-key and damaged-row authentication, plaintext/keyless and protected-unlocked
+exports, inspect/stage, and temporary-snapshot cleanup with the shipped fakes.
