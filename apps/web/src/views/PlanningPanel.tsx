@@ -20,7 +20,12 @@ import { toAppError } from "../gateway/errors";
 /** The three features this panel holds; a failure belongs to exactly one. */
 type PlanningArea = "saved" | "packing" | "items";
 
-type Failure = { key: string; error: AppError; retry: () => void };
+type Failure = {
+  key: string;
+  error: AppError;
+  retry: () => void;
+  draftIsCurrent?: () => boolean;
+};
 
 type ItemField = "title" | "location" | "startAt" | "endAt" | "notes";
 
@@ -118,8 +123,13 @@ export function PlanningPanel({
   const [editingPackingId, setEditingPackingId] = useState<string | null>(null);
   const [packingLabel, setPackingLabel] = useState("");
   const [showPacked, setShowPacked] = useState(true);
+  // A completion owns only the form generation that was submitted.
+  const itemGeneration = useRef(0);
+  const customPackingGeneration = useRef(0);
+  const packingEditGeneration = useRef(0);
 
   function resetItemForm() {
+    itemGeneration.current += 1;
     setEditingItemId(null);
     setKind("activity");
     setTitle("");
@@ -131,7 +141,11 @@ export function PlanningPanel({
     setTitleError(false);
   }
 
-  async function change(key: string, action: () => Promise<unknown>) {
+  async function change(
+    key: string,
+    action: () => Promise<unknown>,
+    draftIsCurrent?: () => boolean,
+  ) {
     setBusy(key);
     setFailure(null);
     try {
@@ -148,7 +162,8 @@ export function PlanningPanel({
       setFailure({
         key,
         error,
-        retry: () => void change(key, action),
+        retry: () => void change(key, action, draftIsCurrent),
+        draftIsCurrent,
       });
     } finally {
       setBusy(null);
@@ -164,7 +179,12 @@ export function PlanningPanel({
    */
   function renderFailure(area: PlanningArea) {
     if (!failure || areaOf(failure.key) !== area) return null;
-    if (area === "items" && planningItemFieldError(failure.error)) return null;
+    if (
+      area === "items" &&
+      failure.draftIsCurrent?.() !== false &&
+      planningItemFieldError(failure.error)
+    )
+      return null;
     const validation = isValidationError(failure.error);
     const copy = describeError(failure.error);
     return (
@@ -180,7 +200,9 @@ export function PlanningPanel({
   }
 
   const itemFieldError =
-    failure && areaOf(failure.key) === "items"
+    failure &&
+    failure.draftIsCurrent?.() !== false &&
+    areaOf(failure.key) === "items"
       ? planningItemFieldError(failure.error)
       : undefined;
 
@@ -273,6 +295,7 @@ export function PlanningPanel({
                       name: place.name,
                     })}
                     onClick={() => {
+                      itemGeneration.current += 1;
                       setEditingItemId(null);
                       setKind("activity");
                       setTitle(place.name);
@@ -358,9 +381,11 @@ export function PlanningPanel({
             event.preventDefault();
             const label = customPacking.trim();
             if (!label) return;
+            const generation = customPackingGeneration.current;
             void change("packing:new", async () => {
               await gateway.addPackingItem({ tripId, label });
-              setCustomPacking("");
+              if (customPackingGeneration.current === generation)
+                setCustomPacking("");
             });
           }}
         >
@@ -370,7 +395,10 @@ export function PlanningPanel({
               required
               aria-describedby="custom-packing-hint"
               value={customPacking}
-              onChange={(event) => setCustomPacking(event.target.value)}
+              onChange={(event) => {
+                customPackingGeneration.current += 1;
+                setCustomPacking(event.target.value);
+              }}
             />
           </label>
           <small id="custom-packing-hint" className="voy-field-hint">
@@ -423,7 +451,10 @@ export function PlanningPanel({
                   {t("planning.packing.nameLabel")}
                   <input
                     value={packingLabel}
-                    onChange={(event) => setPackingLabel(event.target.value)}
+                    onChange={(event) => {
+                      packingEditGeneration.current += 1;
+                      setPackingLabel(event.target.value);
+                    }}
                   />
                 </label>
               ) : (
@@ -449,17 +480,20 @@ export function PlanningPanel({
                   variant="ghost"
                   aria-label={t("planning.packing.saveLabel")}
                   busy={busy === `packing:${item.id}`}
-                  onClick={() =>
+                  onClick={() => {
+                    const generation = packingEditGeneration.current;
                     void change(`packing:${item.id}`, async () => {
                       await gateway.updatePackingItem({
                         packingItemId: item.id,
                         label: packingLabel,
                         checked: item.checked,
                       });
-                      setEditingPackingId(null);
-                      setPackingLabel("");
-                    })
-                  }
+                      if (packingEditGeneration.current === generation) {
+                        setEditingPackingId(null);
+                        setPackingLabel("");
+                      }
+                    });
+                  }}
                 >
                   {t("planning.items.save")}
                 </Button>
@@ -470,6 +504,7 @@ export function PlanningPanel({
                     name: item.label,
                   })}
                   onClick={() => {
+                    packingEditGeneration.current += 1;
                     setEditingPackingId(item.id);
                     setPackingLabel(item.label);
                   }}
@@ -529,24 +564,33 @@ export function PlanningPanel({
             const key = editingItemId
               ? `trip-item:${editingItemId}`
               : "trip-item:new";
-            void change(key, async () => {
-              if (editingItemId) {
-                await gateway.updateTripItem({
-                  tripItemId: editingItemId,
-                  ...fields,
-                });
-              } else {
-                await gateway.createTripItem({ tripId, ...fields });
-              }
-              resetItemForm();
-            });
+            const generation = itemGeneration.current;
+            const draftIsCurrent = () => itemGeneration.current === generation;
+            void change(
+              key,
+              async () => {
+                if (editingItemId) {
+                  await gateway.updateTripItem({
+                    tripItemId: editingItemId,
+                    ...fields,
+                  });
+                } else {
+                  await gateway.createTripItem({ tripId, ...fields });
+                }
+                if (draftIsCurrent()) resetItemForm();
+              },
+              draftIsCurrent,
+            );
           }}
         >
           <label>
             {t("planning.items.kind")}
             <select
               value={kind}
-              onChange={(event) => setKind(event.target.value as TripItemKind)}
+              onChange={(event) => {
+                itemGeneration.current += 1;
+                setKind(event.target.value as TripItemKind);
+              }}
             >
               <option value="activity">{t("planning.items.activity")}</option>
               <option value="rail">{t("planning.items.rail")}</option>
@@ -568,6 +612,7 @@ export function PlanningPanel({
               }
               value={title}
               onChange={(event) => {
+                itemGeneration.current += 1;
                 const next = event.target.value;
                 setTitle(next);
                 if (next.trim()) setTitleError(false);
@@ -598,6 +643,7 @@ export function PlanningPanel({
               }
               value={location}
               onChange={(event) => {
+                itemGeneration.current += 1;
                 setLocation(event.target.value);
                 clearItemFailure("location");
               }}
@@ -625,6 +671,7 @@ export function PlanningPanel({
               }
               value={startAt}
               onChange={(event) => {
+                itemGeneration.current += 1;
                 setStartAt(event.target.value);
                 clearItemFailure("startAt");
               }}
@@ -652,6 +699,7 @@ export function PlanningPanel({
               }
               value={endAt}
               onChange={(event) => {
+                itemGeneration.current += 1;
                 setEndAt(event.target.value);
                 clearItemFailure("endAt");
               }}
@@ -678,6 +726,7 @@ export function PlanningPanel({
               }
               value={itemNotes}
               onChange={(event) => {
+                itemGeneration.current += 1;
                 setItemNotes(event.target.value);
                 clearItemFailure("notes");
               }}
@@ -740,6 +789,7 @@ export function PlanningPanel({
                     name: item.title,
                   })}
                   onClick={() => {
+                    itemGeneration.current += 1;
                     setEditingItemId(item.id);
                     setKind(item.kind);
                     setTitle(item.title);
