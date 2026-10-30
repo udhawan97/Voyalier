@@ -17,3 +17,7 @@ Run a frozen dependency install, the canonical scripts/check.sh all gate (web, R
 ## Cleanup and rollback
 
 Back up exact retired branch commits and useful ignored graph/test evidence privately before removing only the clean, proven-equivalent PR139/PR144 checkouts and refs. Close PR142 only after its whole patch is present on main, then delete the equivalent source ref. Remove this temporary integration worktree/ref after promotion. Recompare every preserved status, diff and dirty-file hash. The remote source branches and private bundles provide recovery; no force pushes, stashes or hard resets.
+
+## Integration checkpoint
+
+The three-file dependency patch from PR142 was imported without modification at 23fc1d4. The original Node >=24 and pnpm >=11 contracts remain unchanged. At this checkpoint local and hosted acceptance are pending; final outcomes are retained in the integration PR and the private cleanup receipt.
