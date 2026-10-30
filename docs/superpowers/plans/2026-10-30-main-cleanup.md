@@ -21,3 +21,7 @@ Back up exact retired branch commits and useful ignored graph/test evidence priv
 ## Integration checkpoint
 
 The three-file dependency patch from PR142 was imported without modification at 23fc1d4. The original Node >=24 and pnpm >=11 contracts remain unchanged. At this checkpoint local and hosted acceptance are pending; final outcomes are retained in the integration PR and the private cleanup receipt.
+
+## Independent compatible subset from PR135
+
+Rescue only the yanked ChaCha20 0.10.1 to 0.10.2 lockfile patch. Registry metadata retains Rust 1.85 and MIT/Apache-2.0 licensing. Keep the keyring-store migration, its app/server minimum change, and native interoperability/restore gates in draft PR135. Apply the targeted resolver update only after this plan addendum is committed, verify that no other Rust package changes, and repeat the canonical full gate plus exact-head hosted checks. This does not accept the rest of PR135.
