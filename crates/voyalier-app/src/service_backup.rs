@@ -139,6 +139,26 @@ impl AppService {
                         "the workspace exceeds the portable backup size bound",
                     ));
                 }
+                // Authenticate the completed snapshot with the exact key the
+                // container will carry, including an inactive/keyless vault.
+                let snapshot =
+                    Connection::open_with_flags(&path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+                        .map_err(storage_error)?;
+                let vault = Vault::new(VaultState {
+                    key: data_key,
+                    protected: false,
+                    escaped_plaintext: vault_storage_format_is_current(&snapshot)?,
+                });
+                validate_sealed_rows(&snapshot, &vault).map_err(|error| {
+                    if error.code == ErrorCode::VaultUnreadable {
+                        AppError::new(
+                            ErrorCode::VaultUnreadable,
+                            "portable backup refused because encrypted records cannot be read; reopen the workspace with its original vault key or restore a known-readable backup, then export again",
+                        )
+                    } else {
+                        error
+                    }
+                })?;
                 fs::read(&path).map_err(storage_error)
             })();
             let _ = fs::remove_file(path);

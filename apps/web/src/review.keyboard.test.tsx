@@ -1,6 +1,7 @@
 import { createMockGateway, type AppError } from "@voyalier/contracts";
 import { StrictMode, useState } from "react";
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -367,4 +368,182 @@ describe("candidate review — keyboard", () => {
       within(dialog).getByText("Showing 1 of 3 suggestions to review"),
     ).toBeInTheDocument();
   });
+});
+
+describe("concurrent review resolutions", () => {
+  it.each([
+    ["confirm", "confirm", false],
+    ["confirm", "confirm", true],
+    ["confirm", "dismiss", false],
+    ["confirm", "dismiss", true],
+    ["dismiss", "dismiss", false],
+    ["dismiss", "dismiss", true],
+  ] as const)(
+    "removes both %s/%s cards when reverse completion is %s",
+    async (firstAction, secondAction, reverse) => {
+      const gateway = createMockGateway();
+      const candidates = await gateway.listCandidates("trip_kyoto", "pending");
+      // Resolve the third through the shipped mock so counts and detail agree.
+      await gateway.rejectCandidate(candidates[2].id);
+      const releases: (() => void)[] = [];
+      const confirm = gateway.confirmCandidate;
+      const reject = gateway.rejectCandidate;
+      gateway.confirmCandidate = async (input) => {
+        await new Promise<void>((resolve) => releases.push(resolve));
+        return confirm(input);
+      };
+      gateway.rejectCandidate = async (id) => {
+        await new Promise<void>((resolve) => releases.push(resolve));
+        return reject(id);
+      };
+      renderApp(gateway);
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Open Kyoto autumn journey",
+        }),
+      );
+      fireEvent.click(
+        await screen.findByRole("button", { name: /Review 2 suggestions/ }),
+      );
+      const dialog = await screen.findByRole("dialog", {
+        name: "Review suggestions",
+      });
+      const cards = dialog.querySelectorAll("li.voy-review");
+      for (const [index, action] of [firstAction, secondAction].entries()) {
+        const button = within(cards[index] as HTMLElement).getByRole("button", {
+          name: action === "confirm" ? /^Confirm / : /^Dismiss /,
+        });
+        fireEvent.click(button);
+        if (action === "dismiss") fireEvent.click(button);
+      }
+      expect(releases).toHaveLength(2);
+      await act(async () => {
+        for (const release of reverse ? [...releases].reverse() : releases)
+          release();
+      });
+      await within(dialog).findByRole("button", { name: "Done" });
+      expect(
+        within(dialog).queryAllByRole("button", { name: /^Confirm / }),
+      ).toHaveLength(0);
+      expect(
+        await gateway.listCandidates("trip_kyoto", "pending"),
+      ).toHaveLength(0);
+      await waitFor(() =>
+        expect(
+          within(dialog).getByRole("button", { name: "Done" }),
+        ).toHaveFocus(),
+      );
+    },
+  );
+
+  it("keeps the failed candidate and focuses its action after a mixed completion", async () => {
+    const gateway = createMockGateway();
+    const candidates = await gateway.listCandidates("trip_kyoto", "pending");
+    await gateway.rejectCandidate(candidates[2].id);
+    const releases: (() => void)[] = [];
+    const confirm = gateway.confirmCandidate;
+    gateway.confirmCandidate = async (input) => {
+      await new Promise<void>((resolve) => releases.push(resolve));
+      if (input.candidateId === candidates[1].id)
+        throw {
+          code: "candidate/already_resolved",
+          message: "resolved elsewhere",
+        };
+      return confirm(input);
+    };
+    renderApp(gateway);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Review 2 suggestions/ }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Review suggestions",
+    });
+    for (const button of within(dialog).getAllByRole("button", {
+      name: /^Confirm /,
+    }))
+      fireEvent.click(button);
+    await act(async () => {
+      releases[1]();
+      releases[0]();
+    });
+    expect(await within(dialog).findByText("Already resolved")).toBeVisible();
+    expect(
+      within(dialog).getAllByRole("button", { name: /^Confirm / }),
+    ).toHaveLength(1);
+    expect(await gateway.listCandidates("trip_kyoto", "pending")).toHaveLength(
+      1,
+    );
+    await waitFor(() =>
+      expect(
+        within(dialog).getByRole("button", { name: /^Confirm / }),
+      ).toHaveFocus(),
+    );
+  });
+
+  it.each([false, true])(
+    "keeps focus on the footer while the next card is busy with filtering=%s",
+    async (filtered) => {
+      const gateway = createMockGateway();
+      const candidates = await gateway.listCandidates("trip_kyoto", "pending");
+      await gateway.rejectCandidate(candidates[2].id);
+      const releases: (() => void)[] = [];
+      const confirm = gateway.confirmCandidate;
+      gateway.confirmCandidate = async (input) => {
+        await new Promise<void>((resolve) => releases.push(resolve));
+        return confirm(input);
+      };
+      renderApp(gateway);
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Open Kyoto autumn journey",
+        }),
+      );
+      fireEvent.click(
+        await screen.findByRole("button", { name: /Review 2 suggestions/ }),
+      );
+      const dialog = await screen.findByRole("dialog", {
+        name: "Review suggestions",
+      });
+      const buttons = within(dialog).getAllByRole("button", {
+        name: /^Confirm /,
+      });
+      buttons[0].focus();
+      fireEvent.click(buttons[0]);
+      fireEvent.click(buttons[1]);
+      if (filtered) {
+        fireEvent.change(
+          within(dialog).getByRole("combobox", { name: "Fact type" }),
+          { target: { value: candidates[1].factType } },
+        );
+      }
+      expect(releases).toHaveLength(2);
+      await act(async () => releases[0]());
+      expect(
+        within(dialog).getAllByRole("button", { name: /^Confirm / }),
+      ).toHaveLength(1);
+      expect(
+        within(dialog).getByRole("button", { name: /^Confirm / }),
+      ).toBeDisabled();
+      expect(
+        await gateway.listCandidates("trip_kyoto", "pending"),
+      ).toHaveLength(1);
+      const close = within(dialog).getByRole("button", {
+        name: /^Close$/,
+      });
+      expect(close).toBeEnabled();
+      expect(close).toHaveFocus();
+      expect(dialog.contains(document.activeElement)).toBe(true);
+      // The second completion still consumes its own removal/focus intent.
+      await act(async () => releases[1]());
+      expect(
+        await gateway.listCandidates("trip_kyoto", "pending"),
+      ).toHaveLength(0);
+      expect(
+        within(dialog).getByRole("button", { name: "Done" }),
+      ).toHaveFocus();
+    },
+  );
 });

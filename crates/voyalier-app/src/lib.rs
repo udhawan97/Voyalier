@@ -672,6 +672,8 @@ fn default_secret_store() -> Arc<dyn SecretStore> {
 /// What a [`FakeFetcher`] route answers with.
 #[derive(Clone, Debug)]
 pub enum Reply {
+    /// Consume one reply per matching request; exhaustion is a safe failure.
+    Sequence(Vec<Reply>),
     Text(String),
     Bytes(Vec<u8>),
     Status(u16),
@@ -773,9 +775,22 @@ impl FakeFetcher {
             .routes
             .lock()
             .expect("routes")
-            .iter()
+            .iter_mut()
             .find(|(needle, _)| url.contains(needle.as_str()))
-            .map(|(_, reply)| reply.clone());
+            .map(|(_, reply)| match reply {
+                Reply::Sequence(replies) if !replies.is_empty() => match replies.remove(0) {
+                    Reply::Sequence(_) => Reply::Fail(
+                        ErrorCode::AssistFailed,
+                        "nested fake reply sequences are unsupported".to_owned(),
+                    ),
+                    reply => reply,
+                },
+                Reply::Sequence(_) => Reply::Fail(
+                    ErrorCode::AssistFailed,
+                    "the fake reply sequence is exhausted".to_owned(),
+                ),
+                reply => reply.clone(),
+            });
         assert!(
             !self.forbidden || declared.is_some(),
             "the code under test must not reach the network, but requested {url}"
@@ -790,7 +805,7 @@ impl FakeFetcher {
         match self.reply_for(url) {
             Reply::Text(body) => Ok(body),
             Reply::Fail(code, message) => Err(AppError::new(code, message)),
-            Reply::Bytes(_) | Reply::Status(_) => Err(AppError::new(
+            Reply::Bytes(_) | Reply::Status(_) | Reply::Sequence(_) => Err(AppError::new(
                 ErrorCode::AdviceFetchFailed,
                 format!("route for {url} does not answer with text"),
             )),
@@ -812,7 +827,7 @@ impl AdviceFetcher for FakeFetcher {
             Reply::Bytes(bytes) => Ok(bytes),
             Reply::Text(body) => Ok(body.into_bytes()),
             Reply::Fail(code, message) => Err(AppError::new(code, message)),
-            Reply::Status(_) => Err(AppError::new(
+            Reply::Status(_) | Reply::Sequence(_) => Err(AppError::new(
                 ErrorCode::PackDownloadFailed,
                 format!("route for {url} does not answer with bytes"),
             )),
@@ -852,7 +867,7 @@ impl AdviceFetcher for FakeFetcher {
         match self.reply_for(url) {
             Reply::Status(status) => Ok(status),
             Reply::Fail(code, message) => Err(AppError::new(code, message)),
-            Reply::Text(_) | Reply::Bytes(_) => Err(AppError::new(
+            Reply::Text(_) | Reply::Bytes(_) | Reply::Sequence(_) => Err(AppError::new(
                 ErrorCode::AssistFailed,
                 format!("route for {url} does not answer with a status"),
             )),
@@ -5012,8 +5027,7 @@ struct VaultAccountRegistry {
 }
 
 fn read_vault_registry(path: &Path) -> VaultAccountRegistry {
-    // A missing or unreadable registry is an empty one: prune must degrade to
-    // "found nothing", never to an error that blocks the caller.
+    // Registration is best-effort. Destructive prune reads it strictly instead.
     fs::read_to_string(path)
         .ok()
         .and_then(|raw| serde_json::from_str(&raw).ok())
@@ -5074,9 +5088,9 @@ pub struct PrunedWorkspace {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct VaultPruneReport {
-    /// Workspaces whose database is gone. Removed unless this was a dry run.
+    /// Quiescent workspaces with no database or recovery evidence.
     pub removed: Vec<PrunedWorkspace>,
-    /// Workspaces whose database is still there. Never touched.
+    /// Present, active, recoverable or ambiguous workspaces. Never touched.
     pub kept: Vec<PrunedWorkspace>,
 }
 
@@ -5084,16 +5098,39 @@ pub struct VaultPruneReport {
 ///
 /// The half that must never be wrong is `kept`: a living workspace's rows are
 /// sealed under its key, so removing it would do exactly the damage ADR-0017
-/// exists to prevent. Existence of the database file is therefore the only
-/// signal used, and anything it cannot prove gone is left alone.
+/// exists to prevent. Absence of the database file is only a necessary
+/// precondition, not proof of departure: custody and all recovery evidence must
+/// also permit deletion. Anything it cannot prove gone is left alone.
 pub fn prune_vault_accounts(
     secrets: &dyn SecretStore,
     registry_path: &Path,
     mode: PruneMode,
 ) -> Result<VaultPruneReport, AppError> {
-    let registry = read_vault_registry(registry_path);
+    let registry_metadata = match fs::symlink_metadata(registry_path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(VaultPruneReport::default());
+        }
+        Err(error) => return Err(storage_error(error)),
+    };
+    if !registry_metadata.file_type().is_file() {
+        return Err(AppError::new(
+            ErrorCode::StorageFailure,
+            "the vault registry is not a regular file; evidence was preserved",
+        ));
+    }
+    let registry: VaultAccountRegistry = serde_json::from_str(
+        &fs::read_to_string(registry_path).map_err(storage_error)?,
+    )
+    .map_err(|_| {
+        AppError::new(
+            ErrorCode::StorageFailure,
+            "the vault registry is corrupt; evidence was preserved",
+        )
+    })?;
     let mut report = VaultPruneReport::default();
     let mut survivors: Vec<VaultAccountRecord> = Vec::new();
+    let mut removed_custodies = Vec::new();
 
     for record in registry.accounts {
         let database = PathBuf::from(&record.database);
@@ -5104,8 +5141,11 @@ pub fn prune_vault_accounts(
             .strip_prefix(VAULT_KEY_ACCOUNT)
             .unwrap_or_default()
             .to_owned();
-        if suffix.is_empty() {
-            // Not a namespaced account — nothing here is safe to reason about.
+        if suffix.is_empty()
+            || !database.is_absolute()
+            || record.account != vault_key_account(&database)
+        {
+            // Only an exact workspace/account binding authorizes deletion.
             survivors.push(record);
             continue;
         }
@@ -5118,14 +5158,49 @@ pub fn prune_vault_accounts(
                 .iter()
                 .map(|info| format!("api_key.{}{suffix}", info.id.as_str())),
         );
-        accounts.extend(backup_recovery::owned_accounts(&database)?);
-        accounts.retain(|account| secrets.has(account));
+        let definitely_absent = |path: &Path| matches!(fs::symlink_metadata(path), Err(error) if error.kind() == std::io::ErrorKind::NotFound);
+        let mut keep = !definitely_absent(&database);
+        let custody = if keep {
+            None
+        } else {
+            match workspace_lock::WorkspaceLock::acquire_for_prune(
+                &database,
+                mode == PruneMode::Delete,
+            ) {
+                Ok(custody) => custody,
+                Err(_) => {
+                    keep = true;
+                    None
+                }
+            }
+        };
+        let _operation = match custody.as_ref().map(|guard| guard.operation()).transpose() {
+            Ok(operation) => operation,
+            Err(_) => {
+                keep = true;
+                None
+            }
+        };
+        keep |= !definitely_absent(&database)
+            || record.account != vault_key_account(&database)
+            || !matches!(backup_recovery::has_recovery_state(&database), Ok(false));
+        match backup_recovery::owned_accounts(&database) {
+            Ok(owned) => accounts.extend(owned),
+            Err(_) => keep = true,
+        }
+        accounts.retain(|account| match secrets.get(account) {
+            Ok(value) => value.is_some(),
+            Err(_) => {
+                keep = true;
+                false
+            }
+        });
 
         let workspace = PrunedWorkspace {
             database: record.database.clone(),
             accounts,
         };
-        if database.exists() || backup_recovery::has_recovery_state(&database)? {
+        if keep {
             report.kept.push(workspace);
             survivors.push(record);
             continue;
@@ -5138,6 +5213,11 @@ pub fn prune_vault_accounts(
             survivors.push(record);
         }
         report.removed.push(workspace);
+        drop(_operation);
+        if let Some(custody) = custody {
+            // Prevent a fresh service registering before its old row is retired.
+            removed_custodies.push(custody);
+        }
     }
 
     if mode == PruneMode::Delete {

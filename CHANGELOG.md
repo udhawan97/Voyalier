@@ -8,6 +8,34 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Fixed
 
+- **Trip notes keep the latest edit while earlier saves finish.** New text and
+  clears are saved in order, including when returning to a trip before an older
+  save completes. Failed responses keep the latest draft available for retry;
+  this does not provide recovery after an abrupt app or device shutdown.
+
+- **Portable backups refuse encrypted records they cannot recover.** Export
+  checks the finished snapshot with its carried key before reporting success.
+  Unavailable or damaged credentials require recovery with the original key;
+  readable plaintext and unlocked protected workspaces retain their existing
+  backup format.
+
+- **Credential cleanup preserves workspaces with recovery evidence or active custody.**
+  An interrupted restore no longer makes its provider keys appear abandoned.
+  Ambiguous files and metadata errors preserve credentials. Explicit cleanup of
+  a deleted workspace can leave an empty workspace folder and lock marker; native
+  keychain and physical power-loss acceptance remain separate.
+
+- **On-device lodging suggestions retain their contributing document.** Documents
+  are read separately, and all replies are checked before suggestions are saved
+  together for review. Large inputs ask for manual review to bound local work;
+  model accuracy remains the traveler's responsibility.
+
+- **Editing and review remain stable as actions finish.** Activity and packing
+  forms retain newer drafts, simultaneous review decisions remove the correct
+  cards, and keyboard focus stays inside review while another card is busy.
+  Document import exposes one named file-choice action; native screen-reader
+  and installed-app qualification remain separate.
+
 - **Build and preview tooling includes the Windows editor-command security patch.**
   Vite moves to 8.3.3 with the required Rolldown updates while retaining the
   existing frameworks. Installed-app and native Windows acceptance remain

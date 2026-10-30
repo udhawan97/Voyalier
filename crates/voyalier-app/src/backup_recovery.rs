@@ -172,8 +172,10 @@ fn regular_size(path: &Path, limit: u64) -> Result<u64, AppError> {
 
 fn read_index(database: &Path) -> Result<Index, AppError> {
     let path = index_path(database)?;
-    if !path.try_exists().map_err(storage_error)? {
-        return Ok(empty(database));
+    match fs::symlink_metadata(&path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(empty(database)),
+        Err(error) => return Err(storage_error(error)),
+        Ok(_) => {}
     }
     regular_size(&path, INDEX_BYTES)?;
     let mut bytes = Vec::new();
@@ -203,14 +205,12 @@ fn save_index(database: &Path, index: &Index) -> Result<(), AppError> {
 
 fn snapshots(database: &Path) -> Result<Vec<PathBuf>, AppError> {
     let backups = directory(database)?.join("backups");
-    if !backups.try_exists().map_err(storage_error)? {
-        return Ok(Vec::new());
-    }
-    if !fs::symlink_metadata(&backups)
-        .map_err(storage_error)?
-        .file_type()
-        .is_dir()
-    {
+    let metadata = match fs::symlink_metadata(&backups) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(storage_error(error)),
+        Ok(metadata) => metadata,
+    };
+    if !metadata.file_type().is_dir() {
         return Err(failure("the recovery directory is not a direct directory"));
     }
     let mut paths = Vec::new();
@@ -684,8 +684,29 @@ pub(super) fn owned_accounts(database: &Path) -> Result<Vec<String>, AppError> {
 }
 
 pub(super) fn has_recovery_state(database: &Path) -> Result<bool, AppError> {
+    let entries = match fs::read_dir(directory(database)?) {
+        Ok(entries) => Some(entries),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(storage_error(error)),
+    };
+    if let Some(entries) = entries {
+        for entry in entries {
+            let name = entry.map_err(storage_error)?.file_name();
+            let name = name.to_string_lossy();
+            if name.starts_with("pending-restore")
+                || name.starts_with("rollback-restore-")
+                || name.starts_with("failed-restore-")
+                || name.starts_with(".pending-restore")
+                || name.starts_with(".rollback-restore-")
+            {
+                // Even an unbound or malformed generation is retained evidence.
+                return Ok(true);
+            }
+        }
+    }
     let index = read_index(database)?;
     Ok(!snapshots(database)?.is_empty()
+        || !index.snapshots.is_empty()
         || !index.credentials.is_empty()
         || index.protection_transition.is_some())
 }

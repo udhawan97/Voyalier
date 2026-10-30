@@ -599,3 +599,299 @@ describe("traveler-owned planning workflows", () => {
     expect(end).not.toHaveAttribute("aria-invalid");
   });
 });
+
+function deferredPlanningWrite() {
+  let release!: () => void;
+  let reject!: (error: unknown) => void;
+  const wait = new Promise<void>((resolve, fail) => {
+    release = resolve;
+    reject = fail;
+  });
+  return {
+    wait,
+    release: () => release(),
+    reject: () => reject({ code: "transport/failure", message: "down" }),
+  };
+}
+
+describe("planning draft ownership during saves", () => {
+  it.each(["success", "failure"] as const)(
+    "preserves every newer activity field and focus on earlier %s",
+    async (outcome) => {
+      const gateway = createMockGateway();
+      const pending = deferredPlanningWrite();
+      const create = gateway.createTripItem;
+      const calls: unknown[] = [];
+      gateway.createTripItem = async (input) => {
+        calls.push(input);
+        await pending.wait;
+        return create(input);
+      };
+      renderApp(gateway);
+      await openFixtureTrip();
+      const items = await screen.findByRole("region", {
+        name: "Activities & transfers",
+      });
+      const name = within(items).getByLabelText("Name");
+      fireEvent.change(name, { target: { value: "Submitted activity" } });
+      fireEvent.click(
+        within(items).getByRole("button", { name: "Add to plan" }),
+      );
+      const newer = {
+        Name: "Newer activity",
+        "Location (optional)": "Newer location",
+        "Start (optional)": "2026-11-06T09:00",
+        "End (optional)": "2026-11-06T10:00",
+        "Private notes (optional)": "Newer private note",
+      };
+      for (const [label, value] of Object.entries(newer)) {
+        fireEvent.change(within(items).getByLabelText(label), {
+          target: { value },
+        });
+      }
+      fireEvent.change(within(items).getByLabelText("Type"), {
+        target: { value: "transfer" },
+      });
+      const notes = within(items).getByLabelText("Private notes (optional)");
+      notes.focus();
+      await act(async () => {
+        if (outcome === "success") pending.release();
+        else pending.reject();
+      });
+      if (outcome === "success")
+        expect(
+          await within(items).findByText("Submitted activity"),
+        ).toBeVisible();
+      else expect(await within(items).findByRole("alert")).toBeVisible();
+      for (const [label, value] of Object.entries(newer))
+        expect(within(items).getByLabelText(label)).toHaveValue(value);
+      expect(within(items).getByLabelText("Type")).toHaveValue("transfer");
+      expect(notes).toHaveFocus();
+      expect(calls).toHaveLength(1);
+      expect(
+        (await gateway.getTrip("trip_kyoto")).tripItems.filter(
+          (item) => item.title === "Submitted activity",
+        ),
+      ).toHaveLength(outcome === "success" ? 1 : 0);
+    },
+  );
+
+  it("keeps the newly selected edit after cancelling an in-flight activity edit", async () => {
+    const gateway = createMockGateway();
+    const first = await gateway.createTripItem({
+      tripId: "trip_kyoto",
+      kind: "activity",
+      title: "First activity",
+    });
+    await gateway.createTripItem({
+      tripId: "trip_kyoto",
+      kind: "rail",
+      title: "Second activity",
+    });
+    const pending = deferredPlanningWrite();
+    const update = gateway.updateTripItem;
+    gateway.updateTripItem = async (input) => {
+      await pending.wait;
+      return update(input);
+    };
+    renderApp(gateway);
+    await openFixtureTrip();
+    const items = await screen.findByRole("region", {
+      name: "Activities & transfers",
+    });
+    fireEvent.click(
+      within(items).getByRole("button", { name: "Edit First activity" }),
+    );
+    fireEvent.change(within(items).getByLabelText("Name"), {
+      target: { value: "Saved first activity" },
+    });
+    fireEvent.click(
+      within(items).getByRole("button", { name: "Save changes" }),
+    );
+    fireEvent.click(within(items).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(
+      within(items).getByRole("button", { name: "Edit Second activity" }),
+    );
+    fireEvent.change(within(items).getByLabelText("Name"), {
+      target: { value: "New second draft" },
+    });
+    await act(async () => pending.release());
+    expect(
+      await within(items).findByText("Saved first activity"),
+    ).toBeVisible();
+    expect(within(items).getByLabelText("Name")).toHaveValue(
+      "New second draft",
+    );
+    expect(
+      within(items).getByRole("button", { name: "Save changes" }),
+    ).toBeEnabled();
+    expect(
+      (await gateway.getTrip("trip_kyoto")).tripItems.find(
+        (item) => item.id === first.id,
+      )?.title,
+    ).toBe("Saved first activity");
+  });
+
+  it("preserves a newer packing add draft while refreshing the saved checklist", async () => {
+    const gateway = createMockGateway();
+    const pending = deferredPlanningWrite();
+    const add = gateway.addPackingItem;
+    gateway.addPackingItem = async (input) => {
+      await pending.wait;
+      return add(input);
+    };
+    renderApp(gateway);
+    await openFixtureTrip();
+    const packing = await screen.findByRole("region", {
+      name: "Packing checklist",
+    });
+    const custom = within(packing).getByLabelText("Custom item");
+    fireEvent.change(custom, { target: { value: "Submitted jacket" } });
+    fireEvent.click(
+      within(custom.closest("form")!).getByRole("button", { name: "Add" }),
+    );
+    fireEvent.change(custom, { target: { value: "Newer umbrella" } });
+    custom.focus();
+    await act(async () => pending.release());
+    expect(
+      await within(packing).findByRole("checkbox", {
+        name: "Submitted jacket",
+      }),
+    ).toBeVisible();
+    expect(custom).toHaveValue("Newer umbrella");
+    expect(custom).toHaveFocus();
+  });
+
+  it("does not close a newer packing rename when an earlier rename completes", async () => {
+    const gateway = createMockGateway();
+    await gateway.addPackingItem({ tripId: "trip_kyoto", label: "Jacket" });
+    await gateway.addPackingItem({ tripId: "trip_kyoto", label: "Umbrella" });
+    const pending = deferredPlanningWrite();
+    const update = gateway.updatePackingItem;
+    gateway.updatePackingItem = async (input) => {
+      await pending.wait;
+      return update(input);
+    };
+    renderApp(gateway);
+    await openFixtureTrip();
+    const packing = await screen.findByRole("region", {
+      name: "Packing checklist",
+    });
+    fireEvent.click(
+      within(packing).getByRole("button", { name: "Rename Jacket" }),
+    );
+    fireEvent.change(within(packing).getByLabelText("Packing item name"), {
+      target: { value: "Saved jacket" },
+    });
+    fireEvent.click(
+      within(packing).getByRole("button", { name: "Save packing item" }),
+    );
+    fireEvent.click(
+      within(packing).getByRole("button", { name: "Rename Umbrella" }),
+    );
+    fireEvent.change(within(packing).getByLabelText("Packing item name"), {
+      target: { value: "New umbrella draft" },
+    });
+    await act(async () => pending.release());
+    expect(
+      await within(packing).findByRole("checkbox", { name: "Saved jacket" }),
+    ).toBeVisible();
+    expect(within(packing).getByLabelText("Packing item name")).toHaveValue(
+      "New umbrella draft",
+    );
+  });
+
+  it("intentionally clears unchanged successful activity and packing submissions", async () => {
+    renderApp(createMockGateway());
+    await openFixtureTrip();
+    const items = await screen.findByRole("region", {
+      name: "Activities & transfers",
+    });
+    const name = within(items).getByLabelText("Name");
+    fireEvent.change(name, { target: { value: "Saved activity" } });
+    fireEvent.click(within(items).getByRole("button", { name: "Add to plan" }));
+    expect(await within(items).findByText("Saved activity")).toBeVisible();
+    expect(name).toHaveValue("");
+    const packing = screen.getByRole("region", { name: "Packing checklist" });
+    const custom = within(packing).getByLabelText("Custom item");
+    fireEvent.change(custom, { target: { value: "Saved checklist item" } });
+    fireEvent.click(
+      within(custom.closest("form")!).getByRole("button", { name: "Add" }),
+    );
+    expect(
+      await within(packing).findByRole("checkbox", {
+        name: "Saved checklist item",
+      }),
+    ).toBeVisible();
+    expect(custom).toHaveValue("");
+  });
+
+  it("keeps a new mounted activity draft when a save from the previous visit completes", async () => {
+    const gateway = createMockGateway();
+    const pending = deferredPlanningWrite();
+    const create = gateway.createTripItem;
+    gateway.createTripItem = async (input) => {
+      await pending.wait;
+      return create(input);
+    };
+    renderApp(gateway);
+    await openFixtureTrip();
+    let items = await screen.findByRole("region", {
+      name: "Activities & transfers",
+    });
+    fireEvent.change(within(items).getByLabelText("Name"), {
+      target: { value: "Activity from previous visit" },
+    });
+    fireEvent.click(within(items).getByRole("button", { name: "Add to plan" }));
+    act(() => {
+      window.history.replaceState(null, "", "/");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    await openFixtureTrip();
+    items = await screen.findByRole("region", {
+      name: "Activities & transfers",
+    });
+    const name = within(items).getByLabelText("Name");
+    fireEvent.change(name, { target: { value: "New visit draft" } });
+    name.focus();
+    await act(async () => pending.release());
+    expect(
+      await within(items).findByText("Activity from previous visit"),
+    ).toBeVisible();
+    expect(name).toHaveValue("New visit draft");
+    expect(name).toHaveFocus();
+  });
+
+  it("reports an earlier validation failure without marking or focusing a newer draft field", async () => {
+    const gateway = createMockGateway();
+    let fail!: () => void;
+    gateway.createTripItem = () =>
+      new Promise((_, reject) => {
+        fail = () =>
+          reject({
+            code: "validation/invalid_date_range",
+            message: "end before start",
+            details: { field: "endAt" },
+          });
+      });
+    renderApp(gateway);
+    await openFixtureTrip();
+    const items = await screen.findByRole("region", {
+      name: "Activities & transfers",
+    });
+    fireEvent.change(within(items).getByLabelText("Name"), {
+      target: { value: "Earlier invalid activity" },
+    });
+    fireEvent.click(within(items).getByRole("button", { name: "Add to plan" }));
+    const end = within(items).getByLabelText("End (optional)");
+    fireEvent.change(end, { target: { value: "2026-11-06T10:00" } });
+    const notes = within(items).getByLabelText("Private notes (optional)");
+    fireEvent.change(notes, { target: { value: "Newer note" } });
+    notes.focus();
+    await act(async () => fail());
+    expect(await within(items).findByRole("alert")).toBeVisible();
+    expect(end).not.toHaveAttribute("aria-invalid");
+    expect(notes).toHaveValue("Newer note");
+    expect(notes).toHaveFocus();
+  });
+});

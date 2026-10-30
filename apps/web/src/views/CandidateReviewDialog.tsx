@@ -386,7 +386,11 @@ export function CandidateReviewDialog({
   returnFocusRef?: RefObject<HTMLElement | null>;
   completionFocusRef?: RefObject<HTMLElement | null>;
 }) {
-  const [queue, setQueue] = useState<CandidateFact[]>(() => candidates);
+  const [{ queue, resolutionFocus }, setReview] = useState<{
+    queue: CandidateFact[];
+    resolutionFocus: { target: string } | null;
+  }>(() => ({ queue: candidates, resolutionFocus: null }));
+  const handledResolution = useRef(resolutionFocus);
   const [warningsOnly, setWarningsOnly] = useState(false);
   const [factType, setFactType] = useState<FactType | "all">("all");
   const [method, setMethod] = useState<ExtractionMethod | "all">("all");
@@ -404,8 +408,13 @@ export function CandidateReviewDialog({
   // After a resolution shrinks the queue, move focus to the next actionable
   // control so the keyboard flow never lands on a removed element.
   useEffect(() => {
-    const target = pendingFocus.current;
+    const target =
+      pendingFocus.current ??
+      (handledResolution.current !== resolutionFocus
+        ? resolutionFocus?.target
+        : null);
     if (!target) return;
+    handledResolution.current = resolutionFocus;
     pendingFocus.current = null;
     if (target === "__done__") doneRef.current?.focus();
     else if (target === "__filters__") {
@@ -416,22 +425,35 @@ export function CandidateReviewDialog({
         factTypeRef.current
       )?.focus();
     }
-    // The next card's primary button (Confirm or, in edit mode, Save & confirm);
-    // fall back to the footer so focus never escapes the dialog.
-    else (confirmRefs.current[target] ?? doneRef.current)?.focus();
-  }, [queue, warningsOnly, factType, method]);
+    // Another card can still be saving, or a filter can hide the intended
+    // target. Its primary button cannot take focus; the footer remains usable.
+    else {
+      const next = confirmRefs.current[target];
+      const actionable = next && !next.disabled && !next.closest("[hidden]");
+      (actionable ? next : doneRef.current)?.focus();
+    }
+  }, [queue, warningsOnly, factType, method, resolutionFocus]);
 
   function handleDone(id: string) {
-    const index = visibleQueue.findIndex((candidate) => candidate.id === id);
-    const next = queue.filter((candidate) => candidate.id !== id);
-    const nextVisible = filterCandidates(next, filters);
-    const nextItem = nextVisible[index] ?? nextVisible[nextVisible.length - 1];
-    pendingFocus.current = nextItem
-      ? nextItem.id
-      : next.length > 0
-        ? "__filters__"
-        : "__done__";
-    setQueue(next);
+    setReview((current) => {
+      const index = filterCandidates(current.queue, filters).findIndex(
+        (candidate) => candidate.id === id,
+      );
+      const next = current.queue.filter((candidate) => candidate.id !== id);
+      const nextVisible = filterCandidates(next, filters);
+      const nextItem =
+        nextVisible[index] ?? nextVisible[nextVisible.length - 1];
+      return {
+        queue: next,
+        resolutionFocus: {
+          target: nextItem
+            ? nextItem.id
+            : next.length > 0
+              ? "__filters__"
+              : "__done__",
+        },
+      };
+    });
     onResolved();
   }
 

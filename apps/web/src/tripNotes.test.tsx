@@ -1,8 +1,14 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type { AppGateway } from "@voyalier/contracts";
 import { createMockGateway } from "@voyalier/contracts";
 
-import { failingGateway, renderApp } from "./test/helpers";
+import { failingGateway, openFixtureTrip, renderApp } from "./test/helpers";
 
 /**
  * Notes sit in a deferred section, so they mount a beat after the trip page and
@@ -11,13 +17,11 @@ import { failingGateway, renderApp } from "./test/helpers";
  */
 async function openNotes(gateway?: AppGateway, awaitField = true) {
   renderApp(gateway ?? createMockGateway());
-  fireEvent.click(
-    await screen.findByRole("button", { name: "Open Kyoto autumn journey" }),
-  );
-  await screen.findByRole("heading", {
-    name: "Kyoto autumn journey",
-    level: 1,
-  });
+  return openFixtureNotes(awaitField);
+}
+
+async function openFixtureNotes(awaitField = true) {
+  await openFixtureTrip();
   const region = await screen.findByRole("region", { name: "Notes" });
   if (awaitField) await within(region).findByLabelText("Trip notes");
   return region;
@@ -169,5 +173,268 @@ describe("notes and an unmount mid-debounce", () => {
     window.dispatchEvent(new PopStateEvent("popstate"));
 
     await waitFor(() => expect(saved).toEqual(["ryokan deposit due friday"]));
+  });
+});
+
+/** Storage completes only when the test releases a request, exposing ordering. */
+function deferredNotes() {
+  const base = createMockGateway();
+  const requests: {
+    tripId: string;
+    body: string;
+    finish: () => Promise<void>;
+    fail: () => void;
+  }[] = [];
+  const gateway: AppGateway = {
+    ...base,
+    setTripNotes: (tripId, body) =>
+      new Promise((resolve, reject) => {
+        requests.push({
+          tripId,
+          body,
+          finish: async () => resolve(await base.setTripNotes(tripId, body)),
+          fail: () => reject({ code: "transport/failure", message: "down" }),
+        });
+      }),
+  };
+  return { base, gateway, requests };
+}
+
+function leaveNotes() {
+  act(() => {
+    window.history.replaceState(null, "", "/");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
+}
+
+describe("ordered note persistence", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("coalesces blur and debounce behind one write and acknowledges only the durable newest body", async () => {
+    const { base, gateway, requests } = deferredNotes();
+    const notes = await openNotes(gateway);
+    const field = within(notes).getByLabelText("Trip notes");
+    vi.useFakeTimers();
+    fireEvent.change(field, { target: { value: "Earlier thought" } });
+    fireEvent.blur(field);
+    fireEvent.change(field, { target: { value: "Superseded thought" } });
+    fireEvent.blur(field);
+    fireEvent.change(field, { target: { value: "Newest thought" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(800);
+    });
+    vi.useRealTimers();
+    fireEvent.blur(field);
+    // B cannot complete before A: there is no second storage request yet.
+    expect(requests.map((request) => request.body)).toEqual([
+      "Earlier thought",
+    ]);
+    await act(async () => {
+      await requests[0].finish();
+    });
+    expect(requests.map((request) => request.body)).toEqual([
+      "Earlier thought",
+      "Newest thought",
+    ]);
+    expect(within(notes).queryByText("Saved")).toBeNull();
+    expect(field).toHaveValue("Newest thought");
+    await act(async () => {
+      await requests[1].finish();
+    });
+    expect(await within(notes).findByText("Saved")).toBeVisible();
+    expect((await base.getTripNotes("trip_kyoto")).body).toBe("Newest thought");
+    leaveNotes();
+    const reopened = within(await openFixtureNotes()).getByLabelText(
+      "Trip notes",
+    );
+    expect(reopened).toHaveValue("Newest thought");
+    expect(requests).toHaveLength(2);
+  });
+
+  it("persists a clear back to the original empty body after an in-flight save", async () => {
+    const { base, gateway, requests } = deferredNotes();
+    const notes = await openNotes(gateway);
+    const field = within(notes).getByLabelText("Trip notes");
+    fireEvent.change(field, { target: { value: "Intermediate thought" } });
+    fireEvent.blur(field);
+    fireEvent.change(field, { target: { value: "" } });
+    fireEvent.blur(field);
+    await act(async () => {
+      await requests[0].finish();
+    });
+    expect(requests.map((request) => request.body)).toEqual([
+      "Intermediate thought",
+      "",
+    ]);
+    expect(within(notes).queryByText("Saved")).toBeNull();
+    await act(async () => {
+      await requests[1].finish();
+    });
+    expect((await base.getTripNotes("trip_kyoto")).body).toBe("");
+    expect(await within(notes).findByText("Saved")).toBeVisible();
+    leaveNotes();
+    const reopened = within(await openFixtureNotes()).getByLabelText(
+      "Trip notes",
+    );
+    expect(reopened).toHaveValue("");
+  });
+
+  it("shares the pending writer across navigation/remount without duplicating blur or losing the next edit", async () => {
+    const { base, gateway, requests } = deferredNotes();
+    const notes = await openNotes(gateway);
+    const field = within(notes).getByLabelText("Trip notes");
+    fireEvent.change(field, { target: { value: "First draft" } });
+    fireEvent.blur(field);
+    leaveNotes();
+    expect(requests).toHaveLength(1);
+    const reopened = within(await openFixtureNotes()).getByLabelText(
+      "Trip notes",
+    );
+    expect(reopened).toHaveValue("First draft");
+    fireEvent.change(reopened, { target: { value: "Draft after returning" } });
+    leaveNotes(); // flushes before the debounce, while the first save is pending
+    expect(requests).toHaveLength(1);
+    await act(async () => {
+      await requests[0].finish();
+    });
+    expect(requests.map((request) => request.body)).toEqual([
+      "First draft",
+      "Draft after returning",
+    ]);
+    await act(async () => {
+      await requests[1].finish();
+    });
+    expect((await base.getTripNotes("trip_kyoto")).body).toBe(
+      "Draft after returning",
+    );
+  });
+
+  it("retains the latest failed draft for blur retry without an older success acknowledgement", async () => {
+    const { base, gateway, requests } = deferredNotes();
+    const notes = await openNotes(gateway);
+    const field = within(notes).getByLabelText("Trip notes");
+    fireEvent.change(field, { target: { value: "A" } });
+    fireEvent.blur(field);
+    fireEvent.change(field, { target: { value: "B" } });
+    fireEvent.blur(field);
+    await act(async () => {
+      await requests[0].finish();
+    });
+    await act(async () => {
+      requests[1].fail();
+    });
+    expect(await within(notes).findByRole("alert")).toBeVisible();
+    expect(within(notes).queryByText("Saved")).toBeNull();
+    expect(field).toHaveValue("B");
+    fireEvent.blur(field);
+    expect(requests).toHaveLength(3);
+    await act(async () => {
+      await requests[2].finish();
+    });
+    expect((await base.getTripNotes("trip_kyoto")).body).toBe("B");
+    expect(await within(notes).findByText("Saved")).toBeVisible();
+    expect(within(notes).queryByRole("alert")).toBeNull();
+  });
+
+  it("continues with the newest desire if an earlier write fails", async () => {
+    const { base, gateway, requests } = deferredNotes();
+    const notes = await openNotes(gateway);
+    const field = within(notes).getByLabelText("Trip notes");
+    fireEvent.change(field, { target: { value: "A" } });
+    fireEvent.blur(field);
+    fireEvent.change(field, { target: { value: "B" } });
+    fireEvent.blur(field);
+    expect(requests).toHaveLength(1);
+    await act(async () => {
+      requests[0].fail();
+    });
+    expect(requests).toHaveLength(2);
+    await act(async () => {
+      await requests[1].finish();
+    });
+    expect((await base.getTripNotes("trip_kyoto")).body).toBe("B");
+    expect(await within(notes).findByText("Saved")).toBeVisible();
+    expect(within(notes).queryByRole("alert")).toBeNull();
+  });
+
+  it("keeps writes and drafts isolated when navigating to another trip", async () => {
+    const { base, gateway, requests } = deferredNotes();
+    const other = await base.createTrip({
+      origin: "Paris",
+      destination: "Lyon",
+      startDate: "2027-04-01",
+      endDate: "2027-04-03",
+    });
+    const notes = await openNotes(gateway);
+    const field = within(notes).getByLabelText("Trip notes");
+    fireEvent.change(field, { target: { value: "Kyoto draft" } });
+    fireEvent.blur(field);
+    leaveNotes();
+    fireEvent.click(
+      await screen.findByRole("button", { name: `Open ${other.title}` }),
+    );
+    await screen.findByRole("heading", { name: other.title, level: 1 });
+    const otherNotes = await screen.findByRole("region", { name: "Notes" });
+    const otherField = await within(otherNotes).findByLabelText("Trip notes");
+    expect(otherField).toHaveValue("");
+    fireEvent.change(otherField, { target: { value: "Lyon draft" } });
+    fireEvent.blur(otherField);
+    expect(requests.map((request) => request.tripId)).toEqual([
+      "trip_kyoto",
+      other.id,
+    ]);
+    await act(async () => {
+      await requests[1].finish();
+      await requests[0].finish();
+    });
+    expect(otherField).toHaveValue("Lyon draft");
+    expect((await base.getTripNotes("trip_kyoto")).body).toBe("Kyoto draft");
+    expect((await base.getTripNotes(other.id)).body).toBe("Lyon draft");
+  });
+
+  it("retries a clear after a failed response even when the earlier write reached storage", async () => {
+    const { base, gateway, requests } = deferredNotes();
+    const notes = await openNotes(gateway);
+    const field = within(notes).getByLabelText("Trip notes");
+    fireEvent.change(field, { target: { value: "Unacknowledged write" } });
+    fireEvent.blur(field);
+    fireEvent.change(field, { target: { value: "" } });
+    fireEvent.blur(field);
+    await base.setTripNotes("trip_kyoto", "Unacknowledged write");
+    await act(async () => requests[0].fail());
+    expect(requests.map((request) => request.body)).toEqual([
+      "Unacknowledged write",
+      "",
+    ]);
+    await act(async () => {
+      await requests[1].finish();
+    });
+    expect((await base.getTripNotes("trip_kyoto")).body).toBe("");
+    expect(await within(notes).findByText("Saved")).toBeVisible();
+  });
+
+  it("retains a failed pending draft through navigation and retries it without an overlapping write", async () => {
+    const { base, gateway, requests } = deferredNotes();
+    const notes = await openNotes(gateway);
+    const field = within(notes).getByLabelText("Trip notes");
+    fireEvent.change(field, { target: { value: "Recoverable thought" } });
+    fireEvent.blur(field);
+    await act(async () => requests[0].fail());
+    expect(await within(notes).findByRole("alert")).toBeVisible();
+    leaveNotes();
+    expect(requests).toHaveLength(2);
+    const reopened = within(await openFixtureNotes()).getByLabelText(
+      "Trip notes",
+    );
+    expect(reopened).toHaveValue("Recoverable thought");
+    fireEvent.blur(reopened);
+    expect(requests).toHaveLength(2);
+    await act(async () => {
+      await requests[1].finish();
+    });
+    expect((await base.getTripNotes("trip_kyoto")).body).toBe(
+      "Recoverable thought",
+    );
+    expect(await screen.findByText("Saved")).toBeVisible();
   });
 });

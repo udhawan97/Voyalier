@@ -296,7 +296,9 @@ export function ImportDialog({
             ref={fileInputRef}
             type="file"
             accept=".eml,.html,.htm,.txt,text/plain,text/html,message/rfc822"
-            className="voy-sr-only"
+            hidden
+            tabIndex={-1}
+            aria-hidden="true"
             onChange={(event) => {
               const file = event.target.files?.[0];
               if (file) void loadFile(file);

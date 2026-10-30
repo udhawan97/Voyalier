@@ -1,5 +1,5 @@
-import { useEffect, useId, useRef, useState } from "react";
-import type { AppError } from "@voyalier/contracts";
+import { useEffect, useId, useMemo, useRef, useSyncExternalStore } from "react";
+import type { AppError, AppGateway } from "@voyalier/contracts";
 
 import { useGateway } from "../app/context";
 import { describeError } from "../app/format";
@@ -11,6 +11,84 @@ import { SectionTitle, Skeleton } from "../components/primitives";
 
 /** How long to wait after the last keystroke before saving. */
 const SAVE_DEBOUNCE_MS = 800;
+
+type NoteSnapshot = {
+  draft: string | null;
+  state: "idle" | "saving" | "saved";
+  error: AppError | null;
+};
+
+/** Pending writers outlive a panel so returning to a trip cannot race teardown. */
+const pendingWriters = new WeakMap<AppGateway, Map<string, NotesWriter>>();
+type NotesWriter = ReturnType<typeof createNotesWriter>;
+
+function createNotesWriter(gateway: AppGateway, tripId: string) {
+  let snapshot: NoteSnapshot = { draft: null, state: "idle", error: null };
+  let committed: string | undefined;
+  let initialized = false;
+  let inFlight = false;
+  const listeners = new Set<() => void>();
+  const publish = (next: NoteSnapshot) => {
+    snapshot = next;
+    for (const listener of listeners) listener();
+  };
+  const writer = {
+    getSnapshot: () => snapshot,
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    edit(next: string) {
+      pendingWriters.get(gateway)!.set(tripId, writer);
+      publish({ draft: next, state: "idle", error: null });
+    },
+    async flush(loadedBody = "") {
+      if (inFlight || snapshot.draft === null) return;
+      if (!initialized) {
+        committed = loadedBody;
+        initialized = true;
+      }
+      const next = snapshot.draft;
+      if (next === committed) {
+        pendingWriters.get(gateway)!.delete(tripId);
+        return;
+      }
+      inFlight = true;
+      publish({ ...snapshot, state: "saving", error: null });
+      try {
+        const stored = await gateway.setTripNotes(tripId, next);
+        committed = stored.body;
+        if (snapshot.draft === next) {
+          publish({ ...snapshot, state: "saved", error: null });
+          pendingWriters.get(gateway)!.delete(tripId);
+        }
+      } catch (caught) {
+        // A failed response cannot establish what reached storage. Retry the
+        // latest desire even if it equals the body loaded before this request.
+        committed = undefined;
+        if (snapshot.draft === next) {
+          publish({ ...snapshot, state: "idle", error: caught as AppError });
+        }
+      } finally {
+        inFlight = false;
+        // Coalesce everything typed during this request into one ordered write.
+        if (snapshot.draft !== next) void writer.flush();
+      }
+    },
+  };
+  return writer;
+}
+
+function notesWriter(gateway: AppGateway, tripId: string): NotesWriter {
+  let writers = pendingWriters.get(gateway);
+  if (!writers) {
+    writers = new Map();
+    pendingWriters.set(gateway, writers);
+  }
+  return writers.get(tripId) ?? createNotesWriter(gateway, tripId);
+}
 
 /**
  * Free-text notes for a trip.
@@ -37,87 +115,36 @@ export function TripNotes({ tripId }: { tripId: string }) {
     () => gateway.getTripNotes(tripId),
     useScopeKey(notesScope(tripId)),
   );
-  // The traveler's unsaved edit. `null` means "untouched", in which case the
-  // loaded notes are shown.
-  //
-  // This is derived rather than copied into state by an effect on purpose. A
-  // hydrating effect would capture "not typed yet" in its closure, so anyone who
-  // started typing before it ran would have their first words overwritten by the
-  // load landing a moment later. Deriving cannot race: once `draft` is set, it
-  // wins, whenever the load arrives.
-  const [draft, setDraft] = useState<string | null>(null);
-  const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
-  const [error, setError] = useState<string | null>(null);
+  const writer = useMemo(() => notesWriter(gateway, tripId), [gateway, tripId]);
+  const { draft, state, error } = useSyncExternalStore(
+    writer.subscribe,
+    writer.getSnapshot,
+  );
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // What is known to be stored, so an unchanged blur never saves. Null until a
-  // save succeeds, at which point it overrides whatever was loaded.
-  const savedBody = useRef<string | null>(null);
-
+  const loadedBody = useRef("");
+  useEffect(() => {
+    loadedBody.current = data?.body ?? "";
+  }, [data]);
   const body = draft ?? data?.body ?? "";
 
-  /**
-   * Flush a pending save on unmount, rather than cancelling it.
-   *
-   * Cancelling was safe while every way out of a trip went through a control:
-   * clicking one blurs the textarea first, and `onBlur` commits immediately.
-   * ADR-0015 removed that guarantee — a browser Back or a phone back-swipe
-   * unmounts this panel without ever blurring it, and it made that gesture
-   * ordinary navigation rather than a way out of the app. A note typed inside
-   * the debounce window would have gone with it, silently.
-   *
-   * The latest text is read from a ref because the cleanup is mount-scoped and
-   * would otherwise close over the first render's empty draft.
-   */
-  const pending = useRef<string | null>(null);
-  // `save` closes over `data`, so the mount-scoped cleanup below needs the
-  // current one rather than the one that existed at mount. Written in an effect,
-  // never during render — a ref assigned while rendering is not allowed to be.
-  const saveRef = useRef<((next: string) => Promise<void>) | null>(null);
-  useEffect(() => {
-    saveRef.current = save;
-  });
   useEffect(() => {
     return () => {
-      if (!timer.current) return;
-      clearTimeout(timer.current);
-      const unsaved = pending.current;
-      // Fire and forget: teardown cannot await, and the gateway call does not
-      // need this component to still exist in order to finish.
-      if (unsaved !== null) void saveRef.current?.(unsaved);
+      if (timer.current) clearTimeout(timer.current);
+      // Back can unmount without blur; the same writer continues across remount.
+      void writer.flush(loadedBody.current);
     };
-  }, []);
+  }, [writer]);
 
-  async function save(next: string) {
-    // Read the ref here, not during render: what is already stored is whatever a
-    // save last wrote, falling back to whatever loaded.
-    const committed = savedBody.current ?? data?.body ?? "";
-    if (next === committed) return;
-    setState("saving");
-    setError(null);
-    try {
-      const stored = await gateway.setTripNotes(tripId, next);
-      savedBody.current = stored.body;
-      setState("saved");
-    } catch (caught) {
-      const appError = caught as AppError;
-      setError(
-        appError.code === "validation/invalid_input"
-          ? t("notes.tooLong")
-          : describeError(appError).title || t("notes.error"),
-      );
-      setState("idle");
-    }
+  function flush() {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    void writer.flush(data?.body ?? "");
   }
 
   function change(next: string) {
-    setDraft(next);
-    setState("idle");
-    pending.current = next;
+    writer.edit(next);
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      pending.current = null;
-      void save(next);
-    }, SAVE_DEBOUNCE_MS);
+    timer.current = setTimeout(flush, SAVE_DEBOUNCE_MS);
   }
 
   return (
@@ -154,10 +181,7 @@ export function TripNotes({ tripId }: { tripId: string }) {
             onChange={(event) => change(event.target.value)}
             // Leaving the field commits immediately rather than waiting out the
             // debounce — closing the app a moment later must not lose the edit.
-            onBlur={() => {
-              if (timer.current) clearTimeout(timer.current);
-              void save(body);
-            }}
+            onBlur={flush}
           />
           <div className="voy-notes__foot">
             <p className="voy-notes__excluded">{t("notes.excluded")}</p>
@@ -171,7 +195,9 @@ export function TripNotes({ tripId }: { tripId: string }) {
           </div>
           {error ? (
             <p className="voy-notes__error" role="alert">
-              {error}
+              {error.code === "validation/invalid_input"
+                ? t("notes.tooLong")
+                : describeError(error).title || t("notes.error")}
             </p>
           ) : null}
         </>

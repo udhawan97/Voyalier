@@ -1,6 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { createMockGateway } from "@voyalier/contracts";
+import { createMockGateway, MAX_DOCUMENT_CHARS } from "@voyalier/contracts";
 import { describe, expect, it, vi } from "vitest";
+
+import { setLocalePreference } from "./app/locale";
+import { findA11yViolations } from "./test/helpers";
 
 import { GatewayContext } from "./app/context";
 import { ImportDialog } from "./views/ImportDialog";
@@ -252,5 +255,107 @@ describe("ImportDialog — the audited repairs", () => {
       screen.getByRole("button", { name: /Add a flight or stay by hand/ }),
     );
     expect(onAddByHand).toHaveBeenCalled();
+  });
+});
+
+describe("import file chooser accessibility and local behavior", () => {
+  afterEach(() => setLocalePreference("en"));
+
+  async function openChooser(locale: "en" | "es" = "en") {
+    setLocalePreference(locale);
+    render(
+      <GatewayContext.Provider value={createMockGateway()}>
+        <ImportDialog
+          tripId="trip_kyoto"
+          onClose={() => {}}
+          onImported={() => {}}
+          onReview={() => {}}
+          onAddByHand={() => {}}
+        />
+      </GatewayContext.Provider>,
+    );
+    const input =
+      document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const button = screen.getByRole("button", {
+      name: locale === "es" ? "Elegir archivo" : "Choose a file",
+    });
+    return { input, button };
+  }
+
+  it("has no invisible keyboard stop and passes axe with the import dialog open", async () => {
+    const { input } = await openChooser();
+    expect(input).toHaveAttribute("hidden");
+    expect(input).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("passes axe with the import dialog open", async () => {
+    await openChooser();
+    expect(await findA11yViolations()).toEqual([]);
+  });
+
+  it.each(["en", "es"] as const)(
+    "retains the localized visible chooser, cancel state and same-file reselection in %s",
+    async (locale) => {
+      const { input, button } = await openChooser(locale);
+      const activation = vi.spyOn(input, "click");
+      button.focus();
+      fireEvent.click(button); // native Enter/Space activation dispatches this click
+      expect(activation).toHaveBeenCalledOnce();
+      fireEvent.change(input, { target: { files: [] } }); // picker cancel
+      expect(button).toHaveFocus();
+      const content = screen.getByLabelText(
+        locale === "es" ? "Contenido" : "Content",
+      );
+      expect(content).toHaveValue("");
+      const file = new File(["Confirmation RESELECT1"], "booking.txt", {
+        type: "text/plain",
+      });
+      fireEvent.change(input, { target: { files: [file] } });
+      await waitFor(() =>
+        expect(content).toHaveValue("Confirmation RESELECT1"),
+      );
+      expect(input.value).toBe("");
+      fireEvent.change(content, { target: { value: "Edited pasted content" } });
+      fireEvent.change(input, { target: { files: [file] } });
+      await waitFor(() =>
+        expect(content).toHaveValue("Confirmation RESELECT1"),
+      );
+      expect(input.value).toBe("");
+    },
+  );
+
+  it("continues loading dropped files with inferred format and the local size bound", async () => {
+    await openChooser();
+    const dropzone = document.querySelector(".voy-dropzone")!;
+    fireEvent.drop(dropzone, {
+      dataTransfer: {
+        files: [
+          new File(["<html>Confirmation DROP1</html>"], "booking.html", {
+            type: "text/html",
+          }),
+        ],
+      },
+    });
+    await waitFor(() =>
+      expect(screen.getByLabelText("Content")).toHaveValue(
+        "<html>Confirmation DROP1</html>",
+      ),
+    );
+    expect(screen.getByRole("radio", { name: "HTML" })).toBeChecked();
+    fireEvent.drop(dropzone, {
+      dataTransfer: {
+        files: [
+          new File(["X".repeat(MAX_DOCUMENT_CHARS + 1)], "oversize.txt", {
+            type: "text/plain",
+          }),
+        ],
+      },
+    });
+    expect(
+      await screen.findByText(/file is over the 1,000,000 character limit/i),
+    ).toBeVisible();
+    expect(screen.getByLabelText("Content")).toHaveValue(
+      "<html>Confirmation DROP1</html>",
+    );
   });
 });

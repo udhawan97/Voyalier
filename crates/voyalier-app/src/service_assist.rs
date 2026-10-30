@@ -7,6 +7,40 @@
 
 use super::*;
 
+// Operation-wide IO budgets; core still bounds each individual prompt/reply.
+const MAX_DRAFT_DOCUMENT_CALLS: usize = 8;
+const MAX_DRAFT_OPERATION_INPUT_CHARS: usize = 12_000;
+const MAX_DRAFT_OPERATION_PROPOSALS: usize = 8;
+
+fn document_draft_previews(
+    trip: &Trip,
+    documents: &[DocumentText],
+    model: Option<&str>,
+    system_prompt: &str,
+) -> Result<Vec<(String, AssistRequestPreview)>, AppError> {
+    if documents.len() > MAX_DRAFT_DOCUMENT_CALLS {
+        return Err(AppError::new(
+            ErrorCode::ValidationInvalidInput,
+            "local drafting exceeds its supported eight-document budget; review or enter reservation dates manually",
+        ));
+    }
+    let mut total_chars = 0;
+    let mut previews = Vec::new();
+    for (id, label, text) in documents {
+        let preview =
+            build_draft_preview(trip, &[(label.clone(), text.clone())], model, system_prompt);
+        total_chars += preview.user_content.chars().count();
+        if total_chars > MAX_DRAFT_OPERATION_INPUT_CHARS {
+            return Err(AppError::new(
+                ErrorCode::ValidationInvalidInput,
+                "local drafting exceeds its supported text budget; review or enter reservation dates manually",
+            ));
+        }
+        previews.push((id.clone(), preview));
+    }
+    Ok(previews)
+}
+
 fn assist_approval_token(
     trip_id: &str,
     id: ProviderId,
@@ -234,124 +268,165 @@ impl AppService {
         Ok((trip, documents, model))
     }
 
-    /// Build the exact on-device request a lodging-dates draft would send — the
-    /// consent step. On-device (Ollama) only, so nothing leaves the device; it is
-    /// grounded in the trip's own imported text and dates. Previewing sends
-    /// nothing.
+    /// Preview the separate document inputs and total estimate for a lodging
+    /// draft. Each input is sent in its own on-device Ollama request, grounded
+    /// in that document and the trip dates. Previewing sends nothing.
     pub fn preview_assist_draft(
         &self,
         trip_id: &str,
         kind: &str,
     ) -> Result<AssistRequestPreview, AppError> {
         let (trip, documents, model) = self.draft_inputs(trip_id, kind)?;
-        let doc_pairs: Vec<(String, String)> = documents
-            .into_iter()
-            .map(|(_, label, text)| (label, text))
-            .collect();
-        let connection = self.connection()?;
-        let system_prompt = effective_ai_prompt(&connection, AiPromptKind::DraftLodgingDates)?;
-        Ok(build_draft_preview(
-            &trip,
-            &doc_pairs,
-            model.as_deref(),
-            &system_prompt,
-        ))
+        let system_prompt = {
+            let connection = self.connection()?;
+            effective_ai_prompt(&connection, AiPromptKind::DraftLodgingDates)?
+        };
+        let previews =
+            document_draft_previews(&trip, &documents, model.as_deref(), &system_prompt)?;
+        let mut preview = build_draft_preview(&trip, &[], model.as_deref(), &system_prompt);
+        if !previews.is_empty() {
+            preview.user_content = previews
+                .iter()
+                .map(|(_, request)| request.user_content.as_str())
+                .collect::<Vec<_>>()
+                .join("\n\n");
+            preview.estimated_tokens = previews
+                .iter()
+                .map(|(_, request)| request.estimated_tokens)
+                .sum();
+            preview.grounded_in = vec![
+                format!("{} imported documents", documents.len()),
+                format!(
+                    "{} separate on-device requests, one per document",
+                    documents.len()
+                ),
+                "trip dates".to_owned(),
+            ];
+        }
+        Ok(preview)
     }
 
-    /// Run a lodging-dates draft: send the previewed request to the on-device
-    /// model, strictly validate the reply, and turn each surviving proposal into
-    /// a *pending* candidate for review — never a confirmed fact. Ollama-only;
-    /// nothing leaves the device. With no imported documents there is nothing to
-    /// read, so it returns no candidates without calling the model.
+    /// Draft each document separately so model proposals retain that source's
+    /// identity. Validate all replies before atomically saving pending assisted
+    /// candidates; no proposal becomes a confirmed fact. Ollama-only, with no
+    /// call when the trip has no imported documents.
     pub fn run_assist_draft(
         &self,
         trip_id: &str,
         kind: &str,
     ) -> Result<AssistDraftResult, AppError> {
         let (trip, documents, model) = self.draft_inputs(trip_id, kind)?;
-        if documents.is_empty() {
-            return Ok(AssistDraftResult {
-                candidates: Vec::new(),
-            });
-        }
-        let document_id = documents[0].0.clone();
-        let doc_pairs: Vec<(String, String)> = documents
-            .iter()
-            .map(|(_, label, text)| (label.clone(), text.clone()))
-            .collect();
-        // Read the (possibly customized) instruction in a scoped lock so the
-        // storage guard is released before the network call and the later insert.
         let system_prompt = {
             let connection = self.connection()?;
             effective_ai_prompt(&connection, AiPromptKind::DraftLodgingDates)?
         };
-        // This separate on-device draft rebuilds its current document inputs.
-        // It is not the immutable itinerary-assist approval path (ADR-0029).
-        let preview = build_draft_preview(&trip, &doc_pairs, model.as_deref(), &system_prompt);
-        // On-device only: Ollama is keyless, so nothing leaves this machine.
-        let request = build_assist_request(
-            ProviderId::Ollama,
-            preview.model.as_deref(),
-            &preview.system_prompt,
-            &preview.user_content,
-            None,
-        )?;
-        let response =
-            self.fetcher
-                .post_json_bounded(request.url, &request.body, &[], MAX_AI_REPLY_BYTES)?;
-        let text = parse_assist_reply(ProviderId::Ollama, &response)?;
-        let proposals = parse_lodging_dates_reply(&text)?;
-        if proposals.is_empty() {
+        // Prepare every request and enforce cumulative bounds before any call.
+        // This local draft is outside immutable itinerary approval (ADR-0029).
+        let previews =
+            document_draft_previews(&trip, &documents, model.as_deref(), &system_prompt)?;
+        let mut drafts = Vec::new();
+        let mut total_proposals = 0;
+        for (document_id, preview) in previews {
+            let request = build_assist_request(
+                ProviderId::Ollama,
+                preview.model.as_deref(),
+                &preview.system_prompt,
+                &preview.user_content,
+                None,
+            )?;
+            let response = self.fetcher.post_json_bounded(
+                request.url,
+                &request.body,
+                &[],
+                MAX_AI_REPLY_BYTES,
+            )?;
+            let text = parse_assist_reply(ProviderId::Ollama, &response)?;
+            let proposals = parse_lodging_dates_reply(&text)?;
+            total_proposals += proposals.len();
+            if total_proposals > MAX_DRAFT_OPERATION_PROPOSALS {
+                return Err(AppError::new(
+                    ErrorCode::AssistFailed,
+                    "the on-device draft proposed too many stays; nothing was saved",
+                ));
+            }
+            if !proposals.is_empty() {
+                drafts.push((document_id, proposals));
+            }
+        }
+        if drafts.is_empty() {
             return Ok(AssistDraftResult {
                 candidates: Vec::new(),
             });
         }
 
-        let connection = self.connection()?;
-        let now = now_rfc3339();
-        // Record the draft as its own parser run so candidates satisfy the
-        // parser_runs foreign key and the run is traceable, like an import.
-        let parser_run_id = new_id("assist");
-        connection
-            .execute(
-                "INSERT INTO parser_runs (id, trip_id, document_id, parser_id, parser_version, created_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                params![
-                    parser_run_id,
-                    trip.id,
-                    document_id,
-                    "assist_draft_lodging_dates",
-                    "v1",
-                    now
-                ],
-            )
+        let mut connection = self.connection()?;
+        let transaction = connection
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(storage_error)?;
-        let mut candidates = Vec::new();
-        for proposal in proposals {
-            let warnings = draft_window_warnings(&trip, &proposal);
-            let candidate = CandidateFact {
-                id: new_id("cand"),
-                trip_id: trip.id.clone(),
-                document_id: document_id.clone(),
-                parser_run_id: parser_run_id.clone(),
-                fact_type: FactType::LodgingStay,
-                payload: FactPayload {
-                    property_name: proposal.property_name,
-                    checkin_date: proposal.checkin_date,
-                    checkout_date: proposal.checkout_date,
-                    ..FactPayload::default()
-                },
-                method: ExtractionMethod::Assisted,
-                field_spans: Vec::new(),
-                warnings,
-                status: CandidateStatus::Pending,
-                created_at: now.clone(),
-                resolved_at: None,
-                amends_fact_id: None,
-            };
-            self.records(&connection).insert_candidate(&candidate)?;
-            candidates.push(candidate);
+        // A source may be deleted while the model runs. Never resurrect its
+        // candidates or publish only part of this operation.
+        for (document_id, _) in &drafts {
+            let exists = transaction
+                .query_row(
+                    "SELECT 1 FROM source_documents WHERE id = ?1 AND trip_id = ?2",
+                    params![document_id, trip.id],
+                    |_| Ok(()),
+                )
+                .optional()
+                .map_err(storage_error)?
+                .is_some();
+            if !exists {
+                return Err(AppError::new(
+                    ErrorCode::DocumentNotFound,
+                    "a draft source was removed while the model ran; nothing was saved",
+                ));
+            }
         }
+        let now = now_rfc3339();
+        let mut candidates = Vec::new();
+        for (document_id, proposals) in drafts {
+            let parser_run_id = new_id("assist");
+            transaction
+                .execute(
+                    "INSERT INTO parser_runs (id, trip_id, document_id, parser_id, parser_version, created_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    params![
+                        parser_run_id,
+                        trip.id,
+                        document_id,
+                        "assist_draft_lodging_dates",
+                        "v1",
+                        now
+                    ],
+                )
+                .map_err(storage_error)?;
+            for proposal in proposals {
+                let warnings = draft_window_warnings(&trip, &proposal);
+                let candidate = CandidateFact {
+                    id: new_id("cand"),
+                    trip_id: trip.id.clone(),
+                    document_id: document_id.clone(),
+                    parser_run_id: parser_run_id.clone(),
+                    fact_type: FactType::LodgingStay,
+                    payload: FactPayload {
+                        property_name: proposal.property_name,
+                        checkin_date: proposal.checkin_date,
+                        checkout_date: proposal.checkout_date,
+                        ..FactPayload::default()
+                    },
+                    method: ExtractionMethod::Assisted,
+                    field_spans: Vec::new(),
+                    warnings,
+                    status: CandidateStatus::Pending,
+                    created_at: now.clone(),
+                    resolved_at: None,
+                    amends_fact_id: None,
+                };
+                self.records(&transaction).insert_candidate(&candidate)?;
+                candidates.push(candidate);
+            }
+        }
+        transaction.commit().map_err(storage_error)?;
         Ok(AssistDraftResult { candidates })
     }
 

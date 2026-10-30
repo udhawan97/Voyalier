@@ -15,6 +15,7 @@ pub(crate) struct WorkspaceLock {
     file: File,
     path: PathBuf,
     operation: Mutex<()>,
+    service_custody: bool,
 }
 
 type Registry = Mutex<HashMap<PathBuf, Weak<WorkspaceLock>>>;
@@ -22,6 +23,23 @@ static REGISTRY: OnceLock<Registry> = OnceLock::new();
 
 impl WorkspaceLock {
     pub(crate) fn acquire(database: &Path) -> Result<Arc<Self>, AppError> {
+        Self::acquire_mode(database, true, true)?.ok_or_else(in_use_error)
+    }
+
+    /// Maintenance never joins an active service. Dry-run may inspect an absent
+    /// surface without creating it; explicit apply needs stable OS custody.
+    pub(crate) fn acquire_for_prune(
+        database: &Path,
+        create_surface: bool,
+    ) -> Result<Option<Arc<Self>>, AppError> {
+        Self::acquire_mode(database, false, create_surface)
+    }
+
+    fn acquire_mode(
+        database: &Path,
+        share: bool,
+        create_surface: bool,
+    ) -> Result<Option<Arc<Self>>, AppError> {
         let path = database
             .canonicalize()
             .unwrap_or_else(|_| canonical_key_path(database));
@@ -31,6 +49,9 @@ impl WorkspaceLock {
             .map_err(storage_error)?;
         registry.retain(|_, value| value.strong_count() > 0);
         if let Some(guard) = registry.get(&path).and_then(Weak::upgrade) {
+            if !share || !guard.service_custody {
+                return Err(in_use_error());
+            }
             guard.validate_path()?;
             if canonical_key_path(database)
                 .with_file_name(PENDING_RESTORE_MARKER)
@@ -39,12 +60,31 @@ impl WorkspaceLock {
             {
                 return Err(in_use_error());
             }
-            return Ok(guard);
+            return Ok(Some(guard));
+        }
+        if !share {
+            prepare_prune_parent(&path, create_surface)?;
         }
         let name = path.file_name().ok_or_else(in_use_error)?.to_string_lossy();
         let lock_path = path.with_file_name(format!(".{name}.workspace-lock"));
+        match std::fs::symlink_metadata(&lock_path) {
+            Ok(metadata) if !metadata.file_type().is_file() => {
+                return Err(invalid_surface_error());
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                if !create_surface {
+                    return Ok(None);
+                }
+            }
+            Err(error) => return Err(storage_error(error)),
+            Ok(_) => {}
+        }
         let mut options = OpenOptions::new();
-        options.read(true).write(true).create(true).truncate(false);
+        options
+            .read(true)
+            .write(true)
+            .create(create_surface)
+            .truncate(false);
         #[cfg(unix)]
         {
             use std::os::unix::fs::OpenOptionsExt;
@@ -56,21 +96,17 @@ impl WorkspaceLock {
             use windows_sys::Win32::Storage::FileSystem::FILE_FLAG_OPEN_REPARSE_POINT;
             options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
         }
-        if let Ok(metadata) = std::fs::symlink_metadata(&lock_path) {
-            if !metadata.file_type().is_file() {
-                return Err(invalid_surface_error());
-            }
-        }
         let file = options.open(&lock_path).map_err(storage_error)?;
         lock_file(&file)?;
         let guard = Arc::new(Self {
             file,
             path: lock_path,
             operation: Mutex::new(()),
+            service_custody: share,
         });
         guard.validate_path()?;
         registry.insert(path, Arc::downgrade(&guard));
-        Ok(guard)
+        Ok(Some(guard))
     }
 
     pub(crate) fn operation(&self) -> Result<std::sync::MutexGuard<'_, ()>, AppError> {
@@ -108,6 +144,43 @@ impl WorkspaceLock {
         validate_windows_identity(&self.file, &self.path)?;
         Ok(())
     }
+}
+
+fn prepare_prune_parent(database: &Path, create_surface: bool) -> Result<(), AppError> {
+    let parent = database.parent().ok_or_else(invalid_surface_error)?;
+    // Registered paths are canonical. When a parent was deleted, find its
+    // surviving ancestor before recreating anything; a changed alias is unknown.
+    let mut ancestor = parent;
+    loop {
+        match std::fs::symlink_metadata(ancestor) {
+            Ok(metadata) => {
+                if !metadata.file_type().is_dir()
+                    || ancestor.canonicalize().map_err(storage_error)? != ancestor
+                {
+                    return Err(invalid_surface_error());
+                }
+                break;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                ancestor = ancestor.parent().ok_or_else(invalid_surface_error)?;
+            }
+            Err(error) => return Err(storage_error(error)),
+        }
+    }
+    if create_surface && ancestor != parent {
+        let mut builder = std::fs::DirBuilder::new();
+        builder.recursive(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            builder.mode(0o700);
+        }
+        builder.create(parent).map_err(storage_error)?;
+        if parent.canonicalize().map_err(storage_error)? != parent {
+            return Err(invalid_surface_error());
+        }
+    }
+    Ok(())
 }
 
 #[cfg(windows)]
@@ -216,6 +289,19 @@ mod tests {
     use super::*;
     use std::io::{BufRead as _, Write as _};
     use std::process::{Command, Stdio};
+
+    #[test]
+    fn maintenance_custody_cannot_be_joined_by_a_service() {
+        let database = crate::tests::temp_database("lock-maintenance");
+        let maintenance = WorkspaceLock::acquire_for_prune(&database, true)
+            .unwrap()
+            .unwrap();
+        assert!(WorkspaceLock::acquire(&database).is_err());
+        drop(maintenance);
+        let service = WorkspaceLock::acquire(&database).unwrap();
+        drop(service);
+        crate::tests::cleanup_database(database);
+    }
 
     #[test]
     #[cfg(unix)]

@@ -1,0 +1,32 @@
+# Selected Dev Review remediation — October 29, 2026
+
+Run `20261029T182751Z-5d3c3692`, audited source `010ad2871c5aebfd63eaa908831dce0bcb064612`.
+
+## Authority and preservation
+
+The owner selected Fix candidates001–007 and the bounded Research008 experiment. Follow the existing report acceptance without weakening it. Research authorizes evidence gathering only; a new product change requires reclassification and selection. Preserve the primary checkout's unrelated planning edit, existing worktrees, installed app, credentials and user data. This plan-only local commit is required by AGENTS.md; code fixes remain uncommitted for review. No push/merge/release/deploy or current-advisory external egress is authorized.
+
+## Work slices and ownership
+
+Exactly three specialists, each in its own checkout/runtime. Senior integrates only reviewed patches. Product/UX owns001,005,006,007; Architecture/correctness owns002,004; Production/adversarial owns003 and Research008. Product and architecture may work in parallel. Shared Rust tests/ADRs are serialized: production003 starts from architecture's accepted patch. Every slice gets worker→senior→distinct peer→senior receipts bound to the final accepted candidate, with at most two correction loops. Peer: architecture reviews UI and003; production reviews002/004.
+
+- **001 notes:** serialize/coalesce saves per trip; preserve desired clears during in-flight saves. Own TripNotes.tsx, tripNotes.test.tsx and a small existing-seam helper only if needed. Prove one-in-flight clear, reverse completion/storage order, debounce/blur, failures/retry, teardown/remount and trip isolation. UI acknowledgements must reflect durable latest state. No transport/storage contract change.
+- **005 planning drafts:** own PlanningPanel.tsx and planningWorkflows.test.tsx. Preserve newer form generations while refreshing completed saves; cover activity and packing, edit/cancel/navigation, success/failure, focus and intentional unchanged reset.
+- **006 review queue:** own CandidateReviewDialog.tsx, review.keyboard.test.tsx or feature regression test. Current-state removal must survive two independent completions; focus must follow resulting filtered queue. Verify confirm/reject mixtures and errors, including corrected two-candidate fixture.
+- **007 import:** own ImportDialog.tsx, importDialog.test.tsx, existing i18n only if necessary. Eliminate unnamed invisible keyboard stop without breaking chooser activation/cancel, drag/drop, same-file reselection or Spanish labels. Add dialog-state axe check; target keyboard acceptance remains separate.
+- **002 export integrity:** own service_backup.rs, relevant lib helper only if required, inline app tests; amend ADR-0026 first. Refuse unreadable sealed snapshots before successful portable export, preserving valid plaintext/keyless and protected-unlocked backups. Preserve original credentials and exact note/files after key-store recovery. No backup format/migration change.
+- **004 draft lineage:** own service_assist.rs, core assist_draft.rs only if necessary, inline app tests; new ADR before changing draft dispatch/provenance behavior. Prefer bounded document-scoped runs with identity retained through parser run/candidate, atomic persistence and safe deletion lifetime. Preserve local-only request, pending assisted status, no automatic approval, malformed/no-document handling, cumulative work bounds and existing public contract.
+- **003 prune:** queued after002/004. Own prune helper in lib.rs, backup_recovery.rs, workspace_lock.rs if needed, inline app tests; amend ADR-0030. Pending/ambiguous generations and active custody survive both dry-run/apply. Distinguish definite absence from IO errors, keep genuine departed-workspace cleanup and default/unrelated-account protections. Prove real rename_old crash → prune → recovered note/provider; use shipped fakes only. Do not remove recovery evidence or guess orphan accounts.
+- **Research008:** trace actual Axum/Tauri AppService construction, state lifetime and key-store availability. One bounded fake-only construction experiment. Record whether independent inactive/active services are reachable in a supported shipped journey or only embedding/tests. Do not implement a shared-vault rewrite or silently count Research as fixed.
+
+## Containment and checks
+
+Inspect executed scripts/config; sanitized environment with no unrelated credentials; task config/cache/data/target; sandbox external-network denial, disposable loopback allowed. Never repurpose HOME. Shipped FakeFetcher and MemorySecretStore only. Workers run focused behavioral checks, self-review and return patch/digest/log summaries. Senior inspects actual diffs, obtains distinct peer acceptance, then runs scripts/check.sh web|rust|desktop|integration and git diff --check on the final integrated candidate. Credential-shape scan and locked metadata remain required. Current advisory feeds, hosted checks, native keychain/pickers/assistive tech/actual200% and signed/installed macOS/Windows acceptance remain explicitly unverified until safely authorized/available.
+
+Baseline full browser integration24/26: PDF IO.read also failed minimal non-product control; isolated WebKit date recheck passed but original timeout is unexplained. Diagnose the PDF tooling limitation within containment; no skipped/relaxed assertion or egress bypass. Re-run full integration after all source fixes; preserve any failing required gate. Actual Safari unavailable in audit; try Safari plugin first when target-browser work is needed and state fallback.
+
+Refresh existing Graphify in the isolated candidate and verify scoped queries after code changes, before optimized release-profile gate. Update failure blocks merge-ready claims. Graph output is navigation, corroborated in source.
+
+## Completion and rollback
+
+Inspect full diff for scope, contract/storage/compatibility, generated drift, secrets, debug code and accessibility. Re-run original reproductions and neighboring journeys. Preserve frozen score baseline; only evidence-backed reassessment changes current ratings. Update matrix, release plan and offline report with exact before/after and Unknowns. Fresh two-round/four-reviewer council on final candidate and exact report is mandatory before sharing. Missing required hosted/native/release gates keep integration/release qualification bounded. Revert only an introduced regression within selected scope; stop after two failed correction loops or a necessary unselected product change. Do not publish.
