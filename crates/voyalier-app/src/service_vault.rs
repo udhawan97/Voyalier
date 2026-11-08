@@ -66,6 +66,7 @@ impl AppService {
             self.vault.set_state(VaultState {
                 key: None,
                 protected: true,
+                verified_wrap: None,
                 escaped_plaintext: state.escaped_plaintext,
             });
             return Err(error);
@@ -73,6 +74,7 @@ impl AppService {
         self.vault.set_state(VaultState {
             key: Some(data_key),
             protected: true,
+            verified_wrap: Some(wrap.fingerprint()),
             escaped_plaintext: state.escaped_plaintext,
         });
         Ok(self.vault.status())
@@ -90,11 +92,12 @@ impl AppService {
         if self.vault.snapshot().key.is_some() {
             return Ok(self.vault.status());
         }
-        let data_key = self.unwrap_data_key(passphrase)?;
+        let (data_key, wrap) = self.unwrap_data_key(passphrase)?;
         let escaped_plaintext = self.vault.snapshot().escaped_plaintext;
         self.vault.set_state(VaultState {
             key: Some(data_key),
             protected: true,
+            verified_wrap: Some(wrap.fingerprint()),
             escaped_plaintext,
         });
         // Now active: seal any plaintext rows that could not be migrated while
@@ -110,6 +113,7 @@ impl AppService {
                 self.vault.set_state(VaultState {
                     key: None,
                     protected: true,
+                    verified_wrap: None,
                     escaped_plaintext,
                 });
                 return Err(error);
@@ -134,7 +138,7 @@ impl AppService {
             &*self.connection()?,
             self.secrets.as_ref(),
         )?;
-        let data_key = self.unwrap_data_key(passphrase)?;
+        let (data_key, wrap) = self.unwrap_data_key(passphrase)?;
         let escaped_plaintext = self.vault.snapshot().escaped_plaintext;
         let previous_key = self.secrets.get(&self.vault_account)?;
         // Direct removal is an activation too. Keep the passphrase wrap and
@@ -142,6 +146,7 @@ impl AppService {
         self.vault.set_state(VaultState {
             key: Some(data_key),
             protected: true,
+            verified_wrap: Some(wrap.fingerprint()),
             escaped_plaintext,
         });
         let removed = (|| {
@@ -176,6 +181,7 @@ impl AppService {
             self.vault.set_state(VaultState {
                 key: None,
                 protected: true,
+                verified_wrap: None,
                 escaped_plaintext,
             });
             return Err(error);
@@ -183,6 +189,7 @@ impl AppService {
         self.vault.set_state(VaultState {
             key: Some(data_key),
             protected: false,
+            verified_wrap: None,
             escaped_plaintext,
         });
         Ok(self.vault.status())
@@ -190,7 +197,10 @@ impl AppService {
 
     /// Recover the data key from the passphrase-wrapped record, verifying the
     /// passphrase in the process. Errors if no passphrase is set or it is wrong.
-    fn unwrap_data_key(&self, passphrase: &str) -> Result<[u8; VAULT_KEY_LEN], AppError> {
+    fn unwrap_data_key(
+        &self,
+        passphrase: &str,
+    ) -> Result<([u8; VAULT_KEY_LEN], VaultWrap), AppError> {
         let connection = self.connection()?;
         let wrap = read_vault_wrap(&connection)?.ok_or_else(|| {
             AppError::new(
@@ -200,11 +210,12 @@ impl AppService {
         })?;
         let kek = vault_derive_key(passphrase, &wrap.salt)?;
         let opened = vault_open(&kek, &wrap.wrapped_key).map_err(|_| wrong_passphrase_error())?;
-        <[u8; VAULT_KEY_LEN]>::try_from(opened.as_slice()).map_err(|_| {
+        let key = <[u8; VAULT_KEY_LEN]>::try_from(opened.as_slice()).map_err(|_| {
             AppError::new(
                 ErrorCode::StorageFailure,
                 "the stored key was the wrong size",
             )
-        })
+        })?;
+        Ok((key, wrap))
     }
 }

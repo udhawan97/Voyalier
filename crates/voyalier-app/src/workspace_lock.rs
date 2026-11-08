@@ -67,6 +67,31 @@ impl WorkspaceLock {
         }
         let name = path.file_name().ok_or_else(in_use_error)?.to_string_lossy();
         let lock_path = path.with_file_name(format!(".{name}.workspace-lock"));
+        let Some(surface) = Self::open_surface(lock_path, create_surface, share, false)? else {
+            return Ok(None);
+        };
+        let guard = Arc::new(surface);
+        registry.insert(path, Arc::downgrade(&guard));
+        Ok(Some(guard))
+    }
+
+    /// The shared inventory has one short, blocking read/modify/write section.
+    /// Callers already holding a workspace guard acquire this lock last.
+    pub(crate) fn acquire_inventory(registry: &Path) -> Result<Self, AppError> {
+        let name = registry
+            .file_name()
+            .and_then(|s| s.to_str())
+            .ok_or_else(invalid_surface_error)?;
+        let path = registry.with_file_name(format!(".{name}.inventory-lock"));
+        Self::open_surface(path, true, false, true)?.ok_or_else(invalid_surface_error)
+    }
+
+    fn open_surface(
+        lock_path: PathBuf,
+        create_surface: bool,
+        service_custody: bool,
+        wait: bool,
+    ) -> Result<Option<Self>, AppError> {
         match std::fs::symlink_metadata(&lock_path) {
             Ok(metadata) if !metadata.file_type().is_file() => {
                 return Err(invalid_surface_error());
@@ -97,15 +122,14 @@ impl WorkspaceLock {
             options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
         }
         let file = options.open(&lock_path).map_err(storage_error)?;
-        lock_file(&file)?;
-        let guard = Arc::new(Self {
+        lock_file(&file, wait)?;
+        let guard = Self {
             file,
             path: lock_path,
             operation: Mutex::new(()),
-            service_custody: share,
-        });
+            service_custody,
+        };
         guard.validate_path()?;
-        registry.insert(path, Arc::downgrade(&guard));
         Ok(Some(guard))
     }
 
@@ -236,24 +260,33 @@ fn in_use_error() -> AppError {
 }
 
 #[cfg(unix)]
-fn lock_file(file: &File) -> Result<(), AppError> {
+fn lock_file(file: &File, wait: bool) -> Result<(), AppError> {
     use std::os::fd::AsRawFd;
     // SAFETY: the descriptor is owned by the returned guard; flock neither
     // takes ownership nor accesses Rust memory. Closing it releases the lock.
-    if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0 {
-        Ok(())
+    let flags = if wait {
+        libc::LOCK_EX
     } else {
-        let error = std::io::Error::last_os_error();
-        if error.kind() == std::io::ErrorKind::WouldBlock {
-            Err(in_use_error())
-        } else {
-            Err(storage_error(error))
+        libc::LOCK_EX | libc::LOCK_NB
+    };
+    loop {
+        if unsafe { libc::flock(file.as_raw_fd(), flags) } == 0 {
+            return Ok(());
         }
+        let error = std::io::Error::last_os_error();
+        if error.kind() == std::io::ErrorKind::Interrupted {
+            continue;
+        }
+        return Err(if error.kind() == std::io::ErrorKind::WouldBlock {
+            in_use_error()
+        } else {
+            storage_error(error)
+        });
     }
 }
 
 #[cfg(windows)]
-fn lock_file(file: &File) -> Result<(), AppError> {
+fn lock_file(file: &File, wait: bool) -> Result<(), AppError> {
     use std::os::windows::io::AsRawHandle;
     use windows_sys::Win32::{
         Storage::FileSystem::{LOCKFILE_EXCLUSIVE_LOCK, LOCKFILE_FAIL_IMMEDIATELY, LockFileEx},
@@ -265,7 +298,7 @@ fn lock_file(file: &File) -> Result<(), AppError> {
     if unsafe {
         LockFileEx(
             file.as_raw_handle(),
-            LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY,
+            LOCKFILE_EXCLUSIVE_LOCK | if wait { 0 } else { LOCKFILE_FAIL_IMMEDIATELY },
             0,
             1,
             0,

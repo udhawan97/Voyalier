@@ -1014,6 +1014,8 @@ struct VaultState {
     /// True when a passphrase wraps the key. With `protected` set and no `key`,
     /// the vault is **locked**: sealed fields cannot be read or written.
     protected: bool,
+    /// Fingerprint of the wrap that supplied or sealed the active key this session.
+    verified_wrap: Option<[u8; 32]>,
     /// Whether `p1:` is the explicit escaped-plaintext envelope. Before the
     /// append-only cutover commits, historical `p1:` remains ordinary text.
     escaped_plaintext: bool,
@@ -1061,6 +1063,7 @@ impl Vault {
             return Ok(Self::new(VaultState {
                 key: None,
                 protected: true,
+                verified_wrap: None,
                 escaped_plaintext: vault_storage_format_is_current(connection)?,
             }));
         }
@@ -1069,6 +1072,7 @@ impl Vault {
             Ok(Some(encoded)) => VaultState {
                 key: decode_key(&encoded),
                 protected: false,
+                verified_wrap: None,
                 escaped_plaintext,
             },
             Ok(None) => {
@@ -1079,6 +1083,7 @@ impl Vault {
                     VaultState {
                         key: Some(key),
                         protected: false,
+                        verified_wrap: None,
                         escaped_plaintext,
                     }
                 } else {
@@ -1170,6 +1175,16 @@ fn validate_passphrase(passphrase: &str) -> Result<(), AppError> {
 struct VaultWrap {
     salt: Vec<u8>,
     wrapped_key: Vec<u8>,
+}
+
+impl VaultWrap {
+    fn fingerprint(&self) -> [u8; 32] {
+        Sha256::new()
+            .chain_update(&self.salt)
+            .chain_update(&self.wrapped_key)
+            .finalize()
+            .into()
+    }
 }
 
 /// Read the single `vault_meta` row, decoding its base64 columns. `None` when no
@@ -1418,6 +1433,14 @@ fn backup_before_vault_format_migration(
 /// SQLite owns the read view, so sibling service writes cannot tear a raw
 /// filesystem copy. VACUUM INTO is available in our bundled SQLite already.
 fn consistent_sqlite_snapshot(connection: &Connection, destination: &Path) -> Result<(), AppError> {
+    checked_sqlite_snapshot(connection, destination, |_| Ok(()))
+}
+
+fn checked_sqlite_snapshot(
+    connection: &Connection,
+    destination: &Path,
+    before_publish: impl FnOnce(&Path) -> Result<(), AppError>,
+) -> Result<(), AppError> {
     let parent = destination.parent().ok_or_else(|| {
         AppError::new(
             ErrorCode::StorageFailure,
@@ -1443,6 +1466,7 @@ fn consistent_sqlite_snapshot(connection: &Connection, destination: &Path) -> Re
             .open(&temporary)
             .and_then(|f| f.sync_all())
             .map_err(storage_error)?;
+        before_publish(&temporary)?;
         replace_file(&temporary, destination).map_err(storage_error)?;
         sync_directory(parent)
     })();
@@ -2280,6 +2304,7 @@ fn prepare_restore_candidate(
     let vault = Vault::new(VaultState {
         key: data_key,
         protected: false,
+        verified_wrap: None,
         escaped_plaintext: vault_storage_format_is_current(&connection)?,
     });
     migrate_encrypt_sensitive_columns_with_backup(&connection, &vault, path, None)?;
@@ -2818,6 +2843,7 @@ fn apply_pending_restore(
         let vault = Vault::new(VaultState {
             key: pending_key.as_deref().and_then(decode_key),
             protected: false,
+            verified_wrap: None,
             escaped_plaintext: vault_storage_format_is_current(&connection)
                 .map_err(|error| restore_step_error("reading the activated vault format", error))?,
         });
@@ -5012,26 +5038,55 @@ fn vault_account_registry_path() -> Result<PathBuf, AppError> {
 
 const VAULT_REGISTRY_FILE: &str = "vault-accounts.json";
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct VaultAccountRecord {
     account: String,
     database: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct VaultAccountRegistry {
-    #[serde(default)]
     accounts: Vec<VaultAccountRecord>,
 }
 
-fn read_vault_registry(path: &Path) -> VaultAccountRegistry {
-    // Registration is best-effort. Destructive prune reads it strictly instead.
-    fs::read_to_string(path)
-        .ok()
-        .and_then(|raw| serde_json::from_str(&raw).ok())
-        .unwrap_or_default()
+fn read_vault_registry(path: &Path) -> Result<VaultAccountRegistry, AppError> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_file() => {}
+        Ok(_) => {
+            return Err(AppError::new(
+                ErrorCode::StorageFailure,
+                "the vault registry is not a regular file; evidence was preserved",
+            ));
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(VaultAccountRegistry::default());
+        }
+        Err(error) => return Err(storage_error(error)),
+    }
+    serde_json::from_slice(&fs::read(path).map_err(storage_error)?).map_err(|_| {
+        AppError::new(
+            ErrorCode::StorageFailure,
+            "the vault registry is corrupt; evidence was preserved",
+        )
+    })
+}
+
+fn update_vault_registry(
+    path: &Path,
+    update: impl FnOnce(&mut Vec<VaultAccountRecord>) -> bool,
+) -> Result<(), AppError> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(storage_error)?;
+    }
+    let _lock = workspace_lock::WorkspaceLock::acquire_inventory(path)?;
+    let mut registry = read_vault_registry(path)?;
+    if update(&mut registry.accounts) {
+        let bytes = serde_json::to_vec_pretty(&registry).map_err(storage_error)?;
+        atomic_write_file(path, &bytes)?;
+    }
+    Ok(())
 }
 
 /// Record that `account` belongs to `database_path`, if it is not already known.
@@ -5045,27 +5100,19 @@ pub(crate) fn register_vault_account(registry_path: &Path, database_path: &Path,
     if account == VAULT_KEY_ACCOUNT {
         return;
     }
-    let mut registry = read_vault_registry(registry_path);
-    let database = canonical_key_path(database_path)
-        .to_string_lossy()
-        .into_owned();
-    if registry
-        .accounts
-        .iter()
-        .any(|record| record.account == account && record.database == database)
-    {
-        return;
-    }
-    registry.accounts.push(VaultAccountRecord {
+    let record = VaultAccountRecord {
         account: account.to_owned(),
-        database,
+        database: canonical_key_path(database_path)
+            .to_string_lossy()
+            .into_owned(),
+    };
+    let _ = update_vault_registry(registry_path, |accounts| {
+        if accounts.contains(&record) {
+            return false;
+        }
+        accounts.push(record);
+        true
     });
-    if let Some(parent) = registry_path.parent() {
-        let _ = fs::create_dir_all(parent);
-    }
-    if let Ok(encoded) = serde_json::to_string_pretty(&registry) {
-        let _ = fs::write(registry_path, encoded);
-    }
 }
 
 /// Whether [`prune_vault_accounts`] reports or also removes.
@@ -5106,30 +5153,9 @@ pub fn prune_vault_accounts(
     registry_path: &Path,
     mode: PruneMode,
 ) -> Result<VaultPruneReport, AppError> {
-    let registry_metadata = match fs::symlink_metadata(registry_path) {
-        Ok(metadata) => metadata,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(VaultPruneReport::default());
-        }
-        Err(error) => return Err(storage_error(error)),
-    };
-    if !registry_metadata.file_type().is_file() {
-        return Err(AppError::new(
-            ErrorCode::StorageFailure,
-            "the vault registry is not a regular file; evidence was preserved",
-        ));
-    }
-    let registry: VaultAccountRegistry = serde_json::from_str(
-        &fs::read_to_string(registry_path).map_err(storage_error)?,
-    )
-    .map_err(|_| {
-        AppError::new(
-            ErrorCode::StorageFailure,
-            "the vault registry is corrupt; evidence was preserved",
-        )
-    })?;
+    let registry = read_vault_registry(registry_path)?;
     let mut report = VaultPruneReport::default();
-    let mut survivors: Vec<VaultAccountRecord> = Vec::new();
+    let mut retired = std::collections::HashSet::new();
     let mut removed_custodies = Vec::new();
 
     for record in registry.accounts {
@@ -5146,7 +5172,6 @@ pub fn prune_vault_accounts(
             || record.account != vault_key_account(&database)
         {
             // Only an exact workspace/account binding authorizes deletion.
-            survivors.push(record);
             continue;
         }
         let mut accounts = vec![
@@ -5202,15 +5227,13 @@ pub fn prune_vault_accounts(
         };
         if keep {
             report.kept.push(workspace);
-            survivors.push(record);
             continue;
         }
         if mode == PruneMode::Delete {
             for account in &workspace.accounts {
                 secrets.delete(account)?;
             }
-        } else {
-            survivors.push(record);
+            retired.insert(record);
         }
         report.removed.push(workspace);
         drop(_operation);
@@ -5220,15 +5243,14 @@ pub fn prune_vault_accounts(
         }
     }
 
-    if mode == PruneMode::Delete {
-        let encoded = serde_json::to_string_pretty(&VaultAccountRegistry {
-            accounts: survivors,
-        })
-        .map_err(|error| AppError::new(ErrorCode::StorageFailure, error.to_string()))?;
-        if let Some(parent) = registry_path.parent() {
-            let _ = fs::create_dir_all(parent);
-        }
-        fs::write(registry_path, encoded).map_err(storage_error)?;
+    if !retired.is_empty() {
+        // Re-read while holding the inventory lock, with each removed workspace
+        // still in custody. Registrations since the initial scan must survive.
+        update_vault_registry(registry_path, |accounts| {
+            let before = accounts.len();
+            accounts.retain(|record| !retired.contains(record));
+            accounts.len() != before
+        })?;
     }
     Ok(report)
 }

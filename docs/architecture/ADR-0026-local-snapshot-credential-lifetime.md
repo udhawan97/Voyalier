@@ -89,3 +89,22 @@ Verify unavailable and corrupt synthetic credentials refuse export, then restore
 the original credential and recover exact notes and attachment bytes. Exercise
 wrong-key and damaged-row authentication, plaintext/keyless and protected-unlocked
 exports, inspect/stage, and temporary-snapshot cleanup with the shipped fakes.
+
+## Amendment — verify the pre-update safety copy before installation (2026-11-08)
+
+A requested update must reserve space in the retention policy before publishing
+a safety copy. Select older copies eligible for rotation under workspace custody,
+keep every historical copy until the candidate is readable, and always retain
+the new copy on success. An unavailable historical copy that would be rotated
+blocks the attempt before publication. Retrying that refusal must leave file
+counts, contents and recovery bindings stable across restart. Discovery accepts
+up to the existing 32-entry index limit so workspaces with 17 copies left by an
+older build can reopen and use explicit Clear backups. New pre-update copies
+use the lower admission bound while recovery history awaits inspection.
+
+Authenticate every sealed column in the completed pre-update snapshot using
+its intended data key, or verify that all rows are readable without a key.
+A protected workspace must be unlocked for this check and retains its embedded
+passphrase wrap. Refuse a new unreadable copy before binding or rotating it and
+show a local recovery instruction before download or installation. Historical
+copies with missing credentials retain their existing diagnosis and clear paths.

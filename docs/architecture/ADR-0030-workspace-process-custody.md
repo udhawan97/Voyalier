@@ -97,3 +97,17 @@ same/other-process custody, missing-parent and true-orphan cleanup, dry-run
 filesystem preservation, corrupt/unknown recovery evidence, metadata failures,
 unsafe links, account binding and default-account protection with shipped fakes.
 No real keychain or physical power-loss acceptance is claimed.
+
+## Amendment — serialize the global credential inventory (2026-11-08)
+
+Each inventory mutation takes an exclusive OS lock on a stable sibling of the
+registry, rereads its current regular file and atomically replaces the complete
+JSON. Registration is best effort on workspace open. Only a definite absence
+starts an empty inventory. Malformed, unreadable and unsupported inventories
+remain available for diagnosis.
+
+Prune classifies an atomic read snapshot under existing per-workspace custody.
+It holds custody of removed workspaces while retiring their exact rows from the
+latest inventory. Registrations for other workspaces survive. Writers take the
+inventory lock last and never acquire workspace custody while holding it.
+Dry-run reads the inventory without creating a lock file or writing metadata.

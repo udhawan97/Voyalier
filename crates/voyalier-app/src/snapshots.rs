@@ -4,10 +4,10 @@
 //! rules, and SQL representation. This module owns the one policy they share:
 //! which validated trip edits make a stored result describe the wrong journey.
 
-use rusqlite::{Transaction, params};
-use voyalier_core::{AppError, Trip, ValidatedTripInput};
+use rusqlite::{Connection, Transaction, TransactionBehavior, params};
+use voyalier_core::{AppError, ErrorCode, Trip, ValidatedTripInput};
 
-use crate::storage_error;
+use crate::{AppService, storage_error};
 
 /// What a trip edit changed. Every retrieved snapshot is stale because of one
 /// of these, so this is the whole vocabulary staleness is expressed in.
@@ -19,11 +19,11 @@ struct TripEdit {
 }
 
 impl TripEdit {
-    fn between(current: &Trip, updated: &ValidatedTripInput) -> Self {
+    fn between(current: &Trip, destination: &str, origin: &str, start: &str, end: &str) -> Self {
         Self {
-            destination: current.destination != updated.destination,
-            origin: current.origin != updated.origin,
-            dates: current.start_date != updated.start_date || current.end_date != updated.end_date,
+            destination: current.destination != destination,
+            origin: current.origin != origin,
+            dates: current.start_date != start || current.end_date != end,
         }
     }
 }
@@ -58,19 +58,67 @@ impl StaleWhen {
 /// A source states its staleness beside every other source. The schema test
 /// below makes a missing declaration fail instead of leaving an old place on a
 /// trip after an edit.
-const SNAPSHOT_TABLES: &[(&str, StaleWhen)] = &[
-    ("weather_snapshots", StaleWhen::DestinationOrDates),
-    // Holidays are scoped to the destination country and travel window.
-    ("public_holidays_snapshots", StaleWhen::DestinationOrDates),
-    // Advice is about a destination; every stored government card goes stale.
-    ("advisory_snapshots", StaleWhen::Destination),
-    ("advisory_panels", StaleWhen::Destination),
-    ("place_summaries", StaleWhen::Destination),
-    // Facts describe the destination and compare its clock with the origin.
-    (
-        "destination_facts_snapshots",
-        StaleWhen::DestinationOrOrigin,
-    ),
+pub(crate) struct SnapshotTable {
+    name: &'static str,
+    stale_when: StaleWhen,
+}
+
+impl SnapshotTable {
+    const fn new(name: &'static str, stale_when: StaleWhen) -> Self {
+        Self { name, stale_when }
+    }
+
+    /// Check the context under the same SQLite write transaction that publishes
+    /// the snapshot. A delayed response cannot resurrect an invalidated row.
+    pub(crate) fn publication<'a>(
+        &self,
+        service: &AppService,
+        connection: &'a mut Connection,
+        requested: &Trip,
+    ) -> Result<Transaction<'a>, AppError> {
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(storage_error)?;
+        let current = service.records(&transaction).trip(&requested.id)?;
+        let changed = TripEdit::between(
+            requested,
+            &current.destination,
+            &current.origin,
+            &current.start_date,
+            &current.end_date,
+        );
+        if self.stale_when.triggered_by(changed) {
+            return Err(AppError::with_detail(
+                ErrorCode::ValidationInvalidInput,
+                "The trip changed during the refresh. Refresh again for the current trip.",
+                "reason",
+                "snapshot_context_changed",
+            ));
+        }
+        Ok(transaction)
+    }
+}
+
+pub(crate) const WEATHER: SnapshotTable =
+    SnapshotTable::new("weather_snapshots", StaleWhen::DestinationOrDates);
+pub(crate) const HOLIDAYS: SnapshotTable =
+    SnapshotTable::new("public_holidays_snapshots", StaleWhen::DestinationOrDates);
+pub(crate) const ADVICE: SnapshotTable =
+    SnapshotTable::new("advisory_panels", StaleWhen::Destination);
+pub(crate) const SUMMARY: SnapshotTable =
+    SnapshotTable::new("place_summaries", StaleWhen::Destination);
+pub(crate) const FACTS: SnapshotTable = SnapshotTable::new(
+    "destination_facts_snapshots",
+    StaleWhen::DestinationOrOrigin,
+);
+
+const SNAPSHOT_TABLES: &[SnapshotTable] = &[
+    WEATHER,
+    HOLIDAYS,
+    ADVICE,
+    SnapshotTable::new("advisory_snapshots", StaleWhen::Destination),
+    SUMMARY,
+    FACTS,
 ];
 
 /// Invalidate every retrieved snapshot affected by a validated trip edit.
@@ -84,12 +132,18 @@ pub(crate) fn invalidate_after_trip_edit(
     current: &Trip,
     updated: &ValidatedTripInput,
 ) -> Result<(), AppError> {
-    let edit = TripEdit::between(current, updated);
-    for (table, stale_when) in SNAPSHOT_TABLES {
-        if stale_when.triggered_by(edit) {
+    let edit = TripEdit::between(
+        current,
+        &updated.destination,
+        &updated.origin,
+        &updated.start_date,
+        &updated.end_date,
+    );
+    for table in SNAPSHOT_TABLES {
+        if table.stale_when.triggered_by(edit) {
             transaction
                 .execute(
-                    &format!("DELETE FROM {table} WHERE trip_id = ?1"),
+                    &format!("DELETE FROM {} WHERE trip_id = ?1", table.name),
                     params![trip_id],
                 )
                 .map_err(storage_error)?;
@@ -125,7 +179,7 @@ mod tests {
                 .expect("collect")
         };
 
-        let declared: BTreeSet<&str> = SNAPSHOT_TABLES.iter().map(|(name, _)| *name).collect();
+        let declared: BTreeSet<&str> = SNAPSHOT_TABLES.iter().map(|table| table.name).collect();
         // Trip-keyed data that deliberately outlives a destination edit. The
         // traveller owns it, or it can be re-used/reviewed for the revised trip.
         let survives_an_edit: BTreeSet<&str> = [
@@ -192,7 +246,8 @@ mod tests {
             );
         }
 
-        for (table, _) in SNAPSHOT_TABLES {
+        for snapshot in SNAPSHOT_TABLES {
+            let table = snapshot.name;
             assert!(
                 tables.iter().any(|known| known == table),
                 "SNAPSHOT_TABLES names {table}, which is not in the schema"

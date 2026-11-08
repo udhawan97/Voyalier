@@ -82,15 +82,14 @@ impl AppService {
                 self.vault.active_data_key(),
                 read_vault_wrap(&connection)?.as_ref(),
             )?;
-            consistent_sqlite_snapshot(&connection, &dest)?;
+            backup_recovery::create_update_snapshot(
+                &self.database_path,
+                &connection,
+                &dest,
+                self.secrets.as_ref(),
+                self.vault.snapshot(),
+            )?;
         }
-        backup_recovery::retain_known(
-            &self.database_path,
-            &dest,
-            self.secrets.as_ref(),
-            self.vault.active_data_key(),
-        )?;
-        backup_recovery::prune(&self.database_path, self.secrets.as_ref(), MAX_BACKUPS)?;
 
         Ok(BackupInfo {
             path: dest.to_string_lossy().into_owned(),
@@ -147,6 +146,7 @@ impl AppService {
                 let vault = Vault::new(VaultState {
                     key: data_key,
                     protected: false,
+                    verified_wrap: None,
                     escaped_plaintext: vault_storage_format_is_current(&snapshot)?,
                 });
                 validate_sealed_rows(&snapshot, &vault).map_err(|error| {

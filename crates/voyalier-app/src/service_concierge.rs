@@ -22,7 +22,7 @@ impl AppService {
         let transaction = connection
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(storage_error)?;
-        self.records(&transaction).trip(&profile.trip_id)?;
+        let trip = self.records(&transaction).trip(&profile.trip_id)?;
         let previous = self
             .records(&transaction)
             .concierge_profile(&profile.trip_id)?;
@@ -39,6 +39,33 @@ impl AppService {
                     ("reason".to_owned(), if profile.revision.is_none() { "profile_revision_required" } else { "profile_changed" }.to_owned()),
                 ])),
             });
+        }
+        for next in &profile.task_progress {
+            let prior = previous.as_ref().and_then(|profile| {
+                profile
+                    .task_progress
+                    .iter()
+                    .find(|item| item.task_id == next.task_id)
+            });
+            let newly_completed = matches!(
+                next.state,
+                ConciergeTaskState::DoneByTraveler | ConciergeTaskState::NotApplicable
+            ) && !prior.is_some_and(|item| {
+                item.state == next.state && item.context_revision == next.context_revision
+            });
+            if newly_completed
+                && next
+                    .context_revision
+                    .as_deref()
+                    .is_some_and(|revision| revision != trip.updated_at)
+            {
+                return Err(AppError::with_detail(
+                    ErrorCode::ValidationInvalidInput,
+                    "The trip changed. Review the task again before marking it complete.",
+                    "field",
+                    "taskProgress.contextRevision",
+                ));
+            }
         }
         if let Some(previous) = &previous {
             record_progress_history(previous, &mut profile);
@@ -303,6 +330,160 @@ mod tests {
                 end_date: "2027-01-08".into(),
             })
             .unwrap()
+    }
+
+    #[test]
+    fn concierge_destination_guidance_matches_city_and_country_separately() {
+        let database = crate::tests::temp_database("concierge-place-identity");
+        let service = AppService::open_path_with_deps(
+            &database,
+            Arc::new(FakeFetcher::offline()),
+            Arc::new(MemorySecretStore::default()),
+        )
+        .unwrap();
+        for (destination, city, country) in [
+            ("Montréal", true, true),
+            ("Montreal", true, true),
+            ("Montréal, Québec, Canada", true, true),
+            ("Vancouver, Canada", false, true),
+            ("Canada", false, true),
+            ("Montreux, Switzerland", false, false),
+            ("Montrose", false, false),
+            ("Montréal, France", false, false),
+            ("Montreal 東京", false, false),
+        ] {
+            let trip = service
+                .create_trip(CreateTripInput {
+                    title: None,
+                    origin: "Chicago".into(),
+                    destination: destination.into(),
+                    start_date: "2027-01-01".into(),
+                    end_date: "2027-01-08".into(),
+                })
+                .unwrap();
+            let mut profile = ConciergeProfile::empty(&trip.id);
+            profile.travelers.push(voyalier_core::TravelerProfile {
+                id: "one".into(),
+                display_name: "One".into(),
+                passport_country_iso2: None,
+                residence_country_iso2: None,
+                residence_status: voyalier_core::ResidenceStatus::Unknown,
+                return_country_iso2: None,
+                existing_destination_document: voyalier_core::ExistingDocumentStatus::Unknown,
+            });
+            let workspace = service.set_concierge_profile(profile).unwrap();
+            assert_eq!(
+                workspace
+                    .area_guides
+                    .iter()
+                    .any(|area| area.id == "old-montreal"),
+                city,
+                "{destination}"
+            );
+            assert_eq!(
+                workspace
+                    .provider_actions
+                    .iter()
+                    .any(|action| action.url.contains("flights-from-chicago-to-montreal")),
+                city,
+                "{destination}"
+            );
+            assert_eq!(
+                workspace
+                    .provider_actions
+                    .iter()
+                    .any(|action| action.url.contains("montreal-canada/stays")),
+                city,
+                "{destination}"
+            );
+            assert_eq!(
+                workspace
+                    .preparation_steps
+                    .iter()
+                    .any(|step| step.id.ends_with("-canada-entry")),
+                country,
+                "{destination}"
+            );
+        }
+        drop(service);
+        crate::tests::cleanup_database(database);
+    }
+
+    #[test]
+    fn concierge_completion_survives_rename_archive_and_reopen_until_semantic_edit() {
+        let database = crate::tests::temp_database("concierge-semantic-completion");
+        let secrets = Arc::new(MemorySecretStore::default());
+        let open = || {
+            AppService::open_path_with_deps(
+                &database,
+                Arc::new(FakeFetcher::offline()),
+                secrets.clone(),
+            )
+            .unwrap()
+        };
+        let service = open();
+        let trip = trip(&service);
+        let mut profile = ConciergeProfile::empty(&trip.id);
+        for task in ["compare-flights", "review-money"] {
+            profile.task_progress.push(TaskProgress {
+                task_id: task.into(),
+                state: ConciergeTaskState::DoneByTraveler,
+                context_revision: Some(trip.updated_at.clone()),
+                note: "Kept note".into(),
+                history: vec![],
+            });
+        }
+        let accepted = service.set_concierge_profile(profile).unwrap().profile;
+        service
+            .update_trip(
+                &trip.id,
+                UpdateTripInput {
+                    title: Some("Renamed".into()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        service.archive_trip(&trip.id).unwrap();
+        service.unarchive_trip(&trip.id).unwrap();
+        drop(service);
+        let service = open();
+        let workspace = service.get_concierge_workspace(&trip.id).unwrap();
+        assert_eq!(workspace.profile, accepted);
+        for id in ["compare-flights", "review-money"] {
+            assert_eq!(
+                workspace.tasks.iter().find(|t| t.id == id).unwrap().state,
+                ConciergeTaskState::DoneByTraveler
+            );
+        }
+        service
+            .update_trip(
+                &trip.id,
+                UpdateTripInput {
+                    end_date: Some("2027-01-09".into()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let workspace = service.get_concierge_workspace(&trip.id).unwrap();
+        let flight = workspace
+            .profile
+            .task_progress
+            .iter()
+            .find(|p| p.task_id == "compare-flights")
+            .unwrap();
+        assert_eq!(flight.state, ConciergeTaskState::NeedsRecheck);
+        assert_eq!(flight.history.last().unwrap().note, "Kept note");
+        assert_eq!(
+            workspace
+                .tasks
+                .iter()
+                .find(|t| t.id == "review-money")
+                .unwrap()
+                .state,
+            ConciergeTaskState::DoneByTraveler
+        );
+        drop(service);
+        crate::tests::cleanup_database(database);
     }
 
     #[test]

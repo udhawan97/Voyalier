@@ -165,6 +165,7 @@ fn recovery_overlap_probe() {
     let old_vault = Vault::new(VaultState {
         key: Some([1u8; VAULT_KEY_LEN]),
         protected: false,
+        verified_wrap: None,
         escaped_plaintext: true,
     });
     assert_eq!(
@@ -783,6 +784,7 @@ fn terminal_restore_target(
         target.vault.set_state(VaultState {
             key: None,
             protected: false,
+            verified_wrap: None,
             escaped_plaintext: true,
         });
     }
@@ -5458,6 +5460,7 @@ fn committed_restore_retries_each_credential_deletion_without_losing_safety_copy
         let vault = Vault::new(VaultState {
             key: old_key,
             protected: false,
+            verified_wrap: None,
             escaped_plaintext: true,
         });
         assert_eq!(
@@ -6283,6 +6286,119 @@ fn malformed_sealed_rows_keep_the_vault_unreadable_code_at_each_decode_boundary(
 
     drop(writer);
     cleanup_database(database);
+}
+
+#[test]
+fn inventory_registration_preserves_unreadable_and_unsupported_bytes() {
+    let database = temp_database("inventory-refusal");
+    let registry = database.with_file_name("registry.json");
+    let app = open_test_service(&database).unwrap();
+    for raw in ["{incomplete", "{}", r#"{"accounts":[],"futureVersion":2}"#] {
+        fs::write(&registry, raw).unwrap();
+        register_vault_account(&registry, &database, &vault_key_account(&database));
+        assert_eq!(fs::read(&registry).unwrap(), raw.as_bytes());
+    }
+    drop(app);
+    cleanup_database(database);
+}
+
+#[test]
+#[ignore = "subprocess helper for concurrent inventory registration"]
+fn inventory_registration_child() {
+    let registry = PathBuf::from(std::env::var_os("VOYALIER_TEST_INVENTORY").unwrap());
+    let worker = std::env::var("VOYALIER_TEST_INVENTORY_WORKER").unwrap();
+    for n in 0..6 {
+        let database = registry.with_file_name(format!("workspace-{worker}-{n}.sqlite3"));
+        fs::write(&database, b"synthetic living workspace").unwrap();
+        register_vault_account(&registry, &database, &vault_key_account(&database));
+    }
+}
+
+#[test]
+fn inventory_preserves_concurrent_process_registrations() {
+    let registry = temp_database("concurrent-inventory").with_file_name("registry.json");
+    let mut children: Vec<_> = (0..4)
+        .map(|worker| {
+            std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "tests::inventory_registration_child",
+                    "--ignored",
+                ])
+                .env("VOYALIER_TEST_INVENTORY", &registry)
+                .env("VOYALIER_TEST_INVENTORY_WORKER", worker.to_string())
+                .stdout(std::process::Stdio::null())
+                .spawn()
+                .unwrap()
+        })
+        .collect();
+    for child in &mut children {
+        assert!(child.wait().unwrap().success());
+    }
+    let records = read_vault_registry(&registry).unwrap().accounts;
+    assert_eq!(records.len(), 24);
+    for worker in 0..4 {
+        for n in 0..6 {
+            let database = registry.with_file_name(format!("workspace-{worker}-{n}.sqlite3"));
+            assert!(
+                records
+                    .iter()
+                    .any(|row| row.account == vault_key_account(&database))
+            );
+        }
+    }
+    let report =
+        prune_vault_accounts(&MemorySecretStore::default(), &registry, PruneMode::Delete).unwrap();
+    assert_eq!(report.kept.len(), 24);
+    assert_eq!(read_vault_registry(&registry).unwrap().accounts, records);
+    cleanup_database(registry);
+}
+
+#[test]
+fn inventory_prune_merges_retirement_with_registration_during_its_scan() {
+    let (departed, registry, secrets) = dev_review_prune_fixture("inventory-prune-register");
+    fs::remove_file(&departed).unwrap();
+    let new_database = registry.with_file_name("newly-opened.sqlite3");
+    fs::write(&new_database, b"synthetic living workspace").unwrap();
+    let new_row = VaultAccountRecord {
+        account: vault_key_account(&new_database),
+        database: canonical_key_path(&new_database)
+            .to_string_lossy()
+            .into_owned(),
+    };
+    let old_account = vault_key_account(&departed);
+    let (entered, running) = std::sync::mpsc::channel();
+    std::thread::scope(|scope| {
+        let writer = scope.spawn(|| {
+            update_vault_registry(&registry, |rows| {
+                rows.push(new_row.clone());
+                entered.send(()).unwrap();
+                // Hold a genuine registration write between its read and publication.
+                // Prune must be able to classify the old row while this lock is held.
+                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+                while secrets.has(&old_account) {
+                    assert!(
+                        std::time::Instant::now() < deadline,
+                        "prune stalled before retirement"
+                    );
+                    std::thread::sleep(std::time::Duration::from_millis(2));
+                }
+                true
+            })
+        });
+        running
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .unwrap();
+        let report = prune_vault_accounts(secrets.as_ref(), &registry, PruneMode::Delete).unwrap();
+        assert_eq!(report.removed.len(), 1);
+        writer.join().unwrap().unwrap();
+    });
+    assert_eq!(
+        read_vault_registry(&registry).unwrap().accounts,
+        vec![new_row]
+    );
+    cleanup_database(departed);
+    cleanup_database(registry);
 }
 
 /// ADR-0017 buys its guarantee by copying: every data directory leaves a vault

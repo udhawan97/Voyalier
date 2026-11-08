@@ -22,10 +22,10 @@ impl AppService {
         let country = advisory_country(country_slug)?;
         let fcdo = validate_country_slug(country_slug)?;
         // Validate the trip before any network call.
-        {
+        let trip = {
             let connection = self.connection()?;
-            self.records(&connection).trip(trip_id)?;
-        }
+            self.records(&connection).trip(trip_id)?
+        };
         let retrieved_at = now_rfc3339();
 
         // Fetch and parse each government independently — no `?` on a fetch, or
@@ -43,8 +43,9 @@ impl AppService {
         let de = de_aa_advisory(country, fcdo.name, &retrieved_at, get);
         let notices = cdc_health_notices(fcdo.name, get);
 
-        let connection = self.connection()?;
-        let previous = load_advisory_panel(&connection, trip_id)?;
+        let mut connection = self.connection()?;
+        let transaction = snapshots::ADVICE.publication(self, &mut connection, &trip)?;
+        let previous = load_advisory_panel(&transaction, trip_id)?;
         let stored_before = |source| {
             previous
                 .as_ref()
@@ -76,11 +77,11 @@ impl AppService {
         for (source, result) in resolved {
             let state = match result {
                 Ok(Some(entry)) => {
-                    store_advisory_entry(&connection, trip_id, &entry)?;
+                    store_advisory_entry(&transaction, trip_id, &entry)?;
                     SourceState::Fresh
                 }
                 Ok(None) => {
-                    delete_advisory_entry(&connection, trip_id, source)?;
+                    delete_advisory_entry(&transaction, trip_id, source)?;
                     SourceState::NotPublished
                 }
                 Err(_) if stored_before(source) => SourceState::Kept,
@@ -98,7 +99,7 @@ impl AppService {
         });
 
         store_advisory_panel_meta(
-            &connection,
+            &transaction,
             trip_id,
             country.slug,
             fcdo.name,
@@ -108,12 +109,14 @@ impl AppService {
         )?;
 
         // Return what a reload shows, not a hand-assembled value.
-        load_advisory_panel(&connection, trip_id)?.ok_or_else(|| {
+        let panel = load_advisory_panel(&transaction, trip_id)?.ok_or_else(|| {
             AppError::new(
                 ErrorCode::AdviceFetchFailed,
                 "no official source could be reached",
             )
-        })
+        })?;
+        transaction.commit().map_err(storage_error)?;
+        Ok(panel)
     }
 
     /// Fetch and store a dated weather outlook for the trip's destination.
@@ -156,8 +159,9 @@ impl AppService {
             snapshot.alerts = self.fetch_nws_alerts(&place).unwrap_or_default();
         }
 
-        let connection = self.connection()?;
-        connection
+        let mut connection = self.connection()?;
+        let transaction = snapshots::WEATHER.publication(self, &mut connection, &trip)?;
+        transaction
             .execute(
                 "INSERT INTO weather_snapshots
                  (trip_id, place_name, place_region, latitude, longitude, days, coverage,
@@ -191,6 +195,7 @@ impl AppService {
                 ],
             )
             .map_err(storage_error)?;
+        transaction.commit().map_err(storage_error)?;
         Ok(snapshot)
     }
 
@@ -307,8 +312,9 @@ impl AppService {
             origin_timezone,
         };
 
-        let connection = self.connection()?;
-        connection
+        let mut connection = self.connection()?;
+        let transaction = snapshots::FACTS.publication(self, &mut connection, &trip)?;
+        transaction
             .execute(
                 "INSERT INTO destination_facts_snapshots
                  (trip_id, place_name, place_region, latitude, longitude, utc_offset_minutes,
@@ -347,6 +353,7 @@ impl AppService {
                 ],
             )
             .map_err(storage_error)?;
+        transaction.commit().map_err(storage_error)?;
         Ok(snapshot)
     }
 
@@ -401,8 +408,9 @@ impl AppService {
             retrieved_at: now_rfc3339(),
         };
 
-        let connection = self.connection()?;
-        connection
+        let mut connection = self.connection()?;
+        let transaction = snapshots::HOLIDAYS.publication(self, &mut connection, &trip)?;
+        transaction
             .execute(
                 "INSERT INTO public_holidays_snapshots
                  (trip_id, country_code, country_name, holidays, school_holidays,
@@ -426,6 +434,7 @@ impl AppService {
                 ],
             )
             .map_err(storage_error)?;
+        transaction.commit().map_err(storage_error)?;
         Ok(snapshot)
     }
 
@@ -444,8 +453,9 @@ impl AppService {
                 .map_err(weather_network_failure)
         })?;
 
-        let connection = self.connection()?;
-        connection
+        let mut connection = self.connection()?;
+        let transaction = snapshots::SUMMARY.publication(self, &mut connection, &trip)?;
+        transaction
             .execute(
                 "INSERT INTO place_summaries
                  (trip_id, title, description, extract, url, retrieved_at)
@@ -466,6 +476,104 @@ impl AppService {
                 ],
             )
             .map_err(storage_error)?;
+        transaction.commit().map_err(storage_error)?;
         Ok(summary)
+    }
+}
+
+#[cfg(test)]
+mod publication_tests {
+    use super::*;
+    use std::sync::mpsc::{self, Receiver, Sender};
+    use std::time::Duration;
+
+    /// Delegate all response contents to the shipped fake. Hold its first
+    /// completed geocode until the test has saved the edit and newer result.
+    struct PausedResponse {
+        fake: FakeFetcher,
+        first: Mutex<Option<(Sender<()>, Receiver<()>)>>,
+    }
+
+    impl AdviceFetcher for PausedResponse {
+        fn fetch_text(&self, url: &str) -> Result<String, AppError> {
+            let response = self.fake.fetch_text(url);
+            let first = self.first.lock().unwrap().take();
+            if let Some((started, resume)) = first {
+                started.send(()).unwrap();
+                resume.recv_timeout(Duration::from_secs(10)).unwrap();
+            }
+            response
+        }
+    }
+
+    #[test]
+    fn snapshot_publication_respects_changed_and_unchanged_context_after_reopen() {
+        for rename_only in [false, true] {
+            let database = crate::tests::temp_database("snapshot-publication");
+            let (started, ready) = mpsc::channel();
+            let (resume, paused) = mpsc::channel();
+            let old_geocode = r#"{"results":[{"name":"Kyoto","latitude":35,"longitude":135,"country":"Japan","country_code":"JP"}]}"#;
+            let fetcher = Arc::new(PausedResponse {
+                first: Mutex::new(Some((started, paused))),
+                fake: FakeFetcher::new()
+                    .route("name=Kyoto", old_geocode)
+                    .route("name=Osaka", &old_geocode.replace("Kyoto", "Osaka"))
+                    .route("api.open-meteo.com/v1/forecast", r#"{"daily":{"time":["2027-04-01"],"temperature_2m_max":[18],"temperature_2m_min":[8],"weather_code":[0],"precipitation_probability_max":[0]}}"#),
+            });
+            let secrets = Arc::new(MemorySecretStore::default());
+            let open = || {
+                AppService::open_path_with_deps(&database, fetcher.clone(), secrets.clone())
+                    .unwrap()
+            };
+            let service = Arc::new(open());
+            let trip = service
+                .create_trip(CreateTripInput {
+                    title: Some("Spring".into()),
+                    origin: "Chicago".into(),
+                    destination: "Kyoto".into(),
+                    start_date: "2027-04-01".into(),
+                    end_date: "2027-04-02".into(),
+                })
+                .unwrap();
+            let worker = service.clone();
+            let id = trip.id.clone();
+            let handle = std::thread::spawn(move || worker.fetch_weather(&id));
+            ready.recv_timeout(Duration::from_secs(10)).unwrap();
+            service
+                .update_trip(
+                    &trip.id,
+                    UpdateTripInput {
+                        title: Some("Spring visit".into()),
+                        origin: None,
+                        destination: (!rename_only).then(|| "Osaka".into()),
+                        start_date: None,
+                        end_date: None,
+                    },
+                )
+                .unwrap();
+            if !rename_only {
+                assert_eq!(service.fetch_weather(&trip.id).unwrap().place_name, "Osaka");
+            }
+            resume.send(()).unwrap();
+            let delayed = handle.join().unwrap();
+            if rename_only {
+                assert_eq!(delayed.unwrap().place_name, "Kyoto");
+            } else {
+                assert_eq!(
+                    delayed.unwrap_err().details.unwrap()["reason"],
+                    "snapshot_context_changed"
+                );
+            }
+            drop(service);
+            let reopened = open();
+            let weather = reopened.get_trip(&trip.id).unwrap().weather.unwrap();
+            assert_eq!(
+                weather.place_name,
+                if rename_only { "Kyoto" } else { "Osaka" }
+            );
+            assert!(!weather.source_url.is_empty() && !weather.retrieved_at.is_empty());
+            drop(reopened);
+            crate::tests::cleanup_database(database);
+        }
     }
 }

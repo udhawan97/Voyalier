@@ -4,6 +4,9 @@ use super::*;
 const INDEX_FILE: &str = "backup-recovery.json";
 const INDEX_BYTES: u64 = 64 * 1024;
 const INDEX_ENTRIES: usize = 32;
+// Older builds could leave 17 copies by publishing before a failed rotation.
+// Discovery accepts all snapshots representable by the bounded index.
+const MAX_UPDATE_HISTORY: usize = INDEX_ENTRIES / 2;
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -222,7 +225,7 @@ fn snapshots(database: &Path) -> Result<Vec<PathBuf>, AppError> {
                 voyalier_core::MAX_BACKUP_CONTAINER_BYTES as u64,
             )?;
             paths.push(entry.path());
-            if paths.len() > INDEX_ENTRIES / 2 {
+            if paths.len() > INDEX_ENTRIES {
                 return Err(failure(
                     "too many local recovery copies; no evidence was removed",
                 ));
@@ -314,6 +317,7 @@ fn authenticate(connection: &Connection, key: Option<[u8; VAULT_KEY_LEN]>) -> Re
     let vault = Vault::new(VaultState {
         key,
         protected: false,
+        verified_wrap: None,
         escaped_plaintext: current,
     });
     // Older snapshots may precede some declared columns; staging still runs
@@ -440,6 +444,13 @@ pub(super) fn adopt(
             }
             Err(_) => SnapshotCredential::Unavailable,
         };
+        if index
+            .snapshots
+            .iter()
+            .any(|existing| existing.file == file && existing.credential == credential)
+        {
+            continue;
+        }
         index.snapshots.retain(|s| s.file != file);
         index.snapshots.push(Snapshot {
             file,
@@ -451,6 +462,79 @@ pub(super) fn adopt(
     if index != before {
         save_index(database, &index)?;
     }
+    Ok(())
+}
+
+/// Preflight historical retention, then authenticate and bind the completed new copy
+/// before rotating any history. The operation mutex covers this entire sequence.
+pub(super) fn create_update_snapshot(
+    database: &Path,
+    connection: &Connection,
+    destination: &Path,
+    secrets: &dyn SecretStore,
+    vault: VaultState,
+) -> Result<(), AppError> {
+    let mut index = read_index(database)?;
+    let mut retained = retained_snapshots(database, &index, MAX_BACKUPS - 1)?;
+    if index.snapshots.len() >= MAX_UPDATE_HISTORY {
+        return Err(failure(
+            "the safety-copy directory is full; inspect or clear backups before updating",
+        ));
+    }
+    let file = destination
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| name_valid(name))
+        .ok_or_else(|| failure("invalid owned snapshot name"))?
+        .to_owned();
+    if vault.protected && vault.key.is_none() {
+        return Err(vault_locked_error());
+    }
+    // A new recovery credential has a durable ownership intent before any
+    // SQLite copying begins. A keychain interruption can leave that intent,
+    // but cannot strand an unpublished copy containing the traveler's records.
+    let credential = if vault.protected {
+        SnapshotCredential::EmbeddedWrap
+    } else if let Some(key) = vault.key {
+        // Avoid reserving a key that cannot read the workspace. Established
+        // credentials already have a binding; every candidate is checked below.
+        let identity = account(database, &sha256_hex(&key), None);
+        if !index.credentials.iter().any(|c| c.account == identity) {
+            validate_sealed_rows(connection, &Vault::new(vault))?;
+        }
+        SnapshotCredential::Retained {
+            account: retain_credential(&mut index, database, secrets, &key, None)?,
+        }
+    } else {
+        SnapshotCredential::Keyless
+    };
+    checked_sqlite_snapshot(connection, destination, |staged| {
+        let snapshot = readonly(staged)?;
+        let wrap = snapshot_wrap(&snapshot)?;
+        if wrap.as_ref().map(VaultWrap::fingerprint) != vault.verified_wrap {
+            return Err(failure(
+                "the backup passphrase record changed; reopen and unlock the workspace before updating",
+            ));
+        }
+        let active = Vault::new(VaultState {
+            escaped_plaintext: vault_storage_format_is_current(&snapshot)?,
+            ..vault
+        });
+        validate_sealed_rows(&snapshot, &active)?;
+        drop(snapshot);
+        let digest = sha256_file(staged)?;
+        retained.insert(file.clone());
+        index.snapshots.push(Snapshot {
+            file,
+            sha256: digest,
+            deleting: false,
+            credential,
+        });
+        validate(&index, database)
+    })?;
+    // Until this index write is durable, startup can adopt the published copy
+    // and old copies remain intact. The new copy never participates in eviction.
+    prune_except(database, secrets, &mut index, &retained)?;
     Ok(())
 }
 
@@ -527,6 +611,15 @@ pub(super) fn prune(
     keep: usize,
 ) -> Result<usize, AppError> {
     let mut index = read_index(database)?;
+    let retained = retained_snapshots(database, &index, keep)?;
+    prune_except(database, secrets, &mut index, &retained)
+}
+
+fn retained_snapshots(
+    database: &Path,
+    index: &Index,
+    keep: usize,
+) -> Result<std::collections::HashSet<String>, AppError> {
     let mut ordering = Vec::new();
     let backups = directory(database)?.join("backups");
     for snapshot in &index.snapshots {
@@ -554,6 +647,15 @@ pub(super) fn prune(
             "automatic pruning refused unavailable recovery evidence; inspect it or explicitly Clear backups",
         ));
     }
+    Ok(retained)
+}
+
+fn prune_except(
+    database: &Path,
+    secrets: &dyn SecretStore,
+    index: &mut Index,
+    retained: &std::collections::HashSet<String>,
+) -> Result<usize, AppError> {
     let mut count = 0;
     for snapshot in &mut index.snapshots {
         if !retained.contains(&snapshot.file) {
@@ -561,9 +663,9 @@ pub(super) fn prune(
             count += 1;
         }
     }
-    save_index(database, &index)?;
+    save_index(database, index)?;
     restore_fault("snapshot_delete_intent");
-    cleanup(database, secrets, &mut index)?;
+    cleanup(database, secrets, index)?;
     Ok(count)
 }
 
@@ -1342,6 +1444,254 @@ mod tests {
         assert!(snapshots(&database).unwrap().is_empty());
         assert!(read_index(&database).unwrap().credentials.is_empty());
         assert_eq!(app.get_trip_notes(&id).unwrap().body, "retained live note");
+        drop(app);
+        crate::tests::cleanup_database(database);
+    }
+
+    #[test]
+    fn pre_update_rotation_refusal_is_retryable_without_growing_history() {
+        let database = crate::tests::temp_database("pre-update-retries");
+        let secrets = Arc::new(MemorySecretStore::default());
+        let app = service(&database, secrets.clone());
+        let id = trip(&app);
+        app.set_trip_notes(&id, "exact retained live note").unwrap();
+        let good = app.backup_database("first").unwrap();
+        let unavailable = Path::new(&good.path).with_file_name("pre-update-unavailable.sqlite3");
+        copy_owned_snapshot(Path::new(&good.path), &unavailable).unwrap();
+        Connection::open(&unavailable)
+            .unwrap()
+            .execute("UPDATE trip_notes SET body = 'v1:damaged'", [])
+            .unwrap();
+        fs::File::options()
+            .write(true)
+            .open(&unavailable)
+            .unwrap()
+            .set_modified(std::time::UNIX_EPOCH + std::time::Duration::from_secs(1))
+            .unwrap();
+        for n in 2..MAX_BACKUPS {
+            app.backup_database(&format!("good-{n}")).unwrap();
+        }
+        let inventory = || {
+            let mut entries: Vec<_> = fs::read_dir(unavailable.parent().unwrap())
+                .unwrap()
+                .map(|entry| {
+                    let path = entry.unwrap().path();
+                    (path.clone(), sha256_file(&path).unwrap())
+                })
+                .collect();
+            entries.sort();
+            entries
+        };
+        let before = inventory();
+        let index = fs::read(index_path(&database).unwrap()).unwrap();
+        assert_eq!(before.len(), MAX_BACKUPS);
+        for _ in 0..(INDEX_ENTRIES / 2 + 2) {
+            assert!(
+                app.backup_database("retry")
+                    .unwrap_err()
+                    .message
+                    .contains("unavailable recovery")
+            );
+            assert_eq!(inventory(), before);
+            assert_eq!(fs::read(index_path(&database).unwrap()).unwrap(), index);
+        }
+        drop(app);
+        let reopened = service(&database, secrets);
+        assert_eq!(
+            reopened.get_trip_notes(&id).unwrap().body,
+            "exact retained live note"
+        );
+        assert_eq!(reopened.clear_backups().unwrap(), MAX_BACKUPS);
+        drop(reopened);
+        crate::tests::cleanup_database(database);
+    }
+
+    #[test]
+    fn legacy_seventeen_copy_history_reopens_and_clears_explicitly() {
+        let database = crate::tests::temp_database("pre-update-legacy-seventeen");
+        let secrets = Arc::new(MemorySecretStore::default());
+        let app = service(&database, secrets.clone());
+        let id = trip(&app);
+        app.set_trip_notes(&id, "legacy exact note").unwrap();
+        let old = PathBuf::from(app.backup_database("original").unwrap().path);
+        let mut historical = Vec::new();
+        for n in 0..MAX_UPDATE_HISTORY {
+            let path = old.with_file_name(format!("pre-update-legacy-{n}.sqlite3"));
+            copy_owned_snapshot(&old, &path).unwrap();
+            if n == 0 {
+                Connection::open(&path)
+                    .unwrap()
+                    .execute("UPDATE trip_notes SET body = 'v1:unavailable'", [])
+                    .unwrap();
+            }
+            historical.push((path.clone(), sha256_file(&path).unwrap()));
+        }
+        let key = app.vault.active_data_key();
+        adopt(&database, secrets.as_ref(), key, None).unwrap();
+        let before = fs::read(index_path(&database).unwrap()).unwrap();
+        drop(app);
+        let reopened = service(&database, secrets);
+        assert_eq!(snapshots(&database).unwrap().len(), 17);
+        assert_eq!(fs::read(index_path(&database).unwrap()).unwrap(), before);
+        for (path, digest) in historical {
+            assert_eq!(sha256_file(&path).unwrap(), digest);
+        }
+        assert_eq!(
+            reopened.get_trip_notes(&id).unwrap().body,
+            "legacy exact note"
+        );
+        assert_eq!(reopened.clear_backups().unwrap(), 17);
+        assert!(snapshots(&database).unwrap().is_empty());
+        drop(reopened);
+        crate::tests::cleanup_database(database);
+    }
+
+    #[test]
+    fn pre_update_snapshot_requires_a_readable_key_and_recovers_exact_contents() {
+        let database = crate::tests::temp_database("pre-update-verified-key");
+        let secrets = Arc::new(MemorySecretStore::default());
+        let app = service(&database, secrets.clone());
+        let id = trip(&app);
+        app.set_trip_notes(&id, "exact safety note").unwrap();
+        let file = app
+            .import_attachment(ImportAttachmentInput {
+                trip_id: id.clone(),
+                label: "Sample.pdf".to_owned(),
+                mime_type: "application/pdf".to_owned(),
+                content_base64: "JVBERi0xLjQ=".to_owned(),
+            })
+            .unwrap();
+        drop(app);
+
+        for key in [None, Some("malformed".to_owned())] {
+            let store = match key {
+                None => Arc::new(MemorySecretStore::unavailable()),
+                Some(key) => {
+                    let store = Arc::new(MemorySecretStore::default());
+                    store.set(&vault_key_account(&database), &key).unwrap();
+                    store
+                }
+            };
+            let broken = service(&database, store);
+            assert_eq!(
+                broken.backup_database("refused").unwrap_err().code,
+                ErrorCode::VaultUnreadable
+            );
+            assert!(snapshots(&database).unwrap().is_empty());
+            assert_eq!(
+                fs::read_dir(directory(&database).unwrap().join("backups"))
+                    .unwrap()
+                    .count(),
+                0
+            );
+            assert!(read_index(&database).unwrap().snapshots.is_empty());
+        }
+        let app = service(&database, secrets.clone());
+        let verified = app.vault.snapshot();
+        app.vault.set_state(VaultState {
+            key: Some([92u8; VAULT_KEY_LEN]),
+            ..verified
+        });
+        assert_eq!(
+            app.backup_database("wrong-key").unwrap_err().code,
+            ErrorCode::VaultUnreadable
+        );
+        assert!(snapshots(&database).unwrap().is_empty());
+        app.vault.set_state(verified);
+        let backup = app.backup_database("verified").unwrap();
+        let name = Path::new(&backup.path)
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert_eq!(
+            recover(&database, secrets.as_ref(), name, None, false)
+                .unwrap()
+                .disposition,
+            "validated local snapshot; activation requires restart"
+        );
+        app.set_trip_notes(&id, "newer note").unwrap();
+        drop(app);
+        assert!(
+            recover(&database, secrets.as_ref(), name, None, true)
+                .unwrap()
+                .staged
+        );
+        let restored = service(&database, secrets);
+        assert_eq!(
+            restored.get_trip_notes(&id).unwrap().body,
+            "exact safety note"
+        );
+        assert_eq!(
+            restored.get_attachment(&file.id).unwrap().content_base64,
+            "JVBERi0xLjQ="
+        );
+        drop(restored);
+        crate::tests::cleanup_database(database);
+    }
+
+    #[test]
+    fn pre_update_interrupted_key_retention_leaves_no_unpublished_snapshot() {
+        let database = crate::tests::temp_database("pre-update-key-interruption");
+        let secrets = Arc::new(MemorySecretStore::default());
+        let app = service(&database, secrets.clone());
+        let id = trip(&app);
+        app.set_trip_notes(&id, "exact note across key retention")
+            .unwrap();
+        set_restore_fault("snapshot_key_set");
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+                || app.backup_database("interrupted")
+            ))
+            .is_err()
+        );
+        drop(app);
+        let reopened = service(&database, secrets.clone());
+        assert_eq!(
+            reopened.get_trip_notes(&id).unwrap().body,
+            "exact note across key retention"
+        );
+        let backups = directory(&database).unwrap().join("backups");
+        assert_eq!(fs::read_dir(&backups).unwrap().count(), 0);
+        assert_eq!(reopened.clear_backups().unwrap(), 0);
+        assert_eq!(fs::read_dir(backups).unwrap().count(), 0);
+        assert!(read_index(&database).unwrap().credentials.is_empty());
+        assert_eq!(secrets.entries.lock().unwrap().len(), 1);
+        drop(reopened);
+        crate::tests::cleanup_database(database);
+    }
+
+    #[test]
+    fn pre_update_refuses_an_unverified_or_changed_passphrase_wrap() {
+        let database = crate::tests::temp_database("pre-update-protected");
+        let secrets = Arc::new(MemorySecretStore::default());
+        let app = service(&database, secrets.clone());
+        let id = trip(&app);
+        app.set_trip_notes(&id, "protected note").unwrap();
+        app.set_vault_passphrase("synthetic testing phrase")
+            .unwrap();
+        drop(app);
+        let app = service(&database, secrets);
+        assert_eq!(
+            app.backup_database("locked").unwrap_err().code,
+            ErrorCode::VaultLocked
+        );
+        app.unlock_vault("synthetic testing phrase").unwrap();
+        app.backup_database("unlocked").unwrap();
+        app.connection()
+            .unwrap()
+            .execute(
+                "UPDATE vault_meta SET wrapped_key = ?1",
+                [BASE64.encode([2u8; 72])],
+            )
+            .unwrap();
+        assert!(
+            app.backup_database("changed")
+                .unwrap_err()
+                .message
+                .contains("passphrase record changed")
+        );
+        assert_eq!(snapshots(&database).unwrap().len(), 1);
         drop(app);
         crate::tests::cleanup_database(database);
     }
