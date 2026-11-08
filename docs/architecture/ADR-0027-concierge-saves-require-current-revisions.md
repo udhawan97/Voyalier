@@ -70,3 +70,7 @@ mutation; initial-create races; explicit reread/retry; internal revision rotatio
 legacy stored payloads; source unlink transaction rollback; both transports and
 the mock; delayed provider/form saves and retained drafts. No installed-webview
 or real-keychain acceptance is implied by source-runtime tests.
+
+### Completion lifetime — 2026-11-08
+
+A persisted task completion with a recorded context remains effective until a relevant semantic edit invalidates that task. The trip's general update timestamp is checked when submitting a new completion. Renaming, archiving and restoring a trip preserve accepted progress. Relevant route, date, traveler and preference edits retain the previous state in the task history. Legacy progress with no recorded context still requires review.

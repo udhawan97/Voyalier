@@ -31,3 +31,9 @@ The per-person preparation projection is an execution guide, not a determination
 ## Limits
 
 This decision does not add autonomous booking, account inspection, background scraping, visa submission, fee payment, appointment booking, OCR, thumbnail generation, annotation, or selected-file redaction. Preview has no persistence: images use the installed WebView's decoder and PDFs use the bundled PDF.js canvas renderer. The browser and Tauri JSON transports still allocate base64 before the app service validates decoded size; the HTTP route caps the encoded request at 30 MiB, while Tauri relies on the UI's preflight limit plus the service's authoritative decoded limit. Moving large attachments through a native streamed file handle needs a later contract and migration if measured use shows this bound is insufficient.
+
+### Destination identity and snapshot publication — 2026-11-08
+
+Montréal handoffs, area guides and city-specific preparation require a recognized city spelling and compatible qualifiers. Explicit Canada destinations can receive country-level preparation independently of city guides. Unrecognized destinations retain generic handoffs. Matching uses the existing offline place normalization.
+
+A retrieved snapshot may publish only while its source-specific trip inputs still match the request. Use the same origin, destination and date dependencies as edit-time invalidation. Check those inputs in the write transaction after fetching. Discard superseded results and keep any new-context snapshot already stored.

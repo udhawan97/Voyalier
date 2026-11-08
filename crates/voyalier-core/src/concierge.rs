@@ -935,50 +935,19 @@ fn build_tasks(trip: &TripDetail, profile: &ConciergeProfile) -> Vec<ConciergeTa
         .iter()
         .map(|item| (item.task_id.as_str(), item))
         .collect();
+    let projected_state = |id: &str| completion_state(progress.get(id).copied());
     let mut tasks: Vec<_> = definitions
         .into_iter()
         .filter(|(id, _, _, _, _, active)| *active || progress.contains_key(id))
-        .map(|(id, title, reason, authority, section, _)| {
-            let saved = progress.get(id).copied();
-            let saved_state = saved
-                .map(|item| item.state)
-                .unwrap_or(ConciergeTaskState::NotStarted);
-            let route_sensitive_completion = matches!(
-                saved_state,
-                ConciergeTaskState::DoneByTraveler | ConciergeTaskState::NotApplicable
-            ) && saved
-                .and_then(|item| item.context_revision.as_deref())
-                != Some(trip.trip.updated_at.as_str());
-            ConciergeTask {
-                id: id.to_owned(),
-                title: title.to_owned(),
-                reason: reason.to_owned(),
-                state: if route_sensitive_completion {
-                    ConciergeTaskState::NeedsRecheck
-                } else {
-                    saved_state
-                },
-                authority,
-                section: section.to_owned(),
-            }
+        .map(|(id, title, reason, authority, section, _)| ConciergeTask {
+            id: id.to_owned(),
+            title: title.to_owned(),
+            reason: reason.to_owned(),
+            state: projected_state(id),
+            authority,
+            section: section.to_owned(),
         })
         .collect();
-    let projected_state = |id: &str| {
-        let saved = progress.get(id).copied();
-        let state = saved
-            .map(|item| item.state)
-            .unwrap_or(ConciergeTaskState::NotStarted);
-        if matches!(
-            state,
-            ConciergeTaskState::DoneByTraveler | ConciergeTaskState::NotApplicable
-        ) && saved.and_then(|item| item.context_revision.as_deref())
-            != Some(trip.trip.updated_at.as_str())
-        {
-            ConciergeTaskState::NeedsRecheck
-        } else {
-            state
-        }
-    };
     for stay in &profile.preferences.area_stays {
         let id = format!("compare-stay-{}", stay.id);
         let dates = match (&stay.check_in, &stay.check_out) {
@@ -1032,8 +1001,38 @@ fn task_state_priority(state: ConciergeTaskState) -> u8 {
     }
 }
 
+#[derive(PartialEq, Eq)]
+enum CanadianDestination {
+    Montreal,
+    OtherCanada,
+    Unrecognized,
+}
+
+impl CanadianDestination {
+    fn from_place(place: &str) -> Self {
+        let key = crate::packs::saved_place_identity(place);
+        match key.as_str() {
+            "montreal"
+            | "montreal qc"
+            | "montreal quebec"
+            | "montreal canada"
+            | "montreal qc canada"
+            | "montreal quebec canada" => Self::Montreal,
+            "canada" => Self::OtherCanada,
+            _ if place
+                .rsplit_once(',')
+                .is_some_and(|(_, country)| country.trim().eq_ignore_ascii_case("canada")) =>
+            {
+                Self::OtherCanada
+            }
+            _ => Self::Unrecognized,
+        }
+    }
+}
+
 fn build_provider_actions(trip: &Trip, preferences: &ConciergePreferences) -> Vec<ProviderAction> {
     let destination = normalized(&trip.destination);
+    let canadian_destination = CanadianDestination::from_place(&trip.destination);
     let origin = normalized(&trip.origin);
     let area = preferences
         .selected_area
@@ -1105,7 +1104,7 @@ fn build_provider_actions(trip: &Trip, preferences: &ConciergePreferences) -> Ve
         ));
     }
     let search_brief = brief_parts.join(" · ");
-    let (stay_url, stay_evidence) = if destination.contains("montr") {
+    let (stay_url, stay_evidence) = if canadian_destination == CanadianDestination::Montreal {
         (
             "https://www.airbnb.com/montreal-canada/stays",
             "https://www.airbnb.com/montreal-canada/stays",
@@ -1125,21 +1124,22 @@ fn build_provider_actions(trip: &Trip, preferences: &ConciergePreferences) -> Ve
     };
     let area_key = normalized(area);
     let is_oahu = area_key.contains("oahu") || area_key.contains("honolulu");
-    let flight_url = if origin.contains("chicago") && destination.contains("montr") {
-        "https://www.google.com/travel/flights/flights-from-chicago-to-montreal.html"
-    } else if origin.contains("chicago") && destination.contains("hawai") && is_oahu {
-        "https://www.google.com/travel/flights/flights-from-chicago-to-honolulu.html"
-    } else {
-        "https://www.google.com/travel/flights"
-    };
-    let expedia_url = if destination.contains("montr") {
+    let flight_url =
+        if origin.contains("chicago") && canadian_destination == CanadianDestination::Montreal {
+            "https://www.google.com/travel/flights/flights-from-chicago-to-montreal.html"
+        } else if origin.contains("chicago") && destination.contains("hawai") && is_oahu {
+            "https://www.google.com/travel/flights/flights-from-chicago-to-honolulu.html"
+        } else {
+            "https://www.google.com/travel/flights"
+        };
+    let expedia_url = if canadian_destination == CanadianDestination::Montreal {
         "https://www.expedia.com/Montreal-Hotels.d178288.Travel-Guide-Hotels"
     } else if destination.contains("hawai") && is_oahu {
         "https://www.expedia.com/Honolulu-Hotels.d1488.Travel-Guide-Hotels"
     } else {
         "https://www.expedia.com/"
     };
-    let alltrails_url = if destination.contains("montr") {
+    let alltrails_url = if canadian_destination == CanadianDestination::Montreal {
         "https://www.alltrails.com/trail/canada/quebec/visite-a-pied-panoramique-de-montreal"
     } else if destination.contains("hawai") && is_oahu {
         "https://www.alltrails.com/hawaii/oahu/state-parks"
@@ -1392,7 +1392,7 @@ fn build_provider_actions(trip: &Trip, preferences: &ConciergePreferences) -> Ve
             ));
         }
     }
-    if destination.contains("montr") {
+    if canadian_destination == CanadianDestination::Montreal {
         actions.push(action(
             "destination-montreal",
             "Tourisme Montréal",
@@ -1490,6 +1490,7 @@ fn action(
 
 fn build_preparation_steps(trip: &Trip, profile: &ConciergeProfile) -> Vec<PreparationStep> {
     let destination = normalized(&trip.destination);
+    let canadian_destination = CanadianDestination::from_place(&trip.destination);
     profile
         .travelers
         .iter()
@@ -1548,7 +1549,7 @@ fn build_preparation_steps(trip: &Trip, profile: &ConciergeProfile) -> Vec<Prepa
                     prerequisites: vec!["hawaii-route"],
                     documents: vec![],
                 });
-            } else if destination.contains("montr") || destination.contains("canada") {
+            } else if canadian_destination != CanadianDestination::Unrecognized {
                 let (entry_title, entry_copy) = match traveler.residence_status {
                     ResidenceStatus::PermanentResident
                         if traveler.residence_country_iso2.as_deref() == Some("US") =>
@@ -1712,7 +1713,7 @@ fn build_preparation_steps(trip: &Trip, profile: &ConciergeProfile) -> Vec<Prepa
             }
             specs
                 .into_iter()
-                .map(|spec| preparation_step(trip, profile, traveler, spec))
+                .map(|spec| preparation_step(profile, traveler, spec))
                 .collect::<Vec<_>>()
         })
         .collect()
@@ -1737,29 +1738,35 @@ struct StepSpec<'a> {
     documents: Vec<DocSpec<'a>>,
 }
 
+// Route, date and traveler edits invalidate affected rows when the workspace
+// changes. Only legacy completions without recorded context require a read fallback.
+fn completion_state(progress: Option<&TaskProgress>) -> ConciergeTaskState {
+    match progress {
+        None => ConciergeTaskState::NotStarted,
+        Some(progress)
+            if matches!(
+                progress.state,
+                ConciergeTaskState::DoneByTraveler | ConciergeTaskState::NotApplicable
+            ) && progress.context_revision.is_none() =>
+        {
+            ConciergeTaskState::NeedsRecheck
+        }
+        Some(progress) => progress.state,
+    }
+}
+
 fn preparation_step(
-    trip: &Trip,
     profile: &ConciergeProfile,
     traveler: &TravelerProfile,
     spec: StepSpec<'_>,
 ) -> PreparationStep {
     let id = format!("{}-{}", traveler.id, spec.suffix);
-    let state = profile
-        .task_progress
-        .iter()
-        .find(|progress| progress.task_id == id)
-        .map(|progress| {
-            if matches!(
-                progress.state,
-                ConciergeTaskState::DoneByTraveler | ConciergeTaskState::NotApplicable
-            ) && progress.context_revision.as_deref() != Some(trip.updated_at.as_str())
-            {
-                ConciergeTaskState::NeedsRecheck
-            } else {
-                progress.state
-            }
-        })
-        .unwrap_or(ConciergeTaskState::NotStarted);
+    let state = completion_state(
+        profile
+            .task_progress
+            .iter()
+            .find(|progress| progress.task_id == id),
+    );
     PreparationStep {
         id,
         traveler_id: traveler.id.clone(),
@@ -1801,6 +1808,7 @@ fn preparation_step(
 
 fn build_area_guides(trip: &Trip) -> Vec<AreaGuide> {
     let destination = normalized(&trip.destination);
+    let canadian_destination = CanadianDestination::from_place(&trip.destination);
     if destination.contains("hawai") {
         return vec![
             area(
@@ -1837,7 +1845,7 @@ fn build_area_guides(trip: &Trip) -> Vec<AreaGuide> {
             ),
         ];
     }
-    if destination.contains("montr") || destination.contains("canada") {
+    if canadian_destination == CanadianDestination::Montreal {
         return vec![
             area(
                 "old-montreal",
