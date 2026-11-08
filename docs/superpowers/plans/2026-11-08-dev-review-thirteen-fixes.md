@@ -1,0 +1,9 @@
+# Selected Dev Review fixes — November 8, 2026
+
+Run 20261108T084906Z-8a43554a. The owner selected all thirteen findings and authorized a branch push. Baseline cf5b71d. Preserve the primary checkout's planning edit and existing worktrees.
+
+Implement 001 and 002 first. Production owns recovery-copy retry/preflight changes and tests in service_backup.rs, backup_recovery.rs, app tests and updater tests. Then production owns 006 release event gates and 007 serialized fail-closed global credential inventory. Architecture owns 004 destination identity, 005 context-bound snapshot publication and 011 semantic completion context. Product owns 003 shared note mutation ownership, 008 file selection identity, 009 manual-fact completion ownership, 010 chat draft generation, 012 six-mode search labels, 013 deterministic planning clock. Shared Rust tests and mock changes are integrated serially. Amend affected ADRs before storage/provider/transport changes. Keep all interfaces compatible.
+
+Each slice retains its report acceptance, preservation and rollback conditions. Add regression coverage at the existing seams. Workers use isolated worktrees and offline disposable runtime roots, then senior inspection, distinct specialist peer review and final senior acceptance. Stop an affected slice after two unsuccessful correction loops. Serialize shared paths. Do not merge unselected work.
+
+Run scripts/check.sh web, rust, desktop and integration on the integrated tree, plus secret hygiene and applicable dependency checks. Refresh Graphify and verify a scoped query. Reconcile native macOS/Windows, keychain, signing and installed-upgrade gaps separately from source acceptance. Update the private report and exact-candidate ledger and complete both council rounds. Push this branch after checking publication effects, and collect available hosted evidence. A branch push does not publish a release.
