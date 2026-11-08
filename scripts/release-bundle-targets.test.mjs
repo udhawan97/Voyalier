@@ -37,3 +37,46 @@ test("macOS and Windows own disjoint, platform-specific bundle targets", () => {
     false,
   );
 });
+
+test("only a version-tag push can enter the release job", () => {
+  const workflow = readFileSync(
+    path.join(ROOT, ".github/workflows/release.yml"),
+    "utf8",
+  );
+  const job = (name) => {
+    const match = workflow.match(
+      new RegExp(
+        `^  ${name}:\\n([\\s\\S]*?)(?=^  [a-z-]+:|$(?![\\s\\S]))`,
+        "m",
+      ),
+    );
+    assert.ok(match, `missing ${name} job`);
+    return match[1];
+  };
+  const release = job("desktop");
+  const rehearsal = job("rehearsal");
+  const gate = release.match(
+    /^    if: github.event_name == '([^']+)' && startsWith\(github.ref, '([^']+)'\)$/m,
+  );
+  const manual = rehearsal.match(/^    if: github.event_name == '([^']+)'$/m);
+  assert.ok(gate);
+  assert.ok(manual);
+  for (const [event, ref, builds, signs] of [
+    ["workflow_dispatch", "refs/heads/main", true, false],
+    ["workflow_dispatch", "refs/tags/v1.0.0", true, false],
+    ["push", "refs/tags/v1.0.0", false, true],
+    ["push", "refs/heads/main", false, false],
+    ["push", "refs/tags/packs-v1", false, false],
+  ]) {
+    assert.equal(event === manual[1], builds);
+    assert.equal(event === gate[1] && ref.startsWith(gate[2]), signs);
+  }
+  assert.match(workflow, /^permissions:\n  contents: read\n\njobs:/m);
+  assert.doesNotMatch(
+    rehearsal,
+    /environment:|permissions:|secrets\.|release upload|attestations:|tauri-apps\/tauri-action/,
+  );
+  assert.match(rehearsal, /createUpdaterArtifacts":false/);
+  assert.match(release, /environment: release/);
+  assert.match(release, /releaseDraft: true/);
+});

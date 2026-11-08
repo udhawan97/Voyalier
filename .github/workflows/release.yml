@@ -26,19 +26,40 @@ on:
         type: boolean
 
 permissions:
-  contents: write
-  id-token: write # provenance attestation
-  attestations: write
+  contents: read
 
 jobs:
+  rehearsal:
+    name: Keyless build (${{ matrix.platform }})
+    if: github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@b0f76dfb45f55f8421693e4803ac7bb65143bd34 # v6
+        with:
+          version: 11.7.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+      - run: pnpm install --frozen-lockfile
+      - name: Build desktop bundles
+        shell: bash
+        run: pnpm --filter @voyalier/desktop exec tauri build --verbose --config '{"bundle":{"createUpdaterArtifacts":false}}'
+
   desktop:
     name: Desktop build (${{ matrix.artifact }})
-    # Only a real tag build enters the protected environment (approval + the
-    # signing secrets). A workflow_dispatch build gets no environment, no key,
-    # and no updater artifacts — so an actor can't dispatch a malicious ref and
-    # have a reviewer's "dry-run" approval sign it. Owner: scope the signing
-    # secrets to the `release` environment (not repo-wide) to close this fully.
-    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     strategy:
       fail-fast: false
       # Serialize the two legs: tauri-action read-modify-writes the shared
@@ -67,7 +88,6 @@ jobs:
       # result is a broken updater (installs that can never verify). Only guard
       # real releases; workflow_dispatch stays a build-only dry-run.
       - name: Fail if the updater pubkey is still the placeholder
-        if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         run: |
           conf=apps/desktop/src-tauri/tauri.conf.json
@@ -98,32 +118,23 @@ jobs:
           # the key. Note: `cargo build` runs INSIDE this step, so a dependency's
           # build.rs still sees the key — that risk is mitigated by SHA-pinning +
           # --frozen-lockfile + the dropped cache above, not by this scoping.
-          # Also tag-gated: a workflow_dispatch build never receives the key.
-          TAURI_SIGNING_PRIVATE_KEY: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: apps/desktop
-          # On a tag, build normally (updater artifacts need the signing key). On
-          # a keyless dispatch dry-run, disable updater artifacts so the build
-          # still succeeds as a smoke test without a key.
-          args: ${{ startsWith(github.ref, 'refs/tags/v') && '--verbose' || '--verbose --config {"bundle":{"createUpdaterArtifacts":false}}' }}
-          # On a tag: create a DRAFT release and upload the signed bundles, the
-          # updater .sig files, and latest.json. On workflow_dispatch the empty
-          # tagName makes it a build-only dry-run (no uploads).
-          tagName: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
-          releaseName: ${{ startsWith(github.ref, 'refs/tags/v') && format('Voyalier {0}', github.ref_name) || '' }}
+          args: --verbose
+          tagName: ${{ github.ref_name }}
+          releaseName: ${{ format('Voyalier {0}', github.ref_name) }}
           releaseDraft: true
           prerelease: false
           # We want NSIS (not MSI) as the promoted updatable Windows artifact.
           updaterJsonPreferNsis: true
       - name: Attest build provenance
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: ${{ matrix.attest }}
       - name: Checksums (attach to the draft)
-        if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
