@@ -11,7 +11,10 @@ import { setLocalePreference } from "./app/locale";
 import { openFixtureTrip, renderApp } from "./test/helpers";
 
 describe("traveler-owned planning workflows", () => {
-  afterEach(() => setLocalePreference("en"));
+  afterEach(() => {
+    vi.useRealTimers();
+    setLocalePreference("en");
+  });
 
   it("explains the required text before either blank planning submission", async () => {
     renderApp(createMockGateway());
@@ -53,6 +56,8 @@ describe("traveler-owned planning workflows", () => {
   });
 
   it("adds checklist items explicitly and keeps manual activities out of confirmed facts", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 10, 3, 12));
     renderApp(createMockGateway());
     await openFixtureTrip();
 

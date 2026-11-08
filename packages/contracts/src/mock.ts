@@ -176,6 +176,63 @@ function emptyConciergeProfile(tripId: string): ConciergeProfile {
   };
 }
 
+function invalidateConciergeContext(
+  profile: ConciergeProfile,
+  fixedTasks: string[],
+  recordedAt: string,
+  includeAreaStays = false,
+): void {
+  for (const item of profile.taskProgress) {
+    const areaStay =
+      includeAreaStays &&
+      (item.taskId.startsWith("compare-stay-") ||
+        item.taskId.startsWith("plan-transfer-"));
+    const preparation =
+      item.taskId.includes("-canada-") ||
+      item.taskId.includes("-hawaii-") ||
+      item.taskId.endsWith("-return-route");
+    if (
+      !(fixedTasks.includes(item.taskId) || preparation || areaStay) ||
+      !["done_by_traveler", "not_applicable", "waiting"].includes(item.state)
+    )
+      continue;
+    item.history = [
+      ...(item.history ?? []),
+      {
+        state: item.state,
+        note: item.note,
+        contextRevision: item.contextRevision,
+        recordedAt,
+        reason: areaStay ? "area stays changed" : "context invalidated",
+      },
+    ].slice(-50);
+    item.state = "needs_recheck";
+    delete item.contextRevision;
+  }
+  if (!profile.taskProgress.some((item) => item.taskId === "review-entry"))
+    profile.taskProgress.push({
+      taskId: "review-entry",
+      state: "needs_recheck",
+      note: "",
+      history: [],
+    });
+}
+
+// Compare the semantic fields, independent of JSON property insertion order.
+function travelerContext(travelers: ConciergeProfile["travelers"]): string {
+  return JSON.stringify(
+    travelers.map((person) => [
+      person.id,
+      person.displayName,
+      person.passportCountryIso2,
+      person.residenceCountryIso2,
+      person.residenceStatus,
+      person.returnCountryIso2,
+      person.existingDestinationDocument ?? "unknown",
+    ]),
+  );
+}
+
 function mockConciergeWorkspace(
   trip: Trip,
   profile: ConciergeProfile,
@@ -192,6 +249,17 @@ function mockConciergeWorkspace(
   const progress = new Map(
     profile.taskProgress.map((item) => [item.taskId, item]),
   );
+  const completionState = (id: string): ConciergeTask["state"] => {
+    const saved = progress.get(id);
+    if (!saved) return "not_started";
+    if (
+      (saved.state === "done_by_traveler" ||
+        saved.state === "not_applicable") &&
+      !saved.contextRevision
+    )
+      return "needs_recheck";
+    return saved.state;
+  };
   const task = (
     id: string,
     title: string,
@@ -204,24 +272,26 @@ function mockConciergeWorkspace(
     reason,
     authority,
     section,
-    state: (() => {
-      const saved = progress.get(id);
-      if (!saved) return "not_started";
-      if (
-        (saved.state === "done_by_traveler" ||
-          saved.state === "not_applicable") &&
-        saved.contextRevision !== trip.updatedAt
-      ) {
-        return "needs_recheck";
-      }
-      return saved.state;
-    })(),
+    state: completionState(id),
   });
   const destination = trip.destination.toLocaleLowerCase();
+  const placeKey = savedPlaceIdentity(trip.destination);
+  const isMontreal = [
+    "montreal",
+    "montreal qc",
+    "montreal quebec",
+    "montreal canada",
+    "montreal qc canada",
+    "montreal quebec canada",
+  ].includes(placeKey);
+  const isCanada =
+    isMontreal ||
+    placeKey === "canada" ||
+    /,\s*canada\s*$/i.test(trip.destination);
   const origin = trip.origin.toLocaleLowerCase();
   const area = profile.preferences.selectedArea ?? trip.destination;
   const normalizedArea = area.toLocaleLowerCase();
-  const stayUrl = destination.includes("montr")
+  const stayUrl = isMontreal
     ? "https://www.airbnb.com/montreal-canada/stays"
     : normalizedArea.includes("oʻahu") || normalizedArea.includes("oahu")
       ? "https://www.airbnb.com/oahu-hi/stays"
@@ -233,17 +303,17 @@ function mockConciergeWorkspace(
     normalizedArea.includes("oahu") ||
     normalizedArea.includes("honolulu");
   const flightUrl =
-    origin.includes("chicago") && destination.includes("montr")
+    origin.includes("chicago") && isMontreal
       ? "https://www.google.com/travel/flights/flights-from-chicago-to-montreal.html"
       : origin.includes("chicago") && destination.includes("hawai") && isOahu
         ? "https://www.google.com/travel/flights/flights-from-chicago-to-honolulu.html"
         : "https://www.google.com/travel/flights";
-  const expediaUrl = destination.includes("montr")
+  const expediaUrl = isMontreal
     ? "https://www.expedia.com/Montreal-Hotels.d178288.Travel-Guide-Hotels"
     : destination.includes("hawai") && isOahu
       ? "https://www.expedia.com/Honolulu-Hotels.d1488.Travel-Guide-Hotels"
       : "https://www.expedia.com/";
-  const allTrailsUrl = destination.includes("montr")
+  const allTrailsUrl = isMontreal
     ? "https://www.alltrails.com/trail/canada/quebec/visite-a-pied-panoramique-de-montreal"
     : destination.includes("hawai") && isOahu
       ? "https://www.alltrails.com/hawaii/oahu/state-parks"
@@ -384,18 +454,6 @@ function mockConciergeWorkspace(
     not_applicable: 5,
   };
   tasks.sort((left, right) => priority[left.state] - priority[right.state]);
-  const preparationState = (id: string): ConciergeTask["state"] => {
-    const saved = progress.get(id);
-    if (!saved) return "not_started";
-    if (
-      (saved.state === "done_by_traveler" ||
-        saved.state === "not_applicable") &&
-      saved.contextRevision !== trip.updatedAt
-    ) {
-      return "needs_recheck";
-    }
-    return saved.state;
-  };
   const preparationStep = (
     traveler: ConciergeProfile["travelers"][number],
     suffix: string,
@@ -416,7 +474,7 @@ function mockConciergeWorkspace(
       id,
       travelerId: traveler.id,
       sourceCheckedOn: "2026-09-12",
-      state: preparationState(id),
+      state: completionState(id),
       ...stepFields,
       // Requirement ids mirror core: `${travelerId}-${docSuffix}`, not a
       // positional `${stepId}-document-N`, so wallet links resolve to the same
@@ -593,7 +651,7 @@ function mockConciergeWorkspace(
             },
           ]
         : []),
-      ...(destination.includes("montr")
+      ...(isMontreal
         ? [
             {
               id: "destination-montreal",
@@ -669,7 +727,7 @@ function mockConciergeWorkspace(
           }),
         ];
       }
-      if (destination.includes("montr") || destination.includes("canada")) {
+      if (isCanada) {
         const returningToUs = traveler.returnCountryIso2
           ? traveler.returnCountryIso2 === "US"
           : traveler.residenceCountryIso2 === "US";
@@ -887,7 +945,7 @@ function mockConciergeWorkspace(
             sourceName: "Hawaiʻi Tourism Authority",
           },
         ]
-      : destination.includes("montr")
+      : isMontreal
         ? [
             {
               id: "old-montreal",
@@ -2384,6 +2442,37 @@ export function mockScoreHaystack(
 }
 
 const MOCK_SEARCH_SUGGESTION_LIMIT = 8;
+
+function searchFactName(
+  fact: ConfirmedFact,
+): Pick<SearchHit, "subject" | "label"> {
+  const payload = fact.payload as Record<string, string | undefined>;
+  const field = (key: string) =>
+    trimRustWhitespace(payload[key] ?? "") || undefined;
+  switch (fact.factType) {
+    case "flight_segment": {
+      const subject = field("flightNumber");
+      return { subject, label: subject ? `Flight ${subject}` : "Flight" };
+    }
+    case "lodging_stay": {
+      const subject = field("propertyName");
+      return { subject, label: subject ?? "Stay" };
+    }
+    case "car_rental": {
+      const subject = field("carrierName");
+      return { subject, label: subject ?? "Car rental" };
+    }
+    default: {
+      const subject = field("serviceNumber") ?? field("carrierName");
+      const fallback = {
+        rail_journey: "Rail journey",
+        coach_journey: "Coach journey",
+        ferry_crossing: "Ferry crossing",
+      };
+      return { subject, label: subject ?? fallback[fact.factType] };
+    }
+  }
+}
 
 function factFieldStrings(fact: CandidateFact | ConfirmedFact): string[] {
   return Object.values(fact.payload).filter(
@@ -4522,6 +4611,27 @@ export function createMockGateway(options?: {
             "The concierge party context is invalid",
           );
         }
+        for (const next of input.taskProgress) {
+          const prior = current?.taskProgress.find(
+            (item) => item.taskId === next.taskId,
+          );
+          if (
+            (next.state === "done_by_traveler" ||
+              next.state === "not_applicable") &&
+            next.contextRevision !== undefined &&
+            next.contextRevision !== trip.updatedAt &&
+            !(
+              prior?.state === next.state &&
+              prior.contextRevision === next.contextRevision
+            )
+          ) {
+            throw appError(
+              "validation/invalid_input",
+              "The trip changed. Review the task again before marking it complete.",
+              { field: "taskProgress.contextRevision" },
+            );
+          }
+        }
         for (const link of input.walletLinks) {
           if (
             link.sourceDocumentId &&
@@ -4546,10 +4656,20 @@ export function createMockGateway(options?: {
             );
           }
         }
-        const saved = writeConciergeProfile({
-          ...clone(input),
-          updatedAt: timestamp(),
-        });
+        const next = { ...clone(input), updatedAt: timestamp() };
+        if (
+          current &&
+          travelerContext(current.travelers) !== travelerContext(next.travelers)
+        ) {
+          invalidateConciergeContext(
+            next,
+            ["complete-party", "review-entry", "collect-documents"],
+            next.updatedAt,
+          );
+        } else if (!current && next.travelers.length > 0) {
+          invalidateConciergeContext(next, ["review-entry"], next.updatedAt);
+        }
+        const saved = writeConciergeProfile(next);
         return mockConciergeWorkspace(
           trip,
           saved,
@@ -4594,8 +4714,21 @@ export function createMockGateway(options?: {
           endDate !== existing.endDate
         ) {
           const profile = conciergeProfiles.get(tripId);
-          if (profile)
-            writeConciergeProfile({ ...profile, updatedAt: updated.updatedAt });
+          if (profile) {
+            const next = { ...clone(profile), updatedAt: updated.updatedAt };
+            invalidateConciergeContext(
+              next,
+              [
+                "compare-flights",
+                "compare-stays",
+                "review-entry",
+                "plan-local",
+              ],
+              updated.updatedAt,
+              true,
+            );
+            writeConciergeProfile(next);
+          }
         }
         if (
           destination !== existing.destination ||
@@ -4605,9 +4738,10 @@ export function createMockGateway(options?: {
           weatherSnapshots.delete(tripId);
           publicHolidaysSnapshots.delete(tripId);
         }
+        if (origin !== existing.origin || destination !== existing.destination)
+          destinationFactsSnapshots.delete(tripId);
         if (destination !== existing.destination) {
           advisoryPanels.delete(tripId);
-          destinationFactsSnapshots.delete(tripId);
           placeSummaries.delete(tripId);
         }
         return clone(updated);
@@ -4919,22 +5053,12 @@ export function createMockGateway(options?: {
             }
           }
           if (best) {
-            const payload = fact.payload as Record<string, string | undefined>;
             ranked.push({
               hit: {
                 source: "confirmed_fact",
                 factType: fact.factType,
-                subject:
-                  fact.factType === "flight_segment"
-                    ? payload.flightNumber
-                    : payload.propertyName,
+                ...searchFactName(fact),
                 recordId: fact.id,
-                label:
-                  fact.factType === "flight_segment"
-                    ? payload.flightNumber
-                      ? `Flight ${payload.flightNumber}`
-                      : "Flight"
-                    : (payload.propertyName ?? "Stay"),
                 snippet: best.snippet,
                 score: best.occurrences,
               },

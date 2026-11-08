@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import type {
   ChatMessage,
   HighStakesTopic,
@@ -9,6 +9,7 @@ import { MAX_CHAT_MESSAGE_CHARS, countChars } from "@voyalier/contracts";
 import { useAnnounce, useGateway } from "../app/context";
 import { describeError } from "../app/format";
 import { plural, t, type MessageKey } from "../app/i18n";
+import { notesWriter } from "../app/notesWriter";
 import { chatScope, useScopeKey } from "../app/revalidate";
 import { useAsyncAction, useAsyncData } from "../app/useAsync";
 import { Button } from "../components/Button";
@@ -73,13 +74,7 @@ function AssistantTurn({
   // of record, it is text the traveler chose to keep, so it goes where the rest
   // of their own words go.
   const saveAction = useAsyncAction(
-    async () => {
-      const notes = await gateway.getTripNotes(tripId);
-      const body = notes.body.trim()
-        ? `${notes.body}\n\n${message.text}`
-        : message.text;
-      await gateway.setTripNotes(tripId, body);
-    },
+    () => notesWriter(gateway, tripId).append(message.id, message.text),
     () => {
       setSaved(true);
       announce(t("chat.saveToNotes.done"));
@@ -172,10 +167,12 @@ export function ChatPanel({
 
   const [draft, setDraft] = useState("");
 
+  const draftGeneration = useRef(0);
   const sendAction = useAsyncAction(
-    () => gateway.sendChatMessage(tripId, draft.trim()),
-    () => {
-      setDraft("");
+    ({ text }: { text: string; generation: number }) =>
+      gateway.sendChatMessage(tripId, text),
+    (_reply, { generation }) => {
+      if (draftGeneration.current === generation) setDraft("");
       announce(t("chat.announce.reply"));
       // The reply comes back alone; the thread is what holds both turns.
       reload();
@@ -245,7 +242,10 @@ export function ChatPanel({
               onSubmit={(event) => {
                 event.preventDefault();
                 if (!draft.trim() || tooLong) return;
-                void sendAction.run();
+                void sendAction.run({
+                  text: draft.trim(),
+                  generation: draftGeneration.current,
+                });
               }}
             >
               <label htmlFor={fieldId}>{t("chat.label")}</label>
@@ -256,7 +256,10 @@ export function ChatPanel({
                 value={draft}
                 placeholder={t("chat.placeholder")}
                 aria-invalid={tooLong || undefined}
-                onChange={(event) => setDraft(event.target.value)}
+                onChange={(event) => {
+                  draftGeneration.current += 1;
+                  setDraft(event.target.value);
+                }}
               />
               {tooLong ? (
                 <p className="voy-field__error" role="alert">

@@ -155,3 +155,53 @@ it.each(["create", "edit"] as const)(
     ).toBeInTheDocument();
   },
 );
+
+it.each([false, true])(
+  "a dismissed reservation cannot close its replacement (rejects=%s)",
+  async (rejects) => {
+    const base = createMockGateway();
+    const gate = deferred();
+    const addManualFact = vi.fn(
+      async (input: Parameters<AppGateway["addManualFact"]>[0]) => {
+        await gate.promise;
+        if (rejects)
+          throw { code: "storage/failure", message: "Synthetic failure" };
+        return base.addManualFact(input);
+      },
+    );
+    await renderTrip({ ...base, addManualFact });
+    async function openReservation() {
+      fireEvent.click(screen.getByRole("button", { name: "Add reservation" }));
+      return screen.findByRole("dialog", { name: "Add a reservation" });
+    }
+    const first = await openReservation();
+    fireEvent.change(within(first).getByLabelText("Flight number"), {
+      target: { value: "AB123" },
+    });
+    fireEvent.click(
+      within(first).getByRole("button", { name: "Add to Blueprint" }),
+    );
+    await waitFor(() => expect(addManualFact).toHaveBeenCalledTimes(1));
+    fireEvent.keyDown(first, { key: "Escape" });
+    const second = await openReservation();
+    const field = within(second).getByLabelText("Flight number");
+    fireEvent.change(field, { target: { value: "XY456" } });
+    field.focus();
+    await act(async () => {
+      gate.release();
+      await addManualFact.mock.results[0].value.catch(() => undefined);
+    });
+    expect(second).toBeInTheDocument();
+    expect(field).toHaveValue("XY456");
+    expect(field).toHaveFocus();
+    expect(within(second).queryByRole("alert")).toBeNull();
+    const trip = await base.getTrip("trip_kyoto");
+    expect(
+      trip.confirmedFacts.filter(
+        (fact) =>
+          "flightNumber" in fact.payload &&
+          fact.payload.flightNumber === "AB123",
+      ),
+    ).toHaveLength(rejects ? 0 : 1);
+  },
+);

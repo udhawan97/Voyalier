@@ -1,4 +1,10 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type { AppGateway } from "@voyalier/contracts";
 import { createMockGateway } from "@voyalier/contracts";
 
@@ -223,3 +229,40 @@ describe("trip chat", () => {
     ).toBeInTheDocument();
   });
 });
+
+it.each([false, true])(
+  "only clears the submitted chat draft (rejects=%s)",
+  async (rejects) => {
+    const base = createMockGateway();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const send = vi.fn(
+      async (...args: Parameters<AppGateway["sendChatMessage"]>) => {
+        await gate;
+        return base.sendChatMessage(...args);
+      },
+    );
+    if (rejects)
+      send.mockImplementationOnce(async () => {
+        await gate;
+        throw { code: "storage/failure", message: "Synthetic failure" };
+      });
+    const chat = await openChat({ ...base, sendChatMessage: send });
+    await ask(chat, "First draft");
+    const field = within(chat).getByLabelText("Your message");
+    fireEvent.change(field, { target: { value: "Second draft " } });
+    await act(async () => {
+      release();
+      await send.mock.results[0].value.catch(() => undefined);
+    });
+    expect(field).toHaveValue("Second draft ");
+    fireEvent.click(within(chat).getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(field).toHaveValue(""));
+    expect(send.mock.calls.map(([, text]) => text)).toEqual([
+      "First draft",
+      "Second draft",
+    ]);
+  },
+);

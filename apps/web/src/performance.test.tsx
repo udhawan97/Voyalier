@@ -125,7 +125,15 @@ describe("trip open budget", () => {
     ).toBeInTheDocument();
   });
 
-  it("focuses an eager Plan record without mounting unrelated sections", async () => {
+  it("focuses an eager Plan record without mounting unrelated sections", async ({
+    onTestFinished,
+  }) => {
+    // FP18 departs on the fixture's local November 3. Keep performance timers real.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    vi.setSystemTime(new Date(2026, 10, 3, 12));
     class NeverIntersects {
       observe(): void {}
       unobserve(): void {}

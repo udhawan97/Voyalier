@@ -196,6 +196,147 @@ describe("concierge cockpit", () => {
     expect(travelers).toHaveValue(4);
   });
 
+  it.each([
+    ["Montreal", true, true],
+    ["Montréal, Québec, Canada", true, true],
+    ["Vancouver, Canada", false, true],
+    ["Montreux, Switzerland", false, false],
+    ["Montrose", false, false],
+    ["Montréal, France", false, false],
+    ["Montreal 東京", false, false],
+  ] as const)(
+    "uses matching city and country guidance for %s",
+    async (destination, city, country) => {
+      const gateway = createMockGateway();
+      const trip = await gateway.createTrip({
+        origin: "Chicago",
+        destination,
+        startDate: "2027-01-01",
+        endDate: "2027-01-08",
+      });
+      const { profile } = await gateway.getConciergeWorkspace(trip.id);
+      const ws = await gateway.setConciergeProfile({
+        ...profile,
+        travelers: [
+          { id: "one", displayName: "One", residenceStatus: "unknown" },
+        ],
+      });
+      expect(ws.areaGuides.some((area) => area.id === "old-montreal")).toBe(
+        city,
+      );
+      expect(
+        ws.providerActions.some((action) =>
+          action.url.includes("flights-from-chicago-to-montreal"),
+        ),
+      ).toBe(city);
+      expect(
+        ws.providerActions.some((action) =>
+          action.url.includes("montreal-canada/stays"),
+        ),
+      ).toBe(city);
+      expect(
+        ws.preparationSteps.some((step) => step.id.endsWith("-canada-entry")),
+      ).toBe(country);
+    },
+  );
+
+  it("keeps completions across incidental edits and records only relevant route changes", async () => {
+    const gateway = createMockGateway();
+    const trip = await gateway.createTrip({
+      origin: "Chicago",
+      destination: "Kyoto",
+      startDate: "2027-01-01",
+      endDate: "2027-01-08",
+    });
+    const { profile } = await gateway.getConciergeWorkspace(trip.id);
+    await gateway.setConciergeProfile({
+      ...profile,
+      taskProgress: ["compare-flights", "review-money"].map((taskId) => ({
+        taskId,
+        state: "done_by_traveler",
+        contextRevision: trip.updatedAt,
+        note: "Reviewed",
+      })),
+    });
+    await gateway.updateTrip(trip.id, { title: "Renamed" });
+    await gateway.archiveTrip(trip.id);
+    await gateway.unarchiveTrip(trip.id);
+    const current = await gateway.getConciergeWorkspace(trip.id);
+    for (const id of ["compare-flights", "review-money"])
+      expect(current.tasks.find((t) => t.id === id)?.state).toBe(
+        "done_by_traveler",
+      );
+    await gateway.updateTrip(trip.id, { endDate: "2027-01-09" });
+    const changed = await gateway.getConciergeWorkspace(trip.id);
+    expect(
+      changed.profile.taskProgress.find(
+        (item) => item.taskId === "review-entry",
+      )?.state,
+    ).toBe("needs_recheck");
+    expect(changed.tasks.find((t) => t.id === "review-money")?.state).toBe(
+      "done_by_traveler",
+    );
+    expect(changed.tasks.find((t) => t.id === "compare-flights")?.state).toBe(
+      "needs_recheck",
+    );
+    expect(
+      changed.profile.taskProgress
+        .find((t) => t.taskId === "compare-flights")
+        ?.history?.at(-1)?.note,
+    ).toBe("Reviewed");
+  });
+
+  it("keeps a history of the affected preparation after a traveler edit", async () => {
+    const gateway = createMockGateway();
+    const trip = await gateway.createTrip({
+      origin: "Chicago",
+      destination: "Montréal",
+      startDate: "2027-01-01",
+      endDate: "2027-01-08",
+    });
+    const { profile } = await gateway.getConciergeWorkspace(trip.id);
+    const { profile: withPerson } = await gateway.setConciergeProfile({
+      ...profile,
+      travelers: [
+        { id: "one", displayName: "One", residenceStatus: "unknown" },
+      ],
+    });
+    const { profile: completed } = await gateway.setConciergeProfile({
+      ...withPerson,
+      taskProgress: ["one-canada-entry", "review-money"].map((taskId) => ({
+        taskId,
+        state: "done_by_traveler",
+        contextRevision: trip.updatedAt,
+        note: "Original completion",
+      })),
+    });
+    const changed = await gateway.setConciergeProfile({
+      ...completed,
+      travelers: [{ ...completed.travelers[0], passportCountryIso2: "JP" }],
+    });
+    expect(
+      changed.preparationSteps.find((step) => step.id === "one-canada-entry")
+        ?.state,
+    ).toBe("needs_recheck");
+    expect(
+      changed.profile.taskProgress
+        .find((item) => item.taskId === "one-canada-entry")
+        ?.history?.at(-1),
+    ).toMatchObject({
+      state: "done_by_traveler",
+      note: "Original completion",
+      reason: "context invalidated",
+    });
+    expect(
+      changed.tasks.find((task) => task.id === "review-money")?.state,
+    ).toBe("done_by_traveler");
+    expect(
+      changed.profile.taskProgress.find(
+        (item) => item.taskId === "review-entry",
+      )?.state,
+    ).toBe("needs_recheck");
+  });
+
   it("reopens route-sensitive work after a destination edit without leaving the trip", async () => {
     const gateway = createMockGateway();
     const trip = await gateway.createTrip({

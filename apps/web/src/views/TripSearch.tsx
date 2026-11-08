@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { MAX_QUERY_LEN, countChars, type SearchHit } from "@voyalier/contracts";
 
 import { useAnnounce, useGateway } from "../app/context";
-import { describeError } from "../app/format";
+import { describeError, factTypeLabel } from "../app/format";
 import { plural, t } from "../app/i18n";
 import { useAsyncAction } from "../app/useAsync";
 import { SectionTitle } from "../components/primitives";
@@ -12,6 +12,7 @@ import {
   CompassIcon,
   PlaneIcon,
   SearchIcon,
+  RouteIcon,
 } from "../components/icons";
 
 const MIN_QUERY = 2;
@@ -21,7 +22,9 @@ const LIMIT_GUIDANCE_START = MAX_QUERY_LEN - 20;
 function hitIcon(hit: SearchHit) {
   if (hit.source === "resource") return <CompassIcon />;
   if (hit.source === "confirmed_fact") {
-    return hit.factType === "flight_segment" ? <PlaneIcon /> : <BedIcon />;
+    if (hit.factType === "flight_segment") return <PlaneIcon />;
+    if (hit.factType === "lodging_stay") return <BedIcon />;
+    if (hit.factType) return <RouteIcon />;
   }
   return null;
 }
@@ -33,7 +36,12 @@ function hitLabel(hit: SearchHit): string {
       ? t("search.label.flight", { subject: hit.subject })
       : t("search.label.flightGeneric");
   }
-  return hit.subject ?? t("search.label.stayGeneric");
+  if (!hit.factType) return hit.subject ?? t("search.hit.confirmed");
+  const kind = factTypeLabel(hit.factType);
+  if (!hit.subject) return kind;
+  return hit.factType === "lodging_stay"
+    ? hit.subject
+    : `${kind} · ${hit.subject}`;
 }
 
 function hitKindLabel(hit: SearchHit): string {

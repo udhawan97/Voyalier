@@ -229,9 +229,7 @@ export function UpdatesPanel() {
         return (
           <div className="voy-updates__error" role="alert">
             <p className="voy-updates__lead">
-              {phase.reason === "offline"
-                ? t("updates.error.offline")
-                : t("updates.error.generic")}
+              {t(`updates.error.${phase.reason}`)}
             </p>
             <div className="voy-updates__actions">
               <Button ref={primaryRef} variant="secondary" onClick={runCheck}>

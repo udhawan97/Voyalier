@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useSyncExternalStore } from "react";
-import type { AppError, AppGateway } from "@voyalier/contracts";
+import { notesWriter } from "../app/notesWriter";
 
 import { useGateway } from "../app/context";
 import { describeError } from "../app/format";
@@ -11,84 +11,6 @@ import { SectionTitle, Skeleton } from "../components/primitives";
 
 /** How long to wait after the last keystroke before saving. */
 const SAVE_DEBOUNCE_MS = 800;
-
-type NoteSnapshot = {
-  draft: string | null;
-  state: "idle" | "saving" | "saved";
-  error: AppError | null;
-};
-
-/** Pending writers outlive a panel so returning to a trip cannot race teardown. */
-const pendingWriters = new WeakMap<AppGateway, Map<string, NotesWriter>>();
-type NotesWriter = ReturnType<typeof createNotesWriter>;
-
-function createNotesWriter(gateway: AppGateway, tripId: string) {
-  let snapshot: NoteSnapshot = { draft: null, state: "idle", error: null };
-  let committed: string | undefined;
-  let initialized = false;
-  let inFlight = false;
-  const listeners = new Set<() => void>();
-  const publish = (next: NoteSnapshot) => {
-    snapshot = next;
-    for (const listener of listeners) listener();
-  };
-  const writer = {
-    getSnapshot: () => snapshot,
-    subscribe: (listener: () => void) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-    edit(next: string) {
-      pendingWriters.get(gateway)!.set(tripId, writer);
-      publish({ draft: next, state: "idle", error: null });
-    },
-    async flush(loadedBody = "") {
-      if (inFlight || snapshot.draft === null) return;
-      if (!initialized) {
-        committed = loadedBody;
-        initialized = true;
-      }
-      const next = snapshot.draft;
-      if (next === committed) {
-        pendingWriters.get(gateway)!.delete(tripId);
-        return;
-      }
-      inFlight = true;
-      publish({ ...snapshot, state: "saving", error: null });
-      try {
-        const stored = await gateway.setTripNotes(tripId, next);
-        committed = stored.body;
-        if (snapshot.draft === next) {
-          publish({ ...snapshot, state: "saved", error: null });
-          pendingWriters.get(gateway)!.delete(tripId);
-        }
-      } catch (caught) {
-        // A failed response cannot establish what reached storage. Retry the
-        // latest desire even if it equals the body loaded before this request.
-        committed = undefined;
-        if (snapshot.draft === next) {
-          publish({ ...snapshot, state: "idle", error: caught as AppError });
-        }
-      } finally {
-        inFlight = false;
-        // Coalesce everything typed during this request into one ordered write.
-        if (snapshot.draft !== next) void writer.flush();
-      }
-    },
-  };
-  return writer;
-}
-
-function notesWriter(gateway: AppGateway, tripId: string): NotesWriter {
-  let writers = pendingWriters.get(gateway);
-  if (!writers) {
-    writers = new Map();
-    pendingWriters.set(gateway, writers);
-  }
-  return writers.get(tripId) ?? createNotesWriter(gateway, tripId);
-}
 
 /**
  * Free-text notes for a trip.

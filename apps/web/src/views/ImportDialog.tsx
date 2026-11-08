@@ -77,6 +77,21 @@ export function ImportDialog({
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [dragging, setDragging] = useState(false);
+  const fileGeneration = useRef(0);
+  const customLabel = useRef(false);
+  const [readingFile, setReadingFile] = useState(false);
+  useEffect(
+    () => () => {
+      fileGeneration.current += 1;
+    },
+    [],
+  );
+
+  function cancelFileRead() {
+    fileGeneration.current += 1;
+    setReadingFile(false);
+  }
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   // A failed submit renders its explanation at the top of a body the traveler
   // may have scrolled past. Nothing moved them to it, so a duplicate import
@@ -105,6 +120,8 @@ export function ImportDialog({
   // format from the extension, default the label to the filename, and drop the
   // content into the same textarea the user could paste into.
   async function loadFile(file: File) {
+    const generation = ++fileGeneration.current;
+    setReadingFile(true);
     setError(null);
     setFieldError(null);
     setDuplicateId(null);
@@ -112,16 +129,20 @@ export function ImportDialog({
     try {
       text = await file.text();
     } catch {
+      if (generation !== fileGeneration.current) return;
+      setReadingFile(false);
       setFieldError(t("import.file.unreadable"));
       return;
     }
+    if (generation !== fileGeneration.current) return;
+    setReadingFile(false);
     if (countChars(text) > MAX_DOCUMENT_CHARS) {
       setFieldError(t("import.file.tooLarge"));
       return;
     }
     setContent(text);
     setKind(kindForFilename(file.name));
-    if (!label.trim()) setLabel(file.name);
+    if (!customLabel.current) setLabel(file.name);
     announce(t("import.file.loaded", { name: file.name }));
   }
 
@@ -145,6 +166,7 @@ export function ImportDialog({
       setFieldError(t("import.error.tooLarge"));
       return;
     }
+    if (readingFile || submitting) return;
     setSubmitting(true);
     try {
       const imported = await gateway.importDocument({
@@ -234,7 +256,9 @@ export function ImportDialog({
             type="submit"
             form="import-form"
             busy={submitting}
-            disabled={over || labelOver || content.trim().length === 0}
+            disabled={
+              readingFile || over || labelOver || content.trim().length === 0
+            }
           >
             {t("import.submit")}
           </Button>
@@ -318,7 +342,10 @@ export function ImportDialog({
           <ChoiceGroup
             label={t("import.formatChoice")}
             value={kind}
-            onChange={setKind}
+            onChange={(next) => {
+              cancelFileRead();
+              setKind(next);
+            }}
             options={[
               { value: "pasted_text", label: t("import.format.text") },
               { value: "html", label: t("import.format.html") },
@@ -334,7 +361,10 @@ export function ImportDialog({
           id="import-label"
           label={t("import.label")}
           value={label}
-          onChange={(event) => setLabel(event.target.value)}
+          onChange={(event) => {
+            customLabel.current = true;
+            setLabel(event.target.value);
+          }}
           error={labelOver ? t("import.label.tooLong") : undefined}
           autoComplete="off"
           placeholder={t("import.label.placeholder")}
@@ -354,7 +384,10 @@ export function ImportDialog({
           id="import-content"
           label={t("import.content")}
           value={content}
-          onChange={(event) => setContent(event.target.value)}
+          onChange={(event) => {
+            cancelFileRead();
+            setContent(event.target.value);
+          }}
           error={fieldError ?? undefined}
           rows={10}
           required
@@ -379,7 +412,13 @@ export function ImportDialog({
         {suggestHtml ? (
           <Banner tone="info" title={t("import.looksLikeHtml.title")}>
             <p>{t("import.looksLikeHtml.body")}</p>
-            <Button variant="secondary" onClick={() => setKind("html")}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                cancelFileRead();
+                setKind("html");
+              }}
+            >
               {t("import.looksLikeHtml.action")}
             </Button>
           </Banner>

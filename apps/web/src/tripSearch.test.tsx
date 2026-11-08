@@ -620,6 +620,64 @@ describe("trip search", () => {
     expect(terms.some((term) => term.toLowerCase() === "shuttle")).toBe(true);
   });
 
+  it.each(["en", "es"] as const)(
+    "identifies all confirmed surface modes and opens the matched source in %s",
+    async (locale) => {
+      setLocalePreference(locale);
+      const gateway = createMockGateway();
+      const labels = [
+        ["rail_journey", "Train", "Tren"],
+        ["coach_journey", "Coach", "Autobús"],
+        ["ferry_crossing", "Ferry", "Ferry"],
+        ["car_rental", "Hire car", "Coche de alquiler"],
+      ] as const;
+      const records = [];
+      for (const [factType, en, es] of labels) {
+        for (const named of [false, true]) {
+          const subject = named ? `Operator ${factType}` : undefined;
+          const fact = await gateway.addManualFact({
+            tripId: "trip_kyoto",
+            factType,
+            payload: { departurePlace: "Test terminal", carrierName: subject },
+          });
+          const kind = locale === "en" ? en : es;
+          records.push({
+            id: fact.id,
+            label: subject ? `${kind} · ${subject}` : kind,
+          });
+        }
+      }
+      renderApp(gateway);
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name:
+            locale === "en"
+              ? "Open Kyoto autumn journey"
+              : "Abrir Kyoto autumn journey",
+        }),
+      );
+      const search = await screen.findByRole("region", {
+        name: locale === "en" ? "Find in this trip" : "Buscar en este viaje",
+      });
+      fireEvent.change(within(search).getByRole("searchbox"), {
+        target: { value: "Test terminal" },
+      });
+      for (const record of records) {
+        const button = await within(search).findByRole("button", {
+          name: `${locale === "en" ? "Show source" : "Mostrar fuente"}: ${record.label}`,
+        });
+        fireEvent.click(button);
+        await waitFor(() =>
+          expect(
+            document.querySelector(
+              `[data-search-source="confirmed_fact"][data-search-record="${record.id}"]`,
+            ),
+          ).toHaveFocus(),
+        );
+      }
+    },
+  );
+
   it("localizes fact labels while preserving their source subject", async () => {
     setLocalePreference("es");
     const gateway = createMockGateway();

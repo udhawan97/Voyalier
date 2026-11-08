@@ -107,6 +107,26 @@ describe("UpdatesPanel", () => {
     expect(updater.backupCalls).toEqual(["v0.3.1"]);
   });
 
+  it("stops before installation when the safety copy cannot be verified", async () => {
+    const updater = createMockUpdater({
+      settings: { [UPDATER_KEYS.consent]: "yes" },
+      onCheck: available("0.3.1"),
+    });
+    vi.spyOn(updater, "backup").mockRejectedValue(
+      new Error("unreadable snapshot"),
+    );
+    const install = vi.spyOn(updater, "install");
+    render(<Harness updater={updater} />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Download and install" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "could not verify a local safety copy",
+    );
+    expect(install).not.toHaveBeenCalled();
+  });
+
   it("shows a staged update at mount with a restart button", async () => {
     const updater = createMockUpdater({
       settings: {

@@ -438,3 +438,43 @@ describe("ordered note persistence", () => {
     expect(await screen.findByText("Saved")).toBeVisible();
   });
 });
+
+it("shares pending edits and appended replies across Chat, Notes and remount, including failed-write retry", async () => {
+  const { base, gateway, requests } = deferredNotes();
+  const first = await base.sendChatMessage("trip_kyoto", "First question");
+  const second = await base.sendChatMessage("trip_kyoto", "Second question");
+  const notes = await openNotes(gateway);
+  const field = within(notes).getByLabelText("Trip notes");
+  const chat = await screen.findByRole("region", {
+    name: "Ask about this trip",
+  });
+  const buttons = await within(chat).findAllByRole("button", {
+    name: "Save to notes",
+  });
+  fireEvent.change(field, { target: { value: "My edit" } });
+  fireEvent.click(buttons[0]);
+  const firstBody = "My edit\n\n" + first.text;
+  expect(field).toHaveValue(firstBody);
+  expect(requests.map((request) => request.body)).toEqual([firstBody]);
+  await act(async () => requests[0].fail());
+  expect(await within(notes).findByRole("alert")).toBeVisible();
+  fireEvent.click(buttons[0]);
+  expect(requests[1].body).toBe(firstBody);
+  fireEvent.change(field, { target: { value: firstBody + " — later" } });
+  fireEvent.click(buttons[1]);
+  const finalBody = firstBody + " — later\n\n" + second.text;
+  expect(field).toHaveValue(finalBody);
+  await act(async () => {
+    await requests[1].finish();
+  });
+  expect(requests[2].body).toBe(finalBody);
+  await act(async () => {
+    await requests[2].finish();
+  });
+  expect((await base.getTripNotes("trip_kyoto")).body).toBe(finalBody);
+  expect(buttons[0]).toBeDisabled();
+  expect(buttons[1]).toBeDisabled();
+  leaveNotes();
+  const reopened = await openFixtureNotes();
+  expect(within(reopened).getByLabelText("Trip notes")).toHaveValue(finalBody);
+});

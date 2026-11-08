@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { createMockGateway, MAX_DOCUMENT_CHARS } from "@voyalier/contracts";
 import { describe, expect, it, vi } from "vitest";
 
@@ -261,10 +267,13 @@ describe("ImportDialog — the audited repairs", () => {
 describe("import file chooser accessibility and local behavior", () => {
   afterEach(() => setLocalePreference("en"));
 
-  async function openChooser(locale: "en" | "es" = "en") {
+  async function openChooser(
+    locale: "en" | "es" = "en",
+    gateway = createMockGateway(),
+  ) {
     setLocalePreference(locale);
     render(
-      <GatewayContext.Provider value={createMockGateway()}>
+      <GatewayContext.Provider value={gateway}>
         <ImportDialog
           tripId="trip_kyoto"
           onClose={() => {}}
@@ -323,6 +332,67 @@ describe("import file chooser accessibility and local behavior", () => {
       expect(input.value).toBe("");
     },
   );
+
+  it.each([false, true])(
+    "persists a replacement file with its correct label and content (custom=%s)",
+    async (custom) => {
+      const gateway = createMockGateway();
+      const { input } = await openChooser("en", gateway);
+      const label = screen.getByLabelText("Label (optional)");
+      const first = new File(["First receipt"], "first.txt");
+      fireEvent.change(input, { target: { files: [first] } });
+      await waitFor(() => expect(label).toHaveValue("first.txt"));
+      if (custom)
+        fireEvent.change(label, { target: { value: "My own label" } });
+      const second = new File(["<html>Second receipt</html>"], "second.html");
+      fireEvent.drop(document.querySelector(".voy-dropzone")!, {
+        dataTransfer: { files: [second] },
+      });
+      const expected = custom ? "My own label" : "second.html";
+      await waitFor(() =>
+        expect(screen.getByLabelText("Content")).toHaveValue(
+          "<html>Second receipt</html>",
+        ),
+      );
+      expect(label).toHaveValue(expected);
+      fireEvent.click(screen.getByRole("button", { name: "Import" }));
+      await waitFor(async () => {
+        const saved = (await gateway.listDocuments("trip_kyoto")).find(
+          (entry) => entry.document.label === expected,
+        );
+        expect(saved).toBeDefined();
+        const record = await gateway.getDocument(saved!.document.id);
+        expect(record.document.kind).toBe("html");
+        expect(record.content).toBe("<html>Second receipt</html>");
+      });
+    },
+  );
+
+  it("ignores a superseded local read and keeps a label typed while reading", async () => {
+    const { input } = await openChooser();
+    let finish!: (body: string) => void;
+    const slow = new File([], "first.eml");
+    Object.defineProperty(slow, "text", {
+      value: () =>
+        new Promise<string>((resolve) => {
+          finish = resolve;
+        }),
+    });
+    fireEvent.drop(document.querySelector(".voy-dropzone")!, {
+      dataTransfer: { files: [slow] },
+    });
+    fireEvent.change(input, {
+      target: { files: [new File(["Second receipt"], "second.txt")] },
+    });
+    const label = screen.getByLabelText("Label (optional)");
+    fireEvent.change(label, { target: { value: "Typed during read" } });
+    await waitFor(() =>
+      expect(screen.getByLabelText("Content")).toHaveValue("Second receipt"),
+    );
+    await act(async () => finish("Stale email"));
+    expect(screen.getByLabelText("Content")).toHaveValue("Second receipt");
+    expect(label).toHaveValue("Typed during read");
+  });
 
   it("continues loading dropped files with inferred format and the local size bound", async () => {
     await openChooser();

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   AddManualFactInput,
   AppError,
@@ -13,6 +13,7 @@ import {
   isDraftEmpty,
   type PayloadDraft,
 } from "../app/format";
+import { tripScope, useRevalidate } from "../app/revalidate";
 import { t } from "../app/i18n";
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
@@ -32,6 +33,18 @@ export function AddFactDialog({
   onAdded: (fact: ConfirmedFact) => void;
 }) {
   const gateway = useGateway();
+  const revalidate = useRevalidate();
+  const active = useRef(true);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
+  function close() {
+    active.current = false;
+    onClose();
+  }
   const [factType, setFactType] = useState<FactType>(initialFactType);
   const [draft, setDraft] = useState<PayloadDraft>({});
   const [error, setError] = useState<AppError | null>(null);
@@ -60,8 +73,10 @@ export function AddFactDialog({
     };
     try {
       const fact = await gateway.addManualFact(input);
-      onAdded(fact);
+      revalidate(tripScope(tripId));
+      if (active.current) onAdded(fact);
     } catch (caught) {
+      if (!active.current) return;
       setError(caught as AppError);
       setSubmitting(false);
     }
@@ -70,11 +85,11 @@ export function AddFactDialog({
   return (
     <Dialog
       title={t("addFact.title")}
-      onClose={onClose}
+      onClose={close}
       description={t("addFact.description")}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>
+          <Button variant="ghost" onClick={close}>
             {t("action.cancel")}
           </Button>
           <Button

@@ -31,7 +31,7 @@ export type UpdaterPhase =
     }
   | { name: "installing"; version: string; progress: UpdateProgress | null }
   | { name: "staged"; version: string } // downloaded, awaiting restart
-  | { name: "error"; reason: "offline" | "generic" }
+  | { name: "error"; reason: "offline" | "generic" | "backup" }
   | { name: "disabled" } // desktop dev/source build
   | { name: "unsupported"; currentVersion: string }; // plain browser
 
@@ -161,6 +161,11 @@ export function useUpdater(gateway: UpdaterGateway): UpdaterController {
     try {
       // Pre-update safety net before we touch the bundle.
       await gateway.backup(version ? `v${version}` : "pre-update");
+    } catch {
+      setPhase({ name: "error", reason: "backup" });
+      return;
+    }
+    try {
       setPhase({ name: "installing", version, progress: null });
       if (gateway.platform === "windows") {
         // The process exits during install and NSIS relaunches the app — this

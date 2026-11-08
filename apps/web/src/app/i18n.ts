@@ -1658,6 +1658,8 @@ const en = {
   "updates.staged.title": "Update installed",
   "updates.staged.body": "Restart Voyalier to finish updating to {version}.",
   "updates.restart": "Restart Voyalier",
+  "updates.error.backup":
+    "Update stopped before download. Voyalier could not verify a local safety copy. Check your vault access and review local safety copies before trying again.",
   "updates.error.offline": "You're offline. Reconnect and try again.",
   "updates.error.generic":
     "Couldn't check for updates — GitHub may be busy or unreachable.",
@@ -3377,6 +3379,8 @@ const es: Record<MessageKey, string> = {
   "updates.staged.body":
     "Reinicia Voyalier para finalizar la actualización a {version}.",
   "updates.restart": "Reiniciar Voyalier",
+  "updates.error.backup":
+    "La actualización se detuvo antes de la descarga. Voyalier no pudo verificar una copia de seguridad local. Comprueba el acceso a tu bóveda y revisa las copias locales antes de volver a intentarlo.",
   "updates.error.offline":
     "Estás sin conexión. Reconéctate e inténtalo de nuevo.",
   "updates.error.generic":

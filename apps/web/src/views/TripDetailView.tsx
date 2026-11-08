@@ -2009,7 +2009,6 @@ export function TripDetailView({
                   fact: factTitle(fact.factType, fact.payload),
                 }),
               );
-              reload();
             }}
           />
         ) : null}
