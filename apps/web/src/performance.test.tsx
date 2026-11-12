@@ -55,6 +55,13 @@ function bestRenderMs(count: number, runs = 5): number {
  * so the count is asserted rather than trusted.
  */
 describe("trip open budget", () => {
+  beforeEach(() => {
+    // The fixture flight is the next confirmed fact only before the trip starts.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 6, 10, 12));
+  });
+  afterEach(() => vi.useRealTimers());
+
   /** Count every gateway method a render reaches for. */
   function countingGateway(calls: string[]): AppGateway {
     const base = createMockGateway();
