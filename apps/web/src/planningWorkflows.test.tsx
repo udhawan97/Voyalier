@@ -11,7 +11,15 @@ import { setLocalePreference } from "./app/locale";
 import { openFixtureTrip, renderApp } from "./test/helpers";
 
 describe("traveler-owned planning workflows", () => {
-  afterEach(() => setLocalePreference("en"));
+  beforeEach(() => {
+    // Today assertions below intentionally exercise the fixture trip's first day.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 10, 3, 12));
+  });
+  afterEach(() => {
+    setLocalePreference("en");
+    vi.useRealTimers();
+  });
 
   it("explains the required text before either blank planning submission", async () => {
     renderApp(createMockGateway());
