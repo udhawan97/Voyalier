@@ -26,7 +26,7 @@ voyalier-core = { path = "../../../crates/voyalier-core" }
 # the webview never gets the updater capability (no caller-supplied proxy or
 # headers → no hidden network path).
 [target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
-rfd = { version = "0.16", features = ["common-controls-v6"], default-features = false }
+rfd = { version = "0.17", features = ["common-controls-v6"], default-features = false }
 # ADR-0031: published 2.14.0 still requires vulnerable zip4.
 # Restore a registry dependency once the upstream zip9 patch is published.
 tauri-plugin-updater = { git = "https://github.com/tauri-apps/plugins-workspace", rev = "ba98bfadc4c868c9a7e1a226c83af528e1f11b89" }
