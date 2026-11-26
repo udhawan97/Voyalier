@@ -1,0 +1,223 @@
+# Voyalier production-readiness execution handoff
+
+Date: 2026-11-25 (America/Chicago). Audit checkpoint and execution plan.
+
+Execution addendum: the user subsequently instructed “Execute the plan and push.” The existing thirteen fixes, two bounded new repairs, and listed research experiments are now authorized for execution, with necessary commits and a feature-branch push. Do not request that selection or push permission again. Merge, tags, release, deployment, real user data and production signing remain outside scope. Product decisions in S3 remain pending; execute independent work meanwhile.
+Run: 20261126T024525Z-aea15662. Verdict: **Hold**. This plan is not production certification or authorization to publish.
+
+## Start here
+
+The primary checkout is local main `cf5b71d420bb586f9dd5b947279435790892c3fc`. It has one pre-existing edited file: `docs/superpowers/plans/2026-10-20-scheduled-update-run-record.md`; preserve it byte-for-byte. The existing, clean thirteen-fix candidate is `ab278527fad609523a3f70c01ebd5c36f30e3a51` on `stay-calm-its-codex/dev-review-13-fixes`. Locate its preserved checkout with `git worktree list`. Cached `origin/main` is `8735c90`, an ancestor of the candidate. A read-only GitHub connector lookup after execution authorization confirmed remote main is still `8735c90924375d10800c571c49b18060a504edaf`; the candidate contains it. Shipped-artifact state remains unverified.
+
+Do not recreate the thirteen fixes. Preserve their original identities `DR-8a43554a-001` through `013`. This report assigns current evidence IDs with the same numeric suffix under `DR-aea15662`, with explicit prior-ID cross-references. None is integrated into the inspected local main or cached origin/main. That is an integration gap, not a regression of the existing candidate.
+
+Prior candidate sequence above cached main: `232ad31` (plan), `b76903d` (core), `de22549` (app/custody), `ef7e16c` (contracts/UI), `ab27852` (final integration). Keep the cohesive candidate and its ADR/tests. Before executing, recheck actual branch ancestry and dirty work; use a new isolated worktree with the `stay-calm-its-codex/` prefix. Do not reset, clean, remove worktrees, replace the installed app, or silently merge into main. Commit this plan before implementation under the execution addendum. Branch push is authorized. Merge, tags, release and deployment remain separate.
+
+## Preserve
+
+Keep the warm paper/ink/indigo travel-atlas identity, folded-route mark and existing tokens; no redesign. Preserve local-first/no-account/no-telemetry behavior, evidence versus confirmed facts versus traveler plans, exact-currency grouping, offline capabilities, consent and redacted preview, per-source provenance, sealed-column custody, append-only Rust migrations, fail-closed recovery, contract/transport parity and source-build updater disablement. Use shipped FakeFetcher and MemorySecretStore; never real keys or travel documents in tests. A canvas or green accessibility scanner does not prove native spoken access.
+
+## Execution sequence
+
+### S0 — Establish one candidate and retain existing repairs
+
+Owner: senior integrator; peers: architecture and production. Effort: 0.5–1 day if ancestry remains compatible. Dependencies: none.
+
+Verify candidate SHA, current main, remote state when authorized, version/lockfiles and the dirty-file manifest. Branch from the verified thirteen-fix candidate when it is still the coherent superset; do not blindly cherry-pick its merge commit. If newer main exists, inspect compatibility and reconcile only in the isolated worktree. Keep each prior finding's acceptance below. An existing graph must be refreshed after code changes and queried before a release build, tag or publication.
+
+Rollback/stop: on unrelated overlap, different storage semantics, lost tests, or stale/failed graph, preserve both trees and replan. Revert only task-owned commits; never delete data or old recovery copies to make a test pass.
+
+### S1 — Serialize the whole update operation (DR-aea15662-014)
+
+Owner: Web + Desktop; peer: production; effort: 1–2 days plus native checks. Depends on S0 so the verified-safety-copy fix remains intact.
+
+Files: `apps/web/src/updater/useUpdater.ts`, `apps/web/src/views/UpdatesPanel.tsx`, `apps/web/src/updater/useUpdater.test.ts`, `apps/web/src/updatesPanel.test.tsx`, `apps/desktop/src-tauri/src/lib.rs`, localized status keys as needed. First reproduce the deferred-backup double-click case using createMockUpdater. Acquire synchronous ownership before the first await; expose an accessible preparing-backup state and prevent conflicting actions from overwriting it. Defend the native installation entry against concurrency as well. Use existing interfaces; a public contract or storage change needs an ADR first.
+
+Acceptance: both OS mock branches issue exactly one backup and one install for repeated activation; install is zero until successful backup. Backup failure issues zero install and permits a deliberate retry. Hold installation, attempt repeated clicks/check/skip/consent/clear, and retain coherent state. Preserve progress, staged restart, Windows exit/reopen, skipped versions, no-key/source-disabled behavior and fail-closed backup. Native concurrent invocation must have one operation owner. UI-request cancellation must not release ownership while native installer work continues; release only when the actual operation ends. Actual bundle damage was not observed in this audit.
+
+Rollback/stop: stranded busy state, overlapping install entry, weakened backup or changed endpoint/consent semantics blocks the slice. Use worker → senior → distinct peer → senior receipts on the same tree.
+
+### S2 — Localize the trip-idea workflow (DR-aea15662-015)
+
+Owner: Web; peer: Product; effort: 0.5–1 day plus native locale check. Depends on S0. Serialize shared catalog edits with S1.
+
+Files: `views/CreateTripDialog.tsx`, `views/TripListView.tsx`, `app/i18n.ts`, `localeSettings.test.tsx`, existing create-trip/trip-intent feature tests under `apps/web/src`. Replace literal idea actions, date/party labels, plural counts and validation with existing t/plural helpers. Preserve source text, route/date/party payloads, Unicode limits and draft/focus behavior.
+
+Acceptance: dated create, undated save, one-date error, party-size error, idea conversion, cancellation and deletion in English and Spanish; selected-language accessible names and visible errors; native relaunch persistence, 200% zoom and narrow layout. No new network behavior. Stop if scope spreads into provider prose or storage.
+
+### S3 — Resolve policy and research before claiming complete UX
+
+Owners: Product + Architecture + Production. Depends on S0; investigate in parallel with disjoint S1/S2 work. Do not treat Research as a code selection.
+
+- DR-aea15662-016: qualify PDF text access with fictional tagged/text, scanned, malformed and oversized-page PDFs on VoiceOver/WKWebView and NVDA/WebView2. Test actual spoken text or an explicitly accepted external-reader Save copy route, page navigation, cancel, replacement and cleanup. Only if this fails, propose bounded offline text/fallback work and reclassify with evidence. No OCR, document-script execution, new persistence or provider.
+- DR-aea15662-017: the concierge explicitly marks English sections with lang=en. Decide the intended Spanish release scope. If full translation is required, inventory UI and core-projected prose and plan one coherent catalog/fixture change; do not claim S2 translates the full product.
+- DR-aea15662-018 / P06: reconcile legacy UPDATES D2 (locked users can update) with the newer verified-backup requirement to unlock protected data. Preserve fail-closed authentication. Align ADR, accessible unlock guidance and docs after the explicit product decision; never bypass backup to preserve outdated wording.
+- DR-aea15662-018 / R15: resolve the required SBOM versus threat-model deferral. Produce a reproducible SPDX/CycloneDX inventory covering both lockfiles and the artifacts, or obtain an explicit scoped release decision. No implicit waiver or fabricated passing receipt.
+
+### S4 — Dependency, secret and source gates on the final tree
+
+Owner: Production; peers: Architecture + Product. Depends on accepted S0–S3 changes. Effort: 1–2 days excluding discovered advisory repairs. Do not guess current vulnerability status from the October notes or old scan.
+
+Run from the isolated checkout after inspecting scripts and containing execution:
+
+```sh
+pnpm install --frozen-lockfile --offline
+./scripts/check.sh web
+./scripts/check.sh rust
+./scripts/check.sh desktop
+./scripts/check.sh integration
+git diff --check
+graphify update .
+graphify query "How do backup admission and updater installation preserve recovery?"
+```
+
+If dependencies are absent offline, prepare exact registry/Git-host and data-risk authorization before network acquisition. Use task-specific caches/config/data and stripped credentials, keep HOME unchanged, allow only needed loopback, and deny external runtime egress. Every writer gets its own checkout/runtime. The audit reused a copied dependency installation; it did not prove a fresh frozen install.
+
+Fresh advisory checks require authorized audit egress: `pnpm audit --prod --audit-level high` and current RustSec audit matching `security-hygiene.yml`. Record advisory DB timestamp, lock hashes, affected platform/reachability and remediation. Review the immutable updater Git pin against an actually published patched release before changing it; no speculative upgrade or blanket ignore. Reproduce the credential-pattern scan from `security-hygiene.yml` on tracked content, redacting matches. Complete license and SBOM disposition. New CI checks belong in `scripts/check.sh`, not workflow-only commands.
+
+Required: all four check stages, including optimized-source desktop updater-disabled test and real Axum/SQLite plus browser integration. Do not substitute bare cargo test. Classify failures against same-condition baseline; pre-existing failures remain failed gates. After authorized push, collect exact-head required hosted checks and inspect workflow publication effects first. Current audit did not refresh hosted state. Retain TypeScript/Rust parity counts, hand-maintained routes, fake-provider bounds and selected-flow wire fixtures.
+
+### S5 — Qualify exact installed artifacts on both platforms
+
+Owners: Production for artifacts, Product for journeys/accessibility, Architecture for data/recovery. Depends on S4 and a fresh graph before release build. Effort: 2–4 days with available isolated Apple Silicon macOS and Windows environments; environment wait is additional.
+
+Build keylessly on both supported platforms from exact SHA. Do not replace the user's canonical installed Voyalier. Use disposable OS profile/account/data and synthetic credentials. Run clean macOS app/DMG, Windows NSIS and MSI install/launch; record version, OS/WebView, artifact hashes and actual signature state. Preserve the documented conditional OS-signing policy; updater signatures are required independently. No paid certificate purchase implied.
+
+Exercise vertical create/import/review/confirm/amend/unconfirm/source-delete; saved place → checklist → manual plan → Today → cross-trip search → Spanish → backup/restore. Independently test save/edit/restart/restore/brief/calendar/Today/delete separation for authored plans, source provenance, redaction preview and actual exported PDF, stale/unknown/failure states, cancel/retry/re-entry, physical keyboard, spoken VoiceOver/NVDA, 200% zoom, narrow/normal windows, light/dark/system and reduced motion. Record each row in the matrix; do not convert source tests into native passes.
+
+Run both upgrade directions needed for evidence: supported historical base → candidate, then candidate-as-base → a locally signed follow-on fixture. The historical Windows v0.10.7 harness exercises the old updater/backup controller; it cannot prove the new candidate's backup code initiates a safe future update. Preserve its hashed WebView2 compatibility-patch disclosure and do not call it the historical shipped installer. Its Kyoto pack download is live egress: authorize it separately or use a clearly labeled local fixture, without claiming the public channel was verified.
+
+Use crafted loopback update metadata and ephemeral test signing keys. Use MemorySecretStore only for source fault injection; it cannot substitute for missing/wrong/denied credential tests against an isolated native keychain. Verify locked/unlocked/no-key boundaries, double activation, backup refusal, failed migration, interruption, reopen, exact note/attachment/planning bytes, retained old snapshot readability and reinstall recovery. Never export ephemeral private keys or SQLite data as evidence. Observe all app egress separately; fixture inbound requests do not prove no other traffic. Inspect packaged TCP listeners; the production Tauri shell must not start the auxiliary Axum listener. Verify auxiliary server loopback binding and shutdown separately.
+
+Stop on missing device/AT/native keychain environment, corrupt recovery, unexpected egress/listeners or incomplete exact-artifact provenance. Keep Hold; do not repeatedly rebuild unchanged code while awaiting access. Reinstall is not proof of database rollback.
+
+### S6 — Authorized release qualification and publication
+
+Owner: maintainer + senior; depends on all applicable S4/S5 criteria and reviewed policy decisions. Feature-branch push is authorized by the execution addendum. Tags, merge, release, production signing-key operations and deployment remain unauthorized.
+
+Verify actual protected release environment and v* tag rules; signer/offline-backup custody without reading or logging secret values; candidate/tag/main alignment; app/DMG/NSIS/MSI hashes and signatures; updater .sig files and both `darwin-aarch64` and `windows-x86_64-nsis` entries; SHA256SUMS and provenance; packs-v1 prerelease status and Nashville/Kyoto/Tokyo/Paris descriptors plus PMTiles hashes. Separate conditional OS signatures/notarization/reputation documentation from mandatory updater authenticity. Review final candidate and exact report through the required council. A signed build alone is not release acceptance.
+
+Only publish the reviewed draft after explicit publication authority. Post-publication: download/install the actual public assets, verify update metadata and pack routing, live docs/download links and support/recovery instructions. These follow publication; do not require them before a first authorized publish. If public assets/channel fail, halt promotion and repair under authority; retain validated data recovery paths.
+
+## Evidence recorded in this audit
+
+- Current main selected web sample: **108 pass, 1 fail**; the fixed-calendar planning test still fails on main.
+- Existing candidate selected web sample: **128 pass**. Full `scripts/check.sh web`: **pass**, including 1,137 Vitest cases, 6 separately gated live cases skipped, web/docs builds and pack tests. The six live HTTP cases then passed separately against real disposable Axum/SQLite.
+- Existing candidate Rust source suites: **234 app, 381 core, 23 server, 2 doctests pass**, with 3 subprocess helpers ignored. This does not include the desktop crate or replace make check. Initial cache-containment failures were repaired in the task runtime; xcrun cache-write warnings persisted, not application failures.
+- Audit-only updater barrier probe: **two backup and two install dispatches** on the candidate for two activations. It used shipped mocks and no real update. Temporary probe was removed from the disposable source before later gates.
+- Safari 26.5.2 loaded the mock trip list and Settings; language control could not be resolved by the plugin. No Spanish/native persistence/accessibility claim. Mock build is not production-backend or installed-app evidence.
+- No fresh dependency-advisory scan, hosted check, clean frozen install, desktop suite, installed platform, native keychain, signing/notarization, public pack or publication acceptance was performed. Full acceptance remains explicit below.
+
+## Completion rule
+
+S0–S6 are a route to readiness, not a promise of it. Integration-ready requires the accepted final tree, all mandatory integration checks, current graph and required peer/council receipts; release-ready requires every applicable artifact/native/product gate. Research must be resolved or explicitly scoped by an authorized decision. Record each receipt with SHA/tree, fixture, platform/tool version, command/action, result, evidence digest and limitation. No unresolved required row may be renamed Pass, N/A or optional merely to finish.
+
+The execution addendum selects the two bounded new fixes, retention of the thirteen existing fixes, and listed research experiments, and authorizes necessary commits and branch push. It does not authorize unrelated external writes or release. Estimate: roughly 5–9 engineering days with test environments available; this is planning judgment, not measured delivery time, and excludes policy decisions, substantial advisory repairs and platform/access wait.
+
+## Existing fixes and acceptance
+
+| Current evidence ID / prior ID | Work to retain | Acceptance |
+|---|---|---|
+| DR-aea15662-001 / DR-8a43554a-001 | Backup retries can prevent the workspace from reopening | Repeat failures beyond the enumeration bound. File count and hashes remain stable, the live note reopens, and explicit Clear backups remains usable. |
+| DR-aea15662-002 / DR-8a43554a-002 | The updater can accept an unreadable safety copy | Use fictional stores for missing, wrong and valid credentials. Diagnose the new copy, recover exact note/file with the intended credential, and assert install is never invoked on failed preflight. |
+| DR-aea15662-003 / DR-8a43554a-003 | Editing Notes can erase a reply already saved from Chat | Append during an unsaved edit, make another edit, save two replies, then remount. Each intended edit and appended reply survives once, including after a failed save retry. |
+| DR-aea15662-004 / DR-8a43554a-004 | Montreux trips receive Montréal and Canadian preparation guidance | Montreux and Montrose stay generic. Montréal and Montreal receive city-specific links. Vancouver can receive Canada-level preparation without Montréal neighborhood guidance. Check mock and real core. |
+| DR-aea15662-005 / DR-8a43554a-005 | A late refresh can restore evidence for the previous destination | Pause a fake fetch, edit the trip, release the old result and reopen. Old weather never returns, a fresh result persists, and title-only edits still accept it. |
+| DR-aea15662-006 / DR-8a43554a-006 | A manual release rehearsal can enter the signing and upload path | Test event/ref combinations without secrets. Manual runs on branch and tag are build-only. A permitted tag push can enter the guarded release path. |
+| DR-aea15662-007 / DR-8a43554a-007 | Workspace registration can overwrite the credential cleanup index | Malformed inventory survives a new open byte-for-byte. Distinct simultaneous registrations survive reopen and a concurrent prune retains new valid entries. |
+| DR-aea15662-008 / DR-8a43554a-008 | Replacing an import file keeps the first file’s automatic label | Select A then B and check the saved label, content and kind after reopen. Repeat with a custom label, late file reads and both chooser and drop. |
+| DR-aea15662-009 / DR-8a43554a-009 | An older manual-fact save can dismiss a replacement draft | Hold A, open B and type. On A success and failure, B remains open with its input and focus. After success verify that A persisted once. After failure verify that A was never created. |
+| DR-aea15662-010 / DR-8a43554a-010 | A completed chat turn clears the next message draft | Edit during a delayed reply and retain the exact newer draft; unchanged input clears once. Test failure and retry. |
+| DR-aea15662-011 / DR-8a43554a-011 | Renaming a trip can reopen completed concierge tasks | Complete a task, rename, archive/restore, and reopen. Completion remains. Change the route or dates and only relevant tasks return for review. |
+| DR-aea15662-012 / DR-8a43554a-012 | Trip search can label a surface journey as a stay | Exercise rail, coach, ferry and rental with and without a subject in English and Spanish. Source controls still navigate to the matched record. |
+| DR-aea15662-013 / DR-8a43554a-013 | The planning regression test depends on the day it runs | Run the test with host days before, during and after the fixture trip. Keep the same assertion and verify midnight/zone coverage separately. |
+
+## Requirements matrix
+
+Source rows A01–A25 are a bounded continuation of the prior review, not the complete product. R01–R46 and P01–P06 enumerate release and delivery obligations. Overlapping rows are separate layers, not independent success percentages. A Pass applies only to its named source fixture on ab278527.
+
+| ID | Criterion / source | Owner | Implementation | Verification | Delivery / next action |
+|---|---|---|---|---|---|
+| A01 | Create, reopen and delete a trip — ADR-0019 · HTTP → AppService → SQLite | Product | Complete | Pass | Candidate only — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| A02 | Import, review, confirm and unconfirm evidence — Live HTTP import lifecycle; shared desktop-wire dispatch not rerun (ADR-0023) | Product | Complete | Pass | Candidate only — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| A03 | Distinguish a local draft’s source document — ADR-0032 · Assist → parser run → candidates | Product | Complete | Pass | Candidate only — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| A04 | Bind remote assist to the approved content preview — ADR-0029 · preview → dispatch | Architecture | Complete | Pass | Present on main and candidate; current evidence binds candidate — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| A05 | Authenticate a portable export and restore exact content — ADR-0026 · export → inspect → stage/reopen | Architecture | Complete | Pass | Present on main and candidate; current evidence binds candidate — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| A06 | Retain credentials through an interrupted restore — ADR-0030 · generations → prune → resume | Architecture | Complete | Pass | Present on main and candidate; current evidence binds candidate — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| A07 | Serialize edits and clears within the Notes editor — October remediation 001 · Notes writer → gateway | Product | Complete | Pass | Candidate only — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| A08 | Preserve a newer planning draft while a save completes — October remediation 005 · planning form → gateway | Product | Complete | Pass | Candidate only — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| A09 | Remove each settled candidate from a shared review queue — October remediation 006 · review → queue/focus | Product | Complete | Pass | Candidate only — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| A10 | Expose one labeled import chooser and permit cancel — October remediation 007 · import dialog | Product | Complete | Not tested | Candidate only — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| A11 | Persist a chat reply through a subsequent Notes edit — Local notes + explicit chat save | Product | Complete | Pass | Candidate only — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| A12 | Reopen a workspace after refused backup retries — ADR-0026 · backup → rotation → startup | Architecture | Complete | Pass | Candidate only — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| A13 | Require a usable local copy before an update — UPDATES §7, §10 · update backup → install | Architecture | Complete | Pass | Candidate only — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| A14 | Match concierge guidance to the traveler’s destination — ADR-0024 · core projections → cards | Product | Complete | Pass | Candidate only — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| A15 | Bind retrieved weather to current route and dates — Snapshot invalidation registry · provider → SQLite | Architecture | Complete | Pass | Candidate only — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| A16 | Keep manual release rehearsals build-only — Release workflow and checklist · environment and upload conditions | Production | Complete | Pass | Candidate only — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| A17 | Maintain transport contracts for the covered journey — ADR-0012/0023 · HTTP/Tauri → AppService | Architecture | Complete | Not tested | Present on main and candidate; current evidence binds candidate — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| A18 | Preserve the second import file’s evidence label — CONTEXT source document · chooser → import payload | Product | Complete | Pass | Candidate only — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| A19 | Deliver a stable planning/Today regression gate — ADR-0028 · device calendar → Today projection | Product | Complete | Pass | Candidate only — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| A20 | Deliver target-platform access and recovery — Release checklist · native app → keychain/filesystem | Production | Unknown | Not tested | Unknown / not qualified — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| A21 | Retain cleanup inventory across custom workspace opens — ADR-0030 · registration → maintenance | Architecture | Complete | Pass | Candidate only — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| A22 | Keep a replacement manual-fact draft on late completion — Manual fact entry · dialog → trip view | Product | Complete | Pass | Candidate only — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| A23 | Keep the next unsent chat draft — Trip chat · composer → send completion | Product | Complete | Pass | Candidate only — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| A24 | Keep relevant completion history across incidental edits — ADR-0024/0027 · task context → projection | Product | Complete | Pass | Candidate only — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| A25 | Identify surface modes in search results — ADR-0016 · local fact → search hit → label | Product | Complete | Pass | Candidate only — Replay on final integrated tree and applicable target platform; retain source-only scope. |
+| R01 | Vertical trip workflow with representative fixtures — Release checklist:7 | Product | Unknown | Not tested | Unknown — Retain fixture regression and perform specified installed/visual acceptance |
+| R02 | Local/no-key capability matches UI wording — Release checklist:8 | Product | Unknown | Not tested | Unknown — Retain fixture regression and perform specified installed/visual acceptance |
+| R03 | Stale and unknown travel facts are labeled — Release checklist:9 | Product | Unknown | Not tested | Unknown — Retain fixture regression and perform specified installed/visual acceptance |
+| R04 | Redaction preview visually reviewed — Release checklist:10 | Product | Unknown | Not tested | Unknown — Retain fixture regression and perform specified installed/visual acceptance |
+| R05 | Exported PDF visually reviewed — Release checklist:10 | Product | Unknown | Not tested | Unknown — Retain fixture regression and perform specified installed/visual acceptance |
+| R06 | Keyboard and assistive technology accessibility passes — Release checklist:11 | Product | Unknown | Not tested | Unknown — Retain fixture regression and perform specified installed/visual acceptance |
+| R07 | Reduced motion passes — Release checklist:11 | Product | Unknown | Not tested | Unknown — Retain fixture regression and perform specified installed/visual acceptance |
+| R08 | Planning remains separate across save/edit/restart/restore/brief/calendar/Today/delete — Release checklist:12-13 | Product | Unknown | Not tested | Unknown — Retain fixture regression and perform specified installed/visual acceptance |
+| R09 | Cross-trip search provenance excludes candidates — Release checklist:14 | Product | Unknown | Not tested | Unknown — Retain fixture regression and perform specified installed/visual acceptance |
+| R10 | System/English/Spanish applies immediately — Release checklist:15-16 | Product | Partial | Not tested | Unknown — Retain fixture regression and perform specified installed/visual acceptance |
+| R11 | Locale persists after relaunch without changed network behavior — Release checklist:15-16 | Product | Unknown | Not tested | Unknown — Retain fixture regression and perform specified installed/visual acceptance |
+| R12 | Threat model current — Release checklist:20 | Production | Unknown | Not tested | Unknown — Reconcile new findings, current transport and exact release evidence |
+| R13 | Data-source registry current — Release checklist:20 | Product + Production | Unknown | Not tested | Unknown — Verify licenses, attribution, data version and authority boundaries against exact shipped sources |
+| R14 | Credential scan passes — Release checklist:21 | Production | Unknown | Not tested | Unknown — Run exact credential-pattern check on final tree; do not print secrets |
+| R15 | SBOM check passes — Release checklist:21 | Production | Missing | Not tested | Unknown — Resolve explicit release-checklist conflict: add pinned offline-capable SPDX/CycloneDX inventory for both lockfiles and artifacts, or obtain explicit scoped policy decision; do not silently mark Pass |
+| R16 | Current dependency/advisory review passes — Release checklist:21 | Production | Unknown | Not tested | Unknown — Refresh pnpm and RustSec audit data at execution time, record versions/database date, triage warnings and validate patched pin; no advisory ignores by default |
+| R17 | Dependency and bundled-data license checks pass — Release checklist:21 | Production | Unknown | Not tested | Unknown — Inventory licenses from final dependency/data artifacts and verify redistribution/notice obligations; record review |
+| R18 | Provenance verifies uploaded artifacts and candidate identity — Release checklist:21 | Production | Unknown | Not tested | Unknown — Verify downloaded DMG/app archive/NSIS/MSI attestations against exact tag/repo/workflow and hashes |
+| R19 | macOS OS signature where credentials available — Release checklist:22 | Production | Unknown | Not tested | Unknown — Verify architecture and strict signature on exact bundle; retain declared non-notarized policy unless credentials authorized |
+| R20 | Windows OS signature where credentials available — Release checklist:22 | Production | Unknown | Not tested | Unknown — Verify actual signature state and first-launch reputation UX; do not purchase credentials implicitly |
+| R21 | macOS notarization behavior documented — Release checklist:23 | Production | Unknown | Not tested | Unknown — Check clean-OS launch/Gatekeeper and match current docs to observed artifact |
+| R22 | Windows reputation behavior documented — Release checklist:23 | Production | Unknown | Not tested | Unknown — Check clean supported Windows installation and actual warning wording |
+| R23 | Updater signatures independent of OS signing — Release checklist:24 | Production | Unknown | Not tested | Unknown — Verify every applicable updater artifact signature with compiled public key; wrong-key/tampered refusal |
+| R24 | Clean macOS app/DMG install and launch — Release checklist:28 | Production | Unknown | Not tested | Unknown — Install exact artifact in isolated macOS account/data dir and prove launch |
+| R25 | Clean Windows NSIS install and launch — Release checklist:28 | Production | Unknown | Not tested | Unknown — Run exact-candidate Windows installed acceptance in disposable runner |
+| R26 | Clean Windows MSI install and launch — Release checklist:28 | Production | Unknown | Not tested | Unknown — Perform separate MSI clean install/relaunch/uninstall acceptance |
+| R27 | Version and bundle metadata align — Release checklist:29 | Production | Unknown | Not tested | Unknown — Verify package, workspace+all lock crates, web, Tauri and installed versions, identifiers and CPU arch |
+| R28 | Packaged app has no unexpected TCP listener — Release checklist:30-32 | Production | Unknown | Not tested | Unknown — Inspect process tree without automation and classify listeners; loopback alone is insufficient for no unexpected listener |
+| R29 | Source API loopback-only and shuts down — Release checklist:30-32 | Architecture | Unknown | Not tested | Unknown — Verify host/origin/bearer controls, refusal and shutdown in isolated runtime |
+| R30 | Upgrade preserves user data — Release checklist:33 | Production + Architecture | Unknown | Not tested | Unknown — Run exact final candidate on both OS, native credential store isolated; check notes/wallet/plans/locale |
+| R31 | Failed migration can recover — Release checklist:33 | Architecture + Production | Unknown | Not tested | Unknown — Inject permitted disposable failure; reopen and verify exact content/key custody on each OS |
+| R32 | Uploaded assets match checksums — Release checklist:34 | Production | Unknown | Not tested | Unknown — Download draft assets and compare hashes; reconcile checklist generic SHA256SUMS.txt name with actual per-platform names |
+| R33 | packs-v1 remains prerelease — Release checklist:35-36,71-72 | Production | Unknown | Not tested | Unknown — Read hosted release state before publication; no live state read in audit |
+| R34 | Nashville/Kyoto/Tokyo/Paris descriptors and PMTiles match — Release checklist:35-36 | Production | Unknown | Not tested | Unknown — Verify hosted exact JSON+PMTiles and offline install/read each required pack; refresh stale build inputs explicitly |
+| R35 | Installed saved-place/checklist/manual/Today/search/Spanish/restore journey — Release checklist:37-38 | Production with Product | Unknown | Not tested | Unknown — Run both OS exact candidates with disposable data and explicit permitted pack network; no claim browser/mocks satisfy gate |
+| R36 | Signing private key/password offline backup custody — Release checklist:45-49 | Production / owner | Unknown | Not tested | Unknown — Owner verifies existence and separation without exposing secret values |
+| R37 | Public key matches CI signer — Release checklist:45-49 | Production | Unknown | Not tested | Unknown — Prove by detached signature verification and exact artifact update, no secret readback |
+| R38 | Protected release environment exists and requires review — Release checklist:50-51 | Production / owner | Unknown | Not tested | Unknown — Read actual environment rules, allowed refs and secret scope before protected build |
+| R39 | Version tags protected against moves — Release checklist:50-51 | Production / owner | Unknown | Not tested | Unknown — Read actual tag rules and ensure final main/tag alignment |
+| R40 | Keyless build-only dry-run both platforms — Release checklist:52-53 | Production | Unknown | Not tested | Unknown — After integration run exact SHA rehearsal; no signing/publish authority |
+| R41 | latest.json has both supported platform keys — Release checklist:54-55 | Production | Unknown | Not tested | Unknown — Inspect final draft after both jobs and resolve every asset URL and signature |
+| R42 | macOS signed local-endpoint swap/reopen/reinstall recovery — Release checklist:56-60 | Production | Unknown | Not tested | Unknown — Use disposable app installation in Applications, ephemeral signing key and crafted local manifest; preserve data and recover after cannot-open failure |
+| R43 | Windows signed local-endpoint swap/reopen/reinstall recovery — Release checklist:56-70 | Production | Unknown | Not tested | Unknown — Dispatch authorized exact SHA opt-in harness; retain base source/patch/candidate/artifact hashes and sanitized evidence |
+| R44 | Historical Windows compatibility evidence boundary retained — Release checklist:62-70 | Production | Unknown | Not tested | Unknown — Do not claim historical installer byte acceptance; separately test real historical binary if required |
+| R45 | Initial install-once base and self-update policy coherent — Release checklist:73-74 | Production | Unknown | Not tested | Unknown — Treat as historical context; verify chosen supported upgrade base and current self-update path explicitly |
+| R46 | All checklist gates reviewed before draft promotion — Release checklist:3,76 | Production / maintainer | Unknown | Not tested | Unknown — Hold publication until exact-source gate receipts and explicit release authorization |
+| P01 | Fresh exact-head CI and repository gate — v0.12.0-verification.md Publication gates | Production / Senior | Unknown | Not tested | Unknown — Run scripts/check.sh all; inspect hosted checks for exact integrated commit |
+| P02 | Fresh Graphify and scoped query before release — v0.12.0-verification.md Publication gates | Production / Senior | Unknown | Not tested | Unknown — Run incremental graph update and one scoped updater/recovery query; failure holds release |
+| P03 | Protected tag/release/main identity — v0.12.0-verification.md Publication gates | Production / Senior | Unknown | Not tested | Unknown — Verify tag commit, draft target and intended main agree before publication |
+| P04 | Live docs and download surface — v0.12.0-verification.md Publication gates | Production / Senior | Unknown | Not tested | Unknown — After authorized publication verify live pages/downloads and truthful platform limits |
+| P05 | Final council and user release decision — v0.12.0-verification.md Publication gates | Production / Senior | Unknown | Not tested | Unknown — Senior owns council outside this delegated packet; do not recurse or publish |
+| P06 | Reconcile protected-vault update policy with verified safety-copy requirement — docs/architecture/UPDATES.md: D2 versus candidate ADR-0026 Amendment verify pre-update safety copy | Product + Architecture + Production | Partial | Not tested | Unknown — Make an explicit product/security decision and align UX/docs. Preserve fail-closed verified pre-update backup; do not bypass or weaken backup to satisfy old wording. Prefer explain unlock requirement with accessible recovery action, or separately design a proven safe locked-vault path. |
+| N14 | Exactly one update operation owns backup through native completion — DR-aea15662-014 | Web + Desktop | Missing | Fail | Defect present on both heads — Execute S1 |
+| N15 | Trip-idea create/list/validation honor selected language — DR-aea15662-015 | Product + Web | Missing | Not tested | Defect present on both heads — Execute S2 |
+
+## Execution decisions
+
+The user authorized execution and branch push, retaining an explicit English concierge fallback. Research locked-vault updates; do not implement a bypass of authenticated pre-update backup. The native installation guard and web operation state are disjoint work slices, peer-reviewed together. Product locale work follows updater catalog edits to avoid shared-file concurrency.
