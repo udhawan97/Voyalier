@@ -3,6 +3,8 @@
 Date: 2026-11-25 America/Chicago (audit artifacts recorded 2026-11-26 UTC).
 Status: research and gate assessment only. No dependency, feature, lockfile,
 advisory-ignore, framework or release-policy change is selected by this note.
+The [implementation follow-up](2026-11-25-dependency-advisory-disposition.md)
+records the updated dependency resolutions and remaining warning dispositions.
 
 ## Result and evidence identity
 
