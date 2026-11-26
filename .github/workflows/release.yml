@@ -35,7 +35,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest, windows-latest]
+        include:
+          - platform: macos-latest
+            artifact: macos
+          - platform: windows-latest
+            artifact: windows
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -51,6 +55,9 @@ jobs:
       - name: Build desktop bundles
         shell: bash
         run: pnpm --filter @voyalier/desktop exec tauri build --verbose --config '{"bundle":{"createUpdaterArtifacts":false}}'
+      - name: Inventory the built bundles
+        shell: bash
+        run: ./scripts/check.sh sbom rehearsal "${{ matrix.artifact }}" target/release/bundle "target/release/bundle/SBOM-${{ matrix.artifact }}.cdx.json"
 
   desktop:
     name: Desktop build (${{ matrix.artifact }})
@@ -130,11 +137,16 @@ jobs:
           prerelease: false
           # We want NSIS (not MSI) as the promoted updatable Windows artifact.
           updaterJsonPreferNsis: true
+      - name: Inventory the release bundles
+        shell: bash
+        run: ./scripts/check.sh sbom release "${{ matrix.artifact }}" target/release/bundle "target/release/bundle/SBOM-${{ matrix.artifact }}.cdx.json"
       - name: Attest build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: ${{ matrix.attest }}
-      - name: Checksums (attach to the draft)
+          subject-path: |
+            ${{ matrix.attest }}
+            target/release/bundle/SBOM-${{ matrix.artifact }}.cdx.json
+      - name: Attach checksums and SBOM to the draft
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -143,7 +155,8 @@ jobs:
           # Node is already installed and behaves identically on macOS and
           # Windows. Git Bash on the Windows runner does not provide `shasum`.
           node scripts/write-release-checksums.mjs target/release/bundle "$checksum"
-          gh release upload "${{ github.ref_name }}" "$checksum" --clobber
+          gh release upload "${{ github.ref_name }}" "$checksum" \
+            "target/release/bundle/SBOM-${{ matrix.artifact }}.cdx.json" --clobber
 
   windows-acceptance:
     name: Windows installed app and updater swap

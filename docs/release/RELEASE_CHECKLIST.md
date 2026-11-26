@@ -22,7 +22,18 @@ No public release may be promoted merely because the build completed.
 ## Security and compliance
 
 - Threat model and data-source registry are current.
-- Secrets, SBOM, dependency, license, and provenance checks pass.
+- Secrets, dependency, and provenance checks pass.
+- Verify both draft `SBOM-{macos,windows}.cdx.json` reports against their source
+  revision, lockfile hashes, target, and downloaded file hashes. The [CycloneDX
+  1.6](https://cyclonedx.org/docs/1.6/json/) documents describe resolved build
+  inputs and hash the distribution files. Scope properties identify desktop,
+  web, docs, build, and test inputs. Native SQLite is recorded separately from
+  its Rust wrapper.
+- Review licenses for the actual redistribution set. Resolve unknown or
+  ambiguous declarations relevant to that set and include required licence
+  texts, attribution and notices under [Third-party
+  notices](../../THIRD_PARTY_NOTICES.md). Optional packages for other platforms
+  and downloaded city packs have separate review scope.
 - macOS and Windows artifacts are signed when credentials are available.
 - macOS notarization and Windows reputation behavior are documented.
 - Updater artifacts are signed independently of platform signing.
@@ -35,7 +46,7 @@ No public release may be promoted merely because the build completed.
   uses direct Tauri IPC; verify the separate source/server adapter remains
   loopback-only and shuts down with its process.
 - Verify an upgrade preserves user data and a failed migration can recover.
-- Verify `SHA256SUMS.txt` against uploaded assets.
+- Verify both platform `SHA256SUMS` files against uploaded assets.
 - Verify the `packs-v1` pre-release remains marked pre-release and carries
   descriptors plus hash-matching PMTiles for Nashville, Kyoto, Tokyo, and Paris.
 - Run the installed app through saved place → checklist → manual item → Today →

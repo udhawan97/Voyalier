@@ -46,9 +46,13 @@ updater (see [`docs/architecture/UPDATES.md`](../architecture/UPDATES.md)):
   Windows Authenticode signed (paid); first launch uses the documented
   Gatekeeper / SmartScreen "open anyway" path. This is independent of the (free)
   updater signature above.
-- **SBOM — deferred.** No SBOM is generated yet; `Cargo.lock`, `pnpm-lock.yaml`,
-  and the pinned actions are the current supply-chain pin. Revisit before a
-  wider beta.
+- **SBOM.** Both desktop jobs run the shared inventory gate. The CycloneDX 1.6
+  document records the source revision, lockfile hashes, selected Cargo target,
+  pnpm dependency inputs, declared licenses, and SHA-256 of the built bundles.
+  It distinguishes web and docs production inputs, Rust desktop and development
+  inputs, and declarations unavailable on the inventory host. Its composition
+  is marked incomplete because these are build inputs and selected distribution
+  files. The release checklist requires separate artifact and license review.
 
 ## Source-browser boundary
 

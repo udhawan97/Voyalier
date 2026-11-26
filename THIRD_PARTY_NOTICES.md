@@ -2,9 +2,20 @@
 
 This file is the distribution-time registry for bundled software, fonts, model files, icons, map data, document parsers, and other redistributable assets.
 
-The initial scaffold contains source dependencies managed through Cargo and pnpm lockfiles. Before the first public binary release, CI must generate and review a complete software bill of materials and this file must list every attribution that needs to travel with the product.
+The release job generates a CycloneDX inventory of Cargo and pnpm inputs with
+hashes for the desktop release files. Review the actual redistribution set
+before promotion and include each required attribution and license text. The
+inventory preserves upstream declarations and identifies entries that need
+review.
 
 Travel research results retain their own per-source attribution and licensing metadata; see [the data-source policy](docs/data/DATA_SOURCES.md).
+
+## Bundled SQLite
+
+The desktop binary builds the SQLite amalgamation through `libsqlite3-sys`.
+The upstream [SQLite copyright notice](https://sqlite.org/copyright.html) places
+SQLite in the public domain. The release inventory records the amalgamation
+version and source hash separately from the Rust wrapper's own license.
 
 ## Bundled fonts
 
