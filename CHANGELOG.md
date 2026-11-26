@@ -8,6 +8,19 @@ The project follows Semantic Versioning and keeps unreleased work under the sect
 
 ### Fixed
 
+- **Starting an update now reserves it while its safety copy is prepared.**
+  Repeated activation and competing update controls cannot start a second install
+  during preparation or installation. Preparation is announced, and keyboard
+  focus returns to Restart or Retry when appropriate. A protected workspace still
+  needs unlocking for its safety copy; installed macOS and Windows acceptance
+  remain separate.
+
+- **Trip ideas now follow the selected English or Spanish interface language.**
+  Saving an idea, choosing dates, traveler counts, validation and announcements
+  use the shared language catalog. Authored destinations remain unchanged; the
+  concierge cockpit retains its explicit English fallback. Native spoken access
+  and language persistence after relaunch remain separate acceptance checks.
+
 - **Trip notes keep the latest edit while earlier saves finish.** New text and
   clears are saved in order, including when returning to a trip before an older
   save completes. Failed responses keep the latest draft available for retry;
