@@ -22,7 +22,13 @@ function npmBom(components) {
     bomFormat: "CycloneDX",
     specVersion: "1.6",
     metadata: {
-      component: { type: "library", name: "voyalier", "bom-ref": "npm:root" },
+      component: {
+        type: "library",
+        name: "voyalier",
+        "bom-ref": "pkg:npm/voyalier@1.0.0",
+        purl: "pkg:npm/voyalier@1.0.0",
+        version: "1.0.0",
+      },
       tools: {
         components: [{ type: "application", name: "pnpm", version: "11.7.0" }],
       },
@@ -30,7 +36,7 @@ function npmBom(components) {
     components,
     dependencies: [
       {
-        ref: "npm:root",
+        ref: "pkg:npm/voyalier@1.0.0",
         dependsOn: components.map((component) => component["bom-ref"]),
       },
       ...components.map((component) => ({
@@ -47,10 +53,13 @@ test("inventory retains package versions and labels scope and unknown declaratio
     name,
     version,
     "bom-ref": `pkg:npm/${name}@${version}`,
+    purl: `pkg:npm/${name}@${version}`,
   });
   const runtime = packageOf("runtime", "1");
   const optional = packageOf("other-platform", "2");
   const tool = packageOf("docs", "1");
+  tool.description = "/tmp/local-test";
+
   const packages = npmBom([runtime, optional, tool]);
   const web = npmBom([runtime, optional]);
   const docs = npmBom([tool]);
@@ -63,6 +72,7 @@ test("inventory retains package versions and labels scope and unknown declaratio
   const components = new Map(
     result.components.map((component) => [component.name, component]),
   );
+  assert.ok(!JSON.stringify(result).includes("/tmp/local-test"));
   assert.deepEqual(components.get("runtime").licenses, [
     { license: { name: "MIT" } },
   ]);
@@ -87,6 +97,16 @@ test("inventory retains package versions and labels scope and unknown declaratio
   assert.throws(
     () => npmInventory(packages, web, docs, new Map(), manifest),
     /missing installed declaration/,
+  );
+  tool.externalReferences = [
+    {
+      type: "distribution",
+      url: "https://registry.npmjs.org/docs?token=private",
+    },
+  ];
+  assert.throws(
+    () => npmInventory(packages, web, docs, licenses, manifest),
+    /unsupported pnpm distribution reference/,
   );
   assert.throws(
     () =>

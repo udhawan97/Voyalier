@@ -114,6 +114,48 @@ function readNpmGraph(bom) {
   return bom;
 }
 
+function publicNpmComponent(component) {
+  const { "bom-ref": ref, name, group, version, purl } = component;
+  if (
+    ref !== purl ||
+    !/^pkg:npm\/(?:%40[\w.-]+\/)?[\w.-]+@[\w.+-]+$/.test(ref) ||
+    !/^[\w.-]+$/.test(name) ||
+    (group !== undefined && !/^@[\w.-]+$/.test(group)) ||
+    !/^[\w.+-]+$/.test(version)
+  )
+    throw new Error("unsupported public pnpm package identity");
+  const externalReferences = (component.externalReferences ?? []).map(
+    ({ type, url, hashes }) => {
+      const source = new URL(url);
+      if (
+        type !== "distribution" ||
+        source.origin !== "https://registry.npmjs.org" ||
+        source.username ||
+        source.password ||
+        source.search ||
+        source.hash
+      )
+        throw new Error("unsupported pnpm distribution reference");
+      return {
+        type,
+        url: source.href,
+        ...(hashes && {
+          hashes: hashes.map(({ alg, content }) => ({ alg, content })),
+        }),
+      };
+    },
+  );
+  return {
+    type: "library",
+    "bom-ref": ref,
+    name,
+    ...(group && { group }),
+    version,
+    purl,
+    ...(externalReferences.length > 0 && { externalReferences }),
+  };
+}
+
 export function npmInventory(input, web, docs, licenses, webManifest) {
   const bom = readNpmGraph(input);
   const webGraph = readNpmGraph(web);
@@ -159,10 +201,9 @@ export function npmInventory(input, web, docs, licenses, webManifest) {
     const key = `${packageName(component)}@${component.version}`;
     const declared = licenses.get(key);
     return {
-      ...component,
+      ...publicNpmComponent(component),
       ...licenseFields(declared),
       properties: [
-        ...(component.properties ?? []),
         ...properties({
           "input-scope":
             [
@@ -181,11 +222,15 @@ export function npmInventory(input, web, docs, licenses, webManifest) {
     };
   });
   return {
-    tool: bom.metadata.tools.components[0],
+    tool: {
+      type: "application",
+      name: "pnpm",
+      version: bom.metadata.tools.components[0].version,
+    },
     root: bom.metadata.component["bom-ref"],
     components: [
       {
-        ...bom.metadata.component,
+        ...publicNpmComponent(bom.metadata.component),
         properties: [property("input-scope", "pnpm-workspace")],
       },
       ...components,
@@ -542,16 +587,15 @@ async function main([mode, platform, bundleDir, output, ...unexpected]) {
   const revision = command("git", ["rev-parse", "HEAD"]);
   if (!/^[0-9a-f]{40}$/.test(revision))
     throw new Error("missing exact source revision");
-  // Pin the lock bytes to the same revision we report, including after a
-  // build command that may have attempted to rewrite the resolution.
-  command("git", [
-    "diff",
-    "--exit-code",
-    "HEAD",
-    "--",
-    "Cargo.lock",
-    "pnpm-lock.yaml",
-  ]);
+  // The inventory names HEAD. Refuse changes in any tracked input, including
+  // a lockfile rewritten by the preceding build.
+  try {
+    command("git", ["diff", "--quiet", "HEAD", "--"]);
+  } catch (error) {
+    throw new Error("release inventory requires a clean tracked checkout", {
+      cause: error,
+    });
+  }
   const cargoVersion = command("cargo", ["--version"]);
   const cargo = jsonCommand("cargo", [
     "metadata",
@@ -600,7 +644,10 @@ async function main([mode, platform, bundleDir, output, ...unexpected]) {
     cargoLock: sha256(await readFile("Cargo.lock")),
     pnpmLock: sha256(await readFile("pnpm-lock.yaml")),
   };
-  const { version } = await readJson("package.json");
+  const { version, packageManager } = await readJson("package.json");
+  if (packageManager !== `pnpm@${js.tool.version}`) {
+    throw new Error("inventory expects the workspace-pinned pnpm version");
+  }
   const bom = assembleBom({
     js,
     rust,

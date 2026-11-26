@@ -38,8 +38,10 @@ jobs:
         include:
           - platform: macos-latest
             artifact: macos
+            target: aarch64-apple-darwin
           - platform: windows-latest
             artifact: windows
+            target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -52,6 +54,9 @@ jobs:
           cache: pnpm
       - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
       - run: pnpm install --frozen-lockfile
+      # The inventory resolves every workspace member for the selected target.
+      # A desktop-only build need not cache source for the server members.
+      - run: cargo fetch --locked --target ${{ matrix.target }}
       - name: Build desktop bundles
         shell: bash
         run: pnpm --filter @voyalier/desktop exec tauri build --verbose --config '{"bundle":{"createUpdaterArtifacts":false}}'
@@ -80,11 +85,13 @@ jobs:
           # (owner decision D4: aarch64 only, not a universal binary).
           - platform: macos-latest
             artifact: macos
+            target: aarch64-apple-darwin
             attest: |
               target/release/bundle/macos/*.app.tar.gz
               target/release/bundle/dmg/*.dmg
           - platform: windows-latest
             artifact: windows
+            target: x86_64-pc-windows-msvc
             attest: |
               target/release/bundle/nsis/*-setup.exe
               target/release/bundle/msi/*.msi
@@ -118,6 +125,9 @@ jobs:
       # a poisoned target/ cache could run build.rs with the signing key in env.
       # The release job builds clean.
       - run: pnpm install --frozen-lockfile
+      # The inventory resolves every workspace member for the selected target.
+      # A desktop-only build need not cache source for the server members.
+      - run: cargo fetch --locked --target ${{ matrix.target }}
       - name: Build, sign, and draft the release
         uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1
         env:
