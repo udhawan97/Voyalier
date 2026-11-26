@@ -335,3 +335,95 @@ describe("UpdatesPanel", () => {
     expect(screen.getByText(/Running from source/)).toBeInTheDocument();
   });
 });
+
+describe("UpdatesPanel safety-copy preparation", () => {
+  it.each(["macos", "windows"] as const)(
+    "announces preparation and prevents duplicate %s activation",
+    async (platform) => {
+      let releaseBackup!: () => void;
+      const pending = new Promise<void>((resolve) => {
+        releaseBackup = resolve;
+      });
+      let releaseInstall!: () => void;
+      const installPending = new Promise<void>((resolve) => {
+        releaseInstall = resolve;
+      });
+      const updater = createMockUpdater({
+        platform,
+        hold: installPending,
+        settings: { [UPDATER_KEYS.consent]: "yes" },
+        onCheck: available("0.3.1"),
+      });
+      const originalBackup = updater.backup;
+      const backup = vi
+        .spyOn(updater, "backup")
+        .mockImplementation(async (label) => {
+          await pending;
+          return originalBackup(label);
+        });
+      const install = vi.spyOn(updater, "install");
+      render(<Harness updater={updater} />);
+      const button = await screen.findByRole("button", {
+        name:
+          platform === "windows"
+            ? "Update and restart"
+            : "Download and install",
+      });
+      button.focus();
+      fireEvent.click(button);
+      fireEvent.click(button);
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Verifying a local safety copy before updating…",
+      );
+      expect(
+        screen.queryByRole("button", {
+          name: /Download and install|Update and restart|Clear backups|Skip this version/,
+        }),
+      ).toBeNull();
+      expect(backup).toHaveBeenCalledTimes(1);
+      expect(install).not.toHaveBeenCalled();
+      await act(async () => {
+        releaseBackup();
+      });
+      expect(await screen.findByRole("progressbar")).toBeInTheDocument();
+      await act(async () => {
+        releaseInstall();
+      });
+      expect(await screen.findByText("Update installed")).toBeInTheDocument();
+      expect(install).toHaveBeenCalledTimes(1);
+      expect(
+        screen.getByRole("button", { name: "Restart Voyalier" }),
+      ).toHaveFocus();
+    },
+  );
+});
+
+it("returns focus to Retry when safety-copy preparation fails", async () => {
+  let rejectBackup!: (error: Error) => void;
+  const pending = new Promise<never>((_, reject) => {
+    rejectBackup = reject;
+  });
+  const updater = createMockUpdater({
+    settings: { [UPDATER_KEYS.consent]: "yes" },
+    onCheck: available("0.3.1"),
+  });
+  vi.spyOn(updater, "backup").mockReturnValue(pending);
+  const install = vi.spyOn(updater, "install");
+  render(<Harness updater={updater} />);
+  const button = await screen.findByRole("button", {
+    name: "Download and install",
+  });
+  button.focus();
+  fireEvent.click(button);
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "Verifying a local safety copy",
+  );
+  await act(async () => {
+    rejectBackup(new Error("locked workspace"));
+  });
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "could not verify a local safety copy",
+  );
+  expect(screen.getByRole("button", { name: "Try again" })).toHaveFocus();
+  expect(install).not.toHaveBeenCalled();
+});

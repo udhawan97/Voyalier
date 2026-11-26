@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createMockUpdater } from "./mockUpdater";
 import type { UpdateStatus } from "./types";
@@ -334,4 +334,159 @@ describe("useUpdater", () => {
     // navigator.onLine defaults to true in jsdom → the generic (non-offline) copy.
     expect((r2.current.phase as { reason: string }).reason).toBe("generic");
   });
+});
+
+describe("updater operation ownership", () => {
+  it.each(["macos", "windows"] as const)(
+    "owns backup through installation on %s and rejects competing actions",
+    async (platform) => {
+      let releaseBackup!: () => void;
+      let releaseInstall!: () => void;
+      const backupPending = new Promise<void>((resolve) => {
+        releaseBackup = resolve;
+      });
+      const installPending = new Promise<void>((resolve) => {
+        releaseInstall = resolve;
+      });
+      const gw = createMockUpdater({
+        platform,
+        settings: { [UPDATER_KEYS.consent]: "yes" },
+        onCheck: available("0.3.1"),
+        hold: installPending,
+      });
+      const originalBackup = gw.backup;
+      const backup = vi
+        .spyOn(gw, "backup")
+        .mockImplementation(async (label) => {
+          await backupPending;
+          return originalBackup(label);
+        });
+      const install = vi.spyOn(gw, "install");
+      const check = vi.spyOn(gw, "check");
+      const settings = vi.spyOn(gw, "setSetting");
+      const { result } = renderHook(() => useUpdater(gw));
+      await waitFor(() => expect(result.current.phase.name).toBe("available"));
+      check.mockClear();
+      settings.mockClear();
+      let first!: Promise<void>;
+      const competingActions = async () => {
+        await result.current.install();
+        await result.current.check();
+        await result.current.skip();
+        await result.current.unskip();
+        await result.current.answerConsent(false);
+        await result.current.restart();
+        await expect(result.current.clearBackups()).rejects.toThrow();
+      };
+      await act(async () => {
+        first = result.current.install();
+        await competingActions();
+      });
+      expect(result.current.phase.name).toBe("preparing");
+      expect(backup).toHaveBeenCalledTimes(1);
+      expect(install).not.toHaveBeenCalled();
+      expect(check).not.toHaveBeenCalled();
+      expect(settings).not.toHaveBeenCalled();
+      expect(gw.clearBackupsCalls).toBe(0);
+      expect(gw.relaunchCalls).toBe(0);
+      expect(result.current.autoCheck).toBe(true);
+      await act(async () => {
+        releaseBackup();
+      });
+      await waitFor(() => expect(result.current.phase.name).toBe("installing"));
+      await act(async () => {
+        await competingActions();
+      });
+      expect(result.current.phase.name).toBe("installing");
+      expect(backup).toHaveBeenCalledTimes(1);
+      expect(install).toHaveBeenCalledTimes(1);
+      expect(check).not.toHaveBeenCalled();
+      expect(settings).not.toHaveBeenCalled();
+      expect(gw.clearBackupsCalls).toBe(0);
+      expect(gw.relaunchCalls).toBe(0);
+      await act(async () => {
+        releaseInstall();
+        await first;
+      });
+      expect(result.current.phase).toEqual({
+        name: "staged",
+        version: "0.3.1",
+      });
+      expect(gw.store.get(UPDATER_KEYS.stagedVersion)).toBe(
+        platform === "macos" ? "0.3.1" : undefined,
+      );
+    },
+  );
+
+  it.each(["backup", "install"] as const)(
+    "releases ownership after %s failure for an intentional retry",
+    async (failure) => {
+      const gw = createMockUpdater({
+        settings: { [UPDATER_KEYS.consent]: "yes" },
+        onCheck: available("0.3.1"),
+      });
+      const backup = vi.spyOn(gw, "backup");
+      const install = vi.spyOn(gw, "install");
+      if (failure === "backup")
+        backup.mockRejectedValueOnce(new Error("locked"));
+      else install.mockRejectedValueOnce(new Error("download failed"));
+      const { result } = renderHook(() => useUpdater(gw));
+      await waitFor(() => expect(result.current.phase.name).toBe("available"));
+      await act(async () => {
+        await result.current.install();
+      });
+      expect(result.current.phase).toEqual({
+        name: "error",
+        reason: failure === "backup" ? "backup" : "generic",
+      });
+      expect(install).toHaveBeenCalledTimes(failure === "backup" ? 0 : 1);
+      await act(async () => {
+        await result.current.check();
+      });
+      expect(result.current.phase.name).toBe("available");
+      await act(async () => {
+        await result.current.install();
+      });
+      expect(result.current.phase.name).toBe("staged");
+      expect(backup).toHaveBeenCalledTimes(2);
+      expect(install).toHaveBeenCalledTimes(failure === "backup" ? 1 : 2);
+    },
+  );
+});
+
+it("does not start installation while an earlier settings write owns the controller", async () => {
+  const gw = createMockUpdater({
+    settings: { [UPDATER_KEYS.consent]: "yes" },
+    onCheck: available("0.3.1"),
+  });
+  const { result } = renderHook(() => useUpdater(gw));
+  await waitFor(() => expect(result.current.phase.name).toBe("available"));
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const original = gw.setSetting;
+  vi.spyOn(gw, "setSetting").mockImplementationOnce(async (key, value) => {
+    await pending;
+    await original(key, value);
+  });
+  let skip!: Promise<void>;
+  await act(async () => {
+    skip = result.current.skip();
+    await result.current.install();
+  });
+  expect(gw.backupCalls).toHaveLength(0);
+  await act(async () => {
+    release();
+    await skip;
+  });
+  expect(result.current.phase).toMatchObject({
+    name: "available",
+    skipped: true,
+  });
+  await act(async () => {
+    await result.current.install();
+  });
+  expect(gw.backupCalls).toHaveLength(1);
+  expect(result.current.phase.name).toBe("staged");
 });

@@ -61,7 +61,12 @@ export function UpdatesPanel() {
   const primaryRef = useRef<HTMLButtonElement>(null);
   const restoreFocus = useRef(false);
   useEffect(() => {
-    if (phase.name !== "checking" && restoreFocus.current) {
+    if (
+      phase.name !== "checking" &&
+      phase.name !== "preparing" &&
+      phase.name !== "installing" &&
+      restoreFocus.current
+    ) {
       restoreFocus.current = false;
       primaryRef.current?.focus();
     }
@@ -71,6 +76,10 @@ export function UpdatesPanel() {
     restoreFocus.current = true;
     void check();
   }, [check]);
+  const runInstall = useCallback(() => {
+    restoreFocus.current = true;
+    void install();
+  }, [install]);
   const runConsent = useCallback(
     (allow: boolean) => {
       restoreFocus.current = true;
@@ -79,9 +88,9 @@ export function UpdatesPanel() {
     [answerConsent],
   );
   const runClearBackups = useCallback(() => {
-    void clearBackups().then((count) =>
-      announce(plural("updates.backupsCleared", count)),
-    );
+    void clearBackups()
+      .then((count) => announce(plural("updates.backupsCleared", count)))
+      .catch(() => announce(t("updates.error.generic")));
   }, [clearBackups, announce]);
 
   function body() {
@@ -149,11 +158,7 @@ export function UpdatesPanel() {
               </div>
             ) : null}
             <div className="voy-updates__actions">
-              <Button
-                ref={primaryRef}
-                variant="primary"
-                onClick={() => void install()}
-              >
+              <Button ref={primaryRef} variant="primary" onClick={runInstall}>
                 {windows ? t("updates.installWin") : t("updates.install")}
               </Button>
               {phase.skipped ? (
@@ -172,6 +177,13 @@ export function UpdatesPanel() {
               )}
             </div>
           </div>
+        );
+
+      case "preparing":
+        return (
+          <p className="voy-updates__lead" role="status">
+            {t("updates.preparing")}
+          </p>
         );
 
       case "installing": {

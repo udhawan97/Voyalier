@@ -29,6 +29,7 @@ export type UpdaterPhase =
       notes: string | null;
       skipped: boolean;
     }
+  | { name: "preparing"; version: string }
   | { name: "installing"; version: string; progress: UpdateProgress | null }
   | { name: "staged"; version: string } // downloaded, awaiting restart
   | { name: "error"; reason: "offline" | "generic" | "backup" }
@@ -73,7 +74,10 @@ export function useUpdater(gateway: UpdaterGateway): UpdaterController {
   const [mode, setMode] = useState<UpdaterMode>(
     gateway.kind === "unsupported" ? "browser" : "packaged",
   );
-  const currentVersion = useRef<string | null>(null);
+  // React state does not change synchronously with a click. This owner covers
+  // the first backup await as well as download/install and metadata writes.
+  // Other actions also hold it so an older completion cannot overwrite install.
+  const operationPending = useRef(false);
   const [justUpdated, setJustUpdated] = useState<string | null>(null);
   const [autoCheck, setAutoCheck] = useState(false);
 
@@ -96,10 +100,11 @@ export function useUpdater(gateway: UpdaterGateway): UpdaterController {
       : "generic";
 
   const check = useCallback(async () => {
+    if (operationPending.current) return;
+    operationPending.current = true;
     setPhase({ name: "checking" });
     try {
       const status = await gateway.check();
-      currentVersion.current = status.currentVersion;
       if (status.availability === "disabled") {
         setMode("devShell");
         setPhase({ name: "disabled" });
@@ -150,30 +155,31 @@ export function useUpdater(gateway: UpdaterGateway): UpdaterController {
         .catch(() => null);
       if (staged) setPhase({ name: "staged", version: staged });
       else setPhase({ name: "error", reason: errorReason() });
+    } finally {
+      operationPending.current = false;
     }
   }, [gateway, reconcileStaged]);
 
   const install = useCallback(async () => {
-    const version =
-      phase.name === "available"
-        ? phase.version
-        : (currentVersion.current ?? "");
+    if (operationPending.current || phase.name !== "available") return;
+    operationPending.current = true;
+    const version = phase.version;
+    setPhase({ name: "preparing", version });
     try {
-      // Pre-update safety net before we touch the bundle.
-      await gateway.backup(version ? `v${version}` : "pre-update");
-    } catch {
-      setPhase({ name: "error", reason: "backup" });
-      return;
-    }
-    try {
+      try {
+        // Fail closed before touching the bundle, retaining the operation owner
+        // even when a large or protected workspace takes time to authenticate.
+        await gateway.backup(`v${version}`);
+      } catch {
+        setPhase({ name: "error", reason: "backup" });
+        return;
+      }
       setPhase({ name: "installing", version, progress: null });
       if (gateway.platform === "windows") {
-        // The process exits during install and NSIS relaunches the app — this
-        // call typically never resolves, and there is no "restart to finish"
-        // state on Windows. So we deliberately do NOT stream progress or persist
-        // stagedVersion here; if it does resolve, fall through to a staged view.
-        await gateway.install();
-        setPhase({ name: "staged", version });
+        // NSIS normally exits and relaunches the process; retain ownership for
+        // the whole pending call. Do not persist a macOS-style restart marker.
+        const outcome = await gateway.install();
+        setPhase({ name: "staged", version: outcome.version });
       } else {
         const outcome = await gateway.install((progress) =>
           setPhase((prev) =>
@@ -185,38 +191,71 @@ export function useUpdater(gateway: UpdaterGateway): UpdaterController {
       }
     } catch {
       setPhase({ name: "error", reason: errorReason() });
+    } finally {
+      operationPending.current = false;
     }
   }, [gateway, phase]);
 
   const restart = useCallback(async () => {
-    // Clear the staged marker before relaunching so the next launch doesn't keep
-    // showing "restart to finish" (§8) — this covers the consent="no" path,
-    // where a live check never runs to reconcile it.
-    await gateway.setSetting(UPDATER_KEYS.stagedVersion, "").catch(() => {});
-    await gateway.relaunch().catch(() => {});
+    if (operationPending.current) return;
+    operationPending.current = true;
+    try {
+      // Clear the staged marker before relaunching (including consent=no).
+      await gateway.setSetting(UPDATER_KEYS.stagedVersion, "").catch(() => {});
+      await gateway.relaunch().catch(() => {});
+    } finally {
+      operationPending.current = false;
+    }
   }, [gateway]);
 
   const skip = useCallback(async () => {
-    if (phase.name !== "available") return;
-    await gateway.setSetting(UPDATER_KEYS.skippedVersion, phase.version);
-    setPhase({ ...phase, skipped: true });
+    if (operationPending.current || phase.name !== "available") return;
+    operationPending.current = true;
+    try {
+      await gateway.setSetting(UPDATER_KEYS.skippedVersion, phase.version);
+      setPhase({ ...phase, skipped: true });
+    } finally {
+      operationPending.current = false;
+    }
   }, [gateway, phase]);
 
   const unskip = useCallback(async () => {
-    if (phase.name !== "available") return;
-    await gateway.setSetting(UPDATER_KEYS.skippedVersion, "");
-    setPhase({ ...phase, skipped: false });
+    if (operationPending.current || phase.name !== "available") return;
+    operationPending.current = true;
+    try {
+      await gateway.setSetting(UPDATER_KEYS.skippedVersion, "");
+      setPhase({ ...phase, skipped: false });
+    } finally {
+      operationPending.current = false;
+    }
   }, [gateway, phase]);
 
   const answerConsent = useCallback(
     async (allow: boolean) => {
-      await gateway.setSetting(UPDATER_KEYS.consent, allow ? "yes" : "no");
-      setAutoCheck(allow);
+      if (operationPending.current) return;
+      operationPending.current = true;
+      try {
+        await gateway.setSetting(UPDATER_KEYS.consent, allow ? "yes" : "no");
+        setAutoCheck(allow);
+        if (!allow) setPhase({ name: "idle" });
+      } finally {
+        operationPending.current = false;
+      }
       if (allow) await check();
-      else setPhase({ name: "idle" });
     },
     [gateway, check],
   );
+
+  const clearBackups = useCallback(async () => {
+    if (operationPending.current)
+      throw new Error("update operation in progress");
+    operationPending.current = true;
+    try {
+      return await gateway.clearBackups();
+    } finally {
+      operationPending.current = false;
+    }
+  }, [gateway]);
 
   // Mount: pick up a staged update, then honor the one-time consent answer.
   useEffect(() => {
@@ -273,6 +312,6 @@ export function useUpdater(gateway: UpdaterGateway): UpdaterController {
     skip,
     unskip,
     answerConsent,
-    clearBackups: () => gateway.clearBackups(),
+    clearBackups,
   };
 }

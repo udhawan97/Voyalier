@@ -1646,6 +1646,7 @@ const en = {
   "updates.installWin": "Update and restart",
   "updates.installWin.note":
     "Voyalier will close, update, and reopen (under a minute).",
+  "updates.preparing": "Verifying a local safety copy before updating…",
   "updates.installing": "Downloading update…",
   "updates.installingWin": "Installing — Voyalier will close and reopen.",
   "updates.progress.aria": "Update download progress",
@@ -3365,6 +3366,8 @@ const es: Record<MessageKey, string> = {
   "updates.installWin": "Actualizar y reiniciar",
   "updates.installWin.note":
     "Voyalier se cerrará, se actualizará y se volverá a abrir (en menos de un minuto).",
+  "updates.preparing":
+    "Verificando una copia de seguridad local antes de actualizar…",
   "updates.installing": "Descargando actualización…",
   "updates.installingWin":
     "Instalando — Voyalier se cerrará y se volverá a abrir.",
