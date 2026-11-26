@@ -13,3 +13,7 @@ Pin tauri-plugin-updater to official repository revision `ba98bfadc4c868c9a7e1a2
 ## Consequences
 
 This is a temporary immutable Git source pin for an existing dependency, under its existing Apache-2.0 OR MIT license. Builds require fetching that official revision once; cached builds remain offline. Runtime network behavior and privacy boundaries remain unchanged. Cargo.lock records the revision and archive resolution. Review all required Tauri transitive changes and run the complete local, macOS desktop and Windows gates. Replace the Git pin with a published patched registry release only through another reviewed lockfile update. No advisory ignores, security-feature removal, contract/storage changes, or release publication are authorized by this decision.
+
+## Amendment (2026-11-25)
+
+[Published updater 2.14.1](https://github.com/tauri-apps/plugins-workspace/releases/tag/updater-v2.14.1) includes the Windows zip 9 dependency. Restore the crates.io dependency and record its checksum in Cargo.lock. The published crate's Rust source matches the formerly pinned updater subtree. Its original manifest changes the package version and moves base64 from 0.22 to 0.23. The zip 9 requirement, minimum declared Rust 1.90, enabled features, application wrappers, fixed endpoints, user consent, and signature verification are preserved.

@@ -17,7 +17,7 @@ version = "0.12.0"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/udhawan97/Voyalier"
-rust-version = "1.85"
+rust-version = "1.89"
 
 # Argon2 is memory-hard by design; unoptimized it is ~1000x slower, which would
 # make the test suite take many minutes. Optimize just the crypto crates in dev
@@ -41,7 +41,7 @@ getrandom = "0.4"
 http = "1"
 jiff = { version = "0.2", features = ["serde"] }
 quick-xml = "0.42"
-rusqlite = { version = "0.40", features = ["bundled"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 semver = "1"
@@ -54,4 +54,4 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 unicode-normalization = "0.1"
 uuid = { version = "1", features = ["serde", "v4"] }
-url = "2"
+url = "2.5.9"
