@@ -141,15 +141,15 @@ function TripIdeaCard({
         <h2 className="voy-tripcard__title">
           {draft.title ?? `${draft.origin} → ${draft.destination}`}
         </h2>
-        <span className="voy-badge">Dates undecided</span>
+        <span className="voy-badge">{t("tripIdeas.undecided")}</span>
       </div>
       <p className="voy-tripcard__route">
-        {tripRoute(draft.origin, draft.destination)} · {draft.partySize}{" "}
-        traveler(s)
+        {tripRoute(draft.origin, draft.destination)} ·{" "}
+        {plural("tripIdeas.travelers", draft.partySize)}
       </p>
       <div className="voy-form__row">
         <label className="voy-field">
-          <span className="voy-field__label">Start</span>
+          <span className="voy-field__label">{t("tripIdeas.start")}</span>
           <input
             className="voy-input"
             type="date"
@@ -158,7 +158,7 @@ function TripIdeaCard({
           />
         </label>
         <label className="voy-field">
-          <span className="voy-field__label">End</span>
+          <span className="voy-field__label">{t("tripIdeas.end")}</span>
           <input
             className="voy-input"
             type="date"
@@ -167,7 +167,7 @@ function TripIdeaCard({
           />
         </label>
       </div>
-      <p>No inventory or availability search runs while this is an idea.</p>
+      <p>{t("tripIdeas.noSearch")}</p>
       <div className="voy-tripcard__actions">
         <Button
           variant="primary"
@@ -175,10 +175,10 @@ function TripIdeaCard({
           disabled={!startDate || !endDate || startDate > endDate}
           onClick={() => onConvert(draft, startDate, endDate)}
         >
-          Build dated trip
+          {t("tripIdeas.convert")}
         </Button>
         <Button variant="ghost" disabled={busy} onClick={() => onDelete(draft)}>
-          Delete idea
+          {t("tripIdeas.delete")}
         </Button>
       </div>
     </article>
@@ -421,8 +421,8 @@ export function TripListView({
           className="voy-triplist__ideas"
           aria-labelledby="trip-ideas-title"
         >
-          <p className="voy-eyebrow">Saved without invented dates</p>
-          <h2 id="trip-ideas-title">Trip ideas</h2>
+          <p className="voy-eyebrow">{t("tripIdeas.eyebrow")}</p>
+          <h2 id="trip-ideas-title">{t("tripIdeas.title")}</h2>
           <div className="voy-triplist__grid">
             {intents.map((draft) => (
               <TripIdeaCard
@@ -515,7 +515,9 @@ export function TripListView({
           }}
           onDraftSaved={(draft) => {
             setShowCreate(false);
-            announce(`Saved ${draft.destination} as a trip idea.`);
+            announce(
+              t("tripIdeas.announce.saved", { destination: draft.destination }),
+            );
           }}
         />
       ) : null}

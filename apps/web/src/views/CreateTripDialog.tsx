@@ -9,7 +9,7 @@ import { MAX_LOCATION_LEN, countChars } from "@voyalier/contracts";
 
 import { useGateway } from "../app/context";
 import { describeError, tripFieldError } from "../app/format";
-import { t } from "../app/i18n";
+import { t, type MessageKey } from "../app/i18n";
 import { tripsScope, useRevalidate } from "../app/revalidate";
 import { usePlaceSuggestions } from "../app/usePlaceSuggestions";
 import { Banner } from "../components/Banner";
@@ -18,11 +18,18 @@ import { Combobox } from "../components/Combobox";
 import { Dialog } from "../components/Dialog";
 import { TextField } from "../components/fields";
 
+// Keep client validation in the active language even while an error is visible.
+// Server-supplied descriptions remain separate from product message keys.
+type FieldError = MessageKey | { message: string };
 interface FieldErrors {
-  origin?: string;
-  destination?: string;
-  dates?: string;
-  partySize?: string;
+  origin?: FieldError;
+  destination?: FieldError;
+  dates?: FieldError;
+  partySize?: FieldError;
+}
+
+function fieldErrorText(error: FieldError | undefined): string | undefined {
+  return typeof error === "string" ? t(error) : error?.message;
 }
 
 export function CreateTripDialog({
@@ -70,20 +77,20 @@ export function CreateTripDialog({
     const next: FieldErrors = {};
     const trimmedOrigin = origin.trim();
     const trimmedDestination = destination.trim();
-    if (!trimmedOrigin) next.origin = t("createTrip.origin.required");
+    if (!trimmedOrigin) next.origin = "createTrip.origin.required";
     else if (countChars(trimmedOrigin) > MAX_LOCATION_LEN)
-      next.origin = t("createTrip.tooLong");
+      next.origin = "createTrip.tooLong";
     if (!trimmedDestination)
-      next.destination = t("createTrip.destination.required");
+      next.destination = "createTrip.destination.required";
     else if (countChars(trimmedDestination) > MAX_LOCATION_LEN)
-      next.destination = t("createTrip.tooLong");
+      next.destination = "createTrip.tooLong";
     if (requireDates && (!startDate || !endDate))
-      next.dates = t("createTrip.dates.required");
+      next.dates = "createTrip.dates.required";
     else if (Boolean(startDate) !== Boolean(endDate))
-      next.dates = "Set both dates or leave both undecided.";
-    else if (startDate > endDate) next.dates = t("createTrip.dates.order");
+      next.dates = "createTrip.dates.partial";
+    else if (startDate > endDate) next.dates = "createTrip.dates.order";
     if (!Number.isInteger(partySize) || partySize < 1 || partySize > 20)
-      next.partySize = "Enter between 1 and 20 travelers.";
+      next.partySize = "createTrip.party.invalid";
     return next;
   }
 
@@ -170,7 +177,7 @@ export function CreateTripDialog({
           mapped.field === "origin" || mapped.field === "destination"
             ? mapped.field
             : "dates";
-        const rejected = { [key]: mapped.message } as FieldErrors;
+        const rejected = { [key]: { message: mapped.message } } as FieldErrors;
         setErrors(rejected);
         focusFirstInvalid(rejected);
       } else {
@@ -220,7 +227,7 @@ export function CreateTripDialog({
             {t("action.cancel")}
           </Button>
           <Button variant="secondary" busy={submitting} onClick={saveDraft}>
-            Save trip idea
+            {t("createTrip.saveIdea")}
           </Button>
           <Button
             variant="primary"
@@ -258,7 +265,7 @@ export function CreateTripDialog({
             clearIfFixed("origin", withinLimit(value));
           }}
           fetchSuggestions={fetchPlaceSuggestions}
-          error={errors.origin}
+          error={fieldErrorText(errors.origin)}
           required
           placeholder={t("createTrip.origin.placeholder")}
         />
@@ -271,7 +278,7 @@ export function CreateTripDialog({
             clearIfFixed("destination", withinLimit(value));
           }}
           fetchSuggestions={fetchPlaceSuggestions}
-          error={errors.destination}
+          error={fieldErrorText(errors.destination)}
           required
           placeholder={t("createTrip.destination.placeholder")}
         />
@@ -314,13 +321,13 @@ export function CreateTripDialog({
           </div>
           {errors.dates ? (
             <p className="voy-field__error" id="trip-dates-error" role="alert">
-              {errors.dates}
+              {fieldErrorText(errors.dates)}
             </p>
           ) : null}
         </div>
         <TextField
           id="trip-party-size"
-          label="Travelers"
+          label={t("createTrip.party.label")}
           type="number"
           min={1}
           max={20}
@@ -338,7 +345,7 @@ export function CreateTripDialog({
             id="trip-party-size-error"
             role="alert"
           >
-            {errors.partySize}
+            {fieldErrorText(errors.partySize)}
           </p>
         ) : null}
         {/* This one keeps its maxLength, unlike origin and destination above.
