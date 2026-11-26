@@ -3,6 +3,7 @@ $activationArguments = @($args)
 
 $ErrorActionPreference = 'Stop'
 $entrypointNotFound = -1073741511 # 0xc0000139
+. (Join-Path $PSScriptRoot 'windows-test-artifact.ps1')
 
 function Invoke-Captured {
     param([string]$Executable, [string[]]$Arguments, [int]$Timeout = 30000)
@@ -94,30 +95,21 @@ if ($activationArguments[0] -eq 'cargo') {
     if (-not $targetRoot -or -not [System.IO.Path]::IsPathFullyQualified($targetRoot)) {
         throw 'Cargo metadata must supply an absolute test target directory'
     }
-    $runner = @((Get-Command pwsh -ErrorAction Stop).Source, '-NoProfile', '-NonInteractive', '-File', $PSCommandPath, 'test', $targetRoot)
+    $runner = @((Get-Command pwsh -ErrorAction Stop).Source, '-NoProfile', '-NonInteractive', '-File', $PSCommandPath, 'test', $targetRoot, $testTarget)
     $runnerSetting = "target.$testTarget.runner=$($runner | ConvertTo-Json -Compress)"
     $cargoArguments = @('test', '--locked', '--config', $runnerSetting) + @($activationArguments | Select-Object -Skip 1)
     exit (Invoke-Streaming (Get-Command cargo -ErrorAction Stop).Source $cargoArguments)
 }
 if ($activationArguments[0] -ne 'test') { throw 'Unsupported activation mode' }
-if ($activationArguments.Count -lt 3 -or -not [System.IO.Path]::IsPathFullyQualified($activationArguments[1])) {
-    throw "The runner requires Cargo metadata's absolute target directory and exact test executable"
+if ($activationArguments.Count -lt 4) {
+    throw 'The runner requires Cargo metadata target directory, target triple and exact test executable'
 }
-$executable = [System.IO.Path]::GetFullPath($activationArguments[2])
-$harnessArguments = @($activationArguments | Select-Object -Skip 3)
-$target = $activationArguments[1]
-$target = [System.IO.Path]::GetFullPath($target).TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
-if (-not $executable.StartsWith($target, [System.StringComparison]::OrdinalIgnoreCase) -or
-    [System.IO.Path]::GetFileName($executable) -notmatch '^voyalier_desktop(_lib)?-[0-9a-f]{16}\.exe$' -or
-    [System.IO.Path]::GetDirectoryName($executable) -notmatch '[\\/](debug|release)[\\/]deps$') {
-    throw 'The runner accepts only exact hashed desktop test artifacts under Cargo target deps'
-}
+$targetRoot, $testTarget, $testExecutable = $activationArguments[1..3]
+$executable = Resolve-DesktopTestArtifact $targetRoot $testTarget $testExecutable
+$harnessArguments = @($activationArguments | Select-Object -Skip 4)
 Write-Host "[test-activation] source-sha256=$((Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash) harness-args=$($harnessArguments | ConvertTo-Json -Compress)"
 
 foreach ($executable in @($executable)) {
-    if ([System.IO.File]::GetAttributes($executable) -band [System.IO.FileAttributes]::ReparsePoint) {
-        throw 'The exact Cargo test artifact must not be a reparse point'
-    }
     $beforeHash = (Get-FileHash -LiteralPath $executable -Algorithm SHA256).Hash
     $baseline = Invoke-Captured $executable @('--list')
     Write-Host "[test-activation] executable=$([System.IO.Path]::GetFileName($executable)) before-sha256=$beforeHash list-before=$($baseline.ExitCode)"
@@ -178,9 +170,7 @@ foreach ($executable in @($executable)) {
         }
         Write-Host $control.Output
         if ((Get-FileHash -LiteralPath $executable -Algorithm SHA256).Hash -ne $beforeHash) { throw 'Original executable changed during the copy experiment' }
-        if ([System.IO.File]::GetAttributes($executable) -band [System.IO.FileAttributes]::ReparsePoint) {
-            throw 'The original test artifact became a reparse point'
-        }
+        [void](Resolve-DesktopTestArtifact $targetRoot $testTarget $executable)
         Add-ControlsDependency $mt.FullName $executable $dependencyPath $present
         $after = Read-Manifest $mt.FullName $executable $afterPath
         if (-not (Has-ControlsV6 $after)) { throw 'The test executable manifest does not request Common Controls V6' }
@@ -196,4 +186,5 @@ foreach ($executable in @($executable)) {
         }
     }
 }
+[void](Resolve-DesktopTestArtifact $targetRoot $testTarget $executable)
 exit (Invoke-Streaming $executable $harnessArguments)

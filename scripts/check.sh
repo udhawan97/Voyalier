@@ -26,6 +26,11 @@ stage_rust() {
 }
 
 stage_desktop() {
+  case "$(uname -s)" in
+  MINGW* | MSYS* | CYGWIN*)
+    pwsh -NoProfile -NonInteractive -File scripts/test-windows-test-artifact.ps1
+    ;;
+  esac
   cargo clippy --locked "${DESKTOP_CRATES[@]}" --all-targets -- -D warnings
   run_desktop_tests "${DESKTOP_CRATES[@]}"
   # `debug_assertions` is false here while Tauri still identifies this as an
