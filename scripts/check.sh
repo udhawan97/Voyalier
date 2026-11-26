@@ -55,11 +55,19 @@ stage_integration() {
   pnpm test:e2e
 }
 
+stage_sbom() {
+  node scripts/write-release-sbom.mjs "$@"
+}
+
 case "${1:-all}" in
 web) stage_web ;;
 rust) stage_rust ;;
 desktop) stage_desktop ;;
 integration) stage_integration ;;
+sbom)
+  shift
+  stage_sbom "$@"
+  ;;
 all)
   stage_web
   stage_rust
@@ -67,7 +75,7 @@ all)
   stage_integration
   ;;
 *)
-  echo "usage: $0 [all|web|rust|desktop|integration]" >&2
+  echo "usage: $0 [all|web|rust|desktop|integration|sbom]" >&2
   exit 2
   ;;
 esac
