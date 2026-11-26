@@ -12,8 +12,12 @@ No public release may be promoted merely because the build completed.
 - Traveler-owned planning stays separate from confirmed facts/readiness through
   save, edit, restart, backup/restore, brief, calendar, Today, and deletion.
 - Workspace search proves cross-trip provenance and excludes pending candidates.
-- System/English/Español switching applies immediately and persists after
-  relaunch without changing network behavior.
+- System/English/Español switching applies immediately to catalog-backed views
+  and persists after relaunch without changing network behavior. Under the owner's
+  2026-11-25 decision, the concierge cockpit retains its explicit English fallback
+  and English language annotations; verify and disclose that boundary rather than
+  claiming complete Spanish coverage. Trip-idea create/list controls are included
+  in the translated surface. Source and traveler text retain their language.
 
 ## Security and compliance
 

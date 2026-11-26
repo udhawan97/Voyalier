@@ -25,6 +25,20 @@ Voyalier is a private trip operating system. It turns fragmented research and co
 
 Blueprint, Discover, Plan, Documents, Readiness, Search, Settings, and Share.
 
+## Language scope
+
+System, English and Español select the catalog-backed interface language. The
+owner explicitly retained the concierge cockpit's English fallback on 2026-11-25:
+its controls and derived guidance remain English and identify their English
+regions for assistive technology. This is partial Spanish coverage, not complete
+product translation. Traveler-authored text, imported evidence and provider prose
+retain their original language. Trip-idea controls belong to the translated
+create/list flow; the fallback does not exempt those controls from localization.
+
+Language changes must preserve drafts, focus, source content and network behavior.
+Native relaunch persistence and spoken access remain release acceptance checks;
+annotating a region's language is not proof that it is accessible.
+
 ## Persona weights
 
 Recommendations are shaped by five adjustable interest weights over a shared,

@@ -4,15 +4,32 @@ Reviewed by 3 independent agents (Tauri-docs fact-check, user-flow gaps, privacy
 All facts verified against official Tauri v2 docs + plugin/tauri-action source. The owner decisions
 in §0 are resolved; build after the Phase-3 i18n migration wraps up (D5).
 
+## Current recovery boundary (2026-11-25)
+
+This document retains the original updater design below. Its D2 statement that a
+locked vault can install an update is **not the current implementation contract**.
+The [ADR-0026 safety-copy amendment](ADR-0026-local-snapshot-credential-lifetime.md#amendment--verify-the-pre-update-safety-copy-before-installation-2026-11-08)
+requires authentication of the completed snapshot before installation. A protected
+workspace must therefore be unlocked before that safety copy can succeed; updater
+metadata checks do not by themselves establish permission to install.
+
+The owner selected research into a safe locked-vault update path, without an
+unlock bypass. [The research record](../research/2026-11-25-locked-vault-updates.md)
+separates candidate designs from implemented behavior. Until a design is accepted
+and verified, retain the existing refusal, readable-copy requirement, historical
+snapshot custody and explicit update consent. Research does not authorize weaker
+backup checks or retention of an extra unwrapped data key.
+
 ## 0. OWNER decisions — RESOLVED (2026-07-11)
 
 - **D1 — Auto-check = one-time consent ask.** First launch of a packaged build asks once ("Check
   GitHub once a day for updates? Only release metadata is fetched; nothing about you or your trips
   is sent. [Yes] [No, I'll check manually]"). No network until answered → "network only on an
   explicit click" stays literally true. Persist the answer; never re-ask; toggle still in the panel.
-- **D2 — Vault-locked users CAN update.** The topbar pill renders pre-unlock and opens a minimal
-  update surface without unlocking (updates need zero trip data) → passphrase users still get
-  security fixes promptly.
+- **D2 — Historical intent: vault-locked users can update.** The topbar pill renders
+  pre-unlock and opens a minimal update surface. Installing while protected and
+  locked is currently refused by the later verified-safety-copy requirement above;
+  a safe alternative is research, not shipped behavior.
 - **D3 — Persistence = `app_settings` KV table** in voyalier-app (durable, testable,
   transport-agnostic; additive gateway methods). Not localStorage.
 - **D4 — Platforms = macOS (Apple Silicon / aarch64 only) + Windows.** NOT a universal binary
