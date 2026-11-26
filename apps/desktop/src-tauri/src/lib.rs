@@ -1789,6 +1789,28 @@ fn updater_error(_error: impl std::fmt::Display) -> AppError {
     AppError::new(ErrorCode::InternalUnexpected, "update operation failed")
 }
 
+/// One installation owner per app, shared by every IPC request. The operation
+/// runs in its own task: dropping the IPC waiter must not release this lock
+/// while the updater is still downloading or replacing the bundle.
+#[derive(Clone, Default)]
+struct UpdaterInstallOwner(std::sync::Arc<tauri::async_runtime::Mutex<()>>);
+
+impl UpdaterInstallOwner {
+    async fn run<T, F>(&self, operation: F) -> Result<T, AppError>
+    where
+        T: Send + 'static,
+        F: std::future::Future<Output = Result<T, AppError>> + Send + 'static,
+    {
+        let guard = self.0.clone().try_lock_owned().map_err(updater_error)?;
+        tauri::async_runtime::spawn(async move {
+            let _guard = guard;
+            operation.await
+        })
+        .await
+        .map_err(updater_error)?
+    }
+}
+
 /// Check GitHub Releases for a newer version. Endpoint + pubkey are fixed in
 /// config; no caller input is accepted.
 #[tauri::command]
@@ -1841,36 +1863,42 @@ async fn updater_install<R: tauri::Runtime>(
         ));
     }
 
-    use tauri::Emitter;
+    use tauri::{Emitter, Manager};
     use tauri_plugin_updater::UpdaterExt;
-    let updater = app.updater().map_err(updater_error)?;
-    let update = updater
-        .check()
+    let owner = app.state::<UpdaterInstallOwner>().inner().clone();
+    owner
+        .run(async move {
+            let updater = app.updater().map_err(updater_error)?;
+            let update = updater
+                .check()
+                .await
+                .map_err(updater_error)?
+                .ok_or_else(|| {
+                    AppError::new(
+                        ErrorCode::InternalUnexpected,
+                        "no update available to install",
+                    )
+                })?;
+            let version = update.version.clone();
+            let emitter = app.clone();
+            let mut downloaded: u64 = 0;
+            update
+                .download_and_install(
+                    move |chunk, total| {
+                        downloaded += chunk as u64;
+                        let _ = emitter
+                            .emit("updater://progress", UpdateProgress { downloaded, total });
+                    },
+                    || {},
+                )
+                .await
+                .map_err(updater_error)?;
+            Ok(InstallOutcome {
+                status: "staged",
+                version,
+            })
+        })
         .await
-        .map_err(updater_error)?
-        .ok_or_else(|| {
-            AppError::new(
-                ErrorCode::InternalUnexpected,
-                "no update available to install",
-            )
-        })?;
-    let version = update.version.clone();
-    let emitter = app.clone();
-    let mut downloaded: u64 = 0;
-    update
-        .download_and_install(
-            move |chunk, total| {
-                downloaded += chunk as u64;
-                let _ = emitter.emit("updater://progress", UpdateProgress { downloaded, total });
-            },
-            || {},
-        )
-        .await
-        .map_err(updater_error)?;
-    Ok(InstallOutcome {
-        status: "staged",
-        version,
-    })
 }
 
 /// Restart the app to finish a staged update. Uses the core relaunch API (no
@@ -1889,6 +1917,7 @@ fn builder<R: tauri::Runtime>(
         .manage(service)
         .manage(dialog_automation)
         .manage(RestoreInspectionStore::default())
+        .manage(UpdaterInstallOwner::default())
         .invoke_handler(tauri::generate_handler![
             health,
             create_trip,
@@ -3346,6 +3375,72 @@ mod tests {
             );
         }
         cleanup_database(database);
+    }
+
+    #[test]
+    fn updater_install_owner_releases_on_completion_and_failure() {
+        let owner = UpdaterInstallOwner::default();
+        tauri::async_runtime::block_on(async {
+            assert_eq!(owner.run(async { Ok(1) }).await.unwrap(), 1);
+            let failure = owner
+                .run::<(), _>(async { Err(updater_error("fixture")) })
+                .await;
+            assert_eq!(failure.unwrap_err().code, ErrorCode::InternalUnexpected);
+            assert_eq!(owner.run(async { Ok(2) }).await.unwrap(), 2);
+        });
+    }
+
+    #[test]
+    fn updater_install_owner_survives_cancelled_ipc_until_operation_finishes() {
+        for fails in [false, true] {
+            let owner = UpdaterInstallOwner::default();
+            let caller_owner = owner.clone();
+            let (started, ready) = std::sync::mpsc::channel();
+            let (resume, mut paused) = tauri::async_runtime::channel(1);
+            let (completed, finished) = std::sync::mpsc::channel();
+            let caller = tauri::async_runtime::spawn(async move {
+                caller_owner
+                    .run(async move {
+                        started.send(()).unwrap();
+                        paused.recv().await.unwrap();
+                        completed.send(()).unwrap();
+                        if fails {
+                            Err(updater_error("fixture"))
+                        } else {
+                            Ok(())
+                        }
+                    })
+                    .await
+            });
+            ready
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .unwrap();
+            tauri::async_runtime::block_on(async {
+                // A live overlapping caller is rejected before its body runs.
+                let overlap = owner
+                    .run::<(), _>(async { panic!("overlapping installation ran") })
+                    .await;
+                assert_eq!(overlap.unwrap_err().code, ErrorCode::InternalUnexpected);
+                caller.abort();
+                assert!(caller.await.is_err());
+                // Aborting the IPC request must leave the actual operation alive
+                // and retain ownership until its success or failure completes.
+                let overlap = owner
+                    .run::<(), _>(async { panic!("cancelled waiter released ownership") })
+                    .await;
+                assert_eq!(overlap.unwrap_err().code, ErrorCode::InternalUnexpected);
+                resume.send(()).await.unwrap();
+            });
+            finished
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .unwrap();
+            tauri::async_runtime::block_on(async {
+                // Join the lock after the fixture completes to observe the
+                // operation task dropping its guard, without a timing sleep.
+                drop(owner.0.lock().await);
+                assert_eq!(owner.run(async { Ok(3) }).await.unwrap(), 3);
+            });
+        }
     }
 
     #[test]
