@@ -16,10 +16,10 @@ function Resolve-DesktopTestArtifact {
 
     $relative = $absolute.Substring($target.Length) -replace '\\', '/'
     $profile = '(?:' + [regex]::Escape($TestTarget) + '/)?(?:debug|release)/'
-    # Cargo can run the lib test directly out of the package's build directory.
+    # Cargo can run desktop test harnesses directly out of the package's build directory.
     # Its directory and executable must carry the same Cargo artifact hash.
     $deps = '\A' + $profile + 'deps/voyalier_desktop(?:_lib)?-[0-9a-f]{16}\.exe\z'
-    $out = '\A' + $profile + 'build/voyalier-desktop/(?<hash>[0-9a-f]{16})/out/voyalier_desktop_lib-\k<hash>\.exe\z'
+    $out = '\A' + $profile + 'build/voyalier-desktop/(?<hash>[0-9a-f]{16})/out/voyalier_desktop(?:_lib)?-\k<hash>\.exe\z'
     if ($relative -notmatch $deps -and $relative -notmatch $out) {
         throw 'The runner accepts only exact hashed desktop test artifacts in a supported Cargo layout'
     }
@@ -34,4 +34,15 @@ function Resolve-DesktopTestArtifact {
         }
     }
     return $absolute
+}
+
+function Test-DesktopHarnessList {
+    param([string]$Executable, [int]$ExitCode, [string]$Output)
+
+    if ($ExitCode -ne 0) { return $false }
+    if ($Output -match '(?m)^.+:\s+test\r?$') { return $true }
+
+    # The binary entry point has no unit tests. The library must list tests.
+    return ([System.IO.Path]::GetFileName($Executable) -match '\Avoyalier_desktop-[0-9a-f]{16}\.exe\z') -and
+        ($Output.Trim() -ceq '0 tests, 0 benchmarks')
 }

@@ -165,8 +165,8 @@ foreach ($executable in @($executable)) {
         if (-not (Has-ControlsV6 $probeManifest)) { throw 'The diagnostic manifest does not request Common Controls V6' }
         $control = Invoke-Captured $probe @('--list')
         Write-Host "[test-activation] copy-after-sha256=$((Get-FileHash -LiteralPath $probe -Algorithm SHA256).Hash) list-copy-after=$($control.ExitCode)"
-        if ($control.ExitCode -ne 0 -or $control.Output -notmatch '(?m)^.+:\s+test\r?$') {
-            throw "V6 did not prove harness startup with existing tests: $($control.Output) $($control.Error)"
+        if (-not (Test-DesktopHarnessList $executable $control.ExitCode $control.Output)) {
+            throw "V6 did not prove the expected harness startup: $($control.Output) $($control.Error)"
         }
         Write-Host $control.Output
         if ((Get-FileHash -LiteralPath $executable -Algorithm SHA256).Hash -ne $beforeHash) { throw 'Original executable changed during the copy experiment' }
@@ -177,7 +177,7 @@ foreach ($executable in @($executable)) {
         $activated = Invoke-Captured $executable @('--list')
         Write-Host "[test-activation] after-sha256=$((Get-FileHash -LiteralPath $executable -Algorithm SHA256).Hash) manifest-after-sha256=$((Get-FileHash -LiteralPath $afterPath -Algorithm SHA256).Hash) list-after=$($activated.ExitCode)"
         Write-Host $after.OuterXml
-        if ($activated.ExitCode -ne 0 -or $activated.Output -notmatch '(?m)^.+:\s+test\r?$') { throw 'Activated original test harness did not start' }
+        if (-not (Test-DesktopHarnessList $executable $activated.ExitCode $activated.Output)) { throw 'Activated original test harness did not start' }
         Write-Host '[test-activation] copy experiment confirmed the V6 activation dependency; ordinary cargo tests must now pass'
     }
     finally {
