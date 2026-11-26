@@ -285,12 +285,12 @@ pub fn recommend_attributed_places(
     scored.truncate(limit);
 
     // Flag one pick from a different dimension than the top result as a wildcard.
-    if let Some(top_dimension) = scored.first().map(|rec| rec.dimension.clone()) {
-        if let Some(wild) = scored.iter_mut().find(|rec| rec.dimension != top_dimension) {
-            wild.wildcard = true;
-            wild.reasons
-                .push("A change of pace from your top picks".to_owned());
-        }
+    if let Some(top_dimension) = scored.first().map(|rec| rec.dimension.clone())
+        && let Some(wild) = scored.iter_mut().find(|rec| rec.dimension != top_dimension)
+    {
+        wild.wildcard = true;
+        wild.reasons
+            .push("A change of pace from your top picks".to_owned());
     }
 
     scored

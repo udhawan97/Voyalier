@@ -1218,13 +1218,13 @@ fn validate_lodging_payload(payload: &FactPayload) -> Result<(), AppError> {
         Some(value) => Some(parse_date(value, "checkoutDate")?),
         None => None,
     };
-    if let (Some(checkin), Some(checkout)) = (checkin, checkout) {
-        if checkin > checkout {
-            return Err(AppError::new(
-                ErrorCode::ValidationInvalidDateRange,
-                "checkinDate must be on or before checkoutDate",
-            ));
-        }
+    if let (Some(checkin), Some(checkout)) = (checkin, checkout)
+        && checkin > checkout
+    {
+        return Err(AppError::new(
+            ErrorCode::ValidationInvalidDateRange,
+            "checkinDate must be on or before checkoutDate",
+        ));
     }
     Ok(())
 }

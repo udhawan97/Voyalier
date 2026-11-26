@@ -186,17 +186,16 @@ pub fn validate_create_trip_item(
     input.notes = validate_optional(input.notes, "notes", MAX_PLANNING_NOTES_CHARS)?;
     input.start_at = validate_optional_datetime(input.start_at, "startAt")?;
     input.end_at = validate_optional_datetime(input.end_at, "endAt")?;
-    if let (Some(start), Some(end)) = (&input.start_at, &input.end_at) {
-        if end.parse::<DateTime>().expect("validated end")
+    if let (Some(start), Some(end)) = (&input.start_at, &input.end_at)
+        && end.parse::<DateTime>().expect("validated end")
             < start.parse::<DateTime>().expect("validated start")
-        {
-            return Err(AppError::with_detail(
-                ErrorCode::ValidationInvalidDateRange,
-                "trip item end must not precede its start",
-                "field",
-                "endAt",
-            ));
-        }
+    {
+        return Err(AppError::with_detail(
+            ErrorCode::ValidationInvalidDateRange,
+            "trip item end must not precede its start",
+            "field",
+            "endAt",
+        ));
     }
     Ok(input)
 }

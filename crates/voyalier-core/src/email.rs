@@ -246,12 +246,12 @@ fn decode_quoted_printable(input: &str) -> String {
                 continue;
             }
             // `=XX` hex byte.
-            if let (Some(h), Some(l)) = (chars.get(i + 1), chars.get(i + 2)) {
-                if let (Some(hi), Some(lo)) = (h.to_digit(16), l.to_digit(16)) {
-                    bytes.push((hi * 16 + lo) as u8);
-                    i += 3;
-                    continue;
-                }
+            if let (Some(h), Some(l)) = (chars.get(i + 1), chars.get(i + 2))
+                && let (Some(hi), Some(lo)) = (h.to_digit(16), l.to_digit(16))
+            {
+                bytes.push((hi * 16 + lo) as u8);
+                i += 3;
+                continue;
             }
             flush_bytes(&mut bytes, &mut out);
             out.push('=');

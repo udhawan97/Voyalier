@@ -120,21 +120,21 @@ impl Vault {
         if state.protected && state.key.is_none() {
             return Err(vault_locked_error());
         }
-        if state.escaped_plaintext {
-            if let Some(encoded) = stored.0.strip_prefix(PLAINTEXT_PREFIX) {
-                let bytes = BASE64.decode(encoded).map_err(|_| {
-                    AppError::new(
-                        ErrorCode::StorageFailure,
-                        "the escaped plaintext field is corrupt",
-                    )
-                })?;
-                return String::from_utf8(bytes).map_err(|_| {
-                    AppError::new(
-                        ErrorCode::StorageFailure,
-                        "the escaped plaintext field is not valid text",
-                    )
-                });
-            }
+        if state.escaped_plaintext
+            && let Some(encoded) = stored.0.strip_prefix(PLAINTEXT_PREFIX)
+        {
+            let bytes = BASE64.decode(encoded).map_err(|_| {
+                AppError::new(
+                    ErrorCode::StorageFailure,
+                    "the escaped plaintext field is corrupt",
+                )
+            })?;
+            return String::from_utf8(bytes).map_err(|_| {
+                AppError::new(
+                    ErrorCode::StorageFailure,
+                    "the escaped plaintext field is not valid text",
+                )
+            });
         }
         let Some(encoded) = stored.0.strip_prefix(VAULT_PREFIX) else {
             return Ok(stored.0.clone());

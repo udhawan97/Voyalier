@@ -53,10 +53,10 @@ impl SchemaSet {
             return;
         }
 
-        if let Some(enum_values) = schema.get("enum").and_then(Value::as_array) {
-            if !enum_values.iter().any(|enum_value| enum_value == value) {
-                errors.push(format!("{path}: value {value} was not in enum"));
-            }
+        if let Some(enum_values) = schema.get("enum").and_then(Value::as_array)
+            && !enum_values.iter().any(|enum_value| enum_value == value)
+        {
+            errors.push(format!("{path}: value {value} was not in enum"));
         }
 
         if let Some(any_of) = schema.get("anyOf").and_then(Value::as_array) {
@@ -106,10 +106,10 @@ impl SchemaSet {
             }
             Value::String(text) => self.validate_string(schema, text, path, errors),
             Value::Number(number) => {
-                if let Some(minimum) = schema.get("minimum").and_then(Value::as_i64) {
-                    if number.as_i64().unwrap_or(i64::MIN) < minimum {
-                        errors.push(format!("{path}: number was below minimum {minimum}"));
-                    }
+                if let Some(minimum) = schema.get("minimum").and_then(Value::as_i64)
+                    && number.as_i64().unwrap_or(i64::MIN) < minimum
+                {
+                    errors.push(format!("{path}: number was below minimum {minimum}"));
                 }
             }
             _ => {}

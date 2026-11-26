@@ -132,15 +132,14 @@ impl AppService {
         let connection = self.connection()?;
         self.records(&connection).trip(&input.trip_id)?;
         let label = validate_packing_label(&input.label)?;
-        if let Some(code) = input.suggestion_code.as_deref() {
-            if let Some(existing) = self
+        if let Some(code) = input.suggestion_code.as_deref()
+            && let Some(existing) = self
                 .records(&connection)
                 .packing_items(&input.trip_id)?
                 .into_iter()
                 .find(|item| item.suggestion_code.as_deref() == Some(code))
-            {
-                return Ok(existing);
-            }
+        {
+            return Ok(existing);
         }
         let now = now_rfc3339();
         let item = PackingItem {

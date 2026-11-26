@@ -141,10 +141,10 @@ fn score_haystack<'t>(haystack: &str, tokens: &'t [String]) -> (u32, u32, Option
         if count > 0 {
             matched += 1;
             occurrences = occurrences.saturating_add(count);
-            if let Some(position) = haystack.find(token.as_str()) {
-                if earliest.is_none_or(|(prev, _)| position < prev) {
-                    earliest = Some((position, token));
-                }
+            if let Some(position) = haystack.find(token.as_str())
+                && earliest.is_none_or(|(prev, _)| position < prev)
+            {
+                earliest = Some((position, token));
             }
         }
     }
